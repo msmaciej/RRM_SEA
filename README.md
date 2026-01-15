@@ -327,4 +327,46 @@ MIT License - Free to use, modify, distribute
 
 ---
 
+JSON SETTINGS EXAMPLES:
+
+Conservative JSON Settings 
+(Fewer trades, higher quality)
+
+{
+  "risk":  { "percent": 1.0 },
+  "indicators": {
+    "ema":  { "fast": 21, "slow": 89 }
+  },
+  "entry": {
+    "min_body_pips": 1.0,
+    "require_macd_align": true,
+    "require_rsi_filter": true
+  },
+  "exit": {
+    "sl_atr_multiplier": 3.0,
+    "tp_atr_multiplier": 6.0
+  }
+}
+
+Aggressive JSON Settings 
+(More trades, faster entries)
+
+{
+  "risk": { "percent": 3.0 },
+  "indicators": {
+    "ema":  { "fast": 8, "slow": 34 }
+  },
+  "entry": {
+    "min_body_pips": 0.3,
+    "require_macd_align": false,
+    "require_rsi_filter": false
+  },
+  "exit":  {
+    "sl_atr_multiplier": 1.5,
+    "tp_atr_multiplier": 3.0
+  }
+}
+
+---
+
 **Remember:  Simple systems that work > Complex systems that don't**
