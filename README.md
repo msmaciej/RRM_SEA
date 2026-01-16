@@ -1,4 +1,13 @@
-# RRM Simple EA v1.0
+# RRM Simple EA v1-0-000
+
+## Revisions Description
+
+vX-X-XXX
+ │ │ │
+ │ │ └─ Patch:  Documentation updates, fixes, clarifications
+ │ └─── Minor: New sections, reorganization, non-breaking changes
+ └───── Major: Core architecture changes (matches EA version)
+
 
 **Simplified Trading System for MetaTrader 5**
 
@@ -157,7 +166,7 @@ All settings in `SimpleEA_Settings.json`:
 
 ## Installation
 
-1. Copy `SimpleEA_v1.mq5` to `MQL5/Experts/`
+1. Copy `SimpleEA_vX-X-XXX.mq5` to `MQL5/Experts/`
 2. Copy `SimpleEA_Settings.json` to `MQL5/Files/`
 3. Ensure both files are UTF-16 LE with BOM
 4. Compile in MetaEditor
@@ -168,7 +177,7 @@ All settings in `SimpleEA_Settings.json`:
 ### Strategy Tester Setup
 
 1. **Open Strategy Tester** (Ctrl+R)
-2. **Select EA:** SimpleEA_v1
+2. **Select EA:** SimpleEA_v1-0-000
 3. **Symbol:** EURUSD (or your preferred pair)
 4. **Timeframe:** H1 or H4 recommended
 5. **Period:** 2024. 01.01 - 2024.12.31 (1 year)
@@ -318,11 +327,10 @@ These are **intentional simplifications**. Add complexity ONLY if backtesting pr
 ## Support
 
 - **Issues:** Create GitHub issue
-- **Questions:** See code comments in SimpleEA_v1.mq5
+- **Questions:** See code comments in SimpleEA_vX-X-XXX.mq5
 - **Modifications:** Test thoroughly before live deployment
 
 ## License
-
 MIT License - Free to use, modify, distribute
 
 ---
