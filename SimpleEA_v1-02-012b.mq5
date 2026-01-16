@@ -1,8 +1,8 @@
-﻿//+------------------------------------------------------------------+
-//|                                           SimpleEA_v1-02-012.mq5 |
-//|                                  Institutional Trading Solutions |
-//|             Full Production: Excel Reporting, Universal Lots     |
-//+------------------------------------------------------------------+
+﻿//+-------------------------------------------------------------------+
+//|                                           SimpleEA_v1-02-012b.mq5 |
+//|                                  Institutional Trading Solutions  |
+//|             Full Production: Excel Reporting, Universal Lots      |
+//+-------------------------------------------------------------------+
 #property copyright "SimpleEA Redesign v1.02.012"
 #property version   "102.012"
 #property strict
@@ -359,7 +359,8 @@ void GenerateReport() {
                                   start_str, 
                                   end_str);
                                   
-   int handle = FileOpen(filename, FILE_CSV|FILE_WRITE|FILE_ANSI|FILE_COMMON, ",");
+   //int handle = FileOpen(filename, FILE_CSV|FILE_WRITE|FILE_ANSI|FILE_COMMON, ",");
+   int handle = FileOpen(filename, FILE_CSV|FILE_WRITE|FILE_ANSI, ",");
    if(handle == INVALID_HANDLE) {
       Print("Report: Failed to write ", filename);
       return;
@@ -999,10 +1000,5 @@ Here is the summary of the expert critics in points, covering the SimpleEA_v1-02
 * Status: Production Ready.
 * Consensus: It is no longer just a "Simple EA" but a flexible Strategy Framework. It solves the "Rigidity Problem" where EAs fail when market conditions change.
 * Next Step: Proceed immediately to Backtesting and Optimization. Do not add new code features until performance data confirms the best "Voting" combinations.
-
-*/
-
-/*
-
 
 */
