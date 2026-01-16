@@ -1,11 +1,11 @@
-//+------------------------------------------------------------------+
-//|                                                  SimpleEA_v1.mq5 |
-//|                                         Simplified Trading System |
-//|                                                                    |
-//| PHILOSOPHY:  Simple, robust, fast.  One file, clear logic.          |
-//| INDICATORS: EMA, MACD, RSI, ATR, Pullback, Candle                |
-//| CONFIG: Input parameters (no external JSON needed)               |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// SimpleEA_v1-0-001.mq5
+// Simplified Trading System
+//
+// PHILOSOPHY:  Simple, robust, fast.  One file, clear logic.
+// INDICATORS: EMA, MACD, RSI, ATR, Pullback, Candle
+// CONFIG: Input parameters (no external JSON needed)
+//--------------------------------------------------------------------
 #property copyright "Simple EA"
 #property version   "1.10"
 #property strict
@@ -55,9 +55,9 @@ input double InpTrailMultiplier = 1.5;          // Trail distance (ATR multiplie
 //--- Global variables
 datetime g_last_bar_time = 0;
 
-//+------------------------------------------------------------------+
-//| Expert initialization                                             |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Expert initialization
+//--------------------------------------------------------------------
 int OnInit()
 {
     Print("=== SimpleEA v1.10 Initializing ===");
@@ -70,17 +70,17 @@ int OnInit()
     return INIT_SUCCEEDED;
 }
 
-//+------------------------------------------------------------------+
-//| Expert deinitialization                                           |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Expert deinitialization
+//--------------------------------------------------------------------
 void OnDeinit(const int reason)
 {
     Print("=== SimpleEA v1.10 Stopped ===");
 }
 
-//+------------------------------------------------------------------+
-//| Expert tick function                                              |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Expert tick function
+//--------------------------------------------------------------------
 void OnTick()
 {
     // Only trade on new bar (closed bar semantics)
@@ -103,9 +103,9 @@ void OnTick()
     }
 }
 
-//+------------------------------------------------------------------+
-//| Check if new bar formed                                           |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Check if new bar formed
+//--------------------------------------------------------------------
 bool IsNewBar()
 {
     datetime current_bar_time = iTime(_Symbol, PERIOD_CURRENT, 0);
@@ -116,10 +116,10 @@ bool IsNewBar()
     return false;
 }
 
-//+------------------------------------------------------------------+
-//| Main entry evaluation logic                                       |
-//| Returns: 1=BUY, -1=SELL, 0=NO SIGNAL                            |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Main entry evaluation logic
+// Returns: 1=BUY, -1=SELL, 0=NO SIGNAL
+//--------------------------------------------------------------------
 int EvaluateEntry()
 {
     // 1. Get current bar data (closed bar = shift 1)
@@ -163,9 +163,9 @@ int EvaluateEntry()
     return 0;
 }
 
-//+------------------------------------------------------------------+
-//| Calculate EMA                                                     |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Calculate EMA
+//--------------------------------------------------------------------
 double CalculateEMA(int period, int shift)
 {
     int handle = iMA(_Symbol, PERIOD_CURRENT, period, 0, MODE_EMA, PRICE_CLOSE);
@@ -181,9 +181,9 @@ double CalculateEMA(int period, int shift)
     return buffer[0];
 }
 
-//+------------------------------------------------------------------+
-//| Check spread filter                                               |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Check spread filter
+//--------------------------------------------------------------------
 bool CheckSpread()
 {
     double spread = (SymbolInfoDouble(_Symbol, SYMBOL_ASK) - 
@@ -192,9 +192,9 @@ bool CheckSpread()
     return (spread <= InpMaxSpreadPips * 10); // *10 for pips to points
 }
 
-//+------------------------------------------------------------------+
-//| Check ATR volatility filter                                       |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Check ATR volatility filter
+//--------------------------------------------------------------------
 bool CheckATRVolatility()
 {
     int handle = iATR(_Symbol, PERIOD_CURRENT, InpATRPeriod);
@@ -212,19 +212,19 @@ bool CheckATRVolatility()
     return (atr_pips >= InpMinATRPips);
 }
 
-//+------------------------------------------------------------------+
-//| Check candle body size                                            |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Check candle body size
+//--------------------------------------------------------------------
 bool CheckCandleBody(double open, double close)
 {
     double body_pips = MathAbs(close - open) / (_Point * 10);
     return (body_pips >= InpMinBodyPips);
 }
 
-//+------------------------------------------------------------------+
-//| Get trend direction from EMA stack                                |
-//| Returns: 1=BULLISH, -1=BEARISH, 0=NO TREND                       |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Get trend direction from EMA stack
+// Returns: 1=BULLISH, -1=BEARISH, 0=NO TREND
+//--------------------------------------------------------------------
 int GetTrendDirection(double ema_fast, double ema_mid1, double ema_mid2, double ema_slow)
 {
     // Bullish: EMAs stacked from fast (top) to slow (bottom)
@@ -238,9 +238,9 @@ int GetTrendDirection(double ema_fast, double ema_mid1, double ema_mid2, double 
     return 0; // Choppy/no trend
 }
 
-//+------------------------------------------------------------------+
-//| Check pullback to EMA                                             |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Check pullback to EMA
+//--------------------------------------------------------------------
 bool CheckPullback(int trend, double ema_pullback)
 {
     // Look back N bars to see if price touched the pullback EMA
@@ -261,9 +261,9 @@ bool CheckPullback(int trend, double ema_pullback)
     return false;
 }
 
-//+------------------------------------------------------------------+
-//| Check MACD alignment with trend                                   |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Check MACD alignment with trend
+//--------------------------------------------------------------------
 bool CheckMACDAlign(int trend)
 {
     int handle = iMACD(_Symbol, PERIOD_CURRENT, 
@@ -285,9 +285,9 @@ bool CheckMACDAlign(int trend)
     return false;
 }
 
-//+------------------------------------------------------------------+
-//| Check RSI filter (avoid extremes)                                 |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Check RSI filter (avoid extremes)
+//--------------------------------------------------------------------
 bool CheckRSIFilter(int trend)
 {
     int handle = iRSI(_Symbol, PERIOD_CURRENT, InpRSIPeriod, PRICE_CLOSE);
@@ -307,9 +307,9 @@ bool CheckRSIFilter(int trend)
     return false;
 }
 
-//+------------------------------------------------------------------+
-//| Open trade with calculated SL/TP                                  |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Open trade with calculated SL/TP
+//--------------------------------------------------------------------
 void OpenTrade(ENUM_ORDER_TYPE order_type)
 {
     // Calculate ATR for SL/TP
@@ -376,9 +376,9 @@ void OpenTrade(ENUM_ORDER_TYPE order_type)
     }
 }
 
-//+------------------------------------------------------------------+
-//| Manage open position (trailing stop, etc.)                        |
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// Manage open position (trailing stop, etc.)
+//--------------------------------------------------------------------
 void ManageOpenPosition()
 {
     if(! InpTrailStop) return;
@@ -429,4 +429,4 @@ void ManageOpenPosition()
         }
     }
 }
-//+------------------------------------------------------------------+
+//--------------------------------------------------------------------
