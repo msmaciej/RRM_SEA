@@ -1,8 +1,19 @@
 # Indicator Logic & Modes Reference
 
-This document details the specific logic implementation for every indicator available in **SimpleEA v1.02.005**.
+This document details the specific logic implementation for every indicator available in **SimpleEA v1.02**.
 
 ---
+
+## Indicator Families (Avoid Conflicts)
+*To prevent "echo chamber" signals, try to pick one tool from each family rather than three from the same family.*
+
+| Family | Indicators | Role | Risk of Overlap |
+| :--- | :--- | :--- | :--- |
+| **Momentum** | RSI, CCI, Stochastic, MACD | Detects overbought/oversold | **HIGH** (Pick 1) |
+| **Trend** | ADX, PSAR, EMA Signal | Detects direction strength | Medium |
+| **Structure** | Ross Hook, Pattern 1-2-3 | Detects breakouts | Low (Complimentary) |
+| **Volume** | MFI | Detects money flow | Low (Unique) |
+
 
 ## 1. Master Filters
 
