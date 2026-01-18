@@ -577,7 +577,7 @@ While both rely on fractals, their roles in your EA are now functionally differe
     * Detection: Check_P123 simply looks for Close > Recent Fractal High.
     * Application: It is the Aggressive Vote. It triggers even if the Moving Averages are still "tangled" or flat. It is designed to catch the Turn of the market.
 * The Ross Hook (Continuation):
-    * Logic: It is the first breakout that occurs after a 1-2-3 pattern has already established a trend.1  
+    * Logic: It is the first breakout that occurs after a 1-2-3 pattern has already established a trend.1
     * Detection: Check_Ross uses Check_P123 PLUS a Momentum Interlock.
     * Application: It is the Conservative Vote. It only triggers if the price breaks a fractal AND the Lead EMA slope is already pointing in your direction. It is designed to catch the Trend Momentum.
 
