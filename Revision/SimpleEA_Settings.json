@@ -1,7 +1,7 @@
 {
   "risk":  {
     "percent": 2.0,
-    "max_spread_pips": 2.0,
+    "max_spread_pips": 2. 0,
     "min_atr_pips": 5.0
   },
   
