@@ -1,6 +1,6 @@
-# SimpleEA v1.02 (014e1) - Indicator, Filter, and Mode Reference
+# SimpleEA v1.02.016b - Indicator, Filter, and Mode Reference
 
-This document describes the implemented logic for each filter, bias mode, voting check, and exit helper in **SimpleEA v1.02 (014e1)**.
+This document describes the implemented logic for each filter, bias mode, voting check, and exit helper in **SimpleEA v1.02.016b**.
 
 The EA is structured as:
 
@@ -65,24 +65,24 @@ If enabled, the EA allows trading only when the broker server hour (`TimeCurrent
 
 ### 1.2 Spread ceiling (`Inp_MaxSpreadPips`)
 
-Spread is computed in points:
+To keep the same user-facing units across common instruments, the EA normalizes spread into *pips* using a simple pip-size heuristic:
 
-`spread_points = (Ask - Bid) / _Point`
+- If `SYMBOL_DIGITS` is 5 or 3: `pip_size = _Point * 10`
+- If `SYMBOL_DIGITS` is 4 or 2: `pip_size = _Point`
+
+Then:
+
+`spread_pips = (Ask - Bid) / pip_size`
 
 Trade is blocked when:
 
-`spread_points > (Inp_MaxSpreadPips * 10.0)`
-
-Notes:
-
-- The `* 10` conversion matches the 5-digit / 3-digit FX convention (1 pip = 10 points).
-- On symbols where 1 pip is not 10 points, this threshold will be inaccurate.
+`spread_pips > Inp_MaxSpreadPips`
 
 ### 1.3 Minimum volatility (`Inp_MinATRPips`)
 
-ATR is converted to points and treated as "pips" for the threshold:
+ATR is normalized to pips using the same `pip_size` heuristic as the spread filter:
 
-`atr_pips = ATR / _Point`
+`atr_pips = ATR / pip_size`
 
 Trade is blocked when:
 
@@ -313,10 +313,10 @@ Implemented modes:
 - `TRAIL_NONE`: no trailing
 - `TRAIL_ATR`: trail by `ATR * Trail_Mult` using current Bid/Ask
 - `TRAIL_FRACTAL`: trail to the most recent confirmed swing fractal (buy: last lower fractal; sell: last upper fractal)
-
-Not implemented in this build:
-
-- `TRAIL_PSAR` (enum exists, but no PSAR trailing logic is coded)
+- `TRAIL_PSAR`: trail to Parabolic SAR (last confirmed value) plus optional cushion
+  - Uses PSAR with `InpPsarStep` / `InpPsarMax` on `PERIOD_CURRENT`
+  - Uses last confirmed value (shift=1) to avoid intra-bar repainting
+  - Applies cushion: buy `SL = PSAR - ATR * InpPsarTrailCushionATR`, sell `SL = PSAR + ATR * InpPsarTrailCushionATR`
 
 ### 5.5 Position sizing
 
@@ -347,3 +347,16 @@ Implementation summary:
 6. Normalize to broker constraints (`SYMBOL_VOLUME_MIN/MAX/STEP`) and round down to step.
 
 If sizing cannot be computed (missing tick value/size, SL disabled, etc.), the executor falls back to the **symbol minimum volume** and prints a throttled warning. The final volume is also reduced if required to satisfy **free-margin** constraints (via `OrderCalcMargin`).
+
+
+## PSAR trailing stop (TRAIL_PSAR)
+
+If `Inp_TrailMode = TRAIL_PSAR`, the executor updates stop-loss using the **last confirmed** PSAR dot (`shift=1`) plus a volatility-scaled cushion:
+
+- **BUY:** `SL = PSAR(1) − ATR(1) * InpPsarTrailCushionATR`
+- **SELL:** `SL = PSAR(1) + ATR(1) * InpPsarTrailCushionATR`
+
+Notes:
+- Uses `InpPsarStep` and `InpPsarMax` for the Parabolic SAR calculation.
+- Uses the same ATR snapshot as other exits (ATR read on the previous closed bar).
+- Intended primarily for trend presets; in choppy markets PSAR can tighten quickly and cause early exits.
