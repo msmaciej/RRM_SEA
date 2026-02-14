@@ -1,411 +1,379 @@
-# SimpleEA v1.02.016d — Preset-Driven Voting EA (MT5)
+# RRM SEA (Signal Engine Architecture) - Trading System
 
-**RRM_Simple EA** is a modular, institutional-grade Expert Advisor for MetaTrader 5 that combines **market bias (directional analysis)**, **multi-layered filters (risk/sessions/news/spread/volatility)**, and a **vote-based confirmation system** to determine optimal entry and trade management conditions.
+## Overview
 
-This project is specifically designed for **macOS + Wine + MT5** environments using **MQL5-only development** (no C++, no static locals, no lambdas).
+**RRM SEA** is a professional-grade algorithmic trading system for MetaTrader 5, implementing **Real Risk Money (RRM) methodology** combined with a modular signal engine architecture.
 
----
+## System Architecture
 
-## 📦 System Architecture
+### Signal Processing Pipeline
 
-### **Main EA Files**
-- **`SimpleEA_v1-02-016d_05-8b_RRM.mq5`** — Production-ready main EA (RRM build with optimized settings)
-- **`SimpleEA_v1-02-016d.mq5`** — Baseline version
-
-### **Core Modules (`.mqh` files)**
-- **`SEA_SignalEngine.mqh`** — Signal generation, voting logic, bias calculation, indicator management, and RRM gates
-- **`SEA_TradeExecutor.mqh`** — Trade execution, position sizing (risk-based + MA-compatible), SL/TP management, breakeven, trailing stops
-- **`SEA_Reporting.mqh`** — Strategy Tester CSV export with comprehensive metrics
-- **`SEA_UI.mqh`** — Real-time status panels and cockpit display (Settings + Position monitor)
-
-### **Configuration**
-- **`SimpleEA_Settings.json`** — Reference settings snapshot (documentation/backup)
-
-### **Additional Resources**
-- **`Calendar/`** — News event calendar data for fundamental filter
-- **`Sets/`** — Pre-configured `.set` files for Strategy Tester
-- **`Readme/`** — Detailed documentation and optimization results
-- **`Revision/`** — Development history and previous versions
-
----
-
-## 🎯 Core Trading Philosophy
-
-### **Decision Pipeline (Conceptual Flow)**
+The system uses a **9-step sequential pipeline** to generate and validate trading signals:
 
 ```
-1. SAFETY & MARKET FILTERS
-   ├─ Spread check (max pips)
-   ├─ ATR volatility gates (min/max)
-   ├─ Time/Session filters
-   ├─ News blackout window
-   └─ Optional HTF (Higher Timeframe) veto
-
-2. BIAS / MARKET DIRECTION
-   ├─ EMA-based trend analysis (4 EMAs: fast, mid1, mid2, slow)
-   ├─ Multiple strategies: Price Cross, EMA Golden Cross, Advanced Mapping
-   ├─ Dual-shift support (horizontal + vertical bar shifts)
-   └─ Output: +1 (buy) / -1 (sell) / 0 (neutral)
-
-3. VOTING LAYER (Confirmation)
-   ├─ EMA Signal vote
-   ├─ ADX (trend strength)
-   ├─ MACD (momentum alignment)
-   ├─ RSI (overbought/oversold zones)
-   ├─ CCI (cyclical indicator)
-   ├─ MFI (money flow/volume)
-   ├─ Stochastic (momentum oscillator)
-   ├─ Bollinger Bands (volatility squeeze)
-   ├─ PSAR (trend direction)
-   └─ Ross Hook (fractal breakout)
-   
-   Signal accepted if: votes >= VoteThreshold
-   (If VoteThreshold <= 1, voting is bypassed = bias-only mode)
-
-4. EXECUTION
-   ├─ Position sizing: Risk% or MA-compatible method
-   ├��� Margin safety checks
-   ├─ SL/TP placement (ATR-based)
-   └─ One-trade-per-symbol enforcement
-
-5. TRADE MANAGEMENT
-   ├─ Breakeven (ATR-triggered)
-   ├─ Trailing stops (ATR / PSAR / Fractal)
-   ├─ Optional close-on-reverse signal
-   └─ "Let profit run" capabilities
-```
-
----
-
-## 🛠️ Strategy Presets
-
-Presets provide **pre-configured strategy contracts** with automatic parameter overrides:
-
-| Preset | Description | Use Case |
-|--------|-------------|----------|
-| **PRESET_CUSTOM** | Manual control - no overrides | Full user customization |
-| **PRESET_MA_BENCHMARK** | MT5 "Moving Average" EA compatibility | Validation baseline |
-| **PRESET_TREND_REVERSAL** | Counter-trend/reversal logic | Reversal trading with confluence |
-| **PRESET_TREND_SCALP** | Intraday trend continuation | Fast scalping with tight risk |
-| **PRESET_TREND_SWING** | HTF-aligned trend following | Institutional swing trading |
-| **PRESET_RANGE_GRID** | Mean-reversion flavor | Conservative range trading |
-| **PRESET_RRM** | RRM trend pullback/reclaim | Trend bias + pullback + divergence |
-
-> **Note:** When using presets, check `Inp_PrintEffectiveConfig=true` to see actual applied values after overrides.
-
----
-
-## 🚀 Quick Start
-
-### **1. Installation**
-
-Copy files to your MT5 data folder:
-```
-MQL5/Experts/     → SimpleEA_v1-02-016d_05-8b_RRM.mq5
-MQL5/Include/     → SEA_SignalEngine.mqh, SEA_TradeExecutor.mqh, 
-                     SEA_Reporting.mqh, SEA_UI.mqh
-```
-
-### **2. Compilation**
-
-**Critical:** All `.mq5/.mqh/.json` files **MUST** be saved as **UTF-16 LE with BOM (FF FE)**
-
-Compile in MetaEditor:
-- Open the `.mq5` file
-- Press F7 or click "Compile"
-- Verify no errors in the Toolbox
-
-### **3. Attach to Chart or Strategy Tester**
-
-**Live/Demo Chart:**
-1. Drag EA onto chart
-2. Select `InpPreset` (e.g., PRESET_RRM, PRESET_TREND_SCALP)
-3. Enable visualization:
-   - `Inp_UI_ShowStatusPanel = true`
-   - `Inp_UI_ShowCockpitPanel = true`
-4. Configure risk: `InpRiskPercent` (default: 2.0%)
-
-**Strategy Tester:**
-1. Select EA in tester
-2. Choose symbol and timeframe
-3. Configure preset and parameters
-4. **Important:** Use **Stop → Start** after changing inputs (especially under macOS+Wine)
-5. Enable `Inp_PrintEffectiveConfig=true` to see diagnostic output
-
----
-
-## 📊 Key Configuration Parameters
-
-### **1. Risk Management**
-```cpp
-InpRiskPercent        = 2.0    // Risk per trade (%)
-InpMaxSpreadPips      = 3.0    // Maximum spread filter
-InpMinATRPips         = 5.0    // Minimum ATR volatility
-InpMaxATRPips         = 50.0   // Maximum ATR (prevents high-volatility entries)
-```
-
-### **2. Bias & Direction Source**
-```cpp
-InpPreset             = PRESET_RRM    // Strategy preset
-Inp_BiasEnabled       = true          // Enable bias calculation
-Inp_BiasMode          = BIAS_AUTO     // AUTO, PRICE_CROSS, or TREND
-Inp_EmaStrategy       = EMA_STRAT_2_CROSS_1_2  // EMA cross method
-```
-
-### **3. Voting System**
-```cpp
-Inp_VoteThreshold     = 3        // Required votes for entry (1 = bypass voting)
-Inp_Use_EmaSig        = true     // EMA signal vote
-Inp_Use_Adx           = true     // ADX trend strength vote
-Inp_Use_Macd          = true     // MACD momentum vote
-Inp_Use_Rsi           = false    // RSI zone vote
-Inp_Use_Cci           = false    // CCI vote
-Inp_Use_Mfi           = false    // MFI volume vote
-Inp_Use_Sto           = false    // Stochastic vote
-```
-
-### **4. Exit & Trade Management**
-```cpp
-Inp_SL_Mult           = 2.0      // Stop Loss (ATR multiplier, 0 = disabled)
-Inp_TP_Mult           = 4.0      // Take Profit (ATR multiplier, 0 = disabled)
-Inp_Use_BE            = true     // Enable breakeven
-Inp_BE_Trig           = 1.0      // Breakeven trigger (ATR)
-Inp_BE_Buff           = 0.1      // Breakeven buffer (ATR)
-Inp_TrailMode         = TRAIL_PSAR   // TRAIL_NONE, TRAIL_ATR, TRAIL_PSAR, TRAIL_FRACTAL
-Inp_Trail_Mult        = 3.0      // Trailing distance (ATR multiplier)
-Inp_CloseOnReverse    = false    // Close position on opposite signal
-```
-
-### **5. UI & Reporting**
-```cpp
-Inp_UI_ShowStatusPanel     = true   // Display status panel
-Inp_UI_ShowCockpitPanel    = true   // Display cockpit panel
-Inp_ExportCSV              = false  // Export Strategy Tester report
-Inp_PrintEffectiveConfig   = true   // Print effective settings (diagnostic)
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 1: PRE-FILTERS                                        │
+│  ├─ Spread check (MaxSpreadPips)                            │
+│  ├─ ATR volatility range (MinATR, MaxATR)                   │
+│  └─ Time/session filters                                    │
+│  → REJECT if any filter fails                               │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 2: MARKET BIAS DETERMINATION                          │
+│  ├─ Check EMA position: Fast vs Slow                        │
+│  ├─ Check EMA slopes: Both rising/falling?                  │
+│  ├─ Result: LONG (1), SHORT (-1), or NEUTRAL (0)           │
+│  └─ Strategy-dependent relaxation:                          │
+│      • STRAT_PAIR_CROSS: Only Fast slope required           │
+│      • Other strategies: Both slopes required               │
+│  → REJECT if NEUTRAL (no clear trend)                       │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 3: AUTOSTRAT ENTRY SIGNAL                             │
+│  ├─ STRAT_SINGLE_SLOPE: Single EMA direction                │
+│  ├─ STRAT_PRICE_CROSS: Price vs EMA                         │
+│  └─ STRAT_PAIR_CROSS: EMA crossover                         │
+│  → Generate entry_signal (1/-1/0)                           │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 4: SIGNAL VALIDATION                                  │
+│  ├─ Entry signal must match market bias                     │
+│  └─ If mismatch → REJECT                                    │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 5: HTF (Higher Timeframe) FILTER                      │
+│  ├─ Check HTF EMA slope                                     │
+│  └─ Must align with bias → or REJECT                        │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 6: RRM MANDATORY GATES (Optional)                     │
+│  ├─ RRM_RequirePullbackReclaim:                             │
+│  │   • Wait for price to pull back to Fast EMA             │
+│  │   • Then reclaim (cross back above/below)               │
+│  │   • Result: Better entry prices, fewer trades           │
+│  └─ RRM_RequireEmaDiv:                                      │
+│      • Require EMAs to be diverging (expanding)             │
+│      • Avoid entries during EMA convergence                 │
+│  → REJECT if enabled gates not satisfied                    │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 7: VOTING BYPASS CHECK                                │
+│  └─ If VoteThreshold <= 1 → ACCEPT (fast mode)              │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 8: INDICATOR VOTING                                   │
+│  ├─ Each enabled indicator votes if it agrees with bias:    │
+│  │   • EMA1 (price position)                                │
+│  │   • ADX (trend strength)                                 │
+│  │   • MACD (momentum)                                      │
+│  │   • CCI (momentum)                                       │
+│  │   • RSI (momentum zones)                                 │
+│  │   • Stochastic (momentum zones)                          │
+│  │   • PSAR (trend direction)                               │
+│  │   • Bollinger Bands (volatility)                         │
+│  │   • MFI (money flow)                                     │
+│  │   • P123 (pattern)                                       │
+│  │   • Ross Hook (pattern)                                  │
+│  └─ Count total votes                                       │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 9: FINAL DECISION                                     │
+│  ├─ If votes >= VoteThreshold → ACCEPT signal               │
+│  └─ Otherwise → REJECT                                      │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 💡 "Let Profit Run" Configuration
+## Key Concepts
 
-To maximize profit-taking while protecting gains:
+### 1. Market Bias vs Entry Signal
 
-1. **Disable Fixed TP:**
-   ```cpp
-   Inp_TP_Mult = 0.0   // Set to 0 to disable fixed take-profit
-   ```
+**Market Bias** = Primary trend filter
+- Determines if market is in LONG, SHORT, or NEUTRAL state
+- Based on EMA position and slope alignment
+- Acts as **master filter** - no trades against bias
 
-2. **Enable Trailing Stop:**
-   ```cpp
-   Inp_TrailMode = TRAIL_PSAR  // or TRAIL_ATR
-   Inp_Trail_Mult = 3.0        // Adjust distance
-   ```
+**Entry Signal** = Timing within bias context
+- Generated by AutoStrat strategy
+- Only evaluated if valid bias exists
+- Must match bias direction to be accepted
 
-3. **Enable Breakeven:**
-   ```cpp
-   Inp_Use_BE = true
-   Inp_BE_Trig = 1.0   // Trigger when 1x ATR in profit
-   Inp_BE_Buff = 0.1   // Small buffer above entry
-   ```
+### 2. AutoStrat Strategies
 
-4. **Disable Close-on-Reverse (for less noisy markets):**
-   ```cpp
-   Inp_CloseOnReverse = false
-   ```
+#### STRAT_PAIR_CROSS (EMA Crossover)
+- **Signal**: Fast EMA crosses above/below Slow EMA
+- **Bias Logic**: Relaxed - only requires Fast slope correct
+- **Best For**: Catching trend starts early
+- **Risk**: Can enter before trend fully established
 
-> **Note:** Some presets (including PRESET_RRM) may override these. Always verify with `Inp_PrintEffectiveConfig=true`.
+#### STRAT_PRICE_CROSS (Price vs EMA)
+- **Signal**: Price crosses above/below EMA
+- **Bias Logic**: Strict - requires both EMAs sloping correctly
+- **Best For**: Trending markets with pullbacks
+- **Risk**: Late entries if trend already strong
+
+#### STRAT_SINGLE_SLOPE (EMA Direction)
+- **Signal**: Single EMA turning up/down
+- **Bias Logic**: Strict - requires both EMAs sloping correctly
+- **Best For**: Fast-moving markets
+- **Risk**: Whipsaw in ranging conditions
+
+### 3. RRM Gates
+
+#### Pullback/Reclaim Gate
+```
+RRM_RequirePullbackReclaim = true
+```
+**What it does:**
+- Waits for price to pull back to Fast EMA (dip below in uptrend)
+- Requires price to reclaim EMA (cross back above)
+- Confirms trend continuation after pullback
+
+**Effect:**
+- ✅ Better entry prices (buy the dip)
+- ✅ Filters out weak momentum entries
+- ❌ Misses strong breakouts
+- ❌ Fewer total trades
+
+**When to use:** Lower timeframes, trending markets with regular pullbacks
+
+#### EMA Divergence Gate
+```
+RRM_RequireEmaDiv = true
+RRM_MinDivPips = 2.0
+```
+**What it does:**
+- Requires EMAs to be expanding (distance increasing)
+- Avoids entries during EMA convergence (weakening trend)
+
+**Effect:**
+- ✅ Confirms momentum acceleration
+- ❌ Misses early trend starts
 
 ---
 
-## 🎨 UI & Visualization
+## Configuration Guide
 
-### **Status Panel**
-Displays:
-- Preset mode and effective configuration
-- MA method, periods, and shifts
-- Bias mode and direction source
-- Vote threshold and enabled filters
-- Overrides and ignored flags
+### Basic Setup (Conservative - Option 1)
 
-### **Cockpit Panel**
-Real-time monitoring:
-- Current bar timestamp
-- Spread and ATR (in pips)
-- Risk sizing method
-- Last signal direction and bias
-- Voting status (or BYPASS)
-- Position info (side, volume, entry, P&L, SL/TP)
+```
+BiasMode = BIAS_AUTO
+BiasFastID = 2  // EMA3 (34)
+BiasSlowID = 3  // EMA4 (89)
+AutoStrat = STRAT_PAIR_CROSS
+VoteThreshold = 4
 
-### **Signal Markers**
-- Entry eligibility markers (per bar)
-- Executed trade markers (visual confirmation)
+Use_EmaSig = true
+Use_Macd = true
+Use_Cci = true
+Use_Psar = true
 
-### **Chart Indicator Management**
-When `Inp_UI_ManageChartIndicators=true`, the EA will automatically manage indicators on the chart for consistent visualization (recommended for Strategy Tester visual mode).
+RRM_RequirePullbackReclaim = false
+RRM_RequireEmaDiv = false
+```
+**Result:** High-quality trades, late entries, fewer signals
+
+### Early Entry Setup (Solution B)
+
+```
+BiasMode = BIAS_AUTO
+BiasFastID = 0  // EMA1 (5)  ← FASTER
+BiasSlowID = 1  // EMA2 (13) ← FASTER
+AutoStrat = STRAT_PRICE_CROSS
+VoteThreshold = 3
+
+Use_EmaSig = true
+Use_Macd = true
+Use_Adx = true
+```
+**Result:** Earlier entries, more trades, requires good filtering
+
+### Pullback Trading Setup (Option 4)
+
+```
+BiasMode = BIAS_AUTO
+BiasFastID = 1  // EMA2 (13)
+BiasSlowID = 2  // EMA3 (34)
+AutoStrat = STRAT_PRICE_CROSS
+VoteThreshold = 4
+
+RRM_RequirePullbackReclaim = true  ← KEY
+RRM_RequireEmaDiv = false
+
+Use_EmaSig = true
+Use_Macd = true
+Use_Cci = true
+Use_Psar = true
+```
+**Result:** Entries only after pullback confirmation, better prices
+
+### Crossover Early Entry (Option 3 - Enhanced)
+
+```
+BiasMode = BIAS_AUTO
+BiasFastID = 1  // EMA2 (13)
+BiasSlowID = 2  // EMA3 (34)
+AutoStrat = STRAT_PAIR_CROSS  ← Uses relaxed bias logic
+VoteThreshold = 3
+
+Use_EmaSig = true
+Use_Macd = true
+Use_Cci = true
+
+RRM_RequirePullbackReclaim = false
+```
+**Result:** Catches crossovers early (only Fast slope required for bias)
 
 ---
 
-## 📈 Strategy Tester CSV Reporting
+## Understanding Your Results
 
-### **Enable CSV Export:**
-```cpp
-Inp_ExportCSV = true
-Inp_ExportUseCommonFiles = false  // Keep false for macOS+Wine compatibility
+### Current Setup Analysis
+From your test log:
+```
+BiasFastID = 2 (EMA34)
+BiasSlowID = 3 (EMA89)
+AutoStrat = STRAT_PAIR_CROSS
+VoteThreshold = 4
 ```
 
-### **Report Contents:**
-- Test configuration (preset, bias mode, votes, overrides)
-- Core performance metrics (net profit, profit factor, Sharpe ratio)
-- Risk & drawdown statistics
-- Trade statistics (win rate, total trades)
-- Deal-by-deal history (time, type, volume, price, profit, balance)
+**Why only 1 trade:**
+- Using **slow EMAs** (34/89) for bias
+- Even with relaxed crossover logic, both EMAs are slow to respond
+- By the time they align, trend is well established
+- Late but high-quality entry
 
-### **File Location:**
-- **false (default):** `MT5/Tester/Agent-xxx/Files/`
-- **true:** `Common/Files/` (may not work reliably on macOS+Wine)
-
----
-
-## 🔧 Troubleshooting
-
-### **"Settings changed but behavior didn't"**
-✅ **Solution:** In Strategy Tester, use **Stop → Start** (not just restart)
-✅ Enable `Inp_PrintEffectiveConfig=true` to see what's actually being applied
-
-### **"Too many signal lines"**
-⚠️ These represent **eligible signals** per bar (not only executed trades)
-✅ Adjust marker display settings or use "execution only" visualization mode
-
-### **"No trades opening"**
-Check `LastReason` in the status panel or Expert log:
-- Spread veto (spread too high)
-- ATR veto (volatility too low or too high)
-- News/time veto (blackout period)
-- HTF veto (higher timeframe disagrees)
-- Insufficient votes (not enough confirmation)
-- Lot sizing = 0 (risk calculation failed or margin insufficient)
-- Bias = 0 (no directional conviction)
-
-### **"Indicators not showing on chart"**
-✅ Enable `Inp_UI_ManageChartIndicators=true`
-✅ Restart EA or use Stop → Start in tester
+**To get earlier entries:**
+1. Change to faster EMAs (5/13 or 13/34)
+2. Enable pullback logic for re-entries
+3. Lower vote threshold (but keep quality)
 
 ---
 
-## ⚙️ Development Notes (IMPORTANT)
+## File Structure
 
-### **Platform Constraints:**
-- **MQL5 ONLY** (no C++, no lambdas, no static locals)
-- **UTF-16 LE with BOM encoding** required for all `.mq5/.mqh/.json` files
-- Designed for **macOS + Wine + MT5** compatibility
-- Conservative file I/O (avoid `FILE_COMMON` unless verified)
-
-### **File Encoding Verification:**
-```bash
-# Check file encoding (macOS/Linux)
-file -I SimpleEA_v1-02-016d_05-8b_RRM.mq5
-
-# Should show: charset=utf-16le
-# First bytes should be: FF FE (BOM)
 ```
-
-### **Build Versioning:**
-```cpp
-#define SEA_BUILD_NUM 1020168
-#define SEA_BUILD_STR "1.02.016d-05-8_RRM"
+RRM_SEA/
+├── SimpleEA_v1-02-016d_05-8b_RRM.mq5    # Main EA
+├── SEA_SignalEngine.mqh                  # Core signal processing
+├── SEA_Config.mqh                        # Configuration structures
+├── SEA_RiskManager.mqh                   # Position sizing
+├── SEA_TradeManager.mqh                  # Trade execution
+├── README.md                             # This file
+└── README_INDICATORS.md                  # Indicator details
 ```
 
 ---
 
-## 📚 Additional Documentation
+## Trading Rules Summary
 
-- **`README_INDICATORS.md`** — Detailed indicator documentation and voting logic
-- **`Readme/README_SimpleEA_v1-01.md`** — Original system documentation
-- **`Readme/README_v1-02-014e1.md`** — Dual-shift elastic voting EA documentation
-- **`Readme/_sea_optimization_results_*.md`** — Optimization results and analysis
+### Entry Rules (ALL must pass)
+1. ✅ Spread within limit
+2. ✅ ATR within range (volatility OK)
+3. ✅ Market bias valid (LONG or SHORT, not NEUTRAL)
+4. ✅ Entry signal matches bias
+5. ✅ HTF filter passes (if enabled)
+6. ✅ RRM gates pass (if enabled)
+7. ✅ Indicator votes >= threshold
 
----
-
-## 🏆 Key Features & Differentiators
-
-✅ **Modular Architecture** — Cleanly separated concerns (Signal / Execution / Reporting / UI)  
-✅ **Preset-Driven** — Pre-configured strategies with automatic parameter management  
-✅ **Vote-Based Confirmation** — Reduces false signals through multi-indicator consensus  
-✅ **Dual Shift Support** — Horizontal (forward-looking) and vertical (bar shift) flexibility  
-✅ **RRM Strategy** — Specialized trend pullback/reclaim logic with divergence detection  
-✅ **Advanced Trade Management** — Breakeven, multiple trailing modes, close-on-reverse  
-✅ **macOS+Wine Optimized** — Designed specifically for constrained Wine/MT5 environments  
-✅ **Comprehensive Reporting** — Strategy Tester CSV export with full trade-by-trade detail  
-✅ **Real-Time Diagnostics** — Status and cockpit panels with live position monitoring  
+### Exit Rules
+- **Take Profit**: Fixed multiplier of ATR
+- **Stop Loss**: Fixed multiplier of ATR
+- **Break Even**: Move SL to BE after price moves X pips
+- **Trailing Stop**: Optional trailing based on ATR
 
 ---
 
-## 📋 System Requirements
+## Optimization Tips
 
-- **Platform:** MetaTrader 5 (build 3650+)
-- **Operating System:** Windows / macOS (via Wine)
-- **MQL5 Version:** Latest stable release
-- **Encoding:** UTF-16 LE with BOM for all source files
-- **Minimum Account:** $1000 recommended (for proper risk management)
+### For More Trades
+- Use faster EMAs (5/13 instead of 34/89)
+- Lower vote threshold (3 instead of 4)
+- Disable RRM gates
+- Enable more indicators (but keep threshold reasonable)
 
----
+### For Better Quality
+- Use slower EMAs (34/89)
+- Increase vote threshold
+- Enable RRM gates (pullback/divergence)
+- Add HTF filter
+- Enable ADX (trend strength filter)
 
-## ⚖️ Risk Disclaimer
-
-**Trading forex and CFDs involves substantial risk of loss.** This EA is provided for educational and research purposes. Past performance does not guarantee future results. Always test thoroughly in demo/backtest environments before live deployment.
-
----
-
-## 📝 Version History
-
-**v1.02.016d-05-8_RRM (Current)**
-- Full dual-shift support (horizontal + vertical)
-- RRM preset alignment with legacy controller
-- MaxATR upper volatility bound (TASK1 OPT)
-- PSAR trailing stop implementation
-- Enhanced UI panels with cockpit display
-- Build lock tokens for module version checking
+### For Better Entries
+- Enable RRM_RequirePullbackReclaim
+- Use STRAT_PRICE_CROSS with fast EMA
+- Combine fast entry EMA with slow bias EMAs (requires code mod)
 
 ---
 
-## 📞 Support & Contact
+## Diagnostic Tools
 
-**Repository:** [msmaciej/RRM_SEA](https://github.com/msmaciej/RRM_SEA)  
-**Description:** RRM_Simple EA - macOS + Wine + MT5 + MQL5 ONLY (no C++, no static locals, no lambdas)
-
----
-
-*Last updated: 2026-02-13 (aligned to SimpleEA v1-02-016d-05-8_RRM)*
-
----
-
-## 🎓 Quick Reference Card
-
-**Essential Checks Before Running:**
-1. ✅ Files saved as UTF-16 LE with BOM
-2. ✅ All `.mqh` files in `MQL5/Include/`
-3. ✅ Selected appropriate preset
-4. ✅ Risk% set appropriately (default: 2.0%)
-5. ✅ `Inp_PrintEffectiveConfig=true` for diagnostics
-
-**Recommended Starting Configuration (Conservative):**
-```cpp
-InpPreset          = PRESET_RRM
-InpRiskPercent     = 1.5
-Inp_VoteThreshold  = 3
-Inp_SL_Mult        = 2.0
-Inp_TP_Mult        = 0.0   // Let profit run
-Inp_TrailMode      = TRAIL_PSAR
-Inp_Use_BE         = true
+### Vote Logging
+In tester mode, the system logs detailed vote information:
+```
+VOTE_DETAIL[2026.02.09 09:00]: bias=1 v_shift=1 votes=4/4
+  | EMA1: p=1.18557 e=1.18418 PASS
+  | MACD: main=0.000628 sig=0.000396 PASS
+  | CCI: 211.57 PASS
+  | PSAR: sar=1.18255 cl=1.18557 PASS
 ```
 
-**Performance Metrics to Monitor:**
-- Win Rate > 40%
-- Profit Factor > 1.2
-- Max Drawdown < 20%
-- Sharpe Ratio > 0.5
-- Average trade count: 20-50 per month (depending on timeframe)
+**Use this to:**
+- See which indicators voted
+- Understand why trades were rejected
+- Optimize indicator combinations
+- Tune thresholds
+
+### Rejection Reasons
+The system provides clear rejection reasons:
+- `BIAS_DISABLED`: Bias checking turned off
+- `BIAS_ZERO`: No valid market bias (neutral/conflicting)
+- `HTF_VETO`: Higher timeframe doesn't agree
+- `RRM_PULLBACK`: Pullback gate not satisfied
+- `RRM_EMA_DIV`: EMA divergence gate not satisfied
+- `VOTES X/Y`: Insufficient indicator votes
 
 ---
 
-**Remember: Simple systems that work > Complex systems that don't**
+## Version
+
+**Current Version:** v1.02.016d-05-8b_RRM
+
+**Key Features:**
+- 9-step signal validation pipeline
+- Strategy-dependent bias logic (STRAT_PAIR_CROSS relaxed)
+- RRM mandatory gates (pullback/divergence)
+- Comprehensive indicator voting
+- Diagnostic logging for analysis
+- Modular architecture for easy customization
+
+**Recent Updates:**
+- ✅ Fixed STRAT_PAIR_CROSS bias logic (relaxed slow slope requirement)
+- ✅ Enhanced code documentation with process flow
+- ✅ Improved README with configuration examples
+- ✅ Added detailed RRM gate explanations
+
+---
+
+## Support
+
+For detailed indicator behavior, see `README_INDICATORS.md`
+
+For optimization strategies, see `Readme/_sea_optimization_scope_*.md`
+
+For code architecture details, see inline comments in `SEA_SignalEngine.mqh`
+
+---
+
+## License
+
+Copyright © 2026 - RRM SEA Trading System
