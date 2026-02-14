@@ -711,7 +711,6 @@ public:
       // 1. Check Filters First
       if(!CheckFilters()) return 0;
 
-
       // 1b. Master bias gate (BiasEnabled)
       if(!m_settings.BiasEnabled) { m_diag_last_reason="BIAS_DISABLED"; return 0; }
 
@@ -746,9 +745,30 @@ public:
                }
             }
             else {
+               // Strategy: PAIR CROSS with BOTH MAs SLOPE confirmation
                double f = GetMAVal(hf, v_shift, 0);
                double s = GetMAVal(hs, v_shift, 0);
-               bias = (f > s) ? 1 : (f < s) ? -1 : 0;
+               
+               // RRM FIX: Require position AND both EMAs slope alignment
+               // Get slopes of BOTH MAs
+               double f_prev = GetMAVal(hf, v_shift + 1, 0);
+               double s_prev = GetMAVal(hs, v_shift + 1, 0);
+               
+               int fast_slope = (f > f_prev) ? 1 : (f < f_prev) ? -1 : 0;
+               int slow_slope = (s > s_prev) ? 1 : (s < s_prev) ? -1 : 0;
+               
+               // Determine bias from position
+               int position_bias = (f > s) ? 1 : (f < s) ? -1 : 0;
+               
+               // ONLY allow bias when BOTH slopes match the position
+               // LONG: fast > slow AND both rising (uptrend)
+               // SHORT: fast < slow AND both falling (downtrend)
+               if(position_bias == 1 && fast_slope == 1 && slow_slope == 1)
+                  bias = 1;
+               else if(position_bias == -1 && fast_slope == -1 && slow_slope == -1)
+                  bias = -1;
+               else
+                  bias = 0;  // No clear trend - conflicting momentum
             }
          }
       } 
@@ -771,10 +791,30 @@ public:
             }
          }
          else {
-            // Strategy: PAIR CROSS (Default)
+            // Strategy: PAIR CROSS with BOTH MAs SLOPE confirmation
             double f = GetMAVal(hf, v_shift, 0);
             double s = GetMAVal(hs, v_shift, 0);
-            bias = (f > s) ? 1 : (f < s) ? -1 : 0;
+            
+            // RRM FIX: Require position AND both EMAs slope alignment
+            // Get slopes of BOTH MAs
+            double f_prev = GetMAVal(hf, v_shift + 1, 0);
+            double s_prev = GetMAVal(hs, v_shift + 1, 0);
+            
+            int fast_slope = (f > f_prev) ? 1 : (f < f_prev) ? -1 : 0;
+            int slow_slope = (s > s_prev) ? 1 : (s < s_prev) ? -1 : 0;
+            
+            // Determine bias from position
+            int position_bias = (f > s) ? 1 : (f < s) ? -1 : 0;
+            
+            // ONLY allow bias when BOTH slopes match the position
+            // LONG: fast > slow AND both rising (uptrend)
+            // SHORT: fast < slow AND both falling (downtrend)
+            if(position_bias == 1 && fast_slope == 1 && slow_slope == 1)
+               bias = 1;
+            else if(position_bias == -1 && fast_slope == -1 && slow_slope == -1)
+               bias = -1;
+            else
+               bias = 0;  // No clear trend - conflicting momentum
          }
       }
       
@@ -918,8 +958,6 @@ public:
       m_diag_last_reason = StringFormat("VOTES %d/%d", votes, m_settings.VoteThreshold);
       return 0; // Not enough consensus
    }
-   
-
 
    // --- RRM (Trend Pullback) helper checks ---
    int BiasFastHandle() {
@@ -990,7 +1028,6 @@ public:
       double p = GetMAVal(handle, 2);
       return (c > p) ? 1 : (c < p) ? -1 : 0;
    }
-
 
    // Expose primary MA handle (EMA1/SMA1) for chart attachment (benchmark visualization)
    int GetPrimaryMAHandle() const { return h_ema1; }
