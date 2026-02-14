@@ -1,4 +1,4 @@
-//+------------------------------------------------------------------+
+﻿//+------------------------------------------------------------------+
 //|                                  SEA_SignalEngine_v1-02-016d.mqh |
 //|                              MJS Institutional Trading Solutions |
 //|                                                                  |
@@ -702,7 +702,9 @@ public:
       return 0;
    }
 
-   int GetDirection() {
+   // === GetDirection: BEGIN ===
+   int GetDirection() 
+   {
       // Diagnostics reset (for Cockpit/UI)
       m_diag_last_bias   = 0;
       m_diag_last_votes  = 0;
@@ -727,94 +729,156 @@ public:
             bias = -1;
          else
          {
-            // SIDE_BOTH means: no manual restriction. Fall back to AUTO bias logic using the current mapping.
-            // (Keeps the existing architecture where bias is the master direction for voting alignment.)
+            // RRM RULE: Market Bias is the master filter
+            // LONG: Fast > Slow AND both EMAs rising
+            // SHORT: Fast < Slow AND both EMAs falling
+            // If neither condition met → bias = 0 (neutral/invalid, trade rejected)
+             
             int hf = (m_settings.BiasFastID==0)?h_ema1 : (m_settings.BiasFastID==1)?h_ema2 : (m_settings.BiasFastID==2)?h_ema3 : h_ema4;
             int hs = (m_settings.BiasSlowID==0)?h_ema1 : (m_settings.BiasSlowID==1)?h_ema2 : (m_settings.BiasSlowID==2)?h_ema3 : h_ema4;
-
-            if(m_settings.AutoStrat == STRAT_SINGLE_SLOPE) {
-               bias = GetSlope(hf);
-            }
-            else if(m_settings.AutoStrat == STRAT_PRICE_CROSS) {
-               if(m_settings.RequirePriceCross) {
-                  bias = PriceCrossDirection(hf, v_shift);
-               } else {
-                  double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-                  double ma    = GetMAVal(hf, v_shift, 0);
-                  bias = (price > ma) ? 1 : -1;
-               }
+            
+            // Get EMA values
+            double f_curr = GetMAVal(hf, v_shift, 0);
+            double f_prev = GetMAVal(hf, v_shift + 1, 0);
+            double s_curr = GetMAVal(hs, v_shift, 0);
+            double s_prev = GetMAVal(hs, v_shift + 1, 0);
+             
+            // Calculate slopes
+            int fast_slope = (f_curr > f_prev) ? 1 : (f_curr < f_prev) ? -1 : 0;
+            int slow_slope = (s_curr > s_prev) ? 1 : (s_curr < s_prev) ? -1 : 0;
+             
+            // === STEP 1: Determine Market Bias (Primary Filter) ===
+            int market_bias = 0;
+             
+            // LONG: Fast > Slow AND both rising
+            if(f_curr > s_curr && fast_slope == 1 && slow_slope == 1)
+               market_bias = 1;
+            // SHORT: Fast < Slow AND both falling
+            else if(f_curr < s_curr && fast_slope == -1 && slow_slope == -1)
+               market_bias = -1;
+            // ELSE: Neither condition met → market_bias = 0 (invalid/neutral)
+             
+            // If no valid market bias, reject immediately
+            if(market_bias == 0) {
+               bias = 0;
             }
             else {
-               // Strategy: PAIR CROSS with BOTH MAs SLOPE confirmation
-               double f = GetMAVal(hf, v_shift, 0);
-               double s = GetMAVal(hs, v_shift, 0);
-               
-               // RRM FIX: Require position AND both EMAs slope alignment
-               // Get slopes of BOTH MAs
-               double f_prev = GetMAVal(hf, v_shift + 1, 0);
-               double s_prev = GetMAVal(hs, v_shift + 1, 0);
-               
-               int fast_slope = (f > f_prev) ? 1 : (f < f_prev) ? -1 : 0;
-               int slow_slope = (s > s_prev) ? 1 : (s < s_prev) ? -1 : 0;
-               
-               // Determine bias from position
-               int position_bias = (f > s) ? 1 : (f < s) ? -1 : 0;
-               
-               // ONLY allow bias when BOTH slopes match the position
-               // LONG: fast > slow AND both rising (uptrend)
-               // SHORT: fast < slow AND both falling (downtrend)
-               if(position_bias == 1 && fast_slope == 1 && slow_slope == 1)
-                  bias = 1;
-               else if(position_bias == -1 && fast_slope == -1 && slow_slope == -1)
-                  bias = -1;
+               // === STEP 2: Evaluate AutoStrat for Entry Signal ===
+               int entry_signal = 0;
+                
+               if(m_settings.AutoStrat == STRAT_SINGLE_SLOPE) {
+                  entry_signal = GetSlope(hf);
+               }
+               else if(m_settings.AutoStrat == STRAT_PRICE_CROSS) {
+                  if(m_settings.RequirePriceCross) {
+                     entry_signal = PriceCrossDirection(hf, v_shift);
+                  } else {
+                     double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+                     double ma    = GetMAVal(hf, v_shift, 0);
+                     entry_signal = (price > ma) ? 1 : -1;
+                  }
+               }
+               else {  // STRAT_PAIR_CROSS
+                  // Check for EMA crossover
+                  double f_curr_cross = GetMAVal(hf, v_shift, 0);
+                  double f_prev_cross = GetMAVal(hf, v_shift + 1, 0);
+                  double s_curr_cross = GetMAVal(hs, v_shift, 0);
+                  double s_prev_cross = GetMAVal(hs, v_shift + 1, 0);
+                   
+                  // Bullish cross: fast was below, now above
+                  if(f_prev_cross <= s_prev_cross && f_curr_cross > s_curr_cross)
+                     entry_signal = 1;
+                  // Bearish cross: fast was above, now below
+                  else if(f_prev_cross >= s_prev_cross && f_curr_cross < s_curr_cross)
+                     entry_signal = -1;
+                  // No cross
+                  else
+                     entry_signal = 0;
+               }
+                
+               // === STEP 3: Validate Entry Signal Against Market Bias ===
+               // Entry signal must match market bias, otherwise reject
+               if(entry_signal == market_bias)
+                  bias = market_bias;
                else
-                  bias = 0;  // No clear trend - conflicting momentum
+                  bias = 0;
             }
          }
-      } 
+      }
       else {
-         // --- DYNAMIC EMA SELECTION ---
+         // RRM RULE: Market Bias is the master filter
+         // LONG: Fast > Slow AND both EMAs rising
+         // SHORT: Fast < Slow AND both EMAs falling
+         // If neither condition met → bias = 0 (neutral/invalid, trade rejected)
+         
          int hf = (m_settings.BiasFastID==0)?h_ema1 : (m_settings.BiasFastID==1)?h_ema2 : (m_settings.BiasFastID==2)?h_ema3 : h_ema4;
          int hs = (m_settings.BiasSlowID==0)?h_ema1 : (m_settings.BiasSlowID==1)?h_ema2 : (m_settings.BiasSlowID==2)?h_ema3 : h_ema4;
          
-         if(m_settings.AutoStrat == STRAT_SINGLE_SLOPE) {
-            bias = GetSlope(hf);
-         }
-         else if(m_settings.AutoStrat == STRAT_PRICE_CROSS) {
-            // Strategy: Price vs MA (optionally confirmed cross)
-            if(m_settings.RequirePriceCross) {
-               bias = PriceCrossDirection(hf, v_shift);
-            } else {
-               double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-               double ma    = GetMAVal(hf, v_shift, 0);
-               bias = (price > ma) ? 1 : -1;
-            }
+         // Get EMA values
+         double f_curr = GetMAVal(hf, v_shift, 0);
+         double f_prev = GetMAVal(hf, v_shift + 1, 0);
+         double s_curr = GetMAVal(hs, v_shift, 0);
+         double s_prev = GetMAVal(hs, v_shift + 1, 0);
+         
+         // Calculate slopes
+         int fast_slope = (f_curr > f_prev) ? 1 : (f_curr < f_prev) ? -1 : 0;
+         int slow_slope = (s_curr > s_prev) ? 1 : (s_curr < s_prev) ? -1 : 0;
+         
+         // === STEP 1: Determine Market Bias (Primary Filter) ===
+         int market_bias = 0;
+         
+         // LONG: Fast > Slow AND both rising
+         if(f_curr > s_curr && fast_slope == 1 && slow_slope == 1)
+            market_bias = 1;
+         // SHORT: Fast < Slow AND both falling
+         else if(f_curr < s_curr && fast_slope == -1 && slow_slope == -1)
+            market_bias = -1;
+         // ELSE: Neither condition met → market_bias = 0 (invalid/neutral)
+         
+         // If no valid market bias, reject immediately
+         if(market_bias == 0) {
+            bias = 0;
          }
          else {
-            // Strategy: PAIR CROSS with BOTH MAs SLOPE confirmation
-            double f = GetMAVal(hf, v_shift, 0);
-            double s = GetMAVal(hs, v_shift, 0);
+            // === STEP 2: Evaluate AutoStrat for Entry Signal ===
+            int entry_signal = 0;
             
-            // RRM FIX: Require position AND both EMAs slope alignment
-            // Get slopes of BOTH MAs
-            double f_prev = GetMAVal(hf, v_shift + 1, 0);
-            double s_prev = GetMAVal(hs, v_shift + 1, 0);
+            if(m_settings.AutoStrat == STRAT_SINGLE_SLOPE) {
+               entry_signal = GetSlope(hf);
+            }
+            else if(m_settings.AutoStrat == STRAT_PRICE_CROSS) {
+               if(m_settings.RequirePriceCross) {
+                  entry_signal = PriceCrossDirection(hf, v_shift);
+               } else {
+                  double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+                  double ma    = GetMAVal(hf, v_shift, 0);
+                  entry_signal = (price > ma) ? 1 : -1;
+               }
+            }
+            else {  // STRAT_PAIR_CROSS
+               // Check for EMA crossover
+               double f_curr_cross = GetMAVal(hf, v_shift, 0);
+               double f_prev_cross = GetMAVal(hf, v_shift + 1, 0);
+               double s_curr_cross = GetMAVal(hs, v_shift, 0);
+               double s_prev_cross = GetMAVal(hs, v_shift + 1, 0);
+               
+               // Bullish cross: fast was below, now above
+               if(f_prev_cross <= s_prev_cross && f_curr_cross > s_curr_cross)
+                  entry_signal = 1;
+               // Bearish cross: fast was above, now below
+               else if(f_prev_cross >= s_prev_cross && f_curr_cross < s_curr_cross)
+                  entry_signal = -1;
+               // No cross
+               else
+                  entry_signal = 0;
+            }
             
-            int fast_slope = (f > f_prev) ? 1 : (f < f_prev) ? -1 : 0;
-            int slow_slope = (s > s_prev) ? 1 : (s < s_prev) ? -1 : 0;
-            
-            // Determine bias from position
-            int position_bias = (f > s) ? 1 : (f < s) ? -1 : 0;
-            
-            // ONLY allow bias when BOTH slopes match the position
-            // LONG: fast > slow AND both rising (uptrend)
-            // SHORT: fast < slow AND both falling (downtrend)
-            if(position_bias == 1 && fast_slope == 1 && slow_slope == 1)
-               bias = 1;
-            else if(position_bias == -1 && fast_slope == -1 && slow_slope == -1)
-               bias = -1;
+            // === STEP 3: Validate Entry Signal Against Market Bias ===
+            // Entry signal must match market bias, otherwise reject
+            if(entry_signal == market_bias)
+               bias = market_bias;
             else
-               bias = 0;  // No clear trend - conflicting momentum
+               bias = 0;
          }
       }
       
@@ -957,7 +1021,9 @@ public:
       
       m_diag_last_reason = StringFormat("VOTES %d/%d", votes, m_settings.VoteThreshold);
       return 0; // Not enough consensus
-   }
+
+   } // === GetDirection: END ===
+
 
    // --- RRM (Trend Pullback) helper checks ---
    int BiasFastHandle() {
