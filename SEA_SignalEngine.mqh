@@ -96,14 +96,45 @@ private:
    }
    
    // Vote 3: MACD (Alignment or Zero Cross)
+   // 
+   // MACD Indicator has 3 buffer outputs:
+   //   Buffer 0 = MACD Main Line (fast EMA - slow EMA)
+   //   Buffer 1 = MACD Signal Line (SMA of Main Line)
+   //   Buffer 2 = MACD Histogram (Main - Signal) [NOT USED HERE]
+   //
+   // WHY NOT USE HISTOGRAM?
+   // - Histogram only shows RELATIVE position (main vs signal)
+   // - We need ABSOLUTE position (main vs zero line) for RRM rules
+   // - Example: Histogram rising but both lines below zero = FALSE bullish signal
+   // 
+   // RRM REQUIREMENT:
+   // - LONG: MACD must be ABOVE zero (bullish momentum) AND rising (main > signal)
+   // - SHORT: MACD must be BELOW zero (bearish momentum) AND falling (main < signal)
+   //
    bool Check_MACD(int bias, int shift) {
-      double m = GetVal(h_macd, shift, 0); // Main Line
-      double s = GetVal(h_macd, shift, 1); // Signal Line
+      // Read MACD values at specified bar shift
+      // shift parameter = which bar (0=current, 1=previous, 2=two bars ago)
+      // buffer index = which line (0=main, 1=signal, 2=histogram)
+      double m = GetVal(h_macd, shift, 0); // Main Line at bar 'shift'
+      double s = GetVal(h_macd, shift, 1); // Signal Line at bar 'shift'
       
-      if(m_settings.MacdMode == MACD_SIGNAL_ALIGN) 
-         return (bias==1) ? (m > s) : (m < s);
-         
-      // Zero Cross Mode
+      if(m_settings.MacdMode == MACD_SIGNAL_ALIGN) {
+         // RRM FIX: Require BOTH zero-line position AND histogram direction
+         // This prevents taking longs when MACD is bearish (below zero)
+         // and prevents taking shorts when MACD is bullish (above zero)
+         if(bias == 1) {
+            // LONG: MACD must be above zero AND main above signal
+            // Equivalent to: "MACD is bullish AND accelerating upward"
+            return (m > 0 && m > s);
+         } else {
+            // SHORT: MACD must be below zero AND main below signal
+            // Equivalent to: "MACD is bearish AND accelerating downward"
+            return (m < 0 && m < s);
+         }
+      }
+      // Zero Cross Mode (unchanged)
+      // Only checks if MACD main line is above/below zero
+      // Does NOT require alignment with signal line
       return (bias==1) ? (m > 0) : (m < 0);
    }
    
@@ -796,6 +827,91 @@ public:
 
       // Final Decision
       m_diag_last_votes = votes;
+
+
+      // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGUN =====
+      #ifdef __MQL5__
+      if(MQLInfoInteger(MQL_TESTER)) {
+         datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+         string vote_details = StringFormat("VOTE_DETAIL[%s]: bias=%d v_shift=%d votes=%d/%d",
+                                            TimeToString(bar_time),
+                                            bias, v_shift, votes, m_settings.VoteThreshold);
+         
+         // Log each enabled vote with actual indicator values
+         if(m_settings.Use_EmaSig) {
+            double p = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+            double e = GetMAVal(h_ema1, v_shift);
+            bool pass = Check_EMA1(bias, v_shift);
+            vote_details += StringFormat(" | EMA1: p=%.5f e=%.5f %s", p, e, pass?"PASS":"FAIL");
+         }
+         
+         if(m_settings.Use_Adx) {
+            double adx = GetVal(h_adx, v_shift);
+            bool pass = Check_ADX(v_shift);
+            vote_details += StringFormat(" | ADX: %.2f %s", adx, pass?"PASS":"FAIL");
+         }
+         
+         if(m_settings.Use_Macd) {
+            double m = GetVal(h_macd, v_shift, 0);
+            double s = GetVal(h_macd, v_shift, 1);
+            bool pass = Check_MACD(bias, v_shift);
+            vote_details += StringFormat(" | MACD: main=%.6f sig=%.6f %s", m, s, pass?"PASS":"FAIL");
+         }
+         
+         if(m_settings.Use_Rsi) {
+            double r = GetVal(h_rsi, v_shift);
+            bool pass = Check_RSI(bias, v_shift);
+            vote_details += StringFormat(" | RSI: %.2f %s", r, pass?"PASS":"FAIL");
+         }
+         
+         if(m_settings.Use_Cci) {
+            double c = GetVal(h_cci, v_shift);
+            bool pass = Check_CCI(bias, v_shift);
+            vote_details += StringFormat(" | CCI: %.2f %s", c, pass?"PASS":"FAIL");
+         }
+         
+         if(m_settings.Use_Mfi) {
+            double mfi = GetVal(h_mfi, v_shift);
+            bool pass = Check_MFI(bias, v_shift);
+            vote_details += StringFormat(" | MFI: %.2f %s", mfi, pass?"PASS":"FAIL");
+         }
+         
+         if(m_settings.Use_Sto) {
+            double k = GetVal(h_sto, v_shift, 0);
+            double d = GetVal(h_sto, v_shift, 1);
+            bool pass = Check_Sto(bias, v_shift);
+            vote_details += StringFormat(" | STO: k=%.2f d=%.2f %s", k, d, pass?"PASS":"FAIL");
+         }
+         
+         if(m_settings.Use_Bb) {
+            double mid = GetVal(h_bb, v_shift, 0);
+            double cl = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+            bool pass = Check_BB(bias, v_shift);
+            vote_details += StringFormat(" | BB: mid=%.5f cl=%.5f %s", mid, cl, pass?"PASS":"FAIL");
+         }
+         
+         if(m_settings.Use_Psar) {
+            double p = GetVal(h_psar, v_shift);
+            double cl = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+            bool pass = Check_PSAR(bias, v_shift);
+            vote_details += StringFormat(" | PSAR: sar=%.5f cl=%.5f %s", p, cl, pass?"PASS":"FAIL");
+         }
+         
+         if(m_settings.Use_P123) {
+            bool pass = Check_P123(bias, v_shift);
+            vote_details += StringFormat(" | P123: %s", pass?"PASS":"FAIL");
+         }
+         
+         if(m_settings.Use_Ross) {
+            bool pass = Check_Ross(bias, v_shift);
+            vote_details += StringFormat(" | ROSS: %s", pass?"PASS":"FAIL");
+         }
+         
+         Print(vote_details);
+      }
+      #endif
+      // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: END =====
+
 
       if(votes >= m_settings.VoteThreshold) { m_diag_last_reason="OK"; return bias; }
       
