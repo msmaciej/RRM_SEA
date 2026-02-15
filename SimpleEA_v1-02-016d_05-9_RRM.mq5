@@ -168,7 +168,7 @@ enum ETrailingMode {
    TRAIL_FRACTAL        // TRAIL - Market Structure (Swing High/Low)
 };
 
-// AL - Stop Loss: Initial SL Placement Methods
+// SL - Stop Loss: Initial SL Placement Methods
 enum ESlPlacementMode {
    SL_ATR,              // SL - ATR-based (current default)
    SL_PSAR_ATR,         // SL - PSAR dot + ATR cushion
@@ -177,7 +177,7 @@ enum ESlPlacementMode {
    SL_FIXED_PIPS        // SL - Fixed pips value
 };
 
-// TR PSAR - Trailing Stop: PSAR Trailing Cushion Mode
+// TR - Trailing Stop: PSAR Trailing Cushion Mode
 enum EPsarTrailCushionMode {
    PSAR_CUSHION_ATR,    // PSAR Trail - ATR multiplier (current)
    PSAR_CUSHION_PIPS    // PSAR Trail - Fixed pips cushion
@@ -522,6 +522,7 @@ input bool           Inp_Use_P123               = false;       // Vote 10: Patte
 input bool           Inp_Use_Ross               = false;       // Vote 11: Ross Hook
 
 input group "=== EXITS: SL/TP, BREAKEVEN, TRAILING ==="
+
 input group "=== EXITS: INITIAL SL PLACEMENT ==="
 input ESlPlacementMode Inp_SL_PlacementMode     = SL_ATR;      // Initial SL Method, SL_ATR, SL_FIXED_PIPS, SL_PSAR_ATR, SL_PSAR_PIPS, SL_SWING_HIGHLOW
 input double         Inp_SL_Mult                = 1.5;         // 1.5 | ATR Multiplier (for SL_ATR mode)
@@ -646,48 +647,48 @@ void ApplySettings() {
    // BiasFastID/BiasSlowID are role indices (0..3) mapped in SEA_SignalEngine: 0=EMA1, 1=EMA2, 2=EMA3, 3=EMA4
    if(effEmaStrategy == EMA_STRAT_1_PRICE_CROSS)
    {
-      Settings.AutoStrat   = STRAT_PRICE_CROSS;
-      Settings.BiasFastID  = (int)ROLE_EMA1;
-      Settings.BiasSlowID  = (int)ROLE_EMA1;
+      Settings.AutoStrat         = STRAT_PRICE_CROSS;
+      Settings.BiasFastID        = (int)ROLE_EMA1;
+      Settings.BiasSlowID        = (int)ROLE_EMA1;
    }
    else if(effEmaStrategy == EMA_STRAT_2_CROSS_1_2)
    {
-      Settings.AutoStrat   = STRAT_PAIR_CROSS;
-      Settings.BiasFastID  = (int)ROLE_EMA1;
-      Settings.BiasSlowID  = (int)ROLE_EMA2;
+      Settings.AutoStrat         = STRAT_PAIR_CROSS;
+      Settings.BiasFastID        = (int)ROLE_EMA1;
+      Settings.BiasSlowID        = (int)ROLE_EMA2;
    }
    else if(effEmaStrategy == EMA_STRAT_2_CROSS_3_4)
    {
-      Settings.AutoStrat   = STRAT_PAIR_CROSS;
-      Settings.BiasFastID  = (int)ROLE_EMA3;
-      Settings.BiasSlowID  = (int)ROLE_EMA4;
+      Settings.AutoStrat         = STRAT_PAIR_CROSS;
+      Settings.BiasFastID        = (int)ROLE_EMA3;
+      Settings.BiasSlowID        = (int)ROLE_EMA4;
    }
    else
    {
       // CUSTOM: infer AutoStrat purely from the selected MA roles
-      Settings.BiasFastID  = (int)Inp_BiasFast_Adv;
-      Settings.BiasSlowID  = (int)Inp_BiasSlow_Adv;
-      Settings.AutoStrat   = (Settings.BiasFastID == Settings.BiasSlowID) ? STRAT_PRICE_CROSS : STRAT_PAIR_CROSS;
+      Settings.BiasFastID        = (int)Inp_BiasFast_Adv;
+      Settings.BiasSlowID        = (int)Inp_BiasSlow_Adv;
+      Settings.AutoStrat         = (Settings.BiasFastID == Settings.BiasSlowID) ? STRAT_PRICE_CROSS : STRAT_PAIR_CROSS;
    }
 
    // --- D. Execution / indicator method
-   Settings.MaType         = effMaType;
-   Settings.ma_h_shift     = Inp_MaHorShift;
-   Settings.ma_v_shift     = Inp_MaVerShift;
+   Settings.MaType               = effMaType;
+   Settings.ma_h_shift           = Inp_MaHorShift;
+   Settings.ma_v_shift           = Inp_MaVerShift;
 
    // --- E. Filters
-   Settings.UseTime        = Inp_UseTime;
-   Settings.StartHr        = Inp_StartHour;
-   Settings.EndHr          = Inp_EndHour;
-   Settings.UseNews        = Inp_UseNews;
-   Settings.NewsPre        = Inp_NewsPre;
-   Settings.NewsPost       = Inp_NewsPost;
-   Settings.UseHTF         = Inp_UseHTF;
-   Settings.HtfPeriod      = Inp_HtfPeriod;
-   Settings.P_HtfEma       = Inp_HtfEmaPeriod;
+   Settings.UseTime              = Inp_UseTime;
+   Settings.StartHr              = Inp_StartHour;
+   Settings.EndHr                = Inp_EndHour;
+   Settings.UseNews              = Inp_UseNews;
+   Settings.NewsPre              = Inp_NewsPre;
+   Settings.NewsPost             = Inp_NewsPost;
+   Settings.UseHTF               = Inp_UseHTF;
+   Settings.HtfPeriod            = Inp_HtfPeriod;
+   Settings.P_HtfEma             = Inp_HtfEmaPeriod;
 
    // --- F. Voting (OPTIMIZED: threshold now 3)
-   Settings.VoteThreshold  = Inp_VoteThreshold;
+   Settings.VoteThreshold        = Inp_VoteThreshold;
    if(Settings.VoteThreshold <= 1)
    {
       if(note != "") note += " | ";
@@ -695,61 +696,72 @@ void ApplySettings() {
    }
 
    // --- G. Indicator periods / thresholds
-   Settings.P_Ema1 = InpEma1Period; 
-   Settings.P_Ema2 = InpEma2Period;
-   Settings.P_Ema3 = InpEma3Period; 
-   Settings.P_Ema4 = InpEma4Period;
+   Settings.P_Ema1               = InpEma1Period; 
+   Settings.P_Ema2               = InpEma2Period;
+   Settings.P_Ema3               = InpEma3Period; 
+   Settings.P_Ema4               = InpEma4Period;
 
-   Settings.P_Adx = InpAdxPeriod; 
-   Settings.T_Adx = InpAdxThreshold;
-   Settings.P_MacdFast = InpMacdFast; 
-   Settings.P_MacdSlow = InpMacdSlow; 
-   Settings.P_MacdSig = InpMacdSig;
-   Settings.P_Rsi = InpRsiPeriod; 
-   Settings.T_RsiOB = InpRsiOverbought; 
-   Settings.T_RsiOS = InpRsiOversold;
-   Settings.P_Cci = InpCciPeriod;
-   Settings.P_Mfi = InpMfiPeriod; 
-   Settings.T_Mfi = InpMfiLevel;
-   Settings.P_StoK = InpStoK; 
-   Settings.P_StoD = InpStoD; 
-   Settings.P_StoSlow = InpStoSlow;
-   Settings.P_Bb = InpBbPeriod; 
-   Settings.P_BbDev = InpBbDev;
-   Settings.P_PsarStep = InpPsarStep; 
-   Settings.P_PsarMax = InpPsarMax;
+   Settings.P_Adx                = InpAdxPeriod; 
+   Settings.T_Adx                = InpAdxThreshold;
+   Settings.P_MacdFast           = InpMacdFast; 
+   Settings.P_MacdSlow           = InpMacdSlow; 
+   Settings.P_MacdSig            = InpMacdSig;
+   Settings.P_Rsi                = InpRsiPeriod; 
+   Settings.T_RsiOB              = InpRsiOverbought; 
+   Settings.T_RsiOS              = InpRsiOversold;
+   Settings.P_Cci                = InpCciPeriod;
+   Settings.P_Mfi                = InpMfiPeriod; 
+   Settings.T_Mfi                = InpMfiLevel;
+   Settings.P_StoK               = InpStoK; 
+   Settings.P_StoD               = InpStoD; 
+   Settings.P_StoSlow            = InpStoSlow;
+   Settings.P_Bb                 = InpBbPeriod; 
+   Settings.P_BbDev              = InpBbDev;
+   Settings.P_PsarStep           = InpPsarStep; 
+   Settings.P_PsarMax            = InpPsarMax;
    Settings.P_PsarTrailCushionATR = InpPsarTrailCushionATR;
 
-   Settings.MacdMode = InpMacdMode;
-   Settings.RsiMode  = InpRsiMode;
-   Settings.CciMode  = InpCciMode;
-   Settings.StoMode  = InpStoMode;
-   Settings.BbMode   = InpBbMode;
+   Settings.MacdMode             = InpMacdMode;
+   Settings.RsiMode              = InpRsiMode;
+   Settings.CciMode              = InpCciMode;
+   Settings.StoMode              = InpStoMode;
+   Settings.BbMode               = InpBbMode;
 
    // --- H. Active votes (OPTIMIZED: only 4 active, threshold 3)
-   Settings.Use_EmaSig = Inp_Use_EmaSig;  // Vote 1: EMA (KEEP)
-   Settings.Use_Adx    = Inp_Use_Adx;     // Vote 2: ADX (NOW ENABLED)
-   Settings.Use_Macd   = Inp_Use_Macd;    // Vote 3: MACD (KEEP)
-   Settings.Use_Rsi    = Inp_Use_Rsi;     // DISABLED
-   Settings.Use_Cci    = Inp_Use_Cci;     // DISABLED
-   Settings.Use_Mfi    = Inp_Use_Mfi;     // DISABLED
-   Settings.Use_Sto    = Inp_Use_Sto;     // Vote 4: Stochastic (KEEP, zone filter)
-   Settings.Use_Bb     = Inp_Use_Bb;      // DISABLED (redundant)
-   Settings.Use_Psar   = Inp_Use_Psar;    // DISABLED as vote (trailing only)
-   Settings.Use_P123   = Inp_Use_P123;    // DISABLED
-   Settings.Use_Ross   = Inp_Use_Ross;    // DISABLED
-
+   Settings.Use_EmaSig           = Inp_Use_EmaSig;  // Vote 1: EMA (KEEP)
+   Settings.Use_Adx              = Inp_Use_Adx;     // Vote 2: ADX (NOW ENABLED)
+   Settings.Use_Macd             = Inp_Use_Macd;    // Vote 3: MACD (KEEP)
+   Settings.Use_Rsi              = Inp_Use_Rsi;     // DISABLED
+   Settings.Use_Cci              = Inp_Use_Cci;     // DISABLED
+   Settings.Use_Mfi              = Inp_Use_Mfi;     // DISABLED
+   Settings.Use_Sto              = Inp_Use_Sto;     // Vote 4: Stochastic (KEEP, zone filter)
+   Settings.Use_Bb               = Inp_Use_Bb;      // DISABLED (redundant)
+   Settings.Use_Psar             = Inp_Use_Psar;    // DISABLED as vote (trailing only)
+   Settings.Use_P123             = Inp_Use_P123;    // DISABLED
+   Settings.Use_Ross             = Inp_Use_Ross;    // DISABLED
+   
    // --- I. Exit / BE / trailing
-   Settings.SL_Mult     = Inp_SL_Mult;
-   Settings.TP_Mult     = Inp_TP_Mult;
-   Settings.Use_BE      = Inp_Use_BE;
-   Settings.BE_Trig     = Inp_BE_Trig;
-   Settings.BE_Buff     = Inp_BE_Buff;
-   Settings.TrailMode   = Inp_TrailMode;
-   Settings.Trail_Mult  = Inp_Trail_Mult;
+   // AL - Initial SL Placement
+   Settings.SL_PlacementMode     = Inp_SL_PlacementMode;
+   Settings.SL_Mult              = Inp_SL_Mult;
+   Settings.SL_PsarPipsCushion   = Inp_SL_PsarPipsCushion;
+   Settings.SL_SwingPipsCushion  = Inp_SL_SwingPipsCushion;
+   Settings.SL_FixedPips         = Inp_SL_FixedPips;
+   
+   // TP, BE, Trailing
+   Settings.TP_Mult              = Inp_TP_Mult;
+   Settings.Use_BE               = Inp_Use_BE;
+   Settings.BE_Trig              = Inp_BE_Trig;
+   Settings.BE_Buff              = Inp_BE_Buff;
+   Settings.TrailMode            = Inp_TrailMode;
+   Settings.Trail_Mult           = Inp_Trail_Mult;
+   
+   // AL - PSAR Trailing Cushion Mode
+   Settings.PSAR_TrailCushionMode   = Inp_PSAR_TrailCushionMode;
+   Settings.PSAR_TrailPipsCushion   = Inp_PSAR_TrailPipsCushion;
 
    // --- J. Reporting
-   Settings.ExportCSV   = Inp_ExportCSV;
+   Settings.ExportCSV            = Inp_ExportCSV;
 
    // --- K. Apply presets (OPTIMIZED PRESET_RRM)
    
@@ -798,7 +810,8 @@ void ApplySettings() {
       Settings.Use_P123          = false;
       Settings.Use_Ross          = false;
 
-      Settings.SL_Mult           = 0.0;
+      Settings.SL_PlacementMode  = SL_ATR;   // Benchmark uses ATR-based SL
+      Settings.SL_Mult           = 0.0;      // MA Benchmark: no broker SL
       Settings.TP_Mult           = 0.0;
       Settings.Use_BE            = false;
       Settings.TrailMode         = TRAIL_NONE;
@@ -822,48 +835,49 @@ void ApplySettings() {
 
    else if(InpPreset == PRESET_TREND_REVERSAL)
    {
-      Settings.CloseOnReverse = true;
-      Settings.BiasEnabled    = true;
-      Settings.BiasMode       = BIAS_AUTO;
-      Settings.AutoStrat      = STRAT_PRICE_CROSS;
-      Settings.BiasFastID     = (int)ROLE_EMA1;
-      Settings.BiasSlowID     = (int)ROLE_EMA1;
+      Settings.CloseOnReverse    = true;
+      Settings.BiasEnabled       = true;
+      Settings.BiasMode          = BIAS_AUTO;
+      Settings.AutoStrat         = STRAT_PRICE_CROSS;
+      Settings.BiasFastID        = (int)ROLE_EMA1;
+      Settings.BiasSlowID        = (int)ROLE_EMA1;
 
       // Benchmark intent: require true cross confirmation (reduces overtrading vs price>MA state)
       Settings.RequirePriceCross = true;
       // Benchmark intent: evaluate confirmed bar like the MT5 sample (shift=1 and shift=2)
       Settings.ma_v_shift        = 1;
 
-      Settings.VoteThreshold  = 1;
-      Settings.MaxSpread      = 5.0;
-      Settings.MinATR         = 0.0;
-      Settings.UseTime        = false;
-      Settings.UseNews        = false;
-      Settings.UseHTF         = false;
+      Settings.VoteThreshold     = 1;
+      Settings.MaxSpread         = 5.0;
+      Settings.MinATR            = 0.0;
+      Settings.UseTime           = false;
+      Settings.UseNews           = false;
+      Settings.UseHTF            = false;
 
-      Settings.Use_EmaSig     = true;
-      Settings.Use_Adx        = false;
-      Settings.Use_Macd       = false;
-      Settings.Use_Rsi        = false;
-      Settings.Use_Cci        = false;
-      Settings.Use_Mfi        = false;
-      Settings.Use_Sto        = false;
-      Settings.Use_Bb         = false;
-      Settings.Use_Psar       = false;
-      Settings.Use_P123       = false;
-      Settings.Use_Ross       = false;
+      Settings.Use_EmaSig        = true;
+      Settings.Use_Adx           = false;
+      Settings.Use_Macd          = false;
+      Settings.Use_Rsi           = false;
+      Settings.Use_Cci           = false;
+      Settings.Use_Mfi           = false;
+      Settings.Use_Sto           = false;
+      Settings.Use_Bb            = false;
+      Settings.Use_Psar          = false;
+      Settings.Use_P123          = false;
+      Settings.Use_Ross          = false;
 
-      Settings.SL_Mult        = 0.0;
-      Settings.TP_Mult        = 0.0;
-      Settings.Use_BE         = false;
-      Settings.TrailMode      = TRAIL_NONE;
+      Settings.SL_PlacementMode  = SL_ATR;
+      Settings.SL_Mult           = 0.0;
+      Settings.TP_Mult           = 0.0;
+      Settings.Use_BE            = false;
+      Settings.TrailMode         = TRAIL_NONE;
 
       // Preset intent: mimic Moving Average benchmark behaviour
-      Settings.MaType         = METHOD_SMA;
+      Settings.MaType            = METHOD_SMA;
 
-      effEmaStrategy          = EMA_STRAT_1_PRICE_CROSS;
-      effMaType               = Settings.MaType;
-      effBiasMode             = Settings.BiasMode;
+      effEmaStrategy             = EMA_STRAT_1_PRICE_CROSS;
+      effMaType                  = Settings.MaType;
+      effBiasMode                = Settings.BiasMode;
 
       if(note != "") note += " | ";
       note += "PRESET: TREND_REVERSAL applied.";
@@ -905,6 +919,7 @@ void ApplySettings() {
       Settings.Use_Ross       = false;
 
       // Exits: ATR envelope + BE + ATR trail (kept modest for intraday)
+      Settings.SL_PlacementMode = SL_ATR;
       Settings.SL_Mult        = 1.5;
       Settings.TP_Mult        = 3.0;
       Settings.Use_BE         = true;
@@ -958,6 +973,7 @@ void ApplySettings() {
       Settings.Use_P123       = false;
       Settings.Use_Ross       = false;
 
+      Settings.SL_PlacementMode = SL_ATR;
       Settings.SL_Mult        = 2.0;
       Settings.TP_Mult        = 4.0;
       Settings.Use_BE         = true;
@@ -1015,6 +1031,7 @@ void ApplySettings() {
       Settings.Use_P123       = false;
       Settings.Use_Ross       = false;
 
+      Settings.SL_PlacementMode = SL_ATR;
       Settings.SL_Mult        = 2.0;
       Settings.TP_Mult        = 2.0;
       Settings.Use_BE         = false;
@@ -1106,6 +1123,8 @@ void ApplySettings() {
    
          Settings.MaxSpread   = 2.5;   // ORG: 2.5 .. BEST: 3.5
          Settings.MinATR      = 12.5;  // ORG: 3.0 .. BEST: 12.5
+         
+         Settings.SL_PlacementMode = SL_PSAR_ATR;
          Settings.SL_Mult     = 1.25;  // ORG: 1.8 .. BEST: 1.25
          Settings.TP_Mult     = 4.0;   // ORG: 3.6 .. BEST 4.0
       }
@@ -1119,6 +1138,8 @@ void ApplySettings() {
          
          Settings.MaxSpread   = 5.0;   // ORG: 5.0
          Settings.MinATR      = 8.0;   // ORG: 5.0 .. BEST: 3.0, 5.0, 8.0, 10.0
+         
+         Settings.SL_PlacementMode = SL_PSAR_ATR;
          Settings.SL_Mult     = 1.25;  // ORG: 2.0
          Settings.TP_Mult     = 4.0;   // ORG: 4.0
       }
@@ -1228,6 +1249,7 @@ void ApplySettings() {
          Settings.MinATR      = (_Period == PERIOD_M1 ? 12.5 : 5.0);
          Settings.MaxATR      = 0.0;  // IMPORTANT: disable hard max-ATR veto in RRM
 
+         Settings.SL_PlacementMode = SL_PSAR_ATR;    // Use PSAR with ATR cushion for RRM
          Settings.SL_Mult     = 1.25;
          Settings.TP_Mult     = 4.0;
       }
@@ -1246,7 +1268,8 @@ void ApplySettings() {
          Settings.MaxSpread   = 5.0;
          Settings.MinATR      = 5.0;   // moderate: swing still prefers adequate range
          Settings.MaxATR      = 0.0;  // IMPORTANT: disable hard max-ATR veto in RRM
-
+         
+         Settings.SL_PlacementMode = SL_PSAR_ATR;    // Use PSAR with ATR cushion for RRM
          Settings.SL_Mult     = 1.25;
          Settings.TP_Mult     = 4.0;
       }
