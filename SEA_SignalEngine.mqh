@@ -4,9 +4,36 @@
 //|                                                                  |
 //| Purpose: Signal Logic, Indicator Management, Voting & Filters    |
 //| Status:  PRODUCTION READY (Revision M: Full Dual Shift Support)  |
-//| TASK1 OPT: Added MaxATR upper volatility bound                    |
+//| TASK1 OPT: Added MaxATR upper volatility bound                   |
 //+------------------------------------------------------------------+
 // SAVE AS UTF-16 LE WITH BOM
+//+------------------------------------------------------------------+
+// PURPOSE:
+// Core signal processing engine implementing 9-step pipeline for trade signals
+//
+// SIGNAL PROCESSING PIPELINE:
+// Step 1: PRE-FILTERS - Check spread, ATR, time filters
+// Step 2: MARKET BIAS - Determine trend direction (LONG/SHORT/NEUTRAL)
+// Step 3: AUTOSTRAT SIGNAL - Generate entry timing signal
+// Step 4: SIGNAL VALIDATION - Verify signal matches bias
+// Step 5: HTF FILTER - Check higher timeframe alignment
+// Step 6: RRM GATES - Optional pullback/divergence checks
+// Step 7: VOTING BYPASS - Check if voting required
+// Step 8: INDICATOR VOTING - Get indicator consensus
+// Step 9: FINAL DECISION - Accept or reject trade
+//
+// KEY CONCEPTS:
+// - Market Bias: Primary trend filter (EMA position + slope)
+// - Entry Signal: Timing signal within bias context
+// - Voting: Indicators confirm or reject the bias
+// - RRM Gates: Optional quality filters (pullback, divergence)
+//
+// RETURN VALUES:
+// GetDirection() returns: 1 (LONG), -1 (SHORT), 0 (NO TRADE)
+//
+// See README.md for complete documentation
+//+------------------------------------------------------------------+
+
 #property strict
 
 // --- Anti-stale build lock (MQL5-safe: no #if, no #error)
@@ -703,6 +730,32 @@ public:
    }
 
    // === GetDirection: BEGIN ===
+   //==========================================================================
+   // GetDirection() - Main Signal Processing Pipeline
+   //==========================================================================
+   // This function implements the 9-step signal validation pipeline.
+   // Each step must pass before moving to the next.
+   // If any step fails, the function returns 0 (no trade).
+   //
+   // PROCESS FLOW:
+   // 1. PRE-FILTERS: Spread, ATR, time checks
+   // 2. MARKET BIAS: Check EMA position and slopes
+   //    - LONG: Fast > Slow AND both rising
+   //    - SHORT: Fast < Slow AND both falling
+   //    - NEUTRAL: Neither condition met -> REJECT
+   // 3. AUTOSTRAT: Generate entry signal based on strategy
+   //    - STRAT_SINGLE_SLOPE: Single EMA direction
+   //    - STRAT_PRICE_CROSS: Price vs EMA
+   //    - STRAT_PAIR_CROSS: EMA crossover (relaxed bias logic)
+   // 4. SIGNAL VALIDATION: Entry signal must match bias
+   // 5. HTF FILTER: Higher timeframe must agree with bias
+   // 6. RRM GATES: Check pullback/divergence if enabled
+   // 7. VOTING BYPASS: Skip voting if threshold <= 1
+   // 8. INDICATOR VOTING: Count indicator confirmations
+   // 9. FINAL DECISION: Accept if votes >= threshold
+   //
+   // RETURNS: 1 (LONG), -1 (SHORT), 0 (NO TRADE)
+   //==========================================================================
    int GetDirection() 
    {
       // Diagnostics reset (for Cockpit/UI)

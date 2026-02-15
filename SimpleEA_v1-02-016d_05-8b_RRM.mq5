@@ -7,6 +7,60 @@
 //+------------------------------------------------------------------+
 // SAVE AS UTF-16 LE WITH BOM
 //+------------------------------------------------------------------+
+// SYSTEM OVERVIEW:
+// Real Risk Money (RRM) methodology combined with Signal Engine Architecture
+// Modular design with separate components for signals, risk, and trade management
+//
+// ARCHITECTURE:
+// 1. SimpleEA (this file) - Main coordinator
+// 2. SEA_SignalEngine - 9-step signal pipeline
+// 3. SEA_RiskManager - Position sizing
+// 4. SEA_TradeManager - Trade execution and management
+//
+// KEY CONCEPTS:
+// - Market Bias: Primary trend filter (EMA position + slope alignment)
+// - Entry Signal: Timing signal within bias context (from AutoStrat)
+// - Indicator Voting: Multiple indicators confirm bias (consensus system)
+// - RRM Gates: Optional quality filters (pullback/reclaim, divergence)
+//
+// SIGNAL FLOW:
+// Bar closes -> OnTick() -> SignalEngine.GetDirection() [9-step pipeline]
+// -> If signal valid: RiskManager -> TradeManager -> Open position
+// -> If signal = 0: Only manage existing positions
+//
+// BIAS DETERMINATION:
+// LONG: Fast EMA > Slow EMA AND both rising
+// SHORT: Fast EMA < Slow EMA AND both falling
+// NEUTRAL: Neither condition met -> NO TRADE
+//
+// Note: STRAT_PAIR_CROSS uses relaxed logic (only Fast slope required)
+//
+// AUTOSTRAT STRATEGIES:
+// - STRAT_SINGLE_SLOPE: Single EMA slope direction
+// - STRAT_PRICE_CROSS: Price vs EMA position/cross
+// - STRAT_PAIR_CROSS: EMA crossover (catches early momentum)
+//
+// INDICATOR VOTING:
+// Each enabled indicator votes if it agrees with bias.
+// VoteThreshold determines minimum votes required (e.g., 4 out of 5)
+// Available: EMA1, ADX, MACD, CCI, RSI, Stochastic, PSAR, BB, MFI, P123, Ross
+//
+// RRM GATES (Optional):
+// - RRM_RequirePullbackReclaim: Wait for pullback to EMA then reclaim
+// - RRM_RequireEmaDiv: Require EMAs expanding (not converging)
+//
+// CONFIGURATION:
+// BiasMode: MANUAL or AUTO
+// BiasFastID/SlowID: Which EMAs for bias (0=5, 1=13, 2=34, 3=89)
+// AutoStrat: Entry timing method (PAIR_CROSS recommended)
+// VoteThreshold: How many indicators must agree (4 recommended)
+//
+// See README.md and README_INDICATORS.md for complete documentation
+//
+// VERSION: v1.02.016d-05-8b_RRM
+//+------------------------------------------------------------------+
+
+//+------------------------------------------------------------------+
 //| FILE HEADER & TERMINAL DIRECTIVES                                |
 //+------------------------------------------------------------------+
 
@@ -43,9 +97,9 @@ enum EStrategyPreset {
 
 // --- RRM MODE (for PRESET_RRM) ---
 enum ERRMMode {
-   RRM_AUTO_BY_TF,   // Auto: M1/M5/M15 => SCALP; H1/H4+ => SWING
-   RRM_SCALP,        // Scalp: faster bias pair (EMA1/EMA2)
-   RRM_SWING         // Swing: slower bias pair (EMA3/EMA4)
+   RRM_AUTO_BY_TF,            // Auto: M1/M5/M15 => SCALP; H1/H4+ => SWING
+   RRM_SCALP,                 // Scalp: faster bias pair (EMA1/EMA2)
+   RRM_SWING                  // Swing: slower bias pair (EMA3/EMA4)
 };
 
 // --- SIMPLE EMA SELECTOR ---
@@ -129,9 +183,9 @@ struct ST_Settings {
    double RiskPercent; 
    double MaxSpread; 
    double MinATR;
-   double MaxATR;         // NEW: upper volatility bound (OPTIMIZED)
-   bool   ATR_HardGate;     // ATR gating mode: true=HARD filter, false=soft (vote/management only)
-   bool   Use_ATRVote;      // If true, ATR contributes an additional vote when inside [MinATR,MaxATR]
+   double MaxATR;             // NEW: upper volatility bound (OPTIMIZED)
+   bool   ATR_HardGate;       // ATR gating mode: true=HARD filter, false=soft (vote/management only)
+   bool   Use_ATRVote;        // If true, ATR contributes an additional vote when inside [MinATR,MaxATR]
    
    // MT5 Moving Average benchmark compatibility
    bool   UseMACompatSizer;       
@@ -301,134 +355,159 @@ input int            Inp_UI_CockpitLineSpacingPx = 21;         // Cockpit line s
 input string         Inp_UI_CockpitFont         = "Arial";     // Cockpit font
 
 input group "=== UI: SIGNAL MARKERS ==="
-input bool           Inp_DrawEntryLines         = true;     // Draw vertical line when an entry becomes ELIGIBLE (all gates pass)
-input bool           Inp_DrawTradeLines         = true;     // Draw vertical line when a trade is EXECUTED (order opened)
+input bool           Inp_DrawEntryLines         = true;        // Draw vertical line when an entry becomes ELIGIBLE (all gates pass)
+input bool           Inp_DrawTradeLines         = true;        // Draw vertical line when a trade is EXECUTED (order opened)
 
-input group "=== PRESET_RRM: TREND PULLBACK ==="
+input group "=== PRESET_RRM: TREND PULLBACK ==="               // RRM mode: auto/scalp/swing 
 input ERRMMode       Inp_RRM_Mode               = RRM_AUTO_BY_TF;
-input bool           Inp_RRM_EnableInCustom     = false;    // Allow RRM trigger gates also in PRESET_CUSTOM
+input bool           Inp_RRM_EnableInCustom     = false;       // Allow RRM trigger gates also in PRESET_CUSTOM
 
-// RRM mode: auto/scalp/swing
-input int            Inp_RRM_Lookback           = 5;        // 5 | EMA convergence lookback (bars)
-input double         Inp_RRM_MinDivPips         = 0.5;      // 0.5 | Minimum EMA divergence increase (pips)
-input bool           Inp_RRM_RequirePullbackReclaim = false;  // false | RRM gate: require pullback+reclaim (Legacy RRM: OFF)
-input bool           Inp_RRM_RequireEmaDiv          = false;  // false | RRM gate: require EMA converge->diverge (Legacy RRM: OFF)
+// Simple strategy control for RRM for one EMA Strategy
+/* USAGE EXAMPLES - Just change these 2 inputs:
+   
+   Example 1: Price vs EMA1 (5-period single EMA)
+      Inp_RRM_AutoStrat = STRAT_PRICE_CROSS
+      Inp_RRM_BiasEMA   = ROLE_EMA1
+      → Bias: Price above/below EMA1(5)
+   
+   Example 2: EMA1/EMA2 crossover (5/13 fast pair)
+      Inp_RRM_AutoStrat = STRAT_PAIR_CROSS
+      Inp_RRM_BiasEMA   = ROLE_EMA1
+      → Bias: EMA1(5) crosses EMA2(13)
+   
+   Example 3: EMA3/EMA4 crossover (34/89 slow pair) - Original RRM
+      Inp_RRM_AutoStrat = STRAT_PAIR_CROSS
+      Inp_RRM_BiasEMA   = ROLE_EMA3
+      → Bias: EMA3(34) crosses EMA4(89)
+   
+   Example 4: EMA1 slope only (5-period slope direction)
+      Inp_RRM_AutoStrat = STRAT_SINGLE_SLOPE
+      Inp_RRM_BiasEMA   = ROLE_EMA1
+      → Bias: EMA1(5) slope direction (rising/falling)
+*/
+input EAutoStrategy  Inp_RRM_AutoStrat          = STRAT_SINGLE_SLOPE;  // RRM Entry Strategy: PAIR_CROSS / PRICE_CROSS / SINGLE_SLOPE
+input EEmaRole       Inp_RRM_BiasEMA            = ROLE_EMA1;         // RRM Bias EMA: Which EMA for bias (ROLE_EMA1=5, EMA2=13, EMA3=34, EMA4=89)
+
+input int            Inp_RRM_Lookback           = 5;           // 5 | EMA convergence lookback (bars)
+input double         Inp_RRM_MinDivPips         = 0.5;         // 0.5 | Minimum EMA divergence increase (pips)
+input bool           Inp_RRM_RequirePullbackReclaim   = true;     // false | RRM gate: require pullback+reclaim (Legacy RRM: OFF)
+input bool           Inp_RRM_RequireEmaDiv            = false;    // false | RRM gate: require EMA converge->diverge (Legacy RRM: OFF)
 
 input group "=== CUSTOM: LOGIC & RISK ==="
-input bool           Inp_CloseOnReverse   = false;       // OPTIMIZED: true was false           // Close Opposite Trade on Signal? 
-input double         Inp_RiskPercent      = 2.0;         // OPTIMIZED: 0.25 was 2.0 (reduced for scalp safety) // Risk per trade (%). IGNORED when Preset=PRESET_MA_BENCHMARK (uses MaximumRisk/DecreaseFactor). 
-input double         Inp_MaxSpreadPips    = 3.0;         // OPTIMIZED: 2.0 was 3.0 (tightened)  // Max Spread (Pips) 
-input double         Inp_MinATRPips       = 0.0;         // OPTIMIZED: 5.0 was 0.0              // 5.0 | Min Volatility (ATR Pips)
-input double         Inp_MaxATRPips       = 20.0;        // NEW: upper volatility bound  
+input bool           Inp_CloseOnReverse         = false;       // OPTIMIZED: true was false           // Close Opposite Trade on Signal? 
+input double         Inp_RiskPercent            = 2.0;         // OPTIMIZED: 0.25 was 2.0 (reduced for scalp safety) // Risk per trade (%). IGNORED when Preset=PRESET_MA_BENCHMARK (uses MaximumRisk/DecreaseFactor). 
+input double         Inp_MaxSpreadPips          = 3.0;         // OPTIMIZED: 2.0 was 3.0 (tightened)  // Max Spread (Pips) 
+input double         Inp_MinATRPips             = 0.0;         // OPTIMIZED: 5.0 was 0.0              // 5.0 | Min Volatility (ATR Pips)
+input double         Inp_MaxATRPips             = 20.0;        // NEW: upper volatility bound  
 
 input group "=== CUSTOM: MARKET BIAS (EASY SETUP) ==="
-input bool           Inp_BiasEnabled      = true;        // Master Bias Switch
-input EBiasMode      Inp_BiasMode         = BIAS_AUTO;   // Mode: MANUAL or AUTO
-input EEmaStrategy   Inp_EmaStrategy      = EMA_STRAT_2_CROSS_1_2; // Select Strategy Configuration
+input bool           Inp_BiasEnabled            = true;        // Master Bias Switch
+input EBiasMode      Inp_BiasMode               = BIAS_AUTO;   // Mode: MANUAL or AUTO
+input EEmaStrategy   Inp_EmaStrategy            = EMA_STRAT_2_CROSS_1_2; // Select Strategy Configuration
 
 input group "=== CUSTOM: ADVANCED AUTO MAPPING ==="
-input EManualSide    Inp_ManualSide       = SIDE_BOTH;   // Manual Side (MANUAL: LONG/SHORT; BOTH=no restriction -> AUTO decides)
-input EEmaRole       Inp_BiasFast_Adv     = ROLE_EMA1;   // Fast MA Slot (AUTO+CUST)
-input EEmaRole       Inp_BiasSlow_Adv     = ROLE_EMA2;   // Slow MA Slot (AUTO+CUST)
+input EManualSide    Inp_ManualSide             = SIDE_BOTH;   // Manual Side (MANUAL: LONG/SHORT; BOTH=no restriction -> AUTO decides)
+input EEmaRole       Inp_BiasFast_Adv           = ROLE_EMA1;   // Fast MA Slot (AUTO+CUST)
+input EEmaRole       Inp_BiasSlow_Adv           = ROLE_EMA2;   // Slow MA Slot (AUTO+CUST)
 
 input group "=== CUSTOM: FILTERS ==="
-input bool           Inp_UseTime          = false;       // Use Time Scheduler?
-input int            Inp_StartHour        = 8;           // Start Trading Hour (0-23)
-input int            Inp_EndHour          = 20;          // End Trading Hour (0-23)
-input bool           Inp_UseNews          = false;       // Use CSV News Filter?
-input string         Inp_NewsFile         = "calendar_statement.csv"; // File Name
-input int            Inp_NewsPre          = 60;          // Pause Mins BEFORE News
-input int            Inp_NewsPost         = 60;          // Pause Mins AFTER News
-input bool           Inp_UseHTF           = false;       // Master Filter: HTF Trend
-input ENUM_TIMEFRAMES Inp_HtfPeriod       = PERIOD_H4;   // HTF Period
-input int            Inp_HtfEmaPeriod     = 89;          // HTF EMA Period
+input bool           Inp_UseTime                = false;       // Use Time Scheduler?
+input int            Inp_StartHour              = 8;           // Start Trading Hour (0-23)
+input int            Inp_EndHour                = 20;          // End Trading Hour (0-23)
+input bool           Inp_UseNews                = false;       // Use CSV News Filter?
+input string         Inp_NewsFile               = "calendar_statement.csv"; // File Name
+input int            Inp_NewsPre                = 60;          // Pause Mins BEFORE News
+input int            Inp_NewsPost               = 60;          // Pause Mins AFTER News
+input bool           Inp_UseHTF                 = false;       // Master Filter: HTF Trend
+input ENUM_TIMEFRAMES Inp_HtfPeriod             = PERIOD_H4;   // HTF Period
+input int            Inp_HtfEmaPeriod           = 89;          // HTF EMA Period
 
 input group "=== CUSTOM: VOTING (OPTIMIZED) ==="
-input int            Inp_VoteThreshold    = 2;     // MINIMUM Votes required // OPTIMIZED: 3 was 6 (MAJOR CHANGE)
+input int            Inp_VoteThreshold          = 2;           // MINIMUM Votes required // OPTIMIZED: 3 was 6 (MAJOR CHANGE)
 
 input group "=== INDICATORS: SETTINGS ==="
-input EMaMethod      Inp_MaType           = METHOD_EMA;     // CUSTOM Moving Average Math. IGNORED when Preset=PRESET_MA_BENCHMARK.
-input int            Inp_MaHorShift       = 0;              // CUSTOM Horizontal MA Shift (Indicator Offset). IGNORED when Preset=PRESET_MA_BENCHMARK.
-input int            Inp_MaVerShift       = 1;              // CUSTOM Vertical MA Bar Shift: 0=Aggressive (Current Bar), 1=Safe (Closed Bar). IGNORED when Preset=PRESET_MA_BENCHMARK. // OPTIMIZED: 1 was 0 (closed bar)
+input EMaMethod      Inp_MaType                 = METHOD_EMA;  // CUSTOM Moving Average Math. IGNORED when Preset=PRESET_MA_BENCHMARK.
+input int            Inp_MaHorShift             = 0;           // CUSTOM Horizontal MA Shift (Indicator Offset). IGNORED when Preset=PRESET_MA_BENCHMARK.
+input int            Inp_MaVerShift             = 1;           // CUSTOM Vertical MA Bar Shift: 0=Aggressive (Current Bar), 1=Safe (Closed Bar). IGNORED when Preset=PRESET_MA_BENCHMARK. // OPTIMIZED: 1 was 0 (closed bar)
 
-// Periods (OPTIMIZED EMA periods per mode)
+// EMA
 input group "--- INDICATORS: EMA (AUTO-SET BY PRESET) ---"
-input int            InpEma1Period        = 13;    // OPTIMIZED: 20 was 13 (scalp), will be overridden
-input int            InpEma2Period        = 21;    // OPTIMIZED: 50 was 21 (scalp), will be overridden
-input int            InpEma3Period        = 34;    // OPTIMIZED: 21 was 34 (swing), will be overridden
-input int            InpEma4Period        = 89;    // OPTIMIZED: 55 was 89 (swing), will be overridden
+input int            InpEma1Period              = 5;          // OPTIMIZED: 20 was 13 (scalp), will be overridden
+input int            InpEma2Period              = 13;          // OPTIMIZED: 50 was 21 (scalp), will be overridden
+input int            InpEma3Period              = 34;          // OPTIMIZED: 21 was 34 (swing), will be overridden
+input int            InpEma4Period              = 89;          // OPTIMIZED: 55 was 89 (swing), will be overridden
 
 // ADX
 input group "--- INDICATORS: ADX (NOW ENABLED) ---"
-input int            InpAdxPeriod         = 14;
-input int            InpAdxThreshold      = 20;    // ADX > 20 = strong trend (use lower vote threshold)
+input int            InpAdxPeriod               = 14;
+input int            InpAdxThreshold            = 20;          // ADX > 20 = strong trend (use lower vote threshold)
 
 // MACD
-input group "--- INDICATORS: MACD ==="
-input EMacdMode      InpMacdMode          = MACD_SIGNAL_ALIGN;
-input int            InpMacdFast          = 12;     // OPTIMIZED: 8 was 12
-input int            InpMacdSlow          = 26;    // OPTIMIZED: 13 was 26
-input int            InpMacdSig           = 9;     // OPTIMIZED: 8 was 9
+input group "--- INDICATORS: MACD ---"
+input EMacdMode      InpMacdMode                = MACD_SIGNAL_ALIGN;
+input int            InpMacdFast                = 12;          // OPTIMIZED: 8 was 12
+input int            InpMacdSlow                = 26;          // OPTIMIZED: 13 was 26
+input int            InpMacdSig                 = 9;           // OPTIMIZED: 8 was 9
 
 // RSI
 input group "--- INDICATORS: RSI (DISABLED IN OPT) ---"
-input ERsiMode       InpRsiMode           = RSI_FILTER_EXTREME;
-input int            InpRsiPeriod         = 14;
-input double         InpRsiOverbought     = 70.0;
-input double         InpRsiOversold       = 30.0;
+input ERsiMode       InpRsiMode                 = RSI_FILTER_EXTREME;
+input int            InpRsiPeriod               = 14;
+input double         InpRsiOverbought           = 70.0;
+input double         InpRsiOversold             = 30.0;
 
 // CCI
 input group "--- INDICATORS: CCI (DISABLED IN OPT) ---"
-input ECciMode       InpCciMode           = CCI_TREND_ZERO;
-input int            InpCciPeriod         = 14;
+input ECciMode       InpCciMode                 = CCI_TREND_ZERO;
+input int            InpCciPeriod               = 14;
 
 // MFI
 input group "--- INDICATORS: MFI (DISABLED IN OPT) ---"
-input int            InpMfiPeriod         = 14;
-input double         InpMfiLevel          = 50.0;
+input int            InpMfiPeriod               = 14;
+input double         InpMfiLevel                = 50.0;
 
 // Stochastic (OPTIMIZED: Zone Filter Mode)
 input group "--- INDICATORS: STOCHASTIC (ZONE FILTER) ---"
-input EStochMode     InpStoMode           = STO_ZONE_FILTER;  // OPTIMIZED: STO_ZONE_FILTER was STO_CROSS_SIGNAL
-input int            InpStoK              = 5;
-input int            InpStoD              = 3;
-input int            InpStoSlow           = 3;
+input EStochMode     InpStoMode                 = STO_ZONE_FILTER;  // OPTIMIZED: STO_ZONE_FILTER was STO_CROSS_SIGNAL
+input int            InpStoK                    = 5;
+input int            InpStoD                    = 3;
+input int            InpStoSlow                 = 3;
 
 // Bollinger (DISABLED IN OPT)
 input group "--- INDICATORS: BOLLINGER BANDS (DISABLED IN OPT) ---"
-input EBbMode        InpBbMode            = BB_TREND_FOLLOW;
-input int            InpBbPeriod          = 20;
-input double         InpBbDev             = 2.0;
+input EBbMode        InpBbMode                  = BB_TREND_FOLLOW;
+input int            InpBbPeriod                = 20;
+input double         InpBbDev                   = 2.0;
 
 // PSAR
 input group "--- INDICATORS: PSAR (TRAILING ONLY) ---"
-input double         InpPsarStep             = 0.05;
-input double         InpPsarMax              = 0.5;
-input double         InpPsarTrailCushionATR  = 0.2; // PSAR trailing cushion (ATR multiplier). Used only when TrailMode=TRAIL_PSAR.
+input double         InpPsarStep                = 0.05;
+input double         InpPsarMax                 = 0.5;
+input double         InpPsarTrailCushionATR     = 0.2;         // PSAR trailing cushion (ATR multiplier). Used only when TrailMode=TRAIL_PSAR.
 
 input group "=== VOTING: ENABLED VOTES ==="
-input bool           Inp_Use_EmaSig    = true;        // Vote 1: EMA Recovery
-input bool           Inp_Use_Adx       = false;       // Vote 2: ADX Strength
-input bool           Inp_Use_Macd      = true;        // Vote 3: MACD
-input bool           Inp_Use_Rsi       = false;       // Vote 4: RSI
-input bool           Inp_Use_Cci       = true;        // Vote 5: CCI
-input bool           Inp_Use_Mfi       = false;       // Vote 6: MFI
-input bool           Inp_Use_Sto       = false;       // Vote 7: Stochastic
-input bool           Inp_Use_Bb        = false;       // Vote 8: Bollinger
-input bool           Inp_Use_Psar      = true;        // Vote 9: PSAR
-input bool           Inp_Use_P123      = false;       // Vote 10: Pattern 123
-input bool           Inp_Use_Ross      = false;       // Vote 11: Ross Hook
+input bool           Inp_Use_EmaSig             = true;        // Vote 1: EMA Recovery
+input bool           Inp_Use_Adx                = false;       // Vote 2: ADX Strength
+input bool           Inp_Use_Macd               = true;        // Vote 3: MACD
+input bool           Inp_Use_Rsi                = false;       // Vote 4: RSI
+input bool           Inp_Use_Cci                = true;        // Vote 5: CCI
+input bool           Inp_Use_Mfi                = false;       // Vote 6: MFI
+input bool           Inp_Use_Sto                = false;       // Vote 7: Stochastic
+input bool           Inp_Use_Bb                 = false;       // Vote 8: Bollinger
+input bool           Inp_Use_Psar               = true;        // Vote 9: PSAR
+input bool           Inp_Use_P123               = false;       // Vote 10: Pattern 123
+input bool           Inp_Use_Ross               = false;       // Vote 11: Ross Hook
 
 input group "=== EXITS: SL/TP, BREAKEVEN, TRAILING ==="
-input double         Inp_SL_Mult       = 1.5;         // 1.5 | 2.0 | SL (ATR Multiplier)
-input double         Inp_TP_Mult       = 3.0;         // 3.0 | 4.0 | TP (ATR Multiplier)
-input bool           Inp_Use_BE        = false;       // true | Move SL to Entry?
-input double         Inp_BE_Trig       = 1.0;         // Breakeven Trigger (ATR)
-input double         Inp_BE_Buff       = 0.1;         // Breakeven Buffer (ATR)
-input ETrailingMode  Inp_TrailMode     = TRAIL_PSAR;  // TRAIL_ATR | Trailing Logic
-input double         Inp_Trail_Mult    = 3.0;         // 3.0 | 1.5 | ATR Trail Distance
-input bool           Inp_ExportCSV     = false;       // Export Detailed Report?
-input bool           Inp_ExportUseCommonFiles = false;  // Export CSV into COMMON Files folder (Windows). On Wine/macOS this may not be accessible; keep false.
+input double         Inp_SL_Mult                = 1.5;         // 1.5 | 2.0 | SL (ATR Multiplier)
+input double         Inp_TP_Mult                = 3.0;         // 3.0 | 4.0 | TP (ATR Multiplier)
+input bool           Inp_Use_BE                 = false;       // true | Move SL to Entry?
+input double         Inp_BE_Trig                = 1.0;         // Breakeven Trigger (ATR)
+input double         Inp_BE_Buff                = 0.1;         // Breakeven Buffer (ATR)
+input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR;  // TRAIL_ATR | Trailing Logic
+input double         Inp_Trail_Mult             = 3.0;         // 3.0 | 1.5 | ATR Trail Distance
+input bool           Inp_ExportCSV              = false;       // Export Detailed Report?
+input bool           Inp_ExportUseCommonFiles   = false;       // Export CSV into COMMON Files folder (Windows). On Wine/macOS this may not be accessible; keep false.
 
 //+------------------------------------------------------------------+
 //| GLOBAL STATE & MODULE OBJECTS                                    |
@@ -488,13 +567,13 @@ void ApplySettings() {
    ZeroMemory(Settings);
 
    // OPTIMISED: Default behavior: keep execution filters HARD by default
-   Settings.ATR_HardGate = false;
-   Settings.Use_ATRVote  = false;
+   Settings.ATR_HardGate         = false;
+   Settings.Use_ATRVote          = false;
 
    // --- A. Determine effective controls
-   EEmaStrategy effEmaStrategy = Inp_EmaStrategy;
-   EMaMethod    effMaType      = Inp_MaType;
-   EBiasMode    effBiasMode    = Inp_BiasMode;
+   EEmaStrategy effEmaStrategy   = Inp_EmaStrategy;
+   EMaMethod    effMaType        = Inp_MaType;
+   EBiasMode    effBiasMode      = Inp_BiasMode;
    string note = "";
 
    bool easy_strategy = (effEmaStrategy != EMA_STRAT_CUSTOM);
@@ -503,29 +582,29 @@ void ApplySettings() {
    // We therefore keep a strict precedence model and emit explicit notes about ignored inputs.
    // Precedence: Preset overrides -> BiasEnabled -> BiasMode -> (if AUTO) EmaStrategy mapping.
    // --- B. Load base settings from inputs
-   Settings.CloseOnReverse = Inp_CloseOnReverse;
-   Settings.RiskPercent    = Inp_RiskPercent;
-   Settings.MaxSpread      = Inp_MaxSpreadPips;
-   Settings.MinATR         = Inp_MinATRPips;
-   Settings.MaxATR         = Inp_MaxATRPips;  // NEW: upper volatility bound
+   Settings.CloseOnReverse       = Inp_CloseOnReverse;
+   Settings.RiskPercent          = Inp_RiskPercent;
+   Settings.MaxSpread            = Inp_MaxSpreadPips;
+   Settings.MinATR               = Inp_MinATRPips;
+   Settings.MaxATR               = Inp_MaxATRPips;  // NEW: upper volatility bound
 
    // Moving Average benchmark compatibility
-   Settings.UseMACompatSizer  = false;
-   Settings.MA_MaximumRiskPct = Inp_MA_MaximumRiskPct;
-   Settings.MA_DecreaseFactor = Inp_MA_DecreaseFactor;
-   Settings.RequirePriceCross = false;
-   Settings.MABenchmarkStrict = false;
+   Settings.UseMACompatSizer     = false;
+   Settings.MA_MaximumRiskPct    = Inp_MA_MaximumRiskPct;
+   Settings.MA_DecreaseFactor    = Inp_MA_DecreaseFactor;
+   Settings.RequirePriceCross    = false;
+   Settings.MABenchmarkStrict    = false;
 
    // RRM trigger gates (OPTIMIZED: enabled by default)
    bool rrm_enable = (InpPreset == PRESET_RRM) || Inp_RRM_EnableInCustom;
    Settings.RRM_RequirePullbackReclaim = (rrm_enable ? Inp_RRM_RequirePullbackReclaim : false);
    Settings.RRM_RequireEmaDiv          = (rrm_enable ? Inp_RRM_RequireEmaDiv : false);
-   Settings.RRM_Lookback              = Inp_RRM_Lookback;
-   Settings.RRM_MinDivPips            = Inp_RRM_MinDivPips;
+   Settings.RRM_Lookback         = Inp_RRM_Lookback;
+   Settings.RRM_MinDivPips       = Inp_RRM_MinDivPips;
    
-   Settings.BiasEnabled    = Inp_BiasEnabled;
-   Settings.BiasMode       = effBiasMode;
-   Settings.ManSide        = Inp_ManualSide;
+   Settings.BiasEnabled          = Inp_BiasEnabled;
+   Settings.BiasMode             = effBiasMode;
+   Settings.ManSide              = Inp_ManualSide;
 
    // --- C. Strategy mapping
    // BiasFastID/BiasSlowID are role indices (0..3) mapped in SEA_SignalEngine: 0=EMA1, 1=EMA2, 2=EMA3, 3=EMA4
@@ -914,15 +993,37 @@ void ApplySettings() {
    }
 
    //+------------------------------------------------------------------+
-   //| PRESET_RRM - ORIGINAL |
+   //| PRESET_RRM - SIMPLIFIED WITH INPUT CONTROL
    //+------------------------------------------------------------------+
-
+   /*
+   USAGE EXAMPLES - Just change these 2 inputs:
+   
+   Example 1: Price vs EMA1 (5-period single EMA)
+      Inp_RRM_AutoStrat = STRAT_PRICE_CROSS
+      Inp_RRM_BiasEMA   = ROLE_EMA1
+      → Bias: Price above/below EMA1(5)
+   
+   Example 2: EMA1/EMA2 crossover (5/13 fast pair)
+      Inp_RRM_AutoStrat = STRAT_PAIR_CROSS
+      Inp_RRM_BiasEMA   = ROLE_EMA1
+      → Bias: EMA1(5) crosses EMA2(13)
+   
+   Example 3: EMA3/EMA4 crossover (34/89 slow pair) - Original RRM
+      Inp_RRM_AutoStrat = STRAT_PAIR_CROSS
+      Inp_RRM_BiasEMA   = ROLE_EMA3
+      → Bias: EMA3(34) crosses EMA4(89)
+   
+   Example 4: EMA1 slope only (5-period slope direction)
+      Inp_RRM_AutoStrat = STRAT_SINGLE_SLOPE
+      Inp_RRM_BiasEMA   = ROLE_EMA1
+      → Bias: EMA1(5) slope direction (rising/falling)
+   */
    else if(InpPreset == PRESET_RRM)
    {
-      // RRM Trend Pullback: Trend bias (EMA pair) + HTF confirmation + pullback/reclaim trigger
-      // Confirmations: MACD alignment + PSAR not blocking + EMA convergence->divergence (trend re-acceleration)
-
-      // Determine RRM mode
+      // RRM Trend Pullback: Trend bias (EMA) + HTF confirmation + pullback/reclaim trigger
+      // Confirmations: MACD alignment + PSAR not blocking + EMA convergence->divergence
+   
+      // Determine RRM mode: SCALP or SWING
       ERRMMode mode = Inp_RRM_Mode;
       if(mode == RRM_AUTO_BY_TF)
       {
@@ -932,58 +1033,63 @@ void ApplySettings() {
          else
             mode = RRM_SWING;
       }
-
-      Settings.CloseOnReverse = true; // ORG: true
+   
+      // ============ USE INPUT PARAMETERS FOR STRATEGY ============
+      Settings.AutoStrat      = Inp_RRM_AutoStrat;  // User selects: PAIR_CROSS / PRICE_CROSS / SINGLE_SLOPE
+      
+      // Set bias EMAs based on user input and selected strategy
+      if(Inp_RRM_AutoStrat == STRAT_PRICE_CROSS || Inp_RRM_AutoStrat == STRAT_SINGLE_SLOPE)
+      {
+         // Single EMA strategies - both use same EMA
+         Settings.BiasFastID  = (int)Inp_RRM_BiasEMA;
+         Settings.BiasSlowID  = (int)Inp_RRM_BiasEMA;
+      }
+      else // STRAT_PAIR_CROSS
+      {
+         // Pair strategy - use selected EMA and next one
+         Settings.BiasFastID  = (int)Inp_RRM_BiasEMA;
+         Settings.BiasSlowID  = (int)Inp_RRM_BiasEMA + 1;  // Next EMA (e.g., EMA1->EMA2 or EMA3->EMA4)
+      }
+   
+      Settings.CloseOnReverse = true;
       Settings.BiasEnabled    = true;
       Settings.BiasMode       = BIAS_AUTO;
-      Settings.AutoStrat      = STRAT_PAIR_CROSS;
-
-      Settings.MaType         = METHOD_EMA; // RRM uses EMA ribbon (legacy controller)
-      // Optional institutional gates (controlled by global filter inputs)
+      Settings.MaType         = METHOD_EMA;  // RRM uses EMA ribbon
       Settings.UseHTF         = Inp_UseHTF;
       Settings.UseNews        = Inp_UseNews;
-
-      // Scalp vs Swing bias pair (pullback trigger uses BiasFast EMA)
+      Settings.UseTime        = Inp_UseTime;
+   
+      // Mode-specific settings (SCALP vs SWING)
       if(mode == RRM_SCALP)
       {
-         Settings.BiasFastID  = (int)ROLE_EMA1;
-         Settings.BiasSlowID  = (int)ROLE_EMA2;
-         Settings.UseTime     = Inp_UseTime;
-
          // Legacy RRM ribbon (matches historical RRM controller visualization)
-         Settings.P_Ema1      = 34; // 21 .. 5 .. BEST: 34
-         Settings.P_Ema2      = 89; // 89 .. 13 .. BEST: 89
-         Settings.P_Ema3      = 34; // 34
-         Settings.P_Ema4      = 89; // 89
-
-         Settings.MaxSpread   = 2.5; // ORG: 2.5 .. BEST: 3.5
-         Settings.MinATR      = 12.5; // ORG: 3.0 .. BEST: 12.5
-
-         Settings.SL_Mult     = 1.25; // ORG: 1.8 .. BEST: 1.25
-         Settings.TP_Mult     = 4.0; // ORG: 3.6 .. BEST 4.0
+         Settings.P_Ema1      = 34;    // 21 .. 5 .. BEST: 34
+         Settings.P_Ema2      = 89;    // 89 .. 13 .. BEST: 89
+         Settings.P_Ema3      = 34;
+         Settings.P_Ema4      = 89;
+   
+         Settings.MaxSpread   = 2.5;   // ORG: 2.5 .. BEST: 3.5
+         Settings.MinATR      = 12.5;  // ORG: 3.0 .. BEST: 12.5
+         Settings.SL_Mult     = 1.25;  // ORG: 1.8 .. BEST: 1.25
+         Settings.TP_Mult     = 4.0;   // ORG: 3.6 .. BEST 4.0
       }
       else // RRM_SWING
       {
-         Settings.BiasFastID  = (int)ROLE_EMA3;
-         Settings.BiasSlowID  = (int)ROLE_EMA4;
-         Settings.UseTime     = Inp_UseTime;
-
-         // Legacy RRM ribbon (matches historical RRM controller visualization)
-         Settings.P_Ema1      = 5; // 5
-         Settings.P_Ema2      = 13; // 13
-         Settings.P_Ema3      = 34; // 34
-         Settings.P_Ema4      = 89; // 89
+         // Legacy RRM ribbon
+         Settings.P_Ema1      = 5;     // 5
+         Settings.P_Ema2      = 13;    // 13
+         Settings.P_Ema3      = 34;    // 34
+         Settings.P_Ema4      = 89;    // 89
          
-         Settings.MaxSpread   = 5.0; // ORG: 5.0
-         Settings.MinATR      = 8.0; // ORG: 5.0 .. BEST: 3.0, 5.0, 8.0, 10.0
-
-         Settings.SL_Mult     = 1.25; // ORG: 2.0
-         Settings.TP_Mult     = 4.0; // ORG: 4.0
+         Settings.MaxSpread   = 5.0;   // ORG: 5.0
+         Settings.MinATR      = 8.0;   // ORG: 5.0 .. BEST: 3.0, 5.0, 8.0, 10.0
+         Settings.SL_Mult     = 1.25;  // ORG: 2.0
+         Settings.TP_Mult     = 4.0;   // ORG: 4.0
       }
-
+   
       // Confirmations as votes
-      Settings.VoteThreshold  = 4;  // Original set to: 1
-      Settings.Use_EmaSig     = true; // RRM uses bias + optional gates; EMA vote disabled by design
+      Settings.VoteThreshold  = 4;
+      Settings.Use_EmaSig     = true;  // EMA signal vote
       Settings.Use_Adx        = false;
       Settings.Use_Macd       = true;
       Settings.Use_Rsi        = false;
@@ -994,34 +1100,34 @@ void ApplySettings() {
       Settings.Use_Psar       = true;
       Settings.Use_P123       = false;
       Settings.Use_Ross       = false;
-
+   
       // Legacy MACD parameters (RRM controller): 8/13/8
-      Settings.P_MacdFast     = 8;  // 8
-      Settings.P_MacdSlow     = 13; // 13
-      Settings.P_MacdSig      = 8;  // 8
-
-      // RRM optional gates (legacy mode keeps these OFF by default)
+      Settings.P_MacdFast     = 8;
+      Settings.P_MacdSlow     = 13;
+      Settings.P_MacdSig      = 8;
+   
+      // RRM optional gates
       Settings.RRM_RequirePullbackReclaim = Inp_RRM_RequirePullbackReclaim;
       Settings.RRM_RequireEmaDiv          = Inp_RRM_RequireEmaDiv;
-      Settings.RRM_Lookback              = Inp_RRM_Lookback;
-      Settings.RRM_MinDivPips            = Inp_RRM_MinDivPips;
-
+      Settings.RRM_Lookback               = Inp_RRM_Lookback;
+      Settings.RRM_MinDivPips             = Inp_RRM_MinDivPips;
+   
       // Exits / management
-      Settings.Use_BE         = true; // ORG: true
-      Settings.BE_Trig        = 1.5;  // ORG: 1.0 .. BEST: 1.5, 2.0
-      Settings.BE_Buff        = 0.3;  // ORG: 0.1 .. BEST: 0.3
-      Settings.TrailMode      = TRAIL_PSAR; // ORG: TRAIL_PSAR
-      Settings.P_PsarTrailCushionATR = 0.5; // ORG: 0.5
-
+      Settings.Use_BE         = true;
+      Settings.BE_Trig        = 1.5;
+      Settings.BE_Buff        = 0.3;
+      Settings.TrailMode      = TRAIL_PSAR;
+      Settings.P_PsarTrailCushionATR = 0.5;
+   
       Settings.MaType         = METHOD_EMA;
       effEmaStrategy          = (mode == RRM_SCALP ? EMA_STRAT_2_CROSS_1_2 : EMA_STRAT_2_CROSS_3_4);
       effMaType               = Settings.MaType;
       effBiasMode             = Settings.BiasMode;
-
+   
       if(note != "") note += " | ";
-      note += "PRESET: RRM_TREND_PULLBACK applied.";
+      note += "PRESET_RRM: TREND_PULLBACK applied.";
    }
-
+   
    //+------------------------------------------------------------------+
    //| PRESET_RRM_ATR (LEGACY-ALIGNED, COMMENTS RESTORED)
    //+------------------------------------------------------------------+
@@ -1165,7 +1271,7 @@ void ApplySettings() {
       effBiasMode             = Settings.BiasMode;
 
       if(note != "") note += " | ";
-      note += "PRESET: RRM_ATR_TREND_PULLBACK (LEGACY-ALIGNED, ATR-SAFE) applied.";
+      note += "PRESET_RRM_ATR: TREND_PULLBACK (LEGACY-ALIGNED, ATR-SAFE) applied.";
    }
 
    // --- L. Final effective provenance + UI clarity + UI clarity
