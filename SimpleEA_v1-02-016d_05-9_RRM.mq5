@@ -537,9 +537,9 @@ input double         Inp_BE_Trig                = 1.0;         // Breakeven Trig
 input double         Inp_BE_Buff                = 0.1;         // Breakeven Buffer (ATR)
 
 input group "=== EXITS: TRAILING STOP ==="
-input ETrailingMode  Inp_TrailMode              = TRAIL_ATR;   // TRAIL .._ATR, .._FRACTAL, .._NONE, .._PSAR | Trailing Logic
+input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR;   // TRAIL .._ATR, .._FRACTAL, .._NONE, .._PSAR | Trailing Logic
 input double         Inp_Trail_Mult             = 3.0;         // 3.0 | 1.5 | ATR Trail Distance
-input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // PSAR_CUSHION .._ATR, .._PIPS; PSAR Trail Cushion Mode
+input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR_CUSHION .._ATR, .._PIPS; PSAR Trail Cushion Mode
 input double         Inp_PsarTrailCushionATR    = 0.2;         // PSAR Trailing ATR Cushion (when Mode=ATR)
 input double         Inp_PSAR_TrailPipsCushion  = 5.0;         // PSAR Trailing Pips Cushion (when Mode=PIPS, auto-scaled)
 
@@ -593,6 +593,45 @@ void OnTick() {
 
 void OnDeinit(const int reason) {
    OrchestrateDeinit(reason);
+}
+
+//+------------------------------------------------------------------+
+//| HELPER: Get recommended PSAR pips cushion based on TF & currency |
+//+------------------------------------------------------------------+
+double GetRecommendedPsarPipsCushion() {
+   bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
+   
+   // Base cushion values
+   double cushion = 5.0;  // Default
+   
+   switch(_Period) {
+      case PERIOD_M1:
+         cushion = isJPY ? 3.0 : 2.0;
+         break;
+      case PERIOD_M5:
+         cushion = isJPY ? 5.0 : 3.0;
+         break;
+      case PERIOD_M15:
+         cushion = isJPY ? 8.0 : 5.0;
+         break;
+      case PERIOD_M30:
+         cushion = isJPY ? 12.0 : 7.0;
+         break;
+      case PERIOD_H1:
+         cushion = isJPY ? 15.0 : 10.0;
+         break;
+      case PERIOD_H4:
+         cushion = isJPY ? 25.0 : 15.0;
+         break;
+      case PERIOD_D1:
+         cushion = isJPY ? 40.0 : 25.0;
+         break;
+      default:
+         cushion = isJPY ? 10.0 : 5.0;
+         break;
+   }
+   
+   return cushion;
 }
 
 //+------------------------------------------------------------------+
@@ -741,14 +780,14 @@ void ApplySettings() {
    Settings.Use_Ross             = Inp_Use_Ross;    // DISABLED
    
    // --- I. Exit / BE / trailing
-   // AL - Initial SL Placement
+   // SL - Stop-Loss: Initial SL Placement
    Settings.SL_PlacementMode     = Inp_SL_PlacementMode;
    Settings.SL_Mult              = Inp_SL_Mult;
    Settings.SL_PsarPipsCushion   = Inp_SL_PsarPipsCushion;
    Settings.SL_SwingPipsCushion  = Inp_SL_SwingPipsCushion;
    Settings.SL_FixedPips         = Inp_SL_FixedPips;
    
-   // TP, BE, Trailing
+   // TR - TRailing-Stop: TP, BE
    Settings.TP_Mult              = Inp_TP_Mult;
    Settings.Use_BE               = Inp_Use_BE;
    Settings.BE_Trig              = Inp_BE_Trig;
@@ -756,7 +795,7 @@ void ApplySettings() {
    Settings.TrailMode            = Inp_TrailMode;
    Settings.Trail_Mult           = Inp_Trail_Mult;
    
-   // AL - PSAR Trailing Cushion Mode
+   // TR - TRailing-Stop: PSAR Trailing Cushion Mode
    Settings.PSAR_TrailCushionMode   = Inp_PSAR_TrailCushionMode;
    Settings.PSAR_TrailPipsCushion   = Inp_PSAR_TrailPipsCushion;
 
@@ -1123,8 +1162,6 @@ void ApplySettings() {
    
          Settings.MaxSpread   = 2.5;   // ORG: 2.5 .. BEST: 3.5
          Settings.MinATR      = 12.5;  // ORG: 3.0 .. BEST: 12.5
-         
-         Settings.SL_PlacementMode = SL_PSAR_ATR;
          Settings.SL_Mult     = 1.25;  // ORG: 1.8 .. BEST: 1.25
          Settings.TP_Mult     = 4.0;   // ORG: 3.6 .. BEST 4.0
       }
@@ -1138,8 +1175,6 @@ void ApplySettings() {
          
          Settings.MaxSpread   = 5.0;   // ORG: 5.0
          Settings.MinATR      = 8.0;   // ORG: 5.0 .. BEST: 3.0, 5.0, 8.0, 10.0
-         
-         Settings.SL_PlacementMode = SL_PSAR_ATR;
          Settings.SL_Mult     = 1.25;  // ORG: 2.0
          Settings.TP_Mult     = 4.0;   // ORG: 4.0
       }
@@ -1170,19 +1205,31 @@ void ApplySettings() {
       Settings.RRM_MinDivPips             = Inp_RRM_MinDivPips;
    
       // Exits / management
-      Settings.Use_BE         = true;
-      Settings.BE_Trig        = 1.5;
-      Settings.BE_Buff        = 0.3;
-      Settings.TrailMode      = TRAIL_PSAR;
-      Settings.P_PsarTrailCushionATR = 0.5;
+      Settings.Use_BE                     = true;
+      Settings.BE_Trig                    = 1.5;
+      Settings.BE_Buff                    = 0.3;
+         
+      // =====================================================================
+      // ★★★ CONFIGURE INITIAL SL: PSAR + PIPS (TF/CURRENCY AWARE) ★★★
+      // =====================================================================
+      Settings.SL_PlacementMode           = SL_PSAR_PIPS;
+      Settings.SL_PsarPipsCushion         = GetRecommendedPsarPipsCushion();
+      
+      // =====================================================================
+      // ★★★ CONFIGURE TRAILING STOP: PSAR + PIPS (TF/CURRENCY AWARE) ★★★
+      // =====================================================================
+      Settings.TrailMode                  = TRAIL_PSAR;
+      Settings.PSAR_TrailCushionMode      = PSAR_CUSHION_PIPS;
+      Settings.PSAR_TrailPipsCushion      = GetRecommendedPsarPipsCushion();
+      Settings.P_PsarTrailCushionATR      = 0.5;
    
-      Settings.MaType         = METHOD_EMA;
-      effEmaStrategy          = (mode == RRM_SCALP ? EMA_STRAT_2_CROSS_1_2 : EMA_STRAT_2_CROSS_3_4);
-      effMaType               = Settings.MaType;
-      effBiasMode             = Settings.BiasMode;
+      Settings.MaType                     = METHOD_EMA;
+      effEmaStrategy                      = (mode == RRM_SCALP ? EMA_STRAT_2_CROSS_1_2 : EMA_STRAT_2_CROSS_3_4);
+      effMaType                           = Settings.MaType;
+      effBiasMode                         = Settings.BiasMode;
    
       if(note != "") note += " | ";
-      note += "PRESET_RRM: TREND_PULLBACK applied.";
+      note += "PRESET_RRM: TREND_PULLBACK applied (SL=PSAR+Pips, Trail=PSAR+Pips, TF/currency aware).";
    }
    
    //+------------------------------------------------------------------+
