@@ -14,6 +14,7 @@ The system trades **quality over quantity**, using a strict multiplicative votin
 
 - [System Architecture](#system-architecture)
 - [How SimpleEA Works: Complete Process Flow](#how-simpleea-works-complete-process-flow)
+- [The 9-Step Signal Pipeline: Visual Overview](#the-9-step-signal-pipeline-visual-overview)
 - [The 9-Step Signal Pipeline: Detailed Walkthrough](#the-9-step-signal-pipeline-detailed-walkthrough)
 - [The Multiplicative Voting System Explained](#the-multiplicative-voting-system-explained)
 - [Complete Execution Trace: Real-World Example](#complete-execution-trace-real-world-example)
@@ -132,6 +133,87 @@ The system trades **quality over quantity**, using a strict multiplicative votin
 - Signal evaluation happens on **shift=1** (CLOSED candle)
 - Trade entry happens on **shift=0** (NEW candle open)
 - This prevents repainting and ensures stable signals
+
+---
+
+## The 9-Step Signal Pipeline: Visual Overview
+
+**All evaluation happens on CLOSED candle (shift=1)**
+
+The system follows a strict sequential pipeline where **any failure stops immediately and returns 0 (NO TRADE)**:
+
+```
+Step 1: PRE-FILTERS
+├─ Spread < MaxSpreadPips?
+├─ MinATR < ATR < MaxATR?
+├─ Time/Session allowed?
+└─ No news blackout?
+   → If ANY fail → TS = 0 → STOP
+                ↓
+Step 2: MARKET BIAS DETERMINATION
+├─ Compare Fast EMA vs Slow EMA
+├─ Check EMA slopes (rising/falling)
+├─ Strategy-dependent relaxation:
+│  ├─ STRAT_PAIR_CROSS: Only Fast slope required (relaxed)
+│  └─ Others: Both slopes required (strict)
+└─ Result: bias ∈ {-1, 0, 1} = {SHORT, NEUTRAL, LONG}
+   → If bias = 0 → TS = 0 → STOP
+                ↓
+Step 3: AUTOSTRAT ENTRY SIGNAL
+├─ STRAT_SINGLE_SLOPE: Single EMA direction
+├─ STRAT_PRICE_CROSS: Price vs EMA
+└─ STRAT_PAIR_CROSS: EMA crossover
+   → Generate entry_signal (1/-1/0)
+                ↓
+Step 4: SIGNAL VALIDATION
+└─ entry_signal must match bias direction
+   → If mismatch → TS = 0 → STOP
+                ↓
+Step 5: HTF FILTER (Optional)
+└─ Higher timeframe EMA must align with bias
+   → If HTF disagrees → TS = 0 → STOP
+                ↓
+Step 6: RRM GATES (Optional)
+├─ RRM_RequirePullbackReclaim?
+│  └─ Check if price pulled back to EMA then reclaimed
+└─ RRM_RequireEmaDiv?
+   └─ Check if EMAs are expanding (not converging)
+   → If enabled gates not met → TS = 0 → STOP
+                ↓
+Step 7: VOTING BYPASS CHECK
+└─ If VoteThreshold <= 1 → Accept signal (bypass voting)
+   → Otherwise → Continue to voting
+                ↓
+Step 8: INDICATOR VOTING
+├─ Count votes from enabled indicators:
+│  ├─ EMA1 (price position)
+│  ├─ ADX (trend strength)
+│  ├─ MACD (momentum alignment)
+│  ├─ CCI (cyclical)
+│  ├─ RSI (momentum zones)
+│  ├─ Stochastic (momentum)
+│  ├─ PSAR (trend direction)
+│  ├─ Bollinger Bands (volatility)
+│  ├─ MFI (money flow)
+│  ├─ P123 (pattern)
+│  └─ Ross Hook (fractal)
+└─ Each indicator votes: 1 (AGREE) or 0 (DISAGREE)
+                ↓
+Step 9: FINAL DECISION
+├─ Count total votes
+├─ Compare: votes >= VoteThreshold?
+│  ├─ YES → TS = bias direction (±1)
+│  └─ NO → TS = 0
+└─ Return TS to main EA
+```
+
+**Key Principle:** TS (Trade Signal) = Market_Bias × Indicator₁ × Indicator₂ × ... × Indicatorₙ
+
+Where:
+- **ANY component = 0** → Entire result = 0 (NO TRADE)
+- **ALL components = 1** → Result = bias direction (±1)
+
+This multiplicative system ensures **unanimous agreement** before entering a position.
 
 ---
 
