@@ -1738,7 +1738,18 @@ void OrchestrateTick()
 
    FlowLog("Step B: Compute direction signal");
    int direction = Signal.GetDirection();
-
+   
+   // ★★★ DEBUG OUTPUT ★★★
+   if(direction == 0) {
+      string reason = Signal.LastReason();
+      Print("DEBUG: No signal. Reason: ", reason, " | Bias: ", Signal.LastBias(), 
+            " | Votes: ", Signal.LastVotes(), "/", Settings.VoteThreshold);
+   } else {
+      Print("DEBUG: SIGNAL GENERATED! Direction: ", direction, " | Bias: ", Signal.LastBias(), 
+            " | Votes: ", Signal.LastVotes(), "/", Settings.VoteThreshold, 
+            " | Reason: ", Signal.LastReason());
+   }
+   
    // Visualization: eligible entry signal marker
    if(Inp_DrawEntryLines && direction != 0)
       SEA_DrawEntrySignalLine(iTime(_Symbol, PERIOD_CURRENT, 1), direction, Signal.LastReason());
@@ -1796,8 +1807,11 @@ void SEA_UI_ManageChartIndicators()
       }
    }
 
-   // 2) Determine which EMA roles are relevant
+   // 2) Determine which indicators are ACTUALLY USED by the active preset
    bool need_ema1=false, need_ema2=false, need_ema3=false, need_ema4=false;
+   bool need_psar=false;
+   bool need_macd=false;
+   bool need_atr=false;  // ★★★ Only show ATR if actually used ★★★
 
    int f = Settings.BiasFastID;
    int s = Settings.BiasSlowID;
@@ -1808,6 +1822,27 @@ void SEA_UI_ManageChartIndicators()
 
    if(Settings.Use_EmaSig) need_ema1=true;
 
+   // ★★★ PSAR: Show if used for SL placement OR trailing ★★★
+   if(Settings.SL_PlacementMode == SL_PSAR_ATR || 
+      Settings.SL_PlacementMode == SL_PSAR_PIPS ||
+      Settings.Use_Psar ||  // If used as vote
+      Settings.TrailMode == TRAIL_PSAR) 
+   {
+      need_psar = true;
+   }
+
+   // ★★★ MACD: Show if used for voting ★★★
+   if(Settings.Use_Macd) need_macd = true;
+
+   // ★★★ ATR: Only show if ACTUALLY USED for SL or trailing ★★★
+   if(Settings.SL_PlacementMode == SL_ATR ||
+      Settings.TrailMode == TRAIL_ATR ||
+      (Settings.SL_PlacementMode == SL_PSAR_ATR) ||
+      (Settings.TrailMode == TRAIL_PSAR && Settings.PSAR_TrailCushionMode == PSAR_CUSHION_ATR))
+   {
+      need_atr = true;
+   }
+   
    // 3) Re-attach overlays in main window
    if(Settings.MABenchmarkStrict)
    {
@@ -1820,23 +1855,40 @@ void SEA_UI_ManageChartIndicators()
    if(need_ema3) { int h=Signal.GetEmaHandle(2); if(h!=INVALID_HANDLE) ChartIndicatorAdd(0,0,h); }
    if(need_ema4) { int h=Signal.GetEmaHandle(3); if(h!=INVALID_HANDLE) ChartIndicatorAdd(0,0,h); }
 
-   // PSAR overlay if used for vote OR PSAR trailing
-   if(Settings.Use_Psar || Settings.TrailMode == TRAIL_PSAR)
+   // PSAR overlay (main chart)
+   if(need_psar)
    {
       int h = Signal.GetPsarHandle();
       if(h != INVALID_HANDLE) ChartIndicatorAdd(0, 0, h);
    }
 
+   // 4) Add subwindow indicators
+   
+   // ★★★ ATR: Only add if needed ★★★
+   if(need_atr)
+   {
+      int h_atr = Signal.GetAtrHandle();
+      if(h_atr != INVALID_HANDLE)
+      {
+         if(!ChartIndicatorAdd(0, 1, h_atr))
+            Print("UI: ChartIndicatorAdd(ATR) failed.");
+      }
+   }
+
    // MACD in a separate subwindow
-   if(Settings.Use_Macd)
+   if(need_macd)
    {
       int h = Signal.GetMacdHandle();
       if(h != INVALID_HANDLE)
       {
-         if(!ChartIndicatorAdd(0, 1, h))
-            Print("UI: ChartIndicatorAdd(MACD) failed. (Subwindow may not exist; MACD will not be displayed.)");
+         int target_window = need_atr ? 2 : 1;  // Place after ATR if ATR exists
+         if(!ChartIndicatorAdd(0, target_window, h))
+            Print("UI: ChartIndicatorAdd(MACD) failed.");
       }
    }
+   
+   Print("UI: Chart indicators managed. ATR shown: ", (need_atr ? "YES" : "NO"), 
+         " | PSAR shown: ", (need_psar ? "YES" : "NO"));
 }
 
 //+------------------------------------------------------------------+
