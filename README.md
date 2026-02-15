@@ -1,379 +1,143 @@
-# RRM SEA (Signal Engine Architecture) - Trading System
+## Trade Signal Logic: How TS and TE Work
 
-## Overview
+### Core Concept: Shift-Based Signal Evaluation
 
-**RRM SEA** is a professional-grade algorithmic trading system for MetaTrader 5, implementing **Real Risk Money (RRM) methodology** combined with a modular signal engine architecture.
+The SimpleEA system implements a **two-phase trading logic** that separates **Trade Signal (TS) evaluation** from **Trade Entry (TE) execution**:
 
-## System Architecture
+### Phase 1: Trade Signal Evaluation (TS) on shift=1
 
-### Signal Processing Pipeline
-
-The system uses a **9-step sequential pipeline** to generate and validate trading signals:
+**TS** is evaluated on the **completed candle** (shift=1) using a **multiplicative voting system**:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  STEP 1: PRE-FILTERS                                        │
-│  ├─ Spread check (MaxSpreadPips)                            │
-│  ├─ ATR volatility range (MinATR, MaxATR)                   │
-│  └─ Time/session filters                                    │
-│  → REJECT if any filter fails                               │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│  STEP 2: MARKET BIAS DETERMINATION                          │
-│  ├─ Check EMA position: Fast vs Slow                        │
-│  ├─ Check EMA slopes: Both rising/falling?                  │
-│  ├─ Result: LONG (1), SHORT (-1), or NEUTRAL (0)           │
-│  └─ Strategy-dependent relaxation:                          │
-│      • STRAT_PAIR_CROSS: Only Fast slope required           │
-│      • Other strategies: Both slopes required               │
-│  → REJECT if NEUTRAL (no clear trend)                       │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│  STEP 3: AUTOSTRAT ENTRY SIGNAL                             │
-│  ├─ STRAT_SINGLE_SLOPE: Single EMA direction                │
-│  ├─ STRAT_PRICE_CROSS: Price vs EMA                         │
-│  └─ STRAT_PAIR_CROSS: EMA crossover                         │
-│  → Generate entry_signal (1/-1/0)                           │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│  STEP 4: SIGNAL VALIDATION                                  │
-│  ├─ Entry signal must match market bias                     │
-│  └─ If mismatch → REJECT                                    │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│  STEP 5: HTF (Higher Timeframe) FILTER                      │
-│  ├─ Check HTF EMA slope                                     │
-│  └─ Must align with bias → or REJECT                        │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│  STEP 6: RRM MANDATORY GATES (Optional)                     │
-│  ├─ RRM_RequirePullbackReclaim:                             │
-│  │   • Wait for price to pull back to Fast EMA             │
-│  │   • Then reclaim (cross back above/below)               │
-│  │   • Result: Better entry prices, fewer trades           │
-│  └─ RRM_RequireEmaDiv:                                      │
-│      • Require EMAs to be diverging (expanding)             │
-│      • Avoid entries during EMA convergence                 │
-│  → REJECT if enabled gates not satisfied                    │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│  STEP 7: VOTING BYPASS CHECK                                │
-│  └─ If VoteThreshold <= 1 → ACCEPT (fast mode)              │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│  STEP 8: INDICATOR VOTING                                   │
-│  ├─ Each enabled indicator votes if it agrees with bias:    │
-│  │   • EMA1 (price position)                                │
-│  │   • ADX (trend strength)                                 │
-│  │   • MACD (momentum)                                      │
-│  │   • CCI (momentum)                                       │
-│  │   • RSI (momentum zones)                                 │
-│  │   • Stochastic (momentum zones)                          │
-│  │   • PSAR (trend direction)                               │
-│  │   • Bollinger Bands (volatility)                         │
-│  │   • MFI (money flow)                                     │
-│  │   • P123 (pattern)                                       │
-│  │   • Ross Hook (pattern)                                  │
-│  └─ Count total votes                                       │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│  STEP 9: FINAL DECISION                                     │
-│  ├─ If votes >= VoteThreshold → ACCEPT signal               │
-│  └─ Otherwise → REJECT                                      │
-└─────────────────────────────────────────────────────────────┘
+TS = Market_Bias × Indicator₁ × Indicator₂ × ... × Indicatorₙ
 ```
 
----
+Where:
+- **Market_Bias** ∈ {-1, 0, 1} = {SHORT, NEUTRAL, LONG}
+- Each **Indicator** ∈ {0, 1} = {DISAGREE, AGREE with bias}
 
-## Key Concepts
+**Critical Rule:**
+- **TS = 1** (valid LONG signal) ONLY if:
+  - Market_Bias = 1 (LONG bias detected)
+  - AND ALL enabled indicators vote 1 (agree with LONG bias)
+  - AND votes ≥ VoteThreshold
 
-### 1. Market Bias vs Entry Signal
+- **TS = -1** (valid SHORT signal) ONLY if:
+  - Market_Bias = -1 (SHORT bias detected)
+  - AND ALL enabled indicators vote 1 (agree with SHORT bias)
+  - AND votes ≥ VoteThreshold
 
-**Market Bias** = Primary trend filter
-- Determines if market is in LONG, SHORT, or NEUTRAL state
-- Based on EMA position and slope alignment
-- Acts as **master filter** - no trades against bias
+- **TS = 0** (no signal) if:
+  - Market_Bias = 0 (NEUTRAL/choppy market)
+  - OR any enabled indicator votes 0 (disagrees)
+  - OR votes < VoteThreshold
 
-**Entry Signal** = Timing within bias context
-- Generated by AutoStrat strategy
-- Only evaluated if valid bias exists
-- Must match bias direction to be accepted
+### Phase 2: Trade Entry Execution (TE) on shift=0
 
-### 2. AutoStrat Strategies
+**When a new candle opens** (shift=0):
+- IF **TS = 1** was evaluated on shift=1 → **TE = 1** → **ENTER LONG**
+- IF **TS = -1** was evaluated on shift=1 → **TE = 1** → **ENTER SHORT**
+- IF **TS = 0** was evaluated on shift=1 → **TE = 0** → **NO TRADE**
 
-#### STRAT_PAIR_CROSS (EMA Crossover)
-- **Signal**: Fast EMA crosses above/below Slow EMA
-- **Bias Logic**: Relaxed - only requires Fast slope correct
-- **Best For**: Catching trend starts early
-- **Risk**: Can enter before trend fully established
+**Important:** 
+- We do NOT re-evaluate TS at shift=0
+- The trade entry happens immediately at the open of the new candle
+- This ensures stable, confirmed signals based on closed candles
 
-#### STRAT_PRICE_CROSS (Price vs EMA)
-- **Signal**: Price crosses above/below EMA
-- **Bias Logic**: Strict - requires both EMAs sloping correctly
-- **Best For**: Trending markets with pullbacks
-- **Risk**: Late entries if trend already strong
+### Indicator Voting Example
 
-#### STRAT_SINGLE_SLOPE (EMA Direction)
-- **Signal**: Single EMA turning up/down
-- **Bias Logic**: Strict - requires both EMAs sloping correctly
-- **Best For**: Fast-moving markets
-- **Risk**: Whipsaw in ranging conditions
+**Scenario:** 4 indicators enabled with VoteThreshold = 4
 
-### 3. RRM Gates
+**Evaluation at shift=1 (completed candle):**
 
-#### Pullback/Reclaim Gate
-```
-RRM_RequirePullbackReclaim = true
-```
-**What it does:**
-- Waits for price to pull back to Fast EMA (dip below in uptrend)
-- Requires price to reclaim EMA (cross back above)
-- Confirms trend continuation after pullback
+1. **Market Bias Check:**
+   - EMA Fast (13) > EMA Slow (34) ✅
+   - Both EMAs sloping UP ✅
+   - **Result: Market_Bias = 1 (LONG)**
 
-**Effect:**
-- ✅ Better entry prices (buy the dip)
-- ✅ Filters out weak momentum entries
-- ❌ Misses strong breakouts
-- ❌ Fewer total trades
+2. **Indicator Voting:**
+   - MACD: Main > Signal AND Main > 0 → Vote = 1 ✅
+   - PSAR: Price > PSAR → Vote = 1 ✅
+   - RSI: RSI < 70 (not overbought) → Vote = 1 ✅
+   - CCI: CCI > 0 → Vote = 1 ✅
+   - **Total Votes: 4**
 
-**When to use:** Lower timeframes, trending markets with regular pullbacks
+3. **Trade Signal Calculation:**
+   ```
+   TS = Market_Bias × MACD × PSAR × RSI × CCI
+   TS = 1 × 1 × 1 × 1 × 1 = 1 ✅
+   
+   Votes (4) >= VoteThreshold (4) ✅
+   
+   → TS = 1 (VALID LONG SIGNAL)
+   ```
 
-#### EMA Divergence Gate
-```
-RRM_RequireEmaDiv = true
-RRM_MinDivPips = 2.0
-```
-**What it does:**
-- Requires EMAs to be expanding (distance increasing)
-- Avoids entries during EMA convergence (weakening trend)
+4. **Trade Entry at shift=0:**
+   - New candle opens
+   - TS = 1 was confirmed on shift=1
+   - **TE = 1 → ENTER LONG IMMEDIATELY**
 
-**Effect:**
-- ✅ Confirms momentum acceleration
-- ❌ Misses early trend starts
+### Why This Logic Is Powerful
 
----
+**1. Multiplicative System = Strict Filtering**
+- ANY indicator disagreement → TS = 0
+- Forces all components to align before entry
+- Reduces false signals dramatically
 
-## Configuration Guide
+**2. Shift=1 Evaluation = Confirmation**
+- Uses CLOSED candles only
+- No repainting or flickering signals
+- Stable, backtestable results
 
-### Basic Setup (Conservative - Option 1)
+**3. Shift=0 Entry = Speed**
+- Enters at the OPEN of the new candle
+- No delay after signal confirmation
+- Optimal fill prices
 
-```
-BiasMode = BIAS_AUTO
-BiasFastID = 2  // EMA3 (34)
-BiasSlowID = 3  // EMA4 (89)
-AutoStrat = STRAT_PAIR_CROSS
-VoteThreshold = 4
-
-Use_EmaSig = true
-Use_Macd = true
-Use_Cci = true
-Use_Psar = true
-
-RRM_RequirePullbackReclaim = false
-RRM_RequireEmaDiv = false
-```
-**Result:** High-quality trades, late entries, fewer signals
-
-### Early Entry Setup (Solution B)
+### Signal Flow Visualization
 
 ```
-BiasMode = BIAS_AUTO
-BiasFastID = 0  // EMA1 (5)  ← FASTER
-BiasSlowID = 1  // EMA2 (13) ← FASTER
-AutoStrat = STRAT_PRICE_CROSS
-VoteThreshold = 3
+Candle N (shift=1 - CLOSED)
+├─ Step 1: Check Market Bias (L/S/N)
+│  └─ If NEUTRAL → TS = 0 → STOP
+├─ Step 2: Check AutoStrat Entry Signal
+│  └─ Must match Bias → or STOP
+├─ Step 3: Check HTF Filter (if enabled)
+│  └─ Must align → or STOP
+├─ Step 4: Check RRM Gates (if enabled)
+│  └─ Must pass → or STOP
+├─ Step 5: Evaluate ALL Enabled Indicators
+│  ├─ MACD vote: 1 or 0
+│  ├─ PSAR vote: 1 or 0
+│  ├─ RSI vote: 1 or 0
+│  ├─ CCI vote: 1 or 0
+│  └─ ... (all enabled indicators)
+├─ Step 6: Calculate TS
+│  └─ TS = Bias × (all indicator votes multiplied)
+└─ Step 7: Check Vote Threshold
+   ├─ If votes >= threshold → TS confirmed
+   └─ If votes < threshold → TS = 0
 
-Use_EmaSig = true
-Use_Macd = true
-Use_Adx = true
-```
-**Result:** Earlier entries, more trades, requires good filtering
-
-### Pullback Trading Setup (Option 4)
-
-```
-BiasMode = BIAS_AUTO
-BiasFastID = 1  // EMA2 (13)
-BiasSlowID = 2  // EMA3 (34)
-AutoStrat = STRAT_PRICE_CROSS
-VoteThreshold = 4
-
-RRM_RequirePullbackReclaim = true  ← KEY
-RRM_RequireEmaDiv = false
-
-Use_EmaSig = true
-Use_Macd = true
-Use_Cci = true
-Use_Psar = true
-```
-**Result:** Entries only after pullback confirmation, better prices
-
-### Crossover Early Entry (Option 3 - Enhanced)
-
-```
-BiasMode = BIAS_AUTO
-BiasFastID = 1  // EMA2 (13)
-BiasSlowID = 2  // EMA3 (34)
-AutoStrat = STRAT_PAIR_CROSS  ← Uses relaxed bias logic
-VoteThreshold = 3
-
-Use_EmaSig = true
-Use_Macd = true
-Use_Cci = true
-
-RRM_RequirePullbackReclaim = false
-```
-**Result:** Catches crossovers early (only Fast slope required for bias)
-
----
-
-## Understanding Your Results
-
-### Current Setup Analysis
-From your test log:
-```
-BiasFastID = 2 (EMA34)
-BiasSlowID = 3 (EMA89)
-AutoStrat = STRAT_PAIR_CROSS
-VoteThreshold = 4
+Candle N+1 (shift=0 - OPENING)
+└─ IF TS ≠ 0 → TE = 1 → EXECUTE TRADE
+   └─ No re-evaluation needed!
 ```
 
-**Why only 1 trade:**
-- Using **slow EMAs** (34/89) for bias
-- Even with relaxed crossover logic, both EMAs are slow to respond
-- By the time they align, trend is well established
-- Late but high-quality entry
+### Example: Failed Signal
 
-**To get earlier entries:**
-1. Change to faster EMAs (5/13 or 13/34)
-2. Enable pullback logic for re-entries
-3. Lower vote threshold (but keep quality)
-
----
-
-## File Structure
+**If ANY indicator disagrees:**
 
 ```
-RRM_SEA/
-├── SimpleEA_v1-02-016d_05-8b_RRM.mq5    # Main EA
-├── SEA_SignalEngine.mqh                  # Core signal processing
-├── SEA_Config.mqh                        # Configuration structures
-├── SEA_RiskManager.mqh                   # Position sizing
-├── SEA_TradeManager.mqh                  # Trade execution
-├── README.md                             # This file
-└── README_INDICATORS.md                  # Indicator details
+Market_Bias = 1 (LONG)
+MACD = 1 ✅
+PSAR = 1 ✅
+RSI = 0 ❌ (RSI > 70, overbought)
+CCI = 1 ✅
+
+TS = 1 × 1 × 1 × 0 × 1 = 0
+
+→ TS = 0 (NO SIGNAL)
+→ TE = 0 (NO TRADE)
 ```
 
----
-
-## Trading Rules Summary
-
-### Entry Rules (ALL must pass)
-1. ✅ Spread within limit
-2. ✅ ATR within range (volatility OK)
-3. ✅ Market bias valid (LONG or SHORT, not NEUTRAL)
-4. ✅ Entry signal matches bias
-5. ✅ HTF filter passes (if enabled)
-6. ✅ RRM gates pass (if enabled)
-7. ✅ Indicator votes >= threshold
-
-### Exit Rules
-- **Take Profit**: Fixed multiplier of ATR
-- **Stop Loss**: Fixed multiplier of ATR
-- **Break Even**: Move SL to BE after price moves X pips
-- **Trailing Stop**: Optional trailing based on ATR
-
----
-
-## Optimization Tips
-
-### For More Trades
-- Use faster EMAs (5/13 instead of 34/89)
-- Lower vote threshold (3 instead of 4)
-- Disable RRM gates
-- Enable more indicators (but keep threshold reasonable)
-
-### For Better Quality
-- Use slower EMAs (34/89)
-- Increase vote threshold
-- Enable RRM gates (pullback/divergence)
-- Add HTF filter
-- Enable ADX (trend strength filter)
-
-### For Better Entries
-- Enable RRM_RequirePullbackReclaim
-- Use STRAT_PRICE_CROSS with fast EMA
-- Combine fast entry EMA with slow bias EMAs (requires code mod)
-
----
-
-## Diagnostic Tools
-
-### Vote Logging
-In tester mode, the system logs detailed vote information:
-```
-VOTE_DETAIL[2026.02.09 09:00]: bias=1 v_shift=1 votes=4/4
-  | EMA1: p=1.18557 e=1.18418 PASS
-  | MACD: main=0.000628 sig=0.000396 PASS
-  | CCI: 211.57 PASS
-  | PSAR: sar=1.18255 cl=1.18557 PASS
-```
-
-**Use this to:**
-- See which indicators voted
-- Understand why trades were rejected
-- Optimize indicator combinations
-- Tune thresholds
-
-### Rejection Reasons
-The system provides clear rejection reasons:
-- `BIAS_DISABLED`: Bias checking turned off
-- `BIAS_ZERO`: No valid market bias (neutral/conflicting)
-- `HTF_VETO`: Higher timeframe doesn't agree
-- `RRM_PULLBACK`: Pullback gate not satisfied
-- `RRM_EMA_DIV`: EMA divergence gate not satisfied
-- `VOTES X/Y`: Insufficient indicator votes
-
----
-
-## Version
-
-**Current Version:** v1.02.016d-05-8b_RRM
-
-**Key Features:**
-- 9-step signal validation pipeline
-- Strategy-dependent bias logic (STRAT_PAIR_CROSS relaxed)
-- RRM mandatory gates (pullback/divergence)
-- Comprehensive indicator voting
-- Diagnostic logging for analysis
-- Modular architecture for easy customization
-
-**Recent Updates:**
-- ✅ Fixed STRAT_PAIR_CROSS bias logic (relaxed slow slope requirement)
-- ✅ Enhanced code documentation with process flow
-- ✅ Improved README with configuration examples
-- ✅ Added detailed RRM gate explanations
-
----
-
-## Support
-
-For detailed indicator behavior, see `README_INDICATORS.md`
-
-For optimization strategies, see `Readme/_sea_optimization_scope_*.md`
-
-For code architecture details, see inline comments in `SEA_SignalEngine.mqh`
-
----
-
-## License
-
-Copyright © 2026 - RRM SEA Trading System
+**Result:** Trade is rejected because RSI disagrees with the bias. This prevents buying into overbought conditions.
