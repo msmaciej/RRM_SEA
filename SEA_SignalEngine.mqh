@@ -353,7 +353,6 @@ private:
    }
 
 public:
-
    // --- UI helpers (chart overlays) ---
    int GetEmaHandle(const int role) const
    {
@@ -363,9 +362,22 @@ public:
       if(role == 3) return h_ema4;
       return INVALID_HANDLE;
    }
+   // Expose primary MA handle (EMA1/SMA1) for chart attachment (benchmark visualization)
+   int GetPrimaryMAHandle() const { return h_ema1; }
    int GetPsarHandle() const { return h_psar; }
    int GetMacdHandle() const { return h_macd; }
-
+   int GetRsiHandle() const { return h_rsi; }       // ADD THIS
+   int GetCciHandle() const { return h_cci; }       // ADD THIS
+   int GetMfiHandle() const { return h_mfi; }       // ADD THIS
+   int GetStoHandle() const { return h_sto; }       // ADD THIS
+   int GetAdxHandle() const { return h_adx; }       // ADD THIS
+   int GetBbHandle() const { return h_bb; }         // ADD THIS
+   int GetHtfEmaHandle() const { return h_htf_ema; }// ADD THIS
+   int GetFractalHandle() const { return h_fractals; } // ADD THIS
+   
+   // Pattern indicators (return INVALID_HANDLE if not implemented yet)
+   int GetP123Handle() const { return INVALID_HANDLE; } // TODO: Implement when P123 indicator ready
+   int GetRossHandle() const { return INVALID_HANDLE; } // TODO: Implement when Ross Hook ready
 
    CSignalEngine() : m_symbol(""), m_news_count(0), m_last_news_block_log(0)
    {
@@ -1179,9 +1191,6 @@ public:
       double p = GetMAVal(handle, 2);
       return (c > p) ? 1 : (c < p) ? -1 : 0;
    }
-
-   // Expose primary MA handle (EMA1/SMA1) for chart attachment (benchmark visualization)
-   int GetPrimaryMAHandle() const { return h_ema1; }
 };
 
 //+--END OF SEA_SignalEngine.mqh--+

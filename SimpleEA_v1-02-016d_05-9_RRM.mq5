@@ -413,7 +413,7 @@ input EEmaRole       Inp_RRM_BiasEMA            = ROLE_EMA1;         // RRM Bias
 
 input int            Inp_RRM_Lookback           = 5;           // 5 | EMA convergence lookback (bars)
 input double         Inp_RRM_MinDivPips         = 0.5;         // 0.5 | Minimum EMA divergence increase (pips)
-input bool           Inp_RRM_RequirePullbackReclaim   = true;     // false | RRM gate: require pullback+reclaim (Legacy RRM: OFF)
+input bool           Inp_RRM_RequirePullbackReclaim   = false;     // false | RRM gate: require pullback+reclaim (Legacy RRM: OFF)
 input bool           Inp_RRM_RequireEmaDiv            = false;    // false | RRM gate: require EMA converge->diverge (Legacy RRM: OFF)
 
 input group "=== CUSTOM: LOGIC & RISK ==="
@@ -1793,7 +1793,17 @@ void OrchestrateDeinit(const int reason)
 
 void SEA_UI_ManageChartIndicators()
 {
-   // 1) Remove all indicators from all subwindows
+   // =====================================================================
+   // UNIVERSAL CHART INDICATOR MANAGER
+   // Shows ALL indicators involved in Trade Signal (TS) evaluation
+   // 
+   // ARCHITECTURE:
+   // 1. Bias determination (EMAs)
+   // 2. TS evaluation on shift=1: VoteCount >= VoteThreshold
+   // 3. TE execution on shift=0: if TS=1 confirmed
+   // =====================================================================
+   
+   // 1) Clear all existing indicators from all windows
    int win_total = (int)ChartGetInteger(0, CHART_WINDOWS_TOTAL);
    for(int w=win_total-1; w>=0; w--)
    {
@@ -1807,88 +1817,311 @@ void SEA_UI_ManageChartIndicators()
       }
    }
 
-   // 2) Determine which indicators are ACTUALLY USED by the active preset
-   bool need_ema1=false, need_ema2=false, need_ema3=false, need_ema4=false;
-   bool need_psar=false;
-   bool need_macd=false;
-   bool need_atr=false;  // ★★★ Only show ATR if actually used ★★★
+   Print("═══════════════════════════════════════════════════════════");
+   Print("UI: Chart Indicator Manager - Rebuilding from Settings...");
+   Print("  → Vote Threshold: ", Settings.VoteThreshold);
+   Print("═══════════════════════════════════════════════════════════");
 
-   int f = Settings.BiasFastID;
-   int s = Settings.BiasSlowID;
-   if(f==0||s==0) need_ema1=true;
-   if(f==1||s==1) need_ema2=true;
-   if(f==2||s==2) need_ema3=true;
-   if(f==3||s==3) need_ema4=true;
-
-   if(Settings.Use_EmaSig) need_ema1=true;
-
-   // ★★★ PSAR: Show if used for SL placement OR trailing ★★★
-   if(Settings.SL_PlacementMode == SL_PSAR_ATR || 
-      Settings.SL_PlacementMode == SL_PSAR_PIPS ||
-      Settings.Use_Psar ||  // If used as vote
-      Settings.TrailMode == TRAIL_PSAR) 
-   {
-      need_psar = true;
-   }
-
-   // ★★★ MACD: Show if used for voting ★★★
-   if(Settings.Use_Macd) need_macd = true;
-
-   // ★★★ ATR: Only show if ACTUALLY USED for SL or trailing ★★★
-   if(Settings.SL_PlacementMode == SL_ATR ||
-      Settings.TrailMode == TRAIL_ATR ||
-      (Settings.SL_PlacementMode == SL_PSAR_ATR) ||
-      (Settings.TrailMode == TRAIL_PSAR && Settings.PSAR_TrailCushionMode == PSAR_CUSHION_ATR))
-   {
-      need_atr = true;
-   }
+   // ========================
+   // 2) MAIN CHART OVERLAYS
+   // ========================
    
-   // 3) Re-attach overlays in main window
+   int overlays_added = 0;
+   int ts_components_visible = 0; // TS voting components on chart
+   
+   // --- Benchmark MA (PRESET_MA_BENCHMARK mode)
    if(Settings.MABenchmarkStrict)
    {
       int h = Signal.GetPrimaryMAHandle();
-      if(h != INVALID_HANDLE) ChartIndicatorAdd(0, 0, h);
-   }
-
-   if(need_ema1) { int h=Signal.GetEmaHandle(0); if(h!=INVALID_HANDLE) ChartIndicatorAdd(0,0,h); }
-   if(need_ema2) { int h=Signal.GetEmaHandle(1); if(h!=INVALID_HANDLE) ChartIndicatorAdd(0,0,h); }
-   if(need_ema3) { int h=Signal.GetEmaHandle(2); if(h!=INVALID_HANDLE) ChartIndicatorAdd(0,0,h); }
-   if(need_ema4) { int h=Signal.GetEmaHandle(3); if(h!=INVALID_HANDLE) ChartIndicatorAdd(0,0,h); }
-
-   // PSAR overlay (main chart)
-   if(need_psar)
-   {
-      int h = Signal.GetPsarHandle();
-      if(h != INVALID_HANDLE) ChartIndicatorAdd(0, 0, h);
-   }
-
-   // 4) Add subwindow indicators
-   
-   // ★★★ ATR: Only add if needed ★★★
-   if(need_atr)
-   {
-      int h_atr = Signal.GetAtrHandle();
-      if(h_atr != INVALID_HANDLE)
+      if(h != INVALID_HANDLE) 
       {
-         if(!ChartIndicatorAdd(0, 1, h_atr))
-            Print("UI: ChartIndicatorAdd(ATR) failed.");
+         ChartIndicatorAdd(0, 0, h);
+         overlays_added++;
+         Print("  ✓ Benchmark MA (bias determination)");
       }
    }
 
-   // MACD in a separate subwindow
-   if(need_macd)
+   // --- EMAs (bias determination + optional TS component)
+   bool need_ema[4];
+   need_ema[0] = (Settings.BiasFastID == 0 || Settings.BiasSlowID == 0 || Settings.Use_EmaSig);
+   need_ema[1] = (Settings.BiasFastID == 1 || Settings.BiasSlowID == 1);
+   need_ema[2] = (Settings.BiasFastID == 2 || Settings.BiasSlowID == 2);
+   need_ema[3] = (Settings.BiasFastID == 3 || Settings.BiasSlowID == 3);
+
+   for(int i=0; i<4; i++)
+   {
+      if(need_ema[i])
+      {
+         int h = Signal.GetEmaHandle(i);
+         if(h != INVALID_HANDLE)
+         {
+            ChartIndicatorAdd(0, 0, h);
+            overlays_added++;
+            
+            string role = "bias";
+            if(i == 0 && Settings.Use_EmaSig) 
+            {
+               role = "bias + TS component";
+               ts_components_visible++;
+            }
+            
+            Print("  ✓ EMA", (i+1), " (", Settings.P_Ema1 + i*8, ") [", role, "]");
+         }
+      }
+   }
+
+   // --- PSAR (TS component + optional trailing)
+   if(Settings.Use_Psar || 
+      Settings.TrailMode == TRAIL_PSAR)
+   {
+      int h = Signal.GetPsarHandle();
+      if(h != INVALID_HANDLE)
+      {
+         ChartIndicatorAdd(0, 0, h);
+         overlays_added++;
+         
+         string role = "";
+         if(Settings.Use_Psar) 
+         {
+            role = "TS component";
+            ts_components_visible++;
+         }
+         if(Settings.TrailMode == TRAIL_PSAR)
+         {
+            if(role != "") role += " + ";
+            role += "trailing";
+         }
+         
+         Print("  ✓ PSAR [", role, "]");
+      }
+      else
+      {
+         Print("  ⚠ PSAR enabled but handle not available");
+      }
+   }
+
+   // --- Bollinger Bands (TS component)
+   if(Settings.Use_Bb)
+   {
+      int h = Signal.GetBbHandle();
+      if(h != INVALID_HANDLE)
+      {
+         ChartIndicatorAdd(0, 0, h);
+         overlays_added++;
+         ts_components_visible++;
+         Print("  ✓ Bollinger Bands [TS component]");
+      }
+      else
+      {
+         Print("  ⚠ Bollinger Bands enabled but GetBbHandle() not available");
+      }
+   }
+
+   // --- HTF EMA (filter/gate - NOT a TS component)
+   if(Settings.UseHTF)
+   {
+      int h = Signal.GetHtfEmaHandle();
+      if(h != INVALID_HANDLE)
+      {
+         ChartIndicatorAdd(0, 0, h);
+         overlays_added++;
+         Print("  ✓ HTF EMA (", EnumToString(Settings.HtfPeriod), "/", Settings.P_HtfEma, ") [filter gate]");
+      }
+      else
+      {
+         Print("  ⚠ HTF filter enabled but GetHtfEmaHandle() not available");
+      }
+   }
+
+   // --- Fractals (structure + optional trailing)
+   if(Settings.TrailMode == TRAIL_FRACTAL)
+   {
+      int h = Signal.GetFractalHandle();
+      if(h != INVALID_HANDLE)
+      {
+         ChartIndicatorAdd(0, 0, h);
+         overlays_added++;
+         Print("  ✓ Fractals [trailing]");
+      }
+      else
+      {
+         Print("  ⚠ Fractals needed but GetFractalHandle() not available");
+      }
+   }
+
+   // --- Pattern 123 (TS component)
+   if(Settings.Use_P123)
+   {
+      int h = Signal.GetP123Handle();
+      if(h != INVALID_HANDLE)
+      {
+         ChartIndicatorAdd(0, 0, h);
+         overlays_added++;
+         ts_components_visible++;
+         Print("  ✓ Pattern 123 [TS component]");
+      }
+      else
+      {
+         Print("  ⚠ Pattern 123 enabled but GetP123Handle() not available");
+      }
+   }
+   
+   // --- Ross Hook (TS component)
+   if(Settings.Use_Ross)
+   {
+      int h = Signal.GetRossHandle();
+      if(h != INVALID_HANDLE)
+      {
+         ChartIndicatorAdd(0, 0, h);
+         overlays_added++;
+         ts_components_visible++;
+         Print("  ✓ Ross Hook [TS component]");
+      }
+      else
+      {
+         Print("  ⚠ Ross Hook enabled but GetRossHandle() not available");
+      }
+   }
+
+   // ========================
+   // 3) SUBWINDOW INDICATORS
+   // (ALL are TS components)
+   // ========================
+   
+   int subwindow = 1;
+   int subwindows_added = 0;
+   
+   // --- MACD (TS component)
+   if(Settings.Use_Macd)
    {
       int h = Signal.GetMacdHandle();
       if(h != INVALID_HANDLE)
       {
-         int target_window = need_atr ? 2 : 1;  // Place after ATR if ATR exists
-         if(!ChartIndicatorAdd(0, target_window, h))
-            Print("UI: ChartIndicatorAdd(MACD) failed.");
+         if(ChartIndicatorAdd(0, subwindow, h))
+         {
+            Print("  ✓ MACD (", Settings.P_MacdFast, "/", Settings.P_MacdSlow, "/", Settings.P_MacdSig, ") [TS component, subwindow ", subwindow, "]");
+            subwindow++;
+            subwindows_added++;
+            ts_components_visible++;
+         }
+      }
+      else
+      {
+         Print("  ⚠ MACD enabled but handle not available");
       }
    }
    
-   Print("UI: Chart indicators managed. ATR shown: ", (need_atr ? "YES" : "NO"), 
-         " | PSAR shown: ", (need_psar ? "YES" : "NO"));
+   // --- RSI (TS component)
+   if(Settings.Use_Rsi)
+   {
+      int h = Signal.GetRsiHandle();
+      if(h != INVALID_HANDLE)
+      {
+         if(ChartIndicatorAdd(0, subwindow, h))
+         {
+            Print("  ✓ RSI (", Settings.P_Rsi, ") [TS component, subwindow ", subwindow, "]");
+            subwindow++;
+            subwindows_added++;
+            ts_components_visible++;
+         }
+      }
+      else
+      {
+         Print("  ⚠ RSI enabled but GetRsiHandle() not available");
+      }
+   }
+   
+   // --- CCI (TS component)
+   if(Settings.Use_Cci)
+   {
+      int h = Signal.GetCciHandle();
+      if(h != INVALID_HANDLE)
+      {
+         if(ChartIndicatorAdd(0, subwindow, h))
+         {
+            Print("  ✓ CCI (", Settings.P_Cci, ") [TS component, subwindow ", subwindow, "]");
+            subwindow++;
+            subwindows_added++;
+            ts_components_visible++;
+         }
+      }
+      else
+      {
+         Print("  ⚠ CCI enabled but GetCciHandle() not available");
+      }
+   }
+   
+   // --- MFI (TS component)
+   if(Settings.Use_Mfi)
+   {
+      int h = Signal.GetMfiHandle();
+      if(h != INVALID_HANDLE)
+      {
+         if(ChartIndicatorAdd(0, subwindow, h))
+         {
+            Print("  ✓ MFI (", Settings.P_Mfi, ") [TS component, subwindow ", subwindow, "]");
+            subwindow++;
+            subwindows_added++;
+            ts_components_visible++;
+         }
+      }
+      else
+      {
+         Print("  ⚠ MFI enabled but GetMfiHandle() not available");
+      }
+   }
+   
+   // --- Stochastic (TS component)
+   if(Settings.Use_Sto)
+   {
+      int h = Signal.GetStoHandle();
+      if(h != INVALID_HANDLE)
+      {
+         if(ChartIndicatorAdd(0, subwindow, h))
+         {
+            Print("  ✓ Stochastic (K:", Settings.P_StoK, " D:", Settings.P_StoD, " Slow:", Settings.P_StoSlow, ") [TS component, subwindow ", subwindow, "]");
+            subwindow++;
+            subwindows_added++;
+            ts_components_visible++;
+         }
+      }
+      else
+      {
+         Print("  ⚠ Stochastic enabled but GetStoHandle() not available");
+      }
+   }
+   
+   // --- ADX (TS component)
+   if(Settings.Use_Adx)
+   {
+      int h = Signal.GetAdxHandle();
+      if(h != INVALID_HANDLE)
+      {
+         if(ChartIndicatorAdd(0, subwindow, h))
+         {
+            Print("  ✓ ADX (", Settings.P_Adx, ") [TS component, subwindow ", subwindow, "]");
+            subwindow++;
+            subwindows_added++;
+            ts_components_visible++;
+         }
+      }
+      else
+      {
+         Print("  ⚠ ADX enabled but GetAdxHandle() not available");
+      }
+   }
+
+   // ========================
+   // 4) SUMMARY
+   // ========================
+   
+   Print("───────────────────────────────────────────────────────────");
+   Print("UI: Chart indicator management complete");
+   Print("  → ", overlays_added, " overlays on main chart");
+   Print("  → ", subwindows_added, " indicators in subwindows");
+   Print("  → ", ts_components_visible, " TS components visible");
+   Print("  → Vote Threshold: ", Settings.VoteThreshold, " (need ", Settings.VoteThreshold, "/", ts_components_visible, " to trigger TS=1)");
+   Print("═══════════════════════════════════════════════════════════");
 }
 
 //+------------------------------------------------------------------+
