@@ -783,8 +783,8 @@ public:
          else
          {
             // RRM RULE: Market Bias is the master filter
-            // LONG: Fast > Slow AND both EMAs rising
-            // SHORT: Fast < Slow AND both EMAs falling
+            // SINGLE_SLOPE: When BiasFastID == BiasSlowID, use slope direction only
+            // PAIR: Fast > Slow AND both EMAs rising (LONG) or Fast < Slow AND both falling (SHORT)
             // If neither condition met → bias = 0 (neutral/invalid, trade rejected)
              
             int hf = (m_settings.BiasFastID==0)?h_ema1 : (m_settings.BiasFastID==1)?h_ema2 : (m_settings.BiasFastID==2)?h_ema3 : h_ema4;
@@ -803,13 +803,29 @@ public:
             // === STEP 1: Determine Market Bias (Primary Filter) ===
             int market_bias = 0;
              
-            // LONG: Fast > Slow AND both rising
-            if(f_curr > s_curr && fast_slope == 1 && slow_slope == 1)
-               market_bias = 1;
-            // SHORT: Fast < Slow AND both falling
-            else if(f_curr < s_curr && fast_slope == -1 && slow_slope == -1)
-               market_bias = -1;
-            // ELSE: Neither condition met → market_bias = 0 (invalid/neutral)
+            // ★★★ SPECIAL CASE: SINGLE_SLOPE (Fast == Slow) ★★★
+            if(m_settings.BiasFastID == m_settings.BiasSlowID)
+            {
+               // For SINGLE_SLOPE, use only the EMA slope direction
+               // LONG: EMA rising
+               if(fast_slope == 1)
+                  market_bias = 1;
+               // SHORT: EMA falling
+               else if(fast_slope == -1)
+                  market_bias = -1;
+               // ELSE: EMA flat (slope == 0) → market_bias = 0 (no trade)
+            }
+            else
+            {
+               // Standard PAIR logic: require position AND slope alignment
+               // LONG: Fast > Slow AND both rising
+               if(f_curr > s_curr && fast_slope == 1 && slow_slope == 1)
+                  market_bias = 1;
+               // SHORT: Fast < Slow AND both falling
+               else if(f_curr < s_curr && fast_slope == -1 && slow_slope == -1)
+                  market_bias = -1;
+               // ELSE: Neither condition met → market_bias = 0 (invalid/neutral)
+            }
              
             // If no valid market bias, reject immediately
             if(market_bias == 0) {
@@ -860,8 +876,8 @@ public:
       }
       else {
          // RRM RULE: Market Bias is the master filter
-         // LONG: Fast > Slow AND both EMAs rising
-         // SHORT: Fast < Slow AND both EMAs falling
+         // SINGLE_SLOPE: When BiasFastID == BiasSlowID, use slope direction only
+         // PAIR: Fast > Slow AND both EMAs rising (LONG) or Fast < Slow AND both falling (SHORT)
          // If neither condition met → bias = 0 (neutral/invalid, trade rejected)
          
          int hf = (m_settings.BiasFastID==0)?h_ema1 : (m_settings.BiasFastID==1)?h_ema2 : (m_settings.BiasFastID==2)?h_ema3 : h_ema4;
@@ -880,13 +896,29 @@ public:
          // === STEP 1: Determine Market Bias (Primary Filter) ===
          int market_bias = 0;
          
-         // LONG: Fast > Slow AND both rising
-         if(f_curr > s_curr && fast_slope == 1 && slow_slope == 1)
-            market_bias = 1;
-         // SHORT: Fast < Slow AND both falling
-         else if(f_curr < s_curr && fast_slope == -1 && slow_slope == -1)
-            market_bias = -1;
-         // ELSE: Neither condition met → market_bias = 0 (invalid/neutral)
+         // ★★★ SPECIAL CASE: SINGLE_SLOPE (Fast == Slow) ★★★
+         if(m_settings.BiasFastID == m_settings.BiasSlowID)
+         {
+            // For SINGLE_SLOPE, use only the EMA slope direction
+            // LONG: EMA rising
+            if(fast_slope == 1)
+               market_bias = 1;
+            // SHORT: EMA falling
+            else if(fast_slope == -1)
+               market_bias = -1;
+            // ELSE: EMA flat (slope == 0) → market_bias = 0 (no trade)
+         }
+         else
+         {
+            // Standard PAIR logic: require position AND slope alignment
+            // LONG: Fast > Slow AND both rising
+            if(f_curr > s_curr && fast_slope == 1 && slow_slope == 1)
+               market_bias = 1;
+            // SHORT: Fast < Slow AND both falling
+            else if(f_curr < s_curr && fast_slope == -1 && slow_slope == -1)
+               market_bias = -1;
+            // ELSE: Neither condition met → market_bias = 0 (invalid/neutral)
+         }
          
          // If no valid market bias, reject immediately
          if(market_bias == 0) {
