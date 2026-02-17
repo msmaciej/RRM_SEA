@@ -134,7 +134,10 @@ enum EAutoStrategy {
 };
 
 enum EEmaRole { 
-   ROLE_EMA1, ROLE_EMA2, ROLE_EMA3, ROLE_EMA4 
+   ROLE_EMA1,
+   ROLE_EMA2,
+   ROLE_EMA3,
+   ROLE_EMA4 
 };
 
 // Indicator Modes
@@ -408,8 +411,8 @@ input bool           Inp_RRM_EnableInCustom     = false;       // Allow RRM trig
       Inp_RRM_BiasEMA   = ROLE_EMA1
       → Bias: EMA1(5) slope direction (rising/falling)
 */
-input EAutoStrategy  Inp_RRM_AutoStrat          = STRAT_SINGLE_SLOPE;  // RRM Entry Strategy: PAIR_CROSS / PRICE_CROSS / SINGLE_SLOPE
-input EEmaRole       Inp_RRM_BiasEMA            = ROLE_EMA1;         // RRM Bias EMA: Which EMA for bias (ROLE_EMA1=5, EMA2=13, EMA3=34, EMA4=89)
+input EAutoStrategy  Inp_RRM_AutoStrat          = STRAT_PRICE_CROSS;   // RRM Entry Strategy: PAIR_CROSS / PRICE_CROSS / SINGLE_SLOPE
+input EEmaRole       Inp_RRM_BiasEMA            = ROLE_EMA2;            // RRM Bias EMA: Which EMA for bias (ROLE_EMA1=5, EMA2=13, EMA3=34, EMA4=89)
 
 input int            Inp_RRM_Lookback           = 5;           // 5 | EMA convergence lookback (bars)
 input double         Inp_RRM_MinDivPips         = 0.5;         // 0.5 | Minimum EMA divergence increase (pips)
@@ -635,7 +638,7 @@ double GetRecommendedPsarPipsCushion() {
 }
 
 //+------------------------------------------------------------------+
-//| SETTINGS APPLICATION & ORCHESTRATION (OPTIMIZED)                 |
+//| SETTINGS APPLICATION & ORCHESTRATION (WITH DIAGNOSTICS)          |
 //+------------------------------------------------------------------+
 
 void ApplySettings() {
@@ -1085,31 +1088,8 @@ void ApplySettings() {
    }
 
    //+------------------------------------------------------------------+
-   //| PRESET_RRM - SIMPLIFIED WITH INPUT CONTROL
+   //| PRESET_RRM - WITH FULL DIAGNOSTICS
    //+------------------------------------------------------------------+
-   /*
-   USAGE EXAMPLES - Just change these 2 inputs:
-   
-   Example 1: Price vs EMA1 (5-period single EMA)
-      Inp_RRM_AutoStrat = STRAT_PRICE_CROSS
-      Inp_RRM_BiasEMA   = ROLE_EMA1
-      → Bias: Price above/below EMA1(5)
-   
-   Example 2: EMA1/EMA2 crossover (5/13 fast pair)
-      Inp_RRM_AutoStrat = STRAT_PAIR_CROSS
-      Inp_RRM_BiasEMA   = ROLE_EMA1
-      → Bias: EMA1(5) crosses EMA2(13)
-   
-   Example 3: EMA3/EMA4 crossover (34/89 slow pair) - Original RRM
-      Inp_RRM_AutoStrat = STRAT_PAIR_CROSS
-      Inp_RRM_BiasEMA   = ROLE_EMA3
-      → Bias: EMA3(34) crosses EMA4(89)
-   
-   Example 4: EMA1 slope only (5-period slope direction)
-      Inp_RRM_AutoStrat = STRAT_SINGLE_SLOPE
-      Inp_RRM_BiasEMA   = ROLE_EMA1
-      → Bias: EMA1(5) slope direction (rising/falling)
-   */
    else if(InpPreset == PRESET_RRM)
    {
       // RRM Trend Pullback: Trend bias (EMA) + HTF confirmation + pullback/reclaim trigger
@@ -1129,18 +1109,30 @@ void ApplySettings() {
       // ============ USE INPUT PARAMETERS FOR STRATEGY ============
       Settings.AutoStrat      = Inp_RRM_AutoStrat;  // User selects: PAIR_CROSS / PRICE_CROSS / SINGLE_SLOPE
       
+      // ★★★ DIAGNOSTIC: Show input before casting ★★★
+      PrintFormat("PRESET_RRM: Inp_RRM_BiasEMA input value = %d (ROLE_EMA1=0, ROLE_EMA2=1, ROLE_EMA3=2, ROLE_EMA4=3)",
+                  (int)Inp_RRM_BiasEMA);
+      
       // Set bias EMAs based on user input and selected strategy
       if(Inp_RRM_AutoStrat == STRAT_PRICE_CROSS || Inp_RRM_AutoStrat == STRAT_SINGLE_SLOPE)
       {
          // Single EMA strategies - both use same EMA
          Settings.BiasFastID  = (int)Inp_RRM_BiasEMA;
          Settings.BiasSlowID  = (int)Inp_RRM_BiasEMA;
+         
+         // ★★★ DIAGNOSTIC: Confirm assignment ★★★
+         PrintFormat("PRESET_RRM: SINGLE/PRICE strategy → BiasFastID=%d BiasSlowID=%d (both same EMA)",
+                     Settings.BiasFastID, Settings.BiasSlowID);
       }
       else // STRAT_PAIR_CROSS
       {
          // Pair strategy - use selected EMA and next one
          Settings.BiasFastID  = (int)Inp_RRM_BiasEMA;
          Settings.BiasSlowID  = (int)Inp_RRM_BiasEMA + 1;  // Next EMA (e.g., EMA1->EMA2 or EMA3->EMA4)
+         
+         // ★★★ DIAGNOSTIC: Confirm assignment ★★★
+         PrintFormat("PRESET_RRM: PAIR_CROSS strategy → BiasFastID=%d BiasSlowID=%d",
+                     Settings.BiasFastID, Settings.BiasSlowID);
       }
    
       Settings.CloseOnReverse = true;
@@ -1164,6 +1156,8 @@ void ApplySettings() {
          Settings.MinATR      = 12.5;  // ORG: 3.0 .. BEST: 12.5
          Settings.SL_Mult     = 1.25;  // ORG: 1.8 .. BEST: 1.25
          Settings.TP_Mult     = 4.0;   // ORG: 3.6 .. BEST 4.0
+         
+         PrintFormat("PRESET_RRM: Mode=SCALP → EMA periods: 34,89,34,89");
       }
       else // RRM_SWING
       {
@@ -1177,7 +1171,22 @@ void ApplySettings() {
          Settings.MinATR      = 8.0;   // ORG: 5.0 .. BEST: 3.0, 5.0, 8.0, 10.0
          Settings.SL_Mult     = 1.25;  // ORG: 2.0
          Settings.TP_Mult     = 4.0;   // ORG: 4.0
+         
+         PrintFormat("PRESET_RRM: Mode=SWING → EMA periods: 5,13,34,89");
       }
+      
+      // ★★★ DIAGNOSTIC: Show final period mapping ★★★
+      int actual_fast_period = (Settings.BiasFastID==0) ? Settings.P_Ema1 : 
+                               (Settings.BiasFastID==1) ? Settings.P_Ema2 : 
+                               (Settings.BiasFastID==2) ? Settings.P_Ema3 : Settings.P_Ema4;
+      
+      int actual_slow_period = (Settings.BiasSlowID==0) ? Settings.P_Ema1 : 
+                               (Settings.BiasSlowID==1) ? Settings.P_Ema2 : 
+                               (Settings.BiasSlowID==2) ? Settings.P_Ema3 : Settings.P_Ema4;
+      
+      PrintFormat("PRESET_RRM: Final mapping → BiasFastID=%d uses EMA%d(period=%d), BiasSlowID=%d uses EMA%d(period=%d)",
+                  Settings.BiasFastID, Settings.BiasFastID+1, actual_fast_period,
+                  Settings.BiasSlowID, Settings.BiasSlowID+1, actual_slow_period);
    
       // Confirmations as votes
       Settings.VoteThreshold  = 4;

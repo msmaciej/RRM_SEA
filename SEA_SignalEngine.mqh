@@ -741,9 +741,8 @@ public:
       return 0;
    }
 
-   // === GetDirection: BEGIN ===
    //==========================================================================
-   // GetDirection() - Main Signal Processing Pipeline
+   // === GetDirection: BEGIN ===
    //==========================================================================
    // This function implements the 9-step signal validation pipeline.
    // Each step must pass before moving to the next.
@@ -752,13 +751,13 @@ public:
    // PROCESS FLOW:
    // 1. PRE-FILTERS: Spread, ATR, time checks
    // 2. MARKET BIAS: Check EMA position and slopes
-   //    - LONG: Fast > Slow AND both rising
-   //    - SHORT: Fast < Slow AND both falling
+   //    - SINGLE_SLOPE: EMA rising/falling (when BiasFastID == BiasSlowID)
+   //    - PAIR: Fast > Slow AND both rising (LONG) or Fast < Slow AND both falling (SHORT)
    //    - NEUTRAL: Neither condition met -> REJECT
    // 3. AUTOSTRAT: Generate entry signal based on strategy
    //    - STRAT_SINGLE_SLOPE: Single EMA direction
    //    - STRAT_PRICE_CROSS: Price vs EMA
-   //    - STRAT_PAIR_CROSS: EMA crossover (relaxed bias logic)
+   //    - STRAT_PAIR_CROSS: EMA crossover
    // 4. SIGNAL VALIDATION: Entry signal must match bias
    // 5. HTF FILTER: Higher timeframe must agree with bias
    // 6. RRM GATES: Check pullback/divergence if enabled
@@ -767,6 +766,8 @@ public:
    // 9. FINAL DECISION: Accept if votes >= threshold
    //
    // RETURNS: 1 (LONG), -1 (SHORT), 0 (NO TRADE)
+   //==========================================================================
+   // GetDirection() - Main Signal Processing Pipeline (WITH DIAGNOSTICS)
    //==========================================================================
    int GetDirection() 
    {
@@ -787,113 +788,40 @@ public:
       // 2. Determine MASTER BIAS (Strategy)
       int bias = 0;
       
+      // === MANUAL BIAS MODE ===
       if(m_settings.BiasMode == BIAS_MANUAL) {
          if(m_settings.ManSide == SIDE_LONG)
             bias = 1;
          else if(m_settings.ManSide == SIDE_SHORT)
             bias = -1;
          else
-         {
-            // RRM RULE: Market Bias is the master filter
-            // SINGLE_SLOPE: When BiasFastID == BiasSlowID, use slope direction only
-            // PAIR: Fast > Slow AND both EMAs rising (LONG) or Fast < Slow AND both falling (SHORT)
-            // If neither condition met → bias = 0 (neutral/invalid, trade rejected)
-             
-            int hf = (m_settings.BiasFastID==0)?h_ema1 : (m_settings.BiasFastID==1)?h_ema2 : (m_settings.BiasFastID==2)?h_ema3 : h_ema4;
-            int hs = (m_settings.BiasSlowID==0)?h_ema1 : (m_settings.BiasSlowID==1)?h_ema2 : (m_settings.BiasSlowID==2)?h_ema3 : h_ema4;
+            bias = 0; // ManSide is SIDE_NONE
             
-            // Get EMA values
-            double f_curr = GetMAVal(hf, v_shift, 0);
-            double f_prev = GetMAVal(hf, v_shift + 1, 0);
-            double s_curr = GetMAVal(hs, v_shift, 0);
-            double s_prev = GetMAVal(hs, v_shift + 1, 0);
-             
-            // Calculate slopes
-            int fast_slope = (f_curr > f_prev) ? 1 : (f_curr < f_prev) ? -1 : 0;
-            int slow_slope = (s_curr > s_prev) ? 1 : (s_curr < s_prev) ? -1 : 0;
-             
-            // === STEP 1: Determine Market Bias (Primary Filter) ===
-            int market_bias = 0;
-             
-            // ★★★ SPECIAL CASE: SINGLE_SLOPE (Fast == Slow) ★★★
-            if(m_settings.BiasFastID == m_settings.BiasSlowID)
-            {
-               // For SINGLE_SLOPE, use only the EMA slope direction
-               // LONG: EMA rising
-               if(fast_slope == 1)
-                  market_bias = 1;
-               // SHORT: EMA falling
-               else if(fast_slope == -1)
-                  market_bias = -1;
-               // ELSE: EMA flat (slope == 0) → market_bias = 0 (no trade)
-            }
-            else
-            {
-               // Standard PAIR logic: require position AND slope alignment
-               // LONG: Fast > Slow AND both rising
-               if(f_curr > s_curr && fast_slope == 1 && slow_slope == 1)
-                  market_bias = 1;
-               // SHORT: Fast < Slow AND both falling
-               else if(f_curr < s_curr && fast_slope == -1 && slow_slope == -1)
-                  market_bias = -1;
-               // ELSE: Neither condition met → market_bias = 0 (invalid/neutral)
-            }
-             
-            // If no valid market bias, reject immediately
-            if(market_bias == 0) {
-               bias = 0;
-            }
-            else {
-               // === STEP 2: Evaluate AutoStrat for Entry Signal ===
-               int entry_signal = 0;
-                
-               if(m_settings.AutoStrat == STRAT_SINGLE_SLOPE) {
-                  entry_signal = GetSlope(hf);
-               }
-               else if(m_settings.AutoStrat == STRAT_PRICE_CROSS) {
-                  if(m_settings.RequirePriceCross) {
-                     entry_signal = PriceCrossDirection(hf, v_shift);
-                  } else {
-                     double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-                     double ma    = GetMAVal(hf, v_shift, 0);
-                     entry_signal = (price > ma) ? 1 : -1;
-                  }
-               }
-               else {  // STRAT_PAIR_CROSS
-                  // Check for EMA crossover
-                  double f_curr_cross = GetMAVal(hf, v_shift, 0);
-                  double f_prev_cross = GetMAVal(hf, v_shift + 1, 0);
-                  double s_curr_cross = GetMAVal(hs, v_shift, 0);
-                  double s_prev_cross = GetMAVal(hs, v_shift + 1, 0);
-                   
-                  // Bullish cross: fast was below, now above
-                  if(f_prev_cross <= s_prev_cross && f_curr_cross > s_curr_cross)
-                     entry_signal = 1;
-                  // Bearish cross: fast was above, now below
-                  else if(f_prev_cross >= s_prev_cross && f_curr_cross < s_curr_cross)
-                     entry_signal = -1;
-                  // No cross
-                  else
-                     entry_signal = 0;
-               }
-                
-               // === STEP 3: Validate Entry Signal Against Market Bias ===
-               // Entry signal must match market bias, otherwise reject
-               if(entry_signal == market_bias)
-                  bias = market_bias;
-               else
-                  bias = 0;
-            }
+         #ifdef __MQL5__
+         if(MQLInfoInteger(MQL_TESTER)) {
+            datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+            PrintFormat("BIAS_CALC[%s]: MANUAL mode → bias=%d", TimeToString(bar_time), bias);
          }
+         #endif
       }
+      // === AUTO BIAS MODE ===
       else {
-         // RRM RULE: Market Bias is the master filter
-         // SINGLE_SLOPE: When BiasFastID == BiasSlowID, use slope direction only
-         // PAIR: Fast > Slow AND both EMAs rising (LONG) or Fast < Slow AND both falling (SHORT)
-         // If neither condition met → bias = 0 (neutral/invalid, trade rejected)
-         
+         // Get EMA handles for bias calculation
          int hf = (m_settings.BiasFastID==0)?h_ema1 : (m_settings.BiasFastID==1)?h_ema2 : (m_settings.BiasFastID==2)?h_ema3 : h_ema4;
          int hs = (m_settings.BiasSlowID==0)?h_ema1 : (m_settings.BiasSlowID==1)?h_ema2 : (m_settings.BiasSlowID==2)?h_ema3 : h_ema4;
+         
+         // ★★★ Get ACTUAL periods for diagnostic display ★★★
+         int fast_period = (m_settings.BiasFastID==0) ? m_settings.P_Ema1 : 
+                           (m_settings.BiasFastID==1) ? m_settings.P_Ema2 : 
+                           (m_settings.BiasFastID==2) ? m_settings.P_Ema3 : m_settings.P_Ema4;
+         
+         int slow_period = (m_settings.BiasSlowID==0) ? m_settings.P_Ema1 : 
+                           (m_settings.BiasSlowID==1) ? m_settings.P_Ema2 : 
+                           (m_settings.BiasSlowID==2) ? m_settings.P_Ema3 : m_settings.P_Ema4;
+         
+         // Build display names with ACTUAL periods
+         string ema_fast_name = StringFormat("EMA%d(%d)", m_settings.BiasFastID+1, fast_period);
+         string ema_slow_name = StringFormat("EMA%d(%d)", m_settings.BiasSlowID+1, slow_period);
          
          // Get EMA values
          double f_curr = GetMAVal(hf, v_shift, 0);
@@ -901,9 +829,17 @@ public:
          double s_curr = GetMAVal(hs, v_shift, 0);
          double s_prev = GetMAVal(hs, v_shift + 1, 0);
          
-         // Calculate slopes
-         int fast_slope = (f_curr > f_prev) ? 1 : (f_curr < f_prev) ? -1 : 0;
-         int slow_slope = (s_curr > s_prev) ? 1 : (s_curr < s_prev) ? -1 : 0;
+         // Calculate slopes with minimum threshold (to avoid noise)
+         double pip = PipSize();
+         double min_slope = 0.0 * pip; // Set to 0.5 or 1.0 to require minimum movement
+         
+         int fast_slope = 0;
+         if((f_curr - f_prev) > min_slope) fast_slope = 1;
+         else if((f_prev - f_curr) > min_slope) fast_slope = -1;
+         
+         int slow_slope = 0;
+         if((s_curr - s_prev) > min_slope) slow_slope = 1;
+         else if((s_prev - s_curr) > min_slope) slow_slope = -1;
          
          // === STEP 1: Determine Market Bias (Primary Filter) ===
          int market_bias = 0;
@@ -912,14 +848,29 @@ public:
          if(m_settings.BiasFastID == m_settings.BiasSlowID)
          {
             // For SINGLE_SLOPE, use only the EMA slope direction
-            // LONG: EMA rising
             if(fast_slope == 1)
                market_bias = 1;
-            // SHORT: EMA falling
             else if(fast_slope == -1)
                market_bias = -1;
-            // ELSE: EMA flat (slope == 0) → market_bias = 0 (no trade)
+            // else market_bias = 0 (EMA flat)
+            
+            // DIAGNOSTIC LOGGING
+            #ifdef __MQL5__
+            if(MQLInfoInteger(MQL_TESTER)) {
+               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+               double change_pips = (f_curr - f_prev) / pip;
+               PrintFormat("BIAS_CALC[%s]: SINGLE_SLOPE using %s | curr=%.5f prev=%.5f change=%.2f pips slope=%s → bias=%d",
+                           TimeToString(bar_time),
+                           ema_fast_name,
+                           f_curr,
+                           f_prev,
+                           change_pips,
+                           (fast_slope==1)?"RISING":(fast_slope==-1)?"FALLING":"FLAT",
+                           market_bias);
+            }
+            #endif
          }
+         // ★★★ PAIR MODE (Fast ≠ Slow) ★★★
          else
          {
             // Standard PAIR logic: require position AND slope alignment
@@ -929,59 +880,138 @@ public:
             // SHORT: Fast < Slow AND both falling
             else if(f_curr < s_curr && fast_slope == -1 && slow_slope == -1)
                market_bias = -1;
-            // ELSE: Neither condition met → market_bias = 0 (invalid/neutral)
+            // else market_bias = 0 (invalid/neutral)
+            
+            // DIAGNOSTIC LOGGING
+            #ifdef __MQL5__
+            if(MQLInfoInteger(MQL_TESTER)) {
+               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+               double fast_change_pips = (f_curr - f_prev) / pip;
+               double slow_change_pips = (s_curr - s_prev) / pip;
+               string position = (f_curr > s_curr) ? "ABOVE" : (f_curr < s_curr) ? "BELOW" : "EQUAL";
+               PrintFormat("BIAS_CALC[%s]: PAIR mode %s vs %s | fast_curr=%.5f(%.2f pips %s) slow_curr=%.5f(%.2f pips %s) position=%s → bias=%d",
+                           TimeToString(bar_time),
+                           ema_fast_name, ema_slow_name,
+                           f_curr, fast_change_pips, (fast_slope==1)?"UP":(fast_slope==-1)?"DN":"FLAT",
+                           s_curr, slow_change_pips, (slow_slope==1)?"UP":(slow_slope==-1)?"DN":"FLAT",
+                           position,
+                           market_bias);
+            }
+            #endif
          }
          
          // If no valid market bias, reject immediately
          if(market_bias == 0) {
-            bias = 0;
+            m_diag_last_bias = 0;
+            m_diag_last_reason = "BIAS_ZERO";
+            
+            #ifdef __MQL5__
+            if(MQLInfoInteger(MQL_TESTER)) {
+               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+               PrintFormat("BIAS_CALC[%s]: Market bias = 0 → NO TRADE", TimeToString(bar_time));
+            }
+            #endif
+            
+            return 0;
+         }
+         
+         // === STEP 2: Evaluate AutoStrat for Entry Signal ===
+         int entry_signal = 0;
+         
+         if(m_settings.AutoStrat == STRAT_SINGLE_SLOPE) {
+            // Entry signal from EMA slope (same as bias calculation for SINGLE_SLOPE)
+            entry_signal = fast_slope;
+            
+            #ifdef __MQL5__
+            if(MQLInfoInteger(MQL_TESTER)) {
+               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+               PrintFormat("ENTRY_SIGNAL[%s]: STRAT_SINGLE_SLOPE using %s slope=%d → signal=%d",
+                           TimeToString(bar_time), ema_fast_name, fast_slope, entry_signal);
+            }
+            #endif
+         }
+         else if(m_settings.AutoStrat == STRAT_PRICE_CROSS) {
+            if(m_settings.RequirePriceCross) {
+               entry_signal = PriceCrossDirection(hf, v_shift);
+            } else {
+               double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+               double ma    = GetMAVal(hf, v_shift, 0);
+               entry_signal = (price > ma) ? 1 : -1;
+            }
+            
+            #ifdef __MQL5__
+            if(MQLInfoInteger(MQL_TESTER)) {
+               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+               double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+               double ma    = GetMAVal(hf, v_shift, 0);
+               PrintFormat("ENTRY_SIGNAL[%s]: STRAT_PRICE_CROSS using %s price=%.5f ma=%.5f → signal=%d",
+                           TimeToString(bar_time), ema_fast_name, price, ma, entry_signal);
+            }
+            #endif
+         }
+         else {  // STRAT_PAIR_CROSS
+            // Check for EMA crossover
+            double f_curr_cross = GetMAVal(hf, v_shift, 0);
+            double f_prev_cross = GetMAVal(hf, v_shift + 1, 0);
+            double s_curr_cross = GetMAVal(hs, v_shift, 0);
+            double s_prev_cross = GetMAVal(hs, v_shift + 1, 0);
+            
+            // Bullish cross: fast was below, now above
+            if(f_prev_cross <= s_prev_cross && f_curr_cross > s_curr_cross)
+               entry_signal = 1;
+            // Bearish cross: fast was above, now below
+            else if(f_prev_cross >= s_prev_cross && f_curr_cross < s_curr_cross)
+               entry_signal = -1;
+            // No cross
+            else
+               entry_signal = 0;
+            
+            #ifdef __MQL5__
+            if(MQLInfoInteger(MQL_TESTER)) {
+               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+               PrintFormat("ENTRY_SIGNAL[%s]: STRAT_PAIR_CROSS %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
+                           TimeToString(bar_time), ema_fast_name, ema_slow_name,
+                           f_prev_cross, s_prev_cross, f_curr_cross, s_curr_cross, entry_signal);
+            }
+            #endif
+         }
+         
+         // === STEP 3: Validate Entry Signal Against Market Bias ===
+         // Entry signal must match market bias, otherwise reject
+         if(entry_signal == market_bias) {
+            bias = market_bias;
+            
+            #ifdef __MQL5__
+            if(MQLInfoInteger(MQL_TESTER)) {
+               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+               PrintFormat("BIAS_VALIDATION[%s]: entry_signal=%d matches market_bias=%d → PASS",
+                           TimeToString(bar_time), entry_signal, market_bias);
+            }
+            #endif
          }
          else {
-            // === STEP 2: Evaluate AutoStrat for Entry Signal ===
-            int entry_signal = 0;
+            bias = 0;
+            m_diag_last_bias = 0;
+            m_diag_last_reason = "SIGNAL_MISMATCH";
             
-            if(m_settings.AutoStrat == STRAT_SINGLE_SLOPE) {
-               entry_signal = GetSlope(hf);
+            #ifdef __MQL5__
+            if(MQLInfoInteger(MQL_TESTER)) {
+               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+               PrintFormat("BIAS_VALIDATION[%s]: entry_signal=%d does NOT match market_bias=%d → REJECT",
+                           TimeToString(bar_time), entry_signal, market_bias);
             }
-            else if(m_settings.AutoStrat == STRAT_PRICE_CROSS) {
-               if(m_settings.RequirePriceCross) {
-                  entry_signal = PriceCrossDirection(hf, v_shift);
-               } else {
-                  double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-                  double ma    = GetMAVal(hf, v_shift, 0);
-                  entry_signal = (price > ma) ? 1 : -1;
-               }
-            }
-            else {  // STRAT_PAIR_CROSS
-               // Check for EMA crossover
-               double f_curr_cross = GetMAVal(hf, v_shift, 0);
-               double f_prev_cross = GetMAVal(hf, v_shift + 1, 0);
-               double s_curr_cross = GetMAVal(hs, v_shift, 0);
-               double s_prev_cross = GetMAVal(hs, v_shift + 1, 0);
-               
-               // Bullish cross: fast was below, now above
-               if(f_prev_cross <= s_prev_cross && f_curr_cross > s_curr_cross)
-                  entry_signal = 1;
-               // Bearish cross: fast was above, now below
-               else if(f_prev_cross >= s_prev_cross && f_curr_cross < s_curr_cross)
-                  entry_signal = -1;
-               // No cross
-               else
-                  entry_signal = 0;
-            }
+            #endif
             
-            // === STEP 3: Validate Entry Signal Against Market Bias ===
-            // Entry signal must match market bias, otherwise reject
-            if(entry_signal == market_bias)
-               bias = market_bias;
-            else
-               bias = 0;
+            return 0;
          }
       }
       
       m_diag_last_bias = bias;
 
-      if(bias == 0) { m_diag_last_reason="BIAS_ZERO"; return 0; }
+      if(bias == 0) { 
+         m_diag_last_reason="BIAS_ZERO"; 
+         return 0; 
+      }
 
       // 3. HTF Filter Check
       if(m_settings.UseHTF) {
@@ -989,20 +1019,41 @@ public:
          double prev = GetMAVal(h_htf_ema, 2);
          int htf_dir = (curr > prev) ? 1 : -1;
          
-         if(bias != htf_dir) { m_diag_last_reason="HTF_VETO"; return 0; }
+         if(bias != htf_dir) { 
+            m_diag_last_reason="HTF_VETO"; 
+            
+            #ifdef __MQL5__
+            if(MQLInfoInteger(MQL_TESTER)) {
+               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+               PrintFormat("HTF_FILTER[%s]: bias=%d htf_dir=%d → VETO",
+                           TimeToString(bar_time), bias, htf_dir);
+            }
+            #endif
+            
+            return 0; 
+         }
       }
-
 
       // 3b. RRM mandatory gates (only active when enabled in settings)
       if(m_settings.RRM_RequirePullbackReclaim) {
-         if(!Check_RRM_PullbackReclaim(bias)) { m_diag_last_reason="RRM_PULLBACK"; return 0; }
+         if(!Check_RRM_PullbackReclaim(bias)) { 
+            m_diag_last_reason="RRM_PULLBACK"; 
+            return 0; 
+         }
       }
       if(m_settings.RRM_RequireEmaDiv) {
-         if(!Check_RRM_EmaDiv(bias)) { m_diag_last_reason="RRM_EMA_DIV"; return 0; }
+         if(!Check_RRM_EmaDiv(bias)) { 
+            m_diag_last_reason="RRM_EMA_DIV"; 
+            return 0; 
+         }
       }
 
       // 4. VOTING BYPASS (Speed Mode)
-      if(m_settings.VoteThreshold <= 1) { m_diag_last_votes=0; m_diag_last_reason="BYPASS"; return bias; }
+      if(m_settings.VoteThreshold <= 1) { 
+         m_diag_last_votes=0; 
+         m_diag_last_reason="BYPASS"; 
+         return bias; 
+      }
 
       // 5. Voting Logic (Consensus)
       int votes = 0;
@@ -1022,21 +1073,19 @@ public:
       // Volatility regime vote (soft)
       if(m_settings.Use_ATRVote)
       {
-         // m_diag_last_atr_ok is computed in CheckFilters().
          if(m_diag_last_atr_ok) votes++;
       }
 
       // Final Decision
       m_diag_last_votes = votes;
 
-
-      // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGUN =====
+      // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGIN =====
       #ifdef __MQL5__
       if(MQLInfoInteger(MQL_TESTER)) {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
          string vote_details = StringFormat("VOTE_DETAIL[%s]: bias=%d v_shift=%d votes=%d/%d",
-                                            TimeToString(bar_time),
-                                            bias, v_shift, votes, m_settings.VoteThreshold);
+                                           TimeToString(bar_time),
+                                           bias, v_shift, votes, m_settings.VoteThreshold);
          
          // Log each enabled vote with actual indicator values
          if(m_settings.Use_EmaSig) {
@@ -1113,15 +1162,16 @@ public:
       #endif
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: END =====
 
-
-      if(votes >= m_settings.VoteThreshold) { m_diag_last_reason="OK"; return bias; }
+      if(votes >= m_settings.VoteThreshold) { 
+         m_diag_last_reason="OK"; 
+         return bias; 
+      }
       
       m_diag_last_reason = StringFormat("VOTES %d/%d", votes, m_settings.VoteThreshold);
       return 0; // Not enough consensus
 
    } // === GetDirection: END ===
-
-
+   
    // --- RRM (Trend Pullback) helper checks ---
    int BiasFastHandle() {
       return (m_settings.BiasFastID==0)?h_ema1 : (m_settings.BiasFastID==1)?h_ema2 : (m_settings.BiasFastID==2)?h_ema3 : h_ema4;
