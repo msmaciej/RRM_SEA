@@ -678,13 +678,13 @@ double GetRecommendedTrailPsarCushion() {
          cushion = isJPY ? 20.0 : 4.0;
          break;
       case PERIOD_M30:
-         cushion = isJPY ? 22.0 : 4.5;
+         cushion = isJPY ? 22.0 : 5.0;
          break;
       case PERIOD_H1:
          cushion = isJPY ? 25.0 : 5.0;
          break;
       case PERIOD_H2:
-         cushion = isJPY ? 32.0 : 6.5;
+         cushion = isJPY ? 32.0 : 7.0;
          break;
       case PERIOD_H4:
          cushion = isJPY ? 40.0 : 8.0;
