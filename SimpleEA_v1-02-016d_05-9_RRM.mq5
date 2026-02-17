@@ -599,6 +599,9 @@ void OnDeinit(const int reason) {
 
 //+------------------------------------------------------------------+
 //| HELPER: Get pip size for current symbol (handles JPY pairs)      |
+//| NOTE: Provided as utility function per requirements.             |
+//| Current implementation uses _Point × multiplier pattern instead. |
+//| Available for future simplified pip calculations.                |
 //+------------------------------------------------------------------+
 double GetPipSize() {
    string symbol = _Symbol;
