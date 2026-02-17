@@ -598,41 +598,105 @@ void OnDeinit(const int reason) {
 }
 
 //+------------------------------------------------------------------+
-//| HELPER: Get recommended PSAR pips cushion based on TF & currency |
+//| HELPER: Get pip size for current symbol (handles JPY pairs)      |
+//| NOTE: Provided as utility function per requirements.             |
+//| Current implementation uses _Point × multiplier pattern instead. |
+//| Available for future simplified pip calculations.                |
 //+------------------------------------------------------------------+
-double GetRecommendedPsarPipsCushion() {
+double GetPipSize() {
+   string symbol = _Symbol;
+   int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   
+   // JPY pairs typically have 3 digits (or 2 for some brokers)
+   // 1 pip = 0.01 for JPY pairs
+   // 1 pip = 0.0001 for standard pairs
+   
+   if(digits == 2 || digits == 3)
+      return 0.01;   // JPY pair
+   else
+      return 0.0001; // Standard pair
+}
+
+//+------------------------------------------------------------------+
+//| HELPER: Get recommended Initial SL cushion (LARGER values)       |
+//| Used for: SL_PSAR_PIPS and SL_SWING_HIGHLOW placement modes      |
+//| Reason: Swing/PSAR reference might be 5-20 bars old              |
+//+------------------------------------------------------------------+
+double GetRecommendedInitialSlCushion() {
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
    
-   // Base cushion values
    double cushion = 5.0;  // Default
    
    switch(_Period) {
       case PERIOD_M1:
-         cushion = isJPY ? 3.0 : 2.0;
+         cushion = isJPY ? 20.0 : 3.0;
          break;
       case PERIOD_M5:
-         cushion = isJPY ? 5.0 : 3.0;
+         cushion = isJPY ? 30.0 : 5.0;
          break;
       case PERIOD_M15:
-         cushion = isJPY ? 8.0 : 5.0;
+         cushion = isJPY ? 40.0 : 8.0;
          break;
       case PERIOD_M30:
-         cushion = isJPY ? 12.0 : 7.0;
+         cushion = isJPY ? 50.0 : 10.0;
          break;
       case PERIOD_H1:
-         cushion = isJPY ? 15.0 : 10.0;
+         cushion = isJPY ? 60.0 : 12.0;
          break;
       case PERIOD_H2:
-         cushion = isJPY ? 20.0 : 12.0;
+         cushion = isJPY ? 80.0 : 16.0;
          break;
       case PERIOD_H4:
-         cushion = isJPY ? 25.0 : 15.0;
+         cushion = isJPY ? 100.0 : 20.0;
          break;
       case PERIOD_D1:
-         cushion = isJPY ? 40.0 : 25.0;
+         cushion = isJPY ? 200.0 : 40.0;
          break;
       default:
-         cushion = isJPY ? 10.0 : 5.0;
+         cushion = isJPY ? 60.0 : 12.0;
+         break;
+   }
+   
+   return cushion;
+}
+
+//+------------------------------------------------------------------+
+//| HELPER: Get recommended Trailing PSAR cushion (SMALLER values)   |
+//| Used for: TRAIL_PSAR mode with PSAR_CUSHION_PIPS                 |
+//| Reason: PSAR dot at shift=1 is recent, needs less breathing room |
+//+------------------------------------------------------------------+
+double GetRecommendedTrailPsarCushion() {
+   bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
+   
+   double cushion = 3.0;  // Default
+   
+   switch(_Period) {
+      case PERIOD_M1:
+         cushion = isJPY ? 10.0 : 2.0;
+         break;
+      case PERIOD_M5:
+         cushion = isJPY ? 15.0 : 3.0;
+         break;
+      case PERIOD_M15:
+         cushion = isJPY ? 20.0 : 4.0;
+         break;
+      case PERIOD_M30:
+         cushion = isJPY ? 22.0 : 5.0;
+         break;
+      case PERIOD_H1:
+         cushion = isJPY ? 25.0 : 5.0;
+         break;
+      case PERIOD_H2:
+         cushion = isJPY ? 32.0 : 7.0;
+         break;
+      case PERIOD_H4:
+         cushion = isJPY ? 40.0 : 8.0;
+         break;
+      case PERIOD_D1:
+         cushion = isJPY ? 80.0 : 15.0;
+         break;
+      default:
+         cushion = isJPY ? 25.0 : 5.0;
          break;
    }
    
@@ -1393,7 +1457,25 @@ void ApplySettings() {
       note += "PRESET_RRM_ATR: TREND_PULLBACK (LEGACY-ALIGNED, ATR-SAFE) applied.";
    }
 
-   // --- L. Final effective provenance + UI clarity + UI clarity
+   // --- L. Auto-scale cushions if user left at default values
+   // Auto-scale Initial SL cushions (for PSAR and Swing placement)
+   if(Settings.SL_PsarPipsCushion == 5.0 || Settings.SL_SwingPipsCushion == 10.0) {
+      double recommended_initial = GetRecommendedInitialSlCushion();
+      Settings.SL_PsarPipsCushion = recommended_initial;
+      Settings.SL_SwingPipsCushion = recommended_initial;
+      PrintFormat("Auto-scaled Initial SL cushion: %.1f pips for %s %s", 
+                  recommended_initial, _Symbol, EnumToString(ENUM_TIMEFRAMES(_Period)));
+   }
+   
+   // Auto-scale PSAR Trailing cushion (smaller values for following PSAR dot)
+   if(Settings.PSAR_TrailPipsCushion == 5.0 && Settings.PSAR_TrailCushionMode == PSAR_CUSHION_PIPS) {
+      double recommended_trail = GetRecommendedTrailPsarCushion();
+      Settings.PSAR_TrailPipsCushion = recommended_trail;
+      PrintFormat("Auto-scaled PSAR Trailing cushion: %.1f pips for %s %s", 
+                  recommended_trail, _Symbol, EnumToString(ENUM_TIMEFRAMES(_Period)));
+   }
+
+   // --- M. Final effective provenance + UI clarity + UI clarity
    string dir_source = "AUTO";
    if(!Settings.BiasEnabled)
       dir_source = "DISABLED";
