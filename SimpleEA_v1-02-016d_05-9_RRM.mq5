@@ -411,18 +411,18 @@ input bool           Inp_RRM_EnableInCustom     = false;       // Allow RRM trig
       Inp_RRM_BiasEMA   = ROLE_EMA1
       → Bias: EMA1(5) slope direction (rising/falling)
 */
-input EAutoStrategy  Inp_RRM_AutoStrat          = STRAT_PRICE_CROSS;   // RRM Entry Strategy: PAIR_CROSS / PRICE_CROSS / SINGLE_SLOPE
-input EEmaRole       Inp_RRM_BiasEMA            = ROLE_EMA2;            // RRM Bias EMA: Which EMA for bias (ROLE_EMA1=5, EMA2=13, EMA3=34, EMA4=89)
+input EAutoStrategy  Inp_RRM_AutoStrat          = STRAT_PAIR_CROSS;  // RRM Entry Strategy: PAIR_CROSS / PRICE_CROSS / SINGLE_SLOPE
+input EEmaRole       Inp_RRM_BiasEMA            = ROLE_EMA3;         // RRM Bias EMA: Which EMA for bias (ROLE_EMA1=5, EMA2=13, EMA3=34, EMA4=89)
 
 input int            Inp_RRM_Lookback           = 5;           // 5 | EMA convergence lookback (bars)
 input double         Inp_RRM_MinDivPips         = 0.5;         // 0.5 | Minimum EMA divergence increase (pips)
-input bool           Inp_RRM_RequirePullbackReclaim   = false;     // false | RRM gate: require pullback+reclaim (Legacy RRM: OFF)
-input bool           Inp_RRM_RequireEmaDiv            = false;    // false | RRM gate: require EMA converge->diverge (Legacy RRM: OFF)
+input bool           Inp_RRM_RequirePullbackReclaim = false;   // false | RRM gate: require pullback+reclaim (Legacy RRM: OFF)
+input bool           Inp_RRM_RequireEmaDiv      = false;       // false | RRM gate: require EMA converge->diverge (Legacy RRM: OFF)
 
 input group "=== CUSTOM: LOGIC & RISK ==="
 input bool           Inp_CloseOnReverse         = false;       // OPTIMIZED: true was false           // Close Opposite Trade on Signal? 
 input double         Inp_RiskPercent            = 2.0;         // OPTIMIZED: 0.25 was 2.0 (reduced for scalp safety) // Risk per trade (%). IGNORED when Preset=PRESET_MA_BENCHMARK (uses MaximumRisk/DecreaseFactor). 
-input double         Inp_MaxSpreadPips          = 3.0;         // OPTIMIZED: 2.0 was 3.0 (tightened)  // Max Spread (Pips) 
+input double         Inp_MaxSpreadPips          = 5.0;         // OPTIMIZED: 2.0 was 3.0 (tightened)  // Max Spread (Pips) 
 input double         Inp_MinATRPips             = 0.0;         // OPTIMIZED: 5.0 was 0.0              // 5.0 | Min Volatility (ATR Pips)
 input double         Inp_MaxATRPips             = 20.0;        // NEW: upper volatility bound  
 
@@ -956,7 +956,7 @@ void ApplySettings() {
       Settings.ma_v_shift        = 1;
 
       Settings.VoteThreshold     = 1;
-      Settings.MaxSpread         = 5.0;
+      Settings.MaxSpread         = 9999.0; // 5.0
       Settings.MinATR            = 0.0;
       Settings.UseTime           = false;
       Settings.UseNews           = false;
@@ -1006,7 +1006,7 @@ void ApplySettings() {
 
       // Expert intent: intraday continuation with hard gates + HTF veto + confluence votes
       Settings.VoteThreshold  = 3;
-      Settings.MaxSpread      = 3.0;
+      Settings.MaxSpread      = 9999.0; // 3.0
       Settings.MinATR         = 5.0;
 
       Settings.UseTime        = false;
@@ -1062,7 +1062,7 @@ void ApplySettings() {
       Settings.BiasSlowID     = (int)ROLE_EMA4;
 
       Settings.VoteThreshold  = 1;
-      Settings.MaxSpread      = 5.0;
+      Settings.MaxSpread      = 9999.0; // 5.0
       Settings.MinATR         = 5.0;
 
       Settings.UseTime        = true;
@@ -1115,7 +1115,7 @@ void ApplySettings() {
       Settings.BiasSlowID     = (int)ROLE_EMA4;
 
       Settings.VoteThreshold  = 4;
-      Settings.MaxSpread      = 4.0;
+      Settings.MaxSpread      = 9999.0; // 4.0
       Settings.MinATR         = 2.0;
 
       Settings.UseTime        = true;
@@ -1218,7 +1218,7 @@ void ApplySettings() {
          Settings.P_Ema3      = 34;
          Settings.P_Ema4      = 89;
    
-         Settings.MaxSpread   = 2.5;   // ORG: 2.5 .. BEST: 3.5
+         Settings.MaxSpread   = 9999.0;   // ORG: 2.5 .. BEST: 3.5
          Settings.MinATR      = 12.5;  // ORG: 3.0 .. BEST: 12.5
          Settings.SL_Mult     = 0.0;   // Disabled: Use swing-based SL instead
          Settings.TP_Mult     = Inp_TP_Mult;  // Use input R:R ratio (not ATR multiplier)
@@ -1233,7 +1233,7 @@ void ApplySettings() {
          Settings.P_Ema3      = 34;    // 34
          Settings.P_Ema4      = 89;    // 89
          
-         Settings.MaxSpread   = 5.0;   // ORG: 5.0
+         Settings.MaxSpread   = 9999.0;   // ORG: 5.0
          Settings.MinATR      = 8.0;   // ORG: 5.0 .. BEST: 3.0, 5.0, 8.0, 10.0
          Settings.SL_Mult     = 0.0;   // Disabled: Use swing-based SL instead
          Settings.TP_Mult     = Inp_TP_Mult;  // Use input R:R ratio (not ATR multiplier)
@@ -1367,7 +1367,7 @@ void ApplySettings() {
          Settings.P_Ema3 = 34;
          Settings.P_Ema4 = 89;
 
-         Settings.MaxSpread   = 2.5;
+         Settings.MaxSpread   = 9999.0; // 5.0
 
          // ATR floor by TF (pips): M1 needs a higher floor; M5/M15 should not be starved
          Settings.MinATR      = (_Period == PERIOD_M1 ? 12.5 : 5.0);
@@ -1389,7 +1389,7 @@ void ApplySettings() {
          Settings.P_Ema3 = 34;
          Settings.P_Ema4 = 89;
 
-         Settings.MaxSpread   = 5.0;
+         Settings.MaxSpread   = 9999.0; // 5.0
          Settings.MinATR      = 5.0;   // moderate: swing still prefers adequate range
          Settings.MaxATR      = 0.0;  // IMPORTANT: disable hard max-ATR veto in RRM
          
@@ -2315,43 +2315,6 @@ PRESET_RRM
 
 * Persona/intent: Rules-based trend pullback — HTF-confirmed continuation entries with explicit pullback structure.
 
-
-REVISIONS ACHIEVEMENT:
-
-With v1-02-016x revisions we achieved four concrete things 
-(functionality + architecture + performance + operability), 
-while keeping your macOS+Wine MT5 constraints in mind.
-
-Revision 016 (baseline architecture)
-* Preset-driven configuration: PRESET_* blocks in ApplySettings() override inputs deterministically (CUSTOM vs enforced presets).
-* Unified decision pipeline wired end-to-end: filters (Spread/MinATR/Time/News) → Bias (AUTO/MANUAL) → optional HTF veto → optional voting → execution.
-* MA benchmark compatibility mode (PRESET_MA_BENCHMARK): price/MA confirmed cross, MA-style risk model knobs, stop-and-reverse behavior.
-* Exit framework standardized: ATR-based SL/TP, optional breakeven, trailing modes (ATR/PSAR/Fractal).
-
-Revision 016c (robustness + clarity)
-* Effective-settings transparency: “USED vs IGNORED” logic and an OVERRIDES list so users can see what presets actually changed.
-* Cleaner initialization provenance (init notes, effective strategy source, override disclosure) to reduce ambiguity in Tester.
-* Documentation improvements: expanded README coverage of presets, precedence, and operating model.
-
-Revision 016d (new strategy + visualization + tester hygiene)
-* New preset PRESET_RRM (Trend Pullback):
-    * Mandatory pullback→reclaim trigger (two-bar logic) plus EMA convergence→divergence gate.
-    * Confirmations use MACD + PSAR with HTF alignment; EMA vote disabled because RRM uses its own EMA gates.
-    * Supports SCALP vs SWING via Inp_RRM_Mode (AUTO-by-TF, SCALP, SWING).
-* Signal visualization in Tester:
-    * Inp_DrawEntryLines: vertical line when an entry becomes eligible.
-    * Inp_DrawTradeLines: vertical line when a trade is executed.
-* Opt-in chart cleanup:
-    * Inp_UI_ManageChartIndicators=false by default; when enabled, the EA clears chart indicators and re-adds only key overlays to avoid “template shows everything” confusion.
-* 016d housekeeping: cleaned file section headers and input-group labels (no trading logic change).
-* Build stability fixes:
-    * Single UTF-16LE BOM (no 0xFEFF), consistent build token/stamp, and GetATR()/GetVal() corrected as const.
-
-Revisions net result: 
-016 established a stable preset framework, 
-016c improved auditability and user clarity, and 
-016d added a fully specified trend-pullback system (RRM) 
-plus concrete on-chart visualization and tester hygiene controls.
 
 
 ARCHETYPES:
