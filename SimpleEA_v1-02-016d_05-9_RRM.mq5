@@ -1154,8 +1154,8 @@ void ApplySettings() {
    
          Settings.MaxSpread   = 2.5;   // ORG: 2.5 .. BEST: 3.5
          Settings.MinATR      = 12.5;  // ORG: 3.0 .. BEST: 12.5
-         Settings.SL_Mult     = 1.25;  // ORG: 1.8 .. BEST: 1.25
-         Settings.TP_Mult     = 4.0;   // ORG: 3.6 .. BEST 4.0
+         Settings.SL_Mult     = 0.0;   // Disabled: Use swing-based SL instead
+         Settings.TP_Mult     = Inp_TP_Mult;  // Use input R:R ratio (not ATR multiplier)
          
          PrintFormat("PRESET_RRM: Mode=SCALP → EMA periods: 34,89,34,89");
       }
@@ -1169,8 +1169,8 @@ void ApplySettings() {
          
          Settings.MaxSpread   = 5.0;   // ORG: 5.0
          Settings.MinATR      = 8.0;   // ORG: 5.0 .. BEST: 3.0, 5.0, 8.0, 10.0
-         Settings.SL_Mult     = 1.25;  // ORG: 2.0
-         Settings.TP_Mult     = 4.0;   // ORG: 4.0
+         Settings.SL_Mult     = 0.0;   // Disabled: Use swing-based SL instead
+         Settings.TP_Mult     = Inp_TP_Mult;  // Use input R:R ratio (not ATR multiplier)
          
          PrintFormat("PRESET_RRM: Mode=SWING → EMA periods: 5,13,34,89");
       }
@@ -1213,24 +1213,26 @@ void ApplySettings() {
       Settings.RRM_Lookback               = Inp_RRM_Lookback;
       Settings.RRM_MinDivPips             = Inp_RRM_MinDivPips;
    
-      // Exits / management
-      Settings.Use_BE                     = true;
-      Settings.BE_Trig                    = 1.5;
-      Settings.BE_Buff                    = 0.3;
+      // Exits / management - Use input values for user control
+      Settings.Use_BE                     = Inp_Use_BE;
+      Settings.BE_Trig                    = Inp_BE_Trig;  // Use input R:R ratio (not ATR multiplier)
+      Settings.BE_Buff                    = Inp_BE_Buff;
          
       // =====================================================================
-      // ★★★ CONFIGURE INITIAL SL: PSAR + PIPS (TF/CURRENCY AWARE) ★★★
+      // ★★★ CONFIGURE INITIAL SL: USE INPUT PARAMETERS ★★★
       // =====================================================================
-      Settings.SL_PlacementMode           = SL_PSAR_PIPS;
-      Settings.SL_PsarPipsCushion         = GetRecommendedPsarPipsCushion();
+      Settings.SL_PlacementMode           = Inp_SL_PlacementMode;  // User can choose: SWING_HIGHLOW, PSAR_PIPS, etc.
+      Settings.SL_PsarPipsCushion         = Inp_SL_PsarPipsCushion;
+      Settings.SL_SwingPipsCushion        = Inp_SL_SwingPipsCushion;
+      Settings.SL_FixedPips               = Inp_SL_FixedPips;
       
       // =====================================================================
-      // ★★★ CONFIGURE TRAILING STOP: PSAR + PIPS (TF/CURRENCY AWARE) ★★★
+      // ★★★ CONFIGURE TRAILING STOP: USE INPUT PARAMETERS ★★★
       // =====================================================================
-      Settings.TrailMode                  = TRAIL_PSAR;
-      Settings.PSAR_TrailCushionMode      = PSAR_CUSHION_PIPS;
-      Settings.PSAR_TrailPipsCushion      = GetRecommendedPsarPipsCushion();
-      Settings.P_PsarTrailCushionATR      = 0.5;
+      Settings.TrailMode                  = Inp_TrailMode;  // User can choose: PSAR, ATR, FRACTAL, NONE
+      Settings.PSAR_TrailCushionMode      = Inp_PSAR_TrailCushionMode;  // User can choose: PIPS or ATR
+      Settings.PSAR_TrailPipsCushion      = Inp_PSAR_TrailPipsCushion;
+      Settings.P_PsarTrailCushionATR      = Inp_PsarTrailCushionATR;
    
       Settings.MaType                     = METHOD_EMA;
       effEmaStrategy                      = (mode == RRM_SCALP ? EMA_STRAT_2_CROSS_1_2 : EMA_STRAT_2_CROSS_3_4);
@@ -1238,7 +1240,7 @@ void ApplySettings() {
       effBiasMode                         = Settings.BiasMode;
    
       if(note != "") note += " | ";
-      note += "PRESET_RRM: TREND_PULLBACK applied (SL=PSAR+Pips, Trail=PSAR+Pips, TF/currency aware).";
+      note += "PRESET_RRM: TREND_PULLBACK applied (using input SL/TP/BE/Trail settings for user control).";
    }
    
    //+------------------------------------------------------------------+
