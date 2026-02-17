@@ -86,34 +86,34 @@
 // --- STRATEGY PRESETS ---
 enum EStrategyPreset {
    PRESET_CUSTOM,             // CUSTOM - User controlled (no preset overrides)
-   PRESET_MA_BENCHMARK,       // PRESET - MT5 "Moving Average" compatibility
+   PRESET_MA_BENCHMARK,       // PRESET - MT5 MA "Moving Average" compatibility
    PRESET_TREND_REVERSAL,     // PRESET - Trend Reversal (Baseline)
    PRESET_TREND_SCALP,        // PRESET - Trend Scalp (Intraday confluence)
    PRESET_TREND_SWING,        // PRESET - Trend Swing (Institutional)
    PRESET_RANGE_GRID,         // PRESET - Range Grid (Conservative mean reversion)
-   PRESET_RRM_ATR,            // PRESET - RRM Trend Pullback (OPTIMIZED)
-   PRESET_RRM                 // PRESET - RRM Trend Pullback ORG
+   PRESET_RRM_ATR,            // PRESET - RRM ATR Trend Pullback (OPTIMIZED)
+   PRESET_RRM                 // PRESET - RRM ORG Trend Pullback ORG
 };
 
 // --- RRM MODE (for PRESET_RRM) ---
 enum ERRMMode {
-   RRM_AUTO_BY_TF,            // Auto: M1/M5/M15 => SCALP; H1/H4+ => SWING
-   RRM_SCALP,                 // Scalp: faster bias pair (EMA1/EMA2)
-   RRM_SWING                  // Swing: slower bias pair (EMA3/EMA4)
+   RRM_AUTO_BY_TF,            // RRM_Auto: M1/M5/M15 => SCALP; H1/H4+ => SWING
+   RRM_SCALP,                 // RRM_Scalp: faster bias pair (EMA1/EMA2)
+   RRM_SWING                  // RRM_Swing: slower bias pair (EMA3/EMA4)
 };
 
 // --- SIMPLE EMA SELECTOR ---
 enum EEmaStrategy {
-   EMA_STRAT_1_PRICE_CROSS,   // EMA STRAT - 1 EMA: Buy if Price > EMA1 (Benchmark)
-   EMA_STRAT_2_CROSS_1_2,     // EMA STRAT - 2 EMAs: Buy if EMA1 > EMA2 (Golden Cross)
-   EMA_STRAT_2_CROSS_3_4,     // EMA STRAT - 2 EMAs: Buy if EMA3 > EMA4 (Slow Trend)
-   EMA_STRAT_CUSTOM           // EMA STRAT - CUSTOM - Manual: Use "Advanced Bias" inputs below
+   EMA_STRAT_1_PRICE_CROSS,   // EMA_STRAT_1 EMA: Buy if Price > EMA1 (Benchmark)
+   EMA_STRAT_2_CROSS_1_2,     // EMA_STRAT_2 EMAs: Buy if EMA1 > EMA2 (Golden Cross)
+   EMA_STRAT_2_CROSS_3_4,     // EMA_STRAT_2 EMAs: Buy if EMA3 > EMA4 (Slow Trend)
+   EMA_STRAT_CUSTOM           // EMA_STRAT_CUSTOM Manual: Use "Advanced Bias" inputs below
 };
 
 // --- MA METHOD SELECTOR ---
 enum EMaMethod {
-   METHOD_EMA,          // METHOD_EMA - Exponential (Reacts faster, standard for this EA)
-   METHOD_SMA           // METHOD_SMA - Simple (Smoother, standard for MT5 Benchmarks)
+   METHOD_EMA,          // MA METHOD_EMA - Exponential (Reacts faster, standard for this EA)
+   METHOD_SMA           // MA METHOD_SMA - Simple (Smoother, standard for MT5 Benchmarks)
 };
 
 enum EBiasMode { 
@@ -128,9 +128,9 @@ enum EManualSide {
 };
 
 enum EAutoStrategy { 
-   STRAT_SINGLE_SLOPE,  // Slope of BiasFast MA
-   STRAT_PAIR_CROSS,    // Cross of BiasFast > BiasSlow (MA vs MA)
-   STRAT_PRICE_CROSS    // Cross of Price > BiasFast MA (Benchmark Mode)
+   STRAT_SINGLE_SLOPE,  // STRAT_SINGLE_SLOPE - of BiasFast MA
+   STRAT_PAIR_CROSS,    // STRAT_PAIR_CROSS - of BiasFast > BiasSlow (MA vs MA)
+   STRAT_PRICE_CROSS    // STRAT_PRICE_CROSS - of Price > BiasFast MA (Benchmark Mode)
 };
 
 enum EEmaRole { 
@@ -142,48 +142,48 @@ enum EEmaRole {
 
 // Indicator Modes
 enum EMacdMode { 
-   MACD_SIGNAL_ALIGN,   // MACD - Buy if Main > Signal
-   MACD_ZERO_CROSS      // MACD - Buy if Main > 0
+   MACD_SIGNAL_ALIGN,   // MACD_SIGNAL - Buy if Main > Signal
+   MACD_ZERO_CROSS      // MACD_ZERO - Buy if Main > 0
 };
 enum ERsiMode { 
-   RSI_FILTER_EXTREME,  // RSI - Pass if NOT Overbought (>70)
-   RSI_TREND_ABOVE_50,  // RSI - Pass if RSI > 50
-   RSI_CROSS_LEVEL      // RSI - Signal on Level Breakout
+   RSI_FILTER_EXTREME,  // RSI_FILTER - Pass if NOT Overbought (>70)
+   RSI_TREND_ABOVE_50,  // RSI_TREND - Pass if RSI > 50
+   RSI_CROSS_LEVEL      // RSI_CROSS - Signal on Level Breakout
 };
 enum ECciMode { 
-   CCI_TREND_ZERO,      // CCI - Buy if CCI > 0
-   CCI_IMPULSE_100      // CCI - Buy if CCI > 100
+   CCI_TREND_ZERO,      // CCI_TREND_0 - Buy if CCI > 0
+   CCI_IMPULSE_100      // CCI_IMPULSE_100 - Buy if CCI > 100
 };
 enum EStochMode { 
-   STO_CROSS_SIGNAL,    // STO - K line crosses D line
-   STO_ZONE_FILTER      // STO - K is not in extreme zones (OPTIMIZED)
+   STO_CROSS_SIGNAL,    // STO_CROSS - Signal: K line crosses D line
+   STO_ZONE_FILTER      // STO_ZONE - Filter: K is not in extreme zones (OPTIMIZED)
 };
 enum EBbMode { 
-   BB_TREND_FOLLOW,     // BB - Price > Middle Band
-   BB_MEAN_REVERSION    // BB - Price touches Lower Band
+   BB_TREND_FOLLOW,     // BB_TREND_FOLLOW - Price > Middle Band
+   BB_MEAN_REVERSION    // BB_MEAN_REVERSION - Price touches Lower Band
 };
 
 // TR - Trailing Stop: Exit Logic
 enum ETrailingMode { 
-   TRAIL_NONE,          // TRAIL - Fixed SL only
-   TRAIL_ATR,           // TRAIL - Volatility based (Smooth)
-   TRAIL_PSAR,          // TRAIL - Parabolic SAR (Trend Lock)
-   TRAIL_FRACTAL        // TRAIL - Market Structure (Swing High/Low)
+   TRAIL_NONE,          // TRAIL_NONE - Fixed SL only
+   TRAIL_ATR,           // TRAIL_ATR - Volatility based (Smooth)
+   TRAIL_PSAR,          // TRAIL_PSAR - Parabolic SAR (Trend Lock)
+   TRAIL_FRACTAL        // TRAIL_FRACTAL - Market Structure (Swing High/Low)
 };
 
 // SL - Stop Loss: Initial SL Placement Methods
 enum ESlPlacementMode {
-   SL_ATR,              // SL - ATR-based (current default)
-   SL_PSAR_ATR,         // SL - PSAR dot + ATR cushion
-   SL_PSAR_PIPS,        // SL - PSAR dot + Pips cushion (TF + currency aware)
-   SL_SWING_HIGHLOW,    // SL - Last swing high/low (Fractal) + Pips cushion
-   SL_FIXED_PIPS        // SL - Fixed pips value
+   SL_ATR,              // SL_ATR - ATR based (current default)
+   SL_PSAR_ATR,         // SL_PSAR_ATR - PSAR dot + ATR cushion
+   SL_PSAR_PIPS,        // SL_PSAR_PIPS - PSAR dot + Pips cushion (TF + currency aware)
+   SL_SWING_HIGHLOW,    // SL_SWING_HL - Last swing high/low (Fractal) + Pips cushion
+   SL_FIXED_PIPS        // SL_PIPS - Fixed pips value
 };
 
 // TR - Trailing Stop: PSAR Trailing Cushion Mode
 enum EPsarTrailCushionMode {
-   PSAR_CUSHION_ATR,    // PSAR Trail - ATR multiplier (current)
-   PSAR_CUSHION_PIPS    // PSAR Trail - Fixed pips cushion
+   PSAR_CUSHION_ATR,    // TRAIL_CUSHION_ATR - PSAR ATR multiplier (current)
+   PSAR_CUSHION_PIPS    // TRAIL_CUSHION_PSAR - PSAR PIPS Fixed pips cushion
 };
 
 // --- STRUCTURES ---
@@ -426,15 +426,15 @@ input double         Inp_MaxSpreadPips          = 3.0;         // OPTIMIZED: 2.0
 input double         Inp_MinATRPips             = 0.0;         // OPTIMIZED: 5.0 was 0.0              // 5.0 | Min Volatility (ATR Pips)
 input double         Inp_MaxATRPips             = 20.0;        // NEW: upper volatility bound  
 
-input group "=== CUSTOM: MARKET BIAS (EASY SETUP) ==="
+input group "=== CUSTOM: MARKET BIAS ==="
 input bool           Inp_BiasEnabled            = true;        // Master Bias Switch
 input EBiasMode      Inp_BiasMode               = BIAS_AUTO;   // Mode: MANUAL or AUTO
-input EEmaStrategy   Inp_EmaStrategy            = EMA_STRAT_2_CROSS_1_2; // Select Strategy Configuration
+input EEmaStrategy   Inp_EmaStrategy            = EMA_STRAT_2_CROSS_3_4; // Select Strategy Configuration
 
 input group "=== CUSTOM: ADVANCED AUTO MAPPING ==="
 input EManualSide    Inp_ManualSide             = SIDE_BOTH;   // Manual Side (MANUAL: LONG/SHORT; BOTH=no restriction -> AUTO decides)
-input EEmaRole       Inp_BiasFast_Adv           = ROLE_EMA1;   // Fast MA Slot (AUTO+CUST)
-input EEmaRole       Inp_BiasSlow_Adv           = ROLE_EMA2;   // Slow MA Slot (AUTO+CUST)
+input EEmaRole       Inp_BiasFast_Adv           = ROLE_EMA3;   // Fast MA Slot (AUTO+CUST)
+input EEmaRole       Inp_BiasSlow_Adv           = ROLE_EMA4;   // Slow MA Slot (AUTO+CUST)
 
 input group "=== CUSTOM: FILTERS ==="
 input bool           Inp_UseTime                = false;       // Use Time Scheduler?
@@ -448,7 +448,7 @@ input bool           Inp_UseHTF                 = false;       // Master Filter:
 input ENUM_TIMEFRAMES Inp_HtfPeriod             = PERIOD_H4;   // HTF Period
 input int            Inp_HtfEmaPeriod           = 89;          // HTF EMA Period
 
-input group "=== CUSTOM: VOTING (OPTIMIZED) ==="
+input group "=== CUSTOM: VOTING ==="
 input int            Inp_VoteThreshold          = 2;           // MINIMUM Votes required // OPTIMIZED: 3 was 6 (MAJOR CHANGE)
 
 input group "=== INDICATORS: SETTINGS ==="
@@ -457,14 +457,14 @@ input int            Inp_MaHorShift             = 0;           // CUSTOM Horizon
 input int            Inp_MaVerShift             = 1;           // CUSTOM Vertical MA Bar Shift: 0=Aggressive (Current Bar), 1=Safe (Closed Bar). IGNORED when Preset=PRESET_MA_BENCHMARK. // OPTIMIZED: 1 was 0 (closed bar)
 
 // EMA
-input group "--- INDICATORS: EMA (AUTO-SET BY PRESET) ---"
-input int            InpEma1Period              = 5;          // OPTIMIZED: 20 was 13 (scalp), will be overridden
+input group "--- INDICATORS: EMA ---"
+input int            InpEma1Period              = 5;           // OPTIMIZED: 20 was 13 (scalp), will be overridden
 input int            InpEma2Period              = 13;          // OPTIMIZED: 50 was 21 (scalp), will be overridden
 input int            InpEma3Period              = 34;          // OPTIMIZED: 21 was 34 (swing), will be overridden
 input int            InpEma4Period              = 89;          // OPTIMIZED: 55 was 89 (swing), will be overridden
 
 // ADX
-input group "--- INDICATORS: ADX (NOW ENABLED) ---"
+input group "--- INDICATORS: ADX ---"
 input int            InpAdxPeriod               = 14;
 input int            InpAdxThreshold            = 20;          // ADX > 20 = strong trend (use lower vote threshold)
 
@@ -476,40 +476,39 @@ input int            InpMacdSlow                = 26;          // OPTIMIZED: 13 
 input int            InpMacdSig                 = 9;           // OPTIMIZED: 8 was 9
 
 // RSI
-input group "--- INDICATORS: RSI (DISABLED IN OPT) ---"
+input group "--- INDICATORS: RSI ---"
 input ERsiMode       InpRsiMode                 = RSI_FILTER_EXTREME;
 input int            InpRsiPeriod               = 14;
 input double         InpRsiOverbought           = 70.0;
 input double         InpRsiOversold             = 30.0;
 
 // CCI
-input group "--- INDICATORS: CCI (DISABLED IN OPT) ---"
+input group "--- INDICATORS: CCI ---"
 input ECciMode       InpCciMode                 = CCI_TREND_ZERO;
 input int            InpCciPeriod               = 14;
 
 // MFI
-input group "--- INDICATORS: MFI (DISABLED IN OPT) ---"
+input group "--- INDICATORS: MFI ---"
 input int            InpMfiPeriod               = 14;
 input double         InpMfiLevel                = 50.0;
 
 // Stochastic (OPTIMIZED: Zone Filter Mode)
-input group "--- INDICATORS: STOCHASTIC (ZONE FILTER) ---"
+input group "--- INDICATORS: STOCHASTIC ---"
 input EStochMode     InpStoMode                 = STO_ZONE_FILTER;  // OPTIMIZED: STO_ZONE_FILTER was STO_CROSS_SIGNAL
 input int            InpStoK                    = 5;
 input int            InpStoD                    = 3;
 input int            InpStoSlow                 = 3;
 
 // Bollinger (DISABLED IN OPT)
-input group "--- INDICATORS: BOLLINGER BANDS (DISABLED IN OPT) ---"
+input group "--- INDICATORS: BOLLINGER BANDS ---"
 input EBbMode        InpBbMode                  = BB_TREND_FOLLOW;
 input int            InpBbPeriod                = 20;
 input double         InpBbDev                   = 2.0;
 
 // PSAR
-input group "--- INDICATORS: PSAR (TRAILING ONLY) ---"
+input group "--- INDICATORS: PSAR ---"
 input double         InpPsarStep                = 0.05;
 input double         InpPsarMax                 = 0.5;
-input double         InpPsarTrailCushionATR     = 0.2;         // PSAR trailing cushion (ATR multiplier). Used only when TrailMode=TRAIL_PSAR.
 
 input group "=== VOTING: ENABLED VOTES ==="
 input bool           Inp_Use_EmaSig             = true;        // Vote 1: EMA Recovery
@@ -527,7 +526,7 @@ input bool           Inp_Use_Ross               = false;       // Vote 11: Ross 
 input group "=== EXITS: SL/TP, BREAKEVEN, TRAILING ==="
 
 input group "=== EXITS: INITIAL SL PLACEMENT ==="
-input ESlPlacementMode Inp_SL_PlacementMode     = SL_ATR;      // Initial SL Method, SL_ATR, SL_FIXED_PIPS, SL_PSAR_ATR, SL_PSAR_PIPS, SL_SWING_HIGHLOW
+input ESlPlacementMode Inp_SL_PlacementMode     = SL_SWING_HIGHLOW;      // Initial SL Method, SL_ATR, SL_FIXED_PIPS, SL_PSAR_ATR, SL_PSAR_PIPS, SL_SWING_HIGHLOW
 input double         Inp_SL_Mult                = 1.5;         // 1.5 | ATR Multiplier (for SL_ATR mode)
 input double         Inp_SL_PsarPipsCushion     = 5.0;         // 5.0 | PSAR Pips Cushion (auto-scaled by TF/currency)
 input double         Inp_SL_SwingPipsCushion    = 10.0;        // 10.0 | Swing High/Low Pips Cushion (auto-scaled)
@@ -543,8 +542,8 @@ input group "=== EXITS: TRAILING STOP ==="
 input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR;   // TRAIL .._ATR, .._FRACTAL, .._NONE, .._PSAR | Trailing Logic
 input double         Inp_Trail_Mult             = 3.0;         // 3.0 | 1.5 | ATR Trail Distance
 input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR_CUSHION .._ATR, .._PIPS; PSAR Trail Cushion Mode
-input double         Inp_PsarTrailCushionATR    = 0.2;         // PSAR Trailing ATR Cushion (when Mode=ATR)
 input double         Inp_PSAR_TrailPipsCushion  = 5.0;         // PSAR Trailing Pips Cushion (when Mode=PIPS, auto-scaled)
+input double         Inp_PSAR_TrailCushionATR   = 0.2;         // PSAR trailing cushion (ATR multiplier). Used only when TrailMode=TRAIL_PSAR.
 
 input bool           Inp_ExportCSV              = false;       // Export Detailed Report?
 input bool           Inp_ExportUseCommonFiles   = false;       // Export CSV into COMMON Files folder (Windows). On Wine/macOS this may not be accessible; keep false.
@@ -622,6 +621,9 @@ double GetRecommendedPsarPipsCushion() {
          break;
       case PERIOD_H1:
          cushion = isJPY ? 15.0 : 10.0;
+         break;
+      case PERIOD_H2:
+         cushion = isJPY ? 20.0 : 12.0;
          break;
       case PERIOD_H4:
          cushion = isJPY ? 25.0 : 15.0;
@@ -761,7 +763,7 @@ void ApplySettings() {
    Settings.P_BbDev              = InpBbDev;
    Settings.P_PsarStep           = InpPsarStep; 
    Settings.P_PsarMax            = InpPsarMax;
-   Settings.P_PsarTrailCushionATR = InpPsarTrailCushionATR;
+   Settings.P_PsarTrailCushionATR = Inp_PSAR_TrailCushionATR;
 
    Settings.MacdMode             = InpMacdMode;
    Settings.RsiMode              = InpRsiMode;
@@ -1232,7 +1234,7 @@ void ApplySettings() {
       Settings.TrailMode                  = Inp_TrailMode;  // User can choose: PSAR, ATR, FRACTAL, NONE
       Settings.PSAR_TrailCushionMode      = Inp_PSAR_TrailCushionMode;  // User can choose: PIPS or ATR
       Settings.PSAR_TrailPipsCushion      = Inp_PSAR_TrailPipsCushion;
-      Settings.P_PsarTrailCushionATR      = Inp_PsarTrailCushionATR;
+      Settings.P_PsarTrailCushionATR      = Inp_PSAR_TrailCushionATR;
    
       Settings.MaType                     = METHOD_EMA;
       effEmaStrategy                      = (mode == RRM_SCALP ? EMA_STRAT_2_CROSS_1_2 : EMA_STRAT_2_CROSS_3_4);
