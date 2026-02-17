@@ -387,6 +387,59 @@ Inp_CloseOnReverse = false                // Don't close on reverse
 
 ---
 
+### PSAR/Swing Cushion System (Dual Cushion)
+
+SimpleEA implements a **dual cushion system** for stop loss placement and trailing:
+
+**1. Initial SL Cushion (LARGER)**
+- Applied when placing initial stop loss using `SL_PSAR_PIPS` or `SL_SWING_HIGHLOW`
+- Reason: Reference level (PSAR dot or Swing High/Low) might be 5-20 bars old
+- Auto-scales by timeframe and currency pair type
+
+**2. Trailing SL Cushion (SMALLER)**
+- Applied when trailing stop loss with `TRAIL_PSAR` mode
+- Reason: PSAR dot at shift=1 is recent, needs less breathing room
+- Auto-scales independently from initial cushion
+
+**Cushion Values (Auto-Applied):**
+
+| Timeframe | Initial SL (non-JPY) | Initial SL (JPY) | Trailing (non-JPY) | Trailing (JPY) |
+|-----------|---------------------|------------------|-------------------|----------------|
+| M1        | 3 pips              | 20 pips          | 2 pips            | 10 pips        |
+| M5        | 5 pips              | 30 pips          | 3 pips            | 15 pips        |
+| M15       | 8 pips              | 40 pips          | 4 pips            | 20 pips        |
+| H1        | 12 pips             | 60 pips          | 5 pips            | 25 pips        |
+| H4        | 20 pips             | 100 pips         | 8 pips            | 40 pips        |
+| D1        | 40 pips             | 200 pips         | 15 pips           | 80 pips        |
+
+**Configuration:**
+
+```mql5
+// Initial SL Cushions (auto-scaled if left at defaults)
+Inp_SL_PsarPipsCushion = 5.0      // PSAR-based SL cushion
+Inp_SL_SwingPipsCushion = 10.0    // Swing-based SL cushion
+
+// Trailing Cushion (auto-scaled if left at defaults)
+Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS  // or PSAR_CUSHION_ATR
+Inp_PSAR_TrailPipsCushion = 5.0   // PSAR trailing cushion (pips mode)
+Inp_PSAR_TrailCushionATR = 0.2    // ATR multiplier (ATR mode)
+```
+
+**Auto-Scaling Behavior:**
+- If you leave cushions at default values (5.0 or 10.0), the system automatically adjusts based on:
+  - Current timeframe (M1, M5, M15, H1, H4, D1)
+  - Currency pair type (JPY pairs use larger cushions)
+- To use custom values, set them to any value other than defaults
+- Check logs on EA startup to see applied cushion values
+
+**Example Log Output:**
+```
+Auto-scaled Initial SL cushion: 12.0 pips for EURUSD H1
+Auto-scaled PSAR Trailing cushion: 5.0 pips for EURUSD H1
+```
+
+---
+
 ### Important Configuration Notes
 
 **Trade Count Varies by Timeframe:**

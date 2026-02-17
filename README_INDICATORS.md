@@ -991,6 +991,48 @@ bool Check_PSAR(const int bias, const int v_shift) {
 
 **Note:** Excellent for trend confirmation, aligns well with EMA bias
 
+**PSAR Trailing Stop:**
+
+PSAR can also be used for trailing stop loss with `TrailMode = TRAIL_PSAR`. The system supports two cushion modes:
+
+**1. PSAR_CUSHION_PIPS (Fixed Pips):**
+```mql5
+Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS
+Inp_PSAR_TrailPipsCushion = 5.0  // Auto-scales by TF and pair type
+```
+- Applies a fixed pips cushion below/above PSAR dot
+- Auto-scales based on timeframe (M1: 0.5×, M5: 0.8×, M15: 1.0×, H1+: 2.0×)
+- Auto-adjusts for JPY pairs (×100 vs ×10 for standard pairs)
+- Uses PSAR value at shift=1 (last confirmed bar) to avoid repainting
+
+**2. PSAR_CUSHION_ATR (Dynamic ATR):**
+```mql5
+Inp_PSAR_TrailCushionMode = PSAR_CUSHION_ATR
+Inp_PSAR_TrailCushionATR = 0.2  // Multiplier of current ATR
+```
+- Applies dynamic cushion: `cushion = ATR × multiplier`
+- Adapts to current market volatility
+- Larger cushion during volatile periods, tighter during calm
+
+**Trailing Logic:**
+```mql5
+double psar = GetPsarValue(1);  // Last confirmed PSAR
+double cushion = calculated_based_on_mode;
+
+if(position_type == BUY)
+   new_sl = psar - cushion;  // Trail below PSAR
+else
+   new_sl = psar + cushion;  // Trail above PSAR
+
+// Only move SL in profit direction (never widen)
+if(BUY && new_sl > current_sl && new_sl < current_price)
+   ModifySL(new_sl);
+```
+
+**When to Use:**
+- **PIPS mode:** Predictable cushion, works well for ranges and lower timeframes
+- **ATR mode:** Adaptive cushion, works well for volatile/trending markets
+
 ---
 
 ### 8. Bollinger Bands
