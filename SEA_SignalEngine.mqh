@@ -44,6 +44,9 @@ enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_102016D = SEA_BUILD_TOKEN_102016D 
 #define SEA_MOD_SIGNALENGINE_102016D 1
 
 
+#include <RRMS\SEA_Config.mqh>
+
+
 // Note: Requires ST_Settings and SNewsEvent structs to be defined in main file
 
 class CSignalEngine {
