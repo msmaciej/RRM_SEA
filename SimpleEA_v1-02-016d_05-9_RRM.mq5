@@ -1301,7 +1301,7 @@ void ApplySettings() {
       Settings.P_PsarTrailCushionATR      = Inp_PSAR_TrailCushionATR;
    
       Settings.MaType                     = METHOD_EMA;
-      effEmaStrategy                      = (mode == RRM_SCALP ? EMA_STRAT_2_CROSS_1_2 : EMA_STRAT_2_CROSS_3_4);
+      effEmaStrategy                      = EMA_STRAT_CUSTOM;  // Prevent EMA mapping from overwriting RRM settings
       effMaType                           = Settings.MaType;
       effBiasMode                         = Settings.BiasMode;
    
