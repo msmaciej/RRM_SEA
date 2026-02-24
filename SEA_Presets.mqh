@@ -1,16 +1,16 @@
-﻿//+------------------------------------------------------------------+
-//|                                                  SEA_Presets.mqh |
-//|                                   Copyright 2026, SimpleEA System|
+﻿//+-------------------------------------------------------------------+
+//|                                                  SEA_Presets.mqh  |
+//|                                   Copyright 2026, SimpleEA System |
 //| DESCRIPTION: Model A presets: overwrite strategy-critical fields  |
 //|              on top of already hydrated Settings.                 |
-//|                                                                  |
-//| IMPORTANT:                                                       |
+//|                                                                   |
+//| IMPORTANT:                                                        |
 //| - NO input->struct mapping in this file.                          |
 //| - NO printing/diagnostic spam in this file.                       |
 //| - NO ValidateEffectiveSettings() in this file.                    |
 //| - Do NOT touch global-allowed-under-presets fields:               |
 //|   PrintEffectiveConfig, DebugFlow, UI toggles, reporting toggles. |
-//+------------------------------------------------------------------+
+//+-------------------------------------------------------------------+
 #property strict
 
 #include <RRMS\SEA_Config.mqh>
@@ -38,6 +38,26 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
    // Do NOT modify cfg.PrintEffectiveConfig / cfg.DebugFlow
    // Do NOT modify UI toggles or reporting toggles (ExportCSV, ExportUseCommonFiles)
+
+   // ================================================================
+   // Policy A: Operator gates remain user-controlled even under presets
+   // Preserve them across preset application.
+   // ================================================================
+   const double          op_MaxSpread  = cfg.MaxSpread;
+   const double          op_MinATR     = cfg.MinATR;
+   const double          op_MaxATR     = cfg.MaxATR;
+
+   const bool            op_UseTime    = cfg.UseTime;
+   const int             op_StartHr    = cfg.StartHr;
+   const int             op_EndHr      = cfg.EndHr;
+
+   const bool            op_UseNews    = cfg.UseNews;
+   const int             op_NewsPre    = cfg.NewsPre;
+   const int             op_NewsPost   = cfg.NewsPost;
+
+   const bool            op_UseHTF     = cfg.UseHTF;
+   const ENUM_TIMEFRAMES op_HtfPeriod  = cfg.HtfPeriod;
+   const int             op_P_HtfEma   = cfg.P_HtfEma;
 
    if(preset == PRESET_MA_BENCHMARK)
    {
@@ -90,6 +110,24 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ma_h_shift        = Inp_MA_Shift;
       cfg.ma_v_shift        = 1;
       cfg.P_Ema1            = Inp_MA_Period;
+
+      // Restore operator-controlled gates (Policy A)
+      cfg.MaxSpread = op_MaxSpread;
+      cfg.MinATR    = op_MinATR;
+      cfg.MaxATR    = op_MaxATR;
+
+      cfg.UseTime   = op_UseTime;
+      cfg.StartHr   = op_StartHr;
+      cfg.EndHr     = op_EndHr;
+
+      cfg.UseNews   = op_UseNews;
+      cfg.NewsPre   = op_NewsPre;
+      cfg.NewsPost  = op_NewsPost;
+
+      cfg.UseHTF    = op_UseHTF;
+      cfg.HtfPeriod = op_HtfPeriod;
+      cfg.P_HtfEma  = op_P_HtfEma;
+
       return;
    }
 
@@ -134,6 +172,24 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TrailMode         = TRAIL_NONE;
 
       cfg.MaType            = METHOD_SMA;
+
+      // Restore operator-controlled gates (Policy A)
+      cfg.MaxSpread = op_MaxSpread;
+      cfg.MinATR    = op_MinATR;
+      cfg.MaxATR    = op_MaxATR;
+
+      cfg.UseTime   = op_UseTime;
+      cfg.StartHr   = op_StartHr;
+      cfg.EndHr     = op_EndHr;
+
+      cfg.UseNews   = op_UseNews;
+      cfg.NewsPre   = op_NewsPre;
+      cfg.NewsPost  = op_NewsPost;
+
+      cfg.UseHTF    = op_UseHTF;
+      cfg.HtfPeriod = op_HtfPeriod;
+      cfg.P_HtfEma  = op_P_HtfEma;
+
       return;
    }
 
@@ -178,6 +234,24 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Trail_Mult     = 1.5;
 
       cfg.MaType         = METHOD_EMA;
+
+      // Restore operator-controlled gates (Policy A)
+      cfg.MaxSpread = op_MaxSpread;
+      cfg.MinATR    = op_MinATR;
+      cfg.MaxATR    = op_MaxATR;
+
+      cfg.UseTime   = op_UseTime;
+      cfg.StartHr   = op_StartHr;
+      cfg.EndHr     = op_EndHr;
+
+      cfg.UseNews   = op_UseNews;
+      cfg.NewsPre   = op_NewsPre;
+      cfg.NewsPost  = op_NewsPost;
+
+      cfg.UseHTF    = op_UseHTF;
+      cfg.HtfPeriod = op_HtfPeriod;
+      cfg.P_HtfEma  = op_P_HtfEma;
+
       return;
    }
 
@@ -222,6 +296,24 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Trail_Mult     = 2.0;
 
       cfg.MaType         = METHOD_EMA;
+
+      // Restore operator-controlled gates (Policy A)
+      cfg.MaxSpread = op_MaxSpread;
+      cfg.MinATR    = op_MinATR;
+      cfg.MaxATR    = op_MaxATR;
+
+      cfg.UseTime   = op_UseTime;
+      cfg.StartHr   = op_StartHr;
+      cfg.EndHr     = op_EndHr;
+
+      cfg.UseNews   = op_UseNews;
+      cfg.NewsPre   = op_NewsPre;
+      cfg.NewsPost  = op_NewsPost;
+
+      cfg.UseHTF    = op_UseHTF;
+      cfg.HtfPeriod = op_HtfPeriod;
+      cfg.P_HtfEma  = op_P_HtfEma;
+
       return;
    }
 
@@ -265,6 +357,24 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TP_Mult        = 2.0;
       cfg.Use_BE         = false;
       cfg.TrailMode      = TRAIL_NONE;
+
+      // Restore operator-controlled gates (Policy A)
+      cfg.MaxSpread = op_MaxSpread;
+      cfg.MinATR    = op_MinATR;
+      cfg.MaxATR    = op_MaxATR;
+
+      cfg.UseTime   = op_UseTime;
+      cfg.StartHr   = op_StartHr;
+      cfg.EndHr     = op_EndHr;
+
+      cfg.UseNews   = op_UseNews;
+      cfg.NewsPre   = op_NewsPre;
+      cfg.NewsPost  = op_NewsPost;
+
+      cfg.UseHTF    = op_UseHTF;
+      cfg.HtfPeriod = op_HtfPeriod;
+      cfg.P_HtfEma  = op_P_HtfEma;
+
       return;
    }
 
@@ -347,6 +457,24 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;
       cfg.PSAR_TrailPipsCushion = 5.0;
       cfg.P_PsarTrailCushionATR = 0.2;
+
+      // Restore operator-controlled gates (Policy A)
+      cfg.MaxSpread = op_MaxSpread;
+      cfg.MinATR    = op_MinATR;
+      cfg.MaxATR    = op_MaxATR;
+
+      cfg.UseTime   = op_UseTime;
+      cfg.StartHr   = op_StartHr;
+      cfg.EndHr     = op_EndHr;
+
+      cfg.UseNews   = op_UseNews;
+      cfg.NewsPre   = op_NewsPre;
+      cfg.NewsPost  = op_NewsPost;
+
+      cfg.UseHTF    = op_UseHTF;
+      cfg.HtfPeriod = op_HtfPeriod;
+      cfg.P_HtfEma  = op_P_HtfEma;
+
       return;
    }
 
@@ -430,8 +558,43 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       cfg.TrailMode             = TRAIL_PSAR;
       cfg.P_PsarTrailCushionATR = 0.5;
+
+      // Restore operator-controlled gates (Policy A)
+      cfg.MaxSpread = op_MaxSpread;
+      cfg.MinATR    = op_MinATR;
+      cfg.MaxATR    = op_MaxATR;
+
+      cfg.UseTime   = op_UseTime;
+      cfg.StartHr   = op_StartHr;
+      cfg.EndHr     = op_EndHr;
+
+      cfg.UseNews   = op_UseNews;
+      cfg.NewsPre   = op_NewsPre;
+      cfg.NewsPost  = op_NewsPost;
+
+      cfg.UseHTF    = op_UseHTF;
+      cfg.HtfPeriod = op_HtfPeriod;
+      cfg.P_HtfEma  = op_P_HtfEma;
+
       return;
    }
+
+   // Failsafe: if execution reaches here for any reason, restore operator gates.
+   cfg.MaxSpread = op_MaxSpread;
+   cfg.MinATR    = op_MinATR;
+   cfg.MaxATR    = op_MaxATR;
+
+   cfg.UseTime   = op_UseTime;
+   cfg.StartHr   = op_StartHr;
+   cfg.EndHr     = op_EndHr;
+
+   cfg.UseNews   = op_UseNews;
+   cfg.NewsPre   = op_NewsPre;
+   cfg.NewsPost  = op_NewsPost;
+
+   cfg.UseHTF    = op_UseHTF;
+   cfg.HtfPeriod = op_HtfPeriod;
+   cfg.P_HtfEma  = op_P_HtfEma;
 }
 
 // Temporary back-compat for any remaining callers.
