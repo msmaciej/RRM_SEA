@@ -131,6 +131,14 @@ enum EPsarTrailCushionMode
    PSAR_CUSHION_PIPS
 };
 
+// --- UI FRAME MODE (Panels) ---
+enum EUIFrameMode
+{
+   UI_FRAME_BG,              // Rectangle background (default)
+   UI_FRAME_NONE,            // Text only (no rectangle)
+   UI_FRAME_TEXT_BOUNDS      // Text bounds markers (BEGIN/END), no rectangle
+};
+
 // --- STRUCTURES ---
 struct SNewsEvent
 {
@@ -324,6 +332,17 @@ input group "=== UI: SIGNAL MARKERS ==="
 input bool           Inp_DrawEntryLines         = true;
 // global allowed under presets
 input bool           Inp_DrawTradeLines         = true;
+
+input group "=== UI: COLORS ==="
+// global allowed under presets
+input bool             Inp_UI_UseCustomColors   = false;        // If false, follow chart theme
+input color            Inp_UI_FontColor         = clrYellow;    // Used only if UseCustomColors=true
+input int              Inp_UI_PanelBgAlpha      = 110;          // 0..255 (higher = more opaque)
+
+input group "=== UI: FRAMING (PANELS) ==="
+// global allowed under presets
+input EUIFrameMode     Inp_UI_FrameMode          = UI_FRAME_BG;   // BG | NONE | TEXT_BOUNDS
+input int              Inp_UI_FramePadPx         = 6;             // Padding used for text + BG sizing
 
 input group "=== PRESET_RRM: TREND PULLBACK ==="
 input ERRMMode       Inp_RRM_Mode               = RRM_AUTO_BY_TF;      // strategy input (ignored if preset != PRESET_RRM/PRESET_RRM_ATR)
