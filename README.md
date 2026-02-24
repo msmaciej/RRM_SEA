@@ -1,149 +1,24 @@
-# SimpleEA - Professional Trading System for MT5
+# RRM_SEA (SimpleEA)
 
+RRM_Simple EA — macOS + Wine + MT5 + **MQL5 ONLY**  
+(**no C++**, **no templates**, **no lambdas**, **no static locals**)
 
-## Overview
+## Canonical documentation (current)
+All current docs live in `Readme/`:
 
-SimpleEA is a professional-grade Expert Advisor for MetaTrader 5 that implements a comprehensive 9-step signal validation pipeline combining market bias analysis, multi-indicator voting, and risk-aware position management. Designed specifically for macOS + Wine + MT5 environments, it uses an MQL5-only modular architecture.
+- `Readme/README_SYSTEM.md` — system architecture & full documentation
+- `Readme/README_INDICATORS.md` — indicator and voting pipeline reference
+- `Readme/README_SEA_RULES.md` — agent ownership, constraints, preset policy
+- `Readme/README_SEA_BOOTSTRAP.md` — how to start a new chat and run tasks with SEA agents
+- `Readme/README_SEA_AI-AGENTS.md` — SEA Agents v.03 prompts (roles/guardrails/output)
 
-The system trades quality over quantity, using a strict multiplicative voting system where ALL enabled indicators must agree before entering a position. This results in fewer but higher-probability trades.
+## Legacy / archive
+Historical/obsolete documentation is stored in `Legacy/`.  
+Do not use it unless explicitly required:
 
-Core Philosophy: Simple systems that work > Complex systems that don't.
+- `Legacy/README_LEGACY.md`
 
-
-## Table of Contents
-
-* System Architecture
-* How SimpleEA Works: Complete Process Flow
-* The 9-Step Signal Pipeline: Visual Overview
-* Key Concepts (Quick Summary)
-* Key Design Principles
-* Configuration Guide
-* AI Agent Manifest
-
-For detailed technical documentation: See README_INDICATORS.md
-
-
-## System Architecture
-
-The v1.02.016d refactor decoupled the system into specialized modules to separate state, logic, and execution.
-
-
-## Core Components
-
-* SimpleEA (Main Orchestrator): File: SimpleEA_v1-02-016d_05-9_RRM.mq5. Coordinates all components, handles the OnTick() loop, and manages new bar detection.
-* SEA_Config (State Master): File: SEA_Config.mqh. Centralized repository for all enums, the ST_Settings structure, and global input parameters.
-* SEA_Presets (Strategy Router): File: SEA_Presets.mqh. Maps raw inputs to the global struct and applies hardcoded strategy overrides for RRM, Scalp, and Swing setups.
-* SEA_SignalEngine (Signal Pipeline): File: SEA_SignalEngine.mqh. Implements the 9-step validation pipeline and manages indicator handles.
-* SEA_TradeExecutor (Trade Management): File: SEA_TradeExecutor.mqh. Manages position sizing, trade entries, and trailing stops.
-* SEA_UI & Reporting: Files: SEA_UI.mqh and SEA_Reporting.mqh. Handles real-time status panels, cockpits, and CSV data exports.
-
-
-## Component Interaction Diagram
-
-┌────────────────┐
-│   Terminal     │  ← OnInit() / OnTick()
-└───────┬────────┘
-        │
-        ▼
-┌────────────────┐      ┌────────────────┐
-│   SimpleEA     │──────▶   SEA_Config    │ (Define State)
-│ (Orchestrator) │      └────────────────┘
-└───────┬────────┘      ┌────────────────┐
-        │──────────────▶│   SEA_Presets   │ (Hydrate Settings)
-        │               └────────────────┘
-        ▼
-┌────────────────┐      ┌────────────────┐
-│ SEA_SignalEng  │◀─────┤ Indicator Data  │ (9-Step Pipeline)
-└───────┬────────┘      └────────────────┘
-        │
-        ▼
-┌────────────────┐      ┌────────────────┐
-│ SEA_TradeExec  │──────▶   MT5 Server    │ (Execution)
-└────────────────┘      └────────────────┘
-
-
-## How SimpleEA Works: Complete Process Flow
-
-Main Execution Loop (OnTick)
-
-Every time a new bar closes:
-
-1. Check if we have an open position: 
-    * YES → Manage it (breakeven, trailing stops).
-    * NO → Look for new signal.
-2. Detect if new bar formed: Compare current iTime[0] with stored last bar time.
-3. Evaluate signal: Call SignalEngine.GetDirection(). Evaluation happens on shift=1 (closed candle).
-4. Execute trade: If a valid signal (1 or -1) is returned and no position is open: 
-    * Calculate position size based on RiskPercent.
-    * Calculate SL/TP levels based on selected mode.
-    * Execute trade at shift=0 (current candle open).
-
-
-## The 9-Step Signal Pipeline: Visual Overview
-
-All evaluation happens on the CLOSED candle (shift=1) to prevent repainting.
-
-* Step 1: PRE-FILTERS: Checks Spread, ATR boundaries, Time/Session, and News blackouts.
-* Step 2: MARKET BIAS: Determines trend direction (LONG/SHORT/NEUTRAL) via EMA Slopes and Position.
-* Step 3: AUTOSTRAT ENTRY SIGNAL: Generates timing via Single Slope, Price Cross, or EMA Pair Cross.
-* Step 4: SIGNAL VALIDATION: Validates that the entry signal matches the market bias.
-* Step 5: HTF FILTER (Optional): Higher timeframe EMA must align with the current bias.
-* Step 6: RRM GATES (Optional): Checks for Pullback/Reclaim and EMA Divergence.
-* Step 7: VOTING BYPASS: Skips voting if VoteThreshold <= 1.
-* Step 8: INDICATOR VOTING: Counts votes from enabled indicators (MACD, RSI, PSAR, etc.).
-* Step 9: FINAL DECISION: If votes >= VoteThreshold, the signal is returned.
-
-
-## Key Principle:
-
-$TS (Trade Signal) = Market\_Bias x Indicator_1 x Indicator_2 x ... x Indicator_n$.
-
-* ANY component = 0 → Entire result = 0 (NO TRADE).
-* ALL components = 1 → Result = bias direction ($\pm1$).
-
-
-## Key Concepts (Quick Summary)
-
-# Market Bias vs Entry Signal
-
-* Market Bias: Primary trend filter (Step 2) that determines if the market is in a LONG, SHORT, or NEUTRAL state.
-* Entry Signal: Timing signal (Step 3) generated by the AutoStrat strategy (Single Slope, Price Cross, or Pair Cross).
-
-# The Multiplicative Voting System
-
-The system uses a multiplicative formula where ANY component = 0 → entire result = 0. This strict filtering requires unanimous agreement (or meeting the required threshold) before entering a position.
-
-# Signal Timing: shift=1 vs shift=0
-
-* Signal evaluation: Happens on shift=1 (CLOSED candle) for stable, confirmed data.+2
-* Trade entry: Happens on shift=0 (NEW candle open) for predictable execution.+1
-
-
-## PSAR/Swing Cushion System (Dual Cushion)
-
-SimpleEA implements an auto-scaling cushion system for stop loss placement and trailing:
-
-| Timeframe | Initial SL (non-JPY) | Initial SL (JPY) | Trailing (non-JPY) | Trailing (JPY) |
-|-----------|---------------------|------------------|-------------------|----------------|
-| M1        | 3 pips              | 20 pips          | 2 pips            | 10 pips        |
-| M5        | 5 pips              | 30 pips          | 3 pips            | 15 pips        |
-| M15       | 8 pips              | 40 pips          | 4 pips            | 20 pips        |
-| H1        | 12 pips             | 60 pips          | 5 pips            | 25 pips        |
-| H4        | 20 pips             | 100 pips         | 8 pips            | 40 pips        |
-| D1        | 40 pips             | 200 pips         | 15 pips           | 80 pips        |
-
-
-## AI Agent Manifest
-
-As the Lead System Architect, I orchestrate a team of 7 specialized coding agents. I am the only agent authorized and capable of modifying the system documentation (README.md and README_INDICATORS.md). All code generation and modification tasks are strictly delegated to the following specialized agents to maintain a clean modular architecture:
-
-1. SEA Architect (Me): Lead orchestrator, system design, code routing, and sole owner of documentation.
-2. SEA Config: Owns SEA_Config.mqh. Manages global EA_Settings struct, enums, and mapping user inputs via InitializeConfig().
-3. SEA Presets: Owns SEA_Presets.mqh. Translates trading setups into hardcoded struct assignments.
-4. SEA SignalEngine: Owns SEA_SignalEngine.mqh. Manages indicator handles and the 9-step multiplicative voting pipeline.
-5. SEA TradeExecutor: Owns SEA_TradeExecutor.mqh. Manages risk, position sizing, trade entries, and trailing stops.
-6. SEA UI: Owns SEA_UI.mqh. Handles chart graphics, status panels, and GUI objects.
-7. SEA Reporting: Owns SEA_Reporting.mqh. Manages Strategy Tester metrics and CSV exports.
-8. SEA Core: Owns SimpleEA.mq5 (main file). Integrator of all .mqh modules, manages global event handlers (OnInit, OnTick), and maintains a clean global scope.
-
-**End of README**
+## Quick start (for a new task)
+1. Read `Readme/README_SEA_BOOTSTRAP.md`
+2. Follow `Readme/README_SEA_RULES.md`
+3. Define the task and proceed via the SEA Architect → Specialized Agent workflow
