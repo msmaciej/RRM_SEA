@@ -1,92 +1,26 @@
 ﻿//+------------------------------------------------------------------+
 //|                                 SimpleEA_v1-02-016d_05-9_RRM.mq5 |
 //|                              MJS Institutional Trading Solutions |
-//|                                                                  |
-//| GOLDEN MASTER: Easy Setup + MA Method + Dual Shifts              |
-//| RRM REV 05-7: Legacy-aligned + ATR gate fix                      |
 //+------------------------------------------------------------------+
 // SAVE AS UTF-16 LE WITH BOM
 //+------------------------------------------------------------------+
-// SYSTEM OVERVIEW:
-// Real Risk Money (RRM) methodology combined with Signal Engine Architecture
-// Modular design with separate components for signals, risk, and trade management
-//
-// ARCHITECTURE:
-// 1. SimpleEA (this file) - Main coordinator
-// 2. SEA_SignalEngine - 9-step signal pipeline
-// 3. SEA_RiskManager - Position sizing
-// 4. SEA_TradeManager - Trade execution and management
-//
-// KEY CONCEPTS:
-// - Market Bias: Primary trend filter (EMA position + slope alignment)
-// - Entry Signal: Timing signal within bias context (from AutoStrat)
-// - Indicator Voting: Multiple indicators confirm bias (consensus system)
-// - RRM Gates: Optional quality filters (pullback/reclaim, divergence)
-//
-// SIGNAL FLOW:
-// Bar closes -> OnTick() -> SignalEngine.GetDirection() [9-step pipeline]
-// -> If signal valid: RiskManager -> TradeManager -> Open position
-// -> If signal = 0: Only manage existing positions
-//
-// BIAS DETERMINATION:
-// LONG: Fast EMA > Slow EMA AND both rising
-// SHORT: Fast EMA < Slow EMA AND both falling
-// NEUTRAL: Neither condition met -> NO TRADE
-//
-// Note: STRAT_PAIR_CROSS uses relaxed logic (only Fast slope required)
-//
-// AUTOSTRAT STRATEGIES:
-// - STRAT_SINGLE_SLOPE: Single EMA slope direction
-// - STRAT_PRICE_CROSS: Price vs EMA position/cross
-// - STRAT_PAIR_CROSS: EMA crossover (catches early momentum)
-//
-// INDICATOR VOTING:
-// Each enabled indicator votes if it agrees with bias.
-// VoteThreshold determines minimum votes required (e.g., 4 out of 5)
-// Available: EMA1, ADX, MACD, CCI, RSI, Stochastic, PSAR, BB, MFI, P123, Ross
-//
-// RRM GATES (Optional):
-// - RRM_RequirePullbackReclaim: Wait for pullback to EMA then reclaim
-// - RRM_RequireEmaDiv: Require EMAs expanding (not converging)
-//
-// CONFIGURATION:
-// BiasMode: MANUAL or AUTO
-// BiasFastID/SlowID: Which EMAs for bias (0=5, 1=13, 2=34, 3=89)
-// AutoStrat: Entry timing method (PAIR_CROSS recommended)
-// VoteThreshold: How many indicators must agree (4 recommended)
-//
-// See README.md and README_INDICATORS.md for complete documentation
-//
-// VERSION: v1.02.016d-05-8b_RRM
-//+------------------------------------------------------------------+
-
-//+------------------------------------------------------------------+
-//| FILE HEADER & TERMINAL DIRECTIVES                                |
-//+------------------------------------------------------------------+
-
 #property copyright "SimpleEA v1.02.016d-05-9_RRM"
 #property version   "102.016"
 #property strict
 
-//+------------------------------------------------------------------+
-//| BUILD SWITCHES & CONSTANTS                                       |
-//+------------------------------------------------------------------+
-
-// --- Anti-stale build lock (MQL5-safe: no #if, no #error)
+// --- Anti-stale build lock
 #define SEA_BUILD_TOKEN_102016D 1
 
-// --- Anti-stale build lock (macOS+Wine+MT5)
-#define SEA_BUILD_NUM 1020168      // 1.02.016d => 1020164
-#define SEA_BUILD_STR "1.02.016d-05-9_RRM"   // Revision tag with OPT suffix
+#define SEA_BUILD_NUM 1020168
+#define SEA_BUILD_STR "1.02.016d-05-9_RRM"
 
 //+------------------------------------------------------------------+
 //| FORWARD DECLARATIONS                                             |
 //+------------------------------------------------------------------+
 
-// (entry/trade markers implemented in main EA; callable by modules)
-
 void SEA_DrawEntrySignalLine(datetime bar_time, int direction, const string label);
 void SEA_DrawTradeExecLine(datetime event_time, int direction, double price, const string label);
+void SEA_UI_ManageChartIndicators();
 
 //+------------------------------------------------------------------+
 //| MODULE INCLUDES                                                  |
@@ -99,7 +33,6 @@ void SEA_DrawTradeExecLine(datetime event_time, int direction, double price, con
 #include <RRMS\SEA_UI.mqh>
 #include <RRMS\SEA_Reporting.mqh>
 
-// --- Module revision stamps (fail fast if stale include path)
 #ifndef SEA_MOD_SIGNALENGINE_102016D
 enum { __SEA_STALE_SEA_MOD_SIGNALENGINE_102016D__ = SEA_MOD_SIGNALENGINE_102016D };
 #endif
@@ -120,35 +53,30 @@ enum { __SEA_STALE_SEA_MOD_REPORTING_102016D__ = SEA_MOD_REPORTING_102016D };
 CSignalEngine  Signal;
 CTradeExecutor Executor;
 
-EEmaStrategy   g_effectiveEmaStrategy  = EMA_STRAT_1_PRICE_CROSS;
-EMaMethod      g_effectiveMaType       = METHOD_EMA;
-EBiasMode      g_effectiveBiasMode     = BIAS_AUTO;
-string         g_effectiveSigNote      = "";
-string         g_effectiveDirSource    = "";
+// --- UI/Reporting compatibility globals (previously built in old presets logic)
+EEmaStrategy g_effectiveEmaStrategy = EMA_STRAT_1_PRICE_CROSS;
+EMaMethod    g_effectiveMaType      = METHOD_EMA;
+EBiasMode    g_effectiveBiasMode    = BIAS_AUTO;
+string       g_effectiveSigNote     = "";
+string       g_effectiveDirSource   = "";
 
-string         g_ui_used_flags         = "";
-string         g_ui_ignored_flags      = "";
-string         g_ui_overrides          = "";
-string         g_ui_ma_source          = "";
+string       g_ui_used_flags        = "";
+string       g_ui_ignored_flags     = "";
+string       g_ui_overrides         = "";
+string       g_ui_ma_source         = "";
 
-bool           g_warned_bench_ignored  = false;
-bool           g_warned_custom_bench   = false;
-
-datetime       g_last_bar_time         = 0;
-datetime       g_start_time            = 0;
-bool           g_chart_indicators_managed = false;
+datetime g_last_bar_time            = 0;
+datetime g_start_time               = 0;
+bool     g_chart_indicators_managed = false;
 
 //+------------------------------------------------------------------+
-//| EXPERT LIFECYCLE (ENTRY POINTS)                                  |
+//| EXPERT LIFECYCLE                                                 |
 //+------------------------------------------------------------------+
 
-int OnInit() {
-   return OrchestrateInit();
-}
+int OnInit() { return OrchestrateInit(); }
 
-void OnTick() {
-   // UI: Strategy Tester applies chart templates after OnInit in some environments (macOS+Wine).
-   // To keep visualization clean, manage indicators once on the first tick.
+void OnTick()
+{
    if(Inp_UI_ManageChartIndicators && !g_chart_indicators_managed)
    {
       SEA_UI_ManageChartIndicators();
@@ -157,67 +85,162 @@ void OnTick() {
    OrchestrateTick();
 }
 
-void OnDeinit(const int reason) {
-   OrchestrateDeinit(reason);
-}
+void OnDeinit(const int reason) { OrchestrateDeinit(reason); }
 
 //+------------------------------------------------------------------+
-//| HELPER: Get recommended PSAR pips cushion based on TF & currency |
+//| HELPERS                                                          |
 //+------------------------------------------------------------------+
-double GetRecommendedPsarPipsCushion() {
-   bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
-   double cushion = 5.0; // Default
-   
-   switch(_Period) {
-      case PERIOD_M1:
-         cushion = isJPY ? 3.0 : 2.0;
-         break;
-      case PERIOD_M5:
-         cushion = isJPY ? 5.0 : 3.0;
-         break;
-      case PERIOD_M15:
-         cushion = isJPY ? 8.0 : 5.0;
-         break;
-      case PERIOD_M30:
-         cushion = isJPY ? 12.0 : 7.0;
-         break;
-      case PERIOD_H1:
-         cushion = isJPY ? 15.0 : 10.0;
-         break;
-      case PERIOD_H2:
-         cushion = isJPY ? 20.0 : 12.0;
-         break;
-      case PERIOD_H4:
-         cushion = isJPY ? 25.0 : 15.0;
-         break;
-      case PERIOD_D1:
-         cushion = isJPY ? 40.0 : 25.0;
-         break;
-      default:
-         cushion = isJPY ? 10.0 : 5.0;
-         break;
+
+void FlowLog(const string msg)
+{
+   if(Inp_DebugFlow) Print("FLOW: ", msg);
+}
+
+void BuildUiReportingState()
+{
+   // In Model A, "effective" is simply the post-preset Settings.
+   g_effectiveBiasMode    = Settings.BiasMode;
+   g_effectiveMaType      = Settings.MaType;
+   g_effectiveSigNote     = "";
+   g_effectiveDirSource   = (Settings.BiasEnabled ? "AUTO" : "DISABLED");
+
+   // Best-effort effective strategy label for UI/Reporting (derived from resulting behavior)
+   if(!Settings.BiasEnabled)
+      g_effectiveEmaStrategy = EMA_STRAT_CUSTOM;
+   else
+   {
+      if(Settings.AutoStrat == STRAT_PRICE_CROSS && Settings.BiasFastID == 0 && Settings.BiasSlowID == 0)
+         g_effectiveEmaStrategy = EMA_STRAT_1_PRICE_CROSS;
+      else if(Settings.AutoStrat == STRAT_PAIR_CROSS && Settings.BiasFastID == 0 && Settings.BiasSlowID == 1)
+         g_effectiveEmaStrategy = EMA_STRAT_2_CROSS_1_2;
+      else if(Settings.AutoStrat == STRAT_PAIR_CROSS && Settings.BiasFastID == 2 && Settings.BiasSlowID == 3)
+         g_effectiveEmaStrategy = EMA_STRAT_2_CROSS_3_4;
+      else
+         g_effectiveEmaStrategy = EMA_STRAT_CUSTOM;
    }
-   
-   return cushion;
+
+   g_ui_ma_source = (InpPreset == PRESET_MA_BENCHMARK ? "BENCHMARK" : "CUSTOM");
+
+   if(InpPreset == PRESET_CUSTOM)
+   {
+      g_ui_used_flags    = "CUSTOM";
+      g_ui_ignored_flags = "";
+      g_ui_overrides     = "";
+   }
+   else
+   {
+      g_ui_used_flags    = "PRESET=" + PresetToString(InpPreset);
+      g_ui_ignored_flags = "Strategy inputs ignored (preset authoritative)";
+      g_ui_overrides     = "Preset overwrote strategy-critical fields";
+      g_effectiveSigNote = "Preset is active; strategy inputs ignored.";
+   }
 }
 
 //+------------------------------------------------------------------+
-//| EXPLICIT INIT PIPELINE                                           |
+//| PrintEffectiveConfig(): single init snapshot                      |
+//+------------------------------------------------------------------+
+void PrintEffectiveConfig()
+{
+   Print("------------------------------------------");
+   Print("--- SimpleEA v", SEA_BUILD_STR, " Configuration ---");
+   Print("Program: ", MQLInfoString(MQL_PROGRAM_NAME), " | Path: ", MQLInfoString(MQL_PROGRAM_PATH));
+   Print("Symbol: ", _Symbol, " | Magic: ", Inp_MagicNum);
+   Print("Preset: ", EnumToString(InpPreset), " (", (int)InpPreset, ")");
+
+   if(InpPreset != PRESET_CUSTOM)
+      Print("Preset ", PresetToString(InpPreset), " is active; strategy inputs ignored");
+
+   Print("Diagnostics: PrintEffectiveConfig=", (Settings.PrintEffectiveConfig ? "true" : "false"),
+         " DebugFlow=", (Settings.DebugFlow ? "true" : "false"));
+
+   Print("UI: StatusPanel=", (Settings.UI_ShowStatusPanel ? "true" : "false"),
+         " CockpitPanel=", (Settings.UI_ShowCockpitPanel ? "true" : "false"),
+         " ManageChartIndicators=", (Settings.UI_ManageChartIndicators ? "true" : "false"),
+         " DrawEntryLines=", (Settings.DrawEntryLines ? "true" : "false"),
+         " DrawTradeLines=", (Settings.DrawTradeLines ? "true" : "false"));
+
+   Print("Reporting: ExportCSV=", (Settings.ExportCSV ? "true" : "false"),
+         " ExportUseCommonFiles=", (Settings.ExportUseCommonFiles ? "true" : "false"));
+
+   Print("Effective: CloseOnReverse=", (Settings.CloseOnReverse ? "true" : "false"),
+         " Risk%=", DoubleToString(Settings.RiskPercent, 2),
+         " MaxSpreadPips=", DoubleToString(Settings.MaxSpread, 2),
+         " ATR[min,max]=[", DoubleToString(Settings.MinATR, 2), ",", DoubleToString(Settings.MaxATR, 2), "]");
+
+   Print("Effective: BiasEnabled=", (Settings.BiasEnabled ? "true" : "false"),
+         " BiasMode=", EnumToString(Settings.BiasMode),
+         " ManSide=", EnumToString(Settings.ManSide));
+
+   Print("Effective: AutoStrat=", EnumToString(Settings.AutoStrat),
+         " BiasFastID=", Settings.BiasFastID,
+         " BiasSlowID=", Settings.BiasSlowID);
+
+   Print("Effective: MA Method=", EnumToString(Settings.MaType),
+         " h_shift=", Settings.ma_h_shift,
+         " v_shift=", Settings.ma_v_shift);
+
+   if(Settings.MABenchmarkStrict)
+      Print("MA Benchmark Inputs: MaxRisk=", Inp_MA_MaximumRiskPct, "% Dec=", Inp_MA_DecreaseFactor,
+            " Period=", Inp_MA_Period, " Shift=", Inp_MA_Shift);
+
+   Print("Effective EMA periods: ", Settings.P_Ema1, ",", Settings.P_Ema2, ",", Settings.P_Ema3, ",", Settings.P_Ema4);
+   Print("Effective MACD periods: ", Settings.P_MacdFast, ",", Settings.P_MacdSlow, ",", Settings.P_MacdSig);
+
+   Print("------------------------------------------");
+}
+
+//+------------------------------------------------------------------+
+//| ValidateEffectiveSettings(): minimal safety checks (post-preset)  |
+//+------------------------------------------------------------------+
+bool ValidateEffectiveSettings()
+{
+   if((int)Settings.MaType < (int)METHOD_EMA || (int)Settings.MaType > (int)METHOD_SMA)
+   {
+      Print("ERROR: Settings.MaType is out of range: ", (int)Settings.MaType);
+      return false;
+   }
+
+   if(Settings.BiasFastID < 0 || Settings.BiasFastID > 3 || Settings.BiasSlowID < 0 || Settings.BiasSlowID > 3)
+   {
+      Print("ERROR: Bias EMA role IDs out of range. FastID=", Settings.BiasFastID, " SlowID=", Settings.BiasSlowID);
+      return false;
+   }
+
+   if(Settings.VoteThreshold < 1)
+   {
+      Print("ERROR: VoteThreshold must be >= 1 (got ", Settings.VoteThreshold, ")");
+      return false;
+   }
+
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//| INIT                                                             |
 //+------------------------------------------------------------------+
 
 int OrchestrateInit()
 {
    FlowLog("EA start -> OnInit()");
    g_start_time = TimeCurrent();
-   
-   FlowLog("Step A: Read Inputs -> ApplySettings() -> build effective Settings");
-   ApplySettings();
 
-   FlowLog("Step B: Validate effective Settings");
+   FlowLog("Step A: InitializeConfig() (inputs -> Settings)");
+   InitializeConfig();
+
+   FlowLog("Step B: ApplyPreset() (preset overrides -> Settings)");
+   ApplyPreset(InpPreset, Settings);
+
+   // Build UI/Reporting compatibility strings AFTER preset application
+   BuildUiReportingState();
+
+   FlowLog("Step C: Validate effective Settings");
    if(!ValidateEffectiveSettings())
       return INIT_FAILED;
 
-   FlowLog("Step C: Init Signal Engine (indicators/handles/libraries)");
+   if(Settings.PrintEffectiveConfig)
+      PrintEffectiveConfig();
+
+   FlowLog("Step D: Init Signal Engine");
    if(!Signal.Init(Settings, _Symbol))
    {
       Print("ERROR: Signal.Init() failed.");
@@ -236,73 +259,20 @@ int OrchestrateInit()
       }
    }
 
-   FlowLog("Step D: Validate MA setup (method/period/shift)");
-   if(!Signal.ValidateAndReportMA(Inp_PrintEffectiveConfig))
+   FlowLog("Step E: Validate MA setup (method/period/shift)");
+   if(!Signal.ValidateAndReportMA(Settings.PrintEffectiveConfig))
    {
       Print("ERROR: MA setup validation failed.");
       return INIT_FAILED;
    }
 
-   FlowLog("Step E: Init Trade Executor");
+   FlowLog("Step F: Init Trade Executor");
    Executor.Init(Inp_MagicNum, Settings);
 
-   FlowLog("Step F: Load News calendar (optional)");
+   FlowLog("Step G: Load News calendar (optional)");
    if(Settings.UseNews)
       Signal.LoadNews(Inp_NewsFile);
 
-   FlowLog("Step G: Print configuration (inputs and effective)");
-   Print("------------------------------------------");
-   Print("--- SimpleEA v", SEA_BUILD_STR, " Configuration ---");
-   Print("Program: ", MQLInfoString(MQL_PROGRAM_NAME), " | Path: ", MQLInfoString(MQL_PROGRAM_PATH));
-   Print("Preset (raw): ", (int)InpPreset, " | Name: ", EnumToString(InpPreset));
-   Print("VoteThreshold (input): ", Inp_VoteThreshold, " | Effective: ", Settings.VoteThreshold);
-   Print("Symbol: ", _Symbol, " | Magic: ", Inp_MagicNum);
-   Print("MA Source: ", g_ui_ma_source);
-   Print("MA Shifts (CUSTOM Inputs): h=", Inp_MaHorShift, " v=", Inp_MaVerShift, (InpPreset==PRESET_MA_BENCHMARK ? " (IGNORED)" : ""));
-   Print("MA Shifts (Effective): h=", Settings.ma_h_shift, " v=", Settings.ma_v_shift);
-   
-   if(InpPreset == PRESET_MA_BENCHMARK)
-      Print("MA Benchmark Inputs (0c): MaxRisk=", Inp_MA_MaximumRiskPct, "% Dec=", Inp_MA_DecreaseFactor, " Period=", Inp_MA_Period, " Shift=", Inp_MA_Shift);
-      
-   Print("EMA Strategy (Input): ", EnumToString(Inp_EmaStrategy));
-   Print("Effective EMA periods: ", Settings.P_Ema1, ",", Settings.P_Ema2, ",", Settings.P_Ema3, ",", Settings.P_Ema4);
-   Print("Effective MACD periods: ", Settings.P_MacdFast, ",", Settings.P_MacdSlow, ",", Settings.P_MacdSig);
-   Print("Bias Mode (Input): ", EnumToString(Inp_BiasMode), " | ManualSide (Input): ", EnumToString(Inp_ManualSide));
-   Print("BiasEnabled (Input): ", (Inp_BiasEnabled ? "true" : "false"));
-   
-   if(Settings.VoteThreshold <= 1) 
-      Print("NOTE: VoteThreshold <= 1 => voting bypassed (individual vote toggles ignored).");
-      
-   Print("MA Method (Input): ", EnumToString(Inp_MaType));
-   
-   if(Inp_PrintEffectiveConfig)
-   {
-      Print("Effective Bias Mode: ", EnumToString(g_effectiveBiasMode), (g_effectiveSigNote=="" ? "" : " | "), g_effectiveSigNote);
-      Print("Effective Direction Source: ", g_effectiveDirSource);
-      Print("Effective EMA Strategy: ", EnumToString(g_effectiveEmaStrategy));
-      Print("Effective MA Method: ", EnumToString(g_effectiveMaType));
-      
-      if(g_ui_used_flags != "")   Print("Effective Used Flags: ", g_ui_used_flags);
-      if(g_ui_ignored_flags != "") Print("Effective Ignored Flags: ", g_ui_ignored_flags);
-      
-      Print("Effective AutoStrat: ", EnumToString(Settings.AutoStrat),
-            " | FastID:", Settings.BiasFastID,
-            " | SlowID:", Settings.BiasSlowID,
-            " | ManSide:", EnumToString(Settings.ManSide));
-            
-      Print("=== OPTIMIZATION SUMMARY (v1.02.016d-OPT) ===");
-      Print("Vote Bundle: EMA + ADX + MACD + Stochastic (Zone Filter)");
-      Print("Vote Threshold: ", Settings.VoteThreshold, " (OPTIMIZED from 6)");
-      Print("RRM Pullback/Reclaim Gate: ", (Settings.RRM_RequirePullbackReclaim ? "ENABLED" : "DISABLED"));
-      Print("RRM EMA Divergence Gate: ", (Settings.RRM_RequireEmaDiv ? "ENABLED" : "DISABLED"));
-      Print("MaxATR Gate: ", Settings.MaxATR, " pips (NEW)");
-      Print("Spread Gate: ", Settings.MaxSpread, " pips");
-      Print("MinATR Gate: ", Settings.MinATR, " pips");
-      Print("Risk per Trade: ", Settings.RiskPercent, "%");
-      Print("Expected Win Rate Improvement: +10-15% vs baseline");
-   }
-   
-   Print("------------------------------------------");
    SEA_UI_Init(Inp_MagicNum);
    SEA_UI_UpdateSettingsPanel();
    SEA_UI_UpdateCockpitPanel(Signal.GetATR(), 0, Signal.LastBias(), Signal.LastVotes(), Signal.LastReason());
@@ -312,19 +282,18 @@ int OrchestrateInit()
 }
 
 //+------------------------------------------------------------------+
-//| EXPLICIT TICK PIPELINE                                           |
+//| TICK                                                             |
 //+------------------------------------------------------------------+
 
 void OrchestrateTick()
 {
-   // New bar execution only (stability)
    datetime t = iTime(_Symbol, PERIOD_CURRENT, 0);
    if(t == g_last_bar_time)
       return;
 
    g_last_bar_time = t;
    FlowLog("OnTick -> NewBar detected -> begin bar pipeline");
-   
+
    double atr = Signal.GetATR();
 
    FlowLog("Step A: Manage open positions (Trailing/BE)");
@@ -332,22 +301,25 @@ void OrchestrateTick()
 
    FlowLog("Step B: Compute direction signal");
    int direction = Signal.GetDirection();
-   
-   // ★★★ DEBUG OUTPUT ★★★
-   if(direction == 0) {
-      string reason = Signal.LastReason();
-      Print("DEBUG: No signal. Reason: ", reason, " | Bias: ", Signal.LastBias(), 
-            " | Votes: ", Signal.LastVotes(), "/", Settings.VoteThreshold);
-   } else {
-      Print("DEBUG: SIGNAL GENERATED! Direction: ", direction, " | Bias: ", Signal.LastBias(), 
-            " | Votes: ", Signal.LastVotes(), "/", Settings.VoteThreshold, 
-            " | Reason: ", Signal.LastReason());
+
+   if(Settings.DebugFlow)
+   {
+      if(direction == 0)
+      {
+         Print("DEBUG: No signal. Reason: ", Signal.LastReason(), " | Bias: ", Signal.LastBias(),
+               " | Votes: ", Signal.LastVotes(), "/", Settings.VoteThreshold);
+      }
+      else
+      {
+         Print("DEBUG: SIGNAL GENERATED! Direction: ", direction, " | Bias: ", Signal.LastBias(),
+               " | Votes: ", Signal.LastVotes(), "/", Settings.VoteThreshold,
+               " | Reason: ", Signal.LastReason());
+      }
    }
-   
-   // Visualization: eligible entry signal marker
-   if(Inp_DrawEntryLines && direction != 0)
+
+   if(Settings.DrawEntryLines && direction != 0)
       SEA_DrawEntrySignalLine(iTime(_Symbol, PERIOD_CURRENT, 1), direction, Signal.LastReason());
-      
+
    FlowLog(StringFormat("Step C: ProcessSignal (direction=%d)", direction));
    if(direction != 0)
       Executor.ProcessSignal(direction, atr);
@@ -357,46 +329,35 @@ void OrchestrateTick()
 }
 
 //+------------------------------------------------------------------+
-//| EXPLICIT SHUTDOWN PIPELINE                                       |
+//| DEINIT                                                           |
 //+------------------------------------------------------------------+
 
 void OrchestrateDeinit(const int reason)
 {
-   // Strategy Tester report export (if enabled)
    if(Settings.ExportCSV)
       SEA_Report_Generate();
-      
+
    SEA_UI_DestroyAll();
    FlowLog(StringFormat("EA stop -> OnDeinit(reason=%d)", reason));
 
-   FlowLog("Step A: Release indicator handles / engine state");
    Signal.Release();
-
-   FlowLog("Step B: Trade executor cleanup");
-   // (No executor release required in current design.)
-
-   FlowLog("Step C: Clear runtime state");
    g_last_bar_time = 0;
 
    FlowLog("OnDeinit complete");
 }
-
-//+------------------------------------------------------------------+
-//| UI & CHART UTILITIES                                             |
-//+------------------------------------------------------------------+
 
 void SEA_UI_ManageChartIndicators()
 {
    // =====================================================================
    // UNIVERSAL CHART INDICATOR MANAGER
    // Shows ALL indicators involved in Trade Signal (TS) evaluation
-   // 
+   //
    // ARCHITECTURE:
    // 1. Bias determination (EMAs)
    // 2. TS evaluation on shift=1: VoteCount >= VoteThreshold
    // 3. TE execution on shift=0: if TS=1 confirmed
    // =====================================================================
-   
+
    // 1) Clear all existing indicators from all windows
    int win_total = (int)ChartGetInteger(0, CHART_WINDOWS_TOTAL);
    for(int w=win_total-1; w>=0; w--)
@@ -415,19 +376,19 @@ void SEA_UI_ManageChartIndicators()
    Print("UI: Chart Indicator Manager - Rebuilding from Settings...");
    Print("  → Vote Threshold: ", Settings.VoteThreshold);
    Print("═══════════════════════════════════════════════════════════");
-   
+
    // ========================
    // 2) MAIN CHART OVERLAYS
    // ========================
-   
+
    int overlays_added = 0;
    int ts_components_visible = 0; // TS voting components on chart
-   
+
    // --- Benchmark MA (PRESET_MA_BENCHMARK mode)
    if(Settings.MABenchmarkStrict)
    {
       int h = Signal.GetPrimaryMAHandle();
-      if(h != INVALID_HANDLE) 
+      if(h != INVALID_HANDLE)
       {
          ChartIndicatorAdd(0, 0, h);
          overlays_added++;
@@ -441,7 +402,7 @@ void SEA_UI_ManageChartIndicators()
    need_ema[1] = (Settings.BiasFastID == 1 || Settings.BiasSlowID == 1);
    need_ema[2] = (Settings.BiasFastID == 2 || Settings.BiasSlowID == 2);
    need_ema[3] = (Settings.BiasFastID == 3 || Settings.BiasSlowID == 3);
-   
+
    for(int i=0; i<4; i++)
    {
       if(need_ema[i])
@@ -451,21 +412,21 @@ void SEA_UI_ManageChartIndicators()
          {
             ChartIndicatorAdd(0, 0, h);
             overlays_added++;
-            
+
             string role = "bias";
-            if(i == 0 && Settings.Use_EmaSig) 
+            if(i == 0 && Settings.Use_EmaSig)
             {
                role = "bias + TS component";
                ts_components_visible++;
             }
-            
+
             Print("  ✓ EMA", (i+1), " (", Settings.P_Ema1 + i*8, ") [", role, "]");
          }
       }
    }
 
    // --- PSAR (TS component + optional trailing)
-   if(Settings.Use_Psar || 
+   if(Settings.Use_Psar ||
       Settings.TrailMode == TRAIL_PSAR)
    {
       int h = Signal.GetPsarHandle();
@@ -473,9 +434,9 @@ void SEA_UI_ManageChartIndicators()
       {
          ChartIndicatorAdd(0, 0, h);
          overlays_added++;
-         
+
          string role = "";
-         if(Settings.Use_Psar) 
+         if(Settings.Use_Psar)
          {
             role = "TS component";
             ts_components_visible++;
@@ -485,7 +446,7 @@ void SEA_UI_ManageChartIndicators()
             if(role != "") role += " + ";
             role += "trailing";
          }
-         
+
          Print("  ✓ PSAR [", role, "]");
       }
       else
@@ -559,7 +520,7 @@ void SEA_UI_ManageChartIndicators()
          Print("  ⚠ Pattern 123 enabled but GetP123Handle() not available");
       }
    }
-   
+
    // --- Ross Hook (TS component)
    if(Settings.Use_Ross)
    {
@@ -581,10 +542,10 @@ void SEA_UI_ManageChartIndicators()
    // 3) SUBWINDOW INDICATORS
    // (ALL are TS components)
    // ========================
-   
+
    int subwindow = 1;
    int subwindows_added = 0;
-   
+
    // --- MACD (TS component)
    if(Settings.Use_Macd)
    {
@@ -604,7 +565,7 @@ void SEA_UI_ManageChartIndicators()
          Print("  ⚠ MACD enabled but handle not available");
       }
    }
-   
+
    // --- RSI (TS component)
    if(Settings.Use_Rsi)
    {
@@ -624,7 +585,7 @@ void SEA_UI_ManageChartIndicators()
          Print("  ⚠ RSI enabled but GetRsiHandle() not available");
       }
    }
-   
+
    // --- CCI (TS component)
    if(Settings.Use_Cci)
    {
@@ -644,7 +605,7 @@ void SEA_UI_ManageChartIndicators()
          Print("  ⚠ CCI enabled but GetCciHandle() not available");
       }
    }
-   
+
    // --- MFI (TS component)
    if(Settings.Use_Mfi)
    {
@@ -664,7 +625,7 @@ void SEA_UI_ManageChartIndicators()
          Print("  ⚠ MFI enabled but GetMfiHandle() not available");
       }
    }
-   
+
    // --- Stochastic (TS component)
    if(Settings.Use_Sto)
    {
@@ -684,7 +645,7 @@ void SEA_UI_ManageChartIndicators()
          Print("  ⚠ Stochastic enabled but GetStoHandle() not available");
       }
    }
-   
+
    // --- ADX (TS component)
    if(Settings.Use_Adx)
    {
@@ -708,7 +669,7 @@ void SEA_UI_ManageChartIndicators()
    // ========================
    // 4) SUMMARY
    // ========================
-   
+
    Print("───────────────────────────────────────────────────────────");
    Print("UI: Chart indicator management complete");
    Print("  → ", overlays_added, " overlays on main chart");
@@ -719,44 +680,29 @@ void SEA_UI_ManageChartIndicators()
 }
 
 //+------------------------------------------------------------------+
-//| UI: SIGNAL MARKERS (STRATEGY TESTER)                             |
+//| UI: SIGNAL MARKERS                                               |
 //+------------------------------------------------------------------+
 
 void SEA_DrawEntrySignalLine(datetime bar_time, int direction, const string label)
 {
-   string name = StringFormat("SEA_ELIG_%I64d_%s", (long)bar_time, (direction>0?"BUY":"SELL"));
+   string name = StringFormat("SEA_ELIG_%I64d_%s", (long)bar_time, (direction > 0 ? "BUY" : "SELL"));
    if(ObjectFind(0, name) >= 0) return;
 
    ObjectCreate(0, name, OBJ_VLINE, 0, bar_time, 0);
    ObjectSetInteger(0, name, OBJPROP_STYLE, STYLE_DOT);
    ObjectSetInteger(0, name, OBJPROP_WIDTH, 1);
-   ObjectSetString(0, name, OBJPROP_TOOLTIP, StringFormat("ELIGIBLE %s | %s", (direction>0?"BUY":"SELL"), label));
+   ObjectSetString(0, name, OBJPROP_TOOLTIP, StringFormat("ELIGIBLE %s | %s", (direction > 0 ? "BUY" : "SELL"), label));
 }
 
 void SEA_DrawTradeExecLine(datetime event_time, int direction, double price, const string label)
 {
-   string name = StringFormat("SEA_TRADE_%I64d_%s", (long)event_time, (direction>0?"BUY":"SELL"));
+   string name = StringFormat("SEA_TRADE_%I64d_%s", (long)event_time, (direction > 0 ? "BUY" : "SELL"));
    if(ObjectFind(0, name) >= 0) return;
 
    ObjectCreate(0, name, OBJ_VLINE, 0, event_time, 0);
    ObjectSetInteger(0, name, OBJPROP_STYLE, STYLE_SOLID);
    ObjectSetInteger(0, name, OBJPROP_WIDTH, 2);
-   ObjectSetString(0, name, OBJPROP_TOOLTIP, StringFormat("EXECUTED %s @%.5f | %s", (direction>0?"BUY":"SELL"), price, label));
-}
-
-//+------------------------------------------------------------------+
-//| GENERIC HELPERS                                                  |
-//+------------------------------------------------------------------+
-
-void FlowLog(const string msg)
-{
-   if(Inp_DebugFlow) Print("FLOW: ", msg);
-}
-
-void AddListItem(string &list, const string item)
-{
-   if(list != "") list += ", ";
-   list += item;
+   ObjectSetString(0, name, OBJPROP_TOOLTIP, StringFormat("EXECUTED %s @%.5f | %s", (direction > 0 ? "BUY" : "SELL"), price, label));
 }
 
 //+------------------------------------------------------------------+
