@@ -186,6 +186,19 @@ void PrintEffectiveConfig()
    Print("Effective EMA periods: ", Settings.P_Ema1, ",", Settings.P_Ema2, ",", Settings.P_Ema3, ",", Settings.P_Ema4);
    Print("Effective MACD periods: ", Settings.P_MacdFast, ",", Settings.P_MacdSlow, ",", Settings.P_MacdSig);
 
+   if(Settings.ExitProfile != EXIT_PROFILE_LEGACY || InpPreset == PRESET_RRM_STRICT)
+   {
+      Print("Effective: ExitProfile=", EnumToString(Settings.ExitProfile),
+            " TP_Enabled=", (Settings.TP_Enabled ? "true" : "false"),
+            " TP_Mult=", DoubleToString(Settings.TP_Mult, 2),
+            " BE_Mode=", EnumToString(Settings.BE_Mode));
+      Print("Effective: RRM_BE_ProgressPct=", DoubleToString(Settings.RRM_BE_ProgressPct, 1),
+            " RRM_BE_BufferPips=", DoubleToString(Settings.RRM_BE_BufferPips, 1),
+            " TrailPsarShiftDelay=", Settings.RRM_TrailPsarShiftDelay,
+            " FreezeTrailOnFlip=", (Settings.RRM_FreezeTrailOnFlip ? "true" : "false"),
+            " TrailStartsAfterBE=", (Settings.RRM_TrailStartsAfterBE ? "true" : "false"));
+   }
+
    Print("------------------------------------------");
 }
 
