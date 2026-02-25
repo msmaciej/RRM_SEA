@@ -380,6 +380,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       return;
    }
 
+   if(preset == PRESET_RRM_LEGACY)
    if(preset == PRESET_RRM || preset == PRESET_RRM_STRICT)
    {
       // RRM Strict No-ATR Trend Pullback (PRESET_RRM_STRICT is a deprecated alias for PRESET_RRM)
@@ -610,6 +611,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       return;
    }
 
+   if(preset == PRESET_RRM || preset == PRESET_RRM_STRICT)
    if(preset == PRESET_RRM_LEGACY)
    {
       // Legacy RRM Trend Pullback (original pre-PR3 behavior; formerly PRESET_RRM)
