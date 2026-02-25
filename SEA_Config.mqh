@@ -18,11 +18,12 @@ enum EStrategyPreset
    PRESET_TREND_SWING,        // PRESET - Trend Swing (Institutional)
    PRESET_RANGE_GRID,         // PRESET - Range Grid (Conservative mean reversion)
    PRESET_RRM_ATR,            // PRESET - RRM ATR Trend Pullback (OPTIMIZED)
-   PRESET_RRM,                // PRESET - RRM ORG Trend Pullback ORG
-   PRESET_RRM_STRICT          // PRESET - RRM Strict No-ATR Trend Pullback
+   PRESET_RRM,                // PRESET - RRM Strict No-ATR Trend Pullback (default)
+   PRESET_RRM_STRICT,         // PRESET - DEPRECATED: alias for PRESET_RRM (kept for .set file compatibility)
+   PRESET_RRM_LEGACY          // PRESET - RRM Legacy Trend Pullback (original pre-PR3 behavior)
 };
 
-// --- RRM MODE (for PRESET_RRM / PRESET_RRM_ATR) ---
+// --- RRM MODE (for PRESET_RRM / PRESET_RRM_ATR / PRESET_RRM_LEGACY) ---
 enum ERRMMode
 {
    RRM_AUTO_BY_TF,            // RRM_Auto: M1/M5/M15 => SCALP; H1/H4+ => SWING
@@ -382,7 +383,7 @@ input group "=== RRM STRICT (NON-ATR) ==="
 input EExitProfile Inp_ExitProfile = EXIT_PROFILE_LEGACY;  // Exit profile (LEGACY = current behavior)
 
 input group "=== PRESET_RRM: TREND PULLBACK ==="
-input ERRMMode       Inp_RRM_Mode               = RRM_AUTO_BY_TF;      // strategy input (ignored if preset != PRESET_RRM/PRESET_RRM_ATR)
+input ERRMMode       Inp_RRM_Mode               = RRM_AUTO_BY_TF;      // strategy input (ignored if preset != PRESET_RRM/PRESET_RRM_ATR/PRESET_RRM_LEGACY)
 input bool           Inp_RRM_EnableInCustom     = false;               // strategy input (only used when preset == PRESET_CUSTOM)
 input EAutoStrategy  Inp_RRM_AutoStrat          = STRAT_PRICE_CROSS;   // strategy input (ignored under presets per Model A)
 input EEmaRole       Inp_RRM_BiasEMA            = ROLE_EMA2;           // strategy input (ignored under presets per Model A)
