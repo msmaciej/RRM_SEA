@@ -27,7 +27,8 @@ string PresetToString(EStrategyPreset p)
       case PRESET_RANGE_GRID:     return "RANGE_GRID";
       case PRESET_RRM_ATR:        return "RRM_ATR";
       case PRESET_RRM:            return "RRM";
-      case PRESET_RRM_STRICT:     return "RRM_STRICT";
+      case PRESET_RRM_STRICT:     return "RRM_STRICT_DEPRECATED";
+      case PRESET_RRM_LEGACY:     return "RRM_LEGACY";
       default:                    return "UNKNOWN";
    }
 }
@@ -379,7 +380,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       return;
    }
 
-   if(preset == PRESET_RRM)
+   if(preset == PRESET_RRM_LEGACY)
    {
       // Preset is authoritative; do not use strategy inputs Inp_RRM_* for cfg fields.
       ERRMMode mode = Inp_RRM_Mode;
@@ -580,7 +581,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       return;
    }
 
-   if(preset == PRESET_RRM_STRICT)
+   if(preset == PRESET_RRM || preset == PRESET_RRM_STRICT)
    {
       // RRM Strict No-ATR Trend Pullback
       //

@@ -18,8 +18,9 @@ enum EStrategyPreset
    PRESET_TREND_SWING,        // PRESET - Trend Swing (Institutional)
    PRESET_RANGE_GRID,         // PRESET - Range Grid (Conservative mean reversion)
    PRESET_RRM_ATR,            // PRESET - RRM ATR Trend Pullback (OPTIMIZED)
-   PRESET_RRM,                // PRESET - RRM ORG Trend Pullback ORG
-   PRESET_RRM_STRICT          // PRESET - RRM Strict No-ATR Trend Pullback
+   PRESET_RRM,                // PRESET - RRM Strict No-ATR Trend Pullback
+   PRESET_RRM_STRICT,         // PRESET - RRM (deprecated alias of PRESET_RRM)
+   PRESET_RRM_LEGACY          // PRESET - RRM Legacy/old behavior
 };
 
 // --- RRM MODE (for PRESET_RRM / PRESET_RRM_ATR) ---
