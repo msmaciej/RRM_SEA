@@ -27,6 +27,7 @@ string PresetToString(EStrategyPreset p)
       case PRESET_RANGE_GRID:     return "RANGE_GRID";
       case PRESET_RRM_ATR:        return "RRM_ATR";
       case PRESET_RRM:            return "RRM";
+      case PRESET_RRM_STRICT:     return "RRM_STRICT";
       default:                    return "UNKNOWN";
    }
 }
@@ -563,6 +564,135 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MaxSpread = op_MaxSpread;
       cfg.MinATR    = op_MinATR;
       cfg.MaxATR    = op_MaxATR;
+
+      cfg.UseTime   = op_UseTime;
+      cfg.StartHr   = op_StartHr;
+      cfg.EndHr     = op_EndHr;
+
+      cfg.UseNews   = op_UseNews;
+      cfg.NewsPre   = op_NewsPre;
+      cfg.NewsPost  = op_NewsPost;
+
+      cfg.UseHTF    = op_UseHTF;
+      cfg.HtfPeriod = op_HtfPeriod;
+      cfg.P_HtfEma  = op_P_HtfEma;
+
+      return;
+   }
+
+   if(preset == PRESET_RRM_STRICT)
+   {
+      // RRM Strict No-ATR Trend Pullback
+      //
+      // Architecture fit (Filters → Bias → Votes → Strict non-ATR Exits/Management):
+      //   1) Filters (Spread/News/Session/HTF) gate out truly untradeable conditions.
+      //   2) Bias is defined by EMA pair trend direction (AUTO bias).
+      //   3) Votes provide confluence confirmations (EMA ribbon + MACD/CCI/PSAR; no ATR vote).
+      //   4) Strict non-ATR executor manages SL/BE/Trail/TP using PSAR and swing levels only.
+      //
+      // ATR is fully disabled: MinATR=0, MaxATR=0, ATR_HardGate=false, Use_ATRVote=false.
+      // Policy A: MaxSpread is operator-controlled; MinATR/MaxATR are NOT restored (kept at 0).
+
+      ERRMMode mode = Inp_RRM_Mode;
+      if(mode == RRM_AUTO_BY_TF)
+      {
+         if(_Period == PERIOD_M1 || _Period == PERIOD_M5 || _Period == PERIOD_M15) mode = RRM_SCALP;
+         else mode = RRM_SWING;
+      }
+
+      cfg.CloseOnReverse = true;
+      cfg.BiasEnabled    = true;
+      cfg.BiasMode       = BIAS_AUTO;
+      cfg.MaType         = METHOD_EMA;
+
+      // ATR gating fully disabled for strict mode
+      cfg.MinATR       = 0.0;
+      cfg.MaxATR       = 0.0;
+      cfg.ATR_HardGate = false;
+      cfg.Use_ATRVote  = false;
+
+      if(mode == RRM_SCALP)
+      {
+         cfg.AutoStrat  = STRAT_PAIR_CROSS;
+         cfg.BiasFastID = (int)ROLE_EMA1;
+         cfg.BiasSlowID = (int)ROLE_EMA2;
+
+         cfg.P_Ema1 = 34; cfg.P_Ema2 = 89; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
+
+         cfg.MaxSpread = 2.5;
+
+         // Scalp (M15-): prefer PSAR-based SL placement
+         cfg.SL_PlacementMode = SL_PSAR_PIPS;
+      }
+      else
+      {
+         cfg.AutoStrat  = STRAT_PAIR_CROSS;
+         cfg.BiasFastID = (int)ROLE_EMA3;
+         cfg.BiasSlowID = (int)ROLE_EMA4;
+
+         cfg.P_Ema1 = 5; cfg.P_Ema2 = 13; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
+
+         cfg.MaxSpread = 5.0;
+
+         // Swing (H1+): prefer swing high/low SL placement
+         cfg.SL_PlacementMode = SL_SWING_HIGHLOW;
+      }
+
+      cfg.SL_Mult             = 0.0;   // ATR distance path disabled; strict executor ignores ATR
+      cfg.SL_PsarPipsCushion  = 5.0;
+      cfg.SL_SwingPipsCushion = 10.0;
+      cfg.SL_FixedPips        = 20.0;
+
+      // Votes: EMA ribbon + MACD/CCI/PSAR (no ATR vote)
+      cfg.VoteThreshold = 4;
+      cfg.Use_EmaSig    = true;
+      cfg.Use_Adx       = false;
+      cfg.Use_Macd      = true;
+      cfg.Use_Rsi       = false;
+      cfg.Use_Cci       = true;
+      cfg.Use_Mfi       = false;
+      cfg.Use_Sto       = false;
+      cfg.Use_Bb        = false;
+      cfg.Use_Psar      = true;
+      cfg.Use_P123      = false;
+      cfg.Use_Ross      = false;
+
+      cfg.P_MacdFast = 8;
+      cfg.P_MacdSlow = 13;
+      cfg.P_MacdSig  = 8;
+
+      cfg.RRM_RequirePullbackReclaim = false;
+      cfg.RRM_RequireEmaDiv          = false;
+      cfg.RRM_Lookback               = 5;
+      cfg.RRM_MinDivPips             = 0.5;
+
+      // Strict non-ATR exit profile
+      cfg.ExitProfile = EXIT_PROFILE_RRM_STRICT_NO_ATR;
+
+      // TP
+      cfg.TP_Enabled = true;
+      cfg.TP_Mult    = 2.0;
+
+      // Breakeven (strict mode; legacy Use_BE disabled)
+      cfg.Use_BE              = false;
+      cfg.BE_Trig             = 0.0;
+      cfg.BE_Buff             = 0.0;
+      cfg.BE_Mode             = BE_MODE_TP_PROGRESS_PCT;
+      cfg.RRM_BE_ProgressPct  = 50.0;
+      cfg.RRM_BE_BufferPips   = 0.5;
+
+      // Trailing (strict PSAR)
+      cfg.TrailMode                = TRAIL_PSAR;
+      cfg.PSAR_TrailCushionMode    = PSAR_CUSHION_PIPS;
+      cfg.PSAR_TrailPipsCushion    = 5.0;
+      cfg.P_PsarTrailCushionATR    = 0.0;
+      cfg.RRM_TrailPsarShiftDelay  = 1;
+      cfg.RRM_FreezeTrailOnFlip    = true;
+      cfg.RRM_TrailStartsAfterBE   = true;
+
+      // Restore operator-controlled gates (Policy A)
+      // NOTE: MaxSpread is restored; MinATR/MaxATR are NOT restored (kept at 0 for strict mode).
+      cfg.MaxSpread = op_MaxSpread;
 
       cfg.UseTime   = op_UseTime;
       cfg.StartHr   = op_StartHr;
