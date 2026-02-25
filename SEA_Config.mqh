@@ -131,6 +131,25 @@ enum EPsarTrailCushionMode
    PSAR_CUSHION_PIPS
 };
 
+// --- EXIT PROFILE SELECTOR ---
+// Selects the exit contract for a trade. LEGACY preserves current ATR-based behavior.
+// RRM_STRICT_NO_ATR is reserved for future strict non-ATR RRM execution (PR 2+).
+enum EExitProfile
+{
+   EXIT_PROFILE_LEGACY,             // Legacy: ATR-based exits (current behavior, default)
+   EXIT_PROFILE_RRM_STRICT_NO_ATR   // Strict non-ATR RRM exits (future; no ATR cushion/BE/TP/trail fallback)
+};
+
+// --- BREAKEVEN MODE SELECTOR ---
+// Controls how breakeven is triggered under the strict non-ATR RRM exit profile.
+// BE_MODE_OFF maps to existing behavior (executor uses legacy Use_BE/BE_Trig/BE_Buff untouched).
+enum EBeMode
+{
+   BE_MODE_OFF,                // Breakeven disabled (default; legacy ATR fields still in effect)
+   BE_MODE_TP_PROGRESS_PCT,    // BE triggers at % progress toward TP (used with TP enabled)
+   BE_MODE_R_MULTIPLE          // BE triggers at k*R multiple (used when TP is disabled)
+};
+
 // --- UI FRAME MODE (Panels) ---
 enum EUIFrameMode
 {
@@ -264,6 +283,19 @@ struct ST_Settings
    EPsarTrailCushionMode PSAR_TrailCushionMode;
    double              PSAR_TrailPipsCushion;
 
+   // --- Strict non-ATR RRM exit contract (for future PRs; defaults preserve current behavior) ---
+   EExitProfile ExitProfile;            // Exit profile selector; EXIT_PROFILE_LEGACY = current ATR-based behavior
+   bool         TP_Enabled;             // Whether TP is active; true preserves existing TP_Mult>0 semantics
+   EBeMode      BE_Mode;                // BE mode for strict non-ATR RRM; BE_MODE_OFF = legacy ATR BE untouched
+
+   // Strict RRM parameters (reserved for future implementation; no executor reads these yet)
+   double RRM_BE_ProgressPct;           // BE trigger: % progress toward TP (0..100); used with BE_MODE_TP_PROGRESS_PCT
+   double RRM_BE_RMultiple;             // BE trigger: R-multiple threshold (e.g. 1.0); used with BE_MODE_R_MULTIPLE
+   double RRM_BE_BufferPips;            // BE buffer in pips for strict non-ATR mode
+   int    RRM_TrailPsarShiftDelay;      // PSAR trail bar-shift delay (1..3)
+   bool   RRM_FreezeTrailOnFlip;        // Freeze trailing stop on PSAR flip signal
+   bool   RRM_TrailStartsAfterBE;       // Delay trail activation until BE is triggered
+
    // Reporting
    bool ExportCSV;
 
@@ -343,6 +375,10 @@ input group "=== UI: FRAMING (PANELS) ==="
 // global allowed under presets
 input EUIFrameMode     Inp_UI_FrameMode          = UI_FRAME_BG;   // BG | NONE | TEXT_BOUNDS
 input int              Inp_UI_FramePadPx         = 6;             // Padding used for text + BG sizing
+
+input group "=== RRM STRICT (NON-ATR) ==="
+// Selects exit contract; default LEGACY preserves all current ATR-based behavior (no behavior change in PR 1).
+input EExitProfile Inp_ExitProfile = EXIT_PROFILE_LEGACY;  // Exit profile (LEGACY = current behavior)
 
 input group "=== PRESET_RRM: TREND PULLBACK ==="
 input ERRMMode       Inp_RRM_Mode               = RRM_AUTO_BY_TF;      // strategy input (ignored if preset != PRESET_RRM/PRESET_RRM_ATR)
@@ -645,6 +681,18 @@ void InitializeConfig()
    Settings.Trail_Mult           = Inp_Trail_Mult;
    Settings.PSAR_TrailCushionMode= Inp_PSAR_TrailCushionMode;
    Settings.PSAR_TrailPipsCushion= Inp_PSAR_TrailPipsCushion;
+
+   // === Strict non-ATR RRM exit contract (PR 1: config only, no executor reads these yet) ===
+   // Defaults preserve existing behavior for all presets and CUSTOM mode.
+   Settings.ExitProfile             = Inp_ExitProfile;    // LEGACY by default
+   Settings.TP_Enabled              = true;               // TP active (mirrors TP_Mult>0 semantic)
+   Settings.BE_Mode                 = BE_MODE_OFF;        // OFF = legacy ATR BE fields remain authoritative
+   Settings.RRM_BE_ProgressPct      = 0.0;
+   Settings.RRM_BE_RMultiple        = 1.0;
+   Settings.RRM_BE_BufferPips       = 0.0;
+   Settings.RRM_TrailPsarShiftDelay = 1;
+   Settings.RRM_FreezeTrailOnFlip   = false;
+   Settings.RRM_TrailStartsAfterBE  = false;
 }
 
 //+------------------------------------------------------------------+
