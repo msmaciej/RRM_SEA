@@ -160,4 +160,81 @@ This project uses a strict, file-owned, multi-agent workflow coordinated by **SE
   - `PRESET_CUSTOM` → inputs control the strategy
   - any other preset → preset fully defines strategy-critical settings and overrides strategy inputs
 
+
+## AdminOverride System (Preset Testing)
+
+### Overview
+
+The AdminOverride system allows experienced users (admins) to test variations of preset configurations directly in the MT5 Strategy Tester without editing code. It also protects normal users from accidentally changing strategy-critical settings that presets own.
+
+### User Modes
+
+**Normal User Mode (default, `Inp_AdminOverridePreset = false`):**
+- Preset values are enforced (hardcoded from `SEA_Presets.mqh`)
+- User can only modify Policy A operator gates: `MaxSpreadPips`, `MinATRPips`, `MaxATRPips`, `UseTime`, `StartHr`, `EndHr`, `UseNews`, `NewsPre`, `NewsPost`, `UseHTF`, `HTF_Period`, `HTF_Timeframe`, and exit settings
+- Strategy-critical settings (MACD periods, AutoStrat, VoteThreshold, EMA roles, enabled votes, RRM gates) are preset-owned and cannot be changed by the user
+- The Status Panel shows: "AdminOverride: OFF [Normal User Mode]"
+- The Cockpit Panel shows the preset contract wording (what the preset controls vs. what the user controls)
+
+**Admin User Mode (testing, `Inp_AdminOverridePreset = true`):**
+- All preset-enforced parameters become editable via override input fields (prefixed `[Admin]` in MT5 Inputs)
+- Overrides apply on top of the selected preset after preset defaults are set
+- Admin can test variations directly in Strategy Tester without recompiling
+- The Status Panel shows: "AdminOverride: ACTIVE [Admin Mode - Testing]"
+- Tested configurations can be saved as `.set` files for sharing or future reference
+
+### Override Inputs Reference
+
+All override inputs are in the `=== ADMIN OVERRIDE: STRATEGY PARAMETERS ===` group in MT5 Inputs. They are only active when `Inp_AdminOverridePreset = true`.
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| `Inp_Override_AutoStrat` | EAutoStrategy | STRAT_PAIR_CROSS | Override AutoStrat (single slope / pair cross / price cross) |
+| `Inp_Override_VoteThreshold` | int | 4 | Override required vote count |
+| `Inp_Override_EMA1` | int | 5 | Override EMA1 period |
+| `Inp_Override_EMA2` | int | 13 | Override EMA2 period |
+| `Inp_Override_EMA3` | int | 34 | Override EMA3 period |
+| `Inp_Override_EMA4` | int | 89 | Override EMA4 period |
+| `Inp_Override_MACD_Fast` | int | 8 | Override MACD fast period |
+| `Inp_Override_MACD_Slow` | int | 13 | Override MACD slow period |
+| `Inp_Override_MACD_Signal` | int | 8 | Override MACD signal period |
+| `Inp_Override_Use_EmaSig` | bool | true | Override EMA signal vote enabled |
+| `Inp_Override_Use_Macd` | bool | true | Override MACD vote enabled |
+| `Inp_Override_Use_Psar` | bool | true | Override PSAR vote enabled |
+| `Inp_Override_Use_Cci` | bool | true | Override CCI vote enabled |
+| `Inp_Override_Use_Rsi` | bool | false | Override RSI vote enabled |
+| `Inp_Override_Use_Adx` | bool | false | Override ADX vote enabled |
+| `Inp_Override_Use_Mfi` | bool | false | Override MFI vote enabled |
+| `Inp_Override_Use_Sto` | bool | false | Override Stochastic vote enabled |
+| `Inp_Override_Use_Bb` | bool | false | Override Bollinger Bands vote enabled |
+| `Inp_Override_RRM_RequirePullbackReclaim` | bool | false | Override RRM pullback reclaim gate |
+| `Inp_Override_RRM_RequireEmaDiv` | bool | false | Override RRM EMA divergence gate |
+
+### Workflow
+
+**Normal User Workflow:**
+1. Open MT5 Inputs window
+2. Select preset (e.g., `PRESET_RRM`)
+3. `Inp_AdminOverridePreset = false` (default)
+4. Adjust only operator gates (spread limits, time filters, etc.)
+5. See Status Panel showing: preset name, "AdminOverride: OFF", effective strategy config, and active votes
+
+**Admin User Workflow:**
+1. Open MT5 Inputs window
+2. Select preset (e.g., `PRESET_RRM`)
+3. Set `Inp_AdminOverridePreset = true`
+4. Override input fields become active — adjust as needed (e.g., change `Inp_Override_MACD_Fast = 10`)
+5. Test in Strategy Tester
+6. See Status Panel showing "AdminOverride: ACTIVE" and "** ADMIN OVERRIDES APPLIED **"
+7. Save tested configuration as `.set` file: click "Save" in MT5 Inputs → e.g., `RRM_Test_v2.set`
+8. If results are better, manually update `SEA_Presets.mqh` and commit to Git
+
+### Saving Tested Configurations
+
+After testing with AdminOverride active, configurations can be saved as MT5 `.set` files:
+- Click "Save" in the MT5 Expert Properties → Inputs dialog
+- The `.set` file captures all input values including `Inp_AdminOverridePreset=true` and all override values
+- Load the `.set` file later to reproduce the exact tested configuration
+- `.set` files can be shared with the team or used as the basis for a new preset definition
+
 **End of README**

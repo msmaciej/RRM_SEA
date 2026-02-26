@@ -299,6 +299,9 @@ struct ST_Settings
    // Reporting
    bool ExportCSV;
 
+   // --- AdminOverride system ---
+   bool AdminOverridePreset;
+
    // --- Global toggles allowed under presets ---
    bool PrintEffectiveConfig;
    bool DebugFlow;
@@ -333,6 +336,31 @@ ST_Settings Settings;
 input group "=== MASTER PRESET ==="
 input ulong           Inp_MagicNum               = 12345;       // (Global) Magic number (trade identifier)
 input EStrategyPreset InpPreset                 = PRESET_RRM;   // (Global) Strategy preset (presets may override many inputs below)
+
+input group "=== ADMIN OVERRIDE: PRESET TESTING ==="
+input bool           Inp_AdminOverridePreset        = false; // [Admin] Unlock preset parameters for testing (true=admin mode, false=normal user)
+
+input group "--- ADMIN OVERRIDE: STRATEGY PARAMETERS ---"
+input EAutoStrategy  Inp_Override_AutoStrat          = STRAT_PAIR_CROSS; // [Admin] Override AutoStrat when AdminOverride=true
+input int            Inp_Override_VoteThreshold       = 4;                // [Admin] Override Vote Threshold when AdminOverride=true
+input int            Inp_Override_EMA1               = 5;                 // [Admin] Override EMA1 period when AdminOverride=true
+input int            Inp_Override_EMA2               = 13;                // [Admin] Override EMA2 period when AdminOverride=true
+input int            Inp_Override_EMA3               = 34;                // [Admin] Override EMA3 period when AdminOverride=true
+input int            Inp_Override_EMA4               = 89;                // [Admin] Override EMA4 period when AdminOverride=true
+input int            Inp_Override_MACD_Fast           = 8;                // [Admin] Override MACD Fast period when AdminOverride=true
+input int            Inp_Override_MACD_Slow           = 13;               // [Admin] Override MACD Slow period when AdminOverride=true
+input int            Inp_Override_MACD_Signal         = 8;                // [Admin] Override MACD Signal period when AdminOverride=true
+input bool           Inp_Override_Use_EmaSig          = true;             // [Admin] Override EMA signal vote when AdminOverride=true
+input bool           Inp_Override_Use_Macd            = true;             // [Admin] Override MACD vote when AdminOverride=true
+input bool           Inp_Override_Use_Psar            = true;             // [Admin] Override PSAR vote when AdminOverride=true
+input bool           Inp_Override_Use_Cci             = true;             // [Admin] Override CCI vote when AdminOverride=true
+input bool           Inp_Override_Use_Rsi             = false;            // [Admin] Override RSI vote when AdminOverride=true
+input bool           Inp_Override_Use_Adx             = false;            // [Admin] Override ADX vote when AdminOverride=true
+input bool           Inp_Override_Use_Mfi             = false;            // [Admin] Override MFI vote when AdminOverride=true
+input bool           Inp_Override_Use_Sto             = false;            // [Admin] Override Stochastic vote when AdminOverride=true
+input bool           Inp_Override_Use_Bb              = false;            // [Admin] Override Bollinger vote when AdminOverride=true
+input bool           Inp_Override_RRM_RequirePullbackReclaim = false;     // [Admin] Override RRM pullback reclaim gate when AdminOverride=true
+input bool           Inp_Override_RRM_RequireEmaDiv          = false;     // [Admin] Override RRM EMA divergence gate when AdminOverride=true
 
 input group "=== BENCHMARK: MT5 MOVING AVERAGE ==="
 input double         Inp_MA_MaximumRiskPct      = 0.02;         // (PRESET_MA_BENCHMARK only) Max risk (%) for MA benchmark sizer
@@ -520,6 +548,7 @@ void InitializeConfig()
    // === Global inputs allowed under presets (still mapped normally) ===
    Settings.PrintEffectiveConfig     = Inp_PrintEffectiveConfig;
    Settings.DebugFlow                = Inp_DebugFlow;
+   Settings.AdminOverridePreset      = Inp_AdminOverridePreset;
 
    Settings.UI_ShowStatusPanel       = Inp_UI_ShowStatusPanel;
    Settings.UI_ShowCockpitPanel      = Inp_UI_ShowCockpitPanel;
