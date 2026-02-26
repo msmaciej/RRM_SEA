@@ -15,6 +15,42 @@
 
 #include <RRMS\SEA_Config.mqh>
 
+// TF+JPY-aware initial SL cushion mapping (larger, suited for SL_PSAR_PIPS / SL_SWING_HIGHLOW)
+double GetRecommendedInitialSlCushionPips()
+{
+   bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
+   switch(_Period)
+   {
+      case PERIOD_M1:  return isJPY ?  3.0 :  2.0;
+      case PERIOD_M5:  return isJPY ?  5.0 :  3.0;
+      case PERIOD_M15: return isJPY ?  8.0 :  5.0;
+      case PERIOD_M30: return isJPY ? 12.0 :  7.0;
+      case PERIOD_H1:  return isJPY ? 15.0 : 10.0;
+      case PERIOD_H2:  return isJPY ? 20.0 : 12.0;
+      case PERIOD_H4:  return isJPY ? 25.0 : 15.0;
+      case PERIOD_D1:  return isJPY ? 40.0 : 25.0;
+      default:         return isJPY ? 10.0 :  5.0;
+   }
+}
+
+// TF+JPY-aware trailing cushion mapping (smaller, suited for TRAIL_PSAR + PSAR_CUSHION_PIPS)
+double GetRecommendedTrailPsarCushionPips()
+{
+   bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
+   switch(_Period)
+   {
+      case PERIOD_M1:  return isJPY ?  2.0 :  1.0;
+      case PERIOD_M5:  return isJPY ?  3.0 :  2.0;
+      case PERIOD_M15: return isJPY ?  5.0 :  3.0;
+      case PERIOD_M30: return isJPY ?  7.0 :  5.0;
+      case PERIOD_H1:  return isJPY ? 10.0 :  7.0;
+      case PERIOD_H2:  return isJPY ? 13.0 :  8.0;
+      case PERIOD_H4:  return isJPY ? 15.0 : 10.0;
+      case PERIOD_D1:  return isJPY ? 25.0 : 15.0;
+      default:         return isJPY ?  7.0 :  3.0;
+   }
+}
+
 string PresetToString(EStrategyPreset p)
 {
    switch(p)
@@ -583,13 +619,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
    if(preset == PRESET_RRM || preset == PRESET_RRM_STRICT)
    {
-      // RRM Strict No-ATR Trend Pullback
+      // RRM: user-owned exits (SL/TP/BE/trailing preserved from InitializeConfig mapping).
       //
-      // Architecture fit (Filters → Bias → Votes → Strict non-ATR Exits/Management):
+      // Architecture fit (Filters → Bias → Votes → User-controlled Exits):
       //   1) Filters (Spread/News/Session/HTF) gate out truly untradeable conditions.
       //   2) Bias is defined by EMA pair trend direction (AUTO bias).
       //   3) Votes provide confluence confirmations (EMA ribbon + MACD/CCI/PSAR; no ATR vote).
-      //   4) Strict non-ATR executor manages SL/BE/Trail/TP using PSAR and swing levels only.
+      //   4) Exits remain as mapped from user inputs; only PSAR cushions are auto-scaled when
+      //      user left defaults (non-invasive).
       //
       // ATR is fully disabled: MinATR=0, MaxATR=0, ATR_HardGate=false, Use_ATRVote=false.
       // Policy A: MaxSpread is operator-controlled; MinATR/MaxATR are NOT restored (kept at 0).
@@ -621,9 +658,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.P_Ema1 = 34; cfg.P_Ema2 = 89; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
 
          cfg.MaxSpread = 2.5;
-
-         // Scalp (M15-): prefer PSAR-based SL placement
-         cfg.SL_PlacementMode = SL_PSAR_PIPS;
       }
       else
       {
@@ -634,15 +668,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.P_Ema1 = 5; cfg.P_Ema2 = 13; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
 
          cfg.MaxSpread = 5.0;
-
-         // Swing (H1+): prefer swing high/low SL placement
-         cfg.SL_PlacementMode = SL_SWING_HIGHLOW;
       }
-
-      cfg.SL_Mult             = 0.0;   // ATR distance path disabled; strict executor ignores ATR
-      cfg.SL_PsarPipsCushion  = 5.0;
-      cfg.SL_SwingPipsCushion = 10.0;
-      cfg.SL_FixedPips        = 20.0;
 
       // Votes: EMA ribbon + MACD/CCI/PSAR (no ATR vote)
       cfg.VoteThreshold = 4;
@@ -667,29 +693,19 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_Lookback               = 5;
       cfg.RRM_MinDivPips             = 0.5;
 
-      // Strict non-ATR exit profile
-      cfg.ExitProfile = EXIT_PROFILE_RRM_STRICT_NO_ATR;
-
-      // TP
-      cfg.TP_Enabled = true;
-      cfg.TP_Mult    = 2.0;
-
-      // Breakeven (strict mode; legacy Use_BE disabled)
-      cfg.Use_BE              = false;
-      cfg.BE_Trig             = 0.0;
-      cfg.BE_Buff             = 0.0;
-      cfg.BE_Mode             = BE_MODE_TP_PROGRESS_PCT;
-      cfg.RRM_BE_ProgressPct  = 50.0;
-      cfg.RRM_BE_BufferPips   = 0.5;
-
-      // Trailing (strict PSAR)
-      cfg.TrailMode                = TRAIL_PSAR;
-      cfg.PSAR_TrailCushionMode    = PSAR_CUSHION_PIPS;
-      cfg.PSAR_TrailPipsCushion    = 5.0;
-      cfg.P_PsarTrailCushionATR    = 0.0;
-      cfg.RRM_TrailPsarShiftDelay  = 1;
-      cfg.RRM_FreezeTrailOnFlip    = true;
-      cfg.RRM_TrailStartsAfterBE   = true;
+      // Non-invasive PSAR cushion auto-scaling: only when user left input defaults
+      if(cfg.SL_PlacementMode == SL_PSAR_PIPS || cfg.SL_PlacementMode == SL_SWING_HIGHLOW)
+      {
+         if(cfg.SL_PsarPipsCushion == 5.0)
+            cfg.SL_PsarPipsCushion = GetRecommendedInitialSlCushionPips();
+         if(cfg.SL_SwingPipsCushion == 10.0)
+            cfg.SL_SwingPipsCushion = GetRecommendedInitialSlCushionPips();
+      }
+      if(cfg.TrailMode == TRAIL_PSAR && cfg.PSAR_TrailCushionMode == PSAR_CUSHION_PIPS)
+      {
+         if(cfg.PSAR_TrailPipsCushion == 5.0)
+            cfg.PSAR_TrailPipsCushion = GetRecommendedTrailPsarCushionPips();
+      }
 
       // Restore operator-controlled gates (Policy A)
       // NOTE: MaxSpread is restored; MinATR/MaxATR are NOT restored (kept at 0 for strict mode).
