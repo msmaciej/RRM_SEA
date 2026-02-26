@@ -21,12 +21,9 @@ enum EStrategyPreset
    PRESET_RRM,                // PRESET - RRM Strict No-ATR Trend Pullback
    PRESET_RRM_STRICT,         // PRESET - RRM (deprecated alias of PRESET_RRM)
    PRESET_RRM_LEGACY          // PRESET - RRM Legacy/old behavior
-   PRESET_RRM,                // PRESET - RRM Strict No-ATR Trend Pullback (default)
-   PRESET_RRM_STRICT,         // PRESET - DEPRECATED: alias for PRESET_RRM (kept for .set file compatibility)
-   PRESET_RRM_LEGACY          // PRESET - RRM Legacy Trend Pullback (original pre-PR3 behavior)
 };
 
-// --- RRM MODE (for PRESET_RRM / PRESET_RRM_ATR / PRESET_RRM_LEGACY) ---
+// --- RRM MODE (for PRESET_RRM / PRESET_RRM_ATR) ---
 enum ERRMMode
 {
    RRM_AUTO_BY_TF,            // RRM_Auto: M1/M5/M15 => SCALP; H1/H4+ => SWING
@@ -323,207 +320,195 @@ struct ST_Settings
 ST_Settings Settings;
 
 //+------------------------------------------------------------------+
-//| INPUT PARAMETERS                                                  |
+//| INPUT PARAMETERS                                                 |
 //+------------------------------------------------------------------+
+//
+// NOTE: MT5 uses the trailing inline `// ...` comment as the input description.
+// Many inputs are overridden by presets; descriptions below include applicability tags.
+//
+// Tags:
+//   (Global; allowed under presets)                 - always honored
+//   (Operator gate; preserved under presets)        - Policy A: user-controlled even under presets
+//   (CUSTOM; presets override)                      - effective mainly in PRESET_CUSTOM
+//   (CUSTOM; most presets override; strict sets 0)  - ATR gates forced off under strict RRM
 
 input group "=== MASTER PRESET ==="
-input ulong           Inp_MagicNum               = 12345;       // Unique Magic Number
-input EStrategyPreset InpPreset                 = PRESET_RRM;   // Select Preset Mode
+input ulong           Inp_MagicNum               = 12345;       // (Global) Magic number (trade identifier)
+input EStrategyPreset InpPreset                 = PRESET_RRM;   // (Global) Strategy preset (presets may override many inputs below)
 
 input group "=== BENCHMARK: MT5 MOVING AVERAGE ==="
-input double         Inp_MA_MaximumRiskPct      = 0.02;         // strategy input (ignored if preset != PRESET_MA_BENCHMARK)
-input double         Inp_MA_DecreaseFactor      = 3.0;          // strategy input (ignored if preset != PRESET_MA_BENCHMARK)
-input int            Inp_MA_Period              = 12;           // strategy input (ignored if preset != PRESET_MA_BENCHMARK)
-input int            Inp_MA_Shift               = 6;            // strategy input (ignored if preset != PRESET_MA_BENCHMARK)
+input double         Inp_MA_MaximumRiskPct      = 0.02;         // (PRESET_MA_BENCHMARK only) Max risk (%) for MA benchmark sizer
+input double         Inp_MA_DecreaseFactor      = 3.0;          // (PRESET_MA_BENCHMARK only) Lot decrease factor
+input int            Inp_MA_Period              = 12;           // (PRESET_MA_BENCHMARK only) MA period
+input int            Inp_MA_Shift               = 6;            // (PRESET_MA_BENCHMARK only) MA shift
 
 input group "=== DIAGNOSTICS ==="
-// global allowed under presets
-input bool           Inp_PrintEffectiveConfig   = true;         // Print effective configuration on init
-// global allowed under presets
-input bool           Inp_DebugFlow              = false;        // Print explicit OnInit/OnTick/OnDeinit flow
+input bool           Inp_PrintEffectiveConfig   = true;         // (Global; allowed under presets) Print effective config on init
+input bool           Inp_DebugFlow              = false;        // (Global; allowed under presets) Print OnInit/OnTick/OnDeinit flow
 
 input group "=== UI: STATUS PANEL ==="
-// global allowed under presets
-input bool             Inp_UI_ShowStatusPanel     = false;
-// global allowed under presets
-input bool             Inp_UI_ManageChartIndicators = false;
-input ENUM_BASE_CORNER Inp_UI_PanelCorner       = CORNER_LEFT_UPPER;
-input int              Inp_UI_PanelX            = 30;
-input int              Inp_UI_PanelY            = 30;
-input int              Inp_UI_PanelFontSize     = 8;
-input int              Inp_UI_LineSpacingPx     = 21;
-input string           Inp_UI_PanelFont         = "Arial";
+input bool             Inp_UI_ShowStatusPanel     = false;      // (Global; allowed under presets) Show status panel
+input bool             Inp_UI_ManageChartIndicators = false;    // (Global; allowed under presets) Auto-add/remove chart indicators
+input ENUM_BASE_CORNER Inp_UI_PanelCorner       = CORNER_LEFT_UPPER; // (Global; allowed under presets) Status panel corner
+input int              Inp_UI_PanelX            = 30;           // (Global; allowed under presets) Status panel X (px)
+input int              Inp_UI_PanelY            = 30;           // (Global; allowed under presets) Status panel Y (px)
+input int              Inp_UI_PanelFontSize     = 8;            // (Global; allowed under presets) Status panel font size
+input int              Inp_UI_LineSpacingPx     = 21;           // (Global; allowed under presets) Status panel line spacing (px)
+input string           Inp_UI_PanelFont         = "Arial";      // (Global; allowed under presets) Status panel font
 
 input group "=== UI: COCKPIT PANEL ==="
-// global allowed under presets
-input bool             Inp_UI_ShowCockpitPanel    = true;
-input ENUM_BASE_CORNER Inp_UI_CockpitCorner     = CORNER_LEFT_UPPER;
-input int              Inp_UI_CockpitX          = 30;
-input int              Inp_UI_CockpitY          = 30;
-input int              Inp_UI_CockpitFontSize   = 8;
-input int              Inp_UI_CockpitLineSpacingPx = 21;
-input string           Inp_UI_CockpitFont       = "Arial";
+input bool             Inp_UI_ShowCockpitPanel    = true;       // (Global; allowed under presets) Show cockpit panel
+input ENUM_BASE_CORNER Inp_UI_CockpitCorner     = CORNER_LEFT_UPPER; // (Global; allowed under presets) Cockpit panel corner
+input int              Inp_UI_CockpitX          = 30;           // (Global; allowed under presets) Cockpit panel X (px)
+input int              Inp_UI_CockpitY          = 30;           // (Global; allowed under presets) Cockpit panel Y (px)
+input int              Inp_UI_CockpitFontSize   = 8;            // (Global; allowed under presets) Cockpit panel font size
+input int              Inp_UI_CockpitLineSpacingPx = 21;        // (Global; allowed under presets) Cockpit panel line spacing (px)
+input string           Inp_UI_CockpitFont       = "Arial";      // (Global; allowed under presets) Cockpit panel font
 
 input group "=== UI: SIGNAL MARKERS ==="
-// global allowed under presets
-input bool           Inp_DrawEntryLines         = true;
-// global allowed under presets
-input bool           Inp_DrawTradeLines         = true;
+input bool           Inp_DrawEntryLines         = true;         // (Global; allowed under presets) Draw entry marker lines
+input bool           Inp_DrawTradeLines         = true;         // (Global; allowed under presets) Draw trade management lines
 
 input group "=== UI: COLORS ==="
-// global allowed under presets
-input bool             Inp_UI_UseCustomColors   = false;        // If false, follow chart theme
-input color            Inp_UI_FontColor         = clrYellow;    // Used only if UseCustomColors=true
-input int              Inp_UI_PanelBgAlpha      = 110;          // 0..255 (higher = more opaque)
+input bool             Inp_UI_UseCustomColors   = false;        // (Global; allowed under presets) Use custom panel colors (else follow chart theme)
+input color            Inp_UI_FontColor         = clrYellow;    // (Global; allowed under presets) UI font color (when custom colors enabled)
+input int              Inp_UI_PanelBgAlpha      = 110;          // (Global; allowed under presets) Panel background alpha (0..255)
 
 input group "=== UI: FRAMING (PANELS) ==="
-// global allowed under presets
-input EUIFrameMode     Inp_UI_FrameMode          = UI_FRAME_BG;   // BG | NONE | TEXT_BOUNDS
-input int              Inp_UI_FramePadPx         = 6;             // Padding used for text + BG sizing
+input EUIFrameMode     Inp_UI_FrameMode          = UI_FRAME_BG; // (Global; allowed under presets) Panel frame mode (BG/NONE/TEXT_BOUNDS)
+input int              Inp_UI_FramePadPx         = 6;           // (Global; allowed under presets) Panel padding (px)
 
 input group "=== RRM STRICT (NON-ATR) ==="
-// Selects exit contract; default LEGACY preserves all current ATR-based behavior (no behavior change in PR 1).
-input EExitProfile Inp_ExitProfile = EXIT_PROFILE_LEGACY;  // Exit profile (LEGACY = current behavior)
+input EExitProfile Inp_ExitProfile = EXIT_PROFILE_LEGACY;       // (CUSTOM; presets override) Exit profile override (strict presets force strict)
 
 input group "=== PRESET_RRM: TREND PULLBACK ==="
-input ERRMMode       Inp_RRM_Mode               = RRM_AUTO_BY_TF;      // strategy input (ignored if preset != PRESET_RRM/PRESET_RRM_ATR/PRESET_RRM_LEGACY)
-input bool           Inp_RRM_EnableInCustom     = false;               // strategy input (only used when preset == PRESET_CUSTOM)
-input EAutoStrategy  Inp_RRM_AutoStrat          = STRAT_PRICE_CROSS;   // strategy input (ignored under presets per Model A)
-input EEmaRole       Inp_RRM_BiasEMA            = ROLE_EMA2;           // strategy input (ignored under presets per Model A)
-input int            Inp_RRM_Lookback           = 5;                   // strategy input (ignored under presets per Model A)
-input double         Inp_RRM_MinDivPips         = 0.5;                 // strategy input (ignored under presets per Model A)
-input bool           Inp_RRM_RequirePullbackReclaim = false;           // strategy input (ignored under presets per Model A)
-input bool           Inp_RRM_RequireEmaDiv          = false;           // strategy input (ignored under presets per Model A)
+input ERRMMode       Inp_RRM_Mode               = RRM_AUTO_BY_TF; // (RRM presets) RRM mode (AUTO uses timeframe mapping)
+input bool           Inp_RRM_EnableInCustom     = false;          // (CUSTOM only) Enable RRM logic while using PRESET_CUSTOM
+input EAutoStrategy  Inp_RRM_AutoStrat          = STRAT_PRICE_CROSS; // (CUSTOM; presets override) Auto strategy mapping (price cross / pair cross)
+input EEmaRole       Inp_RRM_BiasEMA            = ROLE_EMA2;      // (CUSTOM; presets override) Bias EMA role (manual bias tuning)
+input int            Inp_RRM_Lookback           = 5;              // (CUSTOM; presets override) Pullback lookback bars
+input double         Inp_RRM_MinDivPips         = 0.5;            // (CUSTOM; presets override) Min EMA divergence (pips)
+input bool           Inp_RRM_RequirePullbackReclaim = false;      // (CUSTOM; presets override) Require pullback + reclaim condition
+input bool           Inp_RRM_RequireEmaDiv          = false;      // (CUSTOM; presets override) Require EMA divergence gate
 
 input group "=== CUSTOM: LOGIC & RISK ==="
-input bool           Inp_CloseOnReverse         = false;  // strategy input
-input double         Inp_RiskPercent            = 2.0;    // strategy input
-input double         Inp_MaxSpreadPips          = 3.0;    // strategy input
-input double         Inp_MinATRPips             = 0.0;    // strategy input
-input double         Inp_MaxATRPips             = 20.0;   // strategy input
+input bool           Inp_CloseOnReverse         = false;  // (CUSTOM; presets may override) Close on reverse signal
+input double         Inp_RiskPercent            = 2.0;    // (CUSTOM; presets may override) Risk per trade (%)
+input double         Inp_MaxSpreadPips          = 3.0;    // (Operator gate; preserved under presets) Max spread (pips)
+input double         Inp_MinATRPips             = 0.0;    // (CUSTOM; most presets override; strict sets 0) Min ATR (pips)
+input double         Inp_MaxATRPips             = 20.0;   // (CUSTOM; most presets override; strict sets 0) Max ATR (pips; 0=off)
 
 input group "=== CUSTOM: MARKET BIAS ==="
-input bool           Inp_BiasEnabled            = true;                      // strategy input
-input EBiasMode      Inp_BiasMode               = BIAS_AUTO;                 // strategy input
-input EEmaStrategy   Inp_EmaStrategy            = EMA_STRAT_2_CROSS_3_4;      // strategy input
+input bool           Inp_BiasEnabled            = true;                 // (CUSTOM; presets override) Enable market bias filter
+input EBiasMode      Inp_BiasMode               = BIAS_AUTO;            // (CUSTOM; presets override) Bias mode (AUTO/MANUAL)
+input EEmaStrategy   Inp_EmaStrategy            = EMA_STRAT_2_CROSS_3_4; // (CUSTOM; presets override) EMA bias strategy mapping
 
 input group "=== CUSTOM: ADVANCED AUTO MAPPING ==="
-input EManualSide    Inp_ManualSide             = SIDE_BOTH;                 // strategy input
-input EEmaRole       Inp_BiasFast_Adv           = ROLE_EMA3;                 // strategy input
-input EEmaRole       Inp_BiasSlow_Adv           = ROLE_EMA4;                 // strategy input
+input EManualSide    Inp_ManualSide             = SIDE_BOTH;            // (CUSTOM; presets override) Manual direction (BOTH/LONG/SHORT)
+input EEmaRole       Inp_BiasFast_Adv           = ROLE_EMA3;            // (CUSTOM; presets override) Advanced bias fast EMA role
+input EEmaRole       Inp_BiasSlow_Adv           = ROLE_EMA4;            // (CUSTOM; presets override) Advanced bias slow EMA role
 
 input group "=== CUSTOM: FILTERS ==="
-input bool            Inp_UseTime                = false;                    // strategy input
-input int             Inp_StartHour              = 8;                        // strategy input
-input int             Inp_EndHour                = 20;                       // strategy input
-input bool            Inp_UseNews                = false;                    // strategy input
-input string          Inp_NewsFile               = "calendar_statement.csv";
-input int             Inp_NewsPre                = 60;                       // strategy input
-input int             Inp_NewsPost               = 60;                       // strategy input
-input bool            Inp_UseHTF                 = false;                    // strategy input
-input ENUM_TIMEFRAMES Inp_HtfPeriod              = PERIOD_H4;                // strategy input
-input int             Inp_HtfEmaPeriod           = 89;                       // strategy input
+input bool            Inp_UseTime                = false;              // (Operator gate; preserved under presets) Enable session/time filter
+input int             Inp_StartHour              = 8;                  // (Operator gate; preserved under presets) Session start hour (broker time)
+input int             Inp_EndHour                = 20;                 // (Operator gate; preserved under presets) Session end hour (broker time)
+input bool            Inp_UseNews                = false;              // (Operator gate; preserved under presets) Enable news filter (CSV calendar)
+input string          Inp_NewsFile               = "calendar_statement.csv"; // (Operator gate; preserved under presets) News CSV filename
+input int             Inp_NewsPre                = 60;                 // (Operator gate; preserved under presets) Minutes before news to block entries
+input int             Inp_NewsPost               = 60;                 // (Operator gate; preserved under presets) Minutes after news to block entries
+input bool            Inp_UseHTF                 = false;              // (Operator gate; preserved under presets) Enable HTF trend filter
+input ENUM_TIMEFRAMES Inp_HtfPeriod              = PERIOD_H4;          // (Operator gate; preserved under presets) HTF timeframe
+input int             Inp_HtfEmaPeriod           = 89;                 // (Operator gate; preserved under presets) HTF EMA period
 
 input group "=== CUSTOM: VOTING ==="
-input int            Inp_VoteThreshold          = 2;                         // strategy input
+input int            Inp_VoteThreshold          = 2;                   // (CUSTOM; presets override) Votes required to enter (threshold)
 
 input group "=== INDICATORS: SETTINGS ==="
-input EMaMethod      Inp_MaType                 = METHOD_EMA;                // strategy input
-input int            Inp_MaHorShift             = 0;                         // strategy input
-input int            Inp_MaVerShift             = 1;                         // strategy input
+input EMaMethod      Inp_MaType                 = METHOD_EMA;          // (CUSTOM; presets override) MA method (EMA/SMA)
+input int            Inp_MaHorShift             = 0;                   // (CUSTOM; presets override) MA horizontal shift (bars)
+input int            Inp_MaVerShift             = 1;                   // (CUSTOM; presets override) MA vertical shift (pips)
 
-// EMA
 input group "--- INDICATORS: EMA ---"
-input int            InpEma1Period              = 5;                         // strategy input
-input int            InpEma2Period              = 13;                        // strategy input
-input int            InpEma3Period              = 34;                        // strategy input
-input int            InpEma4Period              = 89;                        // strategy input
+input int            InpEma1Period              = 5;                   // (CUSTOM; presets override) EMA1 period
+input int            InpEma2Period              = 13;                  // (CUSTOM; presets override) EMA2 period
+input int            InpEma3Period              = 34;                  // (CUSTOM; presets override) EMA3 period
+input int            InpEma4Period              = 89;                  // (CUSTOM; presets override) EMA4 period
 
-// ADX
 input group "--- INDICATORS: ADX ---"
-input int            InpAdxPeriod               = 14;                        // strategy input
-input int            InpAdxThreshold            = 20;                        // strategy input
+input int            InpAdxPeriod               = 14;                  // (CUSTOM; presets override) ADX period
+input int            InpAdxThreshold            = 20;                  // (CUSTOM; presets override) ADX threshold
 
-// MACD
 input group "--- INDICATORS: MACD ---"
-input EMacdMode      InpMacdMode                = MACD_SIGNAL_ALIGN;         // strategy input
-input int            InpMacdFast                = 12;                        // strategy input
-input int            InpMacdSlow                = 26;                        // strategy input
-input int            InpMacdSig                 = 9;                         // strategy input
+input EMacdMode      InpMacdMode                = MACD_SIGNAL_ALIGN;   // (CUSTOM; presets override) MACD mode (signal align / zero cross)
+input int            InpMacdFast                = 12;                  // (CUSTOM; presets override) MACD fast period
+input int            InpMacdSlow                = 26;                  // (CUSTOM; presets override) MACD slow period
+input int            InpMacdSig                 = 9;                   // (CUSTOM; presets override) MACD signal period
 
-// RSI
 input group "--- INDICATORS: RSI ---"
-input ERsiMode       InpRsiMode                 = RSI_FILTER_EXTREME;        // strategy input
-input int            InpRsiPeriod               = 14;                        // strategy input
-input double         InpRsiOverbought           = 70.0;                      // strategy input
-input double         InpRsiOversold             = 30.0;                      // strategy input
+input ERsiMode       InpRsiMode                 = RSI_FILTER_EXTREME;  // (CUSTOM; presets override) RSI mode
+input int            InpRsiPeriod               = 14;                  // (CUSTOM; presets override) RSI period
+input double         InpRsiOverbought           = 70.0;                // (CUSTOM; presets override) RSI overbought level
+input double         InpRsiOversold             = 30.0;                // (CUSTOM; presets override) RSI oversold level
 
-// CCI
 input group "--- INDICATORS: CCI ---"
-input ECciMode       InpCciMode                 = CCI_TREND_ZERO;            // strategy input
-input int            InpCciPeriod               = 14;                        // strategy input
+input ECciMode       InpCciMode                 = CCI_TREND_ZERO;      // (CUSTOM; presets override) CCI mode
+input int            InpCciPeriod               = 14;                  // (CUSTOM; presets override) CCI period
 
-// MFI
 input group "--- INDICATORS: MFI ---"
-input int            InpMfiPeriod               = 14;                        // strategy input
-input double         InpMfiLevel                = 50.0;                      // strategy input
+input int            InpMfiPeriod               = 14;                  // (CUSTOM; presets override) MFI period
+input double         InpMfiLevel                = 50.0;                // (CUSTOM; presets override) MFI threshold/level
 
-// Stochastic
 input group "--- INDICATORS: STOCHASTIC ---"
-input EStochMode     InpStoMode                 = STO_ZONE_FILTER;           // strategy input
-input int            InpStoK                    = 5;                         // strategy input
-input int            InpStoD                    = 3;                         // strategy input
-input int            InpStoSlow                 = 3;                         // strategy input
+input EStochMode     InpStoMode                 = STO_ZONE_FILTER;     // (CUSTOM; presets override) Stochastic mode
+input int            InpStoK                    = 5;                   // (CUSTOM; presets override) Stochastic %K period
+input int            InpStoD                    = 3;                   // (CUSTOM; presets override) Stochastic %D period
+input int            InpStoSlow                 = 3;                   // (CUSTOM; presets override) Stochastic slowing
 
-// Bollinger
 input group "--- INDICATORS: BOLLINGER BANDS ---"
-input EBbMode        InpBbMode                  = BB_TREND_FOLLOW;           // strategy input
-input int            InpBbPeriod                = 20;                        // strategy input
-input double         InpBbDev                   = 2.0;                       // strategy input
+input EBbMode        InpBbMode                  = BB_TREND_FOLLOW;     // (CUSTOM; presets override) Bollinger mode
+input int            InpBbPeriod                = 20;                  // (CUSTOM; presets override) Bollinger period
+input double         InpBbDev                   = 2.0;                 // (CUSTOM; presets override) Bollinger deviation
 
-// PSAR
 input group "--- INDICATORS: PSAR ---"
-input double         InpPsarStep                = 0.05;                      // strategy input
-input double         InpPsarMax                 = 0.5;                       // strategy input
+input double         InpPsarStep                = 0.05;                // (CUSTOM; presets override) PSAR step
+input double         InpPsarMax                 = 0.5;                 // (CUSTOM; presets override) PSAR max
 
 input group "=== VOTING: ENABLED VOTES ==="
-input bool           Inp_Use_EmaSig             = true;                      // strategy input
-input bool           Inp_Use_Adx                = false;                     // strategy input
-input bool           Inp_Use_Macd               = true;                      // strategy input
-input bool           Inp_Use_Rsi                = false;                     // strategy input
-input bool           Inp_Use_Cci                = true;                      // strategy input
-input bool           Inp_Use_Mfi                = false;                     // strategy input
-input bool           Inp_Use_Sto                = false;                     // strategy input
-input bool           Inp_Use_Bb                 = false;                     // strategy input
-input bool           Inp_Use_Psar               = true;                      // strategy input
-input bool           Inp_Use_P123               = false;                     // strategy input
-input bool           Inp_Use_Ross               = false;                     // strategy input
+input bool           Inp_Use_EmaSig             = true;                // (CUSTOM; presets override) Vote: EMA signal
+input bool           Inp_Use_Adx                = false;               // (CUSTOM; presets override) Vote: ADX
+input bool           Inp_Use_Macd               = true;                // (CUSTOM; presets override) Vote: MACD
+input bool           Inp_Use_Rsi                = false;               // (CUSTOM; presets override) Vote: RSI
+input bool           Inp_Use_Cci                = true;                // (CUSTOM; presets override) Vote: CCI
+input bool           Inp_Use_Mfi                = false;               // (CUSTOM; presets override) Vote: MFI
+input bool           Inp_Use_Sto                = false;               // (CUSTOM; presets override) Vote: Stochastic
+input bool           Inp_Use_Bb                 = false;               // (CUSTOM; presets override) Vote: Bollinger
+input bool           Inp_Use_Psar               = true;                // (CUSTOM; presets override) Vote: PSAR
+input bool           Inp_Use_P123               = false;               // (CUSTOM; presets override) Vote: 1-2-3 pattern
+input bool           Inp_Use_Ross               = false;               // (CUSTOM; presets override) Vote: Ross hook
 
 input group "=== EXITS: INITIAL SL PLACEMENT ==="
-input ESlPlacementMode Inp_SL_PlacementMode     = SL_SWING_HIGHLOW;          // strategy input
-input double         Inp_SL_Mult                = 1.5;                       // strategy input
-input double         Inp_SL_PsarPipsCushion     = 5.0;                       // strategy input
-input double         Inp_SL_SwingPipsCushion    = 10.0;                      // strategy input
-input double         Inp_SL_FixedPips           = 20.0;                      // strategy input
+input ESlPlacementMode Inp_SL_PlacementMode     = SL_SWING_HIGHLOW;    // (CUSTOM; presets override) SL placement method
+input double         Inp_SL_Mult                = 1.5;                 // (CUSTOM; presets override) SL multiplier (ATR modes only; ignored in strict)
+input double         Inp_SL_PsarPipsCushion     = 5.0;                 // (CUSTOM; presets override) SL PSAR cushion (pips)
+input double         Inp_SL_SwingPipsCushion    = 10.0;                // (CUSTOM; presets override) SL swing cushion (pips)
+input double         Inp_SL_FixedPips           = 20.0;                // (CUSTOM; presets override) SL fixed distance (pips)
 
 input group "=== EXITS: TP, BREAKEVEN, TRAILING ==="
-input double         Inp_TP_Mult                = 3.0;                       // strategy input
-input bool           Inp_Use_BE                 = false;                     // strategy input
-input double         Inp_BE_Trig                = 1.0;                       // strategy input
-input double         Inp_BE_Buff                = 0.1;                       // strategy input
+input double         Inp_TP_Mult                = 3.0;                 // (CUSTOM; presets override) TP R-multiple (legacy TP_Mult)
+input bool           Inp_Use_BE                 = false;               // (CUSTOM; presets override) Use legacy BE (strict uses BE_Mode instead)
+input double         Inp_BE_Trig                = 1.0;                 // (CUSTOM; presets override) Legacy BE trigger (R multiple)
+input double         Inp_BE_Buff                = 0.1;                 // (CUSTOM; presets override) Legacy BE buffer (pips)
 
 input group "=== EXITS: TRAILING STOP ==="
-input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR;                // strategy input
-input double         Inp_Trail_Mult             = 3.0;                       // strategy input
-input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;   // strategy input
-input double         Inp_PSAR_TrailPipsCushion  = 5.0;                       // strategy input
-input double         Inp_PSAR_TrailCushionATR   = 0.2;                       // strategy input
+input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR;          // (CUSTOM; presets override) Trailing stop mode
+input double         Inp_Trail_Mult             = 3.0;                 // (CUSTOM; presets override) Trail multiplier (ATR modes only; ignored in strict)
+input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // (CUSTOM; presets override) PSAR trail cushion mode
+input double         Inp_PSAR_TrailPipsCushion  = 5.0;                 // (CUSTOM; presets override) PSAR trail cushion (pips)
+input double         Inp_PSAR_TrailCushionATR   = 0.2;                 // (CUSTOM; presets override) PSAR trail cushion (ATR)
 
 input group "=== REPORTING ==="
-// global allowed under presets
-input bool           Inp_ExportCSV              = false;
-// global allowed under presets
-input bool           Inp_ExportUseCommonFiles   = false;
+input bool           Inp_ExportCSV              = false;               // (Global; allowed under presets) Export CSV reporting
+input bool           Inp_ExportUseCommonFiles   = false;               // (Global; allowed under presets) Use terminal Common Files folder for export
 
 //+------------------------------------------------------------------+
 //| InitializeConfig(): maps inputs into Settings (NO preset logic)   |
