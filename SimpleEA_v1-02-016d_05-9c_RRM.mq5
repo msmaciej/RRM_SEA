@@ -69,6 +69,14 @@ datetime g_last_bar_time            = 0;
 datetime g_start_time               = 0;
 bool     g_chart_indicators_managed = false;
 
+// --- TS snapshot (last confirmed trade signal evaluated at shift=1)
+datetime g_ts_time   = 0;
+int      g_ts_dir    = 0;
+int      g_ts_bias   = 0;
+int      g_ts_votes  = 0;
+int      g_ts_thr    = 0;
+string   g_ts_reason = "";
+
 //+------------------------------------------------------------------+
 //| EXPERT LIFECYCLE                                                 |
 //+------------------------------------------------------------------+
@@ -288,7 +296,7 @@ int OrchestrateInit()
 
    SEA_UI_Init(Inp_MagicNum);
    SEA_UI_UpdateSettingsPanel();
-   SEA_UI_UpdateCockpitPanel(Signal.GetATR(), 0, Signal.LastBias(), Signal.LastVotes(), Signal.LastReason());
+   SEA_UI_UpdateCockpitPanel(Signal.GetATR(), 0, Signal.LastBias(), Signal.LastVotes(), Signal.LastReason(), "", "");
 
    FlowLog("OnInit complete -> INIT_SUCCEEDED");
    return INIT_SUCCEEDED;
@@ -315,6 +323,17 @@ void OrchestrateTick()
    FlowLog("Step B: Compute direction signal");
    int direction = Signal.GetDirection();
 
+   // Capture TS snapshot when a signal is generated (shift=1 bar time)
+   if(direction != 0)
+   {
+      g_ts_time   = iTime(_Symbol, PERIOD_CURRENT, 1);
+      g_ts_dir    = direction;
+      g_ts_bias   = Signal.LastBias();
+      g_ts_votes  = Signal.LastVotes();
+      g_ts_thr    = Settings.VoteThreshold;
+      g_ts_reason = Signal.LastReason();
+   }
+
    if(Settings.DebugFlow)
    {
       if(direction == 0)
@@ -337,7 +356,27 @@ void OrchestrateTick()
    if(direction != 0)
       Executor.ProcessSignal(direction, atr);
 
-   SEA_UI_UpdateCockpitPanel(atr, direction, Signal.LastBias(), Signal.LastVotes(), Signal.LastReason());
+   // Build TS/TE snapshot strings for cockpit display
+   string ts_snap = "";
+   if(g_ts_time > 0)
+   {
+      string dir_str = (g_ts_dir > 0 ? "BUY" : "SELL");
+      ts_snap = StringFormat("TS@%s dir=%s votes=%d/%d reason=%s",
+         TimeToString(g_ts_time, TIME_DATE|TIME_MINUTES), dir_str, g_ts_votes, g_ts_thr, g_ts_reason);
+   }
+   string te_snap = "";
+   if(Executor.LastTETime() > 0)
+   {
+      string te_reason = Executor.LastTEReason();
+      te_snap = StringFormat("TE@%s %s%s",
+         TimeToString(Executor.LastTETime(), TIME_DATE|TIME_MINUTES),
+         Executor.LastTEResult(),
+         (te_reason != "" ? ": " + te_reason : ""));
+      if(Settings.DebugFlow)
+         Print("TE: ", te_snap);
+   }
+
+   SEA_UI_UpdateCockpitPanel(atr, direction, Signal.LastBias(), Signal.LastVotes(), Signal.LastReason(), ts_snap, te_snap);
    FlowLog("Bar pipeline complete");
 }
 
