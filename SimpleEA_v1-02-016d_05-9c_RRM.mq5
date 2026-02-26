@@ -186,7 +186,7 @@ void PrintEffectiveConfig()
    Print("Effective EMA periods: ", Settings.P_Ema1, ",", Settings.P_Ema2, ",", Settings.P_Ema3, ",", Settings.P_Ema4);
    Print("Effective MACD periods: ", Settings.P_MacdFast, ",", Settings.P_MacdSlow, ",", Settings.P_MacdSig);
 
-   if(Settings.ExitProfile != EXIT_PROFILE_LEGACY || InpPreset == PRESET_RRM || InpPreset == PRESET_RRM_STRICT)
+   if(Settings.ExitProfile != EXIT_PROFILE_LEGACY || InpPreset == PRESET_RRM)
    {
       Print("Effective: ExitProfile=", EnumToString(Settings.ExitProfile),
             " TP_Enabled=", (Settings.TP_Enabled ? "true" : "false"),

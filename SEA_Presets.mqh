@@ -63,8 +63,6 @@ string PresetToString(EStrategyPreset p)
       case PRESET_RANGE_GRID:     return "RANGE_GRID";
       case PRESET_RRM_ATR:        return "RRM_ATR";
       case PRESET_RRM:            return "RRM";
-      case PRESET_RRM_STRICT:     return "RRM_STRICT_DEPRECATED";
-      case PRESET_RRM_LEGACY:     return "RRM_LEGACY";
       default:                    return "UNKNOWN";
    }
 }
@@ -416,106 +414,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       return;
    }
 
-   if(preset == PRESET_RRM_LEGACY)
-   {
-      // Preset is authoritative; do not use strategy inputs Inp_RRM_* for cfg fields.
-      ERRMMode mode = Inp_RRM_Mode;
-      if(mode == RRM_AUTO_BY_TF)
-      {
-         if(_Period == PERIOD_M1 || _Period == PERIOD_M5 || _Period == PERIOD_M15) mode = RRM_SCALP;
-         else mode = RRM_SWING;
-      }
-
-      cfg.CloseOnReverse = true;
-      cfg.BiasEnabled    = true;
-      cfg.BiasMode       = BIAS_AUTO;
-      cfg.MaType         = METHOD_EMA;
-
-      if(mode == RRM_SCALP)
-      {
-         cfg.AutoStrat  = STRAT_PAIR_CROSS;
-         cfg.BiasFastID = (int)ROLE_EMA1;
-         cfg.BiasSlowID = (int)ROLE_EMA2;
-
-         cfg.P_Ema1 = 34; cfg.P_Ema2 = 89; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
-
-         cfg.MaxSpread = 2.5;
-         cfg.MinATR    = 12.5;
-         cfg.MaxATR    = 0.0;
-      }
-      else
-      {
-         cfg.AutoStrat  = STRAT_PAIR_CROSS;
-         cfg.BiasFastID = (int)ROLE_EMA3;
-         cfg.BiasSlowID = (int)ROLE_EMA4;
-
-         cfg.P_Ema1 = 5; cfg.P_Ema2 = 13; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
-
-         cfg.MaxSpread = 5.0;
-         cfg.MinATR    = 8.0;
-         cfg.MaxATR    = 0.0;
-      }
-
-      cfg.VoteThreshold = 4;
-      cfg.Use_EmaSig    = true;
-      cfg.Use_Adx       = false;
-      cfg.Use_Macd      = true;
-      cfg.Use_Rsi       = false;
-      cfg.Use_Cci       = true;
-      cfg.Use_Mfi       = false;
-      cfg.Use_Sto       = false;
-      cfg.Use_Bb        = false;
-      cfg.Use_Psar      = true;
-      cfg.Use_P123      = false;
-      cfg.Use_Ross      = false;
-
-      cfg.P_MacdFast = 8;
-      cfg.P_MacdSlow = 13;
-      cfg.P_MacdSig  = 8;
-
-      cfg.RRM_RequirePullbackReclaim = false;
-      cfg.RRM_RequireEmaDiv          = false;
-      cfg.RRM_Lookback               = 5;
-      cfg.RRM_MinDivPips             = 0.5;
-
-      // Authoritative exits (stable defaults)
-      cfg.TP_Mult = 3.0;
-
-      cfg.Use_BE  = true;
-      cfg.BE_Trig = 1.0;
-      cfg.BE_Buff = 0.1;
-
-      cfg.SL_PlacementMode    = SL_SWING_HIGHLOW;
-      cfg.SL_Mult             = 0.0;
-      cfg.SL_PsarPipsCushion  = 5.0;
-      cfg.SL_SwingPipsCushion = 10.0;
-      cfg.SL_FixedPips        = 20.0;
-
-      cfg.TrailMode             = TRAIL_PSAR;
-      cfg.PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;
-      cfg.PSAR_TrailPipsCushion = 5.0;
-      cfg.P_PsarTrailCushionATR = 0.2;
-
-      // Restore operator-controlled gates (Policy A)
-      cfg.MaxSpread = op_MaxSpread;
-      cfg.MinATR    = op_MinATR;
-      cfg.MaxATR    = op_MaxATR;
-
-      cfg.UseTime   = op_UseTime;
-      cfg.StartHr   = op_StartHr;
-      cfg.EndHr     = op_EndHr;
-
-      cfg.UseNews   = op_UseNews;
-      cfg.NewsPre   = op_NewsPre;
-      cfg.NewsPost  = op_NewsPost;
-
-      cfg.UseHTF    = op_UseHTF;
-      cfg.HtfPeriod = op_HtfPeriod;
-      cfg.P_HtfEma  = op_P_HtfEma;
-
-      return;
-   }
-
    if(preset == PRESET_RRM_ATR)
    {
       ERRMMode mode = Inp_RRM_Mode;
@@ -617,7 +515,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       return;
    }
 
-   if(preset == PRESET_RRM || preset == PRESET_RRM_STRICT)
+   if(preset == PRESET_RRM)
    {
       // RRM: user-owned exits (SL/TP/BE/trailing preserved from InitializeConfig mapping).
       //
