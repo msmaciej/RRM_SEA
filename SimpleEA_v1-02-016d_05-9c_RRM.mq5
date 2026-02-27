@@ -156,7 +156,13 @@ void PrintEffectiveConfig()
    Print("Preset: ", EnumToString(InpPreset), " (", (int)InpPreset, ")");
 
    if(InpPreset != PRESET_CUSTOM)
+   {
       Print("Preset ", PresetToString(InpPreset), " is active; strategy inputs ignored");
+      if(Settings.AdminOverridePreset)
+         Print("AdminOverride: ACTIVE [Admin Mode] - override inputs are applied on top of preset");
+      else
+         Print("AdminOverride: OFF [Normal User Mode] - preset is fully enforced");
+   }
 
    Print("Diagnostics: PrintEffectiveConfig=", (Settings.PrintEffectiveConfig ? "true" : "false"),
          " DebugFlow=", (Settings.DebugFlow ? "true" : "false"));

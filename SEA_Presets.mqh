@@ -67,6 +67,61 @@ string PresetToString(EStrategyPreset p)
    }
 }
 
+// GetPresetContractWording(): returns a one-line description of what the preset controls
+// vs. what the user controls. Used in Cockpit Panel and Status Panel displays.
+string GetPresetContractWording(EStrategyPreset preset)
+{
+   switch(preset)
+   {
+      case PRESET_CUSTOM:
+         return "All inputs respected; you control strategy, indicators, and operator gates.";
+      case PRESET_MA_BENCHMARK:
+         return "MA benchmark mode: indicator periods/roles fixed; gates, exits, position sizing user-controlled.";
+      case PRESET_TREND_REVERSAL:
+      case PRESET_TREND_SCALP:
+      case PRESET_TREND_SWING:
+         return "Trend strategy fixed (AutoStrat, bias, votes, thresholds); only gates, time filters, spread/ATR limits, exits user-controlled.";
+      case PRESET_RANGE_GRID:
+         return "Range grid strategy fixed (voting, EMA roles, thresholds); only gates, filters, exit policy user-controlled.";
+      case PRESET_RRM_ATR:
+      case PRESET_RRM:
+         return "RRM resilience strategy fixed (AutoStrat, EMA/MACD config, vote threshold); only Policy A gates and exits user-controlled.";
+      default:
+         return "Preset active; strategy-critical settings fixed by preset.";
+   }
+}
+
+// ApplyAdminOverrides(): applies admin override inputs onto cfg.
+// Called at the end of each non-CUSTOM preset block in ApplyPreset().
+// Only applies when cfg.AdminOverridePreset is true; no-op otherwise.
+// Overrides: AutoStrat, VoteThreshold, EMA periods, MACD periods,
+//            vote enable flags, and RRM gate flags.
+void ApplyAdminOverrides(ST_Settings &cfg)
+{
+   if(!cfg.AdminOverridePreset) return;
+
+   cfg.AutoStrat      = Inp_Override_AutoStrat;
+   cfg.VoteThreshold  = Inp_Override_VoteThreshold;
+   cfg.P_Ema1         = Inp_Override_EMA1;
+   cfg.P_Ema2         = Inp_Override_EMA2;
+   cfg.P_Ema3         = Inp_Override_EMA3;
+   cfg.P_Ema4         = Inp_Override_EMA4;
+   cfg.P_MacdFast     = Inp_Override_MACD_Fast;
+   cfg.P_MacdSlow     = Inp_Override_MACD_Slow;
+   cfg.P_MacdSig      = Inp_Override_MACD_Signal;
+   cfg.Use_EmaSig     = Inp_Override_Use_EmaSig;
+   cfg.Use_Macd       = Inp_Override_Use_Macd;
+   cfg.Use_Psar       = Inp_Override_Use_Psar;
+   cfg.Use_Cci        = Inp_Override_Use_Cci;
+   cfg.Use_Rsi        = Inp_Override_Use_Rsi;
+   cfg.Use_Adx        = Inp_Override_Use_Adx;
+   cfg.Use_Mfi        = Inp_Override_Use_Mfi;
+   cfg.Use_Sto        = Inp_Override_Use_Sto;
+   cfg.Use_Bb         = Inp_Override_Use_Bb;
+   cfg.RRM_RequirePullbackReclaim = Inp_Override_RRM_RequirePullbackReclaim;
+   cfg.RRM_RequireEmaDiv          = Inp_Override_RRM_RequireEmaDiv;
+}
+
 void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 {
    if(preset == PRESET_CUSTOM)
@@ -164,6 +219,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.HtfPeriod = op_HtfPeriod;
       cfg.P_HtfEma  = op_P_HtfEma;
 
+      ApplyAdminOverrides(cfg);
       return;
    }
 
@@ -226,6 +282,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.HtfPeriod = op_HtfPeriod;
       cfg.P_HtfEma  = op_P_HtfEma;
 
+      ApplyAdminOverrides(cfg);
       return;
    }
 
@@ -288,6 +345,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.HtfPeriod = op_HtfPeriod;
       cfg.P_HtfEma  = op_P_HtfEma;
 
+      ApplyAdminOverrides(cfg);
       return;
    }
 
@@ -350,6 +408,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.HtfPeriod = op_HtfPeriod;
       cfg.P_HtfEma  = op_P_HtfEma;
 
+      ApplyAdminOverrides(cfg);
       return;
    }
 
@@ -411,6 +470,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.HtfPeriod = op_HtfPeriod;
       cfg.P_HtfEma  = op_P_HtfEma;
 
+      ApplyAdminOverrides(cfg);
       return;
    }
 
@@ -512,6 +572,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.HtfPeriod = op_HtfPeriod;
       cfg.P_HtfEma  = op_P_HtfEma;
 
+      ApplyAdminOverrides(cfg);
       return;
    }
 
@@ -621,6 +682,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.HtfPeriod = op_HtfPeriod;
       cfg.P_HtfEma  = op_P_HtfEma;
 
+      ApplyAdminOverrides(cfg);
       return;
    }
 

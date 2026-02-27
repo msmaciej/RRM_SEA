@@ -41,6 +41,18 @@ At minimum:
 - Gates / filters (spread/ATR bounds, HTF filters, RRM gates)
 - SL/TP multipliers and trailing mode/cushion parameters
 
+### AdminOverride system (preset testing, for experienced users)
+- `Inp_AdminOverridePreset = false` (default, Normal User Mode):
+  - Preset is fully enforced. Only Policy A operator gates are user-controlled.
+  - Protects users from accidentally breaking preset strategy-critical settings.
+  - Status Panel shows "AdminOverride: OFF [Normal User Mode]".
+- `Inp_AdminOverridePreset = true` (Admin User Mode):
+  - Override inputs (prefixed `[Admin]` in MT5 Inputs) become active after preset defaults are applied.
+  - Allows testing preset variations without editing `SEA_Presets.mqh` or recompiling.
+  - Status Panel shows "AdminOverride: ACTIVE [Admin Mode - Testing]".
+  - Tested configurations can be saved as `.set` files.
+  - This does NOT change PRESET_CUSTOM behavior (all inputs already respected in CUSTOM mode).
+
 ## 4) Agent ownership model (file boundaries)
 Each file has a single owner (agent). Changes must be routed accordingly.
 
