@@ -393,6 +393,24 @@ input double         Inp_Override_ATR_MinPips                = 0.0;       // [Ad
 input double         Inp_Override_ATR_MaxPips                = 0.0;       // [Admin] Override ATR max pips gate when AdminOverride=true
 input bool           Inp_Override_ATR_UseAsVote              = false;     // [Admin] Override ATR use-as-vote when AdminOverride=true
 
+input group "--- ADMIN OVERRIDE: ENTRY/EXIT PARAMETERS ---"
+input bool                Inp_Override_RequirePriceCross     = false;     // [Admin] Override RequirePriceCross when AdminOverride=true
+input bool                Inp_Override_UseHTF                = false;     // [Admin] Override HTF filter enabled when AdminOverride=true
+input bool                Inp_Override_CloseOnReverse        = true;      // [Admin] Override CloseOnReverse when AdminOverride=true
+input double              Inp_Override_RiskPercent           = 2.0;       // [Admin] Override RiskPercent (%) when AdminOverride=true
+input ESlPlacementMode    Inp_Override_SL_PlacementMode      = SL_ATR;    // [Admin] Override SL placement mode when AdminOverride=true
+input double              Inp_Override_SL_Mult               = 1.5;       // [Admin] Override SL ATR multiplier when AdminOverride=true
+input double              Inp_Override_SL_PsarPipsCushion    = 5.0;       // [Admin] Override SL PSAR cushion (pips) when AdminOverride=true
+input double              Inp_Override_SL_SwingPipsCushion   = 10.0;      // [Admin] Override SL swing cushion (pips) when AdminOverride=true
+input double              Inp_Override_TP_Mult               = 3.0;       // [Admin] Override TP multiplier when AdminOverride=true
+input bool                Inp_Override_Use_BE                = false;      // [Admin] Override breakeven enabled when AdminOverride=true
+input double              Inp_Override_BE_Trig               = 1.0;       // [Admin] Override BE trigger (R-multiple) when AdminOverride=true
+input double              Inp_Override_BE_Buff               = 0.1;       // [Admin] Override BE buffer (pips) when AdminOverride=true
+input ETrailingMode       Inp_Override_TrailMode             = TRAIL_NONE; // [Admin] Override trailing stop mode when AdminOverride=true
+input double              Inp_Override_Trail_Mult            = 1.5;       // [Admin] Override trail ATR multiplier when AdminOverride=true
+input EPsarTrailCushionMode Inp_Override_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // [Admin] Override PSAR trail cushion mode when AdminOverride=true
+input double              Inp_Override_PSAR_TrailPipsCushion = 5.0;       // [Admin] Override PSAR trail cushion (pips) when AdminOverride=true
+
 input group "=== BENCHMARK: MT5 MOVING AVERAGE ==="
 input double         Inp_MA_MaximumRiskPct      = 0.02;         // (PRESET_MA_BENCHMARK only) Max risk (%) for MA benchmark sizer
 input double         Inp_MA_DecreaseFactor      = 3.0;          // (PRESET_MA_BENCHMARK only) Lot decrease factor

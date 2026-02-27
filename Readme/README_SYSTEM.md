@@ -241,6 +241,27 @@ All override inputs are in the `=== ADMIN OVERRIDE: STRATEGY PARAMETERS ===` and
 | `Inp_Override_ATR_MaxPips` | double | 0.0 | Override ATR maximum pips gate (0 = disabled) |
 | `Inp_Override_ATR_UseAsVote` | bool | false | Override ATR use-as-vote flag |
 
+**Entry/exit parameters:**
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| `Inp_Override_RequirePriceCross` | bool | false | Override RequirePriceCross entry filter |
+| `Inp_Override_UseHTF` | bool | false | Override HTF trend filter enabled |
+| `Inp_Override_CloseOnReverse` | bool | true | Override CloseOnReverse on opposite signal |
+| `Inp_Override_RiskPercent` | double | 2.0 | Override risk per trade (%) |
+| `Inp_Override_SL_PlacementMode` | ESlPlacementMode | SL_ATR | Override initial SL placement mode |
+| `Inp_Override_SL_Mult` | double | 1.5 | Override SL ATR multiplier |
+| `Inp_Override_SL_PsarPipsCushion` | double | 5.0 | Override SL PSAR cushion (pips) |
+| `Inp_Override_SL_SwingPipsCushion` | double | 10.0 | Override SL swing high/low cushion (pips) |
+| `Inp_Override_TP_Mult` | double | 3.0 | Override TP R-multiple |
+| `Inp_Override_Use_BE` | bool | false | Override breakeven enabled |
+| `Inp_Override_BE_Trig` | double | 1.0 | Override BE trigger (R-multiple) |
+| `Inp_Override_BE_Buff` | double | 0.1 | Override BE buffer (pips) |
+| `Inp_Override_TrailMode` | ETrailingMode | TRAIL_NONE | Override trailing stop mode |
+| `Inp_Override_Trail_Mult` | double | 1.5 | Override trail ATR multiplier |
+| `Inp_Override_PSAR_TrailCushionMode` | EPsarTrailCushionMode | PSAR_CUSHION_PIPS | Override PSAR trail cushion mode |
+| `Inp_Override_PSAR_TrailPipsCushion` | double | 5.0 | Override PSAR trail cushion (pips) |
+
 ### Workflow
 
 **Normal User Workflow:**
