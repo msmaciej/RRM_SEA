@@ -209,6 +209,8 @@ All override inputs are in the `=== ADMIN OVERRIDE: STRATEGY PARAMETERS ===` and
 | `Inp_Override_Use_Mfi` | bool | false | Override MFI vote enabled |
 | `Inp_Override_Use_Sto` | bool | false | Override Stochastic vote enabled |
 | `Inp_Override_Use_Bb` | bool | false | Override Bollinger Bands vote enabled |
+| `Inp_Override_Use_P123` | bool | false | Override 1-2-3 pattern vote enabled |
+| `Inp_Override_Use_Ross` | bool | false | Override Ross hook vote enabled |
 | `Inp_Override_RRM_RequirePullbackReclaim` | bool | false | Override RRM pullback reclaim gate |
 | `Inp_Override_RRM_RequireEmaDiv` | bool | false | Override RRM EMA divergence gate |
 
