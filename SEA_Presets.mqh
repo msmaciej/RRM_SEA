@@ -94,8 +94,10 @@ string GetPresetContractWording(EStrategyPreset preset)
 // ApplyAdminOverrides(): applies admin override inputs onto cfg.
 // Called at the end of each non-CUSTOM preset block in ApplyPreset().
 // Only applies when cfg.AdminOverridePreset is true; no-op otherwise.
-// Overrides: AutoStrat, VoteThreshold, EMA periods, MACD periods,
-//            vote enable flags, and RRM gate flags.
+// Overrides: AutoStrat, VoteThreshold, EMA/MACD periods, vote enable flags,
+//            RRM gate flags, indicator thresholds, and entry/exit parameters
+//            (RequirePriceCross, UseHTF, CloseOnReverse, RiskPercent,
+//             SL/TP modes and multipliers, trailing stop, breakeven).
 void ApplyAdminOverrides(ST_Settings &cfg)
 {
    if(!cfg.AdminOverridePreset) return;
@@ -145,6 +147,23 @@ void ApplyAdminOverrides(ST_Settings &cfg)
    cfg.MinATR         = Inp_Override_ATR_MinPips;
    cfg.MaxATR         = Inp_Override_ATR_MaxPips;
    cfg.Use_ATRVote    = Inp_Override_ATR_UseAsVote;
+
+   cfg.RequirePriceCross     = Inp_Override_RequirePriceCross;
+   cfg.UseHTF                = Inp_Override_UseHTF;
+   cfg.CloseOnReverse        = Inp_Override_CloseOnReverse;
+   cfg.RiskPercent           = Inp_Override_RiskPercent;
+   cfg.SL_PlacementMode      = Inp_Override_SL_PlacementMode;
+   cfg.SL_Mult               = Inp_Override_SL_Mult;
+   cfg.SL_PsarPipsCushion    = Inp_Override_SL_PsarPipsCushion;
+   cfg.SL_SwingPipsCushion   = Inp_Override_SL_SwingPipsCushion;
+   cfg.TP_Mult               = Inp_Override_TP_Mult;
+   cfg.Use_BE                = Inp_Override_Use_BE;
+   cfg.BE_Trig               = Inp_Override_BE_Trig;
+   cfg.BE_Buff               = Inp_Override_BE_Buff;
+   cfg.TrailMode             = Inp_Override_TrailMode;
+   cfg.Trail_Mult            = Inp_Override_Trail_Mult;
+   cfg.PSAR_TrailCushionMode = Inp_Override_PSAR_TrailCushionMode;
+   cfg.PSAR_TrailPipsCushion = Inp_Override_PSAR_TrailPipsCushion;
 }
 
 void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
