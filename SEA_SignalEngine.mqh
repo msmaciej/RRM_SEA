@@ -193,7 +193,7 @@ private:
    // Vote 6: MFI (Money Flow)
    bool Check_MFI(int bias, int shift) {
       double m = GetVal(h_mfi, shift);
-      return (bias==1) ? (m > m_settings.T_Mfi) : (m < (100-m_settings.T_Mfi));
+      return (bias==1) ? (m > m_settings.T_MfiOB) : (m < m_settings.T_MfiOS);
    }
    
    // Vote 7: Stochastic
@@ -205,7 +205,7 @@ private:
          return (bias==1) ? (k > d) : (k < d);
          
       // Zone Filter: Buy if NOT overbought
-      return (bias==1) ? (k < 80) : (k > 20);
+      return (bias==1) ? (k < m_settings.T_StoOB) : (k > m_settings.T_StoOS);
    }
    
    // Vote 8: Bollinger Bands
@@ -416,7 +416,7 @@ public:
       h_ema2 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema2, h_shift, method, PRICE_CLOSE);
       h_ema3 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema3, h_shift, method, PRICE_CLOSE);
       h_ema4 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema4, h_shift, method, PRICE_CLOSE);
-      h_atr  = iATR(m_symbol, PERIOD_CURRENT, 14);
+      h_atr  = iATR(m_symbol, PERIOD_CURRENT, m_settings.P_Atr);
 
       // Optional indicators: create only when used by votes/filters/trailing (reduces Strategy Tester clutter)
       h_macd = (m_settings.Use_Macd ? iMACD(m_symbol, PERIOD_CURRENT, m_settings.P_MacdFast, m_settings.P_MacdSlow, m_settings.P_MacdSig, PRICE_CLOSE) : INVALID_HANDLE);
