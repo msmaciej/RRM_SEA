@@ -25,6 +25,12 @@ string g_sea_ui_last_cockpit_txt  = "";
 // -----------------------------------
 string SEA_UI_OnOff(const bool v) { return (v ? "ON" : "OFF"); }
 
+// Returns " [adm]" when admin override is active for a preset (marks overridden fields)
+string SEA_UI_AdmMark()
+{
+   return ((Settings.AdminOverridePreset && InpPreset != PRESET_CUSTOM) ? " [adm]" : "");
+}
+
 int SEA_UI_PipFactor()
 {
    int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
@@ -226,19 +232,21 @@ void SEA_UI_UpdateSettingsPanel()
 
    // --- Strategy
    txt += "--- Strategy ---\n";
-   txt += StringFormat("AutoStrat: %s\n", EnumToString(Settings.AutoStrat));
+   txt += StringFormat("AutoStrat: %s%s\n", EnumToString(Settings.AutoStrat), SEA_UI_AdmMark());
    txt += StringFormat("BiasEnabled: %s  BiasMode: %s\n",
                        SEA_UI_OnOff(Settings.BiasEnabled), EnumToString(Settings.BiasMode));
-   txt += StringFormat("EMA: %d/%d/%d/%d  VoteThreshold: %d\n",
+   txt += StringFormat("EMA: %d/%d/%d/%d%s  VoteThreshold: %d%s\n",
                        Settings.P_Ema1, Settings.P_Ema2, Settings.P_Ema3, Settings.P_Ema4,
-                       Settings.VoteThreshold);
-   txt += StringFormat("MACD: %d/%d/%d\n", Settings.P_MacdFast, Settings.P_MacdSlow, Settings.P_MacdSig);
+                       SEA_UI_AdmMark(), Settings.VoteThreshold, SEA_UI_AdmMark());
+   txt += StringFormat("MACD: %d/%d/%d%s\n", Settings.P_MacdFast, Settings.P_MacdSlow, Settings.P_MacdSig,
+                       SEA_UI_AdmMark());
 
    // --- Entry / Filters
    txt += "--- Entry / Filters ---\n";
-   txt += StringFormat("RequirePriceCross: %s  UseHTF: %s\n",
-                       SEA_UI_OnOff(Settings.RequirePriceCross), SEA_UI_OnOff(Settings.UseHTF));
-   txt += StringFormat("CloseOnReverse: %s\n", SEA_UI_OnOff(Settings.CloseOnReverse));
+   txt += StringFormat("RequirePriceCross: %s%s  UseHTF: %s\n",
+                       SEA_UI_OnOff(Settings.RequirePriceCross), SEA_UI_AdmMark(),
+                       SEA_UI_OnOff(Settings.UseHTF));
+   txt += StringFormat("CloseOnReverse: %s%s\n", SEA_UI_OnOff(Settings.CloseOnReverse), SEA_UI_AdmMark());
 
    // --- Position Sizing
    txt += "--- Position Sizing ---\n";
@@ -246,23 +254,25 @@ void SEA_UI_UpdateSettingsPanel()
       txt += StringFormat("Sizer: MACompat (MaxRisk=%.4f%%  Dec=%.2f)\n",
                           Settings.MA_MaximumRiskPct, Settings.MA_DecreaseFactor);
    else
-      txt += StringFormat("Sizer: Risk%%  RiskPercent=%.2f%%\n", Settings.RiskPercent);
+      txt += StringFormat("Sizer: Risk%%  RiskPercent=%.2f%%%s\n", Settings.RiskPercent, SEA_UI_AdmMark());
 
    // --- Exits: SL / TP
    txt += "--- Exits: SL / TP ---\n";
-   txt += StringFormat("SL: %s  Mult=%.2f\n", EnumToString(Settings.SL_PlacementMode), Settings.SL_Mult);
-   txt += StringFormat("TP_Mult=%.2f\n", Settings.TP_Mult);
+   txt += StringFormat("SL: %s%s  Mult=%.2f%s\n", EnumToString(Settings.SL_PlacementMode),
+                       SEA_UI_AdmMark(), Settings.SL_Mult, SEA_UI_AdmMark());
+   txt += StringFormat("TP_Mult=%.2f%s\n", Settings.TP_Mult, SEA_UI_AdmMark());
 
    // --- Exits: Breakeven
    txt += "--- Exits: Breakeven ---\n";
    if(Settings.Use_BE)
-      txt += StringFormat("BE: ON  Trig=%.2fR  Buff=%.1f pips\n", Settings.BE_Trig, Settings.BE_Buff);
+      txt += StringFormat("BE: ON%s  Trig=%.2fR  Buff=%.1f pips\n", SEA_UI_AdmMark(),
+                          Settings.BE_Trig, Settings.BE_Buff);
    else
-      txt += "BE: OFF\n";
+      txt += StringFormat("BE: OFF%s\n", SEA_UI_AdmMark());
 
    // --- Exits: Trailing
    txt += "--- Exits: Trailing ---\n";
-   string trail_str = EnumToString(Settings.TrailMode);
+   string trail_str = EnumToString(Settings.TrailMode) + SEA_UI_AdmMark();
    if(Settings.TrailMode == TRAIL_ATR)
       trail_str += StringFormat("  Mult=%.2f", Settings.Trail_Mult);
    else if(Settings.TrailMode == TRAIL_PSAR)
@@ -271,7 +281,7 @@ void SEA_UI_UpdateSettingsPanel()
 
    // Admin override notice
    if(Settings.AdminOverridePreset && InpPreset != PRESET_CUSTOM)
-      txt += "** ADMIN OVERRIDES APPLIED **\n";
+      txt += "** ADMIN OVERRIDES APPLIED [adm] **\n";
 
    if(txt == g_sea_ui_last_settings_txt)
       return;
