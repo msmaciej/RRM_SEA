@@ -185,7 +185,9 @@ The AdminOverride system allows experienced users (admins) to test variations of
 
 ### Override Inputs Reference
 
-All override inputs are in the `=== ADMIN OVERRIDE: STRATEGY PARAMETERS ===` group in MT5 Inputs. They are only active when `Inp_AdminOverridePreset = true`.
+All override inputs are in the `=== ADMIN OVERRIDE: STRATEGY PARAMETERS ===` and `--- ADMIN OVERRIDE: INDICATOR PARAMETERS ---` groups in MT5 Inputs. They are only active when `Inp_AdminOverridePreset = true`.
+
+**Strategy parameters:**
 
 | Input | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -209,6 +211,33 @@ All override inputs are in the `=== ADMIN OVERRIDE: STRATEGY PARAMETERS ===` gro
 | `Inp_Override_Use_Bb` | bool | false | Override Bollinger Bands vote enabled |
 | `Inp_Override_RRM_RequirePullbackReclaim` | bool | false | Override RRM pullback reclaim gate |
 | `Inp_Override_RRM_RequireEmaDiv` | bool | false | Override RRM EMA divergence gate |
+
+**Indicator parameters (threshold testing):**
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| `Inp_Override_ADX_Period` | int | 14 | Override ADX period |
+| `Inp_Override_ADX_Threshold` | int | 20 | Override ADX trend threshold |
+| `Inp_Override_RSI_Period` | int | 14 | Override RSI period |
+| `Inp_Override_RSI_OB` | double | 70.0 | Override RSI overbought level |
+| `Inp_Override_RSI_OS` | double | 30.0 | Override RSI oversold level |
+| `Inp_Override_STO_K` | int | 5 | Override Stochastic %K period |
+| `Inp_Override_STO_D` | int | 3 | Override Stochastic %D period |
+| `Inp_Override_STO_Slow` | int | 3 | Override Stochastic slowing period |
+| `Inp_Override_STO_OB` | double | 80.0 | Override Stochastic overbought level (zone filter mode) |
+| `Inp_Override_STO_OS` | double | 20.0 | Override Stochastic oversold level (zone filter mode) |
+| `Inp_Override_PSAR_Step` | double | 0.05 | Override PSAR acceleration step |
+| `Inp_Override_PSAR_Max` | double | 0.5 | Override PSAR maximum acceleration |
+| `Inp_Override_CCI_Period` | int | 14 | Override CCI period |
+| `Inp_Override_BB_Period` | int | 20 | Override Bollinger Bands period |
+| `Inp_Override_BB_Dev` | double | 2.0 | Override Bollinger Bands deviation |
+| `Inp_Override_MFI_Period` | int | 14 | Override MFI period |
+| `Inp_Override_MFI_OB` | double | 50.0 | Override MFI overbought threshold (buy if MFI > OB) |
+| `Inp_Override_MFI_OS` | double | 50.0 | Override MFI oversold threshold (sell if MFI < OS) |
+| `Inp_Override_ATR_Period` | int | 14 | Override ATR period |
+| `Inp_Override_ATR_MinPips` | double | 0.0 | Override ATR minimum pips gate (0 = disabled) |
+| `Inp_Override_ATR_MaxPips` | double | 0.0 | Override ATR maximum pips gate (0 = disabled) |
+| `Inp_Override_ATR_UseAsVote` | bool | false | Override ATR use-as-vote flag |
 
 ### Workflow
 

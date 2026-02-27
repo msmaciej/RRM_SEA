@@ -237,14 +237,19 @@ struct ST_Settings
    int    P_Cci;
    int    P_Mfi;
    double T_Mfi;
+   int    P_Atr;
    int    P_StoK;
    int    P_StoD;
    int    P_StoSlow;
+   double T_StoOB;
+   double T_StoOS;
    int    P_Bb;
    double P_BbDev;
    double P_PsarStep;
    double P_PsarMax;
    double P_PsarTrailCushionATR;
+   double T_MfiOB;
+   double T_MfiOS;
 
    // Modes
    EMacdMode  MacdMode;
@@ -361,6 +366,30 @@ input bool           Inp_Override_Use_Sto             = false;            // [Ad
 input bool           Inp_Override_Use_Bb              = false;            // [Admin] Override Bollinger vote when AdminOverride=true
 input bool           Inp_Override_RRM_RequirePullbackReclaim = false;     // [Admin] Override RRM pullback reclaim gate when AdminOverride=true
 input bool           Inp_Override_RRM_RequireEmaDiv          = false;     // [Admin] Override RRM EMA divergence gate when AdminOverride=true
+
+input group "--- ADMIN OVERRIDE: INDICATOR PARAMETERS ---"
+input int            Inp_Override_ADX_Period                 = 14;        // [Admin] Override ADX period when AdminOverride=true
+input int            Inp_Override_ADX_Threshold              = 20;        // [Admin] Override ADX threshold when AdminOverride=true
+input int            Inp_Override_RSI_Period                 = 14;        // [Admin] Override RSI period when AdminOverride=true
+input double         Inp_Override_RSI_OB                     = 70.0;      // [Admin] Override RSI overbought level when AdminOverride=true
+input double         Inp_Override_RSI_OS                     = 30.0;      // [Admin] Override RSI oversold level when AdminOverride=true
+input int            Inp_Override_STO_K                      = 5;         // [Admin] Override Stochastic %K period when AdminOverride=true
+input int            Inp_Override_STO_D                      = 3;         // [Admin] Override Stochastic %D period when AdminOverride=true
+input int            Inp_Override_STO_Slow                   = 3;         // [Admin] Override Stochastic slowing period when AdminOverride=true
+input double         Inp_Override_STO_OB                     = 80.0;      // [Admin] Override Stochastic overbought level when AdminOverride=true
+input double         Inp_Override_STO_OS                     = 20.0;      // [Admin] Override Stochastic oversold level when AdminOverride=true
+input double         Inp_Override_PSAR_Step                  = 0.05;      // [Admin] Override PSAR step when AdminOverride=true
+input double         Inp_Override_PSAR_Max                   = 0.5;       // [Admin] Override PSAR maximum when AdminOverride=true
+input int            Inp_Override_CCI_Period                 = 14;        // [Admin] Override CCI period when AdminOverride=true
+input int            Inp_Override_BB_Period                  = 20;        // [Admin] Override Bollinger Bands period when AdminOverride=true
+input double         Inp_Override_BB_Dev                     = 2.0;       // [Admin] Override Bollinger Bands deviation when AdminOverride=true
+input int            Inp_Override_MFI_Period                 = 14;        // [Admin] Override MFI period when AdminOverride=true
+input double         Inp_Override_MFI_OB                     = 50.0;      // [Admin] Override MFI overbought threshold when AdminOverride=true
+input double         Inp_Override_MFI_OS                     = 50.0;      // [Admin] Override MFI oversold threshold when AdminOverride=true
+input int            Inp_Override_ATR_Period                 = 14;        // [Admin] Override ATR period when AdminOverride=true
+input double         Inp_Override_ATR_MinPips                = 0.0;       // [Admin] Override ATR min pips gate when AdminOverride=true
+input double         Inp_Override_ATR_MaxPips                = 0.0;       // [Admin] Override ATR max pips gate when AdminOverride=true
+input bool           Inp_Override_ATR_UseAsVote              = false;     // [Admin] Override ATR use-as-vote when AdminOverride=true
 
 input group "=== BENCHMARK: MT5 MOVING AVERAGE ==="
 input double         Inp_MA_MaximumRiskPct      = 0.02;         // (PRESET_MA_BENCHMARK only) Max risk (%) for MA benchmark sizer
@@ -653,14 +682,19 @@ void InitializeConfig()
    Settings.P_Cci                = InpCciPeriod;
    Settings.P_Mfi                = InpMfiPeriod;
    Settings.T_Mfi                = InpMfiLevel;
+   Settings.T_MfiOB              = InpMfiLevel;
+   Settings.T_MfiOS              = InpMfiLevel;
    Settings.P_StoK               = InpStoK;
    Settings.P_StoD               = InpStoD;
    Settings.P_StoSlow            = InpStoSlow;
+   Settings.T_StoOB              = 80.0;
+   Settings.T_StoOS              = 20.0;
    Settings.P_Bb                 = InpBbPeriod;
    Settings.P_BbDev              = InpBbDev;
    Settings.P_PsarStep           = InpPsarStep;
    Settings.P_PsarMax            = InpPsarMax;
    Settings.P_PsarTrailCushionATR= Inp_PSAR_TrailCushionATR;
+   Settings.P_Atr                = 14;
 
    // Modes
    Settings.MacdMode             = InpMacdMode;

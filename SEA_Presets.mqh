@@ -120,6 +120,29 @@ void ApplyAdminOverrides(ST_Settings &cfg)
    cfg.Use_Bb         = Inp_Override_Use_Bb;
    cfg.RRM_RequirePullbackReclaim = Inp_Override_RRM_RequirePullbackReclaim;
    cfg.RRM_RequireEmaDiv          = Inp_Override_RRM_RequireEmaDiv;
+
+   cfg.P_Adx          = Inp_Override_ADX_Period;
+   cfg.T_Adx          = Inp_Override_ADX_Threshold;
+   cfg.P_Rsi          = Inp_Override_RSI_Period;
+   cfg.T_RsiOB        = Inp_Override_RSI_OB;
+   cfg.T_RsiOS        = Inp_Override_RSI_OS;
+   cfg.P_StoK         = Inp_Override_STO_K;
+   cfg.P_StoD         = Inp_Override_STO_D;
+   cfg.P_StoSlow      = Inp_Override_STO_Slow;
+   cfg.T_StoOB        = Inp_Override_STO_OB;
+   cfg.T_StoOS        = Inp_Override_STO_OS;
+   cfg.P_PsarStep     = Inp_Override_PSAR_Step;
+   cfg.P_PsarMax      = Inp_Override_PSAR_Max;
+   cfg.P_Cci          = Inp_Override_CCI_Period;
+   cfg.P_Bb           = Inp_Override_BB_Period;
+   cfg.P_BbDev        = Inp_Override_BB_Dev;
+   cfg.P_Mfi          = Inp_Override_MFI_Period;
+   cfg.T_MfiOB        = Inp_Override_MFI_OB;
+   cfg.T_MfiOS        = Inp_Override_MFI_OS;
+   cfg.P_Atr          = Inp_Override_ATR_Period;
+   cfg.MinATR         = Inp_Override_ATR_MinPips;
+   cfg.MaxATR         = Inp_Override_ATR_MaxPips;
+   cfg.Use_ATRVote    = Inp_Override_ATR_UseAsVote;
 }
 
 void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
