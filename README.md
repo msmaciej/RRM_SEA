@@ -16,7 +16,7 @@ All current docs live in `Readme/`:
 Historical/obsolete documentation is stored in `Legacy/`.  
 Do not use it unless explicitly required:
 
-- `Legacy/_README_LEGACY.md`
+- `Legacy/README_LEGACY.md`
 
 ## Quick start (for a new task)
 1. Read `Readme/README_SEA_BOOTSTRAP.md`
