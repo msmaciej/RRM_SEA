@@ -161,6 +161,44 @@ This project uses a strict, file-owned, multi-agent workflow coordinated by **SE
   - any other preset → preset fully defines strategy-critical settings and overrides strategy inputs
 
 
+## Input Parameter Layout (4 Visual Zones)
+
+`SEA_Config.mqh` organises all EA inputs into four clearly marked zones visible in the MT5 Inputs dialog:
+
+| Zone | Header | Purpose |
+|------|--------|---------|
+| 🎯 ZONE 1 | `══ ZONE 1: PRESET SELECTION ══` | Magic number and strategy preset selection |
+| ✅ ZONE 2 | `══ ZONE 2: USER CONTROLS (Policy A — always editable) ══` | Operator gates and UI/diagnostic settings — always respected regardless of preset |
+| ℹ️ ZONE 3A | `══ ZONE 3A: PRESET INFO (presets override these when active) ══` | Reference defaults — effective in `PRESET_CUSTOM`; preset overrides these when any other preset is active |
+| 🔓 ZONE 3B | `══ ZONE 3B: ADMIN OVERRIDE (set true to activate §1-§4 below) ══` | Four numbered admin override sections for preset testing |
+
+### Zone 2 — User Controls (Policy A gates)
+
+Zone 2 groups the inputs that are **always editable** under any preset:
+
+- `--- ✅ Operator Gates: Spread & ATR Limits ---` — `MaxSpreadPips`, `MinATRPips`, `MaxATRPips`
+- `--- ✅ Operator Gates: Session Time Filter ---` — `UseTime`, `StartHour`, `EndHour`
+- `--- ✅ Operator Gates: News Filter ---` — `UseNews`, `NewsFile`, `NewsPre`, `NewsPost`
+- `--- ✅ Operator Gates: HTF Trend Filter ---` — `UseHTF`, `HtfPeriod`, `HtfEmaPeriod`
+- `--- ✅ UI: Status Panel ---`, `--- ✅ UI: Cockpit Panel ---`, `--- ✅ UI: Signal Markers ---`, `--- ✅ UI: Colors & Framing ---`
+- `--- ✅ Diagnostics ---`, `--- ✅ Reporting ---`
+
+### Zone 3B — Admin Override (§1–§4 sections)
+
+When `Inp_AdminOverridePreset = true`, the four numbered sections become active:
+
+| Section | Header | Contents |
+|---------|--------|----------|
+| §1 | `--- 🔓 §1 Admin Override: Strategy, EMAs & Votes ---` | AutoStrat, VoteThreshold, EMA1–4, all vote enables, RRM gates |
+| §2 | `--- 🔓 §2 Admin Override: Indicator Periods & Thresholds ---` | MACD, ADX, RSI, STO, PSAR, CCI, BB, MFI, ATR periods/thresholds |
+| §3 | `--- 🔓 §3 Admin Override: Risk & Entry ---` | RequirePriceCross, UseHTF, CloseOnReverse, RiskPercent, SL placement |
+| §4 | `--- 🔓 §4 Admin Override: Exits — TP, Breakeven & Trailing ---` | TP_Mult, BE settings, TrailMode, PSAR trail cushion |
+
+### Status Panel — Admin Override Change Markers
+
+When `Inp_AdminOverridePreset = true` and a preset is active, the Status Panel appends `[adm]` to all fields that are controlled by the admin override sections (§1–§4). This makes it immediately visible which effective-config values came from admin overrides rather than preset defaults.
+
+
 ## AdminOverride System (Preset Testing)
 
 ### Overview
@@ -185,7 +223,7 @@ The AdminOverride system allows experienced users (admins) to test variations of
 
 ### Override Inputs Reference
 
-All override inputs are in the `=== ADMIN OVERRIDE: STRATEGY PARAMETERS ===` and `--- ADMIN OVERRIDE: INDICATOR PARAMETERS ---` groups in MT5 Inputs. They are only active when `Inp_AdminOverridePreset = true`.
+All override inputs are in **Zone 3B (§1–§4)** in MT5 Inputs (visible only when `Inp_AdminOverridePreset = true`).
 
 **Strategy parameters:**
 
