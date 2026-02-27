@@ -401,8 +401,160 @@ public:
    int    LastVotes()  const { return m_diag_last_votes; }
    string LastReason() const { return m_diag_last_reason; }
 
+   // --- VOTE SNAPSHOT (for Cockpit per-vote display) ---
+   // Evaluates each enabled vote independently (BUY/SELL/FLAT) without changing internal state.
+   void CaptureVoteSnapshots(SVoteSnapshot &out[], int &count)
+   {
+      int shift = m_settings.ma_v_shift;
+      count = 0;
+      ArrayResize(out, 12);
 
-   // --- 6. INITIALIZATION ---
+      if(m_settings.Use_EmaSig && h_ema1 != INVALID_HANDLE)
+      {
+         double p = iClose(m_symbol, PERIOD_CURRENT, shift);
+         double e = GetMAVal(h_ema1, shift);
+         out[count].name    = "EmaSig";
+         out[count].enabled = true;
+         if(p > e)      { out[count].state = "BUY";  out[count].reason = "(price>EMA1)"; }
+         else if(p < e) { out[count].state = "SELL"; out[count].reason = "(price<EMA1)"; }
+         else           { out[count].state = "FLAT"; out[count].reason = "(price=EMA1)"; }
+         count++;
+      }
+
+      if(m_settings.Use_Adx && h_adx != INVALID_HANDLE)
+      {
+         double adx = GetVal(h_adx, shift);
+         bool pass = (adx > m_settings.T_Adx);
+         out[count].name    = "ADX";
+         out[count].enabled = true;
+         if(pass && m_diag_last_bias ==  1) { out[count].state = "BUY";  out[count].reason = StringFormat("(ADX=%.0f>%d)", adx, m_settings.T_Adx); }
+         else if(pass && m_diag_last_bias == -1) { out[count].state = "SELL"; out[count].reason = StringFormat("(ADX=%.0f>%d)", adx, m_settings.T_Adx); }
+         else                               { out[count].state = "FLAT"; out[count].reason = StringFormat("(ADX=%.0f%s%d)", adx, pass?">=":"<=", m_settings.T_Adx); }
+         count++;
+      }
+
+      if(m_settings.Use_Macd && h_macd != INVALID_HANDLE)
+      {
+         bool b = Check_MACD(1, shift);
+         bool s = Check_MACD(-1, shift);
+         double m = GetVal(h_macd, shift, 0);
+         double sig = GetVal(h_macd, shift, 1);
+         out[count].name    = "MACD";
+         out[count].enabled = true;
+         if(b)      { out[count].state = "BUY";  out[count].reason = StringFormat("(main=%.5f>sig,>0)", m); }
+         else if(s) { out[count].state = "SELL"; out[count].reason = StringFormat("(main=%.5f<sig,<0)", m); }
+         else       { out[count].state = "FLAT"; out[count].reason = StringFormat("(main=%.5f,sig=%.5f)", m, sig); }
+         count++;
+      }
+
+      if(m_settings.Use_Rsi && h_rsi != INVALID_HANDLE)
+      {
+         bool b = Check_RSI(1, shift);
+         bool s = Check_RSI(-1, shift);
+         double r = GetVal(h_rsi, shift);
+         out[count].name    = "RSI";
+         out[count].enabled = true;
+         if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(RSI=%.0f buy)", r); }
+         else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(RSI=%.0f sell)", r); }
+         else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(RSI=%.0f neutral)", r); }
+         count++;
+      }
+
+      if(m_settings.Use_Cci && h_cci != INVALID_HANDLE)
+      {
+         bool b = Check_CCI(1, shift);
+         bool s = Check_CCI(-1, shift);
+         double c = GetVal(h_cci, shift);
+         out[count].name    = "CCI";
+         out[count].enabled = true;
+         if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(CCI=%.0f>0)", c); }
+         else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(CCI=%.0f<0)", c); }
+         else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(CCI=%.0f)", c); }
+         count++;
+      }
+
+      if(m_settings.Use_Mfi && h_mfi != INVALID_HANDLE)
+      {
+         bool b = Check_MFI(1, shift);
+         bool s = Check_MFI(-1, shift);
+         double mfi = GetVal(h_mfi, shift);
+         out[count].name    = "MFI";
+         out[count].enabled = true;
+         if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(MFI=%.0f)", mfi); }
+         else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(MFI=%.0f)", mfi); }
+         else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(MFI=%.0f neutral)", mfi); }
+         count++;
+      }
+
+      if(m_settings.Use_Sto && h_sto != INVALID_HANDLE)
+      {
+         bool b = Check_Sto(1, shift);
+         bool s = Check_Sto(-1, shift);
+         double k = GetVal(h_sto, shift, 0);
+         double d = GetVal(h_sto, shift, 1);
+         out[count].name    = "Stoch";
+         out[count].enabled = true;
+         if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(K=%.0f>D=%.0f)", k, d); }
+         else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(K=%.0f<D=%.0f)", k, d); }
+         else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(K=%.0f,D=%.0f)", k, d); }
+         count++;
+      }
+
+      if(m_settings.Use_Bb && h_bb != INVALID_HANDLE)
+      {
+         bool b = Check_BB(1, shift);
+         bool s = Check_BB(-1, shift);
+         double mid = GetVal(h_bb, shift, 0);
+         double cl  = iClose(m_symbol, PERIOD_CURRENT, shift);
+         out[count].name    = "BB";
+         out[count].enabled = true;
+         if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(price>mid=%.5f)", mid); }
+         else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(price<mid=%.5f)", mid); }
+         else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(cl=%.5f,mid=%.5f)", cl, mid); }
+         count++;
+      }
+
+      if(m_settings.Use_Psar && h_psar != INVALID_HANDLE)
+      {
+         bool b = Check_PSAR(1, shift);
+         bool s = Check_PSAR(-1, shift);
+         double p = GetVal(h_psar, shift);
+         out[count].name    = "PSAR";
+         out[count].enabled = true;
+         if(b)      { out[count].state = "BUY";  out[count].reason = StringFormat("(dot=%.5f<price)", p); }
+         else if(s) { out[count].state = "SELL"; out[count].reason = StringFormat("(dot=%.5f>price)", p); }
+         else       { out[count].state = "FLAT"; out[count].reason = "(no signal)"; }
+         count++;
+      }
+
+      if(m_settings.Use_P123 && h_fractals != INVALID_HANDLE)
+      {
+         bool b = Check_P123(1, shift);
+         bool s = Check_P123(-1, shift);
+         out[count].name    = "P123";
+         out[count].enabled = true;
+         if(b)      { out[count].state = "BUY";  out[count].reason = "(above fractal)"; }
+         else if(s) { out[count].state = "SELL"; out[count].reason = "(below fractal)"; }
+         else       { out[count].state = "FLAT"; out[count].reason = "(no breakout)"; }
+         count++;
+      }
+
+      if(m_settings.Use_Ross && h_fractals != INVALID_HANDLE)
+      {
+         bool b = Check_Ross(1, shift);
+         bool s = Check_Ross(-1, shift);
+         out[count].name    = "Ross";
+         out[count].enabled = true;
+         if(b)      { out[count].state = "BUY";  out[count].reason = "(hook+trend)"; }
+         else if(s) { out[count].state = "SELL"; out[count].reason = "(hook+trend)"; }
+         else       { out[count].state = "FLAT"; out[count].reason = "(no hook)"; }
+         count++;
+      }
+
+      ArrayResize(out, count);
+   }
+
+
    bool Init(ST_Settings &sets, string symbol) {
       m_settings = sets;
       m_symbol   = symbol;

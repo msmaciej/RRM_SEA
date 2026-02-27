@@ -90,7 +90,7 @@ void SEA_UI_DestroyPanel(const string panel_name)
    string bg = panel_name + "_BG";
    ObjectDelete(0, bg);
 
-   for(int i=0; i<50; i++)
+   for(int i=0; i<70; i++)
    {
       string ln = panel_name + StringFormat("_L%02d", i);
       ObjectDelete(0, ln);
@@ -119,7 +119,7 @@ void SEA_UI_RenderPanel(
       n = 1;
    }
 
-   if(n > 50) n = 50;
+   if(n > 70) n = 70;
 
    int max_chars = 0;
    for(int i=0; i<n; i++)
@@ -178,11 +178,98 @@ void SEA_UI_RenderPanel(
       ObjectSetString(0,  ln, OBJPROP_TEXT,      lines[i]);
    }
 
-   for(int i=n; i<50; i++)
+   for(int i=n; i<70; i++)
    {
       string ln = panel_name + StringFormat("_L%02d", i);
       ObjectDelete(0, ln);
    }
+}
+
+// -----------------------------------
+// Vote & Config Display Helpers
+// -----------------------------------
+string SEA_UI_BuildActiveVotesList(const ST_Settings &cfg)
+{
+   string output = "";
+   int count = 0;
+   if(cfg.Use_EmaSig) { output += "  + EmaSig  (EMA1 price position)\n"; count++; }
+   if(cfg.Use_Adx)    { output += "  + ADX     (trend strength)\n";       count++; }
+   if(cfg.Use_Macd)   { output += "  + MACD    (momentum)\n";             count++; }
+   if(cfg.Use_Rsi)    { output += "  + RSI     (momentum zones)\n";       count++; }
+   if(cfg.Use_Cci)    { output += "  + CCI     (cyclical)\n";             count++; }
+   if(cfg.Use_Mfi)    { output += "  + MFI     (money flow)\n";           count++; }
+   if(cfg.Use_Sto)    { output += "  + Stoch   (oscillator)\n";           count++; }
+   if(cfg.Use_Bb)     { output += "  + BB      (volatility bands)\n";     count++; }
+   if(cfg.Use_Psar)   { output += "  + PSAR    (trend direction)\n";      count++; }
+   if(cfg.Use_P123)   { output += "  + P123    (123 pattern)\n";          count++; }
+   if(cfg.Use_Ross)   { output += "  + Ross    (Ross hook)\n";            count++; }
+   return StringFormat("Active Votes (%d enabled):\n%s", count, output);
+}
+
+string SEA_UI_BuildDisabledVotesList(const ST_Settings &cfg)
+{
+   string list = "";
+   if(!cfg.Use_EmaSig) list += "EmaSig, ";
+   if(!cfg.Use_Adx)    list += "ADX, ";
+   if(!cfg.Use_Macd)   list += "MACD, ";
+   if(!cfg.Use_Rsi)    list += "RSI, ";
+   if(!cfg.Use_Cci)    list += "CCI, ";
+   if(!cfg.Use_Mfi)    list += "MFI, ";
+   if(!cfg.Use_Sto)    list += "Stoch, ";
+   if(!cfg.Use_Bb)     list += "BB, ";
+   if(!cfg.Use_Psar)   list += "PSAR, ";
+   if(!cfg.Use_P123)   list += "P123, ";
+   if(!cfg.Use_Ross)   list += "Ross, ";
+   if(StringLen(list) > 2)
+      list = StringSubstr(list, 0, StringLen(list) - 2);
+   if(list == "") return "Disabled Votes: (none)\n";
+   return "Disabled Votes:\n  - " + list + "\n";
+}
+
+string SEA_UI_BuildIndicatorConfigs(const ST_Settings &cfg)
+{
+   string output = "Indicator Configs:\n";
+   if(cfg.Use_Macd)
+      output += StringFormat("  MACD: %d/%d/%d (Fast/Slow/Sig)\n",
+                             cfg.P_MacdFast, cfg.P_MacdSlow, cfg.P_MacdSig);
+   if(cfg.Use_Psar)
+      output += StringFormat("  PSAR: Step=%.2f, Max=%.2f\n",
+                             cfg.P_PsarStep, cfg.P_PsarMax);
+   if(cfg.Use_Rsi)
+      output += StringFormat("  RSI: Period=%d, OB=%.0f, OS=%.0f\n",
+                             cfg.P_Rsi, cfg.T_RsiOB, cfg.T_RsiOS);
+   if(cfg.Use_Cci)
+      output += StringFormat("  CCI: Period=%d\n", cfg.P_Cci);
+   if(cfg.Use_Adx)
+      output += StringFormat("  ADX: Period=%d, Threshold=%d\n",
+                             cfg.P_Adx, cfg.T_Adx);
+   if(cfg.Use_Sto)
+      output += StringFormat("  Stoch: K=%d, D=%d, Slow=%d\n",
+                             cfg.P_StoK, cfg.P_StoD, cfg.P_StoSlow);
+   if(cfg.Use_Mfi)
+      output += StringFormat("  MFI: Period=%d\n", cfg.P_Mfi);
+   if(cfg.Use_Bb)
+      output += StringFormat("  BB: Period=%d, Dev=%.1f\n",
+                             cfg.P_Bb, cfg.P_BbDev);
+   return output;
+}
+
+string SEA_UI_BuildVoteBreakdown(const SVoteSnapshot &votes[], const int voteCount, const int threshold)
+{
+   if(voteCount <= 0) return "";
+   int activeVotes = 0;
+   string lines = "";
+   for(int i = 0; i < voteCount; i++)
+   {
+      string icon = (votes[i].state == "FLAT") ? "-" : "+";
+      lines += StringFormat("  %s %-7s %-5s %s\n",
+                            icon,
+                            votes[i].name + ":",
+                            votes[i].state,
+                            votes[i].reason);
+      if(votes[i].state == "BUY" || votes[i].state == "SELL") activeVotes++;
+   }
+   return StringFormat("Vote Status: %d/%d (need %d)\n", activeVotes, threshold, threshold) + lines;
 }
 
 // -----------------------------------
@@ -238,8 +325,11 @@ void SEA_UI_UpdateSettingsPanel()
    txt += StringFormat("EMA: %d/%d/%d/%d%s  VoteThreshold: %d%s\n",
                        Settings.P_Ema1, Settings.P_Ema2, Settings.P_Ema3, Settings.P_Ema4,
                        SEA_UI_AdmMark(), Settings.VoteThreshold, SEA_UI_AdmMark());
-   txt += StringFormat("MACD: %d/%d/%d%s\n", Settings.P_MacdFast, Settings.P_MacdSlow, Settings.P_MacdSig,
-                       SEA_UI_AdmMark());
+
+   // --- Active & Disabled Votes
+   txt += SEA_UI_BuildActiveVotesList(Settings);
+   txt += SEA_UI_BuildDisabledVotesList(Settings);
+   txt += SEA_UI_BuildIndicatorConfigs(Settings);
 
    // --- Entry / Filters
    txt += "--- Entry / Filters ---\n";
@@ -306,7 +396,9 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
                                 const int    last_votes,
                                 const string last_reason,
                                 const string ts_snap,
-                                const string te_snap)
+                                const string te_snap,
+                                const SVoteSnapshot &vote_snaps[],
+                                const int    vote_snap_count)
 {
    if(!Inp_UI_ShowCockpitPanel)
    {
@@ -375,6 +467,10 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
    txt += gates_line + "\n";
    txt += risk_line  + "\n";
    txt += sig_line   + "\n";
+
+   // Per-vote runtime breakdown
+   if(vote_snap_count > 0)
+      txt += SEA_UI_BuildVoteBreakdown(vote_snaps, vote_snap_count, Settings.VoteThreshold);
 
    if(has_pos)
    {

@@ -166,6 +166,15 @@ struct SNewsEvent
    string   impact;
 };
 
+// Vote state snapshot for runtime display
+struct SVoteSnapshot
+{
+   string name;      // "MACD", "PSAR", etc.
+   string state;     // "BUY", "SELL", "FLAT", "PASS"
+   string reason;    // Brief explanation
+   bool   enabled;   // Is this vote enabled in config?
+};
+
 // Single settings struct used across the EA
 // NOTE: Architecture currently expects a global "Settings" instance of this type.
 struct ST_Settings
