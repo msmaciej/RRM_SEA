@@ -118,6 +118,8 @@ void ApplyAdminOverrides(ST_Settings &cfg)
    cfg.Use_Mfi        = Inp_Override_Use_Mfi;
    cfg.Use_Sto        = Inp_Override_Use_Sto;
    cfg.Use_Bb         = Inp_Override_Use_Bb;
+   cfg.Use_P123       = Inp_Override_Use_P123;
+   cfg.Use_Ross       = Inp_Override_Use_Ross;
    cfg.RRM_RequirePullbackReclaim = Inp_Override_RRM_RequirePullbackReclaim;
    cfg.RRM_RequireEmaDiv          = Inp_Override_RRM_RequireEmaDiv;
 }
