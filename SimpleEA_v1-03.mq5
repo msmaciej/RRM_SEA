@@ -302,7 +302,11 @@ int OrchestrateInit()
 
    SEA_UI_Init(Inp_MagicNum);
    SEA_UI_UpdateSettingsPanel();
-   SEA_UI_UpdateCockpitPanel(Signal.GetATR(), 0, Signal.LastBias(), Signal.LastVotes(), Signal.LastReason(), "", "");
+   {
+      SVoteSnapshot init_snaps[];
+      int init_snap_count = 0;
+      SEA_UI_UpdateCockpitPanel(Signal.GetATR(), 0, Signal.LastBias(), Signal.LastVotes(), Signal.LastReason(), "", "", init_snaps, init_snap_count);
+   }
 
    FlowLog("OnInit complete -> INIT_SUCCEEDED");
    return INIT_SUCCEEDED;
@@ -382,7 +386,17 @@ void OrchestrateTick()
          Print("TE: ", te_snap);
    }
 
-   SEA_UI_UpdateCockpitPanel(atr, direction, Signal.LastBias(), Signal.LastVotes(), Signal.LastReason(), ts_snap, te_snap);
+   // Capture current vote states for cockpit display
+   // NOTE: Must capture diagnostics before CaptureVoteSnapshots to avoid side-effects
+   //       from Check_P123 which writes to m_diag_last_reason.
+   int   snap_bias   = Signal.LastBias();
+   int   snap_votes  = Signal.LastVotes();
+   string snap_reason = Signal.LastReason();
+   SVoteSnapshot vote_snaps[];
+   int vote_snap_count = 0;
+   Signal.CaptureVoteSnapshots(vote_snaps, vote_snap_count);
+
+   SEA_UI_UpdateCockpitPanel(atr, direction, snap_bias, snap_votes, snap_reason, ts_snap, te_snap, vote_snaps, vote_snap_count);
    FlowLog("Bar pipeline complete");
 }
 
