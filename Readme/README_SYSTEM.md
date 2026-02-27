@@ -119,6 +119,41 @@ The system uses a multiplicative formula where ANY component = 0 → entire resu
 * Trade entry: Happens on shift=0 (NEW candle open) for predictable execution.+1
 
 
+## PRESET_RRM: Strict No-ATR Trend Pullback
+
+`PRESET_RRM` enforces the following SL/TP contract. These are **not user-configurable** under this preset:
+
+**SL Placement:**
+- Primary: Swing high/low (`SL_SWING_HIGHLOW`) with timeframe-based cushion
+- Backup: PSAR dot with timeframe-based cushion (used by `RRM_GetStrictSL` fallback)
+- ATR: **DISABLED** (`SL_Mult = 0.0`, `ExitProfile = EXIT_PROFILE_RRM_STRICT_NO_ATR`)
+
+**Cushion Auto-Scaling (non-JPY / JPY):**
+
+| Timeframe | Initial SL Cushion | Trailing Cushion |
+|-----------|-------------------|-----------------|
+| M1        | 2 / 3 pips        | 1 / 2 pips      |
+| M5        | 3 / 5 pips        | 2 / 3 pips      |
+| M15       | 5 / 8 pips        | 3 / 5 pips      |
+| H1        | 10 / 15 pips      | 7 / 10 pips     |
+| H4        | 15 / 25 pips      | 10 / 15 pips    |
+| D1        | 25 / 40 pips      | 15 / 25 pips    |
+
+**TP:** 3R based on actual SL distance (not ATR) — `TP_Mult = 3.0`
+
+**Trailing:** PSAR with timeframe-based cushion only (`TRAIL_PSAR`, `PSAR_CUSHION_PIPS`)
+
+**Breakeven:** OFF (`BE_Mode = BE_MODE_OFF`)
+
+**Stop Level Validation:** Before every order, `ValidateStopLevels()` checks that SL and TP distances
+meet the broker's minimum stop level (`SYMBOL_TRADE_STOPS_LEVEL`). If validation fails, the trade is
+aborted and an error is logged (prevents Error 10041 / TRADE_RETCODE_LOCKED).
+
+**PRESET_RRM_ATR** is the ATR-based hybrid variant (`SL_ATR`, `SL_Mult = 2.0`). Use `PRESET_RRM_ATR`
+when you prefer ATR-scaled stops (adapts to current volatility) and are comfortable with tighter
+SLs on low-volatility sessions. Use `PRESET_RRM` when you need swing-anchored stops that respect
+structure regardless of ATR size, and to avoid broker minimum-stop rejections on small ATR readings.
+
 ## PSAR/Swing Cushion System (Dual Cushion)
 
 SimpleEA implements an auto-scaling cushion system for stop loss placement and trailing:

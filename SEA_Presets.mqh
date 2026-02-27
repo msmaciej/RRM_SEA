@@ -547,8 +547,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.MinATR    = (_Period == PERIOD_M1 ? 12.5 : 5.0);
          cfg.MaxATR    = 0.0;
 
-         cfg.SL_PlacementMode = SL_PSAR_ATR;
-         cfg.SL_Mult          = 1.25;
+         cfg.SL_PlacementMode = SL_ATR;
+         cfg.SL_Mult          = 2.0;
          cfg.TP_Mult          = 4.0;
       }
       else
@@ -562,8 +562,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.MinATR    = 5.0;
          cfg.MaxATR    = 0.0;
 
-         cfg.SL_PlacementMode = SL_PSAR_ATR;
-         cfg.SL_Mult          = 1.25;
+         cfg.SL_PlacementMode = SL_ATR;
+         cfg.SL_Mult          = 2.0;
          cfg.TP_Mult          = 4.0;
       }
 
@@ -696,18 +696,29 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_Lookback               = 5;
       cfg.RRM_MinDivPips             = 0.5;
 
-      // Non-invasive PSAR cushion auto-scaling: only when user left input defaults
-      if(cfg.SL_PlacementMode == SL_PSAR_PIPS || cfg.SL_PlacementMode == SL_SWING_HIGHLOW)
+      // Enforce strict no-ATR exit contract (RRM design: swing-based SL, PSAR trail, no ATR)
+      cfg.ExitProfile           = EXIT_PROFILE_RRM_STRICT_NO_ATR;
+      cfg.SL_PlacementMode      = SL_SWING_HIGHLOW;
+      cfg.SL_Mult               = 0.0;
+      cfg.SL_SwingPipsCushion   = GetRecommendedInitialSlCushionPips();
+      cfg.SL_PsarPipsCushion    = GetRecommendedInitialSlCushionPips();
+      cfg.TP_Mult               = 3.0;
+      cfg.TP_Enabled            = true;
+      cfg.TrailMode             = TRAIL_PSAR;
+      cfg.PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;
+      cfg.PSAR_TrailPipsCushion = GetRecommendedTrailPsarCushionPips();
+      cfg.Use_BE                = false;
+      cfg.BE_Mode               = BE_MODE_OFF;
+
+      if(cfg.PrintEffectiveConfig || cfg.DebugFlow)
       {
-         if(cfg.SL_PsarPipsCushion == 5.0)
-            cfg.SL_PsarPipsCushion = GetRecommendedInitialSlCushionPips();
-         if(cfg.SL_SwingPipsCushion == 10.0)
-            cfg.SL_SwingPipsCushion = GetRecommendedInitialSlCushionPips();
-      }
-      if(cfg.TrailMode == TRAIL_PSAR && cfg.PSAR_TrailCushionMode == PSAR_CUSHION_PIPS)
-      {
-         if(cfg.PSAR_TrailPipsCushion == 5.0)
-            cfg.PSAR_TrailPipsCushion = GetRecommendedTrailPsarCushionPips();
+         Print("=== PRESET APPLIED: RRM ===");
+         Print("  SL_PlacementMode: ", EnumToString(cfg.SL_PlacementMode));
+         Print("  SL_Mult (ATR): ", cfg.SL_Mult, " (0.0 = ATR disabled)");
+         Print("  SL_SwingPipsCushion: ", cfg.SL_SwingPipsCushion);
+         Print("  SL_PsarPipsCushion: ", cfg.SL_PsarPipsCushion);
+         Print("  TP_Mult: ", cfg.TP_Mult);
+         Print("  TrailMode: ", EnumToString(cfg.TrailMode));
       }
 
       // Restore operator-controlled gates (Policy A)
