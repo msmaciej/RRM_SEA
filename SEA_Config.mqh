@@ -419,8 +419,8 @@ input bool             Inp_UI_ManageChartIndicators = false;    // (Global; allo
 input ENUM_BASE_CORNER Inp_UI_PanelCorner       = CORNER_LEFT_UPPER; // (Global; allowed under presets) Status panel corner
 input int              Inp_UI_PanelX            = 30;           // (Global; allowed under presets) Status panel X (px)
 input int              Inp_UI_PanelY            = 30;           // (Global; allowed under presets) Status panel Y (px)
-input int              Inp_UI_PanelFontSize     = 8;            // (Global; allowed under presets) Status panel font size
-input int              Inp_UI_LineSpacingPx     = 21;           // (Global; allowed under presets) Status panel line spacing (px)
+input int              Inp_UI_PanelFontSize     = 10;           // (Global; allowed under presets) Status panel font size
+input int              Inp_UI_LineSpacingPx     = 28;           // (Global; allowed under presets) Status panel line spacing (px)
 input string           Inp_UI_PanelFont         = "Arial";      // (Global; allowed under presets) Status panel font
 
 input group "--- ✅ UI: Cockpit Panel ---"
@@ -428,8 +428,8 @@ input bool             Inp_UI_ShowCockpitPanel    = true;       // (Global; allo
 input ENUM_BASE_CORNER Inp_UI_CockpitCorner     = CORNER_LEFT_UPPER; // (Global; allowed under presets) Cockpit panel corner
 input int              Inp_UI_CockpitX          = 30;           // (Global; allowed under presets) Cockpit panel X (px)
 input int              Inp_UI_CockpitY          = 30;           // (Global; allowed under presets) Cockpit panel Y (px)
-input int              Inp_UI_CockpitFontSize   = 8;            // (Global; allowed under presets) Cockpit panel font size
-input int              Inp_UI_CockpitLineSpacingPx = 21;        // (Global; allowed under presets) Cockpit panel line spacing (px)
+input int              Inp_UI_CockpitFontSize   = 10;           // (Global; allowed under presets) Cockpit panel font size
+input int              Inp_UI_CockpitLineSpacingPx = 28;        // (Global; allowed under presets) Cockpit panel line spacing (px)
 input string           Inp_UI_CockpitFont       = "Arial";      // (Global; allowed under presets) Cockpit panel font
 
 input group "--- ✅ UI: Signal Markers ---"
@@ -437,10 +437,10 @@ input bool           Inp_DrawEntryLines         = true;         // (Global; allo
 input bool           Inp_DrawTradeLines         = true;         // (Global; allowed under presets) Draw trade management lines
 
 input group "--- ✅ UI: Colors & Framing ---"
-input bool             Inp_UI_UseCustomColors   = false;        // (Global; allowed under presets) Use custom panel colors (else follow chart theme)
+input bool             Inp_UI_UseCustomColors   = true;         // (Global; allowed under presets) Use custom panel colors (else follow chart theme)
 input color            Inp_UI_FontColor         = clrYellow;    // (Global; allowed under presets) UI font color (when custom colors enabled)
 input int              Inp_UI_PanelBgAlpha      = 110;          // (Global; allowed under presets) Panel background alpha (0..255)
-input EUIFrameMode     Inp_UI_FrameMode          = UI_FRAME_BG; // (Global; allowed under presets) Panel frame mode (BG/NONE/TEXT_BOUNDS)
+input EUIFrameMode     Inp_UI_FrameMode          = UI_FRAME_NONE; // (Global; allowed under presets) Panel frame mode (BG/NONE/TEXT_BOUNDS)
 input int              Inp_UI_FramePadPx         = 6;           // (Global; allowed under presets) Panel padding (px)
 
 input group "--- ✅ Diagnostics ---"
@@ -448,8 +448,8 @@ input bool           Inp_PrintEffectiveConfig   = true;         // (Global; allo
 input bool           Inp_DebugFlow              = false;        // (Global; allowed under presets) Print OnInit/OnTick/OnDeinit flow
 
 input group "--- ✅ Reporting ---"
-input bool           Inp_ExportCSV              = false;               // (Global; allowed under presets) Export CSV reporting
-input bool           Inp_ExportUseCommonFiles   = false;               // (Global; allowed under presets) Use terminal Common Files folder for export
+input bool           Inp_ExportCSV              = false;        // (Global; allowed under presets) Export CSV reporting
+input bool           Inp_ExportUseCommonFiles   = false;        // (Global; allowed under presets) Use terminal Common Files folder for export
 
 // ════════════════════════════════════════════════════════════════════
 // ℹ️ ZONE 3A — PRESET INFO  (reference defaults)

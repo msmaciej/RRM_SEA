@@ -658,7 +658,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.BiasFastID = (int)ROLE_EMA1;
          cfg.BiasSlowID = (int)ROLE_EMA2;
 
-         cfg.P_Ema1 = 34; cfg.P_Ema2 = 89; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
+         cfg.P_Ema1 = 5; cfg.P_Ema2 = 13; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
 
          cfg.MaxSpread = 2.5;
       }
@@ -687,9 +687,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Use_P123      = false;
       cfg.Use_Ross      = false;
 
-      cfg.P_MacdFast = 8;
-      cfg.P_MacdSlow = 13;
-      cfg.P_MacdSig  = 8;
+      cfg.P_MacdFast = 12;    // 12,  8,
+      cfg.P_MacdSlow = 26;    // 26, 13,
+      cfg.P_MacdSig  = 9;     //  9,  8,
 
       cfg.RRM_RequirePullbackReclaim = false;
       cfg.RRM_RequireEmaDiv          = false;
