@@ -355,6 +355,174 @@ private:
       return true; // Medium / High / anything else treated as relevant
    }
 
+   // --- ADAPTIVE GATE SCALING HELPERS ---
+
+   double GetAdaptivePullbackPips(ENUM_TIMEFRAMES tf, string symbol)
+   {
+      bool is_jpy = (StringFind(symbol, "JPY") >= 0);
+      double base = 0;
+      switch(tf)
+      {
+         case PERIOD_M1:  base = 2.0;  break;
+         case PERIOD_M5:  base = 5.0;  break;
+         case PERIOD_M15: base = 8.0;  break;
+         case PERIOD_H1:  base = 15.0; break;
+         case PERIOD_H4:  base = 30.0; break;
+         case PERIOD_D1:  base = 60.0; break;
+         default:         base = 10.0;
+      }
+      if(is_jpy) base *= 100.0;
+      return base;
+   }
+
+   double GetAdaptiveRecoveryPips(ENUM_TIMEFRAMES tf, string symbol)
+   {
+      return GetAdaptivePullbackPips(tf, symbol) * 0.6;
+   }
+
+   double GetAdaptiveEmaDivPips(ENUM_TIMEFRAMES tf, string symbol)
+   {
+      bool is_jpy = (StringFind(symbol, "JPY") >= 0);
+      double base = 0;
+      switch(tf)
+      {
+         case PERIOD_M1:  base = 0.5; break;
+         case PERIOD_M5:  base = 1.0; break;
+         case PERIOD_M15: base = 2.0; break;
+         case PERIOD_H1:  base = 3.0; break;
+         case PERIOD_H4:  base = 5.0; break;
+         case PERIOD_D1:  base = 10.0; break;
+         default:         base = 2.0;
+      }
+      if(is_jpy) base *= 100.0;
+      return base;
+   }
+
+   // --- HARD GATES ---
+
+   // HARD GATE 1: Multi-bar pullback detection
+   bool Check_Gate_Pullback(const int bias)
+   {
+      if(m_settings.Gate_Pullback.mode == GATE_SCALE_OFF) return true;
+
+      double min_pullback_pips = 0;
+      switch(m_settings.Gate_Pullback.mode)
+      {
+         case GATE_SCALE_AUTO_TF:
+            min_pullback_pips = GetAdaptivePullbackPips(_Period, m_symbol) * m_settings.Gate_Pullback.value;
+            break;
+         case GATE_SCALE_FIXED:
+            min_pullback_pips = m_settings.Gate_Pullback.value;
+            break;
+         default: break;
+      }
+
+      double pip = PipSize();
+      double min_pullback = min_pullback_pips * pip;
+      int lookback = m_settings.Gate_PullbackLookback;
+      int hf = BiasFastHandle();
+
+      if(bias == 1)
+      {
+         double lowest_low = DBL_MAX;
+         double ema_at_low = 0;
+         for(int i = 1; i <= lookback; i++)
+         {
+            double low = iLow(m_symbol, PERIOD_CURRENT, i);
+            double ema = GetMAVal(hf, i);
+            if(low < ema && low < lowest_low) { lowest_low = low; ema_at_low = ema; }
+         }
+         if(lowest_low == DBL_MAX) { m_diag_last_reason = "GATE_NO_PULLBACK"; return false; }
+         if((ema_at_low - lowest_low) < min_pullback) { m_diag_last_reason = "GATE_PULLBACK_SHALLOW"; return false; }
+      }
+      else
+      {
+         double highest_high = 0;
+         double ema_at_high = 0;
+         for(int i = 1; i <= lookback; i++)
+         {
+            double high = iHigh(m_symbol, PERIOD_CURRENT, i);
+            double ema = GetMAVal(hf, i);
+            if(high > ema && high > highest_high) { highest_high = high; ema_at_high = ema; }
+         }
+         if(highest_high == 0) { m_diag_last_reason = "GATE_NO_PULLBACK"; return false; }
+         if((highest_high - ema_at_high) < min_pullback) { m_diag_last_reason = "GATE_PULLBACK_SHALLOW"; return false; }
+      }
+
+      return true;
+   }
+
+   // HARD GATE 2: Multi-bar recovery detection
+   bool Check_Gate_Recovery(const int bias)
+   {
+      if(m_settings.Gate_Recovery.mode == GATE_SCALE_OFF) return true;
+
+      double min_recovery_pips = 0;
+      switch(m_settings.Gate_Recovery.mode)
+      {
+         case GATE_SCALE_AUTO_TF:
+            min_recovery_pips = GetAdaptiveRecoveryPips(_Period, m_symbol) * m_settings.Gate_Recovery.value;
+            break;
+         case GATE_SCALE_FIXED:
+            min_recovery_pips = m_settings.Gate_Recovery.value;
+            break;
+         default: break;
+      }
+
+      double pip = PipSize();
+      double min_recovery = min_recovery_pips * pip;
+      int lookback = m_settings.Gate_RecoveryLookback;
+
+      double start_price = iClose(m_symbol, PERIOD_CURRENT, lookback);
+      double end_price   = iClose(m_symbol, PERIOD_CURRENT, 1);
+      double recovery    = (bias == 1) ? (end_price - start_price) : (start_price - end_price);
+
+      if(recovery < min_recovery) { m_diag_last_reason = "GATE_NO_RECOVERY"; return false; }
+      return true;
+   }
+
+   // HARD GATE 3: EMA divergence (uses adaptive scaling, updates RRM_MinDivPips)
+   bool Check_Gate_EmaDiv(const int bias)
+   {
+      if(m_settings.Gate_EmaDiv.mode == GATE_SCALE_OFF) return true;
+
+      double min_div_pips = 0;
+      switch(m_settings.Gate_EmaDiv.mode)
+      {
+         case GATE_SCALE_AUTO_TF:
+            min_div_pips = GetAdaptiveEmaDivPips(_Period, m_symbol) * m_settings.Gate_EmaDiv.value;
+            break;
+         case GATE_SCALE_FIXED:
+            min_div_pips = m_settings.Gate_EmaDiv.value;
+            break;
+         default: break;
+      }
+
+      m_settings.RRM_MinDivPips = min_div_pips;
+      return Check_RRM_EmaDiv(bias);
+   }
+
+   // HARD GATE 4: Candle direction confirmation
+   bool Check_Gate_CandleDirection(const int bias)
+   {
+      if(m_settings.Gate_CandleDirection.mode == GATE_SCALE_OFF) return true;
+
+      int check_shift = m_settings.Gate_CandleCheckShift;
+      // Check check_shift bar, and optionally check_shift-1 bar as fallback
+      int s_from = check_shift;
+      int s_to   = MathMax(1, check_shift - 1);
+      for(int s = s_from; s >= s_to; s--)
+      {
+         double open_price  = iOpen(m_symbol, PERIOD_CURRENT, s);
+         double close_price = iClose(m_symbol, PERIOD_CURRENT, s);
+         if(bias == 1 && close_price > open_price) return true;  // bullish candle confirms LONG
+         if(bias == -1 && close_price < open_price) return true; // bearish candle confirms SHORT
+      }
+
+      m_diag_last_reason = "GATE_CANDLE_DIR";
+      return false;
+   }
+
 public:
    // --- UI helpers (chart overlays) ---
    int GetEmaHandle(const int role) const
@@ -588,7 +756,10 @@ public:
       h_ema2 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema2, h_shift, method, PRICE_CLOSE);
       h_ema3 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema3, h_shift, method, PRICE_CLOSE);
       h_ema4 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema4, h_shift, method, PRICE_CLOSE);
-      h_atr  = iATR(m_symbol, PERIOD_CURRENT, m_settings.P_Atr);
+
+      // Only create ATR when NOT using strict no-ATR RRM mode
+      bool need_atr = (m_settings.ExitProfile != EXIT_PROFILE_RRM_STRICT_NO_ATR);
+      h_atr  = (need_atr ? iATR(m_symbol, PERIOD_CURRENT, m_settings.P_Atr) : INVALID_HANDLE);
 
       // Optional indicators: create only when used by votes/filters/trailing (reduces Strategy Tester clutter)
       h_macd = (m_settings.Use_Macd ? iMACD(m_symbol, PERIOD_CURRENT, m_settings.P_MacdFast, m_settings.P_MacdSlow, m_settings.P_MacdSig, PRICE_CLOSE) : INVALID_HANDLE);
@@ -610,8 +781,12 @@ public:
       }
       
       // C. Validation
-      if(h_ema1 == INVALID_HANDLE || h_atr == INVALID_HANDLE) {
-         Print("CRITICAL ERROR: Failed to create essential indicators (EMA/ATR).");
+      if(h_ema1 == INVALID_HANDLE) {
+         Print("CRITICAL ERROR: Failed to create essential indicators (EMA).");
+         return false;
+      }
+      if(need_atr && h_atr == INVALID_HANDLE) {
+         Print("CRITICAL ERROR: Failed to create ATR indicator.");
          return false;
       }
       return true;
@@ -1221,6 +1396,36 @@ public:
             m_diag_last_reason="RRM_EMA_DIV"; 
             return 0; 
          }
+      }
+
+      // 3c. Sequential hard gates (any fail = reject)
+      if(m_settings.Gate_Pullback.mode != GATE_SCALE_OFF) {
+         if(!Check_Gate_Pullback(bias)) {
+            if(m_settings.DebugFlow) Print("HARD GATE: Pullback → REJECT (", m_diag_last_reason, ")");
+            return 0;
+         }
+         if(m_settings.DebugFlow) Print("HARD GATE: Pullback → PASS");
+      }
+      if(m_settings.Gate_Recovery.mode != GATE_SCALE_OFF) {
+         if(!Check_Gate_Recovery(bias)) {
+            if(m_settings.DebugFlow) Print("HARD GATE: Recovery → REJECT (", m_diag_last_reason, ")");
+            return 0;
+         }
+         if(m_settings.DebugFlow) Print("HARD GATE: Recovery → PASS");
+      }
+      if(m_settings.Gate_EmaDiv.mode != GATE_SCALE_OFF) {
+         if(!Check_Gate_EmaDiv(bias)) {
+            if(m_settings.DebugFlow) Print("HARD GATE: EMA Divergence → REJECT (", m_diag_last_reason, ")");
+            return 0;
+         }
+         if(m_settings.DebugFlow) Print("HARD GATE: EMA Divergence → PASS");
+      }
+      if(m_settings.Gate_CandleDirection.mode != GATE_SCALE_OFF) {
+         if(!Check_Gate_CandleDirection(bias)) {
+            if(m_settings.DebugFlow) Print("HARD GATE: Candle Direction → REJECT (", m_diag_last_reason, ")");
+            return 0;
+         }
+         if(m_settings.DebugFlow) Print("HARD GATE: Candle Direction → PASS");
       }
 
       // 4. VOTING BYPASS (Speed Mode)

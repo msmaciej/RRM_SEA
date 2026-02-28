@@ -696,6 +696,27 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_Lookback               = 5;
       cfg.RRM_MinDivPips             = 0.5;
 
+      // Hard gate system: auto-scaled by TF/pair
+      ENUM_TIMEFRAMES tf = (ENUM_TIMEFRAMES)_Period;
+
+      cfg.Gate_Pullback.mode        = GATE_SCALE_AUTO_TF;
+      cfg.Gate_Pullback.value       = 1.0;
+      cfg.Gate_PullbackLookback     = (tf <= PERIOD_M5 ? 15 : 10);
+
+      cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
+      cfg.Gate_Recovery.value       = 1.0;
+      cfg.Gate_RecoveryLookback     = (tf <= PERIOD_M5 ? 5 : 7);
+
+      cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
+      cfg.Gate_EmaDiv.value         = 1.0;
+
+      cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
+      cfg.Gate_CandleDirection.value = 1.0;
+      cfg.Gate_CandleCheckShift      = 2;
+
+      cfg.Vote_EvalShift    = 1;
+      cfg.Vote_AllowPsarFlip = true;
+
       // Enforce strict no-ATR exit contract (RRM design: swing-based SL, PSAR trail, no ATR)
       cfg.ExitProfile           = EXIT_PROFILE_RRM_STRICT_NO_ATR;
       cfg.SL_PlacementMode      = SL_SWING_HIGHLOW;

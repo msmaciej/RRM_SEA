@@ -150,6 +150,20 @@ enum EBeMode
    BE_MODE_R_MULTIPLE          // BE triggers at k*R multiple (used when TP is disabled)
 };
 
+// --- GATE SCALING MODES ---
+enum EGateScaleMode
+{
+   GATE_SCALE_OFF,        // Gate disabled
+   GATE_SCALE_FIXED,      // Use fixed pip value
+   GATE_SCALE_AUTO_TF     // Auto-scale by timeframe/pair
+};
+
+struct SGateConfig
+{
+   EGateScaleMode mode;
+   double         value;  // Fixed pips or TF scaling factor
+};
+
 // --- UI FRAME MODE (Panels) ---
 enum EUIFrameMode
 {
@@ -310,6 +324,17 @@ struct ST_Settings
    int    RRM_TrailPsarShiftDelay;      // PSAR trail bar-shift delay (1..3)
    bool   RRM_FreezeTrailOnFlip;        // Freeze trailing stop on PSAR flip signal
    bool   RRM_TrailStartsAfterBE;       // Delay trail activation until BE is triggered
+
+   // Gate system (reusable hard gates for any preset)
+   SGateConfig Gate_Pullback;           // Multi-bar pullback depth gate
+   int         Gate_PullbackLookback;   // Bars to look back for pullback
+   SGateConfig Gate_Recovery;           // Multi-bar recovery gate
+   int         Gate_RecoveryLookback;   // Bars to look back for recovery
+   SGateConfig Gate_EmaDiv;             // EMA divergence gate
+   SGateConfig Gate_CandleDirection;    // Candle direction confirmation gate
+   int         Gate_CandleCheckShift;   // Which bar(s) to check for candle direction
+   int         Vote_EvalShift;          // Shift for vote evaluation
+   bool        Vote_AllowPsarFlip;      // Allow PSAR flip signal in votes
 
    // Reporting
    bool ExportCSV;
@@ -807,6 +832,21 @@ void InitializeConfig()
    Settings.RRM_TrailPsarShiftDelay = 1;
    Settings.RRM_FreezeTrailOnFlip   = false;
    Settings.RRM_TrailStartsAfterBE  = false;
+
+   // Gate system defaults (all gates off; presets may enable them)
+   Settings.Gate_Pullback.mode       = GATE_SCALE_OFF;
+   Settings.Gate_Pullback.value      = 0.0;
+   Settings.Gate_PullbackLookback    = 10;
+   Settings.Gate_Recovery.mode       = GATE_SCALE_OFF;
+   Settings.Gate_Recovery.value      = 0.0;
+   Settings.Gate_RecoveryLookback    = 5;
+   Settings.Gate_EmaDiv.mode         = GATE_SCALE_OFF;
+   Settings.Gate_EmaDiv.value        = 0.0;
+   Settings.Gate_CandleDirection.mode  = GATE_SCALE_OFF;
+   Settings.Gate_CandleDirection.value = 0.0;
+   Settings.Gate_CandleCheckShift    = 1;
+   Settings.Vote_EvalShift           = 1;
+   Settings.Vote_AllowPsarFlip       = false;
 }
 
 //+------------------------------------------------------------------+
