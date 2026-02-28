@@ -394,7 +394,7 @@ void OrchestrateTick()
    string snap_reason = Signal.LastReason();
    SVoteSnapshot vote_snaps[];
    int vote_snap_count = 0;
-   Signal.CaptureVoteSnapshots(vote_snaps, vote_snap_count);
+   Signal.CaptureVoteSnapshots(vote_snaps, vote_snap_count, snap_bias);
 
    SEA_UI_UpdateCockpitPanel(atr, direction, snap_bias, snap_votes, snap_reason, ts_snap, te_snap, vote_snaps, vote_snap_count);
    FlowLog("Bar pipeline complete");
