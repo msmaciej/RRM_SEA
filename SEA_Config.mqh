@@ -169,10 +169,11 @@ struct SNewsEvent
 // Vote state snapshot for runtime display
 struct SVoteSnapshot
 {
-   string name;      // "MACD", "PSAR", etc.
-   string state;     // "BUY", "SELL", "FLAT", "PASS"
-   string reason;    // Brief explanation
-   bool   enabled;   // Is this vote enabled in config?
+   string name;        // "MACD", "PSAR", etc.
+   string state;       // "BUY", "SELL", "FLAT", "PASS"
+   string reason;      // Brief explanation
+   bool   enabled;     // Is this vote enabled in config?
+   int    vote_result; // +1 = pass (matches bias), 0 = fail
 };
 
 // Single settings struct used across the EA

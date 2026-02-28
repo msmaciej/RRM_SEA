@@ -25,6 +25,20 @@ string g_sea_ui_last_cockpit_txt  = "";
 // -----------------------------------
 string SEA_UI_OnOff(const bool v) { return (v ? "ON" : "OFF"); }
 
+string SEA_UI_BiasLabel(const int bias)
+{
+   if(bias ==  1) return "LONG";
+   if(bias == -1) return "SHORT";
+   return "NEUTRAL";
+}
+
+string SEA_UI_SignalLabel(const int signal_dir)
+{
+   if(signal_dir ==  1) return "BUY";
+   if(signal_dir == -1) return "SELL";
+   return "FLAT";
+}
+
 // Returns " [adm]" when admin override is active for a preset (marks overridden fields)
 string SEA_UI_AdmMark()
 {
@@ -257,19 +271,19 @@ string SEA_UI_BuildIndicatorConfigs(const ST_Settings &cfg)
 string SEA_UI_BuildVoteBreakdown(const SVoteSnapshot &votes[], const int voteCount, const int threshold)
 {
    if(voteCount <= 0) return "";
-   int activeVotes = 0;
+   int passingVotes = 0;
    string lines = "";
    for(int i = 0; i < voteCount; i++)
    {
-      string icon = (votes[i].state == "FLAT") ? "-" : "+";
+      string icon = (votes[i].vote_result == 1) ? "+" : "-";
       lines += StringFormat("  %s %-7s %-5s %s\n",
                             icon,
                             votes[i].name + ":",
                             votes[i].state,
                             votes[i].reason);
-      if(votes[i].state == "BUY" || votes[i].state == "SELL") activeVotes++;
+      if(votes[i].vote_result == 1) passingVotes++;
    }
-   return StringFormat("Vote Status: %d/%d (need %d)\n", activeVotes, threshold, threshold) + lines;
+   return StringFormat("Vote Status: %d/%d (need %d)\n", passingVotes, voteCount, threshold) + lines;
 }
 
 // -----------------------------------
@@ -366,7 +380,13 @@ void SEA_UI_UpdateSettingsPanel()
    if(Settings.TrailMode == TRAIL_ATR)
       trail_str += StringFormat("  Mult=%.2f", Settings.Trail_Mult);
    else if(Settings.TrailMode == TRAIL_PSAR)
+   {
       trail_str += StringFormat("  %s", EnumToString(Settings.PSAR_TrailCushionMode));
+      if(Settings.PSAR_TrailCushionMode == PSAR_CUSHION_ATR)
+         trail_str += StringFormat("  CushionATR=%.2f", Settings.P_PsarTrailCushionATR);
+      else
+         trail_str += StringFormat("  CushionPips=%.1f", Settings.PSAR_TrailPipsCushion);
+   }
    txt += trail_str + "\n";
 
    // Admin override notice
@@ -439,7 +459,7 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
       break;
    }
 
-   string sig_line = StringFormat("Signal=%d  Bias=%d", last_signal_dir, last_bias);
+   string sig_line = StringFormat("Signal=%s  Bias=%s", SEA_UI_SignalLabel(last_signal_dir), SEA_UI_BiasLabel(last_bias));
    if(Settings.VoteThreshold <= 1)
       sig_line += "  Votes=BYPASS";
    else

@@ -401,9 +401,18 @@ public:
    int    LastVotes()  const { return m_diag_last_votes; }
    string LastReason() const { return m_diag_last_reason; }
 
+   // Returns +1 if vote state matches the given bias direction, 0 otherwise
+   static int CalcVoteResult(const int bias, const string &state)
+   {
+      if(bias == 0) return 0;
+      if(bias ==  1 && state == "BUY")  return 1;
+      if(bias == -1 && state == "SELL") return 1;
+      return 0;
+   }
+
    // --- VOTE SNAPSHOT (for Cockpit per-vote display) ---
    // Evaluates each enabled vote independently (BUY/SELL/FLAT) without changing internal state.
-   void CaptureVoteSnapshots(SVoteSnapshot &out[], int &count)
+   void CaptureVoteSnapshots(SVoteSnapshot &out[], int &count, const int current_bias = 0)
    {
       int shift = m_settings.ma_v_shift;
       count = 0;
@@ -418,6 +427,7 @@ public:
          if(p > e)      { out[count].state = "BUY";  out[count].reason = "(price>EMA1)"; }
          else if(p < e) { out[count].state = "SELL"; out[count].reason = "(price<EMA1)"; }
          else           { out[count].state = "FLAT"; out[count].reason = "(price=EMA1)"; }
+         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -430,6 +440,7 @@ public:
          if(pass && m_diag_last_bias ==  1) { out[count].state = "BUY";  out[count].reason = StringFormat("(ADX=%.0f>%d)", adx, m_settings.T_Adx); }
          else if(pass && m_diag_last_bias == -1) { out[count].state = "SELL"; out[count].reason = StringFormat("(ADX=%.0f>%d)", adx, m_settings.T_Adx); }
          else                               { out[count].state = "FLAT"; out[count].reason = StringFormat("(ADX=%.0f%s%d)", adx, pass?">=":"<=", m_settings.T_Adx); }
+         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -444,6 +455,7 @@ public:
          if(b)      { out[count].state = "BUY";  out[count].reason = StringFormat("(main=%.5f>sig,>0)", m); }
          else if(s) { out[count].state = "SELL"; out[count].reason = StringFormat("(main=%.5f<sig,<0)", m); }
          else       { out[count].state = "FLAT"; out[count].reason = StringFormat("(main=%.5f,sig=%.5f)", m, sig); }
+         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -457,6 +469,7 @@ public:
          if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(RSI=%.0f buy)", r); }
          else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(RSI=%.0f sell)", r); }
          else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(RSI=%.0f neutral)", r); }
+         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -470,6 +483,7 @@ public:
          if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(CCI=%.0f>0)", c); }
          else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(CCI=%.0f<0)", c); }
          else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(CCI=%.0f)", c); }
+         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -483,6 +497,7 @@ public:
          if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(MFI=%.0f)", mfi); }
          else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(MFI=%.0f)", mfi); }
          else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(MFI=%.0f neutral)", mfi); }
+         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -497,6 +512,7 @@ public:
          if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(K=%.0f>D=%.0f)", k, d); }
          else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(K=%.0f<D=%.0f)", k, d); }
          else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(K=%.0f,D=%.0f)", k, d); }
+         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -511,6 +527,7 @@ public:
          if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(price>mid=%.5f)", mid); }
          else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(price<mid=%.5f)", mid); }
          else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(cl=%.5f,mid=%.5f)", cl, mid); }
+         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -524,6 +541,7 @@ public:
          if(b)      { out[count].state = "BUY";  out[count].reason = StringFormat("(dot=%.5f<price)", p); }
          else if(s) { out[count].state = "SELL"; out[count].reason = StringFormat("(dot=%.5f>price)", p); }
          else       { out[count].state = "FLAT"; out[count].reason = "(no signal)"; }
+         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -536,6 +554,7 @@ public:
          if(b)      { out[count].state = "BUY";  out[count].reason = "(above fractal)"; }
          else if(s) { out[count].state = "SELL"; out[count].reason = "(below fractal)"; }
          else       { out[count].state = "FLAT"; out[count].reason = "(no breakout)"; }
+         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -548,6 +567,7 @@ public:
          if(b)      { out[count].state = "BUY";  out[count].reason = "(hook+trend)"; }
          else if(s) { out[count].state = "SELL"; out[count].reason = "(hook+trend)"; }
          else       { out[count].state = "FLAT"; out[count].reason = "(no hook)"; }
+         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
