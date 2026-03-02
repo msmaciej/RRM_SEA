@@ -17,6 +17,11 @@ Core Philosophy: Simple systems that work > Complex systems that don't.
 * The 9-Step Signal Pipeline: Visual Overview
 * Key Concepts (Quick Summary)
 * Key Design Principles
+* Architecture Changes (PR9–PR12)
+  * Multi-Layer Adaptive EMA System
+  * Hard Gate System
+  * RRM Continuation Mode
+  * Dynamic Pullback Detection
 * Configuration Guide
 * AI Agent Manifest
 
@@ -40,26 +45,25 @@ The v1.02.016d refactor decoupled the system into specialized modules to separat
 
 ## Component Interaction Diagram
 
-┌────────────────┐
-│   Terminal     │  ← OnInit() / OnTick()
-└───────┬────────┘
-        │
-        ▼
-┌────────────────┐      ┌────────────────┐
-│   SimpleEA     │──────▶   SEA_Config    │ (Define State)
-│ (Orchestrator) │      └────────────────┘
-└───────┬────────┘      ┌────────────────┐
-        │──────────────▶│   SEA_Presets   │ (Hydrate Settings)
-        │               └────────────────┘
-        ▼
-┌────────────────┐      ┌────────────────┐
-│ SEA_SignalEng  │◀─────┤ Indicator Data  │ (9-Step Pipeline)
-└───────┬────────┘      └────────────────┘
-        │
-        ▼
-┌────────────────┐      ┌────────────────┐
-│ SEA_TradeExec  │──────▶   MT5 Server    │ (Execution)
-└────────────────┘      └────────────────┘
+```mermaid
+flowchart TD
+    Terminal["Terminal\n(OnInit / OnTick)"]
+    SimpleEA["SimpleEA\n(Orchestrator)"]
+    Config["SEA_Config\n(Define State)"]
+    Presets["SEA_Presets\n(Hydrate Settings)"]
+    SignalEng["SEA_SignalEngine\n(9-Step Pipeline)"]
+    Indicators["Indicator Data"]
+    TradeExec["SEA_TradeExecutor\n(Execution)"]
+    MT5["MT5 Server"]
+
+    Terminal --> SimpleEA
+    SimpleEA --> Config
+    SimpleEA --> Presets
+    Indicators --> SignalEng
+    SimpleEA --> SignalEng
+    SignalEng --> TradeExec
+    TradeExec --> MT5
+```
 
 
 ## How SimpleEA Works: Complete Process Flow
@@ -83,15 +87,35 @@ Every time a new bar closes:
 
 All evaluation happens on the CLOSED candle (shift=1) to prevent repainting.
 
-* Step 1: PRE-FILTERS: Checks Spread, ATR boundaries, Time/Session, and News blackouts.
-* Step 2: MARKET BIAS: Determines trend direction (LONG/SHORT/NEUTRAL) via EMA Slopes and Position.
-* Step 3: AUTOSTRAT ENTRY SIGNAL: Generates timing via Single Slope, Price Cross, or EMA Pair Cross.
-* Step 4: SIGNAL VALIDATION: Validates that the entry signal matches the market bias.
-* Step 5: HTF FILTER (Optional): Higher timeframe EMA must align with the current bias.
-* Step 6: RRM GATES (Optional): Checks for Pullback/Reclaim and EMA Divergence.
-* Step 7: VOTING BYPASS: Skips voting if VoteThreshold <= 1.
-* Step 8: INDICATOR VOTING: Counts votes from enabled indicators (MACD, RSI, PSAR, etc.).
-* Step 9: FINAL DECISION: If votes >= VoteThreshold, the signal is returned.
+```mermaid
+flowchart TD
+    S1["Step 1: PRE-FILTERS\nSpread · ATR · Time/Session · News"]
+    S2["Step 2: MARKET BIAS\nEMA Slopes & Position → LONG/SHORT/NEUTRAL"]
+    S3["Step 3: AUTOSTRAT ENTRY SIGNAL\nSingle Slope · Price Cross · EMA Pair Cross\n+ RRM Continuation Mode"]
+    S4["Step 4: SIGNAL VALIDATION\nEntry signal must match Market Bias"]
+    S5["Step 5: HTF FILTER (Optional)\nHigher-TF EMA alignment check"]
+    S6["Step 6: HARD GATES (Sequential)\nDynamic Pullback · Recovery · EMA Div · Candle Dir"]
+    S7["Step 7: VOTING BYPASS\nSkip if VoteThreshold ≤ 1"]
+    S8["Step 8: INDICATOR VOTING\nMACD · CCI · PSAR · RSI · ADX · etc."]
+    S9["Step 9: FINAL DECISION\nVotes ≥ VoteThreshold → return signal"]
+
+    S1 -->|pass| S2
+    S1 -->|fail| REJECT(["REJECT (0)"])
+    S2 -->|bias ≠ 0| S3
+    S2 -->|NEUTRAL| REJECT
+    S3 --> S4
+    S4 -->|match| S5
+    S4 -->|mismatch| REJECT
+    S5 -->|pass / disabled| S6
+    S5 -->|fail| REJECT
+    S6 -->|all gates pass| S7
+    S6 -->|any gate fails| REJECT
+    S7 -->|threshold ≤ 1| SIGNAL(["SIGNAL (±1)"])
+    S7 -->|threshold > 1| S8
+    S8 --> S9
+    S9 -->|votes ≥ threshold| SIGNAL
+    S9 -->|votes < threshold| REJECT
+```
 
 
 ## Key Principle:
@@ -115,9 +139,94 @@ The system uses a multiplicative formula where ANY component = 0 → entire resu
 
 # Signal Timing: shift=1 vs shift=0
 
-* Signal evaluation: Happens on shift=1 (CLOSED candle) for stable, confirmed data.+2
-* Trade entry: Happens on shift=0 (NEW candle open) for predictable execution.+1
+* Signal evaluation: Happens on shift=1 (CLOSED candle) for stable, confirmed data.
+* Trade entry: Happens on shift=0 (NEW candle open) for predictable execution.
 
+
+## Architecture Changes (PR9–PR12)
+
+### Multi-Layer Adaptive EMA System (PR12)
+
+The RRM preset uses a **3-layer cascading EMA system** (`Gate_UseMultiLayer = true`) instead of a single fixed EMA reference. `DetectActiveLayer()` selects the first valid layer shallow-to-deep:
+
+| Layer | EMA Pair | LONG condition | SHORT condition |
+|-------|----------|----------------|-----------------|
+| 1 (fastest) | EMA1–EMA2 | EMA1 > EMA2 and price ≥ EMA2 | EMA1 < EMA2 and price ≤ EMA2 |
+| 2 (medium)  | EMA2–EMA3 | EMA2 > EMA3 and price ≥ EMA3 | EMA2 < EMA3 and price ≤ EMA3 |
+| 3 (deepest) | EMA3–EMA4 | EMA3 > EMA4 and price ≥ EMA4 | EMA3 < EMA4 and price ≤ EMA4 |
+
+- Layers are checked in order 1→2→3; the first valid layer is used.
+- A broken shallow layer does **not** prevent a deeper layer from being active (layers are independent).
+- If no layer is valid, Hard Gate 1 rejects the signal immediately.
+- Default EMA periods (RRM): EMA1=5, EMA2=13, EMA3=34, EMA4=89.
+
+### Hard Gate System (PR9)
+
+Step 6 of the pipeline runs **four sequential hard gates**. Any gate failure immediately rejects the signal (returns 0). All gates are configurable via `SGateConfig { EGateScaleMode mode; double value; }`.
+
+```mermaid
+flowchart LR
+    G1["Hard Gate 1\nDynamic Pullback\n(RequirePullback)"]
+    G2["Hard Gate 2\nMulti-bar Recovery\n(Gate_Recovery)"]
+    G3["Hard Gate 3\nEMA Divergence\n(Gate_EmaDiv)"]
+    G4["Hard Gate 4\nCandle Direction\n(Gate_CandleDirection)"]
+    PASS(["→ Voting"])
+    REJECT(["REJECT (0)"])
+
+    G1 -->|pass| G2
+    G1 -->|fail| REJECT
+    G2 -->|pass| G3
+    G2 -->|fail| REJECT
+    G3 -->|pass| G4
+    G3 -->|fail| REJECT
+    G4 -->|pass| PASS
+    G4 -->|fail| REJECT
+```
+
+**Gate scale modes (`EGateScaleMode`):**
+- `GATE_SCALE_OFF` — gate disabled (always passes).
+- `GATE_SCALE_FIXED` — fixed pip threshold (`value` field).
+- `GATE_SCALE_AUTO_TF` — auto-scales by timeframe and pair (JPY vs non-JPY); `value` acts as a multiplier.
+
+**PRESET_RRM gate defaults:**
+
+| Gate | Mode | Notes |
+|------|------|-------|
+| Dynamic Pullback | enabled | Multi-layer mode, `PullbackLookback` = 15 (M1/M5) or 10 (M15+) |
+| Recovery | `GATE_SCALE_AUTO_TF` × 1.0 | Lookback = 5 (M1/M5) or 7 (M15+) |
+| EMA Divergence | `GATE_SCALE_AUTO_TF` × 1.0 | Minimum spread between fast and slow EMA |
+| Candle Direction | `GATE_SCALE_FIXED` × 1.0 | Checks bar at shift=2 |
+
+### RRM Continuation Mode (PR10)
+
+When `ExitProfile = EXIT_PROFILE_RRM_STRICT_NO_ATR` and `AutoStrat = STRAT_PAIR_CROSS`, the entry signal generator allows entries **within an established trend** even when no fresh EMA crossover has occurred on the current bar.
+
+**Condition for continuation entry:**
+- Market bias is non-zero (trend is established).
+- The EMA position matches the bias (fast EMA is on the correct side of slow EMA).
+- No new crossover is required — the system detects that the trend is intact and issues a continuation signal equal to the current bias.
+
+This is the primary entry mode for `PRESET_RRM`. It enables the EA to re-enter after pullbacks without waiting for a new crossover, provided the downstream hard gates (especially Dynamic Pullback) confirm a valid structure.
+
+**Standard crossover** logic still applies first — continuation mode is only engaged when no fresh crossover is detected.
+
+### Dynamic Pullback Detection (PR11)
+
+Hard Gate 1 (`Check_Gate_DynamicPullback`) uses **structure-based detection** with no fixed pip thresholds. It validates the following sequence against the selected EMA layer:
+
+1. **Reclaim check** — the current closed bar (shift=1) has closed on the trend side of the layer's fast EMA.
+2. **Pullback found** — within `PullbackLookback` bars, price touched (low ≤ EMA for LONG; high ≥ EMA for SHORT) the fast EMA of the active layer.
+3. **Layer alignment** — at the bar where the pullback occurred, the fast EMA was correctly above (LONG) or below (SHORT) the slow EMA.
+4. **Momentum** *(optional, `RequireRecoveryMomentum`)* — the current bar closes in the trend direction (close > open for LONG).
+
+Key settings (`PRESET_RRM` defaults):
+
+| Setting | Value | Description |
+|---------|-------|-------------|
+| `RequirePullback` | `true` | Enables Hard Gate 1 |
+| `Gate_UseMultiLayer` | `true` | Use 3-layer cascading detection |
+| `PullbackLookback` | 15 / 10 | Bars to search for the pullback touch |
+| `RequireRecoveryMomentum` | `false` | Optional: require bullish/bearish close |
 
 ## PRESET_RRM: Strict No-ATR Trend Pullback
 
