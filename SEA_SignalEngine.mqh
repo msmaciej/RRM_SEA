@@ -400,15 +400,148 @@ private:
 
    // --- HARD GATES ---
 
+   //+------------------------------------------------------------------+
+   //| Detect which EMA layer is currently valid and active             |
+   //| Returns: 1=Layer1(EMA1-2), 2=Layer2(EMA2-3), 3=Layer3(EMA3-4), 0=none |
+   //| Selection: layers checked shallow-first (1→2→3); first valid    |
+   //| layer returned. Each layer is validated independently — a broken |
+   //| shallow layer does not prevent a deeper layer from being active. |
+   //+------------------------------------------------------------------+
+   int DetectActiveLayer(const int bias)
+   {
+      double e1    = GetMAVal(h_ema1, 1);
+      double e2    = GetMAVal(h_ema2, 1);
+      double e3    = GetMAVal(h_ema3, 1);
+      double e4    = GetMAVal(h_ema4, 1);
+      double price = iClose(m_symbol, PERIOD_CURRENT, 1);
+
+      if(bias == -1) {  // SHORT: faster EMA must be below slower EMA (downtrend aligned)
+         if(e1 < e2 && price <= e2) return 1;  // Layer 1 valid: EMA1-2 aligned, price within range
+         if(e2 < e3 && price <= e3) return 2;  // Layer 2 valid: EMA2-3 aligned, price within range
+         if(e3 < e4 && price <= e4) return 3;  // Layer 3 valid: EMA3-4 aligned, price within range
+      }
+      else {            // LONG: faster EMA must be above slower EMA (uptrend aligned)
+         if(e1 > e2 && price >= e2) return 1;  // Layer 1 valid: EMA1-2 aligned, price within range
+         if(e2 > e3 && price >= e3) return 2;  // Layer 2 valid: EMA2-3 aligned, price within range
+         if(e3 > e4 && price >= e4) return 3;  // Layer 3 valid: EMA3-4 aligned, price within range
+      }
+      return 0;
+   }
+
    // HARD GATE 1: Dynamic structure-based pullback detection (no pip thresholds)
-   // 5-level check: (1) current bar with trend, (2) pullback found (any bar touched EMA),
-   // (3) prior trend verified, (4) optional momentum, (5) comprehensive logging
+   // Single-layer: 5-level check (1) current reclaimed, (2) pullback found, (3) prior trend,
+   //               (4) optional momentum, (5) comprehensive logging
+   // Multi-layer:  Cascading EMA layer selection (Layer1=EMA1-2, Layer2=EMA2-3, Layer3=EMA3-4)
    bool Check_Gate_DynamicPullback(const int bias)
    {
       if(!m_settings.RequirePullback) return true;
 
-      int hf       = BiasFastHandle();
       int lookback = m_settings.PullbackLookback;
+
+      // === MULTI-LAYER MODE (RRM standard) ===
+      if(m_settings.Gate_UseMultiLayer)
+      {
+         int active_layer = DetectActiveLayer(bias);
+
+         if(active_layer == 0)
+         {
+            m_diag_last_reason = "DYN_PB_NO_VALID_LAYER";
+            if(m_settings.DebugFlow)
+               Print("DYN_PULLBACK: No valid EMA layer (all layers broken or price out of range) → REJECT");
+            return false;
+         }
+
+         int    fast_handle = INVALID_HANDLE, slow_handle = INVALID_HANDLE;
+         string layer_name  = "";
+         int    fast_period = 0, slow_period = 0;  // Used in debug logging only
+
+         switch(active_layer)
+         {
+            case 1:
+               fast_handle  = h_ema1; slow_handle  = h_ema2;
+               layer_name   = "EMA1-EMA2";
+               fast_period  = m_settings.P_Ema1; slow_period = m_settings.P_Ema2;
+               break;
+            case 2:
+               fast_handle  = h_ema2; slow_handle  = h_ema3;
+               layer_name   = "EMA2-EMA3";
+               fast_period  = m_settings.P_Ema2; slow_period = m_settings.P_Ema3;
+               break;
+            case 3:
+               fast_handle  = h_ema3; slow_handle  = h_ema4;
+               layer_name   = "EMA3-EMA4";
+               fast_period  = m_settings.P_Ema3; slow_period = m_settings.P_Ema4;
+               break;
+            default:
+               return false;
+         }
+
+         double curr_close = iClose(m_symbol, PERIOD_CURRENT, 1);
+         double fast_ema   = GetMAVal(fast_handle, 1);
+
+         // Current must be on correct side of fast EMA (price reclaimed the layer's fast EMA)
+         bool current_with_trend = (bias == 1) ? (curr_close > fast_ema) : (curr_close < fast_ema);
+         if(!current_with_trend)
+         {
+            m_diag_last_reason = "DYN_PB_NOT_RECLAIMED_" + layer_name;
+            return false;
+         }
+
+         // Find pullback: bar[1] is the current reclaimed bar; bar[2..lookback] is the
+         // historical window where price touched the fast EMA of this layer
+         bool found_pullback = false;
+         int  pullback_bar   = -1;
+
+         for(int i = 2; i <= lookback; i++)
+         {
+            double ema = GetMAVal(fast_handle, i);
+            if(bias == 1)
+            {
+               if(iLow(m_symbol, PERIOD_CURRENT, i) <= ema) { found_pullback = true; pullback_bar = i; break; }
+            }
+            else
+            {
+               if(iHigh(m_symbol, PERIOD_CURRENT, i) >= ema) { found_pullback = true; pullback_bar = i; break; }
+            }
+         }
+
+         if(!found_pullback)
+         {
+            m_diag_last_reason = "DYN_PB_NOT_FOUND_" + layer_name;
+            return false;
+         }
+
+         // Verify layer was aligned before pullback occurred
+         double fast_prev = GetMAVal(fast_handle, pullback_bar);
+         double slow_prev = GetMAVal(slow_handle, pullback_bar);
+         bool   layer_was_valid = (bias == 1) ? (fast_prev > slow_prev) : (fast_prev < slow_prev);
+         if(!layer_was_valid)
+         {
+            m_diag_last_reason = "DYN_PB_LAYER_BROKEN_" + layer_name;
+            return false;
+         }
+
+         // Optional momentum check
+         if(m_settings.RequireRecoveryMomentum)
+         {
+            double bar1_open  = iOpen(m_symbol, PERIOD_CURRENT, 1);
+            bool   has_momentum = (bias == 1) ? (curr_close > bar1_open) : (curr_close < bar1_open);
+            if(!has_momentum)
+            {
+               m_diag_last_reason = "DYN_PB_NO_MOMENTUM_" + layer_name;
+               return false;
+            }
+         }
+
+         if(m_settings.DebugFlow)
+            PrintFormat("DYN_PULLBACK[bias=%d]: Layer%d (%s: %d-%d periods) reclaimed=YES pb_bar=%d layer_valid=YES → PASS",
+                        bias, active_layer, layer_name, fast_period, slow_period, pullback_bar);
+
+         return true;
+      }
+
+      // === SINGLE-LAYER MODE (fallback for other presets) ===
+      int hf = BiasFastHandle();
 
       // Level 1: Current bar is with the trend (price has reclaimed the EMA)
       double ema1   = GetMAVal(hf, 1);

@@ -329,6 +329,7 @@ struct ST_Settings
    bool        RequirePullback;          // Dynamic structure pullback gate (replaces pip-based Gate_Pullback)
    int         PullbackLookback;         // Bars to look back for pullback structure
    bool        RequireRecoveryMomentum;  // Require recovery bar to close in trend direction
+   bool        Gate_UseMultiLayer;       // Enable multi-layer cascading EMA pullback detection (RRM standard)
    SGateConfig Gate_Recovery;           // Multi-bar recovery gate
    int         Gate_RecoveryLookback;   // Bars to look back for recovery
    SGateConfig Gate_EmaDiv;             // EMA divergence gate
@@ -491,6 +492,7 @@ input bool           Inp_RRM_RequireEmaDiv          = false;      // (CUSTOM; pr
 input bool           Inp_RequirePullback            = false;      // (CUSTOM; presets override) Require dynamic structure pullback gate
 input int            Inp_PullbackLookback           = 10;         // (CUSTOM; presets override) Pullback lookback (bars)
 input bool           Inp_RequireRecoveryMomentum    = false;      // (CUSTOM; presets override) Require recovery bar to close in trend direction
+input bool           Inp_UseMultiLayer              = false;      // (CUSTOM; presets override) Enable multi-layer cascading EMA pullback detection
 
 input group "--- ℹ️ Indicators: Settings ---"
 input EMaMethod      Inp_MaType                 = METHOD_EMA;          // (CUSTOM; presets override) MA method (EMA/SMA)
@@ -612,6 +614,7 @@ input bool           Inp_Override_RRM_RequireEmaDiv          = false;     // [Ad
 input bool           Inp_Override_RequirePullback            = false;     // [Admin] Override RequirePullback when AdminOverride=true
 input int            Inp_Override_PullbackLookback           = 10;        // [Admin] Override PullbackLookback when AdminOverride=true
 input bool           Inp_Override_RequireRecoveryMomentum    = false;     // [Admin] Override RequireRecoveryMomentum when AdminOverride=true
+input bool           Inp_Override_UseMultiLayer              = true;      // [Admin] Override UseMultiLayer (cascading EMA pullback) when AdminOverride=true
 
 input group "--- 🔓 §2 Admin Override: Indicator Periods & Thresholds ---"
 input int            Inp_Override_MACD_Fast           = 8;                // [Admin] Override MACD Fast period when AdminOverride=true
@@ -712,6 +715,7 @@ void InitializeConfig()
    Settings.RequirePullback            = Inp_RequirePullback;
    Settings.PullbackLookback           = Inp_PullbackLookback;
    Settings.RequireRecoveryMomentum    = Inp_RequireRecoveryMomentum;
+   Settings.Gate_UseMultiLayer         = Inp_UseMultiLayer;
 
    // Bias
    Settings.BiasEnabled          = Inp_BiasEnabled;
