@@ -210,14 +210,15 @@ This is the primary entry mode for `PRESET_RRM`. It enables the EA to re-enter a
 
 **Standard crossover** logic still applies first — continuation mode is only engaged when no fresh crossover is detected.
 
-### Dynamic Pullback Detection (PR11)
+### Dynamic Pullback Detection (PR11, updated PR14)
 
-Hard Gate 1 (`Check_Gate_DynamicPullback`) uses **structure-based detection** with no fixed pip thresholds. It validates the following sequence against the selected EMA layer:
+Hard Gate 1 (`Check_Gate_DynamicPullback`) uses **recovery-based detection** with no fixed pip thresholds. In multi-layer mode, the active EMA layer is selected by alignment only (no price-position requirement), allowing the gate to function correctly when price is still within the pullback zone. It validates the following sequence:
 
-1. **Reclaim check** — the current closed bar (shift=1) has closed on the trend side of the layer's fast EMA.
-2. **Pullback found** — within `PullbackLookback` bars, price touched (low ≤ EMA for LONG; high ≥ EMA for SHORT) the fast EMA of the active layer.
-3. **Layer alignment** — at the bar where the pullback occurred, the fast EMA was correctly above (LONG) or below (SHORT) the slow EMA.
-4. **Momentum** *(optional, `RequireRecoveryMomentum`)* — the current bar closes in the trend direction (close > open for LONG).
+1. **Layer selection** — select the shallowest EMA layer whose fast/slow EMAs are still trend-aligned (fast > slow for LONG; fast < slow for SHORT), regardless of current price position.
+2. **Pullback extreme** — within `PullbackLookback` bars (bars 2 to lookback), find the bar with the most price movement against bias (highest high for SHORT; lowest low for LONG).
+3. **Recovery started** — the current closed bar (shift=1) has moved back from the pullback extreme (close < extreme high for SHORT; close > extreme low for LONG).
+4. **Momentum** *(optional, `RequireRecoveryMomentum`)* — the current bar closes in the trend direction (close > open for LONG; close < open for SHORT).
+5. **Layer intact** — at the pullback extreme bar, the active layer's EMAs were still trend-aligned.
 
 Key settings (`PRESET_RRM` defaults):
 
