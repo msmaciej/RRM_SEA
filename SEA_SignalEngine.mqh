@@ -1306,18 +1306,58 @@ public:
             double s_curr_cross = GetMAVal(hs, v_shift, 0);
             double s_prev_cross = GetMAVal(hs, v_shift + 1, 0);
             
+            bool bullish_cross = (f_prev_cross <= s_prev_cross && f_curr_cross > s_curr_cross);
+            bool bearish_cross = (f_prev_cross >= s_prev_cross && f_curr_cross < s_curr_cross);
+            bool has_crossover = (bullish_cross || bearish_cross);
+            
             // Bullish cross: fast was below, now above
-            if(f_prev_cross <= s_prev_cross && f_curr_cross > s_curr_cross)
+            if(bullish_cross)
                entry_signal = 1;
             // Bearish cross: fast was above, now below
-            else if(f_prev_cross >= s_prev_cross && f_curr_cross < s_curr_cross)
+            else if(bearish_cross)
                entry_signal = -1;
-            // No cross
-            else
+            // No fresh crossover - check for RRM continuation mode
+            else if(m_settings.ExitProfile == EXIT_PROFILE_RRM_STRICT_NO_ATR && market_bias != 0) {
+               // Allow entries within established trend when bias is valid and EMA position matches
+               bool ema_position_matches_bias = (market_bias == 1) ? (f_curr_cross > s_curr_cross) : (f_curr_cross < s_curr_cross);
+               if(ema_position_matches_bias) {
+                  entry_signal = market_bias;
+                  
+                  #ifdef __MQL5__
+                  if(MQLInfoInteger(MQL_TESTER)) {
+                     datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+                     PrintFormat("ENTRY_SIGNAL[%s]: RRM CONTINUATION mode bias=%d (no fresh cross, trend intact: f=%.5f %s s=%.5f) → signal=%d",
+                                 TimeToString(bar_time), market_bias, f_curr_cross,
+                                 (market_bias == 1 ? ">" : "<"), s_curr_cross, entry_signal);
+                  }
+                  #endif
+               }
+               else {
+                  entry_signal = 0;
+                  
+                  #ifdef __MQL5__
+                  if(MQLInfoInteger(MQL_TESTER)) {
+                     datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+                     PrintFormat("ENTRY_SIGNAL[%s]: RRM CONTINUATION rejected - trend broken (f=%.5f vs s=%.5f conflicts with bias=%d) → signal=0",
+                                 TimeToString(bar_time), f_curr_cross, s_curr_cross, market_bias);
+                  }
+                  #endif
+               }
+            }
+            else {
                entry_signal = 0;
+               
+               #ifdef __MQL5__
+               if(MQLInfoInteger(MQL_TESTER)) {
+                  datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+                  PrintFormat("ENTRY_SIGNAL[%s]: STRAT_PAIR_CROSS (non-RRM) no crossover → signal=0",
+                              TimeToString(bar_time));
+               }
+               #endif
+            }
             
             #ifdef __MQL5__
-            if(MQLInfoInteger(MQL_TESTER)) {
+            if(MQLInfoInteger(MQL_TESTER) && has_crossover) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                PrintFormat("ENTRY_SIGNAL[%s]: STRAT_PAIR_CROSS %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
                            TimeToString(bar_time), ema_fast_name, ema_slow_name,
