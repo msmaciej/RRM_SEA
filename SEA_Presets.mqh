@@ -127,6 +127,7 @@ void ApplyAdminOverrides(ST_Settings &cfg)
    cfg.RequirePullback            = Inp_Override_RequirePullback;
    cfg.PullbackLookback           = Inp_Override_PullbackLookback;
    cfg.RequireRecoveryMomentum    = Inp_Override_RequireRecoveryMomentum;
+   cfg.Gate_UseMultiLayer         = Inp_Override_UseMultiLayer;
 
    cfg.P_Adx          = Inp_Override_ADX_Period;
    cfg.T_Adx          = Inp_Override_ADX_Threshold;
@@ -705,6 +706,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RequirePullback            = true;
       cfg.PullbackLookback           = (tf <= PERIOD_M5 ? 15 : 10);
       cfg.RequireRecoveryMomentum    = false;
+      cfg.Gate_UseMultiLayer         = true;
 
       cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
       cfg.Gate_Recovery.value       = 1.0;
