@@ -124,6 +124,9 @@ void ApplyAdminOverrides(ST_Settings &cfg)
    cfg.Use_Ross       = Inp_Override_Use_Ross;
    cfg.RRM_RequirePullbackReclaim = Inp_Override_RRM_RequirePullbackReclaim;
    cfg.RRM_RequireEmaDiv          = Inp_Override_RRM_RequireEmaDiv;
+   cfg.RequirePullback            = Inp_Override_RequirePullback;
+   cfg.PullbackLookback           = Inp_Override_PullbackLookback;
+   cfg.RequireRecoveryMomentum    = Inp_Override_RequireRecoveryMomentum;
 
    cfg.P_Adx          = Inp_Override_ADX_Period;
    cfg.T_Adx          = Inp_Override_ADX_Threshold;
@@ -696,12 +699,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_Lookback               = 5;
       cfg.RRM_MinDivPips             = 0.5;
 
-      // Hard gate system: auto-scaled by TF/pair
+      // Dynamic structure pullback gate (no pip thresholds)
       ENUM_TIMEFRAMES tf = (ENUM_TIMEFRAMES)_Period;
 
-      cfg.Gate_Pullback.mode        = GATE_SCALE_AUTO_TF;
-      cfg.Gate_Pullback.value       = 1.0;
-      cfg.Gate_PullbackLookback     = (tf <= PERIOD_M5 ? 15 : 10);
+      cfg.RequirePullback            = true;
+      cfg.PullbackLookback           = (tf <= PERIOD_M5 ? 15 : 10);
+      cfg.RequireRecoveryMomentum    = false;
 
       cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
       cfg.Gate_Recovery.value       = 1.0;

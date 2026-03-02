@@ -326,8 +326,9 @@ struct ST_Settings
    bool   RRM_TrailStartsAfterBE;       // Delay trail activation until BE is triggered
 
    // Gate system (reusable hard gates for any preset)
-   SGateConfig Gate_Pullback;           // Multi-bar pullback depth gate
-   int         Gate_PullbackLookback;   // Bars to look back for pullback
+   bool        RequirePullback;          // Dynamic structure pullback gate (replaces pip-based Gate_Pullback)
+   int         PullbackLookback;         // Bars to look back for pullback structure
+   bool        RequireRecoveryMomentum;  // Require recovery bar to close in trend direction
    SGateConfig Gate_Recovery;           // Multi-bar recovery gate
    int         Gate_RecoveryLookback;   // Bars to look back for recovery
    SGateConfig Gate_EmaDiv;             // EMA divergence gate
@@ -487,6 +488,9 @@ input int            Inp_RRM_Lookback           = 5;              // (CUSTOM; pr
 input double         Inp_RRM_MinDivPips         = 0.5;            // (CUSTOM; presets override) Min EMA divergence (pips)
 input bool           Inp_RRM_RequirePullbackReclaim = false;      // (CUSTOM; presets override) Require pullback + reclaim condition
 input bool           Inp_RRM_RequireEmaDiv          = false;      // (CUSTOM; presets override) Require EMA divergence gate
+input bool           Inp_RequirePullback            = false;      // (CUSTOM; presets override) Require dynamic structure pullback gate
+input int            Inp_PullbackLookback           = 10;         // (CUSTOM; presets override) Pullback lookback (bars)
+input bool           Inp_RequireRecoveryMomentum    = false;      // (CUSTOM; presets override) Require recovery bar to close in trend direction
 
 input group "--- ℹ️ Indicators: Settings ---"
 input EMaMethod      Inp_MaType                 = METHOD_EMA;          // (CUSTOM; presets override) MA method (EMA/SMA)
@@ -605,6 +609,9 @@ input bool           Inp_Override_Use_P123            = false;            // [Ad
 input bool           Inp_Override_Use_Ross            = false;            // [Admin] Override Ross hook vote when AdminOverride=true
 input bool           Inp_Override_RRM_RequirePullbackReclaim = false;     // [Admin] Override RRM pullback reclaim gate when AdminOverride=true
 input bool           Inp_Override_RRM_RequireEmaDiv          = false;     // [Admin] Override RRM EMA divergence gate when AdminOverride=true
+input bool           Inp_Override_RequirePullback            = false;     // [Admin] Override RequirePullback when AdminOverride=true
+input int            Inp_Override_PullbackLookback           = 10;        // [Admin] Override PullbackLookback when AdminOverride=true
+input bool           Inp_Override_RequireRecoveryMomentum    = false;     // [Admin] Override RequireRecoveryMomentum when AdminOverride=true
 
 input group "--- 🔓 §2 Admin Override: Indicator Periods & Thresholds ---"
 input int            Inp_Override_MACD_Fast           = 8;                // [Admin] Override MACD Fast period when AdminOverride=true
@@ -702,6 +709,9 @@ void InitializeConfig()
    Settings.RRM_RequireEmaDiv          = Inp_RRM_RequireEmaDiv;
    Settings.RRM_Lookback               = Inp_RRM_Lookback;
    Settings.RRM_MinDivPips             = Inp_RRM_MinDivPips;
+   Settings.RequirePullback            = Inp_RequirePullback;
+   Settings.PullbackLookback           = Inp_PullbackLookback;
+   Settings.RequireRecoveryMomentum    = Inp_RequireRecoveryMomentum;
 
    // Bias
    Settings.BiasEnabled          = Inp_BiasEnabled;
@@ -834,9 +844,7 @@ void InitializeConfig()
    Settings.RRM_TrailStartsAfterBE  = false;
 
    // Gate system defaults (all gates off; presets may enable them)
-   Settings.Gate_Pullback.mode       = GATE_SCALE_OFF;
-   Settings.Gate_Pullback.value      = 0.0;
-   Settings.Gate_PullbackLookback    = 10;
+   // RequirePullback, PullbackLookback, RequireRecoveryMomentum are mapped from inputs above
    Settings.Gate_Recovery.mode       = GATE_SCALE_OFF;
    Settings.Gate_Recovery.value      = 0.0;
    Settings.Gate_RecoveryLookback    = 5;

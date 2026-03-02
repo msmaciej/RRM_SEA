@@ -400,54 +400,69 @@ private:
 
    // --- HARD GATES ---
 
-   // HARD GATE 1: Multi-bar pullback detection
-   bool Check_Gate_Pullback(const int bias)
+   // HARD GATE 1: Dynamic structure-based pullback detection (no pip thresholds)
+   // 5-level check: (1) current bar with trend, (2) pullback found (any bar touched EMA),
+   // (3) prior trend verified, (4) optional momentum, (5) comprehensive logging
+   bool Check_Gate_DynamicPullback(const int bias)
    {
-      if(m_settings.Gate_Pullback.mode == GATE_SCALE_OFF) return true;
+      if(!m_settings.RequirePullback) return true;
 
-      double min_pullback_pips = 0;
-      switch(m_settings.Gate_Pullback.mode)
+      int hf       = BiasFastHandle();
+      int lookback = m_settings.PullbackLookback;
+
+      // Level 1: Current bar is with the trend (price has reclaimed the EMA)
+      double ema1   = GetMAVal(hf, 1);
+      double close1 = iClose(m_symbol, PERIOD_CURRENT, 1);
+      bool reclaimed = (bias == 1) ? (close1 > ema1) : (close1 < ema1);
+      if(!reclaimed)
       {
-         case GATE_SCALE_AUTO_TF:
-            min_pullback_pips = GetAdaptivePullbackPips(_Period, m_symbol) * m_settings.Gate_Pullback.value;
-            break;
-         case GATE_SCALE_FIXED:
-            min_pullback_pips = m_settings.Gate_Pullback.value;
-            break;
-         default: break;
+         m_diag_last_reason = "DYN_PB_NOT_RECLAIMED";
+         return false;
       }
 
-      double pip = PipSize();
-      double min_pullback = min_pullback_pips * pip;
-      int lookback = m_settings.Gate_PullbackLookback;
-      int hf = BiasFastHandle();
-
-      if(bias == 1)
+      // Level 2: Pullback found — any bar in lookback window touched the EMA
+      int pb_bar = 0;
+      for(int i = 2; i <= lookback + 1; i++)
       {
-         double lowest_low = DBL_MAX;
-         double ema_at_low = 0;
-         for(int i = 1; i <= lookback; i++)
+         double ema  = GetMAVal(hf, i);
+         double low  = iLow(m_symbol,  PERIOD_CURRENT, i);
+         double high = iHigh(m_symbol, PERIOD_CURRENT, i);
+         if(bias == 1  && low  <= ema) { pb_bar = i; break; }
+         if(bias == -1 && high >= ema) { pb_bar = i; break; }
+      }
+      if(pb_bar == 0)
+      {
+         m_diag_last_reason = "DYN_PB_NOT_FOUND";
+         return false;
+      }
+
+      // Level 3: Prior trend verified — EMA was sloping with trend before pullback
+      double ema_pb   = GetMAVal(hf, pb_bar);
+      double ema_prev = GetMAVal(hf, pb_bar + 1);
+      bool prior_trend = (bias == 1) ? (ema_pb >= ema_prev) : (ema_pb <= ema_prev);
+      if(!prior_trend)
+      {
+         m_diag_last_reason = "DYN_PB_NO_PRIOR_TREND";
+         return false;
+      }
+
+      // Level 4: Optional momentum — recovery bar closes in trend direction
+      if(m_settings.RequireRecoveryMomentum)
+      {
+         double open1 = iOpen(m_symbol, PERIOD_CURRENT, 1);
+         bool momentum = (bias == 1) ? (close1 > open1) : (close1 < open1);
+         if(!momentum)
          {
-            double low = iLow(m_symbol, PERIOD_CURRENT, i);
-            double ema = GetMAVal(hf, i);
-            if(low < ema && low < lowest_low) { lowest_low = low; ema_at_low = ema; }
+            m_diag_last_reason = "DYN_PB_NO_MOMENTUM";
+            return false;
          }
-         if(lowest_low == DBL_MAX) { m_diag_last_reason = "GATE_NO_PULLBACK"; return false; }
-         if((ema_at_low - lowest_low) < min_pullback) { m_diag_last_reason = "GATE_PULLBACK_SHALLOW"; return false; }
       }
-      else
-      {
-         double highest_high = 0;
-         double ema_at_high = 0;
-         for(int i = 1; i <= lookback; i++)
-         {
-            double high = iHigh(m_symbol, PERIOD_CURRENT, i);
-            double ema = GetMAVal(hf, i);
-            if(high > ema && high > highest_high) { highest_high = high; ema_at_high = ema; }
-         }
-         if(highest_high == 0) { m_diag_last_reason = "GATE_NO_PULLBACK"; return false; }
-         if((highest_high - ema_at_high) < min_pullback) { m_diag_last_reason = "GATE_PULLBACK_SHALLOW"; return false; }
-      }
+
+      // Level 5: Log structure found
+      if(m_settings.DebugFlow)
+         PrintFormat("DYN_PULLBACK[bias=%d]: reclaimed=YES pb_bar=%d prior_trend=YES%s → PASS",
+                     bias, pb_bar,
+                     m_settings.RequireRecoveryMomentum ? " momentum=YES" : "");
 
       return true;
    }
@@ -1439,12 +1454,12 @@ public:
       }
 
       // 3c. Sequential hard gates (any fail = reject)
-      if(m_settings.Gate_Pullback.mode != GATE_SCALE_OFF) {
-         if(!Check_Gate_Pullback(bias)) {
-            if(m_settings.DebugFlow) Print("HARD GATE: Pullback → REJECT (", m_diag_last_reason, ")");
+      if(m_settings.RequirePullback) {
+         if(!Check_Gate_DynamicPullback(bias)) {
+            if(m_settings.DebugFlow) Print("HARD GATE: Dynamic Pullback → REJECT (", m_diag_last_reason, ")");
             return 0;
          }
-         if(m_settings.DebugFlow) Print("HARD GATE: Pullback → PASS");
+         if(m_settings.DebugFlow) Print("HARD GATE: Dynamic Pullback → PASS");
       }
       if(m_settings.Gate_Recovery.mode != GATE_SCALE_OFF) {
          if(!Check_Gate_Recovery(bias)) {
