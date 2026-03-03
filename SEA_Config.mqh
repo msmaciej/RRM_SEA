@@ -486,13 +486,13 @@ input bool           Inp_ExportUseCommonFiles   = false;        // (Global; allo
 input group "══════════ ℹ️ ZONE 3A: PIPELINE CONFIG (presets override these when active) ══════════"
 
 // ── Step 1: Bias Calculation ─────────────────────────────────────────
-input group "--- ℹ️ Step 1: Bias Calculation (EMA selection & method) ---"
+input group "═══ 🔧 STEP 1: Bias Calculation ═══"
+input string         Inp_Step1_Info             = "Configure major trend detection"; // Info
 input bool           Inp_BiasEnabled            = true;                 // (CUSTOM; presets override) Enable market bias filter
 input EBiasMode      Inp_BiasMode               = BIAS_AUTO;            // (CUSTOM; presets override) Bias mode (AUTO/MANUAL)
-input EEmaStrategy   Inp_EmaStrategy            = EMA_STRAT_2_CROSS_3_4; // (CUSTOM; presets override) EMA bias strategy mapping
+input int            Inp_BiasFastID             = 2;                    // (CUSTOM; presets override) Bias Fast EMA (0=EMA1/5, 1=EMA2/13, 2=EMA3/34, 3=EMA4/89)
+input int            Inp_BiasSlowID             = 3;                    // (CUSTOM; presets override) Bias Slow EMA (0=EMA1/5, 1=EMA2/13, 2=EMA3/34, 3=EMA4/89)
 input EManualSide    Inp_ManualSide             = SIDE_BOTH;            // (CUSTOM; presets override) Manual direction (BOTH/LONG/SHORT)
-input EEmaRole       Inp_BiasFast_Adv           = ROLE_EMA3;            // (CUSTOM; presets override) Advanced bias fast EMA role (EMA_STRAT_CUSTOM only)
-input EEmaRole       Inp_BiasSlow_Adv           = ROLE_EMA4;            // (CUSTOM; presets override) Advanced bias slow EMA role (EMA_STRAT_CUSTOM only)
 input EMaMethod      Inp_MaType                 = METHOD_EMA;          // (CUSTOM; presets override) MA method (EMA/SMA)
 input int            Inp_MaHorShift             = 0;                   // (CUSTOM; presets override) MA horizontal shift (bars)
 input int            Inp_MaVerShift             = 1;                   // (CUSTOM; presets override) MA vertical shift (pips)
@@ -502,52 +502,54 @@ input int            InpEma3Period              = 34;                  // (CUSTO
 input int            InpEma4Period              = 89;                  // (CUSTOM; presets override) EMA4 period (RRM bias slow)
 
 // ── Step 2: Entry Signal ─────────────────────────────────────────────
-input group "--- ℹ️ Step 2: Entry Signal (strategy & continuation) ---"
+input group "═══ 🔧 STEP 2: Entry Signal ═══"
+input string         Inp_Step2_Info             = "Configure entry timing strategy"; // Info
+input EAutoStrategy  Inp_AutoStrat              = STRAT_PAIR_CROSS;  // (CUSTOM; presets override) Entry strategy (price cross / pair cross)
 input ERRMMode       Inp_RRM_Mode               = RRM_AUTO_BY_TF; // (RRM presets) RRM mode (AUTO uses timeframe mapping)
 input bool           Inp_RRM_EnableInCustom     = false;          // (CUSTOM only) Enable RRM logic while using PRESET_CUSTOM
-input EAutoStrategy  Inp_RRM_AutoStrat          = STRAT_PRICE_CROSS; // (CUSTOM; presets override) Auto strategy mapping (price cross / pair cross)
-input EEmaRole       Inp_RRM_BiasEMA            = ROLE_EMA2;      // (CUSTOM; presets override) Bias EMA role (manual bias tuning)
 input bool           Inp_CloseOnReverse         = false;          // (CUSTOM; presets may override) Close on reverse signal
 input EExitProfile   Inp_ExitProfile            = EXIT_PROFILE_LEGACY; // (CUSTOM; presets override) Exit profile (strict presets force strict)
 
 // ── Step 5: Structure Gate (Multi-layer pullback) ─────────────────────
-input group "--- ℹ️ Step 5: Structure Gate (pullback & multi-layer) ---"
-input bool           Inp_UseMultiLayer              = false;      // (CUSTOM; presets override) Enable multi-layer cascading EMA pullback detection
-input bool           Inp_RequirePullback            = false;      // (CUSTOM; presets override) Require dynamic structure pullback gate
-input int            Inp_PullbackLookback           = 10;         // (CUSTOM; presets override) Pullback lookback (bars)
-input bool           Inp_RequireRecoveryMomentum    = false;      // (CUSTOM; presets override) Require recovery bar to close in trend direction
+input group "═══ 🔧 STEP 5: Structure Gate (Pullback) ═══"
+input string         Inp_Step5_Info             = "Configure pullback-recovery detection"; // Info
+input bool           Inp_Gate_UseMultiLayer         = false;      // (CUSTOM; presets override) Enable multi-layer cascading EMA pullback detection
+input bool           Inp_Gate_RequirePullback        = false;      // (CUSTOM; presets override) Enable pullback gate
+input int            Inp_Gate_PullbackLookback       = 15;         // (CUSTOM; presets override) Pullback search bars
+input bool           Inp_Gate_RequireRecoveryMomentum = false;     // (CUSTOM; presets override) Require bullish/bearish candle (recovery momentum)
 input bool           Inp_RRM_RequirePullbackReclaim = false;      // (CUSTOM; presets override) Require pullback + reclaim condition
 input bool           Inp_RRM_RequireEmaDiv          = false;      // (CUSTOM; presets override) Require EMA divergence gate
 input int            Inp_RRM_Lookback           = 5;              // (CUSTOM; presets override) Pullback lookback bars
 input double         Inp_RRM_MinDivPips         = 0.5;            // (CUSTOM; presets override) Min EMA divergence (pips)
 
 // ── Step 6: Indicator Voting ──────────────────────────────────────────
-input group "--- ℹ️ Step 6: Indicator Voting (mode & threshold) ---"
-input int            Inp_VoteThreshold          = 2;                    // (CUSTOM; presets override) Votes required to enter (threshold; weighted sum in THRESHOLD mode)
-input EVoteMode      Inp_VoteMode               = VOTE_MODE_THRESHOLD;  // (CUSTOM; presets override) Vote mode: THRESHOLD (weighted sum) or ALL (every indicator must agree)
+input group "═══ 🔧 STEP 6: Voting Configuration ═══"
+input string         Inp_Step6_Info             = "Configure multi-indicator consensus"; // Info
+input bool           Inp_VoteMode_All           = true;                 // (CUSTOM; presets override) Vote mode: TRUE=all must agree, FALSE=threshold
+input int            Inp_VoteThreshold          = 4;                    // (CUSTOM; presets override) Votes required to enter (threshold; weighted sum in THRESHOLD mode)
 
-input group "--- ℹ️ Step 6 · Indicator: EmaSig (EMA Price Signal) ---"
+input group "═══ 📊 Indicator: EmaSig ═══"
 input bool           Inp_Ind_EmaSig_Enabled     = true;                // [EmaSig] Enable EMA signal vote
 input int            Inp_Ind_EmaSig_Weight      = 1;                   // [EmaSig] Vote weight
 input string         Inp_Ind_EmaSig_Info        = "Price position vs EMA1"; // [EmaSig] Description
 
-input group "--- ℹ️ Step 6 · Indicator: ADX (Trend Strength) ---"
+input group "═══ 📊 Indicator: ADX ═══"
 input bool           Inp_Ind_Adx_Enabled        = false;               // [ADX] Enable ADX vote
 input int            Inp_Ind_Adx_Weight         = 1;                   // [ADX] Vote weight
 input string         Inp_Ind_Adx_Info           = "Trend strength filter"; // [ADX] Description
 input int            Inp_Ind_Adx_Period         = 14;                  // [ADX] Period
 input int            Inp_Ind_Adx_Threshold      = 20;                  // [ADX] Threshold
 
-input group "--- ℹ️ Step 6 · Indicator: MACD (Momentum) ---"
+input group "═══ 📊 Indicator: MACD ═══"
 input bool           Inp_Ind_Macd_Enabled       = true;                // [MACD] Enable MACD vote
 input int            Inp_Ind_Macd_Weight        = 1;                   // [MACD] Vote weight
 input string         Inp_Ind_Macd_Info          = "MACD histogram alignment"; // [MACD] Description
 input EMacdMode      Inp_Ind_Macd_Mode          = MACD_SIGNAL_ALIGN;   // [MACD] Mode (signal align / zero cross)
-input int            Inp_Ind_Macd_Fast          = 12;                  // [MACD] Fast period
-input int            Inp_Ind_Macd_Slow          = 26;                  // [MACD] Slow period
-input int            Inp_Ind_Macd_Signal        = 9;                   // [MACD] Signal period
+input int            Inp_Ind_Macd_Fast          = 8;                   // [MACD] Fast period
+input int            Inp_Ind_Macd_Slow          = 13;                  // [MACD] Slow period
+input int            Inp_Ind_Macd_Signal        = 8;                   // [MACD] Signal period
 
-input group "--- ℹ️ Step 6 · Indicator: RSI (Momentum Zones) ---"
+input group "═══ 📊 Indicator: RSI ═══"
 input bool           Inp_Ind_Rsi_Enabled        = false;               // [RSI] Enable RSI vote
 input int            Inp_Ind_Rsi_Weight         = 1;                   // [RSI] Vote weight
 input string         Inp_Ind_Rsi_Info           = "Relative Strength Index"; // [RSI] Description
@@ -556,21 +558,21 @@ input int            Inp_Ind_Rsi_Period         = 14;                  // [RSI] 
 input double         Inp_Ind_Rsi_OB             = 70.0;                // [RSI] Overbought level
 input double         Inp_Ind_Rsi_OS             = 30.0;                // [RSI] Oversold level
 
-input group "--- ℹ️ Step 6 · Indicator: CCI (Cyclical) ---"
+input group "═══ 📊 Indicator: CCI ═══"
 input bool           Inp_Ind_Cci_Enabled        = true;                // [CCI] Enable CCI vote
 input int            Inp_Ind_Cci_Weight         = 1;                   // [CCI] Vote weight
 input string         Inp_Ind_Cci_Info           = "Commodity Channel Index"; // [CCI] Description
 input ECciMode       Inp_Ind_Cci_Mode           = CCI_TREND_ZERO;      // [CCI] Mode
 input int            Inp_Ind_Cci_Period         = 14;                  // [CCI] Period
 
-input group "--- ℹ️ Step 6 · Indicator: MFI (Money Flow) ---"
+input group "═══ 📊 Indicator: MFI ═══"
 input bool           Inp_Ind_Mfi_Enabled        = false;               // [MFI] Enable MFI vote
 input int            Inp_Ind_Mfi_Weight         = 1;                   // [MFI] Vote weight
 input string         Inp_Ind_Mfi_Info           = "Money Flow Index"; // [MFI] Description
 input int            Inp_Ind_Mfi_Period         = 14;                  // [MFI] Period
 input double         Inp_Ind_Mfi_Level          = 50.0;                // [MFI] Threshold/level
 
-input group "--- ℹ️ Step 6 · Indicator: Stochastic (Oscillator) ---"
+input group "═══ 📊 Indicator: Stochastic ═══"
 input bool           Inp_Ind_Sto_Enabled        = false;               // [Stoch] Enable Stochastic vote
 input int            Inp_Ind_Sto_Weight         = 1;                   // [Stoch] Vote weight
 input string         Inp_Ind_Sto_Info           = "Stochastic oscillator"; // [Stoch] Description
@@ -579,7 +581,7 @@ input int            Inp_Ind_Sto_K              = 5;                   // [Stoch
 input int            Inp_Ind_Sto_D              = 3;                   // [Stoch] %D period
 input int            Inp_Ind_Sto_Slow           = 3;                   // [Stoch] Slowing
 
-input group "--- ℹ️ Step 6 · Indicator: Bollinger Bands (Volatility) ---"
+input group "═══ 📊 Indicator: Bollinger ═══"
 input bool           Inp_Ind_Bb_Enabled         = false;               // [BB] Enable Bollinger Bands vote
 input int            Inp_Ind_Bb_Weight          = 1;                   // [BB] Vote weight
 input string         Inp_Ind_Bb_Info            = "Bollinger Bands channel"; // [BB] Description
@@ -587,24 +589,24 @@ input EBbMode        Inp_Ind_Bb_Mode            = BB_TREND_FOLLOW;     // [BB] M
 input int            Inp_Ind_Bb_Period          = 20;                  // [BB] Period
 input double         Inp_Ind_Bb_Dev             = 2.0;                 // [BB] Deviation
 
-input group "--- ℹ️ Step 6 · Indicator: PSAR (Trend Direction) ---"
+input group "═══ 📊 Indicator: PSAR ═══"
 input bool           Inp_Ind_Psar_Enabled       = true;                // [PSAR] Enable PSAR vote
 input int            Inp_Ind_Psar_Weight        = 1;                   // [PSAR] Vote weight
 input string         Inp_Ind_Psar_Info          = "Parabolic SAR position"; // [PSAR] Description
 input double         Inp_Ind_Psar_Step          = 0.05;                // [PSAR] Step
 input double         Inp_Ind_Psar_Max           = 0.5;                 // [PSAR] Maximum
 
-input group "--- ℹ️ Step 6 · Indicator: P123 (1-2-3 Pattern) ---"
+input group "═══ 📊 Indicator: Pattern123 ═══"
 input bool           Inp_Ind_P123_Enabled       = false;               // [P123] Enable 1-2-3 pattern vote
 input int            Inp_Ind_P123_Weight        = 1;                   // [P123] Vote weight
 input string         Inp_Ind_P123_Info          = "1-2-3 fractal breakout pattern"; // [P123] Description
 
-input group "--- ℹ️ Step 6 · Indicator: Ross (Ross Hook) ---"
+input group "═══ 📊 Indicator: Ross Hook ═══"
 input bool           Inp_Ind_Ross_Enabled       = false;               // [Ross] Enable Ross hook vote
 input int            Inp_Ind_Ross_Weight        = 1;                   // [Ross] Vote weight
 input string         Inp_Ind_Ross_Info          = "Ross hook trend momentum"; // [Ross] Description
 
-input group "--- ℹ️ Step 6 · Template: Add New Indicator ---"
+input group "═══ 📊 TEMPLATE: Add Custom Indicator ═══"
 input string         Inp_Ind_Template_Info      = "Copy a section above to add custom indicators"; // Instructions
 
 // ── Step 9: Risk & Execution ──────────────────────────────────────────
@@ -766,42 +768,21 @@ void InitializeConfig()
    Settings.RRM_RequireEmaDiv          = Inp_RRM_RequireEmaDiv;
    Settings.RRM_Lookback               = Inp_RRM_Lookback;
    Settings.RRM_MinDivPips             = Inp_RRM_MinDivPips;
-   Settings.RequirePullback            = Inp_RequirePullback;
-   Settings.PullbackLookback           = Inp_PullbackLookback;
-   Settings.RequireRecoveryMomentum    = Inp_RequireRecoveryMomentum;
-   Settings.Gate_UseMultiLayer         = Inp_UseMultiLayer;
+   Settings.RequirePullback            = Inp_Gate_RequirePullback;
+   Settings.PullbackLookback           = Inp_Gate_PullbackLookback;
+   Settings.RequireRecoveryMomentum    = Inp_Gate_RequireRecoveryMomentum;
+   Settings.Gate_UseMultiLayer         = Inp_Gate_UseMultiLayer;
 
    // Bias
    Settings.BiasEnabled          = Inp_BiasEnabled;
    Settings.BiasMode             = Inp_BiasMode;
    Settings.ManSide              = Inp_ManualSide;
 
-   // Strategy selector -> AutoStrat + EMA roles
-   // BiasFastID/BiasSlowID are role indices (0..3): 0=EMA1, 1=EMA2, 2=EMA3, 3=EMA4
-   if(Inp_EmaStrategy == EMA_STRAT_1_PRICE_CROSS)
-   {
-      Settings.AutoStrat  = STRAT_PRICE_CROSS;
-      Settings.BiasFastID = (int)ROLE_EMA1;
-      Settings.BiasSlowID = (int)ROLE_EMA1;
-   }
-   else if(Inp_EmaStrategy == EMA_STRAT_2_CROSS_1_2)
-   {
-      Settings.AutoStrat  = STRAT_PAIR_CROSS;
-      Settings.BiasFastID = (int)ROLE_EMA1;
-      Settings.BiasSlowID = (int)ROLE_EMA2;
-   }
-   else if(Inp_EmaStrategy == EMA_STRAT_2_CROSS_3_4)
-   {
-      Settings.AutoStrat  = STRAT_PAIR_CROSS;
-      Settings.BiasFastID = (int)ROLE_EMA3;
-      Settings.BiasSlowID = (int)ROLE_EMA4;
-   }
-   else // EMA_STRAT_CUSTOM
-   {
-      Settings.BiasFastID = (int)Inp_BiasFast_Adv;
-      Settings.BiasSlowID = (int)Inp_BiasSlow_Adv;
-      Settings.AutoStrat  = (Settings.BiasFastID == Settings.BiasSlowID) ? STRAT_PRICE_CROSS : STRAT_PAIR_CROSS;
-   }
+   // Strategy: direct bias EMA IDs (0=EMA1, 1=EMA2, 2=EMA3, 3=EMA4) + entry strategy
+   // Clamp IDs to valid range 0..3 to prevent runtime errors from invalid user input
+   Settings.BiasFastID           = MathMax(0, MathMin(3, Inp_BiasFastID));
+   Settings.BiasSlowID           = MathMax(0, MathMin(3, Inp_BiasSlowID));
+   Settings.AutoStrat            = Inp_AutoStrat;
 
    // Execution / indicator method
    Settings.MaType               = Inp_MaType;
@@ -821,7 +802,7 @@ void InitializeConfig()
 
    // Voting
    Settings.VoteThreshold        = Inp_VoteThreshold;
-   Settings.VoteMode             = Inp_VoteMode;
+   Settings.VoteMode             = (Inp_VoteMode_All ? VOTE_MODE_ALL : VOTE_MODE_THRESHOLD);
 
    // Indicator periods / thresholds
    Settings.P_Ema1               = InpEma1Period;

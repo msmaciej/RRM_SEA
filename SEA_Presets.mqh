@@ -691,9 +691,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_P123_Enabled      = false;
       cfg.Ind_Ross_Enabled      = false;
 
-      cfg.P_MacdFast = 12;    // 12,  8,
-      cfg.P_MacdSlow = 26;    // 26, 13,
-      cfg.P_MacdSig  = 9;     //  9,  8,
+      cfg.P_MacdFast = 8;     //  8,
+      cfg.P_MacdSlow = 13;    // 13,
+      cfg.P_MacdSig  = 8;     //  8,
 
       cfg.RRM_RequirePullbackReclaim = false;
       cfg.RRM_RequireEmaDiv          = false;
