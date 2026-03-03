@@ -222,17 +222,17 @@ string SEA_UI_BuildActiveVotesList(const ST_Settings &cfg)
 {
    string output = "";
    int count = 0;
-   if(cfg.Use_EmaSig) { output += StringFormat("  + EmaSig  (EMA1 price pos)  w=%.1f\n", cfg.W_EmaSig); count++; }
-   if(cfg.Use_Adx)    { output += StringFormat("  + ADX     (trend strength)  w=%.1f\n", cfg.W_Adx);    count++; }
-   if(cfg.Use_Macd)   { output += StringFormat("  + MACD    (momentum)        w=%.1f\n", cfg.W_Macd);   count++; }
-   if(cfg.Use_Rsi)    { output += StringFormat("  + RSI     (momentum zones)  w=%.1f\n", cfg.W_Rsi);    count++; }
-   if(cfg.Use_Cci)    { output += StringFormat("  + CCI     (cyclical)        w=%.1f\n", cfg.W_Cci);    count++; }
-   if(cfg.Use_Mfi)    { output += StringFormat("  + MFI     (money flow)      w=%.1f\n", cfg.W_Mfi);    count++; }
-   if(cfg.Use_Sto)    { output += StringFormat("  + Stoch   (oscillator)      w=%.1f\n", cfg.W_Sto);    count++; }
-   if(cfg.Use_Bb)     { output += StringFormat("  + BB      (volatility)      w=%.1f\n", cfg.W_Bb);     count++; }
-   if(cfg.Use_Psar)   { output += StringFormat("  + PSAR    (trend dir)       w=%.1f\n", cfg.W_Psar);   count++; }
-   if(cfg.Use_P123)   { output += StringFormat("  + P123    (123 pattern)     w=%.1f\n", cfg.W_P123);   count++; }
-   if(cfg.Use_Ross)   { output += StringFormat("  + Ross    (Ross hook)       w=%.1f\n", cfg.W_Ross);   count++; }
+   if(cfg.Ind_EmaSig_Enabled) { output += StringFormat("  + EmaSig  (EMA1 price pos)  w=%d\n", cfg.Ind_EmaSig_Weight); count++; }
+   if(cfg.Ind_Adx_Enabled)    { output += StringFormat("  + ADX     (trend strength)  w=%d\n", cfg.Ind_Adx_Weight);    count++; }
+   if(cfg.Ind_Macd_Enabled)   { output += StringFormat("  + MACD    (momentum)        w=%d\n", cfg.Ind_Macd_Weight);   count++; }
+   if(cfg.Ind_Rsi_Enabled)    { output += StringFormat("  + RSI     (momentum zones)  w=%d\n", cfg.Ind_Rsi_Weight);    count++; }
+   if(cfg.Ind_Cci_Enabled)    { output += StringFormat("  + CCI     (cyclical)        w=%d\n", cfg.Ind_Cci_Weight);    count++; }
+   if(cfg.Ind_Mfi_Enabled)    { output += StringFormat("  + MFI     (money flow)      w=%d\n", cfg.Ind_Mfi_Weight);    count++; }
+   if(cfg.Ind_Sto_Enabled)    { output += StringFormat("  + Stoch   (oscillator)      w=%d\n", cfg.Ind_Sto_Weight);    count++; }
+   if(cfg.Ind_Bb_Enabled)     { output += StringFormat("  + BB      (volatility)      w=%d\n", cfg.Ind_Bb_Weight);     count++; }
+   if(cfg.Ind_Psar_Enabled)   { output += StringFormat("  + PSAR    (trend dir)       w=%d\n", cfg.Ind_Psar_Weight);   count++; }
+   if(cfg.Ind_P123_Enabled)   { output += StringFormat("  + P123    (123 pattern)     w=%d\n", cfg.Ind_P123_Weight);   count++; }
+   if(cfg.Ind_Ross_Enabled)   { output += StringFormat("  + Ross    (Ross hook)       w=%d\n", cfg.Ind_Ross_Weight);   count++; }
    string mode_str = (cfg.VoteMode == VOTE_MODE_ALL ? "ALL" : StringFormat("THRESHOLD>=%d", cfg.VoteThreshold));
    return StringFormat("Step 6 · Votes (%d enabled, mode=%s):\n%s", count, mode_str, output);
 }
@@ -240,17 +240,17 @@ string SEA_UI_BuildActiveVotesList(const ST_Settings &cfg)
 string SEA_UI_BuildDisabledVotesList(const ST_Settings &cfg)
 {
    string list = "";
-   if(!cfg.Use_EmaSig) list += "EmaSig, ";
-   if(!cfg.Use_Adx)    list += "ADX, ";
-   if(!cfg.Use_Macd)   list += "MACD, ";
-   if(!cfg.Use_Rsi)    list += "RSI, ";
-   if(!cfg.Use_Cci)    list += "CCI, ";
-   if(!cfg.Use_Mfi)    list += "MFI, ";
-   if(!cfg.Use_Sto)    list += "Stoch, ";
-   if(!cfg.Use_Bb)     list += "BB, ";
-   if(!cfg.Use_Psar)   list += "PSAR, ";
-   if(!cfg.Use_P123)   list += "P123, ";
-   if(!cfg.Use_Ross)   list += "Ross, ";
+   if(!cfg.Ind_EmaSig_Enabled) list += "EmaSig, ";
+   if(!cfg.Ind_Adx_Enabled)    list += "ADX, ";
+   if(!cfg.Ind_Macd_Enabled)   list += "MACD, ";
+   if(!cfg.Ind_Rsi_Enabled)    list += "RSI, ";
+   if(!cfg.Ind_Cci_Enabled)    list += "CCI, ";
+   if(!cfg.Ind_Mfi_Enabled)    list += "MFI, ";
+   if(!cfg.Ind_Sto_Enabled)    list += "Stoch, ";
+   if(!cfg.Ind_Bb_Enabled)     list += "BB, ";
+   if(!cfg.Ind_Psar_Enabled)   list += "PSAR, ";
+   if(!cfg.Ind_P123_Enabled)   list += "P123, ";
+   if(!cfg.Ind_Ross_Enabled)   list += "Ross, ";
    if(StringLen(list) > 2)
       list = StringSubstr(list, 0, StringLen(list) - 2);
    if(list == "") return "Disabled Votes: (none)\n";
@@ -260,26 +260,26 @@ string SEA_UI_BuildDisabledVotesList(const ST_Settings &cfg)
 string SEA_UI_BuildIndicatorConfigs(const ST_Settings &cfg)
 {
    string output = "Indicator Configs:\n";
-   if(cfg.Use_Macd)
+   if(cfg.Ind_Macd_Enabled)
       output += StringFormat("  MACD: %d/%d/%d (Fast/Slow/Sig)\n",
                              cfg.P_MacdFast, cfg.P_MacdSlow, cfg.P_MacdSig);
-   if(cfg.Use_Psar)
+   if(cfg.Ind_Psar_Enabled)
       output += StringFormat("  PSAR: Step=%.2f, Max=%.2f\n",
                              cfg.P_PsarStep, cfg.P_PsarMax);
-   if(cfg.Use_Rsi)
+   if(cfg.Ind_Rsi_Enabled)
       output += StringFormat("  RSI: Period=%d, OB=%.0f, OS=%.0f\n",
                              cfg.P_Rsi, cfg.T_RsiOB, cfg.T_RsiOS);
-   if(cfg.Use_Cci)
+   if(cfg.Ind_Cci_Enabled)
       output += StringFormat("  CCI: Period=%d\n", cfg.P_Cci);
-   if(cfg.Use_Adx)
+   if(cfg.Ind_Adx_Enabled)
       output += StringFormat("  ADX: Period=%d, Threshold=%d\n",
                              cfg.P_Adx, cfg.T_Adx);
-   if(cfg.Use_Sto)
+   if(cfg.Ind_Sto_Enabled)
       output += StringFormat("  Stoch: K=%d, D=%d, Slow=%d\n",
                              cfg.P_StoK, cfg.P_StoD, cfg.P_StoSlow);
-   if(cfg.Use_Mfi)
+   if(cfg.Ind_Mfi_Enabled)
       output += StringFormat("  MFI: Period=%d\n", cfg.P_Mfi);
-   if(cfg.Use_Bb)
+   if(cfg.Ind_Bb_Enabled)
       output += StringFormat("  BB: Period=%d, Dev=%.1f\n",
                              cfg.P_Bb, cfg.P_BbDev);
    return output;

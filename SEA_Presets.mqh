@@ -111,17 +111,17 @@ void ApplyAdminOverrides(ST_Settings &cfg)
    cfg.P_MacdFast     = Inp_Override_MACD_Fast;
    cfg.P_MacdSlow     = Inp_Override_MACD_Slow;
    cfg.P_MacdSig      = Inp_Override_MACD_Signal;
-   cfg.Use_EmaSig     = Inp_Override_Use_EmaSig;
-   cfg.Use_Macd       = Inp_Override_Use_Macd;
-   cfg.Use_Psar       = Inp_Override_Use_Psar;
-   cfg.Use_Cci        = Inp_Override_Use_Cci;
-   cfg.Use_Rsi        = Inp_Override_Use_Rsi;
-   cfg.Use_Adx        = Inp_Override_Use_Adx;
-   cfg.Use_Mfi        = Inp_Override_Use_Mfi;
-   cfg.Use_Sto        = Inp_Override_Use_Sto;
-   cfg.Use_Bb         = Inp_Override_Use_Bb;
-   cfg.Use_P123       = Inp_Override_Use_P123;
-   cfg.Use_Ross       = Inp_Override_Use_Ross;
+   cfg.Ind_EmaSig_Enabled     = Inp_Override_Use_EmaSig;
+   cfg.Ind_Macd_Enabled       = Inp_Override_Use_Macd;
+   cfg.Ind_Psar_Enabled       = Inp_Override_Use_Psar;
+   cfg.Ind_Cci_Enabled        = Inp_Override_Use_Cci;
+   cfg.Ind_Rsi_Enabled        = Inp_Override_Use_Rsi;
+   cfg.Ind_Adx_Enabled        = Inp_Override_Use_Adx;
+   cfg.Ind_Mfi_Enabled        = Inp_Override_Use_Mfi;
+   cfg.Ind_Sto_Enabled        = Inp_Override_Use_Sto;
+   cfg.Ind_Bb_Enabled         = Inp_Override_Use_Bb;
+   cfg.Ind_P123_Enabled       = Inp_Override_Use_P123;
+   cfg.Ind_Ross_Enabled       = Inp_Override_Use_Ross;
    cfg.RRM_RequirePullbackReclaim = Inp_Override_RRM_RequirePullbackReclaim;
    cfg.RRM_RequireEmaDiv          = Inp_Override_RRM_RequireEmaDiv;
    cfg.RequirePullback            = Inp_Override_RequirePullback;
@@ -224,17 +224,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.UseHTF            = false;
 
       // Disable all votes
-      cfg.Use_EmaSig        = false;
-      cfg.Use_Adx           = false;
-      cfg.Use_Macd          = false;
-      cfg.Use_Rsi           = false;
-      cfg.Use_Cci           = false;
-      cfg.Use_Mfi           = false;
-      cfg.Use_Sto           = false;
-      cfg.Use_Bb            = false;
-      cfg.Use_Psar          = false;
-      cfg.Use_P123          = false;
-      cfg.Use_Ross          = false;
+      cfg.Ind_EmaSig_Enabled        = false;
+      cfg.Ind_Adx_Enabled           = false;
+      cfg.Ind_Macd_Enabled          = false;
+      cfg.Ind_Rsi_Enabled           = false;
+      cfg.Ind_Cci_Enabled           = false;
+      cfg.Ind_Mfi_Enabled           = false;
+      cfg.Ind_Sto_Enabled           = false;
+      cfg.Ind_Bb_Enabled            = false;
+      cfg.Ind_Psar_Enabled          = false;
+      cfg.Ind_P123_Enabled          = false;
+      cfg.Ind_Ross_Enabled          = false;
 
       cfg.SL_PlacementMode  = SL_ATR;
       cfg.SL_Mult           = 0.0;
@@ -293,17 +293,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.UseNews           = false;
       cfg.UseHTF            = false;
 
-      cfg.Use_EmaSig        = true;
-      cfg.Use_Adx           = false;
-      cfg.Use_Macd          = false;
-      cfg.Use_Rsi           = false;
-      cfg.Use_Cci           = false;
-      cfg.Use_Mfi           = false;
-      cfg.Use_Sto           = false;
-      cfg.Use_Bb            = false;
-      cfg.Use_Psar          = false;
-      cfg.Use_P123          = false;
-      cfg.Use_Ross          = false;
+      cfg.Ind_EmaSig_Enabled        = true;
+      cfg.Ind_Adx_Enabled           = false;
+      cfg.Ind_Macd_Enabled          = false;
+      cfg.Ind_Rsi_Enabled           = false;
+      cfg.Ind_Cci_Enabled           = false;
+      cfg.Ind_Mfi_Enabled           = false;
+      cfg.Ind_Sto_Enabled           = false;
+      cfg.Ind_Bb_Enabled            = false;
+      cfg.Ind_Psar_Enabled          = false;
+      cfg.Ind_P123_Enabled          = false;
+      cfg.Ind_Ross_Enabled          = false;
 
       cfg.SL_PlacementMode  = SL_ATR;
       cfg.SL_Mult           = 0.0;
@@ -353,17 +353,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.UseNews        = true;
       cfg.UseHTF         = true;
 
-      cfg.Use_EmaSig     = true;
-      cfg.Use_Adx        = true;
-      cfg.Use_Macd       = true;
-      cfg.Use_Rsi        = false;
-      cfg.Use_Cci        = false;
-      cfg.Use_Mfi        = false;
-      cfg.Use_Sto        = false;
-      cfg.Use_Bb         = false;
-      cfg.Use_Psar       = false;
-      cfg.Use_P123       = false;
-      cfg.Use_Ross       = false;
+      cfg.Ind_EmaSig_Enabled     = true;
+      cfg.Ind_Adx_Enabled        = true;
+      cfg.Ind_Macd_Enabled       = true;
+      cfg.Ind_Rsi_Enabled        = false;
+      cfg.Ind_Cci_Enabled        = false;
+      cfg.Ind_Mfi_Enabled        = false;
+      cfg.Ind_Sto_Enabled        = false;
+      cfg.Ind_Bb_Enabled         = false;
+      cfg.Ind_Psar_Enabled       = false;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Ross_Enabled       = false;
 
       cfg.SL_PlacementMode = SL_ATR;
       cfg.SL_Mult        = 1.5;
@@ -416,17 +416,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.UseNews        = true;
       cfg.UseHTF         = true;
 
-      cfg.Use_EmaSig     = true;
-      cfg.Use_Adx        = true;
-      cfg.Use_Macd       = true;
-      cfg.Use_Rsi        = false;
-      cfg.Use_Cci        = false;
-      cfg.Use_Mfi        = false;
-      cfg.Use_Sto        = false;
-      cfg.Use_Bb         = false;
-      cfg.Use_Psar       = false;
-      cfg.Use_P123       = false;
-      cfg.Use_Ross       = false;
+      cfg.Ind_EmaSig_Enabled     = true;
+      cfg.Ind_Adx_Enabled        = true;
+      cfg.Ind_Macd_Enabled       = true;
+      cfg.Ind_Rsi_Enabled        = false;
+      cfg.Ind_Cci_Enabled        = false;
+      cfg.Ind_Mfi_Enabled        = false;
+      cfg.Ind_Sto_Enabled        = false;
+      cfg.Ind_Bb_Enabled         = false;
+      cfg.Ind_Psar_Enabled       = false;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Ross_Enabled       = false;
 
       cfg.SL_PlacementMode = SL_ATR;
       cfg.SL_Mult        = 2.0;
@@ -483,17 +483,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.StoMode        = STO_ZONE_FILTER;
       cfg.BbMode         = BB_MEAN_REVERSION;
 
-      cfg.Use_EmaSig     = false;
-      cfg.Use_Adx        = false;
-      cfg.Use_Macd       = false;
-      cfg.Use_Rsi        = true;
-      cfg.Use_Cci        = false;
-      cfg.Use_Mfi        = false;
-      cfg.Use_Sto        = true;
-      cfg.Use_Bb         = true;
-      cfg.Use_Psar       = false;
-      cfg.Use_P123       = false;
-      cfg.Use_Ross       = false;
+      cfg.Ind_EmaSig_Enabled     = false;
+      cfg.Ind_Adx_Enabled        = false;
+      cfg.Ind_Macd_Enabled       = false;
+      cfg.Ind_Rsi_Enabled        = true;
+      cfg.Ind_Cci_Enabled        = false;
+      cfg.Ind_Mfi_Enabled        = false;
+      cfg.Ind_Sto_Enabled        = true;
+      cfg.Ind_Bb_Enabled         = true;
+      cfg.Ind_Psar_Enabled       = false;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Ross_Enabled       = false;
 
       cfg.SL_PlacementMode = SL_ATR;
       cfg.SL_Mult        = 2.0;
@@ -571,17 +571,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.TP_Mult          = 4.0;
       }
 
-      cfg.Use_EmaSig    = true;
-      cfg.Use_Adx       = false;
-      cfg.Use_Macd      = true;
-      cfg.Use_Rsi       = false;
-      cfg.Use_Cci       = false;
-      cfg.Use_Mfi       = true;
-      cfg.Use_Sto       = true;
-      cfg.Use_Bb        = true;
-      cfg.Use_Psar      = true;
-      cfg.Use_P123      = false;
-      cfg.Use_Ross      = false;
+      cfg.Ind_EmaSig_Enabled    = true;
+      cfg.Ind_Adx_Enabled       = false;
+      cfg.Ind_Macd_Enabled      = true;
+      cfg.Ind_Rsi_Enabled       = false;
+      cfg.Ind_Cci_Enabled       = false;
+      cfg.Ind_Mfi_Enabled       = true;
+      cfg.Ind_Sto_Enabled       = true;
+      cfg.Ind_Bb_Enabled        = true;
+      cfg.Ind_Psar_Enabled      = true;
+      cfg.Ind_P123_Enabled      = false;
+      cfg.Ind_Ross_Enabled      = false;
 
       cfg.VoteThreshold = 4;
 
@@ -679,17 +679,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // Votes: EMA ribbon + MACD/CCI/PSAR (no ATR vote)
       cfg.VoteThreshold = 4;
-      cfg.Use_EmaSig    = true;
-      cfg.Use_Adx       = false;
-      cfg.Use_Macd      = true;
-      cfg.Use_Rsi       = false;
-      cfg.Use_Cci       = true;
-      cfg.Use_Mfi       = false;
-      cfg.Use_Sto       = false;
-      cfg.Use_Bb        = false;
-      cfg.Use_Psar      = true;
-      cfg.Use_P123      = false;
-      cfg.Use_Ross      = false;
+      cfg.Ind_EmaSig_Enabled    = true;
+      cfg.Ind_Adx_Enabled       = false;
+      cfg.Ind_Macd_Enabled      = true;
+      cfg.Ind_Rsi_Enabled       = false;
+      cfg.Ind_Cci_Enabled       = true;
+      cfg.Ind_Mfi_Enabled       = false;
+      cfg.Ind_Sto_Enabled       = false;
+      cfg.Ind_Bb_Enabled        = false;
+      cfg.Ind_Psar_Enabled      = true;
+      cfg.Ind_P123_Enabled      = false;
+      cfg.Ind_Ross_Enabled      = false;
 
       cfg.P_MacdFast = 12;    // 12,  8,
       cfg.P_MacdSlow = 26;    // 26, 13,

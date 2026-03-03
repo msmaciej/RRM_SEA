@@ -473,7 +473,7 @@ void SEA_UI_ManageChartIndicators()
 
    // --- EMAs (bias determination + optional TS component)
    bool need_ema[4];
-   need_ema[0] = (Settings.BiasFastID == 0 || Settings.BiasSlowID == 0 || Settings.Use_EmaSig);
+   need_ema[0] = (Settings.BiasFastID == 0 || Settings.BiasSlowID == 0 || Settings.Ind_EmaSig_Enabled);
    need_ema[1] = (Settings.BiasFastID == 1 || Settings.BiasSlowID == 1);
    need_ema[2] = (Settings.BiasFastID == 2 || Settings.BiasSlowID == 2);
    need_ema[3] = (Settings.BiasFastID == 3 || Settings.BiasSlowID == 3);
@@ -489,7 +489,7 @@ void SEA_UI_ManageChartIndicators()
             overlays_added++;
 
             string role = "bias";
-            if(i == 0 && Settings.Use_EmaSig)
+            if(i == 0 && Settings.Ind_EmaSig_Enabled)
             {
                role = "bias + TS component";
                ts_components_visible++;
@@ -501,7 +501,7 @@ void SEA_UI_ManageChartIndicators()
    }
 
    // --- PSAR (TS component + optional trailing)
-   if(Settings.Use_Psar ||
+   if(Settings.Ind_Psar_Enabled ||
       Settings.TrailMode == TRAIL_PSAR)
    {
       int h = Signal.GetPsarHandle();
@@ -511,7 +511,7 @@ void SEA_UI_ManageChartIndicators()
          overlays_added++;
 
          string role = "";
-         if(Settings.Use_Psar)
+         if(Settings.Ind_Psar_Enabled)
          {
             role = "TS component";
             ts_components_visible++;
@@ -531,7 +531,7 @@ void SEA_UI_ManageChartIndicators()
    }
 
    // --- Bollinger Bands (TS component)
-   if(Settings.Use_Bb)
+   if(Settings.Ind_Bb_Enabled)
    {
       int h = Signal.GetBbHandle();
       if(h != INVALID_HANDLE)
@@ -580,7 +580,7 @@ void SEA_UI_ManageChartIndicators()
    }
 
    // --- Pattern 123 (TS component)
-   if(Settings.Use_P123)
+   if(Settings.Ind_P123_Enabled)
    {
       int h = Signal.GetP123Handle();
       if(h != INVALID_HANDLE)
@@ -597,7 +597,7 @@ void SEA_UI_ManageChartIndicators()
    }
 
    // --- Ross Hook (TS component)
-   if(Settings.Use_Ross)
+   if(Settings.Ind_Ross_Enabled)
    {
       int h = Signal.GetRossHandle();
       if(h != INVALID_HANDLE)
@@ -622,7 +622,7 @@ void SEA_UI_ManageChartIndicators()
    int subwindows_added = 0;
 
    // --- MACD (TS component)
-   if(Settings.Use_Macd)
+   if(Settings.Ind_Macd_Enabled)
    {
       int h = Signal.GetMacdHandle();
       if(h != INVALID_HANDLE)
@@ -642,7 +642,7 @@ void SEA_UI_ManageChartIndicators()
    }
 
    // --- RSI (TS component)
-   if(Settings.Use_Rsi)
+   if(Settings.Ind_Rsi_Enabled)
    {
       int h = Signal.GetRsiHandle();
       if(h != INVALID_HANDLE)
@@ -662,7 +662,7 @@ void SEA_UI_ManageChartIndicators()
    }
 
    // --- CCI (TS component)
-   if(Settings.Use_Cci)
+   if(Settings.Ind_Cci_Enabled)
    {
       int h = Signal.GetCciHandle();
       if(h != INVALID_HANDLE)
@@ -682,7 +682,7 @@ void SEA_UI_ManageChartIndicators()
    }
 
    // --- MFI (TS component)
-   if(Settings.Use_Mfi)
+   if(Settings.Ind_Mfi_Enabled)
    {
       int h = Signal.GetMfiHandle();
       if(h != INVALID_HANDLE)
@@ -702,7 +702,7 @@ void SEA_UI_ManageChartIndicators()
    }
 
    // --- Stochastic (TS component)
-   if(Settings.Use_Sto)
+   if(Settings.Ind_Sto_Enabled)
    {
       int h = Signal.GetStoHandle();
       if(h != INVALID_HANDLE)
@@ -722,7 +722,7 @@ void SEA_UI_ManageChartIndicators()
    }
 
    // --- ADX (TS component)
-   if(Settings.Use_Adx)
+   if(Settings.Ind_Adx_Enabled)
    {
       int h = Signal.GetAdxHandle();
       if(h != INVALID_HANDLE)
