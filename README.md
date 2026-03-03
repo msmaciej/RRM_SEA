@@ -8,6 +8,7 @@ All current docs live in `Readme/`:
 
 - `Readme/README_SYSTEM.md` — system architecture & full documentation
 - `Readme/README_INDICATORS.md` — indicator and voting pipeline reference
+- `Readme/README_EXTENDING.md` — developer guide: how to add custom indicators
 - `Readme/README_SEA_RULES.md` — agent ownership, constraints, preset policy
 - `Readme/README_SEA_BOOTSTRAP.md` — how to start a new chat and run tasks with SEA agents
 - `Readme/README_SEA_AI-AGENTS.md` — SEA Agents v.03 prompts (roles/guardrails/output)
