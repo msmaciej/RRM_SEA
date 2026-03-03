@@ -158,6 +158,13 @@ enum EGateScaleMode
    GATE_SCALE_AUTO_TF     // Auto-scale by timeframe/pair
 };
 
+// --- VOTE MODE SELECTOR ---
+enum EVoteMode
+{
+   VOTE_MODE_THRESHOLD,   // THRESHOLD: minimum weighted votes required (default)
+   VOTE_MODE_ALL          // ALL: every enabled indicator must agree
+};
+
 struct SGateConfig
 {
    EGateScaleMode mode;
@@ -243,7 +250,22 @@ struct ST_Settings
    int             P_HtfEma;
 
    // Voting
-   int VoteThreshold;
+   int       VoteThreshold;
+   EVoteMode VoteMode;        // THRESHOLD: weighted sum >= VoteThreshold; ALL: every indicator must agree (weights ignored)
+
+   // Per-indicator weights (1.0 = standard; only used in VOTE_MODE_THRESHOLD for weighted sum)
+   // In VOTE_MODE_ALL, weights are ignored — all enabled indicators must simply agree.
+   double W_EmaSig;
+   double W_Adx;
+   double W_Macd;
+   double W_Rsi;
+   double W_Cci;
+   double W_Mfi;
+   double W_Sto;
+   double W_Bb;
+   double W_Psar;
+   double W_P123;
+   double W_Ross;
 
    // Indicators (Periods)
    int    P_Ema1;
@@ -454,123 +476,141 @@ input bool           Inp_ExportCSV              = false;        // (Global; allo
 input bool           Inp_ExportUseCommonFiles   = false;        // (Global; allowed under presets) Use terminal Common Files folder for export
 
 // ════════════════════════════════════════════════════════════════════
-// ℹ️ ZONE 3A — PRESET INFO  (reference defaults)
+// ℹ️ ZONE 3A — PIPELINE CONFIG  (reference defaults by pipeline step)
+// Organized by the 9-step signal processing pipeline.
 // When a preset is active these are overridden by the preset.
 // In PRESET_CUSTOM mode all inputs below are fully respected.
+// Steps 3 (Signal-Bias Match), 7 (Position Check) have no user inputs.
+// Steps 4 (HTF) and 8 (Operator Gates) are in Zone 2 (always editable).
 // ════════════════════════════════════════════════════════════════════
-input group "══════════ ℹ️ ZONE 3A: PRESET INFO (presets override these when active) ══════════"
+input group "══════════ ℹ️ ZONE 3A: PIPELINE CONFIG (presets override these when active) ══════════"
 
-input group "--- ℹ️ Custom: Logic & Risk ---"
-input bool           Inp_CloseOnReverse         = false;  // (CUSTOM; presets may override) Close on reverse signal
-input double         Inp_RiskPercent            = 2.0;    // (CUSTOM; presets may override) Risk per trade (%)
-
-input group "--- ℹ️ Custom: Market Bias ---"
+// ── Step 1: Bias Calculation ─────────────────────────────────────────
+input group "--- ℹ️ Step 1: Bias Calculation (EMA selection & method) ---"
 input bool           Inp_BiasEnabled            = true;                 // (CUSTOM; presets override) Enable market bias filter
 input EBiasMode      Inp_BiasMode               = BIAS_AUTO;            // (CUSTOM; presets override) Bias mode (AUTO/MANUAL)
 input EEmaStrategy   Inp_EmaStrategy            = EMA_STRAT_2_CROSS_3_4; // (CUSTOM; presets override) EMA bias strategy mapping
-
-input group "--- ℹ️ Custom: Advanced Bias Mapping ---"
 input EManualSide    Inp_ManualSide             = SIDE_BOTH;            // (CUSTOM; presets override) Manual direction (BOTH/LONG/SHORT)
-input EEmaRole       Inp_BiasFast_Adv           = ROLE_EMA3;            // (CUSTOM; presets override) Advanced bias fast EMA role
-input EEmaRole       Inp_BiasSlow_Adv           = ROLE_EMA4;            // (CUSTOM; presets override) Advanced bias slow EMA role
+input EEmaRole       Inp_BiasFast_Adv           = ROLE_EMA3;            // (CUSTOM; presets override) Advanced bias fast EMA role (EMA_STRAT_CUSTOM only)
+input EEmaRole       Inp_BiasSlow_Adv           = ROLE_EMA4;            // (CUSTOM; presets override) Advanced bias slow EMA role (EMA_STRAT_CUSTOM only)
+input EMaMethod      Inp_MaType                 = METHOD_EMA;          // (CUSTOM; presets override) MA method (EMA/SMA)
+input int            Inp_MaHorShift             = 0;                   // (CUSTOM; presets override) MA horizontal shift (bars)
+input int            Inp_MaVerShift             = 1;                   // (CUSTOM; presets override) MA vertical shift (pips)
+input int            InpEma1Period              = 5;                   // (CUSTOM; presets override) EMA1 period
+input int            InpEma2Period              = 13;                  // (CUSTOM; presets override) EMA2 period
+input int            InpEma3Period              = 34;                  // (CUSTOM; presets override) EMA3 period (RRM bias fast)
+input int            InpEma4Period              = 89;                  // (CUSTOM; presets override) EMA4 period (RRM bias slow)
 
-input group "--- ℹ️ Custom: Voting ---"
-input int            Inp_VoteThreshold          = 2;                   // (CUSTOM; presets override) Votes required to enter (threshold)
-
-input group "--- ℹ️ RRM Strict (non-ATR) ---"
-input EExitProfile Inp_ExitProfile = EXIT_PROFILE_LEGACY;       // (CUSTOM; presets override) Exit profile override (strict presets force strict)
-
-input group "--- ℹ️ Preset RRM: Trend Pullback ---"
+// ── Step 2: Entry Signal ─────────────────────────────────────────────
+input group "--- ℹ️ Step 2: Entry Signal (strategy & continuation) ---"
 input ERRMMode       Inp_RRM_Mode               = RRM_AUTO_BY_TF; // (RRM presets) RRM mode (AUTO uses timeframe mapping)
 input bool           Inp_RRM_EnableInCustom     = false;          // (CUSTOM only) Enable RRM logic while using PRESET_CUSTOM
 input EAutoStrategy  Inp_RRM_AutoStrat          = STRAT_PRICE_CROSS; // (CUSTOM; presets override) Auto strategy mapping (price cross / pair cross)
 input EEmaRole       Inp_RRM_BiasEMA            = ROLE_EMA2;      // (CUSTOM; presets override) Bias EMA role (manual bias tuning)
-input int            Inp_RRM_Lookback           = 5;              // (CUSTOM; presets override) Pullback lookback bars
-input double         Inp_RRM_MinDivPips         = 0.5;            // (CUSTOM; presets override) Min EMA divergence (pips)
-input bool           Inp_RRM_RequirePullbackReclaim = false;      // (CUSTOM; presets override) Require pullback + reclaim condition
-input bool           Inp_RRM_RequireEmaDiv          = false;      // (CUSTOM; presets override) Require EMA divergence gate
+input bool           Inp_CloseOnReverse         = false;          // (CUSTOM; presets may override) Close on reverse signal
+input EExitProfile   Inp_ExitProfile            = EXIT_PROFILE_LEGACY; // (CUSTOM; presets override) Exit profile (strict presets force strict)
+
+// ── Step 5: Structure Gate (Multi-layer pullback) ─────────────────────
+input group "--- ℹ️ Step 5: Structure Gate (pullback & multi-layer) ---"
+input bool           Inp_UseMultiLayer              = false;      // (CUSTOM; presets override) Enable multi-layer cascading EMA pullback detection
 input bool           Inp_RequirePullback            = false;      // (CUSTOM; presets override) Require dynamic structure pullback gate
 input int            Inp_PullbackLookback           = 10;         // (CUSTOM; presets override) Pullback lookback (bars)
 input bool           Inp_RequireRecoveryMomentum    = false;      // (CUSTOM; presets override) Require recovery bar to close in trend direction
-input bool           Inp_UseMultiLayer              = false;      // (CUSTOM; presets override) Enable multi-layer cascading EMA pullback detection
+input bool           Inp_RRM_RequirePullbackReclaim = false;      // (CUSTOM; presets override) Require pullback + reclaim condition
+input bool           Inp_RRM_RequireEmaDiv          = false;      // (CUSTOM; presets override) Require EMA divergence gate
+input int            Inp_RRM_Lookback           = 5;              // (CUSTOM; presets override) Pullback lookback bars
+input double         Inp_RRM_MinDivPips         = 0.5;            // (CUSTOM; presets override) Min EMA divergence (pips)
 
-input group "--- ℹ️ Indicators: Settings ---"
-input EMaMethod      Inp_MaType                 = METHOD_EMA;          // (CUSTOM; presets override) MA method (EMA/SMA)
-input int            Inp_MaHorShift             = 0;                   // (CUSTOM; presets override) MA horizontal shift (bars)
-input int            Inp_MaVerShift             = 1;                   // (CUSTOM; presets override) MA vertical shift (pips)
+// ── Step 6: Indicator Voting ──────────────────────────────────────────
+input group "--- ℹ️ Step 6: Indicator Voting (mode & threshold) ---"
+input int            Inp_VoteThreshold          = 2;                    // (CUSTOM; presets override) Votes required to enter (threshold; weighted sum in THRESHOLD mode)
+input EVoteMode      Inp_VoteMode               = VOTE_MODE_THRESHOLD;  // (CUSTOM; presets override) Vote mode: THRESHOLD (weighted sum) or ALL (every indicator must agree)
 
-input group "--- ℹ️ Indicators: EMA ---"
-input int            InpEma1Period              = 5;                   // (CUSTOM; presets override) EMA1 period
-input int            InpEma2Period              = 13;                  // (CUSTOM; presets override) EMA2 period
-input int            InpEma3Period              = 34;                  // (CUSTOM; presets override) EMA3 period
-input int            InpEma4Period              = 89;                  // (CUSTOM; presets override) EMA4 period
+input group "--- ℹ️ Step 6 · EmaSig: EMA Price Signal ---"
+input bool           Inp_Use_EmaSig             = true;                // (CUSTOM; presets override) Enable EMA signal vote
+input double         Inp_W_EmaSig               = 1.0;                 // (CUSTOM; presets override) EMA signal vote weight
 
-input group "--- ℹ️ Indicators: ADX ---"
+input group "--- ℹ️ Step 6 · ADX: Trend Strength ---"
+input bool           Inp_Use_Adx                = false;               // (CUSTOM; presets override) Enable ADX vote
+input double         Inp_W_Adx                  = 1.0;                 // (CUSTOM; presets override) ADX vote weight
 input int            InpAdxPeriod               = 14;                  // (CUSTOM; presets override) ADX period
 input int            InpAdxThreshold            = 20;                  // (CUSTOM; presets override) ADX threshold
 
-input group "--- ℹ️ Indicators: MACD ---"
+input group "--- ℹ️ Step 6 · MACD: Momentum ---"
+input bool           Inp_Use_Macd               = true;                // (CUSTOM; presets override) Enable MACD vote
+input double         Inp_W_Macd                 = 1.0;                 // (CUSTOM; presets override) MACD vote weight
 input EMacdMode      InpMacdMode                = MACD_SIGNAL_ALIGN;   // (CUSTOM; presets override) MACD mode (signal align / zero cross)
 input int            InpMacdFast                = 12;                  // (CUSTOM; presets override) MACD fast period
 input int            InpMacdSlow                = 26;                  // (CUSTOM; presets override) MACD slow period
 input int            InpMacdSig                 = 9;                   // (CUSTOM; presets override) MACD signal period
 
-input group "--- ℹ️ Indicators: RSI ---"
+input group "--- ℹ️ Step 6 · RSI: Momentum Zones ---"
+input bool           Inp_Use_Rsi                = false;               // (CUSTOM; presets override) Enable RSI vote
+input double         Inp_W_Rsi                  = 1.0;                 // (CUSTOM; presets override) RSI vote weight
 input ERsiMode       InpRsiMode                 = RSI_FILTER_EXTREME;  // (CUSTOM; presets override) RSI mode
 input int            InpRsiPeriod               = 14;                  // (CUSTOM; presets override) RSI period
 input double         InpRsiOverbought           = 70.0;                // (CUSTOM; presets override) RSI overbought level
 input double         InpRsiOversold             = 30.0;                // (CUSTOM; presets override) RSI oversold level
 
-input group "--- ℹ️ Indicators: CCI ---"
+input group "--- ℹ️ Step 6 · CCI: Cyclical ---"
+input bool           Inp_Use_Cci                = true;                // (CUSTOM; presets override) Enable CCI vote
+input double         Inp_W_Cci                  = 1.0;                 // (CUSTOM; presets override) CCI vote weight
 input ECciMode       InpCciMode                 = CCI_TREND_ZERO;      // (CUSTOM; presets override) CCI mode
 input int            InpCciPeriod               = 14;                  // (CUSTOM; presets override) CCI period
 
-input group "--- ℹ️ Indicators: MFI ---"
+input group "--- ℹ️ Step 6 · MFI: Money Flow ---"
+input bool           Inp_Use_Mfi                = false;               // (CUSTOM; presets override) Enable MFI vote
+input double         Inp_W_Mfi                  = 1.0;                 // (CUSTOM; presets override) MFI vote weight
 input int            InpMfiPeriod               = 14;                  // (CUSTOM; presets override) MFI period
 input double         InpMfiLevel                = 50.0;                // (CUSTOM; presets override) MFI threshold/level
 
-input group "--- ℹ️ Indicators: Stochastic ---"
+input group "--- ℹ️ Step 6 · Stochastic: Oscillator ---"
+input bool           Inp_Use_Sto                = false;               // (CUSTOM; presets override) Enable Stochastic vote
+input double         Inp_W_Sto                  = 1.0;                 // (CUSTOM; presets override) Stochastic vote weight
 input EStochMode     InpStoMode                 = STO_ZONE_FILTER;     // (CUSTOM; presets override) Stochastic mode
 input int            InpStoK                    = 5;                   // (CUSTOM; presets override) Stochastic %K period
 input int            InpStoD                    = 3;                   // (CUSTOM; presets override) Stochastic %D period
 input int            InpStoSlow                 = 3;                   // (CUSTOM; presets override) Stochastic slowing
 
-input group "--- ℹ️ Indicators: Bollinger Bands ---"
+input group "--- ℹ️ Step 6 · Bollinger Bands: Volatility ---"
+input bool           Inp_Use_Bb                 = false;               // (CUSTOM; presets override) Enable Bollinger Bands vote
+input double         Inp_W_Bb                   = 1.0;                 // (CUSTOM; presets override) Bollinger Bands vote weight
 input EBbMode        InpBbMode                  = BB_TREND_FOLLOW;     // (CUSTOM; presets override) Bollinger mode
 input int            InpBbPeriod                = 20;                  // (CUSTOM; presets override) Bollinger period
 input double         InpBbDev                   = 2.0;                 // (CUSTOM; presets override) Bollinger deviation
 
-input group "--- ℹ️ Indicators: PSAR ---"
+input group "--- ℹ️ Step 6 · PSAR: Trend Direction ---"
+input bool           Inp_Use_Psar               = true;                // (CUSTOM; presets override) Enable PSAR vote
+input double         Inp_W_Psar                 = 1.0;                 // (CUSTOM; presets override) PSAR vote weight
 input double         InpPsarStep                = 0.05;                // (CUSTOM; presets override) PSAR step
 input double         InpPsarMax                 = 0.5;                 // (CUSTOM; presets override) PSAR max
 
-input group "--- ℹ️ Voting: Enabled Votes ---"
-input bool           Inp_Use_EmaSig             = true;                // (CUSTOM; presets override) Vote: EMA signal
-input bool           Inp_Use_Adx                = false;               // (CUSTOM; presets override) Vote: ADX
-input bool           Inp_Use_Macd               = true;                // (CUSTOM; presets override) Vote: MACD
-input bool           Inp_Use_Rsi                = false;               // (CUSTOM; presets override) Vote: RSI
-input bool           Inp_Use_Cci                = true;                // (CUSTOM; presets override) Vote: CCI
-input bool           Inp_Use_Mfi                = false;               // (CUSTOM; presets override) Vote: MFI
-input bool           Inp_Use_Sto                = false;               // (CUSTOM; presets override) Vote: Stochastic
-input bool           Inp_Use_Bb                 = false;               // (CUSTOM; presets override) Vote: Bollinger
-input bool           Inp_Use_Psar               = true;                // (CUSTOM; presets override) Vote: PSAR
-input bool           Inp_Use_P123               = false;               // (CUSTOM; presets override) Vote: 1-2-3 pattern
-input bool           Inp_Use_Ross               = false;               // (CUSTOM; presets override) Vote: Ross hook
+input group "--- ℹ️ Step 6 · P123: 1-2-3 Pattern ---"
+input bool           Inp_Use_P123               = false;               // (CUSTOM; presets override) Enable 1-2-3 pattern vote
+input double         Inp_W_P123                 = 1.0;                 // (CUSTOM; presets override) 1-2-3 pattern vote weight
 
-input group "--- ℹ️ Exits: Initial SL Placement ---"
+input group "--- ℹ️ Step 6 · Ross: Ross Hook ---"
+input bool           Inp_Use_Ross               = false;               // (CUSTOM; presets override) Enable Ross hook vote
+input double         Inp_W_Ross                 = 1.0;                 // (CUSTOM; presets override) Ross hook vote weight
+
+// ── Step 9: Risk & Execution ──────────────────────────────────────────
+input group "--- ℹ️ Step 9: Risk & Execution (SL, TP, trailing) ---"
+input double         Inp_RiskPercent            = 2.0;    // (CUSTOM; presets may override) Risk per trade (%)
+
+input group "--- ℹ️ Step 9 · Initial SL Placement ---"
 input ESlPlacementMode Inp_SL_PlacementMode     = SL_SWING_HIGHLOW;    // (CUSTOM; presets override) SL placement method
 input double         Inp_SL_Mult                = 1.5;                 // (CUSTOM; presets override) SL multiplier (ATR modes only; ignored in strict)
 input double         Inp_SL_PsarPipsCushion     = 5.0;                 // (CUSTOM; presets override) SL PSAR cushion (pips)
 input double         Inp_SL_SwingPipsCushion    = 10.0;                // (CUSTOM; presets override) SL swing cushion (pips)
 input double         Inp_SL_FixedPips           = 20.0;                // (CUSTOM; presets override) SL fixed distance (pips)
 
-input group "--- ℹ️ Exits: TP & Breakeven ---"
+input group "--- ℹ️ Step 9 · TP & Breakeven ---"
 input double         Inp_TP_Mult                = 3.0;                 // (CUSTOM; presets override) TP R-multiple (legacy TP_Mult)
 input bool           Inp_Use_BE                 = false;               // (CUSTOM; presets override) Use legacy BE (strict uses BE_Mode instead)
 input double         Inp_BE_Trig                = 1.0;                 // (CUSTOM; presets override) Legacy BE trigger (R multiple)
 input double         Inp_BE_Buff                = 0.1;                 // (CUSTOM; presets override) Legacy BE buffer (pips)
 
-input group "--- ℹ️ Exits: Trailing Stop ---"
+input group "--- ℹ️ Step 9 · Trailing Stop ---"
 input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR;          // (CUSTOM; presets override) Trailing stop mode
 input double         Inp_Trail_Mult             = 3.0;                 // (CUSTOM; presets override) Trail multiplier (ATR modes only; ignored in strict)
 input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // (CUSTOM; presets override) PSAR trail cushion mode
@@ -767,6 +807,7 @@ void InitializeConfig()
 
    // Voting
    Settings.VoteThreshold        = Inp_VoteThreshold;
+   Settings.VoteMode             = Inp_VoteMode;
 
    // Indicator periods / thresholds
    Settings.P_Ema1               = InpEma1Period;
@@ -817,6 +858,19 @@ void InitializeConfig()
    Settings.Use_Psar             = Inp_Use_Psar;
    Settings.Use_P123             = Inp_Use_P123;
    Settings.Use_Ross             = Inp_Use_Ross;
+
+   // Per-indicator vote weights (1.0 = standard; weighted sum compared to VoteThreshold in THRESHOLD mode)
+   Settings.W_EmaSig             = Inp_W_EmaSig;
+   Settings.W_Adx                = Inp_W_Adx;
+   Settings.W_Macd               = Inp_W_Macd;
+   Settings.W_Rsi                = Inp_W_Rsi;
+   Settings.W_Cci                = Inp_W_Cci;
+   Settings.W_Mfi                = Inp_W_Mfi;
+   Settings.W_Sto                = Inp_W_Sto;
+   Settings.W_Bb                 = Inp_W_Bb;
+   Settings.W_Psar               = Inp_W_Psar;
+   Settings.W_P123               = Inp_W_P123;
+   Settings.W_Ross               = Inp_W_Ross;
 
    // Exits
    Settings.SL_PlacementMode     = Inp_SL_PlacementMode;

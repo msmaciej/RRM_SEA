@@ -1620,106 +1620,121 @@ public:
          return bias; 
       }
 
-      // 5. Voting Logic (Consensus)
-      int votes = 0;
-      
-      if(m_settings.Use_EmaSig && Check_EMA1(bias, v_shift)) votes++;
-      if(m_settings.Use_Adx    && Check_ADX(v_shift))      votes++;
-      if(m_settings.Use_Macd   && Check_MACD(bias, v_shift)) votes++;
-      if(m_settings.Use_Rsi    && Check_RSI(bias, v_shift))  votes++;
-      if(m_settings.Use_Cci    && Check_CCI(bias, v_shift))  votes++;
-      if(m_settings.Use_Mfi    && Check_MFI(bias, v_shift))  votes++;
-      if(m_settings.Use_Sto    && Check_Sto(bias, v_shift))  votes++;
-      if(m_settings.Use_Bb     && Check_BB(bias, v_shift))   votes++;
-      if(m_settings.Use_Psar   && Check_PSAR(bias, v_shift)) votes++;
-      if(m_settings.Use_P123   && Check_P123(bias, v_shift)) votes++;
-      if(m_settings.Use_Ross   && Check_Ross(bias, v_shift)) votes++;
-      
-      // Volatility regime vote (soft)
+      // 5. Voting Logic — Dynamic weight-based consensus
+      // VOTE_MODE_ALL:       every enabled indicator must agree (weights ignored)
+      // VOTE_MODE_THRESHOLD: weighted vote sum must reach VoteThreshold
+      double vote_weight = 0.0;
+      bool   all_pass    = true;
+
+      // Helper lambda-style macro not available in MQL5; use inline checks
+      #define CAST_VOTE(use_flag, weight_field, check_expr) \
+         if(use_flag) { \
+            bool _cv_pass = (check_expr); \
+            if(_cv_pass) vote_weight += weight_field; \
+            else         all_pass    = false; \
+         }
+
+      CAST_VOTE(m_settings.Use_EmaSig, m_settings.W_EmaSig, Check_EMA1(bias, v_shift))
+      CAST_VOTE(m_settings.Use_Adx,    m_settings.W_Adx,    Check_ADX(v_shift))
+      CAST_VOTE(m_settings.Use_Macd,   m_settings.W_Macd,   Check_MACD(bias, v_shift))
+      CAST_VOTE(m_settings.Use_Rsi,    m_settings.W_Rsi,    Check_RSI(bias, v_shift))
+      CAST_VOTE(m_settings.Use_Cci,    m_settings.W_Cci,    Check_CCI(bias, v_shift))
+      CAST_VOTE(m_settings.Use_Mfi,    m_settings.W_Mfi,    Check_MFI(bias, v_shift))
+      CAST_VOTE(m_settings.Use_Sto,    m_settings.W_Sto,    Check_Sto(bias, v_shift))
+      CAST_VOTE(m_settings.Use_Bb,     m_settings.W_Bb,     Check_BB(bias, v_shift))
+      CAST_VOTE(m_settings.Use_Psar,   m_settings.W_Psar,   Check_PSAR(bias, v_shift))
+      CAST_VOTE(m_settings.Use_P123,   m_settings.W_P123,   Check_P123(bias, v_shift))
+      CAST_VOTE(m_settings.Use_Ross,   m_settings.W_Ross,   Check_Ross(bias, v_shift))
+
+      #undef CAST_VOTE
+
+      // Volatility regime vote (soft; ATR has no weight field — always weight 1.0)
       if(m_settings.Use_ATRVote)
       {
-         if(m_diag_last_atr_ok) votes++;
+         if(m_diag_last_atr_ok) vote_weight += 1.0;
+         else                   all_pass     = false;
       }
 
-      // Final Decision
-      m_diag_last_votes = votes;
+      // Store integer-rounded weight for display (backward-compatible diagnostics)
+      m_diag_last_votes = (int)MathRound(vote_weight);
 
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGIN =====
       #ifdef __MQL5__
       if(MQLInfoInteger(MQL_TESTER)) {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-         string vote_details = StringFormat("VOTE_DETAIL[%s]: bias=%d v_shift=%d votes=%d/%d",
+         string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
+         string vote_details = StringFormat("VOTE_DETAIL[%s]: mode=%s bias=%d v_shift=%d weight=%.2f/%d",
                                            TimeToString(bar_time),
-                                           bias, v_shift, votes, m_settings.VoteThreshold);
+                                           mode_str, bias, v_shift, vote_weight, m_settings.VoteThreshold);
          
          // Log each enabled vote with actual indicator values
          if(m_settings.Use_EmaSig) {
             double p = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             double e = GetMAVal(h_ema1, v_shift);
             bool pass = Check_EMA1(bias, v_shift);
-            vote_details += StringFormat(" | EMA1: p=%.5f e=%.5f %s", p, e, pass?"PASS":"FAIL");
+            vote_details += StringFormat(" | EMA1: p=%.5f e=%.5f %s(w=%.1f)", p, e, pass?"PASS":"FAIL", m_settings.W_EmaSig);
          }
          
          if(m_settings.Use_Adx) {
             double adx = GetVal(h_adx, v_shift);
             bool pass = Check_ADX(v_shift);
-            vote_details += StringFormat(" | ADX: %.2f %s", adx, pass?"PASS":"FAIL");
+            vote_details += StringFormat(" | ADX: %.2f %s(w=%.1f)", adx, pass?"PASS":"FAIL", m_settings.W_Adx);
          }
          
          if(m_settings.Use_Macd) {
             double m = GetVal(h_macd, v_shift, 0);
             double s = GetVal(h_macd, v_shift, 1);
             bool pass = Check_MACD(bias, v_shift);
-            vote_details += StringFormat(" | MACD: main=%.6f sig=%.6f %s", m, s, pass?"PASS":"FAIL");
+            vote_details += StringFormat(" | MACD: main=%.6f sig=%.6f %s(w=%.1f)", m, s, pass?"PASS":"FAIL", m_settings.W_Macd);
          }
          
          if(m_settings.Use_Rsi) {
             double r = GetVal(h_rsi, v_shift);
             bool pass = Check_RSI(bias, v_shift);
-            vote_details += StringFormat(" | RSI: %.2f %s", r, pass?"PASS":"FAIL");
+            vote_details += StringFormat(" | RSI: %.2f %s(w=%.1f)", r, pass?"PASS":"FAIL", m_settings.W_Rsi);
          }
          
          if(m_settings.Use_Cci) {
             double c = GetVal(h_cci, v_shift);
             bool pass = Check_CCI(bias, v_shift);
-            vote_details += StringFormat(" | CCI: %.2f %s", c, pass?"PASS":"FAIL");
+            vote_details += StringFormat(" | CCI: %.2f %s(w=%.1f)", c, pass?"PASS":"FAIL", m_settings.W_Cci);
          }
          
          if(m_settings.Use_Mfi) {
             double mfi = GetVal(h_mfi, v_shift);
             bool pass = Check_MFI(bias, v_shift);
-            vote_details += StringFormat(" | MFI: %.2f %s", mfi, pass?"PASS":"FAIL");
+            vote_details += StringFormat(" | MFI: %.2f %s(w=%.1f)", mfi, pass?"PASS":"FAIL", m_settings.W_Mfi);
          }
          
          if(m_settings.Use_Sto) {
             double k = GetVal(h_sto, v_shift, 0);
             double d = GetVal(h_sto, v_shift, 1);
             bool pass = Check_Sto(bias, v_shift);
-            vote_details += StringFormat(" | STO: k=%.2f d=%.2f %s", k, d, pass?"PASS":"FAIL");
+            vote_details += StringFormat(" | STO: k=%.2f d=%.2f %s(w=%.1f)", k, d, pass?"PASS":"FAIL", m_settings.W_Sto);
          }
          
          if(m_settings.Use_Bb) {
             double mid = GetVal(h_bb, v_shift, 0);
             double cl = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             bool pass = Check_BB(bias, v_shift);
-            vote_details += StringFormat(" | BB: mid=%.5f cl=%.5f %s", mid, cl, pass?"PASS":"FAIL");
+            vote_details += StringFormat(" | BB: mid=%.5f cl=%.5f %s(w=%.1f)", mid, cl, pass?"PASS":"FAIL", m_settings.W_Bb);
          }
          
          if(m_settings.Use_Psar) {
             double p = GetVal(h_psar, v_shift);
             double cl = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             bool pass = Check_PSAR(bias, v_shift);
-            vote_details += StringFormat(" | PSAR: sar=%.5f cl=%.5f %s", p, cl, pass?"PASS":"FAIL");
+            vote_details += StringFormat(" | PSAR: sar=%.5f cl=%.5f %s(w=%.1f)", p, cl, pass?"PASS":"FAIL", m_settings.W_Psar);
          }
          
          if(m_settings.Use_P123) {
             bool pass = Check_P123(bias, v_shift);
-            vote_details += StringFormat(" | P123: %s", pass?"PASS":"FAIL");
+            vote_details += StringFormat(" | P123: %s(w=%.1f)", pass?"PASS":"FAIL", m_settings.W_P123);
          }
          
          if(m_settings.Use_Ross) {
             bool pass = Check_Ross(bias, v_shift);
-            vote_details += StringFormat(" | ROSS: %s", pass?"PASS":"FAIL");
+            vote_details += StringFormat(" | ROSS: %s(w=%.1f)", pass?"PASS":"FAIL", m_settings.W_Ross);
          }
          
          Print(vote_details);
@@ -1727,13 +1742,24 @@ public:
       #endif
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: END =====
 
-      if(votes >= m_settings.VoteThreshold) { 
-         m_diag_last_reason="OK"; 
-         return bias; 
+      // Final Decision
+      if(m_settings.VoteMode == VOTE_MODE_ALL)
+      {
+         // ALL mode: every enabled indicator must agree
+         if(all_pass) { m_diag_last_reason="OK"; return bias; }
+         m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
+         return 0;
       }
-      
-      m_diag_last_reason = StringFormat("VOTES %d/%d", votes, m_settings.VoteThreshold);
-      return 0; // Not enough consensus
+      else
+      {
+         // THRESHOLD mode: weighted sum >= VoteThreshold
+         if(vote_weight >= (double)m_settings.VoteThreshold) { 
+            m_diag_last_reason="OK"; 
+            return bias; 
+         }
+         m_diag_last_reason = StringFormat("VOTES %.2f/%d", vote_weight, m_settings.VoteThreshold);
+         return 0;
+      }
 
    } // === GetDirection: END ===
    

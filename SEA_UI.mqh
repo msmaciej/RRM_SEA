@@ -202,22 +202,39 @@ void SEA_UI_RenderPanel(
 // -----------------------------------
 // Vote & Config Display Helpers
 // -----------------------------------
+
+// Returns a short label for the bias EMA pair used (e.g. "EMA3(34)/EMA4(89)")
+string SEA_UI_BiasEmaLabel(const ST_Settings &cfg)
+{
+   int fast_period = (cfg.BiasFastID==0) ? cfg.P_Ema1 :
+                     (cfg.BiasFastID==1) ? cfg.P_Ema2 :
+                     (cfg.BiasFastID==2) ? cfg.P_Ema3 : cfg.P_Ema4;
+   int slow_period = (cfg.BiasSlowID==0) ? cfg.P_Ema1 :
+                     (cfg.BiasSlowID==1) ? cfg.P_Ema2 :
+                     (cfg.BiasSlowID==2) ? cfg.P_Ema3 : cfg.P_Ema4;
+   if(cfg.BiasFastID == cfg.BiasSlowID)
+      return StringFormat("EMA%d(%d) slope", cfg.BiasFastID+1, fast_period);
+   return StringFormat("EMA%d(%d)/EMA%d(%d)", cfg.BiasFastID+1, fast_period,
+                                               cfg.BiasSlowID+1, slow_period);
+}
+
 string SEA_UI_BuildActiveVotesList(const ST_Settings &cfg)
 {
    string output = "";
    int count = 0;
-   if(cfg.Use_EmaSig) { output += "  + EmaSig  (EMA1 price position)\n"; count++; }
-   if(cfg.Use_Adx)    { output += "  + ADX     (trend strength)\n";       count++; }
-   if(cfg.Use_Macd)   { output += "  + MACD    (momentum)\n";             count++; }
-   if(cfg.Use_Rsi)    { output += "  + RSI     (momentum zones)\n";       count++; }
-   if(cfg.Use_Cci)    { output += "  + CCI     (cyclical)\n";             count++; }
-   if(cfg.Use_Mfi)    { output += "  + MFI     (money flow)\n";           count++; }
-   if(cfg.Use_Sto)    { output += "  + Stoch   (oscillator)\n";           count++; }
-   if(cfg.Use_Bb)     { output += "  + BB      (volatility bands)\n";     count++; }
-   if(cfg.Use_Psar)   { output += "  + PSAR    (trend direction)\n";      count++; }
-   if(cfg.Use_P123)   { output += "  + P123    (123 pattern)\n";          count++; }
-   if(cfg.Use_Ross)   { output += "  + Ross    (Ross hook)\n";            count++; }
-   return StringFormat("Active Votes (%d enabled):\n%s", count, output);
+   if(cfg.Use_EmaSig) { output += StringFormat("  + EmaSig  (EMA1 price pos)  w=%.1f\n", cfg.W_EmaSig); count++; }
+   if(cfg.Use_Adx)    { output += StringFormat("  + ADX     (trend strength)  w=%.1f\n", cfg.W_Adx);    count++; }
+   if(cfg.Use_Macd)   { output += StringFormat("  + MACD    (momentum)        w=%.1f\n", cfg.W_Macd);   count++; }
+   if(cfg.Use_Rsi)    { output += StringFormat("  + RSI     (momentum zones)  w=%.1f\n", cfg.W_Rsi);    count++; }
+   if(cfg.Use_Cci)    { output += StringFormat("  + CCI     (cyclical)        w=%.1f\n", cfg.W_Cci);    count++; }
+   if(cfg.Use_Mfi)    { output += StringFormat("  + MFI     (money flow)      w=%.1f\n", cfg.W_Mfi);    count++; }
+   if(cfg.Use_Sto)    { output += StringFormat("  + Stoch   (oscillator)      w=%.1f\n", cfg.W_Sto);    count++; }
+   if(cfg.Use_Bb)     { output += StringFormat("  + BB      (volatility)      w=%.1f\n", cfg.W_Bb);     count++; }
+   if(cfg.Use_Psar)   { output += StringFormat("  + PSAR    (trend dir)       w=%.1f\n", cfg.W_Psar);   count++; }
+   if(cfg.Use_P123)   { output += StringFormat("  + P123    (123 pattern)     w=%.1f\n", cfg.W_P123);   count++; }
+   if(cfg.Use_Ross)   { output += StringFormat("  + Ross    (Ross hook)       w=%.1f\n", cfg.W_Ross);   count++; }
+   string mode_str = (cfg.VoteMode == VOTE_MODE_ALL ? "ALL" : StringFormat("THRESHOLD>=%d", cfg.VoteThreshold));
+   return StringFormat("Step 6 · Votes (%d enabled, mode=%s):\n%s", count, mode_str, output);
 }
 
 string SEA_UI_BuildDisabledVotesList(const ST_Settings &cfg)
@@ -332,15 +349,22 @@ void SEA_UI_UpdateSettingsPanel()
                                        : "PRESET (overrides active)"));
 
    // --- Strategy
-   txt += "--- Strategy ---\n";
-   txt += StringFormat("AutoStrat: %s%s\n", EnumToString(Settings.AutoStrat), SEA_UI_AdmMark());
-   txt += StringFormat("BiasEnabled: %s  BiasMode: %s\n",
-                       SEA_UI_OnOff(Settings.BiasEnabled), EnumToString(Settings.BiasMode));
-   txt += StringFormat("EMA: %d/%d/%d/%d%s  VoteThreshold: %d%s\n",
+   txt += "--- Step 1: Bias Calculation ---\n";
+   txt += StringFormat("AutoStrat: %s%s  BiasMode: %s\n", EnumToString(Settings.AutoStrat), SEA_UI_AdmMark(), EnumToString(Settings.BiasMode));
+   txt += StringFormat("BiasEnabled: %s  BiasEMAs: %s%s\n",
+                       SEA_UI_OnOff(Settings.BiasEnabled),
+                       SEA_UI_BiasEmaLabel(Settings), SEA_UI_AdmMark());
+   txt += StringFormat("EMA ribbon: %d/%d/%d/%d%s\n",
                        Settings.P_Ema1, Settings.P_Ema2, Settings.P_Ema3, Settings.P_Ema4,
-                       SEA_UI_AdmMark(), Settings.VoteThreshold, SEA_UI_AdmMark());
+                       SEA_UI_AdmMark());
 
-   // --- Active & Disabled Votes
+   // --- Step 5: Structure Gate
+   txt += "--- Step 5: Structure Gate ---\n";
+   txt += StringFormat("MultiLayer: %s  RequirePullback: %s\n",
+                       SEA_UI_OnOff(Settings.Gate_UseMultiLayer),
+                       SEA_UI_OnOff(Settings.RequirePullback));
+
+   // --- Active & Disabled Votes (Step 6)
    txt += SEA_UI_BuildActiveVotesList(Settings);
    txt += SEA_UI_BuildDisabledVotesList(Settings);
    txt += SEA_UI_BuildIndicatorConfigs(Settings);
@@ -462,11 +486,18 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
    string sig_line = StringFormat("Signal=%s  Bias=%s", SEA_UI_SignalLabel(last_signal_dir), SEA_UI_BiasLabel(last_bias));
    if(Settings.VoteThreshold <= 1)
       sig_line += "  Votes=BYPASS";
+   else if(Settings.VoteMode == VOTE_MODE_ALL)
+      sig_line += StringFormat("  Votes=ALL(%d enabled)", last_votes);
    else
       sig_line += StringFormat("  Votes=%d/%d", last_votes, Settings.VoteThreshold);
 
    if(last_signal_dir == 0 && last_reason != "")
       sig_line += StringFormat("  (%s)", last_reason);
+
+   // Pipeline config line: bias EMAs and multi-layer
+   string pipeline_line = StringFormat("BiasEMAs=%s  MultiLayer=%s",
+                                       SEA_UI_BiasEmaLabel(Settings),
+                                       SEA_UI_OnOff(Settings.Gate_UseMultiLayer));
 
    string risk_line = "";
    if(Settings.UseMACompatSizer)
@@ -484,9 +515,10 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
    string txt = "";
    txt += StringFormat("Cockpit v%s  [%s %s]\n", SEA_BUILD_STR, _Symbol, EnumToString(_Period));
    txt += StringFormat("Bar: %s\n", time_line);
-   txt += gates_line + "\n";
-   txt += risk_line  + "\n";
-   txt += sig_line   + "\n";
+   txt += gates_line    + "\n";
+   txt += risk_line     + "\n";
+   txt += pipeline_line + "\n";
+   txt += sig_line      + "\n";
 
    // Per-vote runtime breakdown
    if(vote_snap_count > 0)
