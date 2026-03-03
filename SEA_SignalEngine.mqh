@@ -1778,69 +1778,69 @@ public:
             double p = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             double e = GetMAVal(h_ema1, v_shift);
             bool pass = Check_EMA1(bias, v_shift);
-            vote_details += StringFormat(" | EmaSig: p=%.5f e=%.5f %s(w=%.1f)", p, e, pass?"PASS":"FAIL", m_settings.Ind_EmaSig_Weight);
+            vote_details += StringFormat(" | EmaSig: p=%.5f e=%.5f %s(w=%d)", p, e, pass?"PASS":"FAIL", m_settings.Ind_EmaSig_Weight);
          }
          
          if(m_settings.Ind_Adx_Enabled) {
             double adx = GetVal(h_adx, v_shift);
             bool pass = Check_ADX(v_shift);
-            vote_details += StringFormat(" | ADX: %.2f %s(w=%.1f)", adx, pass?"PASS":"FAIL", m_settings.Ind_Adx_Weight);
+            vote_details += StringFormat(" | ADX: %.2f %s(w=%d)", adx, pass?"PASS":"FAIL", m_settings.Ind_Adx_Weight);
          }
          
          if(m_settings.Ind_Macd_Enabled) {
             double m = GetVal(h_macd, v_shift, 0);
             double s = GetVal(h_macd, v_shift, 1);
             bool pass = Check_MACD(bias, v_shift);
-            vote_details += StringFormat(" | MACD: main=%.6f sig=%.6f %s(w=%.1f)", m, s, pass?"PASS":"FAIL", m_settings.Ind_Macd_Weight);
+            vote_details += StringFormat(" | MACD: main=%.6f sig=%.6f %s(w=%d)", m, s, pass?"PASS":"FAIL", m_settings.Ind_Macd_Weight);
          }
          
          if(m_settings.Ind_Rsi_Enabled) {
             double r = GetVal(h_rsi, v_shift);
             bool pass = Check_RSI(bias, v_shift);
-            vote_details += StringFormat(" | RSI: %.2f %s(w=%.1f)", r, pass?"PASS":"FAIL", m_settings.Ind_Rsi_Weight);
+            vote_details += StringFormat(" | RSI: %.2f %s(w=%d)", r, pass?"PASS":"FAIL", m_settings.Ind_Rsi_Weight);
          }
          
          if(m_settings.Ind_Cci_Enabled) {
             double c = GetVal(h_cci, v_shift);
             bool pass = Check_CCI(bias, v_shift);
-            vote_details += StringFormat(" | CCI: %.2f %s(w=%.1f)", c, pass?"PASS":"FAIL", m_settings.Ind_Cci_Weight);
+            vote_details += StringFormat(" | CCI: %.2f %s(w=%d)", c, pass?"PASS":"FAIL", m_settings.Ind_Cci_Weight);
          }
          
          if(m_settings.Ind_Mfi_Enabled) {
             double mfi = GetVal(h_mfi, v_shift);
             bool pass = Check_MFI(bias, v_shift);
-            vote_details += StringFormat(" | MFI: %.2f %s(w=%.1f)", mfi, pass?"PASS":"FAIL", m_settings.Ind_Mfi_Weight);
+            vote_details += StringFormat(" | MFI: %.2f %s(w=%d)", mfi, pass?"PASS":"FAIL", m_settings.Ind_Mfi_Weight);
          }
          
          if(m_settings.Ind_Sto_Enabled) {
             double k = GetVal(h_sto, v_shift, 0);
             double d = GetVal(h_sto, v_shift, 1);
             bool pass = Check_Sto(bias, v_shift);
-            vote_details += StringFormat(" | STO: k=%.2f d=%.2f %s(w=%.1f)", k, d, pass?"PASS":"FAIL", m_settings.Ind_Sto_Weight);
+            vote_details += StringFormat(" | STO: k=%.2f d=%.2f %s(w=%d)", k, d, pass?"PASS":"FAIL", m_settings.Ind_Sto_Weight);
          }
          
          if(m_settings.Ind_Bb_Enabled) {
             double mid = GetVal(h_bb, v_shift, 0);
             double cl = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             bool pass = Check_BB(bias, v_shift);
-            vote_details += StringFormat(" | BB: mid=%.5f cl=%.5f %s(w=%.1f)", mid, cl, pass?"PASS":"FAIL", m_settings.Ind_Bb_Weight);
+            vote_details += StringFormat(" | BB: mid=%.5f cl=%.5f %s(w=%d)", mid, cl, pass?"PASS":"FAIL", m_settings.Ind_Bb_Weight);
          }
          
          if(m_settings.Ind_Psar_Enabled) {
             double p = GetVal(h_psar, v_shift);
             double cl = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             bool pass = Check_PSAR(bias, v_shift);
-            vote_details += StringFormat(" | PSAR: sar=%.5f cl=%.5f %s(w=%.1f)", p, cl, pass?"PASS":"FAIL", m_settings.Ind_Psar_Weight);
+            vote_details += StringFormat(" | PSAR: sar=%.5f cl=%.5f %s(w=%d)", p, cl, pass?"PASS":"FAIL", m_settings.Ind_Psar_Weight);
          }
          
          if(m_settings.Ind_P123_Enabled) {
             bool pass = Check_P123(bias, v_shift);
-            vote_details += StringFormat(" | P123: %s(w=%.1f)", pass?"PASS":"FAIL", m_settings.Ind_P123_Weight);
+            vote_details += StringFormat(" | P123: %s(w=%d)", pass?"PASS":"FAIL", m_settings.Ind_P123_Weight);
          }
          
          if(m_settings.Ind_Ross_Enabled) {
             bool pass = Check_Ross(bias, v_shift);
-            vote_details += StringFormat(" | ROSS: %s(w=%.1f)", pass?"PASS":"FAIL", m_settings.Ind_Ross_Weight);
+            vote_details += StringFormat(" | ROSS: %s(w=%d)", pass?"PASS":"FAIL", m_settings.Ind_Ross_Weight);
          }
          
          Print(vote_details);
