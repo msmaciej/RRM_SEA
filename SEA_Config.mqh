@@ -272,8 +272,6 @@ struct ST_Settings
    bool   MABenchmarkStrict;
 
    // RRM (Trend Pullback)
-   bool   RRM_RequirePullbackReclaim;
-   bool   RRM_RequireEmaDiv;
    int    RRM_Lookback;
    double RRM_MinDivPips;
 
@@ -404,11 +402,6 @@ struct ST_Settings
    int         PullbackLookback;         // Bars to look back for pullback structure
    bool        RequireRecoveryMomentum;  // Require recovery bar to close in trend direction
    bool        Gate_UseMultiLayer;       // Enable multi-layer cascading EMA pullback detection (RRM standard)
-   SGateConfig Gate_Recovery;           // Multi-bar recovery gate
-   int         Gate_RecoveryLookback;   // Bars to look back for recovery
-   SGateConfig Gate_EmaDiv;             // EMA divergence gate
-   SGateConfig Gate_CandleDirection;    // Candle direction confirmation gate
-   int         Gate_CandleCheckShift;   // Which bar(s) to check for candle direction
    int         Vote_EvalShift;          // Shift for vote evaluation
    bool        Vote_AllowPsarFlip;      // Allow PSAR flip signal in votes
 
@@ -572,8 +565,6 @@ input bool           Inp_Gate_UseMultiLayer         = false;      // (CUSTOM; pr
 input bool           Inp_Gate_RequirePullback        = false;      // (CUSTOM; presets override) Enable pullback gate
 input int            Inp_Gate_PullbackLookback       = 15;         // (CUSTOM; presets override) Pullback search bars
 input bool           Inp_Gate_RequireRecoveryMomentum = false;     // (CUSTOM; presets override) Require bullish/bearish candle (recovery momentum)
-input bool           Inp_RRM_RequirePullbackReclaim = false;      // (CUSTOM; presets override) Require pullback + reclaim condition
-input bool           Inp_RRM_RequireEmaDiv          = false;      // (CUSTOM; presets override) Require EMA divergence gate
 input int            Inp_RRM_Lookback           = 5;              // (CUSTOM; presets override) Pullback lookback bars
 input double         Inp_RRM_MinDivPips         = 0.5;            // (CUSTOM; presets override) Min EMA divergence (pips)
 
@@ -761,8 +752,6 @@ input bool           Inp_Override_Use_Sto             = false;            // [Ad
 input bool           Inp_Override_Use_Bb              = false;            // [Admin] Override Bollinger vote when AdminOverride=true
 input bool           Inp_Override_Use_P123            = false;            // [Admin] Override 1-2-3 pattern vote when AdminOverride=true
 input bool           Inp_Override_Use_Ross            = false;            // [Admin] Override Ross hook vote when AdminOverride=true
-input bool           Inp_Override_RRM_RequirePullbackReclaim = false;     // [Admin] Override RRM pullback reclaim gate when AdminOverride=true
-input bool           Inp_Override_RRM_RequireEmaDiv          = false;     // [Admin] Override RRM EMA divergence gate when AdminOverride=true
 input bool           Inp_Override_RequirePullback            = false;     // [Admin] Override RequirePullback when AdminOverride=true
 input int            Inp_Override_PullbackLookback           = 10;        // [Admin] Override PullbackLookback when AdminOverride=true
 input bool           Inp_Override_RequireRecoveryMomentum    = false;     // [Admin] Override RequireRecoveryMomentum when AdminOverride=true
@@ -975,8 +964,6 @@ void InitializeConfig()
    Settings.MABenchmarkStrict    = false;
 
    // RRM trigger gates (inputs always mapped; preset may ignore/override later)
-   Settings.RRM_RequirePullbackReclaim = Inp_RRM_RequirePullbackReclaim;
-   Settings.RRM_RequireEmaDiv          = Inp_RRM_RequireEmaDiv;
    Settings.RRM_Lookback               = Inp_RRM_Lookback;
    Settings.RRM_MinDivPips             = Inp_RRM_MinDivPips;
    Settings.RequirePullback            = Inp_Gate_RequirePullback;
@@ -1110,14 +1097,6 @@ void InitializeConfig()
 
    // Gate system defaults (all gates off; presets may enable them)
    // RequirePullback, PullbackLookback, RequireRecoveryMomentum are mapped from inputs above
-   Settings.Gate_Recovery.mode       = GATE_SCALE_OFF;
-   Settings.Gate_Recovery.value      = 0.0;
-   Settings.Gate_RecoveryLookback    = 5;
-   Settings.Gate_EmaDiv.mode         = GATE_SCALE_OFF;
-   Settings.Gate_EmaDiv.value        = 0.0;
-   Settings.Gate_CandleDirection.mode  = GATE_SCALE_OFF;
-   Settings.Gate_CandleDirection.value = 0.0;
-   Settings.Gate_CandleCheckShift    = 1;
    Settings.Vote_EvalShift           = 1;
    Settings.Vote_AllowPsarFlip       = false;
 

@@ -122,8 +122,6 @@ void ApplyAdminOverrides(ST_Settings &cfg)
    cfg.Ind_Bb_Enabled         = Inp_Override_Use_Bb;
    cfg.Ind_P123_Enabled       = Inp_Override_Use_P123;
    cfg.Ind_Ross_Enabled       = Inp_Override_Use_Ross;
-   cfg.RRM_RequirePullbackReclaim = Inp_Override_RRM_RequirePullbackReclaim;
-   cfg.RRM_RequireEmaDiv          = Inp_Override_RRM_RequireEmaDiv;
    cfg.RequirePullback            = Inp_Override_RequirePullback;
    cfg.PullbackLookback           = Inp_Override_PullbackLookback;
    cfg.RequireRecoveryMomentum    = Inp_Override_RequireRecoveryMomentum;
@@ -591,8 +589,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       cfg.StoMode    = STO_CROSS_SIGNAL;
 
-      cfg.RRM_RequirePullbackReclaim = false;
-      cfg.RRM_RequireEmaDiv          = false;
       cfg.RRM_Lookback               = 5;
       cfg.RRM_MinDivPips             = 0.5;
 
@@ -695,8 +691,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_MacdSlow = 13;    // 13,
       cfg.P_MacdSig  = 8;     //  8,
 
-      cfg.RRM_RequirePullbackReclaim = false;
-      cfg.RRM_RequireEmaDiv          = false;
       cfg.RRM_Lookback               = 5;
       cfg.RRM_MinDivPips             = 0.5;
 
@@ -707,17 +701,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PullbackLookback           = (tf <= PERIOD_M5 ? 15 : 10);
       cfg.RequireRecoveryMomentum    = false;
       cfg.Gate_UseMultiLayer         = true;
-
-      cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
-      cfg.Gate_Recovery.value       = 1.0;
-      cfg.Gate_RecoveryLookback     = (tf <= PERIOD_M5 ? 5 : 7);
-
-      cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
-      cfg.Gate_EmaDiv.value         = 1.0;
-
-      cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
-      cfg.Gate_CandleDirection.value = 1.0;
-      cfg.Gate_CandleCheckShift      = 2;
 
       cfg.Vote_EvalShift    = 1;
       cfg.Vote_AllowPsarFlip = true;

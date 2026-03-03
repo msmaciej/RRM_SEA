@@ -390,29 +390,6 @@ private:
       return base;
    }
 
-   double GetAdaptiveRecoveryPips(ENUM_TIMEFRAMES tf, string symbol)
-   {
-      return GetAdaptivePullbackPips(tf, symbol) * 0.6;
-   }
-
-   double GetAdaptiveEmaDivPips(ENUM_TIMEFRAMES tf, string symbol)
-   {
-      bool is_jpy = (StringFind(symbol, "JPY") >= 0);
-      double base = 0;
-      switch(tf)
-      {
-         case PERIOD_M1:  base = 0.5; break;
-         case PERIOD_M5:  base = 1.0; break;
-         case PERIOD_M15: base = 2.0; break;
-         case PERIOD_H1:  base = 3.0; break;
-         case PERIOD_H4:  base = 5.0; break;
-         case PERIOD_D1:  base = 10.0; break;
-         default:         base = 2.0;
-      }
-      if(is_jpy) base *= 100.0;
-      return base;
-   }
-
    // --- HARD GATES ---
 
    //+------------------------------------------------------------------+
@@ -629,77 +606,6 @@ private:
                      m_settings.RequireRecoveryMomentum ? " momentum=YES" : "");
 
       return true;
-   }
-
-   // HARD GATE 2: Multi-bar recovery detection
-   bool Check_Gate_Recovery(const int bias)
-   {
-      if(m_settings.Gate_Recovery.mode == GATE_SCALE_OFF) return true;
-
-      double min_recovery_pips = 0;
-      switch(m_settings.Gate_Recovery.mode)
-      {
-         case GATE_SCALE_AUTO_TF:
-            min_recovery_pips = GetAdaptiveRecoveryPips(_Period, m_symbol) * m_settings.Gate_Recovery.value;
-            break;
-         case GATE_SCALE_FIXED:
-            min_recovery_pips = m_settings.Gate_Recovery.value;
-            break;
-         default: break;
-      }
-
-      double pip = PipSize();
-      double min_recovery = min_recovery_pips * pip;
-      int lookback = m_settings.Gate_RecoveryLookback;
-
-      double start_price = iClose(m_symbol, PERIOD_CURRENT, lookback);
-      double end_price   = iClose(m_symbol, PERIOD_CURRENT, 1);
-      double recovery    = (bias == 1) ? (end_price - start_price) : (start_price - end_price);
-
-      if(recovery < min_recovery) { m_diag_last_reason = "GATE_NO_RECOVERY"; return false; }
-      return true;
-   }
-
-   // HARD GATE 3: EMA divergence (uses adaptive scaling, updates RRM_MinDivPips)
-   bool Check_Gate_EmaDiv(const int bias)
-   {
-      if(m_settings.Gate_EmaDiv.mode == GATE_SCALE_OFF) return true;
-
-      double min_div_pips = 0;
-      switch(m_settings.Gate_EmaDiv.mode)
-      {
-         case GATE_SCALE_AUTO_TF:
-            min_div_pips = GetAdaptiveEmaDivPips(_Period, m_symbol) * m_settings.Gate_EmaDiv.value;
-            break;
-         case GATE_SCALE_FIXED:
-            min_div_pips = m_settings.Gate_EmaDiv.value;
-            break;
-         default: break;
-      }
-
-      m_settings.RRM_MinDivPips = min_div_pips;
-      return Check_RRM_EmaDiv(bias);
-   }
-
-   // HARD GATE 4: Candle direction confirmation
-   bool Check_Gate_CandleDirection(const int bias)
-   {
-      if(m_settings.Gate_CandleDirection.mode == GATE_SCALE_OFF) return true;
-
-      int check_shift = m_settings.Gate_CandleCheckShift;
-      // Check check_shift bar, and optionally check_shift-1 bar as fallback
-      int s_from = check_shift;
-      int s_to   = MathMax(1, check_shift - 1);
-      for(int s = s_from; s >= s_to; s--)
-      {
-         double open_price  = iOpen(m_symbol, PERIOD_CURRENT, s);
-         double close_price = iClose(m_symbol, PERIOD_CURRENT, s);
-         if(bias == 1 && close_price > open_price) return true;  // bullish candle confirms LONG
-         if(bias == -1 && close_price < open_price) return true; // bearish candle confirms SHORT
-      }
-
-      m_diag_last_reason = "GATE_CANDLE_DIR";
-      return false;
    }
 
 public:
@@ -1687,22 +1593,6 @@ public:
          }
       }
 
-      // 3b. RRM mandatory gates (only active when enabled in settings)
-      if(m_settings.RRM_RequirePullbackReclaim) {
-         if(!Check_RRM_PullbackReclaim(bias)) { 
-            m_diag_last_reason="RRM_PULLBACK";
-            m_reject_gate++;
-            return 0; 
-         }
-      }
-      if(m_settings.RRM_RequireEmaDiv) {
-         if(!Check_RRM_EmaDiv(bias)) { 
-            m_diag_last_reason="RRM_EMA_DIV";
-            m_reject_gate++;
-            return 0; 
-         }
-      }
-
       // 3c. Sequential hard gates (any fail = reject)
       if(m_settings.RequirePullback) {
          if(!Check_Gate_DynamicPullback(bias)) {
@@ -1711,30 +1601,6 @@ public:
             return 0;
          }
          if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Dynamic Pullback → PASS");
-      }
-      if(m_settings.Gate_Recovery.mode != GATE_SCALE_OFF) {
-         if(!Check_Gate_Recovery(bias)) {
-            if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Recovery → REJECT (", m_diag_last_reason, ")");
-            m_reject_gate++;
-            return 0;
-         }
-         if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Recovery → PASS");
-      }
-      if(m_settings.Gate_EmaDiv.mode != GATE_SCALE_OFF) {
-         if(!Check_Gate_EmaDiv(bias)) {
-            if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: EMA Divergence → REJECT (", m_diag_last_reason, ")");
-            m_reject_gate++;
-            return 0;
-         }
-         if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: EMA Divergence → PASS");
-      }
-      if(m_settings.Gate_CandleDirection.mode != GATE_SCALE_OFF) {
-         if(!Check_Gate_CandleDirection(bias)) {
-            if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Candle Direction → REJECT (", m_diag_last_reason, ")");
-            m_reject_gate++;
-            return 0;
-         }
-         if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Candle Direction → PASS");
       }
 
       // 4. VOTING BYPASS (Speed Mode)
@@ -1904,59 +1770,6 @@ public:
 
    int BiasSlowHandle() {
       return (m_settings.BiasSlowID==0)?h_ema1 : (m_settings.BiasSlowID==1)?h_ema2 : (m_settings.BiasSlowID==2)?h_ema3 : h_ema4;
-   }
-
-   // Pullback/Reclaim trigger:
-   // Long: bar[2] closes BELOW fast EMA, then bar[1] closes ABOVE fast EMA.
-   // Short: bar[2] closes ABOVE fast EMA, then bar[1] closes BELOW fast EMA.
-   bool Check_RRM_PullbackReclaim(const int bias) {
-      int hf = BiasFastHandle();
-      double ema2 = GetMAVal(hf, 2);
-      double ema1 = GetMAVal(hf, 1);
-      double c2   = iClose(m_symbol, PERIOD_CURRENT, 2);
-      double c1   = iClose(m_symbol, PERIOD_CURRENT, 1);
-
-      if(bias > 0) return (c2 < ema2 && c1 > ema1);
-      else         return (c2 > ema2 && c1 < ema1);
-   }
-
-   // Convergence->divergence (simple, bar-close stable):
-   // Require the EMA distance to start expanding in the bias direction after a recent contraction.
-   bool Check_RRM_EmaDiv(const int bias) {
-      int hf = BiasFastHandle();
-      int hs = BiasSlowHandle();
-
-      double f1 = GetMAVal(hf, 1);
-      double s1 = GetMAVal(hs, 1);
-      double f2 = GetMAVal(hf, 2);
-      double s2 = GetMAVal(hs, 2);
-
-      double dist1 = MathAbs(f1 - s1);
-      double dist2 = MathAbs(f2 - s2);
-
-      // Must be diverging now (distance increasing) by at least MinDivPips
-      int digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
-      double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-      double pip = (digits==3 || digits==5) ? (point*10.0) : point;
-      double min_div = m_settings.RRM_MinDivPips * pip;
-      if((dist1 - dist2) < min_div) return false;
-
-      // Optional: ensure there was a contraction within lookback
-      int look = m_settings.RRM_Lookback;
-      if(look < 2) look = 2;
-      double minDist = dist2;
-      for(int i=2; i<=look+1; i++) {
-         double fi = GetMAVal(hf, i);
-         double si = GetMAVal(hs, i);
-         double di = MathAbs(fi - si);
-         if(di < minDist) minDist = di;
-      }
-      // Contraction means prior minDist is not greater than dist2 (we were 'tighter' recently)
-      if(minDist > dist2) return false;
-
-      // Bias direction must match fast-vs-slow ordering
-      if(bias > 0) return (f1 > s1);
-      else         return (f1 < s1);
    }
 
    // --- UTILS ---
