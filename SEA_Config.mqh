@@ -524,7 +524,7 @@ input int              Inp_UI_FramePadPx         = 6;           // (Global; allo
 
 input group "--- ✅ Diagnostics ---"
 input bool           Inp_PrintEffectiveConfig   = true;         // (Global; allowed under presets) Print effective config on init
-input bool           Inp_DebugFlow              = false;        // (Global; allowed under presets) Print OnInit/OnTick/OnDeinit flow
+input bool           Inp_DebugFlow              = true;         // (Global; allowed under presets) Print OnInit/OnTick/OnDeinit flow
 
 input group "--- ✅ Reporting ---"
 input bool           Inp_ExportCSV              = false;        // (Global; allowed under presets) Export CSV reporting
