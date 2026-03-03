@@ -442,7 +442,8 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
                                 const string ts_snap,
                                 const string te_snap,
                                 const SVoteSnapshot &vote_snaps[],
-                                const int    vote_snap_count)
+                                const int    vote_snap_count,
+                                const string diag_snap = "")
 {
    if(!Inp_UI_ShowCockpitPanel)
    {
@@ -549,6 +550,13 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
       txt += ts_snap + "\n";
    if(te_snap != "")
       txt += te_snap + "\n";
+
+   // Pipeline diagnostics: EMA values, structure gate, statistics
+   if(diag_snap != "")
+   {
+      txt += "--- Diagnostics ---\n";
+      txt += diag_snap + "\n";
+   }
 
    if(txt == g_sea_ui_last_cockpit_txt)
       return;

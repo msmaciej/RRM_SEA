@@ -396,7 +396,10 @@ void OrchestrateTick()
    int vote_snap_count = 0;
    Signal.CaptureVoteSnapshots(vote_snaps, vote_snap_count, snap_bias);
 
-   SEA_UI_UpdateCockpitPanel(atr, direction, snap_bias, snap_votes, snap_reason, ts_snap, te_snap, vote_snaps, vote_snap_count);
+   // Build pipeline diagnostics string (EMA values, structure gate, statistics)
+   string diag_snap = Signal.GetDiagnosticsString();
+
+   SEA_UI_UpdateCockpitPanel(atr, direction, snap_bias, snap_votes, snap_reason, ts_snap, te_snap, vote_snaps, vote_snap_count, diag_snap);
    FlowLog("Bar pipeline complete");
 }
 
