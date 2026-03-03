@@ -838,7 +838,7 @@ public:
       count = 0;
       ArrayResize(out, 12);
 
-      if(m_settings.Use_EmaSig && h_ema1 != INVALID_HANDLE)
+      if(m_settings.Ind_EmaSig_Enabled && h_ema1 != INVALID_HANDLE)
       {
          double p = iClose(m_symbol, PERIOD_CURRENT, shift);
          double e = GetMAVal(h_ema1, shift);
@@ -851,7 +851,7 @@ public:
          count++;
       }
 
-      if(m_settings.Use_Adx && h_adx != INVALID_HANDLE)
+      if(m_settings.Ind_Adx_Enabled && h_adx != INVALID_HANDLE)
       {
          double adx = GetVal(h_adx, shift);
          bool pass = (adx > m_settings.T_Adx);
@@ -864,7 +864,7 @@ public:
          count++;
       }
 
-      if(m_settings.Use_Macd && h_macd != INVALID_HANDLE)
+      if(m_settings.Ind_Macd_Enabled && h_macd != INVALID_HANDLE)
       {
          bool b = Check_MACD(1, shift);
          bool s = Check_MACD(-1, shift);
@@ -879,7 +879,7 @@ public:
          count++;
       }
 
-      if(m_settings.Use_Rsi && h_rsi != INVALID_HANDLE)
+      if(m_settings.Ind_Rsi_Enabled && h_rsi != INVALID_HANDLE)
       {
          bool b = Check_RSI(1, shift);
          bool s = Check_RSI(-1, shift);
@@ -893,7 +893,7 @@ public:
          count++;
       }
 
-      if(m_settings.Use_Cci && h_cci != INVALID_HANDLE)
+      if(m_settings.Ind_Cci_Enabled && h_cci != INVALID_HANDLE)
       {
          bool b = Check_CCI(1, shift);
          bool s = Check_CCI(-1, shift);
@@ -907,7 +907,7 @@ public:
          count++;
       }
 
-      if(m_settings.Use_Mfi && h_mfi != INVALID_HANDLE)
+      if(m_settings.Ind_Mfi_Enabled && h_mfi != INVALID_HANDLE)
       {
          bool b = Check_MFI(1, shift);
          bool s = Check_MFI(-1, shift);
@@ -921,7 +921,7 @@ public:
          count++;
       }
 
-      if(m_settings.Use_Sto && h_sto != INVALID_HANDLE)
+      if(m_settings.Ind_Sto_Enabled && h_sto != INVALID_HANDLE)
       {
          bool b = Check_Sto(1, shift);
          bool s = Check_Sto(-1, shift);
@@ -936,7 +936,7 @@ public:
          count++;
       }
 
-      if(m_settings.Use_Bb && h_bb != INVALID_HANDLE)
+      if(m_settings.Ind_Bb_Enabled && h_bb != INVALID_HANDLE)
       {
          bool b = Check_BB(1, shift);
          bool s = Check_BB(-1, shift);
@@ -951,7 +951,7 @@ public:
          count++;
       }
 
-      if(m_settings.Use_Psar && h_psar != INVALID_HANDLE)
+      if(m_settings.Ind_Psar_Enabled && h_psar != INVALID_HANDLE)
       {
          bool b = Check_PSAR(1, shift);
          bool s = Check_PSAR(-1, shift);
@@ -965,7 +965,7 @@ public:
          count++;
       }
 
-      if(m_settings.Use_P123 && h_fractals != INVALID_HANDLE)
+      if(m_settings.Ind_P123_Enabled && h_fractals != INVALID_HANDLE)
       {
          bool b = Check_P123(1, shift);
          bool s = Check_P123(-1, shift);
@@ -978,7 +978,7 @@ public:
          count++;
       }
 
-      if(m_settings.Use_Ross && h_fractals != INVALID_HANDLE)
+      if(m_settings.Ind_Ross_Enabled && h_fractals != INVALID_HANDLE)
       {
          bool b = Check_Ross(1, shift);
          bool s = Check_Ross(-1, shift);
@@ -1014,18 +1014,18 @@ public:
       h_atr  = (need_atr ? iATR(m_symbol, PERIOD_CURRENT, m_settings.P_Atr) : INVALID_HANDLE);
 
       // Optional indicators: create only when used by votes/filters/trailing (reduces Strategy Tester clutter)
-      h_macd = (m_settings.Use_Macd ? iMACD(m_symbol, PERIOD_CURRENT, m_settings.P_MacdFast, m_settings.P_MacdSlow, m_settings.P_MacdSig, PRICE_CLOSE) : INVALID_HANDLE);
-      h_rsi  = (m_settings.Use_Rsi  ? iRSI(m_symbol, PERIOD_CURRENT, m_settings.P_Rsi, PRICE_CLOSE) : INVALID_HANDLE);
-      h_cci  = (m_settings.Use_Cci  ? iCCI(m_symbol, PERIOD_CURRENT, m_settings.P_Cci, PRICE_CLOSE) : INVALID_HANDLE);
-      h_adx  = (m_settings.Use_Adx  ? iADX(m_symbol, PERIOD_CURRENT, m_settings.P_Adx) : INVALID_HANDLE);
-      h_mfi  = (m_settings.Use_Mfi  ? iMFI(m_symbol, PERIOD_CURRENT, m_settings.P_Mfi, VOLUME_TICK) : INVALID_HANDLE);
-      h_sto  = (m_settings.Use_Sto  ? iStochastic(m_symbol, PERIOD_CURRENT, m_settings.P_StoK, m_settings.P_StoD, m_settings.P_StoSlow, MODE_SMA, STO_LOWHIGH) : INVALID_HANDLE);
-      h_bb   = (m_settings.Use_Bb   ? iBands(m_symbol, PERIOD_CURRENT, m_settings.P_Bb, 0, m_settings.P_BbDev, PRICE_CLOSE) : INVALID_HANDLE);
+      h_macd = (m_settings.Ind_Macd_Enabled ? iMACD(m_symbol, PERIOD_CURRENT, m_settings.P_MacdFast, m_settings.P_MacdSlow, m_settings.P_MacdSig, PRICE_CLOSE) : INVALID_HANDLE);
+      h_rsi  = (m_settings.Ind_Rsi_Enabled  ? iRSI(m_symbol, PERIOD_CURRENT, m_settings.P_Rsi, PRICE_CLOSE) : INVALID_HANDLE);
+      h_cci  = (m_settings.Ind_Cci_Enabled  ? iCCI(m_symbol, PERIOD_CURRENT, m_settings.P_Cci, PRICE_CLOSE) : INVALID_HANDLE);
+      h_adx  = (m_settings.Ind_Adx_Enabled  ? iADX(m_symbol, PERIOD_CURRENT, m_settings.P_Adx) : INVALID_HANDLE);
+      h_mfi  = (m_settings.Ind_Mfi_Enabled  ? iMFI(m_symbol, PERIOD_CURRENT, m_settings.P_Mfi, VOLUME_TICK) : INVALID_HANDLE);
+      h_sto  = (m_settings.Ind_Sto_Enabled  ? iStochastic(m_symbol, PERIOD_CURRENT, m_settings.P_StoK, m_settings.P_StoD, m_settings.P_StoSlow, MODE_SMA, STO_LOWHIGH) : INVALID_HANDLE);
+      h_bb   = (m_settings.Ind_Bb_Enabled   ? iBands(m_symbol, PERIOD_CURRENT, m_settings.P_Bb, 0, m_settings.P_BbDev, PRICE_CLOSE) : INVALID_HANDLE);
 
-      bool need_psar = (m_settings.Use_Psar || m_settings.TrailMode == TRAIL_PSAR);
+      bool need_psar = (m_settings.Ind_Psar_Enabled || m_settings.TrailMode == TRAIL_PSAR);
       h_psar = (need_psar ? iSAR(m_symbol, PERIOD_CURRENT, m_settings.P_PsarStep, m_settings.P_PsarMax) : INVALID_HANDLE);
 
-      bool need_fractals = (m_settings.Use_P123 || m_settings.Use_Ross || m_settings.TrailMode == TRAIL_FRACTAL);
+      bool need_fractals = (m_settings.Ind_P123_Enabled || m_settings.Ind_Ross_Enabled || m_settings.TrailMode == TRAIL_FRACTAL);
       h_fractals = (need_fractals ? iFractals(m_symbol, PERIOD_CURRENT) : INVALID_HANDLE);
       // B. Create HTF Filter (If Enabled)
       if(m_settings.UseHTF) {
@@ -1741,17 +1741,17 @@ public:
             else         all_pass    = false; \
          }
 
-      CAST_VOTE(m_settings.Use_EmaSig, m_settings.W_EmaSig, Check_EMA1(bias, v_shift))
-      CAST_VOTE(m_settings.Use_Adx,    m_settings.W_Adx,    Check_ADX(v_shift))
-      CAST_VOTE(m_settings.Use_Macd,   m_settings.W_Macd,   Check_MACD(bias, v_shift))
-      CAST_VOTE(m_settings.Use_Rsi,    m_settings.W_Rsi,    Check_RSI(bias, v_shift))
-      CAST_VOTE(m_settings.Use_Cci,    m_settings.W_Cci,    Check_CCI(bias, v_shift))
-      CAST_VOTE(m_settings.Use_Mfi,    m_settings.W_Mfi,    Check_MFI(bias, v_shift))
-      CAST_VOTE(m_settings.Use_Sto,    m_settings.W_Sto,    Check_Sto(bias, v_shift))
-      CAST_VOTE(m_settings.Use_Bb,     m_settings.W_Bb,     Check_BB(bias, v_shift))
-      CAST_VOTE(m_settings.Use_Psar,   m_settings.W_Psar,   Check_PSAR(bias, v_shift))
-      CAST_VOTE(m_settings.Use_P123,   m_settings.W_P123,   Check_P123(bias, v_shift))
-      CAST_VOTE(m_settings.Use_Ross,   m_settings.W_Ross,   Check_Ross(bias, v_shift))
+      CAST_VOTE(m_settings.Ind_EmaSig_Enabled, m_settings.Ind_EmaSig_Weight, Check_EMA1(bias, v_shift))
+      CAST_VOTE(m_settings.Ind_Adx_Enabled,    m_settings.Ind_Adx_Weight,    Check_ADX(v_shift))
+      CAST_VOTE(m_settings.Ind_Macd_Enabled,   m_settings.Ind_Macd_Weight,   Check_MACD(bias, v_shift))
+      CAST_VOTE(m_settings.Ind_Rsi_Enabled,    m_settings.Ind_Rsi_Weight,    Check_RSI(bias, v_shift))
+      CAST_VOTE(m_settings.Ind_Cci_Enabled,    m_settings.Ind_Cci_Weight,    Check_CCI(bias, v_shift))
+      CAST_VOTE(m_settings.Ind_Mfi_Enabled,    m_settings.Ind_Mfi_Weight,    Check_MFI(bias, v_shift))
+      CAST_VOTE(m_settings.Ind_Sto_Enabled,    m_settings.Ind_Sto_Weight,    Check_Sto(bias, v_shift))
+      CAST_VOTE(m_settings.Ind_Bb_Enabled,     m_settings.Ind_Bb_Weight,     Check_BB(bias, v_shift))
+      CAST_VOTE(m_settings.Ind_Psar_Enabled,   m_settings.Ind_Psar_Weight,   Check_PSAR(bias, v_shift))
+      CAST_VOTE(m_settings.Ind_P123_Enabled,   m_settings.Ind_P123_Weight,   Check_P123(bias, v_shift))
+      CAST_VOTE(m_settings.Ind_Ross_Enabled,   m_settings.Ind_Ross_Weight,   Check_Ross(bias, v_shift))
 
       #undef CAST_VOTE
 
@@ -1774,73 +1774,73 @@ public:
                                            mode_str, bias, vote_weight, m_settings.VoteThreshold);
          
          // Log each enabled vote with actual indicator values
-         if(m_settings.Use_EmaSig) {
+         if(m_settings.Ind_EmaSig_Enabled) {
             double p = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             double e = GetMAVal(h_ema1, v_shift);
             bool pass = Check_EMA1(bias, v_shift);
-            vote_details += StringFormat(" | EmaSig: p=%.5f e=%.5f %s(w=%.1f)", p, e, pass?"PASS":"FAIL", m_settings.W_EmaSig);
+            vote_details += StringFormat(" | EmaSig: p=%.5f e=%.5f %s(w=%.1f)", p, e, pass?"PASS":"FAIL", m_settings.Ind_EmaSig_Weight);
          }
          
-         if(m_settings.Use_Adx) {
+         if(m_settings.Ind_Adx_Enabled) {
             double adx = GetVal(h_adx, v_shift);
             bool pass = Check_ADX(v_shift);
-            vote_details += StringFormat(" | ADX: %.2f %s(w=%.1f)", adx, pass?"PASS":"FAIL", m_settings.W_Adx);
+            vote_details += StringFormat(" | ADX: %.2f %s(w=%.1f)", adx, pass?"PASS":"FAIL", m_settings.Ind_Adx_Weight);
          }
          
-         if(m_settings.Use_Macd) {
+         if(m_settings.Ind_Macd_Enabled) {
             double m = GetVal(h_macd, v_shift, 0);
             double s = GetVal(h_macd, v_shift, 1);
             bool pass = Check_MACD(bias, v_shift);
-            vote_details += StringFormat(" | MACD: main=%.6f sig=%.6f %s(w=%.1f)", m, s, pass?"PASS":"FAIL", m_settings.W_Macd);
+            vote_details += StringFormat(" | MACD: main=%.6f sig=%.6f %s(w=%.1f)", m, s, pass?"PASS":"FAIL", m_settings.Ind_Macd_Weight);
          }
          
-         if(m_settings.Use_Rsi) {
+         if(m_settings.Ind_Rsi_Enabled) {
             double r = GetVal(h_rsi, v_shift);
             bool pass = Check_RSI(bias, v_shift);
-            vote_details += StringFormat(" | RSI: %.2f %s(w=%.1f)", r, pass?"PASS":"FAIL", m_settings.W_Rsi);
+            vote_details += StringFormat(" | RSI: %.2f %s(w=%.1f)", r, pass?"PASS":"FAIL", m_settings.Ind_Rsi_Weight);
          }
          
-         if(m_settings.Use_Cci) {
+         if(m_settings.Ind_Cci_Enabled) {
             double c = GetVal(h_cci, v_shift);
             bool pass = Check_CCI(bias, v_shift);
-            vote_details += StringFormat(" | CCI: %.2f %s(w=%.1f)", c, pass?"PASS":"FAIL", m_settings.W_Cci);
+            vote_details += StringFormat(" | CCI: %.2f %s(w=%.1f)", c, pass?"PASS":"FAIL", m_settings.Ind_Cci_Weight);
          }
          
-         if(m_settings.Use_Mfi) {
+         if(m_settings.Ind_Mfi_Enabled) {
             double mfi = GetVal(h_mfi, v_shift);
             bool pass = Check_MFI(bias, v_shift);
-            vote_details += StringFormat(" | MFI: %.2f %s(w=%.1f)", mfi, pass?"PASS":"FAIL", m_settings.W_Mfi);
+            vote_details += StringFormat(" | MFI: %.2f %s(w=%.1f)", mfi, pass?"PASS":"FAIL", m_settings.Ind_Mfi_Weight);
          }
          
-         if(m_settings.Use_Sto) {
+         if(m_settings.Ind_Sto_Enabled) {
             double k = GetVal(h_sto, v_shift, 0);
             double d = GetVal(h_sto, v_shift, 1);
             bool pass = Check_Sto(bias, v_shift);
-            vote_details += StringFormat(" | STO: k=%.2f d=%.2f %s(w=%.1f)", k, d, pass?"PASS":"FAIL", m_settings.W_Sto);
+            vote_details += StringFormat(" | STO: k=%.2f d=%.2f %s(w=%.1f)", k, d, pass?"PASS":"FAIL", m_settings.Ind_Sto_Weight);
          }
          
-         if(m_settings.Use_Bb) {
+         if(m_settings.Ind_Bb_Enabled) {
             double mid = GetVal(h_bb, v_shift, 0);
             double cl = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             bool pass = Check_BB(bias, v_shift);
-            vote_details += StringFormat(" | BB: mid=%.5f cl=%.5f %s(w=%.1f)", mid, cl, pass?"PASS":"FAIL", m_settings.W_Bb);
+            vote_details += StringFormat(" | BB: mid=%.5f cl=%.5f %s(w=%.1f)", mid, cl, pass?"PASS":"FAIL", m_settings.Ind_Bb_Weight);
          }
          
-         if(m_settings.Use_Psar) {
+         if(m_settings.Ind_Psar_Enabled) {
             double p = GetVal(h_psar, v_shift);
             double cl = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             bool pass = Check_PSAR(bias, v_shift);
-            vote_details += StringFormat(" | PSAR: sar=%.5f cl=%.5f %s(w=%.1f)", p, cl, pass?"PASS":"FAIL", m_settings.W_Psar);
+            vote_details += StringFormat(" | PSAR: sar=%.5f cl=%.5f %s(w=%.1f)", p, cl, pass?"PASS":"FAIL", m_settings.Ind_Psar_Weight);
          }
          
-         if(m_settings.Use_P123) {
+         if(m_settings.Ind_P123_Enabled) {
             bool pass = Check_P123(bias, v_shift);
-            vote_details += StringFormat(" | P123: %s(w=%.1f)", pass?"PASS":"FAIL", m_settings.W_P123);
+            vote_details += StringFormat(" | P123: %s(w=%.1f)", pass?"PASS":"FAIL", m_settings.Ind_P123_Weight);
          }
          
-         if(m_settings.Use_Ross) {
+         if(m_settings.Ind_Ross_Enabled) {
             bool pass = Check_Ross(bias, v_shift);
-            vote_details += StringFormat(" | ROSS: %s(w=%.1f)", pass?"PASS":"FAIL", m_settings.W_Ross);
+            vote_details += StringFormat(" | ROSS: %s(w=%.1f)", pass?"PASS":"FAIL", m_settings.Ind_Ross_Weight);
          }
          
          Print(vote_details);

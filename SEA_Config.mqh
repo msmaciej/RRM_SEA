@@ -253,19 +253,19 @@ struct ST_Settings
    int       VoteThreshold;
    EVoteMode VoteMode;        // THRESHOLD: weighted sum >= VoteThreshold; ALL: every indicator must agree (weights ignored)
 
-   // Per-indicator weights (1.0 = standard; only used in VOTE_MODE_THRESHOLD for weighted sum)
+   // Per-indicator weights (1 = standard; only used in VOTE_MODE_THRESHOLD for weighted sum)
    // In VOTE_MODE_ALL, weights are ignored — all enabled indicators must simply agree.
-   double W_EmaSig;
-   double W_Adx;
-   double W_Macd;
-   double W_Rsi;
-   double W_Cci;
-   double W_Mfi;
-   double W_Sto;
-   double W_Bb;
-   double W_Psar;
-   double W_P123;
-   double W_Ross;
+   int Ind_EmaSig_Weight;
+   int Ind_Adx_Weight;
+   int Ind_Macd_Weight;
+   int Ind_Rsi_Weight;
+   int Ind_Cci_Weight;
+   int Ind_Mfi_Weight;
+   int Ind_Sto_Weight;
+   int Ind_Bb_Weight;
+   int Ind_Psar_Weight;
+   int Ind_P123_Weight;
+   int Ind_Ross_Weight;
 
    // Indicators (Periods)
    int    P_Ema1;
@@ -305,17 +305,17 @@ struct ST_Settings
    EBbMode    BbMode;
 
    // Active Votes
-   bool Use_EmaSig;
-   bool Use_Adx;
-   bool Use_Macd;
-   bool Use_Rsi;
-   bool Use_Cci;
-   bool Use_Mfi;
-   bool Use_Sto;
-   bool Use_Bb;
-   bool Use_Psar;
-   bool Use_P123;
-   bool Use_Ross;
+   bool Ind_EmaSig_Enabled;
+   bool Ind_Adx_Enabled;
+   bool Ind_Macd_Enabled;
+   bool Ind_Rsi_Enabled;
+   bool Ind_Cci_Enabled;
+   bool Ind_Mfi_Enabled;
+   bool Ind_Sto_Enabled;
+   bool Ind_Bb_Enabled;
+   bool Ind_Psar_Enabled;
+   bool Ind_P123_Enabled;
+   bool Ind_Ross_Enabled;
 
    // SL - Initial SL Placement
    ESlPlacementMode SL_PlacementMode;
@@ -526,72 +526,86 @@ input group "--- ℹ️ Step 6: Indicator Voting (mode & threshold) ---"
 input int            Inp_VoteThreshold          = 2;                    // (CUSTOM; presets override) Votes required to enter (threshold; weighted sum in THRESHOLD mode)
 input EVoteMode      Inp_VoteMode               = VOTE_MODE_THRESHOLD;  // (CUSTOM; presets override) Vote mode: THRESHOLD (weighted sum) or ALL (every indicator must agree)
 
-input group "--- ℹ️ Step 6 · EmaSig: EMA Price Signal ---"
-input bool           Inp_Use_EmaSig             = true;                // (CUSTOM; presets override) Enable EMA signal vote
-input double         Inp_W_EmaSig               = 1.0;                 // (CUSTOM; presets override) EMA signal vote weight
+input group "--- ℹ️ Step 6 · Indicator: EmaSig (EMA Price Signal) ---"
+input bool           Inp_Ind_EmaSig_Enabled     = true;                // [EmaSig] Enable EMA signal vote
+input int            Inp_Ind_EmaSig_Weight      = 1;                   // [EmaSig] Vote weight
+input string         Inp_Ind_EmaSig_Info        = "Price position vs EMA1"; // [EmaSig] Description
 
-input group "--- ℹ️ Step 6 · ADX: Trend Strength ---"
-input bool           Inp_Use_Adx                = false;               // (CUSTOM; presets override) Enable ADX vote
-input double         Inp_W_Adx                  = 1.0;                 // (CUSTOM; presets override) ADX vote weight
-input int            InpAdxPeriod               = 14;                  // (CUSTOM; presets override) ADX period
-input int            InpAdxThreshold            = 20;                  // (CUSTOM; presets override) ADX threshold
+input group "--- ℹ️ Step 6 · Indicator: ADX (Trend Strength) ---"
+input bool           Inp_Ind_Adx_Enabled        = false;               // [ADX] Enable ADX vote
+input int            Inp_Ind_Adx_Weight         = 1;                   // [ADX] Vote weight
+input string         Inp_Ind_Adx_Info           = "Trend strength filter"; // [ADX] Description
+input int            Inp_Ind_Adx_Period         = 14;                  // [ADX] Period
+input int            Inp_Ind_Adx_Threshold      = 20;                  // [ADX] Threshold
 
-input group "--- ℹ️ Step 6 · MACD: Momentum ---"
-input bool           Inp_Use_Macd               = true;                // (CUSTOM; presets override) Enable MACD vote
-input double         Inp_W_Macd                 = 1.0;                 // (CUSTOM; presets override) MACD vote weight
-input EMacdMode      InpMacdMode                = MACD_SIGNAL_ALIGN;   // (CUSTOM; presets override) MACD mode (signal align / zero cross)
-input int            InpMacdFast                = 12;                  // (CUSTOM; presets override) MACD fast period
-input int            InpMacdSlow                = 26;                  // (CUSTOM; presets override) MACD slow period
-input int            InpMacdSig                 = 9;                   // (CUSTOM; presets override) MACD signal period
+input group "--- ℹ️ Step 6 · Indicator: MACD (Momentum) ---"
+input bool           Inp_Ind_Macd_Enabled       = true;                // [MACD] Enable MACD vote
+input int            Inp_Ind_Macd_Weight        = 1;                   // [MACD] Vote weight
+input string         Inp_Ind_Macd_Info          = "MACD histogram alignment"; // [MACD] Description
+input EMacdMode      Inp_Ind_Macd_Mode          = MACD_SIGNAL_ALIGN;   // [MACD] Mode (signal align / zero cross)
+input int            Inp_Ind_Macd_Fast          = 12;                  // [MACD] Fast period
+input int            Inp_Ind_Macd_Slow          = 26;                  // [MACD] Slow period
+input int            Inp_Ind_Macd_Signal        = 9;                   // [MACD] Signal period
 
-input group "--- ℹ️ Step 6 · RSI: Momentum Zones ---"
-input bool           Inp_Use_Rsi                = false;               // (CUSTOM; presets override) Enable RSI vote
-input double         Inp_W_Rsi                  = 1.0;                 // (CUSTOM; presets override) RSI vote weight
-input ERsiMode       InpRsiMode                 = RSI_FILTER_EXTREME;  // (CUSTOM; presets override) RSI mode
-input int            InpRsiPeriod               = 14;                  // (CUSTOM; presets override) RSI period
-input double         InpRsiOverbought           = 70.0;                // (CUSTOM; presets override) RSI overbought level
-input double         InpRsiOversold             = 30.0;                // (CUSTOM; presets override) RSI oversold level
+input group "--- ℹ️ Step 6 · Indicator: RSI (Momentum Zones) ---"
+input bool           Inp_Ind_Rsi_Enabled        = false;               // [RSI] Enable RSI vote
+input int            Inp_Ind_Rsi_Weight         = 1;                   // [RSI] Vote weight
+input string         Inp_Ind_Rsi_Info           = "Relative Strength Index"; // [RSI] Description
+input ERsiMode       Inp_Ind_Rsi_Mode           = RSI_FILTER_EXTREME;  // [RSI] Mode
+input int            Inp_Ind_Rsi_Period         = 14;                  // [RSI] Period
+input double         Inp_Ind_Rsi_OB             = 70.0;                // [RSI] Overbought level
+input double         Inp_Ind_Rsi_OS             = 30.0;                // [RSI] Oversold level
 
-input group "--- ℹ️ Step 6 · CCI: Cyclical ---"
-input bool           Inp_Use_Cci                = true;                // (CUSTOM; presets override) Enable CCI vote
-input double         Inp_W_Cci                  = 1.0;                 // (CUSTOM; presets override) CCI vote weight
-input ECciMode       InpCciMode                 = CCI_TREND_ZERO;      // (CUSTOM; presets override) CCI mode
-input int            InpCciPeriod               = 14;                  // (CUSTOM; presets override) CCI period
+input group "--- ℹ️ Step 6 · Indicator: CCI (Cyclical) ---"
+input bool           Inp_Ind_Cci_Enabled        = true;                // [CCI] Enable CCI vote
+input int            Inp_Ind_Cci_Weight         = 1;                   // [CCI] Vote weight
+input string         Inp_Ind_Cci_Info           = "Commodity Channel Index"; // [CCI] Description
+input ECciMode       Inp_Ind_Cci_Mode           = CCI_TREND_ZERO;      // [CCI] Mode
+input int            Inp_Ind_Cci_Period         = 14;                  // [CCI] Period
 
-input group "--- ℹ️ Step 6 · MFI: Money Flow ---"
-input bool           Inp_Use_Mfi                = false;               // (CUSTOM; presets override) Enable MFI vote
-input double         Inp_W_Mfi                  = 1.0;                 // (CUSTOM; presets override) MFI vote weight
-input int            InpMfiPeriod               = 14;                  // (CUSTOM; presets override) MFI period
-input double         InpMfiLevel                = 50.0;                // (CUSTOM; presets override) MFI threshold/level
+input group "--- ℹ️ Step 6 · Indicator: MFI (Money Flow) ---"
+input bool           Inp_Ind_Mfi_Enabled        = false;               // [MFI] Enable MFI vote
+input int            Inp_Ind_Mfi_Weight         = 1;                   // [MFI] Vote weight
+input string         Inp_Ind_Mfi_Info           = "Money Flow Index"; // [MFI] Description
+input int            Inp_Ind_Mfi_Period         = 14;                  // [MFI] Period
+input double         Inp_Ind_Mfi_Level          = 50.0;                // [MFI] Threshold/level
 
-input group "--- ℹ️ Step 6 · Stochastic: Oscillator ---"
-input bool           Inp_Use_Sto                = false;               // (CUSTOM; presets override) Enable Stochastic vote
-input double         Inp_W_Sto                  = 1.0;                 // (CUSTOM; presets override) Stochastic vote weight
-input EStochMode     InpStoMode                 = STO_ZONE_FILTER;     // (CUSTOM; presets override) Stochastic mode
-input int            InpStoK                    = 5;                   // (CUSTOM; presets override) Stochastic %K period
-input int            InpStoD                    = 3;                   // (CUSTOM; presets override) Stochastic %D period
-input int            InpStoSlow                 = 3;                   // (CUSTOM; presets override) Stochastic slowing
+input group "--- ℹ️ Step 6 · Indicator: Stochastic (Oscillator) ---"
+input bool           Inp_Ind_Sto_Enabled        = false;               // [Stoch] Enable Stochastic vote
+input int            Inp_Ind_Sto_Weight         = 1;                   // [Stoch] Vote weight
+input string         Inp_Ind_Sto_Info           = "Stochastic oscillator"; // [Stoch] Description
+input EStochMode     Inp_Ind_Sto_Mode           = STO_ZONE_FILTER;     // [Stoch] Mode
+input int            Inp_Ind_Sto_K              = 5;                   // [Stoch] %K period
+input int            Inp_Ind_Sto_D              = 3;                   // [Stoch] %D period
+input int            Inp_Ind_Sto_Slow           = 3;                   // [Stoch] Slowing
 
-input group "--- ℹ️ Step 6 · Bollinger Bands: Volatility ---"
-input bool           Inp_Use_Bb                 = false;               // (CUSTOM; presets override) Enable Bollinger Bands vote
-input double         Inp_W_Bb                   = 1.0;                 // (CUSTOM; presets override) Bollinger Bands vote weight
-input EBbMode        InpBbMode                  = BB_TREND_FOLLOW;     // (CUSTOM; presets override) Bollinger mode
-input int            InpBbPeriod                = 20;                  // (CUSTOM; presets override) Bollinger period
-input double         InpBbDev                   = 2.0;                 // (CUSTOM; presets override) Bollinger deviation
+input group "--- ℹ️ Step 6 · Indicator: Bollinger Bands (Volatility) ---"
+input bool           Inp_Ind_Bb_Enabled         = false;               // [BB] Enable Bollinger Bands vote
+input int            Inp_Ind_Bb_Weight          = 1;                   // [BB] Vote weight
+input string         Inp_Ind_Bb_Info            = "Bollinger Bands channel"; // [BB] Description
+input EBbMode        Inp_Ind_Bb_Mode            = BB_TREND_FOLLOW;     // [BB] Mode
+input int            Inp_Ind_Bb_Period          = 20;                  // [BB] Period
+input double         Inp_Ind_Bb_Dev             = 2.0;                 // [BB] Deviation
 
-input group "--- ℹ️ Step 6 · PSAR: Trend Direction ---"
-input bool           Inp_Use_Psar               = true;                // (CUSTOM; presets override) Enable PSAR vote
-input double         Inp_W_Psar                 = 1.0;                 // (CUSTOM; presets override) PSAR vote weight
-input double         InpPsarStep                = 0.05;                // (CUSTOM; presets override) PSAR step
-input double         InpPsarMax                 = 0.5;                 // (CUSTOM; presets override) PSAR max
+input group "--- ℹ️ Step 6 · Indicator: PSAR (Trend Direction) ---"
+input bool           Inp_Ind_Psar_Enabled       = true;                // [PSAR] Enable PSAR vote
+input int            Inp_Ind_Psar_Weight        = 1;                   // [PSAR] Vote weight
+input string         Inp_Ind_Psar_Info          = "Parabolic SAR position"; // [PSAR] Description
+input double         Inp_Ind_Psar_Step          = 0.05;                // [PSAR] Step
+input double         Inp_Ind_Psar_Max           = 0.5;                 // [PSAR] Maximum
 
-input group "--- ℹ️ Step 6 · P123: 1-2-3 Pattern ---"
-input bool           Inp_Use_P123               = false;               // (CUSTOM; presets override) Enable 1-2-3 pattern vote
-input double         Inp_W_P123                 = 1.0;                 // (CUSTOM; presets override) 1-2-3 pattern vote weight
+input group "--- ℹ️ Step 6 · Indicator: P123 (1-2-3 Pattern) ---"
+input bool           Inp_Ind_P123_Enabled       = false;               // [P123] Enable 1-2-3 pattern vote
+input int            Inp_Ind_P123_Weight        = 1;                   // [P123] Vote weight
+input string         Inp_Ind_P123_Info          = "1-2-3 fractal breakout pattern"; // [P123] Description
 
-input group "--- ℹ️ Step 6 · Ross: Ross Hook ---"
-input bool           Inp_Use_Ross               = false;               // (CUSTOM; presets override) Enable Ross hook vote
-input double         Inp_W_Ross                 = 1.0;                 // (CUSTOM; presets override) Ross hook vote weight
+input group "--- ℹ️ Step 6 · Indicator: Ross (Ross Hook) ---"
+input bool           Inp_Ind_Ross_Enabled       = false;               // [Ross] Enable Ross hook vote
+input int            Inp_Ind_Ross_Weight        = 1;                   // [Ross] Vote weight
+input string         Inp_Ind_Ross_Info          = "Ross hook trend momentum"; // [Ross] Description
+
+input group "--- ℹ️ Step 6 · Template: Add New Indicator ---"
+input string         Inp_Ind_Template_Info      = "Copy a section above to add custom indicators"; // Instructions
 
 // ── Step 9: Risk & Execution ──────────────────────────────────────────
 input group "--- ℹ️ Step 9: Risk & Execution (SL, TP, trailing) ---"
@@ -814,63 +828,64 @@ void InitializeConfig()
    Settings.P_Ema2               = InpEma2Period;
    Settings.P_Ema3               = InpEma3Period;
    Settings.P_Ema4               = InpEma4Period;
-   Settings.P_Adx                = InpAdxPeriod;
-   Settings.T_Adx                = InpAdxThreshold;
-   Settings.P_MacdFast           = InpMacdFast;
-   Settings.P_MacdSlow           = InpMacdSlow;
-   Settings.P_MacdSig            = InpMacdSig;
-   Settings.P_Rsi                = InpRsiPeriod;
-   Settings.T_RsiOB              = InpRsiOverbought;
-   Settings.T_RsiOS              = InpRsiOversold;
-   Settings.P_Cci                = InpCciPeriod;
-   Settings.P_Mfi                = InpMfiPeriod;
-   Settings.T_Mfi                = InpMfiLevel;
-   Settings.T_MfiOB              = InpMfiLevel;
-   Settings.T_MfiOS              = InpMfiLevel;
-   Settings.P_StoK               = InpStoK;
-   Settings.P_StoD               = InpStoD;
-   Settings.P_StoSlow            = InpStoSlow;
+   Settings.P_Adx                = Inp_Ind_Adx_Period;
+   Settings.T_Adx                = Inp_Ind_Adx_Threshold;
+   Settings.P_MacdFast           = Inp_Ind_Macd_Fast;
+   Settings.P_MacdSlow           = Inp_Ind_Macd_Slow;
+   Settings.P_MacdSig            = Inp_Ind_Macd_Signal;
+   Settings.P_Rsi                = Inp_Ind_Rsi_Period;
+   Settings.T_RsiOB              = Inp_Ind_Rsi_OB;
+   Settings.T_RsiOS              = Inp_Ind_Rsi_OS;
+   Settings.P_Cci                = Inp_Ind_Cci_Period;
+   Settings.P_Mfi                = Inp_Ind_Mfi_Period;
+   Settings.T_Mfi                = Inp_Ind_Mfi_Level;
+   Settings.T_MfiOB              = Inp_Ind_Mfi_Level;
+   Settings.T_MfiOS              = Inp_Ind_Mfi_Level;
+   Settings.P_StoK               = Inp_Ind_Sto_K;
+   Settings.P_StoD               = Inp_Ind_Sto_D;
+   Settings.P_StoSlow            = Inp_Ind_Sto_Slow;
    Settings.T_StoOB              = 80.0;
    Settings.T_StoOS              = 20.0;
-   Settings.P_Bb                 = InpBbPeriod;
-   Settings.P_BbDev              = InpBbDev;
-   Settings.P_PsarStep           = InpPsarStep;
-   Settings.P_PsarMax            = InpPsarMax;
+   Settings.P_Bb                 = Inp_Ind_Bb_Period;
+   Settings.P_BbDev              = Inp_Ind_Bb_Dev;
+   Settings.P_PsarStep           = Inp_Ind_Psar_Step;
+   Settings.P_PsarMax            = Inp_Ind_Psar_Max;
    Settings.P_PsarTrailCushionATR= Inp_PSAR_TrailCushionATR;
    Settings.P_Atr                = 14;
 
    // Modes
-   Settings.MacdMode             = InpMacdMode;
-   Settings.RsiMode              = InpRsiMode;
-   Settings.CciMode              = InpCciMode;
-   Settings.StoMode              = InpStoMode;
-   Settings.BbMode               = InpBbMode;
+   Settings.MacdMode             = Inp_Ind_Macd_Mode;
+   Settings.RsiMode              = Inp_Ind_Rsi_Mode;
+   Settings.CciMode              = Inp_Ind_Cci_Mode;
+   Settings.StoMode              = Inp_Ind_Sto_Mode;
+   Settings.BbMode               = Inp_Ind_Bb_Mode;
 
    // Active votes
-   Settings.Use_EmaSig           = Inp_Use_EmaSig;
-   Settings.Use_Adx              = Inp_Use_Adx;
-   Settings.Use_Macd             = Inp_Use_Macd;
-   Settings.Use_Rsi              = Inp_Use_Rsi;
-   Settings.Use_Cci              = Inp_Use_Cci;
-   Settings.Use_Mfi              = Inp_Use_Mfi;
-   Settings.Use_Sto              = Inp_Use_Sto;
-   Settings.Use_Bb               = Inp_Use_Bb;
-   Settings.Use_Psar             = Inp_Use_Psar;
-   Settings.Use_P123             = Inp_Use_P123;
-   Settings.Use_Ross             = Inp_Use_Ross;
+   Settings.Ind_EmaSig_Enabled   = Inp_Ind_EmaSig_Enabled;
+   Settings.Ind_Adx_Enabled      = Inp_Ind_Adx_Enabled;
+   Settings.Ind_Macd_Enabled     = Inp_Ind_Macd_Enabled;
+   Settings.Ind_Rsi_Enabled      = Inp_Ind_Rsi_Enabled;
+   Settings.Ind_Cci_Enabled      = Inp_Ind_Cci_Enabled;
+   Settings.Ind_Mfi_Enabled      = Inp_Ind_Mfi_Enabled;
+   Settings.Ind_Sto_Enabled      = Inp_Ind_Sto_Enabled;
+   Settings.Ind_Bb_Enabled       = Inp_Ind_Bb_Enabled;
+   Settings.Ind_Psar_Enabled     = Inp_Ind_Psar_Enabled;
+   Settings.Ind_P123_Enabled     = Inp_Ind_P123_Enabled;
+   Settings.Ind_Ross_Enabled     = Inp_Ind_Ross_Enabled;
 
-   // Per-indicator vote weights (1.0 = standard; weighted sum compared to VoteThreshold in THRESHOLD mode)
-   Settings.W_EmaSig             = Inp_W_EmaSig;
-   Settings.W_Adx                = Inp_W_Adx;
-   Settings.W_Macd               = Inp_W_Macd;
-   Settings.W_Rsi                = Inp_W_Rsi;
-   Settings.W_Cci                = Inp_W_Cci;
-   Settings.W_Mfi                = Inp_W_Mfi;
-   Settings.W_Sto                = Inp_W_Sto;
-   Settings.W_Bb                 = Inp_W_Bb;
-   Settings.W_Psar               = Inp_W_Psar;
-   Settings.W_P123               = Inp_W_P123;
-   Settings.W_Ross               = Inp_W_Ross;
+   // Per-indicator vote weights (1 = standard; weighted sum compared to VoteThreshold in THRESHOLD mode)
+   // In VOTE_MODE_ALL, weights are ignored — all enabled indicators must simply agree.
+   Settings.Ind_EmaSig_Weight    = Inp_Ind_EmaSig_Weight;
+   Settings.Ind_Adx_Weight       = Inp_Ind_Adx_Weight;
+   Settings.Ind_Macd_Weight      = Inp_Ind_Macd_Weight;
+   Settings.Ind_Rsi_Weight       = Inp_Ind_Rsi_Weight;
+   Settings.Ind_Cci_Weight       = Inp_Ind_Cci_Weight;
+   Settings.Ind_Mfi_Weight       = Inp_Ind_Mfi_Weight;
+   Settings.Ind_Sto_Weight       = Inp_Ind_Sto_Weight;
+   Settings.Ind_Bb_Weight        = Inp_Ind_Bb_Weight;
+   Settings.Ind_Psar_Weight      = Inp_Ind_Psar_Weight;
+   Settings.Ind_P123_Weight      = Inp_Ind_P123_Weight;
+   Settings.Ind_Ross_Weight      = Inp_Ind_Ross_Weight;
 
    // Exits
    Settings.SL_PlacementMode     = Inp_SL_PlacementMode;
