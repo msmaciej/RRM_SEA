@@ -776,6 +776,24 @@ public:
    int    RejectGate()        const { return m_reject_gate; }
    int    RejectVotes()       const { return m_reject_votes; }
 
+   // Returns the number of currently enabled indicator votes.
+   int CountEnabledIndicators() const
+   {
+      int count = 0;
+      if(m_settings.Ind_EmaSig_Enabled) count++;
+      if(m_settings.Ind_Adx_Enabled)    count++;
+      if(m_settings.Ind_Macd_Enabled)   count++;
+      if(m_settings.Ind_Rsi_Enabled)    count++;
+      if(m_settings.Ind_Cci_Enabled)    count++;
+      if(m_settings.Ind_Mfi_Enabled)    count++;
+      if(m_settings.Ind_Sto_Enabled)    count++;
+      if(m_settings.Ind_Bb_Enabled)     count++;
+      if(m_settings.Ind_Psar_Enabled)   count++;
+      if(m_settings.Ind_P123_Enabled)   count++;
+      if(m_settings.Ind_Ross_Enabled)   count++;
+      return count;
+   }
+
    // Returns a formatted multi-line diagnostics string for cockpit/UI display.
    // Shows EMA values with price distance, active structure layer, pullback/recovery
    // status, and session-level rejection statistics.
