@@ -77,6 +77,21 @@ private:
    double      m_diag_last_atr_pips;
    bool        m_diag_last_atr_ok;
 
+   // --- 2c. STRUCTURE GATE DIAGNOSTICS ---
+   int         m_active_layer;       // Active EMA layer (1/2/3/0=none)
+   bool        m_pullback_found;     // Was a pullback detected?
+   int         m_pullback_bar;       // Bar index of pullback extreme
+   double      m_pullback_extreme;   // Price at pullback extreme
+   bool        m_recovery_detected;  // Was recovery detected?
+
+   // --- 2d. REJECTION STATISTICS ---
+   int         m_bars_evaluated;     // Total bars evaluated by GetDirection()
+   int         m_signals_generated;  // Signals returned (TS != 0)
+   int         m_reject_filter;      // Rejections at pre-filter step (spread, ATR, time, news)
+   int         m_reject_bias;        // Rejections at bias step (no trend, signal mismatch)
+   int         m_reject_gate;        // Rejections at gate step (HTF, RRM, structure gates)
+   int         m_reject_votes;       // Rejections at vote step
+
    // --- 3. DATA HELPERS ---
    // Simplified buffer access for cleaner logic code
    double GetVal(int handle, int shift, int buffer_num=0) const {
@@ -437,6 +452,13 @@ private:
    {
       if(!m_settings.RequirePullback) return true;
 
+      // Reset structure diagnostics
+      m_active_layer      = 0;
+      m_pullback_found    = false;
+      m_pullback_bar      = 0;
+      m_pullback_extreme  = 0.0;
+      m_recovery_detected = false;
+
       int lookback = m_settings.PullbackLookback;
 
       // === MULTI-LAYER MODE (RRM standard) ===
@@ -466,6 +488,8 @@ private:
             else if(e2 > e3) { active_layer = 2; fast_handle = h_ema2; slow_handle = h_ema3; layer_name = "EMA2-EMA3"; fast_period = m_settings.P_Ema2; slow_period = m_settings.P_Ema3; }
             else if(e3 > e4) { active_layer = 3; fast_handle = h_ema3; slow_handle = h_ema4; layer_name = "EMA3-EMA4"; fast_period = m_settings.P_Ema3; slow_period = m_settings.P_Ema4; }
          }
+
+         m_active_layer = active_layer;
 
          if(active_layer == 0)
          {
@@ -499,9 +523,14 @@ private:
             return false;
          }
 
+         m_pullback_found   = true;
+         m_pullback_bar     = extreme_bar;
+         m_pullback_extreme = extreme_price;
+
          // Step 3: Verify recovery started — current bar has moved back from pullback extreme
          double curr_close       = iClose(m_symbol, PERIOD_CURRENT, 1);
          bool   recovery_started = (bias == -1) ? (curr_close < extreme_price) : (curr_close > extreme_price);
+         m_recovery_detected = recovery_started;
          if(!recovery_started)
          {
             m_diag_last_reason = "DYN_PB_NO_RECOVERY_" + layer_name;
@@ -565,6 +594,11 @@ private:
          m_diag_last_reason = "DYN_PB_NOT_FOUND";
          return false;
       }
+
+      m_pullback_found   = true;
+      m_pullback_bar     = pb_bar;
+      m_pullback_extreme = (bias == 1) ? iLow(m_symbol, PERIOD_CURRENT, pb_bar) : iHigh(m_symbol, PERIOD_CURRENT, pb_bar);
+      m_recovery_detected = true; // reclaimed = recovery confirmed in single-layer mode
 
       // Level 3: Prior trend verified — EMA was sloping with trend before pullback
       double ema_pb   = GetMAVal(hf, pb_bar);
@@ -707,12 +741,85 @@ public:
       m_diag_last_bias   = 0;
       m_diag_last_votes  = 0;
       m_diag_last_reason = "";
+
+      m_active_layer      = 0;
+      m_pullback_found    = false;
+      m_pullback_bar      = 0;
+      m_pullback_extreme  = 0.0;
+      m_recovery_detected = false;
+
+      m_bars_evaluated    = 0;
+      m_signals_generated = 0;
+      m_reject_filter     = 0;
+      m_reject_bias       = 0;
+      m_reject_gate       = 0;
+      m_reject_votes      = 0;
    }
 
    // --- DIAGNOSTIC GETTERS (for Cockpit/UI) ---
    int    LastBias()   const { return m_diag_last_bias; }
    int    LastVotes()  const { return m_diag_last_votes; }
    string LastReason() const { return m_diag_last_reason; }
+
+   // Structure gate diagnostics
+   int    ActiveLayer()       const { return m_active_layer; }
+   bool   PullbackFound()     const { return m_pullback_found; }
+   int    PullbackBar()       const { return m_pullback_bar; }
+   double PullbackExtreme()   const { return m_pullback_extreme; }
+   bool   RecoveryDetected()  const { return m_recovery_detected; }
+
+   // Rejection statistics
+   int    BarsEvaluated()     const { return m_bars_evaluated; }
+   int    SignalsGenerated()   const { return m_signals_generated; }
+   int    RejectFilter()      const { return m_reject_filter; }
+   int    RejectBias()        const { return m_reject_bias; }
+   int    RejectGate()        const { return m_reject_gate; }
+   int    RejectVotes()       const { return m_reject_votes; }
+
+   // Returns a formatted multi-line diagnostics string for cockpit/UI display.
+   // Shows EMA values with price distance, active structure layer, pullback/recovery
+   // status, and session-level rejection statistics.
+   string GetDiagnosticsString()
+   {
+      if(h_ema1 == INVALID_HANDLE) return "";
+
+      int    shift = m_settings.ma_v_shift;
+      double price = iClose(m_symbol, PERIOD_CURRENT, shift);
+      double pip   = PipSize();
+      if(pip <= 0.0) pip = _Point;
+
+      double e1 = GetMAVal(h_ema1, shift);
+      double e2 = GetMAVal(h_ema2, shift);
+      double e3 = GetMAVal(h_ema3, shift);
+      double e4 = GetMAVal(h_ema4, shift);
+
+      string diag = "";
+
+      // EMA values with price distance in pips
+      diag += StringFormat("EMA1(%d)=%.5f(%+.1fp) EMA2(%d)=%.5f(%+.1fp)\n",
+                           m_settings.P_Ema1, e1, (price - e1) / pip,
+                           m_settings.P_Ema2, e2, (price - e2) / pip);
+      diag += StringFormat("EMA3(%d)=%.5f(%+.1fp) EMA4(%d)=%.5f(%+.1fp)\n",
+                           m_settings.P_Ema3, e3, (price - e3) / pip,
+                           m_settings.P_Ema4, e4, (price - e4) / pip);
+
+      // Structure gate status (only shown when gate is active)
+      if(m_settings.RequirePullback)
+      {
+         string layer_str = (m_active_layer > 0 ? StringFormat("L%d", m_active_layer) : "NONE");
+         string pb_str    = (m_pullback_found
+                             ? StringFormat("bar[%d]@%.5f", m_pullback_bar, m_pullback_extreme)
+                             : "NONE");
+         string rec_str   = (m_recovery_detected ? "YES" : "NO");
+         diag += StringFormat("Layer=%s PB=%s Recov=%s\n", layer_str, pb_str, rec_str);
+      }
+
+      // Rejection statistics for this session
+      diag += StringFormat("Stats: eval=%d sig=%d rejF=%d rejB=%d rejG=%d rejV=%d",
+                           m_bars_evaluated, m_signals_generated,
+                           m_reject_filter, m_reject_bias, m_reject_gate, m_reject_votes);
+      return diag;
+   }
 
    // Returns +1 if vote state matches the given bias direction, 0 otherwise
    static int CalcVoteResult(const int bias, const string &state)
@@ -1271,11 +1378,22 @@ public:
       m_diag_last_votes  = 0;
       m_diag_last_reason = "";
 
+      m_bars_evaluated++;
+
+      // Bar-close diagnostic banner
+      if(m_settings.DebugFlow)
+      {
+         datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.ma_v_shift);
+         Print("========================================");
+         PrintFormat("BAR CLOSE: %s", TimeToString(bar_time, TIME_DATE|TIME_MINUTES));
+         Print("========================================");
+      }
+
       // 1. Check Filters First
-      if(!CheckFilters()) return 0;
+      if(!CheckFilters()) { m_reject_filter++; return 0; }
 
       // 1b. Master bias gate (BiasEnabled)
-      if(!m_settings.BiasEnabled) { m_diag_last_reason="BIAS_DISABLED"; return 0; }
+      if(!m_settings.BiasEnabled) { m_diag_last_reason="BIAS_DISABLED"; m_reject_bias++; return 0; }
 
       // Use Vertical/Bar Shift from Settings (0 for current bar, 1 for closed bar)
       int v_shift = m_settings.ma_v_shift;
@@ -1292,12 +1410,10 @@ public:
          else
             bias = 0; // ManSide is SIDE_NONE
             
-         #ifdef __MQL5__
-         if(MQLInfoInteger(MQL_TESTER)) {
+         if(m_settings.DebugFlow) {
             datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-            PrintFormat("BIAS_CALC[%s]: MANUAL mode → bias=%d", TimeToString(bar_time), bias);
+            PrintFormat("STEP 1 BIAS[%s]: MANUAL mode → bias=%d", TimeToString(bar_time), bias);
          }
-         #endif
       }
       // === AUTO BIAS MODE ===
       else {
@@ -1350,11 +1466,10 @@ public:
             // else market_bias = 0 (EMA flat)
             
             // DIAGNOSTIC LOGGING
-            #ifdef __MQL5__
-            if(MQLInfoInteger(MQL_TESTER)) {
+            if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                double change_pips = (f_curr - f_prev) / pip;
-               PrintFormat("BIAS_CALC[%s]: SINGLE_SLOPE using %s | curr=%.5f prev=%.5f change=%.2f pips slope=%s → bias=%d",
+               PrintFormat("STEP 1 BIAS[%s]: SINGLE_SLOPE %s | curr=%.5f prev=%.5f change=%.2f pips slope=%s → bias=%d",
                            TimeToString(bar_time),
                            ema_fast_name,
                            f_curr,
@@ -1363,7 +1478,6 @@ public:
                            (fast_slope==1)?"RISING":(fast_slope==-1)?"FALLING":"FLAT",
                            market_bias);
             }
-            #endif
          }
          // ★★★ PAIR MODE (Fast ≠ Slow) ★★★
          else
@@ -1378,13 +1492,12 @@ public:
             // else market_bias = 0 (invalid/neutral)
             
             // DIAGNOSTIC LOGGING
-            #ifdef __MQL5__
-            if(MQLInfoInteger(MQL_TESTER)) {
+            if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                double fast_change_pips = (f_curr - f_prev) / pip;
                double slow_change_pips = (s_curr - s_prev) / pip;
                string position = (f_curr > s_curr) ? "ABOVE" : (f_curr < s_curr) ? "BELOW" : "EQUAL";
-               PrintFormat("BIAS_CALC[%s]: PAIR mode %s vs %s | fast_curr=%.5f(%.2f pips %s) slow_curr=%.5f(%.2f pips %s) position=%s → bias=%d",
+               PrintFormat("STEP 1 BIAS[%s]: PAIR %s vs %s | fast=%.5f(%+.2fp %s) slow=%.5f(%+.2fp %s) pos=%s → bias=%d",
                            TimeToString(bar_time),
                            ema_fast_name, ema_slow_name,
                            f_curr, fast_change_pips, (fast_slope==1)?"UP":(fast_slope==-1)?"DN":"FLAT",
@@ -1392,20 +1505,18 @@ public:
                            position,
                            market_bias);
             }
-            #endif
          }
          
          // If no valid market bias, reject immediately
          if(market_bias == 0) {
             m_diag_last_bias = 0;
             m_diag_last_reason = "BIAS_ZERO";
+            m_reject_bias++;
             
-            #ifdef __MQL5__
-            if(MQLInfoInteger(MQL_TESTER)) {
+            if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("BIAS_CALC[%s]: Market bias = 0 → NO TRADE", TimeToString(bar_time));
+               PrintFormat("STEP 1 BIAS[%s]: bias=0 → REJECT (no trend)", TimeToString(bar_time));
             }
-            #endif
             
             return 0;
          }
@@ -1417,13 +1528,11 @@ public:
             // Entry signal from EMA slope (same as bias calculation for SINGLE_SLOPE)
             entry_signal = fast_slope;
             
-            #ifdef __MQL5__
-            if(MQLInfoInteger(MQL_TESTER)) {
+            if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("ENTRY_SIGNAL[%s]: STRAT_SINGLE_SLOPE using %s slope=%d → signal=%d",
+               PrintFormat("STEP 2 ENTRY[%s]: STRAT_SINGLE_SLOPE %s slope=%d → signal=%d",
                            TimeToString(bar_time), ema_fast_name, fast_slope, entry_signal);
             }
-            #endif
          }
          else if(m_settings.AutoStrat == STRAT_PRICE_CROSS) {
             if(m_settings.RequirePriceCross) {
@@ -1434,15 +1543,13 @@ public:
                entry_signal = (price > ma) ? 1 : -1;
             }
             
-            #ifdef __MQL5__
-            if(MQLInfoInteger(MQL_TESTER)) {
+            if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
                double ma    = GetMAVal(hf, v_shift, 0);
-               PrintFormat("ENTRY_SIGNAL[%s]: STRAT_PRICE_CROSS using %s price=%.5f ma=%.5f → signal=%d",
+               PrintFormat("STEP 2 ENTRY[%s]: STRAT_PRICE_CROSS %s price=%.5f ma=%.5f → signal=%d",
                            TimeToString(bar_time), ema_fast_name, price, ma, entry_signal);
             }
-            #endif
          }
          else {  // STRAT_PAIR_CROSS
             // Check for EMA crossover
@@ -1468,47 +1575,39 @@ public:
                if(ema_position_matches_bias) {
                   entry_signal = market_bias;
                   
-                  #ifdef __MQL5__
-                  if(MQLInfoInteger(MQL_TESTER)) {
+                  if(m_settings.DebugFlow) {
                      datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-                     PrintFormat("ENTRY_SIGNAL[%s]: RRM CONTINUATION mode bias=%d (no fresh cross, trend intact: f=%.5f %s s=%.5f) → signal=%d",
+                     PrintFormat("STEP 2 ENTRY[%s]: RRM CONTINUATION bias=%d trend intact f=%.5f %s s=%.5f → signal=%d",
                                  TimeToString(bar_time), market_bias, f_curr_cross,
                                  (market_bias == 1 ? ">" : "<"), s_curr_cross, entry_signal);
                   }
-                  #endif
                }
                else {
                   entry_signal = 0;
                   
-                  #ifdef __MQL5__
-                  if(MQLInfoInteger(MQL_TESTER)) {
+                  if(m_settings.DebugFlow) {
                      datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-                     PrintFormat("ENTRY_SIGNAL[%s]: RRM CONTINUATION rejected - trend broken (f=%.5f vs s=%.5f conflicts with bias=%d) → signal=0",
+                     PrintFormat("STEP 2 ENTRY[%s]: RRM CONTINUATION rejected f=%.5f vs s=%.5f bias=%d → signal=0",
                                  TimeToString(bar_time), f_curr_cross, s_curr_cross, market_bias);
                   }
-                  #endif
                }
             }
             else {
                entry_signal = 0;
                
-               #ifdef __MQL5__
-               if(MQLInfoInteger(MQL_TESTER)) {
+               if(m_settings.DebugFlow) {
                   datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-                  PrintFormat("ENTRY_SIGNAL[%s]: STRAT_PAIR_CROSS (non-RRM) no crossover → signal=0",
+                  PrintFormat("STEP 2 ENTRY[%s]: STRAT_PAIR_CROSS no crossover → signal=0",
                               TimeToString(bar_time));
                }
-               #endif
             }
             
-            #ifdef __MQL5__
-            if(MQLInfoInteger(MQL_TESTER) && has_crossover) {
+            if(m_settings.DebugFlow && has_crossover) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("ENTRY_SIGNAL[%s]: STRAT_PAIR_CROSS %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
+               PrintFormat("STEP 2 ENTRY[%s]: STRAT_PAIR_CROSS %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
                            TimeToString(bar_time), ema_fast_name, ema_slow_name,
                            f_prev_cross, s_prev_cross, f_curr_cross, s_curr_cross, entry_signal);
             }
-            #endif
          }
          
          // === STEP 3: Validate Entry Signal Against Market Bias ===
@@ -1516,27 +1615,23 @@ public:
          if(entry_signal == market_bias) {
             bias = market_bias;
             
-            #ifdef __MQL5__
-            if(MQLInfoInteger(MQL_TESTER)) {
+            if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("BIAS_VALIDATION[%s]: entry_signal=%d matches market_bias=%d → PASS",
+               PrintFormat("STEP 3 MATCH[%s]: entry=%d matches bias=%d → PASS",
                            TimeToString(bar_time), entry_signal, market_bias);
             }
-            #endif
          }
          else {
             bias = 0;
             m_diag_last_bias = 0;
             m_diag_last_reason = "SIGNAL_MISMATCH";
             
-            #ifdef __MQL5__
-            if(MQLInfoInteger(MQL_TESTER)) {
+            if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("BIAS_VALIDATION[%s]: entry_signal=%d does NOT match market_bias=%d → REJECT",
+               PrintFormat("STEP 3 MATCH[%s]: entry=%d != bias=%d → REJECT",
                            TimeToString(bar_time), entry_signal, market_bias);
             }
-            #endif
-            
+            m_reject_bias++;
             return 0;
          }
       }
@@ -1544,7 +1639,8 @@ public:
       m_diag_last_bias = bias;
 
       if(bias == 0) { 
-         m_diag_last_reason="BIAS_ZERO"; 
+         m_diag_last_reason="BIAS_ZERO";
+         m_reject_bias++;
          return 0; 
       }
 
@@ -1555,30 +1651,36 @@ public:
          int htf_dir = (curr > prev) ? 1 : -1;
          
          if(bias != htf_dir) { 
-            m_diag_last_reason="HTF_VETO"; 
+            m_diag_last_reason="HTF_VETO";
+            m_reject_gate++;
             
-            #ifdef __MQL5__
-            if(MQLInfoInteger(MQL_TESTER)) {
+            if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("HTF_FILTER[%s]: bias=%d htf_dir=%d → VETO",
+               PrintFormat("STEP 4 HTF[%s]: bias=%d htf_dir=%d → VETO",
                            TimeToString(bar_time), bias, htf_dir);
             }
-            #endif
             
             return 0; 
+         }
+         if(m_settings.DebugFlow) {
+            datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+            PrintFormat("STEP 4 HTF[%s]: bias=%d htf_dir=%d → PASS",
+                        TimeToString(bar_time), bias, htf_dir);
          }
       }
 
       // 3b. RRM mandatory gates (only active when enabled in settings)
       if(m_settings.RRM_RequirePullbackReclaim) {
          if(!Check_RRM_PullbackReclaim(bias)) { 
-            m_diag_last_reason="RRM_PULLBACK"; 
+            m_diag_last_reason="RRM_PULLBACK";
+            m_reject_gate++;
             return 0; 
          }
       }
       if(m_settings.RRM_RequireEmaDiv) {
          if(!Check_RRM_EmaDiv(bias)) { 
-            m_diag_last_reason="RRM_EMA_DIV"; 
+            m_diag_last_reason="RRM_EMA_DIV";
+            m_reject_gate++;
             return 0; 
          }
       }
@@ -1586,37 +1688,42 @@ public:
       // 3c. Sequential hard gates (any fail = reject)
       if(m_settings.RequirePullback) {
          if(!Check_Gate_DynamicPullback(bias)) {
-            if(m_settings.DebugFlow) Print("HARD GATE: Dynamic Pullback → REJECT (", m_diag_last_reason, ")");
+            if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Dynamic Pullback → REJECT (", m_diag_last_reason, ")");
+            m_reject_gate++;
             return 0;
          }
-         if(m_settings.DebugFlow) Print("HARD GATE: Dynamic Pullback → PASS");
+         if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Dynamic Pullback → PASS");
       }
       if(m_settings.Gate_Recovery.mode != GATE_SCALE_OFF) {
          if(!Check_Gate_Recovery(bias)) {
-            if(m_settings.DebugFlow) Print("HARD GATE: Recovery → REJECT (", m_diag_last_reason, ")");
+            if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Recovery → REJECT (", m_diag_last_reason, ")");
+            m_reject_gate++;
             return 0;
          }
-         if(m_settings.DebugFlow) Print("HARD GATE: Recovery → PASS");
+         if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Recovery → PASS");
       }
       if(m_settings.Gate_EmaDiv.mode != GATE_SCALE_OFF) {
          if(!Check_Gate_EmaDiv(bias)) {
-            if(m_settings.DebugFlow) Print("HARD GATE: EMA Divergence → REJECT (", m_diag_last_reason, ")");
+            if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: EMA Divergence → REJECT (", m_diag_last_reason, ")");
+            m_reject_gate++;
             return 0;
          }
-         if(m_settings.DebugFlow) Print("HARD GATE: EMA Divergence → PASS");
+         if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: EMA Divergence → PASS");
       }
       if(m_settings.Gate_CandleDirection.mode != GATE_SCALE_OFF) {
          if(!Check_Gate_CandleDirection(bias)) {
-            if(m_settings.DebugFlow) Print("HARD GATE: Candle Direction → REJECT (", m_diag_last_reason, ")");
+            if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Candle Direction → REJECT (", m_diag_last_reason, ")");
+            m_reject_gate++;
             return 0;
          }
-         if(m_settings.DebugFlow) Print("HARD GATE: Candle Direction → PASS");
+         if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Candle Direction → PASS");
       }
 
       // 4. VOTING BYPASS (Speed Mode)
       if(m_settings.VoteThreshold <= 1) { 
          m_diag_last_votes=0; 
-         m_diag_last_reason="BYPASS"; 
+         m_diag_last_reason="BYPASS";
+         m_signals_generated++;
          return bias; 
       }
 
@@ -1659,20 +1766,19 @@ public:
       m_diag_last_votes = (int)MathRound(vote_weight);
 
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGIN =====
-      #ifdef __MQL5__
-      if(MQLInfoInteger(MQL_TESTER)) {
+      if(m_settings.DebugFlow) {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
          string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
-         string vote_details = StringFormat("VOTE_DETAIL[%s]: mode=%s bias=%d v_shift=%d weight=%.2f/%d",
+         string vote_details = StringFormat("STEP 6 VOTES[%s]: mode=%s bias=%d weight=%.2f/%d",
                                            TimeToString(bar_time),
-                                           mode_str, bias, v_shift, vote_weight, m_settings.VoteThreshold);
+                                           mode_str, bias, vote_weight, m_settings.VoteThreshold);
          
          // Log each enabled vote with actual indicator values
          if(m_settings.Use_EmaSig) {
             double p = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             double e = GetMAVal(h_ema1, v_shift);
             bool pass = Check_EMA1(bias, v_shift);
-            vote_details += StringFormat(" | EMA1: p=%.5f e=%.5f %s(w=%.1f)", p, e, pass?"PASS":"FAIL", m_settings.W_EmaSig);
+            vote_details += StringFormat(" | EmaSig: p=%.5f e=%.5f %s(w=%.1f)", p, e, pass?"PASS":"FAIL", m_settings.W_EmaSig);
          }
          
          if(m_settings.Use_Adx) {
@@ -1739,25 +1845,35 @@ public:
          
          Print(vote_details);
       }
-      #endif
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: END =====
 
       // Final Decision
       if(m_settings.VoteMode == VOTE_MODE_ALL)
       {
          // ALL mode: every enabled indicator must agree
-         if(all_pass) { m_diag_last_reason="OK"; return bias; }
+         if(all_pass) {
+            m_diag_last_reason="OK";
+            m_signals_generated++;
+            if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=%d (ALL votes pass)", bias);
+            return bias;
+         }
          m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
+         m_reject_votes++;
+         if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=0 REJECT (%s)", m_diag_last_reason);
          return 0;
       }
       else
       {
          // THRESHOLD mode: weighted sum >= VoteThreshold
          if(vote_weight >= (double)m_settings.VoteThreshold) { 
-            m_diag_last_reason="OK"; 
+            m_diag_last_reason="OK";
+            m_signals_generated++;
+            if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=%d (votes %.2f>=%d)", bias, vote_weight, m_settings.VoteThreshold);
             return bias; 
          }
          m_diag_last_reason = StringFormat("VOTES %.2f/%d", vote_weight, m_settings.VoteThreshold);
+         m_reject_votes++;
+         if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=0 REJECT (%s)", m_diag_last_reason);
          return 0;
       }
 
