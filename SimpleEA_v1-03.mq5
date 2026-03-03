@@ -267,6 +267,26 @@ int OrchestrateInit()
    if(Settings.PrintEffectiveConfig)
       PrintEffectiveConfig();
 
+   // Print adaptive configuration summary
+   {
+      EPairType det = Settings.Adaptive.PairType;
+      ENUM_TIMEFRAMES tf = Period();
+      Print("═══ ADAPTIVE CONFIGURATION ═══");
+      Print("Pair type: ", EnumToString(det),
+            " | Max spread: ", DoubleToString(GetAdaptiveSpreadLimit(det, Settings.Adaptive), 1), " pips");
+      Print("Timeframe: ", EnumToString(tf),
+            " | TF multiplier: ", DoubleToString(GetTimeframeMultiplier(tf), 2), "x");
+      Print("ATR gate: min=", DoubleToString(Settings.MinATR, 1),
+            " max=", DoubleToString(Settings.MaxATR, 1), " pips");
+      if(Settings.Adaptive.UseSL)
+         Print("Adaptive SL: ", DoubleToString(GetAdaptiveSL(tf, Settings.Adaptive), 1), " pips");
+      if(Settings.Adaptive.UseTP)
+         Print("Adaptive TP: ", DoubleToString(GetAdaptiveTP(tf, Settings.Adaptive), 1), " pips");
+      if(Settings.Adaptive.UseTrailCushion)
+         Print("Adaptive trail cushion: ", DoubleToString(GetAdaptiveTrailCushion(tf, Settings.Adaptive), 1), " pips");
+      Print("═════════════════════════════");
+   }
+
    FlowLog("Step D: Init Signal Engine");
    if(!Signal.Init(Settings, _Symbol))
    {

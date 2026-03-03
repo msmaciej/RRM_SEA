@@ -165,6 +165,24 @@ enum EVoteMode
    VOTE_MODE_ALL          // ALL: every enabled indicator must agree
 };
 
+// --- ADAPTIVE SETTINGS: PAIR TYPE ---
+enum EPairType
+{
+   PAIR_TYPE_AUTO,           // Auto-detect from symbol name
+   PAIR_TYPE_MAJOR,          // EUR/USD, GBP/USD, etc (tight spreads 1-2 pips)
+   PAIR_TYPE_MINOR,          // EUR/GBP, EUR/AUD, etc (medium spreads 2-4 pips)
+   PAIR_TYPE_EXOTIC,         // USD/TRY, USD/ZAR, etc (wide spreads 5-15 pips)
+   PAIR_TYPE_GOLD,           // XAU/USD (medium spreads 3-5 pips, high volatility)
+   PAIR_TYPE_CRYPTO          // BTC/USD (very wide spreads, extreme volatility)
+};
+
+// --- ADAPTIVE SETTINGS: TIMEFRAME SCALING MODE ---
+enum ETFScaling
+{
+   TF_SCALE_AUTO,            // Auto-detect from chart timeframe
+   TF_SCALE_MANUAL           // User provides base values directly (no auto-scale)
+};
+
 struct SGateConfig
 {
    EGateScaleMode mode;
@@ -177,6 +195,40 @@ enum EUIFrameMode
    UI_FRAME_BG,              // Rectangle background (default)
    UI_FRAME_NONE,            // Text only (no rectangle)
    UI_FRAME_TEXT_BOUNDS      // Text bounds markers (BEGIN/END), no rectangle
+};
+
+// --- ADAPTIVE SETTINGS STRUCT ---
+struct ST_AdaptiveSettings
+{
+   // Pair type detection
+   EPairType PairType;
+
+   // Spread limits by pair type (pips)
+   double Spread_Major;
+   double Spread_Minor;
+   double Spread_Exotic;
+   double Spread_Gold;
+   double Spread_Crypto;
+
+   // ATR limits scaling mode and base values (pips at M15 reference)
+   ETFScaling ATR_Mode;
+   double ATR_Min_Base;
+   double ATR_Max_Base;
+
+   // Adaptive SL/TP base distances (pips at M15 reference)
+   double SL_Base;
+   double TP_Base;
+   bool   UseSL;
+   bool   UseTP;
+
+   // Adaptive trailing stop cushion base distance (pips at M15 reference)
+   double TrailCushion_Base;
+   bool   UseTrailCushion;
+
+   // PSAR trail cushion (adaptive)
+   double PsarCushion_Pips;      // Fixed pips cushion (when PsarUseATR=false)
+   bool   PsarUseATR;            // Use ATR multiplier instead of fixed pips
+   double PsarATR_Multiplier;    // PSAR cushion as fraction of ATR (when PsarUseATR=true)
 };
 
 // --- STRUCTURES ---
@@ -379,6 +431,9 @@ struct ST_Settings
 
    // Reporting
    bool ExportUseCommonFiles;
+
+   // Adaptive settings (pair-aware spread, TF-aware ATR/SL/TP/trail)
+   ST_AdaptiveSettings Adaptive;
 };
 
 // Global Configuration Instance
@@ -640,6 +695,47 @@ input int            Inp_MA_Period              = 12;           // (PRESET_MA_BE
 input int            Inp_MA_Shift               = 6;            // (PRESET_MA_BENCHMARK only) MA shift
 
 // ════════════════════════════════════════════════════════════════════
+// 🔧 ZONE 3C — ADAPTIVE SETTINGS  (auto-scale by pair type & timeframe)
+// These settings let the EA adapt spread limits, ATR gates, SL/TP distances,
+// and trail cushions to the current pair and timeframe automatically.
+// When pair type is AUTO, it is detected from the symbol name at init.
+// When TF scaling is AUTO, all base values are multiplied by the TF factor.
+// ════════════════════════════════════════════════════════════════════
+input group "══════════ 🔧 ZONE 3C: ADAPTIVE SETTINGS (auto-scale by pair & timeframe) ══════════"
+
+input group "═══ 🔧 Adaptive: Pair Type Detection ═══"
+input EPairType      Inp_Adaptive_PairType      = PAIR_TYPE_AUTO; // Pair type (AUTO detects from symbol name)
+input string         Inp_Adaptive_PairInfo      = "AUTO: EURUSD/GBPUSD/USDJPY=MAJOR; XAUUSD/GOLD=GOLD; BTC/ETH=CRYPTO; TRY/ZAR/MXN=EXOTIC; others=MINOR"; // Pair detection reference
+
+input group "═══ 🔧 Adaptive: Spread Limits (by pair type) ═══"
+input double         Inp_Adaptive_Spread_Major  = 2.0;           // Max spread for major pairs (pips)
+input double         Inp_Adaptive_Spread_Minor  = 4.0;           // Max spread for minor pairs (pips)
+input double         Inp_Adaptive_Spread_Exotic = 10.0;          // Max spread for exotic pairs (pips)
+input double         Inp_Adaptive_Spread_Gold   = 5.0;           // Max spread for gold/XAU (pips)
+input double         Inp_Adaptive_Spread_Crypto = 50.0;          // Max spread for crypto (pips)
+
+input group "═══ 🔧 Adaptive: ATR Limits (by timeframe) ═══"
+input ETFScaling     Inp_Adaptive_ATR_Mode      = TF_SCALE_AUTO; // ATR scaling mode (AUTO scales base values by TF multiplier)
+input double         Inp_Adaptive_ATR_Min_Base  = 5.0;           // Base min ATR for M15 (pips; 0=off)
+input double         Inp_Adaptive_ATR_Max_Base  = 20.0;          // Base max ATR for M15 (pips; 0=off)
+input string         Inp_Adaptive_ATR_Info      = "AUTO scales: M1×0.5, M5×0.67, M15×1.0, M30×1.5, H1×2, H4×4, D1×8, W1×24"; // Scaling reference
+
+input group "═══ 🔧 Adaptive: SL/TP Distance (by timeframe) ═══"
+input double         Inp_Adaptive_SL_Base       = 20.0;          // Base SL distance for M15 (pips)
+input double         Inp_Adaptive_TP_Base       = 40.0;          // Base TP distance for M15 (pips)
+input bool           Inp_Adaptive_UseSL         = false;         // Apply adaptive SL (overrides SL_FixedPips when enabled)
+input bool           Inp_Adaptive_UseTP         = false;         // Apply adaptive TP (sets TP distance when enabled)
+
+input group "═══ 🔧 Adaptive: Trail Stop Cushion (by timeframe) ═══"
+input double         Inp_Adaptive_TrailCushion_Base = 5.0;       // Base trail cushion for M15 (pips)
+input bool           Inp_Adaptive_UseTrailCushion   = false;     // Apply adaptive trail cushion (replaces manual PSAR pips cushion)
+
+input group "═══ 🔧 Adaptive: PSAR Trail Cushion (by volatility) ═══"
+input double         Inp_Adaptive_PsarCushion_Pips  = 3.0;       // PSAR trail cushion when not using ATR mode (pips)
+input bool           Inp_Adaptive_PsarUseATR         = false;    // Use ATR multiplier for PSAR cushion instead of fixed pips
+input double         Inp_Adaptive_PsarATR_Multiplier = 0.5;      // PSAR cushion as fraction of ATR (e.g. 0.5 = half ATR)
+
+// ════════════════════════════════════════════════════════════════════
 // 🔓 ZONE 3B — ADMIN OVERRIDE  (preset testing for experienced users)
 // Set Inp_AdminOverridePreset=true to activate §1–§4 override fields.
 // Has no effect in PRESET_CUSTOM mode (all inputs already respected).
@@ -718,6 +814,121 @@ input ETrailingMode       Inp_Override_TrailMode             = TRAIL_NONE; // [A
 input double              Inp_Override_Trail_Mult            = 1.5;       // [Admin] Override trail ATR multiplier when AdminOverride=true
 input EPsarTrailCushionMode Inp_Override_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // [Admin] Override PSAR trail cushion mode when AdminOverride=true
 input double              Inp_Override_PSAR_TrailPipsCushion = 5.0;       // [Admin] Override PSAR trail cushion (pips) when AdminOverride=true
+
+//+------------------------------------------------------------------+
+//| ADAPTIVE UTILITY FUNCTIONS                                       |
+//+------------------------------------------------------------------+
+
+// Detect pair type from symbol name for adaptive spread/parameter selection.
+EPairType DetectPairType(const string symbol)
+{
+   string sym = symbol;
+   StringToUpper(sym);
+
+   // Majors (tight spreads)
+   if(StringFind(sym, "EURUSD") >= 0) return PAIR_TYPE_MAJOR;
+   if(StringFind(sym, "GBPUSD") >= 0) return PAIR_TYPE_MAJOR;
+   if(StringFind(sym, "USDJPY") >= 0) return PAIR_TYPE_MAJOR;
+   if(StringFind(sym, "USDCHF") >= 0) return PAIR_TYPE_MAJOR;
+   if(StringFind(sym, "AUDUSD") >= 0) return PAIR_TYPE_MAJOR;
+   if(StringFind(sym, "USDCAD") >= 0) return PAIR_TYPE_MAJOR;
+   if(StringFind(sym, "NZDUSD") >= 0) return PAIR_TYPE_MAJOR;
+
+   // Gold
+   if(StringFind(sym, "XAUUSD") >= 0) return PAIR_TYPE_GOLD;
+   if(StringFind(sym, "GOLD")   >= 0) return PAIR_TYPE_GOLD;
+
+   // Crypto
+   if(StringFind(sym, "BTC") >= 0) return PAIR_TYPE_CRYPTO;
+   if(StringFind(sym, "ETH") >= 0) return PAIR_TYPE_CRYPTO;
+
+   // Exotics
+   if(StringFind(sym, "TRY") >= 0) return PAIR_TYPE_EXOTIC;
+   if(StringFind(sym, "ZAR") >= 0) return PAIR_TYPE_EXOTIC;
+   if(StringFind(sym, "MXN") >= 0) return PAIR_TYPE_EXOTIC;
+
+   // Default: minor pair
+   return PAIR_TYPE_MINOR;
+}
+
+// Return a multiplier relative to M15 (base reference = 1.0).
+// Used to scale pip-based values (SL, TP, ATR limits, trail cushion) by timeframe.
+double GetTimeframeMultiplier(ENUM_TIMEFRAMES tf)
+{
+   switch(tf)
+   {
+      case PERIOD_M1:  return 0.5;
+      case PERIOD_M5:  return 0.67;
+      case PERIOD_M15: return 1.0;
+      case PERIOD_M30: return 1.5;
+      case PERIOD_H1:  return 2.0;
+      case PERIOD_H4:  return 4.0;
+      case PERIOD_D1:  return 8.0;
+      case PERIOD_W1:  return 24.0;
+      default:         return 1.0;
+   }
+}
+
+// Return the appropriate max spread limit (pips) for the detected pair type.
+double GetAdaptiveSpreadLimit(EPairType pair_type, const ST_AdaptiveSettings &adaptive)
+{
+   switch(pair_type)
+   {
+      case PAIR_TYPE_MAJOR:  return adaptive.Spread_Major;
+      case PAIR_TYPE_MINOR:  return adaptive.Spread_Minor;
+      case PAIR_TYPE_EXOTIC: return adaptive.Spread_Exotic;
+      case PAIR_TYPE_GOLD:   return adaptive.Spread_Gold;
+      case PAIR_TYPE_CRYPTO: return adaptive.Spread_Crypto;
+      default:               return adaptive.Spread_Minor;
+   }
+}
+
+// Return adaptive min ATR gate (pips) scaled by timeframe.
+double GetAdaptiveATRMin(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &adaptive)
+{
+   if(adaptive.ATR_Mode == TF_SCALE_MANUAL) return adaptive.ATR_Min_Base;
+   return adaptive.ATR_Min_Base * GetTimeframeMultiplier(tf);
+}
+
+// Return adaptive max ATR gate (pips) scaled by timeframe.
+double GetAdaptiveATRMax(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &adaptive)
+{
+   if(adaptive.ATR_Mode == TF_SCALE_MANUAL) return adaptive.ATR_Max_Base;
+   return adaptive.ATR_Max_Base * GetTimeframeMultiplier(tf);
+}
+
+// Return adaptive SL distance (pips) scaled by timeframe.  Returns 0 if UseSL=false.
+double GetAdaptiveSL(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &adaptive)
+{
+   if(!adaptive.UseSL) return 0.0;
+   return adaptive.SL_Base * GetTimeframeMultiplier(tf);
+}
+
+// Return adaptive TP distance (pips) scaled by timeframe.  Returns 0 if UseTP=false.
+double GetAdaptiveTP(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &adaptive)
+{
+   if(!adaptive.UseTP) return 0.0;
+   return adaptive.TP_Base * GetTimeframeMultiplier(tf);
+}
+
+// Return adaptive trail cushion (pips) scaled by timeframe.  Returns 0 if UseTrailCushion=false.
+double GetAdaptiveTrailCushion(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &adaptive)
+{
+   if(!adaptive.UseTrailCushion) return 0.0;
+   return adaptive.TrailCushion_Base * GetTimeframeMultiplier(tf);
+}
+
+// Return adaptive PSAR cushion value.
+// IMPORTANT: Return units differ by mode:
+//   PsarUseATR=true  → returns a price-unit distance (current_atr × multiplier). Use directly as cushion.
+//   PsarUseATR=false → returns a value in pips. Caller must convert to price units
+//                      (e.g. pips * _Point * scale * (isJPY ? 100.0 : 10.0)).
+double GetAdaptivePsarCushion(double current_atr, const ST_AdaptiveSettings &adaptive)
+{
+   if(adaptive.PsarUseATR)
+      return current_atr * adaptive.PsarATR_Multiplier;
+   return adaptive.PsarCushion_Pips;
+}
 
 //+------------------------------------------------------------------+
 //| InitializeConfig(): maps inputs into Settings (NO preset logic)   |
@@ -909,6 +1120,56 @@ void InitializeConfig()
    Settings.Gate_CandleCheckShift    = 1;
    Settings.Vote_EvalShift           = 1;
    Settings.Vote_AllowPsarFlip       = false;
+
+   // === Adaptive settings: map inputs and derive effective values ===
+
+   // 1. Map raw adaptive inputs into the struct
+   Settings.Adaptive.PairType          = Inp_Adaptive_PairType;
+   Settings.Adaptive.Spread_Major      = Inp_Adaptive_Spread_Major;
+   Settings.Adaptive.Spread_Minor      = Inp_Adaptive_Spread_Minor;
+   Settings.Adaptive.Spread_Exotic     = Inp_Adaptive_Spread_Exotic;
+   Settings.Adaptive.Spread_Gold       = Inp_Adaptive_Spread_Gold;
+   Settings.Adaptive.Spread_Crypto     = Inp_Adaptive_Spread_Crypto;
+
+   Settings.Adaptive.ATR_Mode          = Inp_Adaptive_ATR_Mode;
+   Settings.Adaptive.ATR_Min_Base      = Inp_Adaptive_ATR_Min_Base;
+   Settings.Adaptive.ATR_Max_Base      = Inp_Adaptive_ATR_Max_Base;
+
+   Settings.Adaptive.SL_Base           = Inp_Adaptive_SL_Base;
+   Settings.Adaptive.TP_Base           = Inp_Adaptive_TP_Base;
+   Settings.Adaptive.UseSL             = Inp_Adaptive_UseSL;
+   Settings.Adaptive.UseTP             = Inp_Adaptive_UseTP;
+
+   Settings.Adaptive.TrailCushion_Base = Inp_Adaptive_TrailCushion_Base;
+   Settings.Adaptive.UseTrailCushion   = Inp_Adaptive_UseTrailCushion;
+
+   Settings.Adaptive.PsarCushion_Pips  = Inp_Adaptive_PsarCushion_Pips;
+   Settings.Adaptive.PsarUseATR        = Inp_Adaptive_PsarUseATR;
+   Settings.Adaptive.PsarATR_Multiplier= Inp_Adaptive_PsarATR_Multiplier;
+
+   // 2. Auto-detect pair type when set to AUTO
+   if(Settings.Adaptive.PairType == PAIR_TYPE_AUTO)
+      Settings.Adaptive.PairType = DetectPairType(_Symbol);
+
+   // 3. Apply adaptive spread limit (overrides the operator-gate MaxSpread from Inp_MaxSpreadPips)
+   //    The ZONE 2 input remains as a fallback but the adaptive value takes precedence.
+   Settings.MaxSpread = GetAdaptiveSpreadLimit(Settings.Adaptive.PairType, Settings.Adaptive);
+
+   // 4. Apply adaptive ATR limits (override Inp_MinATRPips / Inp_MaxATRPips)
+   double atf_min = GetAdaptiveATRMin(Period(), Settings.Adaptive);
+   double atf_max = GetAdaptiveATRMax(Period(), Settings.Adaptive);
+   if(atf_min > 0.0) Settings.MinATR = atf_min;
+   if(atf_max > 0.0) Settings.MaxATR = atf_max;
+
+   // 5. Apply adaptive SL to SL_FixedPips when enabled.
+   //    SL_FixedPips is the fixed-pip SL used by the executor in SL_FIXED_PIPS mode.
+   //    Note: there is no equivalent TP_FixedPips field; adaptive TP distance is stored
+   //    in Settings.Adaptive.TP_Base and accessible via GetAdaptiveTP() for callers.
+   if(Inp_Adaptive_UseSL)
+   {
+      double adaptive_sl = GetAdaptiveSL(Period(), Settings.Adaptive);
+      if(adaptive_sl > 0.0) Settings.SL_FixedPips = adaptive_sl;
+   }
 }
 
 //+------------------------------------------------------------------+
