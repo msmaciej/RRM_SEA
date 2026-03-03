@@ -659,8 +659,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       if(mode == RRM_SCALP)
       {
          cfg.AutoStrat  = STRAT_PAIR_CROSS;
-         cfg.BiasFastID = (int)ROLE_EMA1;
-         cfg.BiasSlowID = (int)ROLE_EMA2;
+         cfg.BiasFastID = (int)ROLE_EMA3;  // EMA3(34) — stable bias, resists shallow pullbacks
+         cfg.BiasSlowID = (int)ROLE_EMA4;  // EMA4(89) — very stable; EMA1/EMA2 used only for entry timing
 
          cfg.P_Ema1 = 5; cfg.P_Ema2 = 13; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
 

@@ -160,6 +160,21 @@ The RRM preset uses a **3-layer cascading EMA system** (`Gate_UseMultiLayer = tr
 - If no layer is valid, Hard Gate 1 rejects the signal immediately.
 - Default EMA periods (RRM): EMA1=5, EMA2=13, EMA3=34, EMA4=89.
 
+### Two-Tier Bias Architecture (PR15)
+
+`PRESET_RRM` separates **trend direction** (bias) from **entry timing** into two distinct tiers:
+
+| Tier | Role | EMAs Used | Period | Purpose |
+|------|------|-----------|--------|---------|
+| Bias | Trend direction filter (Step 2) | EMA3 / EMA4 | 34 / 89 | Stable — holds through pullbacks and minor corrections |
+| Entry | Entry timing signal (Step 3) | EMA1 / EMA2 | 5 / 13 | Fast — detects crossovers and continuation entries |
+
+This applies to **both** `RRM_SCALP` and `RRM_SWING` modes. Key benefits:
+- Bias (34/89) does not flip on shallow pullbacks or noise, providing a stable trend anchor.
+- Layers 1 and 2 (EMA1–EMA2, EMA2–EMA3) provide fast entry signals **within** the stable bias direction.
+- Layer 3 (EMA3–EMA4) matches the bias EMAs, serving as the deepest confirmation layer.
+- Clear separation: slow EMAs own trend direction; fast EMAs own entry timing.
+
 ### Hard Gate System (PR9)
 
 Step 6 of the pipeline runs **four sequential hard gates**. Any gate failure immediately rejects the signal (returns 0). All gates are configurable via `SGateConfig { EGateScaleMode mode; double value; }`.
