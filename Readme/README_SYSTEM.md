@@ -65,6 +65,27 @@ flowchart TD
     TradeExec --> MT5
 ```
 
+ASCII fallback:
+```
+┌──────────────────────┐
+│   MT5 Terminal       │
+│  (OnInit / OnTick)   │
+└──────────┬───────────┘
+           │
+           ↓
+┌──────────────────────┐
+│    SimpleEA          │
+│  (Orchestrator)      │
+└──────────┬───────────┘
+           │
+           ├──→ SEA_Config (State)
+           ├──→ SEA_Presets (Router)
+           ├──→ SEA_SignalEngine (Pipeline)
+           │    └─→ Steps 1-9
+           └──→ SEA_TradeExecutor
+                └──→ MT5 Server
+```
+
 
 ## How SimpleEA Works: Complete Process Flow
 
@@ -117,6 +138,64 @@ flowchart TD
     S9 -->|votes < threshold| REJECT
 ```
 
+ASCII fallback:
+```
+Signal Pipeline Flow (9 Steps)
+═══════════════════════════════
+
+Bar Closes (shift=1)
+    ↓
+┌─────────────────────────────────────┐
+│ STEP 1: BIAS CALCULATION            │
+│ Result: -1 (SHORT), 0, +1 (LONG)    │
+└────────────┬────────────────────────┘
+             │ Pass ✓
+             ↓
+┌─────────────────────────────────────┐
+│ STEP 2: ENTRY SIGNAL                │
+│ Strategy: PAIR_CROSS / PRICE_CROSS  │
+└────────────┬────────────────────────┘
+             │ Pass ✓
+             ↓
+┌─────────────────────────────────────┐
+│ STEP 3: SIGNAL-BIAS MATCH           │
+└────────────┬────────────────────────┘
+             │ Pass ✓
+             ↓
+┌─────────────────────────────────────┐
+│ STEP 4: HTF FILTER (Optional)       │
+└────────────┬────────────────────────┘
+             │ Pass ✓
+             ↓
+┌─────────────────────────────────────┐
+│ STEP 5: STRUCTURE GATE              │
+│ Multi-layer pullback-recovery       │
+└────────────┬────────────────────────┘
+             │ Pass ✓
+             ↓
+┌─────────────────────────────────────┐
+│ STEP 6: INDICATOR VOTING            │
+│ All must agree (or threshold)       │
+└────────────┬────────────────────────┘
+             │ Pass ✓
+             ↓
+┌─────────────────────────────────────┐
+│ STEP 7: POSITION CHECK              │
+└────────────┬────────────────────────┘
+             │ Pass ✓
+             ↓
+┌─────────────────────────────────────┐
+│ STEP 8: OPERATOR GATES              │
+│ Spread, session, news               │
+└────────────┬────────────────────────┘
+             │ Pass ✓
+             ↓
+┌─────────────────────────────────────┐
+│ STEP 9: EXECUTE                     │
+│ TS Signal → Next bar: Place order   │
+└─────────────────────────────────────┘
+```
+
 
 ## Key Principle:
 
@@ -160,6 +239,40 @@ The RRM preset uses a **3-layer cascading EMA system** (`Gate_UseMultiLayer = tr
 - If no layer is valid, Hard Gate 1 rejects the signal immediately.
 - Default EMA periods (RRM): EMA1=5, EMA2=13, EMA3=34, EMA4=89.
 
+```
+Multi-Layer Cascade (SHORT trend example)
+═════════════════════════════════════════
+
+┌─────────────────────────────────────┐
+│ Layer 1: EMA5 ↔ EMA13 (Fast)        │
+├─────────────────────────────────────┤
+│ Pullback: Price → EMA5              │
+│ Recovery: Price resumes down        │
+│ Intact: EMA5 < EMA13 ✓              │
+│ → FAST ENTRY                        │
+└─────────────────────────────────────┘
+           │ If broken
+           ↓
+┌─────────────────────────────────────┐
+│ Layer 2: EMA13 ↔ EMA34 (Medium)     │
+├─────────────────────────────────────┤
+│ Pullback: Price → EMA13             │
+│ Recovery: Price resumes down        │
+│ Intact: EMA13 < EMA34 ✓             │
+│ → MEDIUM ENTRY                      │
+└─────────────────────────────────────┘
+           │ If broken
+           ↓
+┌─────────────────────────────────────┐
+│ Layer 3: EMA34 ↔ EMA89 (Deep)       │
+├─────────────────────────────────────┤
+│ Pullback: Price → EMA34             │
+│ Recovery: Price resumes down        │
+│ Intact: EMA34 < EMA89 ✓             │
+│ → DEEP ENTRY (bias EMAs!)           │
+└─────────────────────────────────────┘
+```
+
 ### Two-Tier Bias Architecture (PR15)
 
 `PRESET_RRM` separates **trend direction** (bias) from **entry timing** into two distinct tiers:
@@ -174,6 +287,30 @@ This applies to **both** `RRM_SCALP` and `RRM_SWING` modes. Key benefits:
 - Layers 1 and 2 (EMA1–EMA2, EMA2–EMA3) provide fast entry signals **within** the stable bias direction.
 - Layer 3 (EMA3–EMA4) matches the bias EMAs, serving as the deepest confirmation layer.
 - Clear separation: slow EMAs own trend direction; fast EMAs own entry timing.
+
+```
+PRESET_RRM Two-Tier Architecture (PR15)
+════════════════════════════════════════
+
+Tier 1: BIAS (Major Trend - Stable)
+┌─────────────────────────────────────┐
+│ EMA34 vs EMA89                      │
+│ Purpose: Identify major trend       │
+│ Changes: Rarely (major shifts only) │
+│ Holds during: Shallow/medium pulls  │
+└─────────────────────────────────────┘
+           │
+           ↓
+Tier 2: ENTRY TIMING (Multi-Layer - Adaptive)
+┌─────────────────────────────────────┐
+│ Layer 1: EMA5 ↔ EMA13               │
+│   → Fast entries, shallow pulls     │
+│ Layer 2: EMA13 ↔ EMA34              │
+│   → Medium entries, deeper pulls    │
+│ Layer 3: EMA34 ↔ EMA89              │
+│   → Deep entries, strongest confirm │
+└─────────────────────────────────────┘
+```
 
 ### Hard Gate System (PR9)
 
@@ -291,6 +428,41 @@ SimpleEA implements an auto-scaling cushion system for stop loss placement and t
 | H1        | 12 pips             | 60 pips          | 5 pips            | 25 pips        |
 | H4        | 20 pips             | 100 pips         | 8 pips            | 40 pips        |
 | D1        | 40 pips             | 200 pips         | 15 pips           | 80 pips        |
+
+
+## Extensible Indicator System (PR16)
+
+Each indicator in the voting step operates as a plugin: it can be independently enabled/disabled, weighted, and configured. This makes the system easy to extend with new indicators.
+
+```
+Extensible Indicator System (PR16)
+═══════════════════════════════════
+
+Each indicator = Plugin with:
+┌──────────────────────┐
+│ • Enable toggle      │
+│ • Vote weight        │
+│ • Settings           │
+└──────────────────────┘
+         ↓
+┌──────────────────────┐
+│ Indicator 1: EmaSig  │ → Vote: -1/0/+1
+├──────────────────────┤
+│ Indicator 2: MACD    │ → Vote: -1/0/+1
+├──────────────────────┤
+│ Indicator 3: CCI     │ → Vote: -1/0/+1
+├──────────────────────┤
+│ Indicator 4: PSAR    │ → Vote: -1/0/+1
+├──────────────────────┤
+│ ... (add more!)      │
+└──────────────────────┘
+         ↓
+    Aggregate votes
+         ↓
+    Mode: ALL or THRESHOLD
+         ↓
+      PASS/FAIL
+```
 
 
 ## AI Agent Manifest
