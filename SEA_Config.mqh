@@ -47,8 +47,9 @@ enum EMaMethod
 
 enum EBiasMode
 {
-   BIAS_MANUAL,
-   BIAS_AUTO
+   BIAS_MANUAL,       // Manual direction (LONG_ONLY, SHORT_ONLY, BOTH)
+   BIAS_AUTO,         // Auto: Traditional EMA-based bias (single or dual EMA)
+   BIAS_AUTO_PHASE    // 260304_PR2: Auto bias based on market phase (TRENDING/EMERGING/UNORDERED)
 };
 
 //+------------------------------------------------------------------+

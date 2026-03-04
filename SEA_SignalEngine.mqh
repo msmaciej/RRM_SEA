@@ -1344,8 +1344,27 @@ public:
       // 2. Determine MASTER BIAS (Strategy)
       int bias = 0;
       
+      // 260304_PR2: Route to phase-based bias if selected
+      if(m_settings.BiasMode == BIAS_AUTO_PHASE)
+      {
+         bias = GetBias_PhaseBased(v_shift);
+         
+         if(m_settings.DebugFlow) {
+            datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+            PrintFormat("STEP 1 BIAS[%s]: BIAS_AUTO_PHASE mode → bias=%d", TimeToString(bar_time), bias);
+         }
+         
+         if(bias == 0) {
+            m_diag_last_bias = 0;
+            m_diag_last_reason = "BIAS_ZERO";
+            m_reject_bias++;
+            return 0;
+         }
+         
+         m_diag_last_bias = bias;
+      }
       // === MANUAL BIAS MODE ===
-      if(m_settings.BiasMode == BIAS_MANUAL) {
+      else if(m_settings.BiasMode == BIAS_MANUAL) {
          if(m_settings.ManSide == SIDE_LONG)
             bias = 1;
          else if(m_settings.ManSide == SIDE_SHORT)
@@ -1797,6 +1816,114 @@ public:
       double c = GetMAVal(handle, 1);
       double p = GetMAVal(handle, 2);
       return (c > p) ? 1 : (c < p) ? -1 : 0;
+   }
+
+   //+------------------------------------------------------------------+
+   //| 260304_PR2: Phase-Based Bias Calculation                        |
+   //| Uses market phase detection to determine trading bias           |
+   //| Requires PhaseDetectionEnabled = true                           |
+   //+------------------------------------------------------------------+
+   int GetBias_PhaseBased(const int v_shift = 1)
+   {
+      // Validate that phase detection is enabled
+      if(!m_settings.PhaseDetectionEnabled)
+      {
+         if(m_settings.DebugFlow)
+            Print("[260304_BIAS] ERROR: BIAS_AUTO_PHASE selected but PhaseDetectionEnabled=false");
+         return 0;  // No bias - configuration error
+      }
+      
+      // Detect current market phase
+      EMarketPhase current_phase = DetectMarketPhase(v_shift);
+      
+      // Update diagnostics
+      m_diag_last_phase = current_phase;
+      
+      // Check phase stability if required
+      if(m_settings.RequireMinPhaseConfirm)
+      {
+         bool is_stable = ConfirmPhaseStability(current_phase, m_settings.MinPhaseConfirmBars);
+         
+         if(!is_stable)
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[260304_BIAS] Phase %s not stable (%d/%d bars) - no bias", 
+                           EnumToString(current_phase), 
+                           m_diag_phase_confirm_bars, 
+                           m_settings.MinPhaseConfirmBars);
+            return 0;  // Phase not stable enough
+         }
+      }
+      
+      // Block UNORDERED phase if configured
+      if(current_phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase)
+      {
+         if(m_settings.DebugFlow)
+            Print("[260304_BIAS] UNORDERED phase blocked - no clear market structure");
+         return 0;  // No bias in choppy markets
+      }
+      
+      // Determine bias based on phase
+      int bias = 0;
+      
+      // Get EMA values to determine direction within phase
+      double ema13 = GetMAVal(h_ema2, v_shift, 0);  // EMA2 = 13-period
+      double ema34 = GetMAVal(h_ema3, v_shift, 0);  // EMA3 = 34-period
+      double ema89 = GetMAVal(h_ema4, v_shift, 0);  // EMA4 = 89-period
+      
+      if(ema13 == EMPTY_VALUE || ema34 == EMPTY_VALUE || ema89 == EMPTY_VALUE)
+      {
+         if(m_settings.DebugFlow)
+            Print("[260304_BIAS] ERROR: Invalid EMA values");
+         return 0;
+      }
+      
+      double tolerance = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);  // 2 pips
+      
+      // Map phase to bias direction
+      switch(current_phase)
+      {
+         case PHASE_TRENDING:
+            // TRENDING: EMAs fully stacked
+            if(ema13 > ema34 + tolerance && ema34 > ema89 + tolerance)
+            {
+               bias = 1;  // LONG (bullish trend)
+               if(m_settings.DebugFlow)
+                  Print("[260304_BIAS] TRENDING Bullish → LONG bias");
+            }
+            else if(ema89 > ema34 + tolerance && ema34 > ema13 + tolerance)
+            {
+               bias = -1;  // SHORT (bearish trend)
+               if(m_settings.DebugFlow)
+                  Print("[260304_BIAS] TRENDING Bearish → SHORT bias");
+            }
+            break;
+            
+         case PHASE_EMERGING:
+            // EMERGING: Trend forming (EMA4 sandwiched)
+            if(ema13 > ema89 + tolerance && ema89 > ema34 + tolerance)
+            {
+               bias = 1;  // LONG (bullish emerging)
+               if(m_settings.DebugFlow)
+                  Print("[260304_BIAS] EMERGING Bullish → LONG bias (trend forming)");
+            }
+            else if(ema34 > ema89 + tolerance && ema89 > ema13 + tolerance)
+            {
+               bias = -1;  // SHORT (bearish emerging)
+               if(m_settings.DebugFlow)
+                  Print("[260304_BIAS] EMERGING Bearish → SHORT bias (trend forming)");
+            }
+            break;
+            
+         case PHASE_UNORDERED:
+            // UNORDERED: No bias (choppy/mixed structure)
+            bias = 0;
+            if(m_settings.DebugFlow)
+               Print("[260304_BIAS] UNORDERED phase → NO BIAS");
+            break;
+      }
+      
+      return bias;
    }
 
    //+------------------------------------------------------------------+
