@@ -85,6 +85,8 @@ private:
    EEntryLayer  m_diag_last_layer;       // Last detected entry layer
    double       m_diag_layer_distance;   // Distance to nearest EMA layer in pips
 
+   EEntryLayer  m_diag_last_entry_layer;  // 260304_PR4: Last detected entry layer
+
    // --- 2c. STRUCTURE GATE DIAGNOSTICS ---
    int         m_active_layer;       // Active EMA layer (1/2/3/0=none)
    bool        m_pullback_found;     // Was a pullback detected?
@@ -663,6 +665,9 @@ public:
       // 260304_PR3: Initialize layer diagnostics
       m_diag_last_layer = LAYER_NONE;
       m_diag_layer_distance = 0.0;
+
+      // 260304_PR4: Initialize entry layer diagnostic
+      m_diag_last_entry_layer = LAYER_NONE;
 
       m_active_layer      = 0;
       m_pullback_found    = false;
@@ -1358,6 +1363,18 @@ public:
       // Use Vertical/Bar Shift from Settings (0 for current bar, 1 for closed bar)
       int v_shift = m_settings.ma_v_shift;
       
+      // ═══════════════════════════════════════════════════════════════
+      // 260304_PR4: Detect entry layer (passive detection - no filtering yet)
+      // Layer detection is DISABLED by default (EnableLayerDetection = false)
+      // This only detects and logs layer information when DebugFlow = true
+      // ═══════════════════════════════════════════════════════════════
+      m_diag_last_entry_layer = DetectEntryLayer(v_shift);
+      if(m_settings.DebugFlow) {
+         PrintFormat("ENTRY LAYER[%s]: Detected %s",
+                     TimeToString(iTime(m_symbol, PERIOD_CURRENT, v_shift)),
+                     EnumToString(m_diag_last_entry_layer));
+      }
+
       // 2. Determine MASTER BIAS (Strategy)
       int bias = 0;
       
@@ -2094,69 +2111,60 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| 260304_PR3: Detect Entry Layer Based on EMA Touch               |
-   //| Layer 1: price within tolerance of EMA1 or EMA2                 |
-   //| Layer 2: price within tolerance of EMA2 or EMA3                 |
-   //| Layer 3: price within tolerance of EMA3 or EMA4                 |
-   //| Phase rules: EMERGING blocks Layer 3; UNORDERED blocks all      |
+   //| 260304_PR4: Entry Layer Detection                                |
+   //| Classifies pullback depth based on which EMAs price touched      |
+   //|                                                                  |
+   //| Returns:                                                         |
+   //|   LAYER_1_WEAK   - Price within tolerance of EMA1/EMA2 zone     |
+   //|   LAYER_2_MEDIUM - Price within tolerance of EMA2/EMA3 zone     |
+   //|   LAYER_3_STRONG - Price within tolerance of EMA3/EMA4 zone     |
+   //|   LAYER_NONE     - Detection disabled or no EMA touch found     |
+   //|                                                                  |
+   //| Note: Detection is PASSIVE - results stored in diagnostic field |
+   //|       but do not affect trade execution (filtering not enabled) |
    //+------------------------------------------------------------------+
-   EEntryLayer DetectEntryLayer(const int shift = 1)
+   EEntryLayer DetectEntryLayer(const int v_shift = 1)
    {
       if(!m_settings.EnableLayerDetection) return LAYER_NONE;
 
-      double ema1 = GetMAVal(h_ema1, shift, 0);
-      double ema2 = GetMAVal(h_ema2, shift, 0);
-      double ema3 = GetMAVal(h_ema3, shift, 0);
-      double ema4 = GetMAVal(h_ema4, shift, 0);
+      double ema1 = GetMAVal(h_ema1, v_shift, 0);
+      double ema2 = GetMAVal(h_ema2, v_shift, 0);
+      double ema3 = GetMAVal(h_ema3, v_shift, 0);
+      double ema4 = GetMAVal(h_ema4, v_shift, 0);
 
-      if(ema1 == EMPTY_VALUE || ema2 == EMPTY_VALUE ||
-         ema3 == EMPTY_VALUE || ema4 == EMPTY_VALUE)
+      if(ema1 == EMPTY_VALUE || ema1 == 0.0 ||
+         ema2 == EMPTY_VALUE || ema2 == 0.0 ||
+         ema3 == EMPTY_VALUE || ema3 == 0.0 ||
+         ema4 == EMPTY_VALUE || ema4 == 0.0)
          return LAYER_NONE;
 
-      double price  = iClose(m_symbol, PERIOD_CURRENT, shift);
-      double tol    = m_settings.LayerTouchTolerancePips * SymbolInfoDouble(m_symbol, SYMBOL_POINT) * 10.0;
-
-      EMarketPhase phase = DetectMarketPhase(shift);
-
-      // UNORDERED: block all layers
-      if(phase == PHASE_UNORDERED)
-      {
-         if(m_settings.DebugFlow)
-            Print("[260304_LAYER] UNORDERED phase - no layer detected");
-         return LAYER_NONE;
-      }
+      double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+      double tol   = m_settings.LayerTouchTolerancePips * SymbolInfoDouble(m_symbol, SYMBOL_POINT) * 10.0;
 
       // Layer 3: price touches EMA3 or EMA4 zone (checked first - deepest layer has priority)
       if(MathAbs(price - ema3) <= tol || MathAbs(price - ema4) <= tol)
       {
-         // EMERGING phase blocks Layer 3
-         if(phase == PHASE_EMERGING)
-         {
-            if(m_settings.DebugFlow)
-               Print("[260304_LAYER] EMERGING phase - Layer 3 blocked");
-            return LAYER_NONE;
-         }
-         m_diag_layer_distance = MathMin(MathAbs(price - ema3), MathAbs(price - ema4));
          if(m_settings.DebugFlow)
-            PrintFormat("[260304_LAYER] LAYER_3_STRONG detected (dist=%.5f)", m_diag_layer_distance);
+            PrintFormat("[260304_ENTRY] STRONG layer detected: Price=%.5f touched EMA3(%.5f) tolerance=%.5f",
+                        price, ema3, tol);
          return LAYER_3_STRONG;
       }
 
-      // Layer 2: price touches EMA2 or EMA3 zone (checked second; EMA3 overlap with Layer 3 handled by priority above)
+      // Layer 2: price touches EMA2 or EMA3 zone
       if(MathAbs(price - ema2) <= tol || MathAbs(price - ema3) <= tol)
       {
-         m_diag_layer_distance = MathMin(MathAbs(price - ema2), MathAbs(price - ema3));
          if(m_settings.DebugFlow)
-            PrintFormat("[260304_LAYER] LAYER_2_MEDIUM detected (dist=%.5f)", m_diag_layer_distance);
+            PrintFormat("[260304_ENTRY] MEDIUM layer detected: Price=%.5f touched EMA2(%.5f) tolerance=%.5f",
+                        price, ema2, tol);
          return LAYER_2_MEDIUM;
       }
 
-      // Layer 1: price touches EMA1 or EMA2 zone (checked last; EMA2 overlap with Layer 2 handled by priority above)
+      // Layer 1: price touches EMA1 or EMA2 zone
       if(MathAbs(price - ema1) <= tol || MathAbs(price - ema2) <= tol)
       {
-         m_diag_layer_distance = MathMin(MathAbs(price - ema1), MathAbs(price - ema2));
          if(m_settings.DebugFlow)
-            PrintFormat("[260304_LAYER] LAYER_1_WEAK detected (dist=%.5f)", m_diag_layer_distance);
+            PrintFormat("[260304_ENTRY] WEAK layer detected: Price=%.5f touched EMA1(%.5f) tolerance=%.5f",
+                        price, ema1, tol);
          return LAYER_1_WEAK;
       }
 
