@@ -51,6 +51,16 @@ enum EBiasMode
    BIAS_AUTO
 };
 
+//+------------------------------------------------------------------+
+//| Market Phase Classification (Russ Horn's Rapid Results Method)   |
+//| 260304_PR1: Phase detection infrastructure - not used yet        |
+//+------------------------------------------------------------------+
+enum EMarketPhase {
+   PHASE_UNORDERED,   // EMAs crossed/mixed - choppy market (NO TRADE)
+   PHASE_EMERGING,    // EMAs forming trend - EMA4(89) between EMA2(13) and EMA3(34)
+   PHASE_TRENDING     // EMAs fully stacked - strong established trend
+};
+
 enum EManualSide
 {
    SIDE_BOTH,
@@ -427,6 +437,23 @@ struct ST_Settings
 
    // Adaptive settings (pair-aware spread, TF-aware ATR/SL/TP/trail)
    ST_AdaptiveSettings Adaptive;
+
+   //==========================================================================
+   // 260304_PR1: PHASE DETECTION SETTINGS (Foundation - Not used yet)
+   //==========================================================================
+   bool     PhaseDetectionEnabled;         // Master switch for phase system (default: false)
+   bool     BlockUnorderedPhase;           // Block trades during UNORDERED phase
+   bool     RequireMinPhaseConfirm;        // Require N consecutive bars in same phase
+   int      MinPhaseConfirmBars;           // Minimum bars to confirm phase stability (e.g., 3)
+   
+   // Phase-specific trade permissions (for future use in PRESET_RRM and PRESET_CUSTOM)
+   bool     Emerging_AllowWeakTrades;      // EMERGING phase: Allow EMA1/EMA2 entries (shallow pullbacks)
+   bool     Emerging_AllowMediumTrades;    // EMERGING phase: Allow EMA2/EMA3 entries (medium pullbacks)
+   bool     Emerging_AllowStrongTrades;    // EMERGING phase: Allow EMA3/EMA4 entries (deep pullbacks)
+   
+   bool     Trending_AllowWeakTrades;      // TRENDING phase: Allow EMA1/EMA2 entries
+   bool     Trending_AllowMediumTrades;    // TRENDING phase: Allow EMA2/EMA3 entries
+   bool     Trending_AllowStrongTrades;    // TRENDING phase: Allow EMA3/EMA4 entries
 };
 
 // Global Configuration Instance
@@ -1149,6 +1176,22 @@ void InitializeConfig()
       double adaptive_sl = GetAdaptiveSL(Period(), Settings.Adaptive);
       if(adaptive_sl > 0.0) Settings.SL_FixedPips = adaptive_sl;
    }
+
+   // ═══════════════════════════════════════════════════════════════
+   // 260304_PR1: Initialize Phase Detection Settings (DISABLED by default)
+   // ═══════════════════════════════════════════════════════════════
+   Settings.PhaseDetectionEnabled        = false;  // Not used yet - will be enabled in future updates
+   Settings.BlockUnorderedPhase          = true;   // Block UNORDERED when enabled
+   Settings.RequireMinPhaseConfirm       = false;  // No stability requirement initially
+   Settings.MinPhaseConfirmBars          = 3;      // 3-bar confirmation when enabled
+   
+   // Phase-specific permissions (default: allow all)
+   Settings.Emerging_AllowWeakTrades     = true;
+   Settings.Emerging_AllowMediumTrades   = true;
+   Settings.Emerging_AllowStrongTrades   = true;
+   Settings.Trending_AllowWeakTrades     = true;
+   Settings.Trending_AllowMediumTrades   = true;
+   Settings.Trending_AllowStrongTrades   = true;
 }
 
 //+------------------------------------------------------------------+
