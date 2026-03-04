@@ -321,7 +321,7 @@ int OrchestrateInit()
       Signal.LoadNews(Inp_NewsFile);
 
    SEA_UI_Init(Inp_MagicNum);
-   SEA_UI_UpdateSettingsPanel();
+   SEA_UI_UpdateSettingsPanel(Signal.GetLastDetectedPhase());
    {
       SVoteSnapshot init_snaps[];
       int init_snap_count = 0;
@@ -419,7 +419,14 @@ void OrchestrateTick()
    // Build pipeline diagnostics string (EMA values, structure gate, statistics)
    string diag_snap = Signal.GetDiagnosticsString();
 
-   SEA_UI_UpdateCockpitPanel(atr, direction, snap_bias, snap_votes, snap_reason, ts_snap, te_snap, vote_snaps, vote_snap_count, diag_snap);
+   // 260304_PR7: Retrieve phase/layer diagnostics for UI panels
+   EMarketPhase current_phase = Signal.GetLastDetectedPhase();
+   EEntryLayer  entry_layer   = Signal.GetLastEntryLayer();
+   bool phase_layer_active    = Settings.PhaseDetectionEnabled && Settings.EnableLayerDetection;
+   bool layer_allowed         = Signal.GetLayerAllowed();
+
+   SEA_UI_UpdateSettingsPanel(current_phase);
+   SEA_UI_UpdateCockpitPanel(atr, direction, snap_bias, snap_votes, snap_reason, ts_snap, te_snap, vote_snaps, vote_snap_count, diag_snap, current_phase, entry_layer, phase_layer_active, layer_allowed);
    FlowLog("Bar pipeline complete");
 }
 

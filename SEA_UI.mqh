@@ -39,6 +39,78 @@ string SEA_UI_SignalLabel(const int signal_dir)
    return "FLAT";
 }
 
+// 260304_PR7: Format EEntryLayer enum as short label (L1/L2/L3 or "(none)")
+string SEA_UI_EntryLayerLabel(EEntryLayer layer)
+{
+   switch(layer)
+   {
+      case LAYER_1_WEAK:   return "L1";
+      case LAYER_2_MEDIUM: return "L2";
+      case LAYER_3_STRONG: return "L3";
+      default:             return "(none)";
+   }
+}
+
+// 260304_PR7: Format market phase as text with color coding
+// TRENDING=LimeGreen, EMERGING=Gold, UNORDERED=OrangeRed, unknown=Gray
+string SEA_UI_FormatPhase(EMarketPhase phase, color &out_color)
+{
+   switch(phase)
+   {
+      case PHASE_TRENDING:
+         out_color = clrLimeGreen;
+         return "TRENDING";
+      case PHASE_EMERGING:
+         out_color = clrGold;
+         return "EMERGING";
+      case PHASE_UNORDERED:
+         out_color = clrOrangeRed;
+         return "UNORDERED";
+      default:
+         out_color = clrGray;
+         return "UNKNOWN";
+   }
+}
+
+// 260304_PR7: Format allowed layers string based on current phase and filter state.
+// Filtering rules (PR5 methodology):
+//   TRENDING   -> L1, L2, L3 (all layers)
+//   EMERGING   -> L1, L2 (L3/STRONG blocked)
+//   UNORDERED  -> NONE
+string SEA_UI_FormatAllowedLayers(EMarketPhase phase, bool filter_active)
+{
+   if(!filter_active)
+      return "ALL (filter disabled)";
+
+   switch(phase)
+   {
+      case PHASE_TRENDING:  return "L1, L2, L3";
+      case PHASE_EMERGING:  return "L1, L2";
+      case PHASE_UNORDERED: return "NONE";
+      default:              return "UNKNOWN";
+   }
+}
+
+// 260304_PR7: Format phase-layer filter status with icon and color coding
+string SEA_UI_FormatFilterStatus(bool is_allowed, bool filter_active, color &out_color)
+{
+   if(!filter_active)
+   {
+      out_color = clrGray;
+      return "- DISABLED";
+   }
+   if(is_allowed)
+   {
+      out_color = clrLimeGreen;
+      return ShortToString(0x2713) + " ALLOWED";
+   }
+   else
+   {
+      out_color = clrRed;
+      return ShortToString(0x2717) + " BLOCKED";
+   }
+}
+
 // Returns " [adm]" when admin override is active for a preset (marks overridden fields)
 string SEA_UI_AdmMark()
 {
@@ -323,7 +395,7 @@ void SEA_UI_DestroyAll()
 }
 
 // Status panel: preset, strategy, and entry/exit effective config
-void SEA_UI_UpdateSettingsPanel()
+void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
 {
    if(!Inp_UI_ShowStatusPanel)
    {
@@ -363,6 +435,22 @@ void SEA_UI_UpdateSettingsPanel()
    txt += StringFormat("MultiLayer: %s  RequirePullback: %s\n",
                        SEA_UI_OnOff(Settings.Gate_UseMultiLayer),
                        SEA_UI_OnOff(Settings.RequirePullback));
+
+   // --- Phase & Layer Status (260304_PR7)
+   txt += "--- Phase & Layer Status ---\n";
+   color phase_color;
+   string phase_text = SEA_UI_FormatPhase(current_phase, phase_color);
+   txt += StringFormat("Market Phase: %s\n", phase_text);
+   txt += StringFormat("Bias Mode: %s\n", EnumToString(Settings.BiasMode));
+
+   bool phase_filter_on = Settings.PhaseDetectionEnabled;
+   bool layer_filter_on = Settings.EnableLayerDetection;
+   txt += StringFormat("Phase Filter: %s\n", (phase_filter_on ? "ACTIVE" : "DISABLED"));
+   txt += StringFormat("Layer Filter: %s\n", (layer_filter_on ? "ACTIVE" : "DISABLED"));
+
+   bool both_filters = phase_filter_on && layer_filter_on;
+   string allowed_layers = SEA_UI_FormatAllowedLayers(current_phase, both_filters);
+   txt += StringFormat("Allowed Layers: %s\n", allowed_layers);
 
    // --- Active & Disabled Votes (Step 6)
    txt += SEA_UI_BuildActiveVotesList(Settings);
@@ -443,7 +531,11 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
                                 const string te_snap,
                                 const SVoteSnapshot &vote_snaps[],
                                 const int    vote_snap_count,
-                                const string diag_snap = "")
+                                const string diag_snap = "",
+                                EMarketPhase current_phase = PHASE_UNORDERED,
+                                EEntryLayer  entry_layer   = LAYER_NONE,
+                                bool         filter_active = false,
+                                bool         layer_allowed = false)
 {
    if(!Inp_UI_ShowCockpitPanel)
    {
@@ -520,6 +612,17 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
    txt += risk_line     + "\n";
    txt += pipeline_line + "\n";
    txt += sig_line      + "\n";
+
+   // 260304_PR7: Phase & Layer section (only shown when phase+layer filtering is active)
+   if(filter_active)
+   {
+      txt += "--- Phase & Layer ---\n";
+      color phase_color_dummy;
+      txt += StringFormat("Phase: %s\n", SEA_UI_FormatPhase(current_phase, phase_color_dummy));
+      txt += StringFormat("Entry Layer: %s\n", SEA_UI_EntryLayerLabel(entry_layer));
+      color status_color_dummy;
+      txt += StringFormat("Filter Status: %s\n", SEA_UI_FormatFilterStatus(layer_allowed, filter_active, status_color_dummy));
+   }
 
    // Per-vote runtime breakdown
    if(vote_snap_count > 0)
