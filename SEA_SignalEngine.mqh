@@ -86,6 +86,7 @@ private:
    double       m_diag_layer_distance;   // Distance to nearest EMA layer in pips
 
    EEntryLayer  m_diag_last_entry_layer;  // 260304_PR4: Last detected entry layer
+   bool         m_layer_allowed;          // 260304_PR7: Whether current entry layer is allowed in current phase
 
    // --- 2c. STRUCTURE GATE DIAGNOSTICS ---
    int         m_active_layer;       // Active EMA layer (1/2/3/0=none)
@@ -669,6 +670,9 @@ public:
       // 260304_PR4: Initialize entry layer diagnostic
       m_diag_last_entry_layer = LAYER_NONE;
 
+      // 260304_PR7: Initialize layer-allowed diagnostic
+      m_layer_allowed = false;
+
       m_active_layer      = 0;
       m_pullback_found    = false;
       m_pullback_bar      = 0;
@@ -694,6 +698,33 @@ public:
 
    // 260304_PR3: Layer Detection Diagnostics
    EEntryLayer  GetLastDetectedLayer() const { return m_diag_last_layer; }
+
+   // 260304_PR7: Entry layer and phase-filter diagnostics for UI
+   EEntryLayer  GetLastEntryLayer()    const { return m_diag_last_entry_layer; }
+   bool         GetLayerAllowed()      const { return m_layer_allowed; }
+
+   // Returns true if the given entry layer is permitted in the given phase.
+   // Requires PhaseDetectionEnabled AND EnableLayerDetection to activate filtering.
+   // Filtering rules (260304_PR5 methodology):
+   //   UNORDERED  -> no layers allowed (choppy market)
+   //   EMERGING   -> L1 (WEAK) and L2 (MEDIUM) allowed; L3 (STRONG) blocked
+   //   TRENDING   -> all layers allowed (strong established trend)
+   bool IsLayerAllowed(EEntryLayer layer, EMarketPhase phase) const
+   {
+      if(!m_settings.PhaseDetectionEnabled || !m_settings.EnableLayerDetection)
+         return true;  // Filtering disabled - all layers allowed
+
+      if(layer == LAYER_NONE)
+         return false;  // No layer detected
+
+      if(phase == PHASE_UNORDERED)
+         return false;  // Choppy market - block all entries
+
+      if(phase == PHASE_EMERGING && layer == LAYER_3_STRONG)
+         return false;  // Deep pullbacks too risky in forming trend
+
+      return true;  // TRENDING allows all; EMERGING allows L1/L2
+   }
 
    // Structure gate diagnostics
    int    ActiveLayer()       const { return m_active_layer; }
@@ -1426,6 +1457,9 @@ public:
                         EnumToString(m_diag_last_entry_layer));
          }
       }
+
+      // 260304_PR7: Store layer-allowed state for UI diagnostics
+      m_layer_allowed = IsLayerAllowed(m_diag_last_entry_layer, m_diag_last_phase);
 
       // 2. Determine MASTER BIAS (Strategy)
       int bias = 0;
