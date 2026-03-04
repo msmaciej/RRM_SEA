@@ -283,6 +283,17 @@ struct ST_Settings {
    
    // Reporting
    bool ExportCSV;
+   // PHASE DETECTION SETTINGS (PR1 - Foundation)
+   bool     PhaseDetectionEnabled;
+   bool     BlockUnorderedPhase;
+   bool     RequireMinPhaseConfirm;
+   int      MinPhaseConfirmBars;
+   bool     Emerging_AllowWeakTrades;
+   bool     Emerging_AllowMediumTrades;
+   bool     Emerging_AllowStrongTrades;
+   bool     Trending_AllowWeakTrades;
+   bool     Trending_AllowMediumTrades;
+   bool     Trending_AllowStrongTrades;
 };
 
 //+------------------------------------------------------------------+
@@ -714,6 +725,19 @@ void ApplySettings() {
 
    // --- J. Reporting
    Settings.ExportCSV   = Inp_ExportCSV;
+   // --- Phase Detection Settings (PR1 - Default: DISABLED) ---
+   Settings.PhaseDetectionEnabled        = false;  // Disabled by default - infrastructure ready for future PR
+   Settings.BlockUnorderedPhase          = true;
+   Settings.RequireMinPhaseConfirm       = false;
+   Settings.MinPhaseConfirmBars          = 3;
+
+   Settings.Emerging_AllowWeakTrades     = true;
+   Settings.Emerging_AllowMediumTrades   = true;
+   Settings.Emerging_AllowStrongTrades   = true;
+   Settings.Trending_AllowWeakTrades     = true;
+   Settings.Trending_AllowMediumTrades   = true;
+   Settings.Trending_AllowStrongTrades   = true;
+
 
    // --- K. Apply presets (OPTIMIZED PRESET_RRM)
    

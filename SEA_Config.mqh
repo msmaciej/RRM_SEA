@@ -197,6 +197,15 @@ enum EUIFrameMode
    UI_FRAME_TEXT_BOUNDS      // Text bounds markers (BEGIN/END), no rectangle
 };
 
+//+------------------------------------------------------------------+
+//| Market Phase Classification (Russ Horn's Rapid Results Method)  |
+//+------------------------------------------------------------------+
+enum EMarketPhase {
+   PHASE_UNORDERED,   // EMAs crossed/mixed - choppy market
+   PHASE_EMERGING,    // EMAs starting to align - trend forming
+   PHASE_TRENDING     // EMAs fully stacked - strong trend
+};
+
 // --- ADAPTIVE SETTINGS STRUCT ---
 struct ST_AdaptiveSettings
 {
@@ -427,6 +436,23 @@ struct ST_Settings
 
    // Adaptive settings (pair-aware spread, TF-aware ATR/SL/TP/trail)
    ST_AdaptiveSettings Adaptive;
+
+   //==========================================================================
+   // PHASE DETECTION SETTINGS (PR1 - Foundation)
+   //==========================================================================
+   bool     PhaseDetectionEnabled;         // Master switch for phase system
+   bool     BlockUnorderedPhase;           // Block trades during UNORDERED
+   bool     RequireMinPhaseConfirm;        // Require N bars in phase before trading
+   int      MinPhaseConfirmBars;           // Minimum bars to confirm phase (e.g., 3)
+
+   // Phase-specific trade permissions (for future use)
+   bool     Emerging_AllowWeakTrades;      // Allow EMA1/EMA2 during EMERGING
+   bool     Emerging_AllowMediumTrades;    // Allow EMA2/EMA3 during EMERGING
+   bool     Emerging_AllowStrongTrades;    // Allow EMA3/EMA4 during EMERGING
+
+   bool     Trending_AllowWeakTrades;      // Allow EMA1/EMA2 during TRENDING
+   bool     Trending_AllowMediumTrades;    // Allow EMA2/EMA3 during TRENDING
+   bool     Trending_AllowStrongTrades;    // Allow EMA3/EMA4 during TRENDING
 };
 
 // Global Configuration Instance
@@ -1149,6 +1175,19 @@ void InitializeConfig()
       double adaptive_sl = GetAdaptiveSL(Period(), Settings.Adaptive);
       if(adaptive_sl > 0.0) Settings.SL_FixedPips = adaptive_sl;
    }
+
+   // --- Phase Detection Settings (PR1 - Default: DISABLED) ---
+   Settings.PhaseDetectionEnabled        = false;  // Disabled by default - infrastructure ready for future PR
+   Settings.BlockUnorderedPhase          = true;
+   Settings.RequireMinPhaseConfirm       = false;
+   Settings.MinPhaseConfirmBars          = 3;
+
+   Settings.Emerging_AllowWeakTrades     = true;
+   Settings.Emerging_AllowMediumTrades   = true;
+   Settings.Emerging_AllowStrongTrades   = true;
+   Settings.Trending_AllowWeakTrades     = true;
+   Settings.Trending_AllowMediumTrades   = true;
+   Settings.Trending_AllowStrongTrades   = true;
 }
 
 //+------------------------------------------------------------------+

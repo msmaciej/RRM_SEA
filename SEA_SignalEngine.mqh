@@ -92,6 +92,10 @@ private:
    int         m_reject_gate;        // Rejections at gate step (HTF, RRM, structure gates)
    int         m_reject_votes;       // Rejections at vote step
 
+   // --- 2e. PHASE DETECTION DIAGNOSTICS (PR1) ---
+   EMarketPhase m_diag_last_phase;
+   int          m_diag_phase_confirm_bars;
+
    // --- 3. DATA HELPERS ---
    // Simplified buffer access for cleaner logic code
    double GetVal(int handle, int shift, int buffer_num=0) const {
@@ -648,6 +652,10 @@ public:
       m_diag_last_votes  = 0;
       m_diag_last_reason = "";
 
+      // PR1: Initialize phase diagnostics
+      m_diag_last_phase        = PHASE_UNORDERED;
+      m_diag_phase_confirm_bars = 0;
+
       m_active_layer      = 0;
       m_pullback_found    = false;
       m_pullback_bar      = 0;
@@ -681,6 +689,10 @@ public:
    int    RejectBias()        const { return m_reject_bias; }
    int    RejectGate()        const { return m_reject_gate; }
    int    RejectVotes()       const { return m_reject_votes; }
+
+   // Diagnostics - Phase Detection (PR1)
+   EMarketPhase GetLastDetectedPhase() const { return m_diag_last_phase; }
+   int          GetPhaseConfirmBars()  const { return m_diag_phase_confirm_bars; }
 
    // Returns the number of currently enabled indicator votes.
    int CountEnabledIndicators() const
@@ -1297,6 +1309,9 @@ public:
    //==========================================================================
    int GetDirection() 
    {
+      // === PR1: Update phase diagnostics (passive - doesn't affect logic) ===
+      UpdatePhaseDiagnostics(m_settings.ma_v_shift);
+
       // Diagnostics reset (for Cockpit/UI)
       m_diag_last_bias   = 0;
       m_diag_last_votes  = 0;
@@ -1778,6 +1793,143 @@ public:
       double c = GetMAVal(handle, 1);
       double p = GetMAVal(handle, 2);
       return (c > p) ? 1 : (c < p) ? -1 : 0;
+   }
+
+   //+------------------------------------------------------------------+
+   //| PR1: Detect Market Phase Based on 3 Slowest EMAs (13, 34, 89)   |
+   //+------------------------------------------------------------------+
+   EMarketPhase DetectMarketPhase(const int shift = 1)
+   {
+      // Get the 3 key EMAs (EMA2=13, EMA3=34, EMA4=89)
+      double ema13 = GetMAVal(h_ema2, shift, 0);  // EMA2 = 13-period
+      double ema34 = GetMAVal(h_ema3, shift, 0);  // EMA3 = 34-period
+      double ema89 = GetMAVal(h_ema4, shift, 0);  // EMA4 = 89-period
+
+      if(ema13 == EMPTY_VALUE || ema34 == EMPTY_VALUE || ema89 == EMPTY_VALUE)
+      {
+         if(m_settings.DebugFlow)
+            Print("[PR1-PHASE] ERROR: Invalid EMA values");
+         return PHASE_UNORDERED;
+      }
+
+      // Define tolerance for "approximate equality" (2 pips)
+      double tolerance = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+
+      //==========================================================================
+      // BULLISH PHASE DETECTION
+      //==========================================================================
+
+      // TRENDING Bullish: 13 > 34 > 89 (ascending order, fully stacked)
+      if(ema13 > ema34 + tolerance && ema34 > ema89 + tolerance)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[PR1-PHASE] TRENDING Bullish (13=%.5f > 34=%.5f > 89=%.5f)",
+                        ema13, ema34, ema89);
+         return PHASE_TRENDING;
+      }
+
+      // EMERGING Bullish: 13 > 89 > 34 (13 on top, but 34/89 not yet sorted)
+      if(ema13 > ema89 + tolerance && ema89 > ema34 + tolerance)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[PR1-PHASE] EMERGING Bullish (13=%.5f > 89=%.5f > 34=%.5f)",
+                        ema13, ema89, ema34);
+         return PHASE_EMERGING;
+      }
+
+      //==========================================================================
+      // BEARISH PHASE DETECTION
+      //==========================================================================
+
+      // TRENDING Bearish: 89 > 34 > 13 (descending order, fully stacked)
+      if(ema89 > ema34 + tolerance && ema34 > ema13 + tolerance)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[PR1-PHASE] TRENDING Bearish (89=%.5f > 34=%.5f > 13=%.5f)",
+                        ema89, ema34, ema13);
+         return PHASE_TRENDING;
+      }
+
+      // EMERGING Bearish: 34 > 89 > 13 (34 on top, but 89/13 not yet sorted)
+      if(ema34 > ema89 + tolerance && ema89 > ema13 + tolerance)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[PR1-PHASE] EMERGING Bearish (34=%.5f > 89=%.5f > 13=%.5f)",
+                        ema34, ema89, ema13);
+         return PHASE_EMERGING;
+      }
+
+      //==========================================================================
+      // UNORDERED (Default): None of the above patterns matched
+      //==========================================================================
+
+      if(m_settings.DebugFlow)
+         PrintFormat("[PR1-PHASE] UNORDERED (13=%.5f, 34=%.5f, 89=%.5f)",
+                     ema13, ema34, ema89);
+
+      return PHASE_UNORDERED;
+   }
+
+   //+------------------------------------------------------------------+
+   //| PR1: Confirm Phase Stability (Minimum N bars in same phase)     |
+   //+------------------------------------------------------------------+
+   bool ConfirmPhaseStability(const EMarketPhase current_phase, const int min_bars)
+   {
+      if(min_bars <= 1) return true;  // No confirmation required
+
+      // Check previous N bars to ensure phase consistency
+      int confirmed_bars = 1;  // Current bar counts as 1
+
+      for(int i = 2; i <= min_bars; i++)
+      {
+         EMarketPhase past_phase = DetectMarketPhase(i);
+
+         if(past_phase == current_phase)
+         {
+            confirmed_bars++;
+         }
+         else
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[PR1-PHASE] UNSTABLE: Current=%s, Bar[%d]=%s (need %d bars)",
+                           EnumToString(current_phase), i, EnumToString(past_phase), min_bars);
+
+            m_diag_phase_confirm_bars = confirmed_bars;
+            return false;  // Phase is unstable
+         }
+      }
+
+      m_diag_phase_confirm_bars = confirmed_bars;
+
+      if(m_settings.DebugFlow)
+         PrintFormat("[PR1-PHASE] STABLE: %s confirmed for %d/%d bars",
+                     EnumToString(current_phase), confirmed_bars, min_bars);
+
+      return true;  // Phase is stable
+   }
+
+   //+------------------------------------------------------------------+
+   //| PR1: Update Phase Diagnostics (call from GetDirection)          |
+   //+------------------------------------------------------------------+
+   void UpdatePhaseDiagnostics(const int v_shift = 1)
+   {
+      if(!m_settings.PhaseDetectionEnabled)
+      {
+         m_diag_last_phase         = PHASE_UNORDERED;
+         m_diag_phase_confirm_bars = 0;
+         return;
+      }
+
+      m_diag_last_phase = DetectMarketPhase(v_shift);
+
+      if(m_settings.RequireMinPhaseConfirm)
+      {
+         ConfirmPhaseStability(m_diag_last_phase, m_settings.MinPhaseConfirmBars);
+      }
+      else
+      {
+         m_diag_phase_confirm_bars = 0;  // Stability check disabled
+      }
    }
 };
 

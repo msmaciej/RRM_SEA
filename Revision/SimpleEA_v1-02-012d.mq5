@@ -120,6 +120,17 @@ struct ST_Settings {
    ETrailingMode TrailMode; double Trail_Mult;
    // Reporting
    bool ExportCSV;
+   // PHASE DETECTION SETTINGS (PR1 - Foundation)
+   bool     PhaseDetectionEnabled;
+   bool     BlockUnorderedPhase;
+   bool     RequireMinPhaseConfirm;
+   int      MinPhaseConfirmBars;
+   bool     Emerging_AllowWeakTrades;
+   bool     Emerging_AllowMediumTrades;
+   bool     Emerging_AllowStrongTrades;
+   bool     Trending_AllowWeakTrades;
+   bool     Trending_AllowMediumTrades;
+   bool     Trending_AllowStrongTrades;
 };
 
 //--- GLOBAL OBJECTS ---
@@ -419,6 +430,19 @@ void ApplySettings() {
    Settings.Use_BE = Inp_Use_BE; Settings.BE_Trig = Inp_BE_Trig; Settings.BE_Buff = Inp_BE_Buff;
    Settings.TrailMode = Inp_TrailMode; Settings.Trail_Mult = Inp_Trail_Mult;
    Settings.ExportCSV = Inp_ExportCSV;
+   // --- Phase Detection Settings (PR1 - Default: DISABLED) ---
+   Settings.PhaseDetectionEnabled        = false;  // Disabled by default - infrastructure ready for future PR
+   Settings.BlockUnorderedPhase          = true;
+   Settings.RequireMinPhaseConfirm       = false;
+   Settings.MinPhaseConfirmBars          = 3;
+
+   Settings.Emerging_AllowWeakTrades     = true;
+   Settings.Emerging_AllowMediumTrades   = true;
+   Settings.Emerging_AllowStrongTrades   = true;
+   Settings.Trending_AllowWeakTrades     = true;
+   Settings.Trending_AllowMediumTrades   = true;
+   Settings.Trending_AllowStrongTrades   = true;
+
 
    // B. PRESET: TREND REVERSAL (Standard EA Clone)
    if(InpPreset == PRESET_TREND_REVERSAL) {
