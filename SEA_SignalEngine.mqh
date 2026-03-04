@@ -77,6 +77,10 @@ private:
    double      m_diag_last_atr_pips;
    bool        m_diag_last_atr_ok;
 
+   // 260304_PR1: Phase Detection Diagnostics
+   EMarketPhase m_diag_last_phase;       // Last detected market phase
+   int          m_diag_phase_confirm_bars; // Number of consecutive bars in current phase
+
    // --- 2c. STRUCTURE GATE DIAGNOSTICS ---
    int         m_active_layer;       // Active EMA layer (1/2/3/0=none)
    bool        m_pullback_found;     // Was a pullback detected?
@@ -648,6 +652,10 @@ public:
       m_diag_last_votes  = 0;
       m_diag_last_reason = "";
 
+      // 260304_PR1: Initialize phase diagnostics
+      m_diag_last_phase = PHASE_UNORDERED;
+      m_diag_phase_confirm_bars = 0;
+
       m_active_layer      = 0;
       m_pullback_found    = false;
       m_pullback_bar      = 0;
@@ -666,6 +674,10 @@ public:
    int    LastBias()   const { return m_diag_last_bias; }
    int    LastVotes()  const { return m_diag_last_votes; }
    string LastReason() const { return m_diag_last_reason; }
+
+   // 260304_PR1: Phase Detection Diagnostics
+   EMarketPhase GetLastDetectedPhase() const { return m_diag_last_phase; }
+   int          GetPhaseConfirmBars() const { return m_diag_phase_confirm_bars; }
 
    // Structure gate diagnostics
    int    ActiveLayer()       const { return m_active_layer; }
@@ -1297,6 +1309,13 @@ public:
    //==========================================================================
    int GetDirection() 
    {
+      // ═══════════════════════════════════════════════════════════════
+      // 260304_PR1: Update phase diagnostics (passive - doesn't affect logic)
+      // Phase detection is DISABLED by default (PhaseDetectionEnabled = false)
+      // This only logs phase information when DebugFlow = true
+      // ═══════════════════════════════════════════════════════════════
+      UpdatePhaseDiagnostics(m_settings.ma_v_shift);
+
       // Diagnostics reset (for Cockpit/UI)
       m_diag_last_bias   = 0;
       m_diag_last_votes  = 0;
@@ -1778,6 +1797,156 @@ public:
       double c = GetMAVal(handle, 1);
       double p = GetMAVal(handle, 2);
       return (c > p) ? 1 : (c < p) ? -1 : 0;
+   }
+
+   //+------------------------------------------------------------------+
+   //| 260304_PR1: Detect Market Phase Based on 3 Slowest EMAs         |
+   //| Uses EMA2(13), EMA3(34), EMA4(89) to classify market structure  |
+   //| EMERGING phase: EMA4(89) sandwiched between EMA2(13) and EMA3(34)|
+   //+------------------------------------------------------------------+
+   EMarketPhase DetectMarketPhase(const int shift = 1)
+   {
+      // Get the 3 key EMAs for phase classification
+      double ema13 = GetMAVal(h_ema2, shift, 0);  // EMA2 = 13-period
+      double ema34 = GetMAVal(h_ema3, shift, 0);  // EMA3 = 34-period
+      double ema89 = GetMAVal(h_ema4, shift, 0);  // EMA4 = 89-period
+      
+      if(ema13 == EMPTY_VALUE || ema34 == EMPTY_VALUE || ema89 == EMPTY_VALUE)
+      {
+         if(m_settings.DebugFlow)
+            Print("[260304_PHASE] ERROR: Invalid EMA values at shift ", shift);
+         return PHASE_UNORDERED;
+      }
+      
+      // Tolerance for "approximate equality" to avoid false transitions on flat markets
+      double tolerance = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);  // 2 pips
+      
+      //==========================================================================
+      // BULLISH PHASE DETECTION
+      //==========================================================================
+      
+      // TRENDING Bullish: 13 > 34 > 89 (fully stacked ascending order)
+      if(ema13 > ema34 + tolerance && ema34 > ema89 + tolerance)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[260304_PHASE] TRENDING Bullish (13=%.5f > 34=%.5f > 89=%.5f) - Established uptrend", 
+                        ema13, ema34, ema89);
+         return PHASE_TRENDING;
+      }
+      
+      // EMERGING Bullish: 13 > 89 > 34 
+      // EMA4(89) is SANDWICHED between EMA2(13) and EMA3(34)
+      // EMA34 is approaching EMA89 from below - trend forming
+      if(ema13 > ema89 + tolerance && ema89 > ema34 + tolerance)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[260304_PHASE] EMERGING Bullish (13=%.5f > 89=%.5f > 34=%.5f) - EMA34 converging to EMA89, trend forming", 
+                        ema13, ema89, ema34);
+         return PHASE_EMERGING;
+      }
+      
+      //==========================================================================
+      // BEARISH PHASE DETECTION
+      //==========================================================================
+      
+      // TRENDING Bearish: 89 > 34 > 13 (fully stacked descending order)
+      if(ema89 > ema34 + tolerance && ema34 > ema13 + tolerance)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[260304_PHASE] TRENDING Bearish (89=%.5f > 34=%.5f > 13=%.5f) - Established downtrend", 
+                        ema89, ema34, ema13);
+         return PHASE_TRENDING;
+      }
+      
+      // EMERGING Bearish: 34 > 89 > 13
+      // EMA4(89) is SANDWICHED between EMA3(34) and EMA2(13)
+      // EMA13 is approaching EMA89 from above - trend forming
+      if(ema34 > ema89 + tolerance && ema89 > ema13 + tolerance)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[260304_PHASE] EMERGING Bearish (34=%.5f > 89=%.5f > 13=%.5f) - EMA13 converging to EMA89, trend forming", 
+                        ema34, ema89, ema13);
+         return PHASE_EMERGING;
+      }
+      
+      //==========================================================================
+      // UNORDERED (Default): None of the above patterns matched
+      // EMAs are crossed/mixed - no clear directional structure
+      //==========================================================================
+      
+      if(m_settings.DebugFlow)
+         PrintFormat("[260304_PHASE] UNORDERED (13=%.5f, 34=%.5f, 89=%.5f) - Choppy/mixed structure", 
+                     ema13, ema34, ema89);
+      
+      return PHASE_UNORDERED;
+   }
+   
+   //+------------------------------------------------------------------+
+   //| 260304_PR1: Confirm Phase Stability                             |
+   //| Requires N consecutive bars in same phase to avoid whipsaws     |
+   //+------------------------------------------------------------------+
+   bool ConfirmPhaseStability(const EMarketPhase current_phase, const int min_bars)
+   {
+      if(min_bars <= 1) return true;  // No confirmation required
+      
+      // Count consecutive bars in current phase
+      int confirmed_bars = 1;  // Current bar (shift=1) counts as 1
+      
+      for(int i = 2; i <= min_bars; i++)
+      {
+         EMarketPhase past_phase = DetectMarketPhase(i);
+         
+         if(past_phase == current_phase)
+         {
+            confirmed_bars++;
+         }
+         else
+         {
+            // Phase changed - not stable
+            if(m_settings.DebugFlow)
+               PrintFormat("[260304_PHASE] UNSTABLE: Current=%s, Bar[%d]=%s (need %d consecutive bars)", 
+                           EnumToString(current_phase), i, EnumToString(past_phase), min_bars);
+            
+            m_diag_phase_confirm_bars = confirmed_bars;
+            return false;
+         }
+      }
+      
+      // Phase is stable for required number of bars
+      m_diag_phase_confirm_bars = confirmed_bars;
+      
+      if(m_settings.DebugFlow)
+         PrintFormat("[260304_PHASE] STABLE: %s confirmed for %d/%d consecutive bars", 
+                     EnumToString(current_phase), confirmed_bars, min_bars);
+      
+      return true;
+   }
+   
+   //+------------------------------------------------------------------+
+   //| 260304_PR1: Update Phase Diagnostics (passive observation only) |
+   //+------------------------------------------------------------------+
+   void UpdatePhaseDiagnostics(const int v_shift = 1)
+   {
+      // If phase detection is disabled, reset diagnostics
+      if(!m_settings.PhaseDetectionEnabled)
+      {
+         m_diag_last_phase = PHASE_UNORDERED;
+         m_diag_phase_confirm_bars = 0;
+         return;
+      }
+      
+      // Detect current phase
+      m_diag_last_phase = DetectMarketPhase(v_shift);
+      
+      // Check phase stability if required
+      if(m_settings.RequireMinPhaseConfirm)
+      {
+         ConfirmPhaseStability(m_diag_last_phase, m_settings.MinPhaseConfirmBars);
+      }
+      else
+      {
+         m_diag_phase_confirm_bars = 0;  // Stability check disabled
+      }
    }
 };
 
