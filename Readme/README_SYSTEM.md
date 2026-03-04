@@ -317,7 +317,7 @@ Tier 2: ENTRY TIMING (Multi-Layer - Adaptive)
 Step 6 of the pipeline runs **four sequential hard gates**. Any gate failure immediately rejects the signal (returns 0). All gates are configurable via `SGateConfig { EGateScaleMode mode; double value; }`.
 
 ```mermaid
-flowchart LR
+flowchart TD
     G1["Hard Gate 1\nDynamic Pullback\n(RequirePullback)"]
     G2["Hard Gate 2\nMulti-bar Recovery\n(Gate_Recovery)"]
     G3["Hard Gate 3\nEMA Divergence\n(Gate_EmaDiv)"]
