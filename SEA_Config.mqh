@@ -772,10 +772,10 @@ input double         Inp_Adaptive_PsarATR_Multiplier = 0.5;      // PSAR cushion
 
 // ════════════════════════════════════════════════════════════════════
 // 🔓 ZONE 3B — ADMIN OVERRIDE  (preset testing for experienced users)
-// Set Inp_AdminOverridePreset=true to activate §1–§4 override fields.
+// Set Inp_AdminOverridePreset=true to activate §1–§5 override fields.
 // Has no effect in PRESET_CUSTOM mode (all inputs already respected).
 // ════════════════════════════════════════════════════════════════════
-input group "══════════ 🔓 ZONE 3B: ADMIN OVERRIDE (set true to activate §1-§4 below) ══════════"
+input group "══════════ 🔓 ZONE 3B: ADMIN OVERRIDE (set true to activate §1-§5 below) ══════════"
 input bool           Inp_AdminOverridePreset        = false; // [Admin] Unlock preset parameters for testing (true=admin mode, false=normal user)
 
 input group "--- 🔓 §1 Admin Override: Strategy, EMAs & Votes ---"
@@ -847,6 +847,25 @@ input ETrailingMode       Inp_Override_TrailMode             = TRAIL_NONE; // [A
 input double              Inp_Override_Trail_Mult            = 1.5;       // [Admin] Override trail ATR multiplier when AdminOverride=true
 input EPsarTrailCushionMode Inp_Override_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // [Admin] Override PSAR trail cushion mode when AdminOverride=true
 input double              Inp_Override_PSAR_TrailPipsCushion = 5.0;       // [Admin] Override PSAR trail cushion (pips) when AdminOverride=true
+
+input group "--- 🔓 §5 Admin Override: Phase Detection & Layer Filtering ---"
+input bool     Inp_Override_PhaseDetectionEnabled   = true;    // [Admin] Enable phase detection when AdminOverride=true
+input bool     Inp_Override_EnableLayerDetection    = true;    // [Admin] Enable layer filtering when AdminOverride=true
+input bool     Inp_Override_BlockUnorderedPhase     = true;    // [Admin] Block all trades in UNORDERED phase when AdminOverride=true
+input bool     Inp_Override_RequireMinPhaseConfirm  = true;    // [Admin] Require min-bar phase confirmation when AdminOverride=true
+input int      Inp_Override_MinPhaseConfirmBars     = 3;       // [Admin] Min bars to confirm phase stability (1-10) when AdminOverride=true
+
+input group "--- 🔓 §5.1 Admin Override: Layer 1 (Weak/EMA5-13) Allowed Phases ---"
+input bool     Inp_Override_Layer1_AllowTrending    = true;    // [Admin] Layer 1: Allow TRENDING phase when AdminOverride=true
+input bool     Inp_Override_Layer1_AllowEmerging    = true;    // [Admin] Layer 1: Allow EMERGING phase when AdminOverride=true
+
+input group "--- 🔓 §5.2 Admin Override: Layer 2 (Medium/EMA13-34) Allowed Phases ---"
+input bool     Inp_Override_Layer2_AllowTrending    = true;    // [Admin] Layer 2: Allow TRENDING phase when AdminOverride=true
+input bool     Inp_Override_Layer2_AllowEmerging    = true;    // [Admin] Layer 2: Allow EMERGING phase when AdminOverride=true
+
+input group "--- 🔓 §5.3 Admin Override: Layer 3 (Strong/EMA34-89) Allowed Phases ---"
+input bool     Inp_Override_Layer3_AllowTrending    = true;    // [Admin] Layer 3: Allow TRENDING phase when AdminOverride=true
+input bool     Inp_Override_Layer3_AllowEmerging    = false;   // [Admin] Layer 3: Allow EMERGING phase when AdminOverride=true
 
 //+------------------------------------------------------------------+
 //| ADAPTIVE UTILITY FUNCTIONS                                       |

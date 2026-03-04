@@ -318,7 +318,7 @@ Tier 2: ENTRY TIMING (Multi-Layer - Adaptive)
 
 ### Phase Detection System (PRs 1-5)
 
-The RRM preset can automatically detect market phase using EMA3/EMA4 alignment and slope stability.
+The RRM preset (`PRESET_RRM`) automatically detects market phase using EMA3/EMA4 alignment and slope stability. Phase detection and layer filtering are **enabled by default** in `PRESET_RRM`.
 
 #### Three Market Phases
 
@@ -609,7 +609,7 @@ This project uses a strict, file-owned, multi-agent workflow coordinated by **SE
 | 🎯 ZONE 1 | `══ ZONE 1: PRESET SELECTION ══` | Magic number and strategy preset selection |
 | ✅ ZONE 2 | `══ ZONE 2: USER CONTROLS (Policy A — always editable) ══` | Operator gates and UI/diagnostic settings — always respected regardless of preset |
 | ℹ️ ZONE 3A | `══ ZONE 3A: PRESET INFO (presets override these when active) ══` | Reference defaults — effective in `PRESET_CUSTOM`; preset overrides these when any other preset is active |
-| 🔓 ZONE 3B | `══ ZONE 3B: ADMIN OVERRIDE (set true to activate §1-§4 below) ══` | Four numbered admin override sections for preset testing |
+| 🔓 ZONE 3B | `══ ZONE 3B: ADMIN OVERRIDE (set true to activate §1-§5 below) ══` | Five numbered admin override sections for preset testing |
 
 ### Zone 2 — User Controls (Policy A gates)
 
@@ -622,9 +622,9 @@ Zone 2 groups the inputs that are **always editable** under any preset:
 - `--- ✅ UI: Status Panel ---`, `--- ✅ UI: Cockpit Panel ---`, `--- ✅ UI: Signal Markers ---`, `--- ✅ UI: Colors & Framing ---`
 - `--- ✅ Diagnostics ---`, `--- ✅ Reporting ---`
 
-### Zone 3B — Admin Override (§1–§4 sections)
+### Zone 3B — Admin Override (§1–§5 sections)
 
-When `Inp_AdminOverridePreset = true`, the four numbered sections become active:
+When `Inp_AdminOverridePreset = true`, the five numbered sections become active:
 
 | Section | Header | Contents |
 |---------|--------|----------|
@@ -632,10 +632,11 @@ When `Inp_AdminOverridePreset = true`, the four numbered sections become active:
 | §2 | `--- 🔓 §2 Admin Override: Indicator Periods & Thresholds ---` | MACD, ADX, RSI, STO, PSAR, CCI, BB, MFI, ATR periods/thresholds |
 | §3 | `--- 🔓 §3 Admin Override: Risk & Entry ---` | RequirePriceCross, UseHTF, CloseOnReverse, RiskPercent, SL placement |
 | §4 | `--- 🔓 §4 Admin Override: Exits — TP, Breakeven & Trailing ---` | TP_Mult, BE settings, TrailMode, PSAR trail cushion |
+| §5 | `--- 🔓 §5 Admin Override: Phase Detection & Layer Filtering ---` | PhaseDetectionEnabled, EnableLayerDetection, BlockUnorderedPhase, MinPhaseConfirmBars, per-layer phase permissions |
 
 ### Status Panel — Admin Override Change Markers
 
-When `Inp_AdminOverridePreset = true` and a preset is active, the Status Panel appends `[adm]` to all fields that are controlled by the admin override sections (§1–§4). This makes it immediately visible which effective-config values came from admin overrides rather than preset defaults.
+When `Inp_AdminOverridePreset = true` and a preset is active, the Status Panel appends `[adm]` to all fields that are controlled by the admin override sections (§1–§5). This makes it immediately visible which effective-config values came from admin overrides rather than preset defaults.
 
 
 ## AdminOverride System (Preset Testing)
@@ -662,7 +663,7 @@ The AdminOverride system allows experienced users (admins) to test variations of
 
 ### Override Inputs Reference
 
-All override inputs are in **Zone 3B (§1–§4)** in MT5 Inputs (visible only when `Inp_AdminOverridePreset = true`).
+All override inputs are in **Zone 3B (§1–§5)** in MT5 Inputs (visible only when `Inp_AdminOverridePreset = true`).
 
 **Strategy parameters:**
 
@@ -738,6 +739,22 @@ All override inputs are in **Zone 3B (§1–§4)** in MT5 Inputs (visible only w
 | `Inp_Override_Trail_Mult` | double | 1.5 | Override trail ATR multiplier |
 | `Inp_Override_PSAR_TrailCushionMode` | EPsarTrailCushionMode | PSAR_CUSHION_PIPS | Override PSAR trail cushion mode |
 | `Inp_Override_PSAR_TrailPipsCushion` | double | 5.0 | Override PSAR trail cushion (pips) |
+
+**Phase detection & layer filtering parameters (§5):**
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| `Inp_Override_PhaseDetectionEnabled` | bool | true | Override phase detection master switch |
+| `Inp_Override_EnableLayerDetection` | bool | true | Override layer filtering master switch |
+| `Inp_Override_BlockUnorderedPhase` | bool | true | Override block-all-trades in UNORDERED phase |
+| `Inp_Override_RequireMinPhaseConfirm` | bool | true | Override minimum phase confirmation bars required |
+| `Inp_Override_MinPhaseConfirmBars` | int | 3 | Override number of bars required to confirm phase stability |
+| `Inp_Override_Layer1_AllowTrending` | bool | true | Override Layer 1 (Weak): allow TRENDING phase entries |
+| `Inp_Override_Layer1_AllowEmerging` | bool | true | Override Layer 1 (Weak): allow EMERGING phase entries |
+| `Inp_Override_Layer2_AllowTrending` | bool | true | Override Layer 2 (Medium): allow TRENDING phase entries |
+| `Inp_Override_Layer2_AllowEmerging` | bool | true | Override Layer 2 (Medium): allow EMERGING phase entries |
+| `Inp_Override_Layer3_AllowTrending` | bool | true | Override Layer 3 (Strong): allow TRENDING phase entries |
+| `Inp_Override_Layer3_AllowEmerging` | bool | false | Override Layer 3 (Strong): allow EMERGING phase entries |
 
 ### Workflow
 

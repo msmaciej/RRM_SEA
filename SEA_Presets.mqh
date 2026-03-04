@@ -97,7 +97,8 @@ string GetPresetContractWording(EStrategyPreset preset)
 // Overrides: AutoStrat, VoteThreshold, EMA/MACD periods, vote enable flags,
 //            RRM gate flags, indicator thresholds, and entry/exit parameters
 //            (RequirePriceCross, UseHTF, CloseOnReverse, RiskPercent,
-//             SL/TP modes and multipliers, trailing stop, breakeven).
+//             SL/TP modes and multipliers, trailing stop, breakeven,
+//             and phase detection & layer filtering settings (§5)).
 void ApplyAdminOverrides(ST_Settings &cfg)
 {
    if(!cfg.AdminOverridePreset) return;
@@ -166,6 +167,25 @@ void ApplyAdminOverrides(ST_Settings &cfg)
    cfg.Trail_Mult            = Inp_Override_Trail_Mult;
    cfg.PSAR_TrailCushionMode = Inp_Override_PSAR_TrailCushionMode;
    cfg.PSAR_TrailPipsCushion = Inp_Override_PSAR_TrailPipsCushion;
+
+   // §5 Phase Detection & Layer Filtering
+   cfg.PhaseDetectionEnabled      = Inp_Override_PhaseDetectionEnabled;
+   cfg.EnableLayerDetection       = Inp_Override_EnableLayerDetection;
+   cfg.BlockUnorderedPhase        = Inp_Override_BlockUnorderedPhase;
+   cfg.RequireMinPhaseConfirm     = Inp_Override_RequireMinPhaseConfirm;
+   cfg.MinPhaseConfirmBars        = Inp_Override_MinPhaseConfirmBars;
+
+   // Layer 1 (Weak, EMA1/EMA2) phase permissions
+   cfg.Trending_AllowWeakTrades   = Inp_Override_Layer1_AllowTrending;
+   cfg.Emerging_AllowWeakTrades   = Inp_Override_Layer1_AllowEmerging;
+
+   // Layer 2 (Medium, EMA2/EMA3) phase permissions
+   cfg.Trending_AllowMediumTrades = Inp_Override_Layer2_AllowTrending;
+   cfg.Emerging_AllowMediumTrades = Inp_Override_Layer2_AllowEmerging;
+
+   // Layer 3 (Strong, EMA3/EMA4) phase permissions
+   cfg.Trending_AllowStrongTrades = Inp_Override_Layer3_AllowTrending;
+   cfg.Emerging_AllowStrongTrades = Inp_Override_Layer3_AllowEmerging;
 }
 
 void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
@@ -719,6 +739,23 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Use_BE                = false;
       cfg.BE_Mode               = BE_MODE_OFF;
 
+      // Phase Detection (PR1-5) — enabled in PRESET_RRM
+      cfg.PhaseDetectionEnabled      = true;
+      cfg.EnableLayerDetection       = true;
+      cfg.BlockUnorderedPhase        = true;
+      cfg.RequireMinPhaseConfirm     = true;
+      cfg.MinPhaseConfirmBars        = 3;
+
+      // Layer phase permissions (PR4):
+      // EMERGING phase: L1/L2 allowed, L3 blocked (deep pullback too risky in forming trend)
+      cfg.Emerging_AllowWeakTrades   = true;
+      cfg.Emerging_AllowMediumTrades = true;
+      cfg.Emerging_AllowStrongTrades = false;
+      // TRENDING phase: all layers allowed (strong established trend)
+      cfg.Trending_AllowWeakTrades   = true;
+      cfg.Trending_AllowMediumTrades = true;
+      cfg.Trending_AllowStrongTrades = true;
+
       if(cfg.PrintEffectiveConfig || cfg.DebugFlow)
       {
          Print("=== PRESET APPLIED: RRM ===");
@@ -733,7 +770,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Restore operator-controlled gates (Policy A)
       // NOTE: MaxSpread is restored; MinATR/MaxATR are NOT restored (kept at 0 for strict mode).
       cfg.MaxSpread = op_MaxSpread;
-
       cfg.UseTime   = op_UseTime;
       cfg.StartHr   = op_StartHr;
       cfg.EndHr     = op_EndHr;
