@@ -1375,6 +1375,58 @@ public:
                      EnumToString(m_diag_last_entry_layer));
       }
 
+      //+------------------------------------------------------------------+
+      //| 260304_PR5: Phase-Based Layer Filtering                          |
+      //|                                                                  |
+      //| Enforces RRM methodology rules for entry filtering:              |
+      //| - UNORDERED: Block ALL trades (choppy, no clear trend)           |
+      //| - EMERGING: Block STRONG trades (deep pullbacks too risky)       |
+      //| - TRENDING: Allow all layers (strong established trend)          |
+      //|                                                                  |
+      //| Requires BOTH PhaseDetectionEnabled=true AND                     |
+      //| EnableLayerDetection=true to activate filtering                  |
+      //+------------------------------------------------------------------+
+      // ═══════════════════════════════════════════════════════════════
+      // 260304_PR5: Phase-based layer filtering
+      // If both phase detection and layer detection are enabled,
+      // enforce RRM methodology rules for trade filtering by phase
+      // ═══════════════════════════════════════════════════════════════
+      if(m_settings.EnableLayerDetection && 
+         m_settings.PhaseDetectionEnabled &&
+         m_diag_last_entry_layer != LAYER_NONE)
+      {
+         EMarketPhase phase = m_diag_last_phase;
+         
+         // Rule 1: UNORDERED phase blocks ALL trades (choppy market)
+         if(phase == PHASE_UNORDERED) {
+            m_diag_last_reason = "PHASE_UNORDERED_BLOCKS_ALL";
+            m_reject_bias++;
+            
+            if(m_settings.DebugFlow) {
+               PrintFormat("[260304_PR5] UNORDERED phase detected - blocking ALL trades (layer=%s)",
+                           EnumToString(m_diag_last_entry_layer));
+            }
+            return 0;
+         }
+         
+         // Rule 2: EMERGING phase blocks STRONG (Layer 3) trades only
+         if(phase == PHASE_EMERGING && m_diag_last_entry_layer == LAYER_3_STRONG) {
+            m_diag_last_reason = "PHASE_EMERGING_BLOCKS_STRONG";
+            m_reject_bias++;
+            
+            if(m_settings.DebugFlow) {
+               Print("[260304_PR5] EMERGING phase detected - blocking STRONG layer trade (deep pullback too risky)");
+            }
+            return 0;
+         }
+         
+         // Rule 3: TRENDING phase allows all layers (no blocking)
+         if(m_settings.DebugFlow && phase == PHASE_TRENDING) {
+            PrintFormat("[260304_PR5] TRENDING phase detected - allowing %s layer trade",
+                        EnumToString(m_diag_last_entry_layer));
+         }
+      }
+
       // 2. Determine MASTER BIAS (Strategy)
       int bias = 0;
       

@@ -1219,6 +1219,13 @@ void InitializeConfig()
    Settings.AllowLayer1_Entries          = true;
    Settings.AllowLayer2_Entries          = true;
    Settings.AllowLayer3_Entries          = true;
+
+   // 260304_PR5: Phase-based layer filtering
+   // When BOTH PhaseDetectionEnabled AND EnableLayerDetection are true,
+   // trades are filtered by phase rules:
+   // - UNORDERED: blocks ALL trades
+   // - EMERGING: blocks STRONG (Layer 3) trades
+   // - TRENDING: allows all layers
 }
 
 //+------------------------------------------------------------------+
