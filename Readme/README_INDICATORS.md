@@ -130,6 +130,49 @@ Strategy: Standard (strict)
 → bias = 1 (LONG) ✅
 ```
 
+#### 2.4 BIAS_AUTO_PHASE Mode (Optional)
+
+**Purpose:** Automatically block trades in choppy (UNORDERED) markets
+
+**How It Works:**
+
+1. Detect market phase using `DetectMarketPhase()`:
+   - Check EMA3/EMA4 alignment and slope consistency
+   - Return: `PHASE_UNORDERED`, `PHASE_EMERGING`, or `PHASE_TRENDING`
+
+2. Apply bias override:
+   ```
+   IF phase == PHASE_UNORDERED:
+     → Force bias = 0 (NEUTRAL)
+     → STOP → Return 0 (NO TRADE)
+   ELSE:
+     → Proceed with normal bias calculation
+   ```
+
+**Configuration:** `InpBiasMode = BIAS_AUTO_PHASE` (Zone 3B §1)
+
+**Why:** Prevents trading in choppy markets where direction is unclear
+
+**Example:**
+```
+EMA3 (34) = 1.08550
+EMA4 (89) = 1.08540
+Difference = 0.00010 (0.1 pips - very flat)
+
+Slope consistency (last 5 bars):
+  Bar[5]: EMA3 > EMA4? YES
+  Bar[4]: EMA3 > EMA4? NO
+  Bar[3]: EMA3 > EMA4? YES
+  Bar[2]: EMA3 > EMA4? NO
+  Bar[1]: EMA3 > EMA4? YES
+  
+Consistent bars: 0 (flipping direction)
+
+→ Phase = PHASE_UNORDERED
+→ BIAS_AUTO_PHASE mode → bias = 0 (NEUTRAL)
+→ STOP → Return 0 (NO TRADE)
+```
+
 ---
 
 ### Step 3: AutoStrat Entry Signal
@@ -169,6 +212,46 @@ Strategy: Standard (strict)
   ```
 
 **Result:** entry_signal ∈ {-1, 0, 1}
+
+---
+
+### Step 3A: Layer Detection (RRM)
+
+**Purpose:** Identify which EMA layer price is entering from
+
+**Applies to:** RRM preset only (`Gate_UseMultiLayer = true`)
+
+**How It Works:**
+
+`DetectEntryLayer()` scans price position vs EMAs to determine entry layer:
+
+| Layer | Price Condition | EMA Alignment Required |
+|-------|----------------|------------------------|
+| L1 | Price pulled back to EMA1, now at/beyond EMA1 | EMA1 and EMA2 aligned with bias |
+| L2 | Price pulled back to EMA2, now at/beyond EMA2 | EMA2 and EMA3 aligned with bias |
+| L3 | Price pulled back to EMA3, now at/beyond EMA3 | EMA3 and EMA4 aligned with bias (bias EMAs) |
+
+**Example (LONG):**
+```
+EMA1 (5)  = 1.08450
+EMA2 (13) = 1.08400
+EMA3 (34) = 1.08300
+EMA4 (89) = 1.08200
+Price     = 1.08395
+
+Check L1:
+  Is price near EMA1? 1.08395 ≈ 1.08450? NO (5.5 pips away)
+  
+Check L2:
+  Is price near EMA2? 1.08395 ≈ 1.08400? YES (0.5 pips) ✅
+  Are EMA2 and EMA3 aligned? EMA2 > EMA3? YES ✅
+  
+→ Entry Layer = L2
+```
+
+**Result:** Returns `"L1"`, `"L2"`, `"L3"`, or `""` (empty = no layer detected)
+
+**Used by:** Phase-based filtering (Step 6)
 
 ---
 
@@ -219,13 +302,15 @@ If bias ≠ HTF direction → VETO
 
 ---
 
-### Step 6: RRM Mandatory Gates (Optional Quality Filters)
+### Step 6: Hard Gates (Sequential)
 
-**Purpose:** Ensure high-quality entry points
+**Purpose:** Apply quality filters before voting
 
-#### Gate 1: Pullback/Reclaim (if enabled)
+RRM gates run in sequence; ANY failure → immediate rejection.
 
-**Check:** Has price pulled back to Fast EMA and then reclaimed?
+#### Gate 1: Dynamic Pullback Detection (Multi-Layer)
+
+**Check:** Has price pulled back to an active EMA layer and recovered?
 
 **Logic:**
 ```
@@ -235,11 +320,69 @@ SHORT: Close[2] > FastEMA[2] AND Close[1] < FastEMA[1]
 
 **Why:** Better entry price ("buy the dip in an uptrend")
 
-**Configuration:** `RRM_RequirePullbackReclaim`
+**Configuration:**
+- `Gate_UseMultiLayer = true` (enables multi-layer system)
+- `Gate_Lookback` (bars to scan for pullback, default 20)
+- `Gate_FullRecovery` (require full recovery beyond reference EMA)
 
-**Result:** If fails → **STOP** → Return 0 (reason: "RRM_PULLBACK")
+**Result:** If fails → **STOP** → Return 0 (reason: `"NO_PULLBACK"` or `"NOT_RECOVERING"`)
 
-#### Gate 2: EMA Divergence (if enabled)
+---
+
+#### Gate 2: Phase-Based Layer Filtering (RRM)
+
+**Check:** Is detected entry layer allowed in current market phase?
+
+**Applies when:**
+- `RRM_FilterByPhase = true`
+- `RRM_FilterLayersByPhase = true`
+- Entry layer detected via `DetectEntryLayer()`
+
+**Filtering Rules:**
+
+| Market Phase | Allowed Layers | Blocked Layers | Reason |
+|--------------|----------------|----------------|--------|
+| UNORDERED | NONE | L1, L2, L3 | No clear trend |
+| EMERGING | L3 only | L1, L2 | Use bias-layer entries |
+| TRENDING | L1, L2 | L3 | Use fast pullback entries |
+
+**Logic Flow:**
+```
+1. Detect current phase via DetectMarketPhase()
+2. Detect entry layer via DetectEntryLayer()
+3. Check if layer is allowed in this phase
+4. If NOT allowed → REJECT
+```
+
+**Example:**
+```
+Phase = EMERGING
+Entry Layer = L2
+Bias = SHORT
+
+Check:
+  EMERGING phase allows: L3 only
+  Detected layer: L2
+  Is L2 in allowed list? NO ❌
+  
+→ STOP → Return 0 (reason: "LAYER_NOT_ALLOWED_IN_PHASE")
+```
+
+**Why:** RRM methodology requires:
+- Conservative entries during trend formation (EMERGING → L3 only)
+- Aggressive entries during strong trends (TRENDING → L1/L2 only)
+- No entries during chop (UNORDERED → block all)
+
+**Configuration:**
+- `InpBiasMode = BIAS_AUTO_PHASE` (optional: blocks UNORDERED at bias stage)
+- `RRM_FilterByPhase = true` (enables phase detection)
+- `RRM_FilterLayersByPhase = true` (applies layer restrictions)
+
+**Result:** If layer not allowed → **STOP** → Return 0 (reason: `"LAYER_NOT_ALLOWED_IN_PHASE"`)
+
+---
+
+#### Gate 3: EMA Divergence (if enabled)
 
 **Check:** Are EMAs expanding (distance increasing)?
 

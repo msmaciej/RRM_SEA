@@ -111,20 +111,24 @@ All evaluation happens on the CLOSED candle (shift=1) to prevent repainting.
 ```mermaid
 flowchart TD
     S1["Step 1: PRE-FILTERS\nSpread · ATR · Time/Session · News"]
-    S2["Step 2: MARKET BIAS\nEMA Slopes & Position → LONG/SHORT/NEUTRAL"]
+    S2["Step 2: MARKET BIAS\nEMA Slopes & Position → LONG/SHORT/NEUTRAL\n+ BIAS_AUTO_PHASE: Returns 0 in UNORDERED"]
+    S2A["Step 2A: PHASE DETECTION (if enabled)\nEMA3/EMA4 alignment + slope stability\n→ UNORDERED / EMERGING / TRENDING"]
     S3["Step 3: AUTOSTRAT ENTRY SIGNAL\nSingle Slope · Price Cross · EMA Pair Cross\n+ RRM Continuation Mode"]
+    S3A["Step 3A: LAYER DETECTION (if RRM enabled)\nDetect entry layer: L1 (EMA1↔EMA2) / L2 (EMA2↔EMA3) / L3 (EMA3↔EMA4)"]
     S4["Step 4: SIGNAL VALIDATION\nEntry signal must match Market Bias"]
     S5["Step 5: HTF FILTER (Optional)\nHigher-TF EMA alignment check"]
-    S6["Step 6: HARD GATES (Sequential)\nDynamic Pullback · Recovery · EMA Div · Candle Dir"]
+    S6["Step 6: HARD GATES (Sequential)\nDynamic Pullback · Recovery · EMA Div · Candle Dir\n+ PHASE-BASED LAYER FILTER (RRM)"]
     S7["Step 7: VOTING BYPASS\nSkip if VoteThreshold ≤ 1"]
     S8["Step 8: INDICATOR VOTING\nMACD · CCI · PSAR · RSI · ADX · etc."]
     S9["Step 9: FINAL DECISION\nVotes ≥ VoteThreshold → return signal"]
 
     S1 -->|pass| S2
     S1 -->|fail| REJECT(["REJECT (0)"])
-    S2 -->|bias ≠ 0| S3
-    S2 -->|NEUTRAL| REJECT
-    S3 --> S4
+    S2 -->|bias ≠ 0| S2A
+    S2 -->|NEUTRAL or AUTO_PHASE=0| REJECT
+    S2A --> S3
+    S3 --> S3A
+    S3A --> S4
     S4 -->|match| S5
     S4 -->|mismatch| REJECT
     S5 -->|pass / disabled| S6
@@ -310,6 +314,109 @@ Tier 2: ENTRY TIMING (Multi-Layer - Adaptive)
 │ Layer 3: EMA34 ↔ EMA89              │
 │   → Deep entries, strongest confirm │
 └─────────────────────────────────────┘
+```
+
+### Phase Detection System (PRs 1-5)
+
+The RRM preset can automatically detect market phase using EMA3/EMA4 alignment and slope stability.
+
+#### Three Market Phases
+
+| Phase | Definition | EMAs | Slope Stability | Trade Strategy |
+|-------|------------|------|-----------------|----------------|
+| **UNORDERED** | Choppy, no clear trend | EMA3 ≈ EMA4 (misaligned or flat) | Inconsistent recent slopes | **Block all trades** |
+| **EMERGING** | Trend starting to form | EMA3 and EMA4 aligned AND both sloping | 2-3 bars stable direction | **L3 entries only** (bias layer) |
+| **TRENDING** | Strong established trend | EMA3 and EMA4 aligned AND both sloping | 4+ bars stable direction | **L1 and L2 entries** (fast layers) |
+
+#### Detection Logic
+
+`DetectMarketPhase()` checks (in order):
+
+1. **EMA Alignment:** Are EMA3 and EMA4 both rising (LONG) or both falling (SHORT)?
+   - NO → `PHASE_UNORDERED`
+   - YES → Continue
+
+2. **Recent Slope Consistency:** Count bars with consistent EMA3/EMA4 slopes
+   - 0-1 bars consistent → `PHASE_UNORDERED`
+   - 2-3 bars consistent → `PHASE_EMERGING`
+   - 4+ bars consistent → `PHASE_TRENDING`
+
+#### Configuration
+
+| Input | Location | Purpose |
+|-------|----------|---------|
+| `InpBiasMode = BIAS_AUTO_PHASE` | Zone 3B §1 | Bias returns 0 (NEUTRAL) in UNORDERED phase |
+| `RRM_FilterByPhase = true` | Zone 3B §3 | Enable phase-based filtering |
+| `RRM_FilterLayersByPhase = true` | Zone 3B §3 | Apply layer restrictions per phase |
+
+#### RRM Phase-Based Filtering Rules
+
+When `RRM_FilterByPhase=true` AND `RRM_FilterLayersByPhase=true`:
+
+```
+┌─────────────────────────────────────────────┐
+│ PHASE: UNORDERED                            │
+├─────────────────────────────────────────────┤
+│ Status: Market is choppy, no clear trend    │
+│ Action: BLOCK ALL LAYERS (L1, L2, L3)       │
+│ Reason: High risk of whipsaw                │
+└─────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────┐
+│ PHASE: EMERGING                             │
+├─────────────────────────────────────────────┤
+│ Status: Trend forming but not confirmed     │
+│ Action: ALLOW L3 ONLY (EMA3↔EMA4)           │
+│        BLOCK L1 (EMA1↔EMA2)                 │
+│        BLOCK L2 (EMA2↔EMA3)                 │
+│ Reason: Use bias-layer entries only;        │
+│         avoid false fast-layer signals      │
+└─────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────┐
+│ PHASE: TRENDING                             │
+├─────────────────────────────────────────────┤
+│ Status: Strong established trend            │
+│ Action: ALLOW L1 (EMA1↔EMA2)                │
+│        ALLOW L2 (EMA2↔EMA3)                 │
+│        BLOCK L3 (EMA3↔EMA4)                 │
+│ Reason: Use fast pullback entries;          │
+│         avoid late bias-layer entries       │
+└─────────────────────────────────────────────┘
+```
+
+#### Example: SHORT Trending Market
+
+```
+Phase: TRENDING
+Bias: SHORT (EMA3 < EMA4, both falling consistently)
+Entry Layer Detected: L2 (price pulled back to EMA13, recovering down)
+
+Check:
+  Is L2 allowed in TRENDING phase? YES ✅
+  
+→ Trade ALLOWED (proceed to voting)
+```
+
+#### Example: SHORT Emerging Market
+
+```
+Phase: EMERGING
+Bias: SHORT (EMA3 < EMA4, recently aligned)
+Entry Layer Detected: L2 (price pulled back to EMA13)
+
+Check:
+  Is L2 allowed in EMERGING phase? NO ❌
+  Only L3 allowed in EMERGING
+  
+→ Trade REJECTED (reason: "LAYER_NOT_ALLOWED_IN_PHASE")
+```
+
+#### Logging
+
+When phase filtering rejects a trade:
+```
+STRUCTURE GATE 2 FAIL: Layer=L2 Phase=EMERGING (LAYER_NOT_ALLOWED_IN_PHASE)
 ```
 
 ### Hard Gate System (PR9)
