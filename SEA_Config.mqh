@@ -62,6 +62,13 @@ enum EMarketPhase {
    PHASE_TRENDING     // EMAs fully stacked - strong established trend
 };
 
+enum EEntryLayer {
+   LAYER_NONE,        // No layer detected or detection disabled
+   LAYER_1_WEAK,      // Layer 1: price touched EMA1/EMA2 zone (shallow pullback)
+   LAYER_2_MEDIUM,    // Layer 2: price touched EMA2/EMA3 zone (medium pullback)
+   LAYER_3_STRONG     // Layer 3: price touched EMA3/EMA4 zone (deep pullback)
+};
+
 enum EManualSide
 {
    SIDE_BOTH,
@@ -455,6 +462,15 @@ struct ST_Settings
    bool     Trending_AllowWeakTrades;      // TRENDING phase: Allow EMA1/EMA2 entries
    bool     Trending_AllowMediumTrades;    // TRENDING phase: Allow EMA2/EMA3 entries
    bool     Trending_AllowStrongTrades;    // TRENDING phase: Allow EMA3/EMA4 entries
+
+   //==========================================================================
+   // 260304_PR3: LAYER DETECTION SETTINGS
+   //==========================================================================
+   bool     EnableLayerDetection;          // Master switch for multi-layer pullback detection
+   double   LayerTouchTolerancePips;       // Pip tolerance for EMA touch detection
+   bool     AllowLayer1_Entries;           // Allow Layer 1 (EMA1/EMA2 touch) entries
+   bool     AllowLayer2_Entries;           // Allow Layer 2 (EMA2/EMA3 touch) entries
+   bool     AllowLayer3_Entries;           // Allow Layer 3 (EMA3/EMA4 touch) entries
 };
 
 // Global Configuration Instance
@@ -1193,6 +1209,16 @@ void InitializeConfig()
    Settings.Trending_AllowWeakTrades     = true;
    Settings.Trending_AllowMediumTrades   = true;
    Settings.Trending_AllowStrongTrades   = true;
+
+   // ═══════════════════════════════════════════════════════════════
+   // 260304_PR3: Initialize Layer Detection Settings (DISABLED by default)
+   // ═══════════════════════════════════════════════════════════════
+   Settings.EnableLayerDetection         = false;
+   Settings.LayerTouchTolerancePips      = 2.0;
+   // Note: AllowLayer*_Entries defaults to true; these take effect once EnableLayerDetection = true
+   Settings.AllowLayer1_Entries          = true;
+   Settings.AllowLayer2_Entries          = true;
+   Settings.AllowLayer3_Entries          = true;
 }
 
 //+------------------------------------------------------------------+
