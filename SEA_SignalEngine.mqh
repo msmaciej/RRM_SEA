@@ -384,11 +384,55 @@ private:
       return (bias==1) ? (low <= lower) : (high >= upper);
    }
    
-   // Vote 9: PSAR
+   // Vote 9: PSAR (basic price vs. PSAR position check)
    bool Check_PSAR(int bias, int shift) {
       double p = GetVal(h_psar, shift);
       double cl = iClose(m_symbol, PERIOD_CURRENT, shift);
       return (bias==1) ? (cl > p) : (cl < p);
+   }
+
+   // PSAR helper: count direction-changes (flips) in the PSAR signal over a lookback window.
+   // A flip occurs when PSAR switches from above price to below price (or vice-versa).
+   // Returns the number of such flips in bars [lookback..1] (bar 0 is forming, excluded).
+   int CountPSARFlips(int lookback = 3) {
+      if(lookback < 3) return 0;
+
+      double psar0 = GetVal(h_psar, lookback);
+      double cl0   = iClose(m_symbol, PERIOD_CURRENT, lookback);
+      if(psar0 == 0.0 || cl0 == 0.0) return 0;
+      bool prev_bullish = (cl0 > psar0);
+
+      int flips = 0;
+      for(int i = lookback - 1; i >= 1; i--)
+      {
+         double psar_i = GetVal(h_psar, i);
+         double cl_i   = iClose(m_symbol, PERIOD_CURRENT, i);
+         if(psar_i == 0.0 || cl_i == 0.0) continue;
+         bool curr_bullish = (cl_i > psar_i);
+         if(curr_bullish != prev_bullish) flips++;
+         prev_bullish = curr_bullish;
+      }
+      return flips;
+   }
+
+   // Vote 9 (enhanced): PSAR with flip-count validation.
+   // Requires basic PSAR position check AND a recent trend change (1–2 flips in the
+   // lookback window) to confirm the signal reflects a genuine fresh reversal rather
+   // than a stale or choppy market condition.  Mirrors the Python system's logic.
+   bool Check_PSAR_WithFlip(int bias, int shift) {
+      // Basic direction check first
+      if(!Check_PSAR(bias, shift)) return false;
+
+      // Require 1 or 2 flips in the most recent 3 bars (fresh reversal):
+      //   0 flips = stale trend (PSAR hasn't changed sides recently)
+      //   3+ flips = choppy/oscillating (unreliable signal)
+      int flips = CountPSARFlips(3);
+      if(flips < 1 || flips > 2)
+      {
+         m_diag_last_reason = StringFormat("PSAR_FLIP_COUNT_INVALID(%d)", flips);
+         return false;
+      }
+      return true;
    }
    
    // Vote 10: Pattern 1-2-3 (Breakout)
@@ -1524,8 +1568,10 @@ public:
       // 1b. Master bias gate (BiasEnabled)
       if(!m_settings.BiasEnabled) { m_diag_last_reason="BIAS_DISABLED"; m_reject_bias++; return 0; }
 
-      // Use Vertical/Bar Shift from Settings (0 for current bar, 1 for closed bar)
-      int v_shift = m_settings.ma_v_shift;
+      // Use Vote_EvalShift for signal/vote evaluation (defaults to 1 = closed bar).
+      // This ensures all indicator checks use the last fully-closed bar, matching
+      // the Python system's behavior of always evaluating completed bars (shift=1).
+      int v_shift = m_settings.Vote_EvalShift;
       
       // ═══════════════════════════════════════════════════════════════
       // 260304_PR4: Detect entry layer (passive detection - no filtering yet)
@@ -1924,7 +1970,8 @@ public:
       CAST_VOTE(m_settings.Ind_Mfi_Enabled,    m_settings.Ind_Mfi_Weight,    Check_MFI(bias, v_shift))
       CAST_VOTE(m_settings.Ind_Sto_Enabled,    m_settings.Ind_Sto_Weight,    Check_Sto(bias, v_shift))
       CAST_VOTE(m_settings.Ind_Bb_Enabled,     m_settings.Ind_Bb_Weight,     Check_BB(bias, v_shift))
-      CAST_VOTE(m_settings.Ind_Psar_Enabled,   m_settings.Ind_Psar_Weight,   Check_PSAR(bias, v_shift))
+      CAST_VOTE(m_settings.Ind_Psar_Enabled,   m_settings.Ind_Psar_Weight,
+                (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)))
       CAST_VOTE(m_settings.Ind_P123_Enabled,   m_settings.Ind_P123_Weight,   Check_P123(bias, v_shift))
       CAST_VOTE(m_settings.Ind_Ross_Enabled,   m_settings.Ind_Ross_Weight,   Check_Ross(bias, v_shift))
 
@@ -2004,8 +2051,10 @@ public:
          if(m_settings.Ind_Psar_Enabled) {
             double p = GetVal(h_psar, v_shift);
             double cl = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-            bool pass = Check_PSAR(bias, v_shift);
-            vote_details += StringFormat(" | PSAR: sar=%.5f cl=%.5f %s(w=%d)", p, cl, pass?"PASS":"FAIL", m_settings.Ind_Psar_Weight);
+            bool pass = (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift));
+            int flips = (m_settings.Vote_AllowPsarFlip ? CountPSARFlips(3) : -1);
+            string flip_info = (m_settings.Vote_AllowPsarFlip ? StringFormat(" flips=%d", flips) : "");
+            vote_details += StringFormat(" | PSAR: sar=%.5f cl=%.5f%s %s(w=%d)", p, cl, flip_info, pass?"PASS":"FAIL", m_settings.Ind_Psar_Weight);
          }
          
          if(m_settings.Ind_P123_Enabled) {
@@ -2053,8 +2102,75 @@ public:
       }
 
    } // === GetDirection: END ===
-   
-   // --- RRM (Trend Pullback) helper checks ---
+
+   //==========================================================================
+   // === EvaluateTE: BEGIN ===
+   //==========================================================================
+   // EvaluateTE() — Trade Entry evaluation on the OPENING bar (shift=0).
+   //
+   // Called on the first tick of bar N+1, AFTER GetDirection() confirmed a TS
+   // signal on bar N (shift=1).  This method validates that the conditions
+   // at the moment of execution are still clean before entering a trade.
+   //
+   // Checks performed at shift=0 (forming/current candle):
+   //   1. Spread filter  — reject if spread is too wide right now.
+   //   2. Time filter    — reject if outside the allowed session window.
+   //   3. News filter    — reject if a high-impact news event is imminent.
+   //   4. Basic bias     — reject if current price is now on the WRONG side
+   //                       of the fast bias EMA at shift=0 (price gapped or
+   //                       reversed against the TS direction).
+   //
+   // Parameters:
+   //   ts_direction : 1 (LONG) or -1 (SHORT) from the prior TS evaluation.
+   //
+   // Returns : ts_direction if all TE conditions pass, 0 if any check fails.
+   //==========================================================================
+   int EvaluateTE(int ts_direction)
+   {
+      if(ts_direction == 0) return 0;
+
+      // 1-3. Reuse the existing filter suite (spread / time / news / ATR guard).
+      //      These always evaluate live conditions (no shift involved), so they
+      //      are appropriate for confirming the execution moment is clean.
+      if(!CheckFilters())
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[TE FILTER FAIL] TE rejected by live filters: %s", m_diag_last_reason);
+         return 0;
+      }
+
+      // 4. Basic price-direction check at shift=0 (forming candle).
+      //    Confirm the current close (best available for shift=0) is still on
+      //    the correct side of the fast bias EMA.  This catches gaps against
+      //    the TS direction.
+      int hf = BiasFastHandle();
+      if(hf != INVALID_HANDLE)
+      {
+         double price    = iClose(m_symbol, PERIOD_CURRENT, 0);
+         double ema_fast = GetMAVal(hf, 0, 0);
+
+         if(ema_fast != 0.0)
+         {
+            bool price_ok = (ts_direction == 1) ? (price > ema_fast) : (price < ema_fast);
+            if(!price_ok)
+            {
+               m_diag_last_reason = "TE_PRICE_DIRECTION";
+               if(m_settings.DebugFlow)
+                  PrintFormat("[TE REJECT] Price %.5f vs EMA %.5f does not confirm %s direction",
+                              price, ema_fast, (ts_direction > 0 ? "BUY" : "SELL"));
+               return 0;
+            }
+         }
+      }
+
+      if(m_settings.DebugFlow)
+         PrintFormat("[TE PASS] TE conditions confirmed at shift=0 for %s",
+                     (ts_direction > 0 ? "BUY" : "SELL"));
+
+      return ts_direction;
+   }
+   // === EvaluateTE: END ===
+
    int BiasFastHandle() {
       return (m_settings.BiasFastID==0)?h_ema1 : (m_settings.BiasFastID==1)?h_ema2 : (m_settings.BiasFastID==2)?h_ema3 : h_ema4;
    }

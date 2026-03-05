@@ -77,6 +77,16 @@ int      g_ts_votes  = 0;
 int      g_ts_thr    = 0;
 string   g_ts_reason = "";
 
+// --- TS→TE Two-Phase Entry State
+// Phase 1 (TS): evaluated at bar-close (shift=1) when a new bar opens.
+//               Sets g_ts_active=true and records the bar time + direction.
+// Phase 2 (TE): evaluated on the very first tick of the NEXT bar (shift=0).
+//               Calls EvaluateTE() which checks live conditions; if valid,
+//               the trade is executed and g_ts_active is reset.
+bool     g_ts_active    = false;  // True while a TS signal is pending TE execution
+datetime g_ts_bar_time  = 0;      // Bar N open-time when the TS was generated
+int      g_ts_direction = 0;      // TS direction: 1=BUY, -1=SELL
+
 // Global tracking for RRM drawdown protection
 int      g_consecutive_losses     = 0;
 int      g_trades_today           = 0;
@@ -410,11 +420,54 @@ int OrchestrateInit()
 
 void OrchestrateTick()
 {
-   datetime t = iTime(_Symbol, PERIOD_CURRENT, 0);
-   if(t == g_last_bar_time)
+   datetime current_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
+   bool     is_new_bar  = (current_bar != g_last_bar_time);
+
+   // ═══════════════════════════════════════════════════════════════
+   // TS→TE Phase 2: Trade Entry evaluation on bar N+1 open (shift=0)
+   //
+   // Fires on the first tick of the bar AFTER the TS signal was generated.
+   // EvaluateTE() checks live conditions at shift=0 (forming candle) before
+   // granting entry: spread, time/news filters, and basic price direction.
+   // g_ts_active is reset unconditionally so TE fires at most once per TS.
+   // ═══════════════════════════════════════════════════════════════
+   if(g_ts_active && current_bar != g_ts_bar_time)
+   {
+      double atr_te = Signal.GetATR();
+
+      if(Settings.DebugFlow)
+         PrintFormat("[TE CHECK] Evaluating TE at shift=0 for %s | TS bar: %s",
+                     (g_ts_direction > 0 ? "BUY" : "SELL"),
+                     TimeToString(g_ts_bar_time, TIME_DATE|TIME_MINUTES));
+
+      int te_result = Signal.EvaluateTE(g_ts_direction);
+
+      if(te_result != 0)
+      {
+         if(Settings.DebugFlow)
+            PrintFormat("[TE ENTRY] TE confirmed at shift=0 | direction=%d", te_result);
+         Executor.ProcessSignal(te_result, atr_te);
+      }
+      else
+      {
+         if(Settings.DebugFlow)
+            PrintFormat("[TE SKIPPED] EvaluateTE returned 0 for TS from %s",
+                        TimeToString(g_ts_bar_time, TIME_DATE|TIME_MINUTES));
+      }
+
+      // TS→TE state reset: TE fires at most once per TS signal
+      g_ts_active    = false;
+      g_ts_direction = 0;
+      g_ts_bar_time  = 0;
+   }
+
+   // ═══════════════════════════════════════════════════════════════
+   // New-bar pipeline: runs only once per bar
+   // ═══════════════════════════════════════════════════════════════
+   if(!is_new_bar)
       return;
 
-   g_last_bar_time = t;
+   g_last_bar_time = current_bar;
    FlowLog("OnTick -> NewBar detected -> begin bar pipeline");
 
    double atr = Signal.GetATR();
@@ -425,6 +478,7 @@ void OrchestrateTick()
    // ═══════════════════════════════════════════════════════════════
    // RRM Drawdown Protection Filter (§6)
    // ═══════════════════════════════════════════════════════════════
+   bool drawdown_blocked = false;
    if(Settings.RRM_EnableDrawdownProtection)
    {
       // Reset daily counters on new trading day
@@ -445,21 +499,21 @@ void OrchestrateTick()
          if(Settings.DebugFlow)
             PrintFormat("[RRM_DD_PROTECT] Trading PAUSED: %d consecutive losses (max=%d)",
                         g_consecutive_losses, Settings.RRM_MaxConsecutiveLosses);
-         return;  // Skip signal evaluation
+         drawdown_blocked = true;
       }
       
       // Check 2: Max trades per day
-      if(Settings.RRM_MaxTradesPerDay > 0 && 
+      if(!drawdown_blocked && Settings.RRM_MaxTradesPerDay > 0 && 
          g_trades_today >= Settings.RRM_MaxTradesPerDay)
       {
          if(Settings.DebugFlow)
             PrintFormat("[RRM_DD_PROTECT] Trading PAUSED: Daily trade limit reached (%d/%d)",
                         g_trades_today, Settings.RRM_MaxTradesPerDay);
-         return;  // Skip signal evaluation
+         drawdown_blocked = true;
       }
       
       // Check 3: Daily drawdown protection
-      if(Settings.RRM_MaxDailyDrawdownPct > 0.0)
+      if(!drawdown_blocked && Settings.RRM_MaxDailyDrawdownPct > 0.0)
       {
          double current_balance = AccountInfoDouble(ACCOUNT_BALANCE);
          double daily_dd_pct = ((g_daily_starting_balance - current_balance) / g_daily_starting_balance) * 100.0;
@@ -469,46 +523,68 @@ void OrchestrateTick()
             if(Settings.DebugFlow)
                PrintFormat("[RRM_DD_PROTECT] Trading PAUSED: Daily DD %.2f%% exceeds limit %.2f%%",
                            daily_dd_pct, Settings.RRM_MaxDailyDrawdownPct);
-            return;  // Skip signal evaluation
+            drawdown_blocked = true;
          }
       }
    }
-   
-   FlowLog("Step B: Compute direction signal");
-   int direction = Signal.GetDirection();
 
-   // Capture TS snapshot when a signal is generated (shift=1 bar time)
-   if(direction != 0)
+   // ═══════════════════════════════════════════════════════════════
+   // TS→TE Phase 1: Trade Setup evaluation on bar close (shift=1)
+   //
+   // Runs once per bar when no TS is pending and drawdown is not blocked.
+   // GetDirection() evaluates ALL pipeline steps (bias, filters, voting)
+   // on the CLOSED bar (shift=1 via Vote_EvalShift=1) and returns a
+   // direction if a valid TS is found.  The TS is stored; execution is
+   // deferred to Phase 2 on the next tick.
+   // ═══════════════════════════════════════════════════════════════
+   if(!drawdown_blocked && !g_ts_active)
    {
-      g_ts_time   = iTime(_Symbol, PERIOD_CURRENT, 1);
-      g_ts_dir    = direction;
-      g_ts_bias   = Signal.LastBias();
-      g_ts_votes  = Signal.LastVotes();
-      g_ts_thr    = Settings.VoteThreshold;
-      g_ts_reason = Signal.LastReason();
-   }
+      FlowLog("Step B: Compute direction signal (TS evaluation at shift=1)");
+      int direction = Signal.GetDirection();
 
-   if(Settings.DebugFlow)
-   {
-      if(direction == 0)
+      // Capture TS display snapshot
+      if(direction != 0)
       {
-         Print("DEBUG: No signal. Reason: ", Signal.LastReason(), " | Bias: ", Signal.LastBias(),
-               " | Votes: ", Signal.LastVotes(), "/", Settings.VoteThreshold);
+         g_ts_time   = iTime(_Symbol, PERIOD_CURRENT, 1);
+         g_ts_dir    = direction;
+         g_ts_bias   = Signal.LastBias();
+         g_ts_votes  = Signal.LastVotes();
+         g_ts_thr    = Settings.VoteThreshold;
+         g_ts_reason = Signal.LastReason();
+
+         // Arm TS→TE state for Phase 2 evaluation on the next bar's first tick.
+         // Store current bar's open-time; Phase 2 fires when current_bar != g_ts_bar_time.
+         g_ts_active    = true;
+         g_ts_direction = direction;
+         g_ts_bar_time  = current_bar;  // Open-time of bar N where TS was detected
+
+         if(Settings.DebugFlow)
+            PrintFormat("[TS=1] Setup confirmed at bar close %s | %s | Waiting for TE on next bar open",
+                        TimeToString(g_ts_time, TIME_DATE|TIME_MINUTES),
+                        (direction > 0 ? "BUY" : "SELL"));
+
+         if(Settings.DrawEntryLines)
+            SEA_DrawEntrySignalLine(g_ts_time, direction, Signal.LastReason());
       }
       else
       {
-         Print("DEBUG: SIGNAL GENERATED! Direction: ", direction, " | Bias: ", Signal.LastBias(),
-               " | Votes: ", Signal.LastVotes(), "/", Settings.VoteThreshold,
-               " | Reason: ", Signal.LastReason());
+         if(Settings.DebugFlow)
+            Print("[TS=0] No setup. Reason: ", Signal.LastReason(),
+                  " | Bias: ", Signal.LastBias(),
+                  " | Votes: ", Signal.LastVotes(), "/", Settings.VoteThreshold);
       }
+
+      FlowLog(StringFormat("Step B done: TS=%d (pending=%s)",
+                           direction, (g_ts_active ? "YES" : "NO")));
    }
-
-   if(Settings.DrawEntryLines && direction != 0)
-      SEA_DrawEntrySignalLine(iTime(_Symbol, PERIOD_CURRENT, 1), direction, Signal.LastReason());
-
-   FlowLog(StringFormat("Step C: ProcessSignal (direction=%d)", direction));
-   if(direction != 0)
-      Executor.ProcessSignal(direction, atr);
+   else if(g_ts_active)
+   {
+      // A TS is already pending TE on the next bar — skip fresh TS evaluation
+      // to avoid overwriting the pending setup before TE has fired.
+      if(Settings.DebugFlow)
+         PrintFormat("[TS SKIP] TS already pending for %s direction=%d; skipping new TS evaluation",
+                     TimeToString(g_ts_bar_time, TIME_DATE|TIME_MINUTES), g_ts_direction);
+   }
 
    // Build TS/TE snapshot strings for cockpit display
    string ts_snap = "";
@@ -531,8 +607,6 @@ void OrchestrateTick()
    }
 
    // Capture current vote states for cockpit display
-   // NOTE: Must capture diagnostics before CaptureVoteSnapshots to avoid side-effects
-   //       from Check_P123 which writes to m_diag_last_reason.
    int   snap_bias   = Signal.LastBias();
    int   snap_votes  = Signal.LastVotes();
    string snap_reason = Signal.LastReason();
@@ -543,7 +617,9 @@ void OrchestrateTick()
    // Build pipeline diagnostics string (EMA values, structure gate, statistics)
    string diag_snap = Signal.GetDiagnosticsString();
 
-   SEA_UI_UpdateCockpitPanel(atr, direction, snap_bias, snap_votes, snap_reason, ts_snap, te_snap, vote_snaps, vote_snap_count, diag_snap);
+   SEA_UI_UpdateCockpitPanel(atr, (g_ts_active ? g_ts_direction : 0),
+                             snap_bias, snap_votes, snap_reason,
+                             ts_snap, te_snap, vote_snaps, vote_snap_count, diag_snap);
    FlowLog("Bar pipeline complete");
 }
 
@@ -560,7 +636,10 @@ void OrchestrateDeinit(const int reason)
    FlowLog(StringFormat("EA stop -> OnDeinit(reason=%d)", reason));
 
    Signal.Release();
-   g_last_bar_time = 0;
+   g_last_bar_time  = 0;
+   g_ts_active      = false;
+   g_ts_direction   = 0;
+   g_ts_bar_time    = 0;
 
    FlowLog("OnDeinit complete");
 }
