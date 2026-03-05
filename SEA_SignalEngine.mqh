@@ -151,50 +151,183 @@ private:
       return GetVal(h_adx, shift) > m_settings.T_Adx; 
    }
    
-   // Vote 3: MACD (Alignment or Zero Cross)
-   // 
-   // MACD Indicator has 3 buffer outputs:
+   // Vote 3: MACD — two-tier architecture (base mode + optional filters)
+   //
+   // MACD Indicator buffer outputs:
    //   Buffer 0 = MACD Main Line (fast EMA - slow EMA)
    //   Buffer 1 = MACD Signal Line (SMA of Main Line)
-   //   Buffer 2 = MACD Histogram (Main - Signal) [NOT USED HERE]
-   //
-   // WHY NOT USE HISTOGRAM?
-   // - Histogram only shows RELATIVE position (main vs signal)
-   // - We need ABSOLUTE position (main vs zero line) for RRM rules
-   // - Example: Histogram rising but both lines below zero = FALSE bullish signal
-   // 
-   // RRM REQUIREMENT:
-   // - LONG: MACD must be ABOVE zero (bullish momentum) AND rising (main > signal)
-   // - SHORT: MACD must be BELOW zero (bearish momentum) AND falling (main < signal)
+   //   Buffer 2 = MACD Histogram (Main - Signal)
    //
    bool Check_MACD(int bias, int shift) {
-      // Read MACD values at specified bar shift
-      // shift parameter = which bar (0=current, 1=previous, 2=two bars ago)
-      // buffer index = which line (0=main, 1=signal, 2=histogram)
-      double m = GetVal(h_macd, shift, 0); // Main Line at bar 'shift'
-      double s = GetVal(h_macd, shift, 1); // Signal Line at bar 'shift'
-      
-      if(m_settings.MacdMode == MACD_SIGNAL_ALIGN) {
-         // RRM FIX: Require BOTH zero-line position AND histogram direction
-         // This prevents taking longs when MACD is bearish (below zero)
-         // and prevents taking shorts when MACD is bullish (above zero)
-         if(bias == 1) {
-            // LONG: MACD must be above zero AND main above signal
-            // Equivalent to: "MACD is bullish AND accelerating upward"
-            return (m > 0 && m > s);
-         } else {
-            // SHORT: MACD must be below zero AND main below signal
-            // Equivalent to: "MACD is bearish AND accelerating downward"
-            return (m < 0 && m < s);
+      if(!m_settings.Ind_Macd_Enabled) return false;
+
+      double m = GetVal(h_macd, shift, 0);  // Main line
+      double s = GetVal(h_macd, shift, 1);  // Signal line
+      double h = m - s;                      // Histogram
+
+      // ══════════════════════════════════════════════════════════
+      // STEP 1: Base Mode Check
+      // ══════════════════════════════════════════════════════════
+      bool base_pass = false;
+
+      switch(m_settings.MacdVoteMode) {
+         case MACD_ZERO_LINE:
+            base_pass = (bias == 1) ? (m > 0) : (m < 0);
+            break;
+
+         case MACD_HISTOGRAM:
+            base_pass = (bias == 1) ? (h > 0) : (h < 0);
+            break;
+
+         case MACD_CROSSOVER:
+            base_pass = (bias == 1) ? (m > s) : (m < s);
+            break;
+
+         case MACD_ZERO_AND_CROSS:  // RRM default (industry "traditional")
+            base_pass = (bias == 1) ? (m > 0 && m > s) : (m < 0 && m < s);
+            break;
+
+         case MACD_ZERO_AND_HIST:
+            base_pass = (bias == 1) ? (m > 0 && h > 0) : (m < 0 && h < 0);
+            break;
+
+         case MACD_TRIPLE:
+            base_pass = (bias == 1) ? (m > 0 && m > s && h > 0) :
+                                      (m < 0 && m < s && h < 0);
+            break;
+
+         case MACD_CROSSOVER_N: {
+            int bars_since = GetBarsSinceMACDCrossover(bias, shift);
+            base_pass = (bars_since >= 0 && bars_since <= m_settings.MacdFreshBars);
+            break;
+         }
+
+         case MACD_ZERO_CROSS_N: {
+            int bars_since_zero = GetBarsSinceMACDZeroCross(bias, shift);
+            base_pass = (bars_since_zero >= 0 && bars_since_zero <= m_settings.MacdFreshBars);
+            break;
          }
       }
-      // Zero Cross Mode (unchanged)
-      // Only checks if MACD main line is above/below zero
-      // Does NOT require alignment with signal line
-      return (bias==1) ? (m > 0) : (m < 0);
+
+      if(!base_pass) return false;
+
+      // ══════════════════════════════════════════════════════════
+      // STEP 2: Advanced Filters (optional add-ons)
+      // ══════════════════════════════════════════════════════════
+
+      // Filter A: Slope (MACD accelerating)
+      if(m_settings.MacdRequireSlope) {
+         double m_prev = GetVal(h_macd, shift + 1, 0);
+         double slope  = m - m_prev;
+
+         // Check minimum slope threshold (if configured)
+         if(m_settings.MacdSlopeMin > 0 && MathAbs(slope) < m_settings.MacdSlopeMin)
+            return false;
+
+         // Check direction matches bias
+         bool accelerating = (bias == 1) ? (slope > 0) : (slope < 0);
+         if(!accelerating) return false;
+      }
+
+      // Filter B: Divergence (price vs MACD disagreement)
+      if(m_settings.MacdRequireDivergence) {
+         if(!CheckMACDDivergence(bias, shift)) return false;
+      }
+
+      // Filter C: Hook (histogram reversal)
+      if(m_settings.MacdRequireHook) {
+         double h_prev = GetVal(h_macd, shift + 1, 0) - GetVal(h_macd, shift + 1, 1);
+         bool hook = (bias == 1) ? (h > 0 && h_prev <= 0) : (h < 0 && h_prev >= 0);
+         if(!hook) return false;
+      }
+
+      return true;  // Base + all filters passed
    }
-   
-   // Vote 4: RSI (Extreme Filter or Trend)
+
+   // Helper: Detect bars since MACD main/signal crossover
+   int GetBarsSinceMACDCrossover(int bias, int shift) {
+      static const int MACD_EVENT_LOOKBACK = 20;  // Max bars to look back for a recent MACD event
+      for(int i = shift; i < shift + MACD_EVENT_LOOKBACK; i++) {
+         double m_curr = GetVal(h_macd, i,     0);
+         double s_curr = GetVal(h_macd, i,     1);
+         double m_prev = GetVal(h_macd, i + 1, 0);
+         double s_prev = GetVal(h_macd, i + 1, 1);
+
+         // Bullish crossover: main crosses above signal
+         if(bias == 1 && m_prev <= s_prev && m_curr > s_curr)
+            return (i - shift);
+
+         // Bearish crossover: main crosses below signal
+         if(bias == -1 && m_prev >= s_prev && m_curr < s_curr)
+            return (i - shift);
+      }
+      return -1;  // No recent crossover found
+   }
+
+   // Helper: Detect bars since MACD zero line cross
+   int GetBarsSinceMACDZeroCross(int bias, int shift) {
+      static const int MACD_EVENT_LOOKBACK = 20;  // Max bars to look back for a recent MACD event
+      for(int i = shift; i < shift + MACD_EVENT_LOOKBACK; i++) {
+         double m_curr = GetVal(h_macd, i,     0);
+         double m_prev = GetVal(h_macd, i + 1, 0);
+
+         // Bullish: crosses above zero
+         if(bias == 1 && m_prev <= 0 && m_curr > 0)
+            return (i - shift);
+
+         // Bearish: crosses below zero
+         if(bias == -1 && m_prev >= 0 && m_curr < 0)
+            return (i - shift);
+      }
+      return -1;  // No recent zero cross
+   }
+
+   // Helper: Check for bullish/bearish divergence
+   bool CheckMACDDivergence(int bias, int shift) {
+      // Simple divergence check using two non-overlapping 10-bar windows
+      // Bullish divergence: price makes lower low, MACD makes higher low
+      // Bearish divergence: price makes higher high, MACD makes lower high
+
+      if(shift + 20 >= Bars(m_symbol, PERIOD_CURRENT)) return false;
+
+      if(bias == 1) {
+         // Recent swing low (bars shift..shift+9) vs prior swing low (bars shift+10..shift+19)
+         int price_low_idx  = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, 10, shift);
+         int price_low_idx2 = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, 10, shift + 10);
+         double price_low_curr = iLow(m_symbol, PERIOD_CURRENT, price_low_idx);
+         double price_low_prev = iLow(m_symbol, PERIOD_CURRENT, price_low_idx2);
+         double macd_low_curr  = GetVal(h_macd, price_low_idx,  0);
+         double macd_low_prev  = GetVal(h_macd, price_low_idx2, 0);
+
+         // Bullish divergence: price lower low, MACD higher low
+         return (price_low_curr < price_low_prev && macd_low_curr > macd_low_prev);
+      }
+      else {
+         // Recent swing high (bars shift..shift+9) vs prior swing high (bars shift+10..shift+19)
+         int price_high_idx  = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, 10, shift);
+         int price_high_idx2 = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, 10, shift + 10);
+         double price_high_curr = iHigh(m_symbol, PERIOD_CURRENT, price_high_idx);
+         double price_high_prev = iHigh(m_symbol, PERIOD_CURRENT, price_high_idx2);
+         double macd_high_curr  = GetVal(h_macd, price_high_idx,  0);
+         double macd_high_prev  = GetVal(h_macd, price_high_idx2, 0);
+
+         // Bearish divergence: price higher high, MACD lower high
+         return (price_high_curr > price_high_prev && macd_high_curr < macd_high_prev);
+      }
+   }
+
+   // Mode description: returns human-readable string for active MACD configuration
+   string GetMACDModeDescription()
+   {
+      return ::GetMACDModeDescription(
+         m_settings.MacdVoteMode,
+         m_settings.MacdRequireSlope,
+         m_settings.MacdRequireDivergence,
+         m_settings.MacdRequireHook
+      );
+   }
+
+
    bool Check_RSI(int bias, int shift) {
       double r = GetVal(h_rsi, shift);
       

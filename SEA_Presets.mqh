@@ -99,8 +99,28 @@ string GetPresetContractWording(EStrategyPreset preset)
 //            (RequirePriceCross, UseHTF, CloseOnReverse, RiskPercent,
 //             SL/TP modes and multipliers, trailing stop, breakeven,
 //             and phase detection & layer filtering settings (§5)).
+//
+// NOTE: MACD mode/filter settings are unconditionally applied from user inputs at the top
+//       of this function, BEFORE the AdminOverridePreset gate. This is by design (two-tier
+//       MACD architecture): the preset sets a safe default (e.g. MACD_ZERO_AND_CROSS), then
+//       the user's MACD inputs ALWAYS override it so signal configuration changes are never
+//       silently blocked by a preset. All other preset-locked settings still respect the gate.
 void ApplyAdminOverrides(ST_Settings &cfg)
 {
+   // MACD settings — ALWAYS apply from user inputs (not gated by AdminOverridePreset)
+   // Rationale: MACD vote mode is a signal-tuning parameter that users must be able to
+   //            change at any time without enabling full AdminOverridePreset mode.
+   cfg.MacdVoteMode          = Inp_MacdVoteMode;
+   cfg.MacdRequireSlope      = Inp_MacdRequireSlope;
+   cfg.MacdRequireDivergence = Inp_MacdRequireDivergence;
+   cfg.MacdRequireHook       = Inp_MacdRequireHook;
+   cfg.MacdFreshBars         = Inp_MacdFreshBars;
+   cfg.MacdSlopeMin          = Inp_MacdSlopeMin;
+   cfg.P_MacdFast            = Inp_P_MacdFast;
+   cfg.P_MacdSlow            = Inp_P_MacdSlow;
+   cfg.P_MacdSig             = Inp_P_MacdSig;
+
+   // Exit here if not admin mode — only MACD settings above are applied
    if(!cfg.AdminOverridePreset) return;
 
    cfg.AutoStrat      = Inp_Override_AutoStrat;
@@ -733,6 +753,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_MacdFast = 8;     //  8,
       cfg.P_MacdSlow = 13;    // 13,
       cfg.P_MacdSig  = 8;     //  8,
+
+      // MACD vote mode: default industry "traditional" (zero + crossover)
+      cfg.MacdVoteMode          = MACD_ZERO_AND_CROSS;
+      cfg.MacdRequireSlope      = false;
+      cfg.MacdRequireDivergence = false;
+      cfg.MacdRequireHook       = false;
+      cfg.MacdFreshBars         = 3;
+      cfg.MacdSlopeMin          = 0.00001;
    
       cfg.RRM_Lookback               = 5;
       cfg.RRM_MinDivPips             = 1.5;  // ✅ PROTECTION 7: Deeper pullback required (was 0.5)

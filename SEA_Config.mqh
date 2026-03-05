@@ -92,11 +92,45 @@ enum EEmaRole
 };
 
 // Indicator Modes
-enum EMacdMode
+
+// MACD Vote Mode: two-tier architecture (base mode + optional filters)
+enum EMacdVoteMode
 {
-   MACD_SIGNAL_ALIGN,
-   MACD_ZERO_CROSS
+   // === SINGLE CHECKS (persistent) ===
+   MACD_ZERO_LINE,        // Main > 0 (bullish momentum zone)
+   MACD_HISTOGRAM,        // Histogram > 0 (acceleration)
+   MACD_CROSSOVER,        // Main > Signal (momentum shift)
+
+   // === COMBINATION CHECKS (persistent, strict) ===
+   MACD_ZERO_AND_CROSS,   // Zero + Crossover (RRM default, industry "traditional")
+   MACD_ZERO_AND_HIST,    // Zero + Histogram (strict momentum)
+   MACD_TRIPLE,           // Zero + Cross + Hist (ultra-strict)
+
+   // === TIME-LIMITED (fresh signals only) ===
+   MACD_CROSSOVER_N,      // Fresh crossover (within N bars)
+   MACD_ZERO_CROSS_N      // Fresh zero cross (within N bars)
 };
+
+// Returns human-readable description of active MACD configuration
+string GetMACDModeDescription(EMacdVoteMode mode, bool has_slope, bool has_div, bool has_hook)
+{
+   string base = "";
+   switch(mode) {
+      case MACD_ZERO_LINE:      base = "Main>0 (momentum zone)"; break;
+      case MACD_HISTOGRAM:      base = "Histogram>0 (acceleration)"; break;
+      case MACD_CROSSOVER:      base = "Main>Signal (shift)"; break;
+      case MACD_ZERO_AND_CROSS: base = "Main>0 AND Main>Signal (traditional)"; break;
+      case MACD_ZERO_AND_HIST:  base = "Main>0 AND Histogram>0 (strict)"; break;
+      case MACD_TRIPLE:         base = "Zero+Cross+Hist (ultra-strict)"; break;
+      case MACD_CROSSOVER_N:    base = "Fresh crossover (within N bars)"; break;
+      case MACD_ZERO_CROSS_N:   base = "Fresh zero cross (within N bars)"; break;
+   }
+   string filters = "";
+   if(has_slope) filters += " +SLOPE";
+   if(has_div)   filters += " +DIVERGENCE";
+   if(has_hook)  filters += " +HOOK";
+   return base + filters;
+}
 
 enum ERsiMode
 {
@@ -366,7 +400,12 @@ struct ST_Settings
    double T_MfiOS;
 
    // Modes
-   EMacdMode  MacdMode;
+   EMacdVoteMode MacdVoteMode;           // MACD base vote mode
+   bool          MacdRequireSlope;       // Filter: require acceleration
+   bool          MacdRequireDivergence;  // Filter: require divergence
+   bool          MacdRequireHook;        // Filter: require histogram flip
+   int           MacdFreshBars;          // For _N modes: fresh signal validity
+   double        MacdSlopeMin;           // Min slope threshold (0=disabled)
    ERsiMode   RsiMode;
    ECciMode   CciMode;
    EStochMode StoMode;
@@ -640,11 +679,28 @@ input int            Inp_Ind_Adx_Threshold      = 20;                  // [ADX] 
 input group "═══ 📊 Indicator: MACD ═══"
 input bool           Inp_Ind_Macd_Enabled       = true;                // [MACD] Enable MACD vote
 input int            Inp_Ind_Macd_Weight        = 1;                   // [MACD] Vote weight
-input string         Inp_Ind_Macd_Info          = "MACD histogram alignment"; // [MACD] Description
-input EMacdMode      Inp_Ind_Macd_Mode          = MACD_SIGNAL_ALIGN;   // [MACD] Mode (signal align / zero cross)
-input int            Inp_Ind_Macd_Fast          = 8;                   // [MACD] Fast period
-input int            Inp_Ind_Macd_Slow          = 13;                  // [MACD] Slow period
-input int            Inp_Ind_Macd_Signal        = 8;                   // [MACD] Signal period
+
+input group "=== MACD: BASE MODE (Choose ONE) ==="
+input EMacdVoteMode  Inp_MacdVoteMode           = MACD_ZERO_AND_CROSS; // MACD base mode
+
+input group "=== MACD: ADVANCED FILTERS (Optional Add-Ons) ==="
+input string         Inp_MacdFilterInfo         = "Enable filters below to add requirements to base mode";  // [Info]
+input bool           Inp_MacdRequireSlope       = false;  // ✓ Add: Require MACD rising/falling (momentum acceleration)
+input bool           Inp_MacdRequireDivergence  = false;  // ✓ Add: Require price/MACD divergence (reversal signal)
+input bool           Inp_MacdRequireHook        = false;  // ✓ Add: Require histogram flip (early reversal)
+
+input group "=== MACD: PARAMETERS ==="
+input int            Inp_P_MacdFast             = 8;      // MACD Fast EMA period
+input int            Inp_P_MacdSlow             = 13;     // MACD Slow EMA period
+input int            Inp_P_MacdSig              = 8;      // MACD Signal SMA period
+input int            Inp_MacdFreshBars          = 3;      // Fresh signal validity (for _N modes, 0=disabled)
+input double         Inp_MacdSlopeMin           = 0.00001; // Min slope change per bar (0=disabled, smaller = more permissive)
+
+input group "=== MACD: HELP ==="
+input string         Inp_MacdHelp1              = "BASE MODE: Select primary logic from dropdown above";            // Line 1
+input string         Inp_MacdHelp2              = "FILTERS: Check boxes to add extra requirements";                 // Line 2
+input string         Inp_MacdHelp3              = "Example: ZERO_LINE + Slope = Main>0 AND rising";                // Line 3
+input string         Inp_MacdHelp4              = "Example: CROSSOVER_N + Divergence = Fresh cross + bullish div"; // Line 4
 
 input group "═══ 📊 Indicator: RSI ═══"
 input bool           Inp_Ind_Rsi_Enabled        = false;               // [RSI] Enable RSI vote
@@ -1089,9 +1145,9 @@ void InitializeConfig()
    Settings.P_Ema4               = InpEma4Period;
    Settings.P_Adx                = Inp_Ind_Adx_Period;
    Settings.T_Adx                = Inp_Ind_Adx_Threshold;
-   Settings.P_MacdFast           = Inp_Ind_Macd_Fast;
-   Settings.P_MacdSlow           = Inp_Ind_Macd_Slow;
-   Settings.P_MacdSig            = Inp_Ind_Macd_Signal;
+   Settings.P_MacdFast           = Inp_P_MacdFast;
+   Settings.P_MacdSlow           = Inp_P_MacdSlow;
+   Settings.P_MacdSig            = Inp_P_MacdSig;
    Settings.P_Rsi                = Inp_Ind_Rsi_Period;
    Settings.T_RsiOB              = Inp_Ind_Rsi_OB;
    Settings.T_RsiOS              = Inp_Ind_Rsi_OS;
@@ -1113,7 +1169,12 @@ void InitializeConfig()
    Settings.P_Atr                = 14;
 
    // Modes
-   Settings.MacdMode             = Inp_Ind_Macd_Mode;
+   Settings.MacdVoteMode         = Inp_MacdVoteMode;
+   Settings.MacdRequireSlope     = Inp_MacdRequireSlope;
+   Settings.MacdRequireDivergence= Inp_MacdRequireDivergence;
+   Settings.MacdRequireHook      = Inp_MacdRequireHook;
+   Settings.MacdFreshBars        = Inp_MacdFreshBars;
+   Settings.MacdSlopeMin         = Inp_MacdSlopeMin;
    Settings.RsiMode              = Inp_Ind_Rsi_Mode;
    Settings.CciMode              = Inp_Ind_Cci_Mode;
    Settings.StoMode              = Inp_Ind_Sto_Mode;

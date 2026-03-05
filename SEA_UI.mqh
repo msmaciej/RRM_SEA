@@ -333,8 +333,10 @@ string SEA_UI_BuildIndicatorConfigs(const ST_Settings &cfg)
 {
    string output = "Indicator Configs:\n";
    if(cfg.Ind_Macd_Enabled)
-      output += StringFormat("  MACD: %d/%d/%d (Fast/Slow/Sig)\n",
-                             cfg.P_MacdFast, cfg.P_MacdSlow, cfg.P_MacdSig);
+      output += StringFormat("  MACD: %d/%d/%d (Fast/Slow/Sig) [%s]\n",
+                             cfg.P_MacdFast, cfg.P_MacdSlow, cfg.P_MacdSig,
+                             GetMACDModeDescription(cfg.MacdVoteMode, cfg.MacdRequireSlope,
+                                                    cfg.MacdRequireDivergence, cfg.MacdRequireHook));
    if(cfg.Ind_Psar_Enabled)
       output += StringFormat("  PSAR: Step=%.2f, Max=%.2f\n",
                              cfg.P_PsarStep, cfg.P_PsarMax);
