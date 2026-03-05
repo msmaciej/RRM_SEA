@@ -175,6 +175,12 @@ void ApplyAdminOverrides(ST_Settings &cfg)
    cfg.RequireMinPhaseConfirm     = Inp_Override_RequireMinPhaseConfirm;
    cfg.MinPhaseConfirmBars        = Inp_Override_MinPhaseConfirmBars;
 
+   // §6 RRM Drawdown Protection
+   cfg.RRM_EnableDrawdownProtection = Inp_RRM_EnableDrawdownProtection;
+   cfg.RRM_MaxConsecutiveLosses     = Inp_RRM_MaxConsecutiveLosses;
+   cfg.RRM_MaxTradesPerDay          = Inp_RRM_MaxTradesPerDay;
+   cfg.RRM_MaxDailyDrawdownPct      = Inp_RRM_MaxDailyDrawdownPct;
+
    // Layer 1 (Weak, EMA1/EMA2) phase permissions
    cfg.Trending_AllowWeakTrades   = Inp_Override_Layer1_AllowTrending;
    cfg.Emerging_AllowWeakTrades   = Inp_Override_Layer1_AllowEmerging;
@@ -683,7 +689,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.BiasSlowID = (int)ROLE_EMA4;  // Not used in phase bias, kept for structure
          
          cfg.P_Ema1 = 5; cfg.P_Ema2 = 13; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
-         cfg.MaxSpread = (mode == RRM_SCALP) ? 2.5 : 5.0;
+         cfg.MaxSpread = (mode == RRM_SCALP) ? 2.0 : 4.0;  // ✅ PROTECTION 3: Tighter spread
       }
       else
       {
@@ -696,7 +702,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
             cfg.P_Ema1 = 5; cfg.P_Ema2 = 13; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
    
-            cfg.MaxSpread = 2.5;
+            cfg.MaxSpread = 2.0;  // ✅ PROTECTION 3: Tighter spread (was 2.5)
          }
          else
          {
@@ -706,7 +712,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
             cfg.P_Ema1 = 5; cfg.P_Ema2 = 13; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
    
-            cfg.MaxSpread = 5.0;
+            cfg.MaxSpread = 4.0;  // ✅ PROTECTION 3: Tighter spread (was 5.0)
          }
       }
    
@@ -729,14 +735,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_MacdSig  = 8;     //  8,
    
       cfg.RRM_Lookback               = 5;
-      cfg.RRM_MinDivPips             = 0.5;
+      cfg.RRM_MinDivPips             = 1.5;  // ✅ PROTECTION 7: Deeper pullback required (was 0.5)
    
       // Dynamic structure pullback gate (no pip thresholds)
       ENUM_TIMEFRAMES tf = (ENUM_TIMEFRAMES)_Period;
    
       cfg.RequirePullback            = true;
-      cfg.PullbackLookback           = (tf <= PERIOD_M5 ? 15 : 10);
-      cfg.RequireRecoveryMomentum    = false;
+      cfg.PullbackLookback           = (tf <= PERIOD_M5 ? 20 : 15);  // ✅ PROTECTION 6: Longer lookback (was 15/10)
+      cfg.RequireRecoveryMomentum    = true;   // ✅ PROTECTION 2: Confirm momentum (was false)
       cfg.Gate_UseMultiLayer         = true;
    
       cfg.Vote_EvalShift    = 1;
@@ -761,11 +767,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EnableLayerDetection       = true;
       cfg.BlockUnorderedPhase        = true;
       cfg.RequireMinPhaseConfirm     = true;
-      cfg.MinPhaseConfirmBars        = 3;
+      cfg.MinPhaseConfirmBars        = 4;  // ✅ PROTECTION 1: Stricter confirmation (was 3)
    
       // Layer phase permissions (PR4):
-      // EMERGING phase: L1/L2 allowed, L3 blocked (deep pullback too risky in forming trend)
-      cfg.Emerging_AllowWeakTrades   = true;
+      // ✅ PROTECTION 5: Stricter EMERGING phase filtering
+      // EMERGING phase: Only L2 allowed, L1/L3 blocked (reduce false signals in forming trends)
+      cfg.Emerging_AllowWeakTrades   = false;  // ✅ Changed from true - L1 too risky
       cfg.Emerging_AllowMediumTrades = true;
       cfg.Emerging_AllowStrongTrades = false;
       // TRENDING phase: all layers allowed (strong established trend)
@@ -775,8 +782,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
       if(cfg.PrintEffectiveConfig || cfg.DebugFlow)
       {
-         Print("=== PRESET APPLIED: RRM ===");
+         Print("=== PRESET APPLIED: RRM (Enhanced Protection) ===");
          Print("  BiasMode: ", EnumToString(cfg.BiasMode));
+         Print("  MinPhaseConfirmBars: ", cfg.MinPhaseConfirmBars, " (4-bar confirmation)");
+         Print("  RequireRecoveryMomentum: ", cfg.RequireRecoveryMomentum ? "YES" : "NO");
+         Print("  PullbackLookback: ", cfg.PullbackLookback);
+         Print("  RRM_MinDivPips: ", cfg.RRM_MinDivPips);
+         Print("  MaxSpread: ", cfg.MaxSpread);
          Print("  SL_PlacementMode: ", EnumToString(cfg.SL_PlacementMode));
          Print("  SL_Mult (ATR): ", cfg.SL_Mult, " (0.0 = ATR disabled)");
          Print("  SL_SwingPipsCushion: ", cfg.SL_SwingPipsCushion);
@@ -796,9 +808,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.NewsPre   = op_NewsPre;
       cfg.NewsPost  = op_NewsPost;
    
-      cfg.UseHTF    = op_UseHTF;
-      cfg.HtfPeriod = op_HtfPeriod;
-      cfg.P_HtfEma  = op_P_HtfEma;
+      // ✅ PROTECTION 4: Enable HTF filter for multi-timeframe confirmation
+      cfg.UseHTF    = true;  // Changed from op_UseHTF - force enable
+      cfg.HtfPeriod = (_Period == PERIOD_M15) ? PERIOD_H1 : 
+                      (_Period <= PERIOD_M5) ? PERIOD_H1 : PERIOD_H4;
+      cfg.P_HtfEma  = 89;    // Use slow EMA on higher timeframe
    
       ApplyAdminOverrides(cfg);
       return;
@@ -821,6 +835,66 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    cfg.HtfPeriod = op_HtfPeriod;
    cfg.P_HtfEma  = op_P_HtfEma;
 }
+
+/*
+PROPOSED MODIFICATION:
+
+if(preset == PRESET_RRM)
+{
+   // ... existing code ...
+
+   // ✅ 1. STRICTER PHASE CONFIRMATION (reduce whipsaws)
+   cfg.MinPhaseConfirmBars        = 4;  // Was 3, now 4 bars required
+
+   // ✅ 2. REQUIRE RECOVERY MOMENTUM (confirm trend resumption)
+   cfg.RequireRecoveryMomentum    = true;  // Was false
+
+   // ✅ 3. TIGHTER SPREAD FILTER (avoid poor execution)
+   cfg.MaxSpread = (mode == RRM_SCALP) ? 2.0 : 4.0;  // Was 2.5/5.0
+
+   // ✅ 4. ENABLE HTF FILTER (confirm higher timeframe alignment)
+   cfg.UseHTF    = true;   // Require H1/H4 alignment
+   cfg.HtfPeriod = (_Period == PERIOD_M15) ? PERIOD_H1 : PERIOD_H4;
+   cfg.P_HtfEma  = 89;     // Use slow EMA on HTF
+
+   // ✅ 5. STRICTER EMERGING PHASE (only allow safest layer)
+   cfg.Emerging_AllowWeakTrades   = false;  // Was true - L1 too risky
+   cfg.Emerging_AllowMediumTrades = true;   // Keep L2
+   cfg.Emerging_AllowStrongTrades = false;  // Keep blocked
+
+   // ✅ 6. INCREASE PULLBACK LOOKBACK (better structure detection)
+   cfg.PullbackLookback = (tf <= PERIOD_M5 ? 20 : 15);  // Was 15/10
+
+   // ✅ 7. ADD MINIMUM EMA DIVERGENCE (confirm pullback depth)
+   cfg.RRM_MinDivPips = 1.5;  // Was 0.5 - require deeper pullback
+
+   // ... rest of preset ...
+}
+
+Additional external protections (add to inputs, checked in filters):
+
+// In SEA_Config.mqh inputs:
+input group "=== PRESET_RRM: DRAWDOWN PROTECTION ==="
+input int    Inp_RRM_MaxConsecutiveLosses = 5;   // Pause after X losses
+input int    Inp_RRM_MaxTradesPerDay      = 10;  // Daily trade limit
+input double Inp_RRM_MaxDailyDrawdownPct  = 2.0; // Pause if daily DD > 2%
+
+// In filter logic:
+if(consecutive_losses >= Inp_RRM_MaxConsecutiveLosses) return 0; // Pause
+if(trades_today >= Inp_RRM_MaxTradesPerDay) return 0;           // Daily limit
+if(daily_drawdown_pct > Inp_RRM_MaxDailyDrawdownPct) return 0; // DD protection
+
+
+Quick wins to add NOW:
+
+MinPhaseConfirmBars = 4 (fewer false signals)
+RequireRecoveryMomentum = true (confirm momentum)
+Emerging_AllowWeakTrades = false (block risky L1 in forming trends)
+UseHTF = true (multi-timeframe confirmation)
+
+These changes will reduce trade frequency but increase quality, targeting the high-loss periods visible in your equity curve.
+
+*/
 
 // Temporary back-compat for any remaining callers.
 // Core .mq5 should use InitializeConfig + ApplyPreset directly.

@@ -446,6 +446,13 @@ struct ST_Settings
    // Adaptive settings (pair-aware spread, TF-aware ATR/SL/TP/trail)
    ST_AdaptiveSettings Adaptive;
 
+   // RRM Drawdown Protection (§6)
+   bool     RRM_EnableDrawdownProtection;
+   int      RRM_MaxConsecutiveLosses;
+   int      RRM_MaxTradesPerDay;
+   double   RRM_MaxDailyDrawdownPct;
+
+
    //==========================================================================
    // 260304_PR1: PHASE DETECTION SETTINGS (Foundation - Not used yet)
    //==========================================================================
@@ -867,6 +874,16 @@ input group "--- 🔓 §5.3 Admin Override: Layer 3 (Strong/EMA34-89) Allowed Ph
 input bool     Inp_Override_Layer3_AllowTrending    = true;    // [Admin] Layer 3: Allow TRENDING phase when AdminOverride=true
 input bool     Inp_Override_Layer3_AllowEmerging    = false;   // [Admin] Layer 3: Allow EMERGING phase when AdminOverride=true
 
+//══════════════════════════════════════════════════════════════════════════════
+// 🔓 ZONE 3B: ADMIN OVERRIDE (§6 — RRM Drawdown Protection)
+//══════════════════════════════════════════════════════════════════════════════
+
+input group "--- 🔓 §6 Admin Override: RRM Drawdown Protection ---"
+input bool   Inp_RRM_EnableDrawdownProtection = false;  // [Admin] Enable DD protection
+input int    Inp_RRM_MaxConsecutiveLosses     = 5;      // [Admin] Pause after X consecutive losses
+input int    Inp_RRM_MaxTradesPerDay          = 15;     // [Admin] Max trades per day (0=unlimited)
+input double Inp_RRM_MaxDailyDrawdownPct      = 3.0;    // [Admin] Pause if daily DD exceeds % (0=disabled)
+
 //+------------------------------------------------------------------+
 //| ADAPTIVE UTILITY FUNCTIONS                                       |
 //+------------------------------------------------------------------+
@@ -1245,6 +1262,14 @@ void InitializeConfig()
    // - UNORDERED: blocks ALL trades
    // - EMERGING: blocks STRONG (Layer 3) trades
    // - TRENDING: allows all layers
+
+   // ═══════════════════════════════════════════════════════════════
+   // RRM Drawdown Protection (§6) - DISABLED by default
+   // ═══════════════════════════════════════════════════════════════
+   Settings.RRM_EnableDrawdownProtection = false;
+   Settings.RRM_MaxConsecutiveLosses     = 5;
+   Settings.RRM_MaxTradesPerDay          = 15;
+   Settings.RRM_MaxDailyDrawdownPct      = 3.0;
 }
 
 //+------------------------------------------------------------------+

@@ -77,6 +77,12 @@ int      g_ts_votes  = 0;
 int      g_ts_thr    = 0;
 string   g_ts_reason = "";
 
+// Global tracking for RRM drawdown protection
+int      g_consecutive_losses     = 0;
+int      g_trades_today           = 0;
+datetime g_last_trade_date        = 0;
+double   g_daily_starting_balance = 0.0;
+
 //+------------------------------------------------------------------+
 //| EXPERT LIFECYCLE                                                 |
 //+------------------------------------------------------------------+
@@ -94,6 +100,53 @@ void OnTick()
 }
 
 void OnDeinit(const int reason) { OrchestrateDeinit(reason); }
+
+// ✅ ADD THIS NEW HANDLER HERE (after OnDeinit, before helpers section)
+void OnTradeTransaction(const MqlTradeTransaction& trans,
+                        const MqlTradeRequest& request,
+                        const MqlTradeResult& result)
+{
+   Print("OnTradeTransaction fired: type=", EnumToString(trans.type)); // ✅ Test
+
+   // Only process deal transactions (position close events)
+   if(trans.type != TRADE_TRANSACTION_DEAL_ADD) return;
+   
+   // Only track our EA's positions
+   if(trans.symbol != _Symbol) return;
+   
+   // Get deal information
+   ulong deal_ticket = trans.deal;
+   if(deal_ticket == 0) return;
+   
+   if(HistoryDealSelect(deal_ticket))
+   {
+      long deal_magic = HistoryDealGetInteger(deal_ticket, DEAL_MAGIC);
+      if(deal_magic != Inp_MagicNum) return;  // Not our trade
+      
+      long deal_entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
+      if(deal_entry != DEAL_ENTRY_OUT) return;  // Not a position close
+      
+      // Get profit/loss
+      double profit = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
+      double swap = HistoryDealGetDouble(deal_ticket, DEAL_SWAP);
+      double commission = HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
+      double total_pl = profit + swap + commission;
+      
+      bool was_profitable = (total_pl > 0);
+      
+      // Update tracking
+      UpdateRRMDrawdownTracking(was_profitable);
+      
+      if(Settings.DebugFlow)
+      {
+         PrintFormat("[RRM_DD_TRACK] Position closed: P/L=%.2f %s | Consecutive losses=%d | Trades today=%d",
+                     total_pl, 
+                     was_profitable ? "WIN" : "LOSS",
+                     g_consecutive_losses,
+                     g_trades_today);
+      }
+   }
+}
 
 //+------------------------------------------------------------------+
 //| HELPERS                                                          |
@@ -242,6 +295,22 @@ bool ValidateEffectiveSettings()
    return true;
 }
 
+// When a trade closes, update consecutive loss counter and daily trade count
+void UpdateRRMDrawdownTracking(bool was_profitable)
+{
+   if(!Settings.RRM_EnableDrawdownProtection) return;
+   
+   g_trades_today++;  // Increment daily trade counter
+   
+   if(was_profitable)
+      g_consecutive_losses = 0;  // Reset on win
+   else
+      g_consecutive_losses++;    // Increment on loss
+}
+
+// Call this from your OnTrade() handler when a position closes:
+// UpdateRRMDrawdownTracking(profit > 0);
+
 //+------------------------------------------------------------------+
 //| INIT                                                             |
 //+------------------------------------------------------------------+
@@ -321,7 +390,7 @@ int OrchestrateInit()
       Signal.LoadNews(Inp_NewsFile);
 
    SEA_UI_Init(Inp_MagicNum);
-   SEA_UI_UpdateSettingsPanel(Signal.GetLastDetectedPhase());
+   SEA_UI_UpdateSettingsPanel();
    {
       SVoteSnapshot init_snaps[];
       int init_snap_count = 0;
@@ -350,6 +419,58 @@ void OrchestrateTick()
    FlowLog("Step A: Manage open positions (Trailing/BE)");
    Executor.ManageTrade(atr);
 
+   // ═══════════════════════════════════════════════════════════════
+   // RRM Drawdown Protection Filter (§6)
+   // ═══════════════════════════════════════════════════════════════
+   if(Settings.RRM_EnableDrawdownProtection)
+   {
+      // Reset daily counters on new trading day
+      datetime today = TimeCurrent();
+      datetime today_date = today - (today % 86400);  // Strip time component
+      
+      if(today_date != g_last_trade_date)
+      {
+         g_trades_today = 0;
+         g_last_trade_date = today_date;
+         g_daily_starting_balance = AccountInfoDouble(ACCOUNT_BALANCE);
+      }
+      
+      // Check 1: Max consecutive losses
+      if(Settings.RRM_MaxConsecutiveLosses > 0 && 
+         g_consecutive_losses >= Settings.RRM_MaxConsecutiveLosses)
+      {
+         if(Settings.DebugFlow)
+            PrintFormat("[RRM_DD_PROTECT] Trading PAUSED: %d consecutive losses (max=%d)",
+                        g_consecutive_losses, Settings.RRM_MaxConsecutiveLosses);
+         return;  // Skip signal evaluation
+      }
+      
+      // Check 2: Max trades per day
+      if(Settings.RRM_MaxTradesPerDay > 0 && 
+         g_trades_today >= Settings.RRM_MaxTradesPerDay)
+      {
+         if(Settings.DebugFlow)
+            PrintFormat("[RRM_DD_PROTECT] Trading PAUSED: Daily trade limit reached (%d/%d)",
+                        g_trades_today, Settings.RRM_MaxTradesPerDay);
+         return;  // Skip signal evaluation
+      }
+      
+      // Check 3: Daily drawdown protection
+      if(Settings.RRM_MaxDailyDrawdownPct > 0.0)
+      {
+         double current_balance = AccountInfoDouble(ACCOUNT_BALANCE);
+         double daily_dd_pct = ((g_daily_starting_balance - current_balance) / g_daily_starting_balance) * 100.0;
+         
+         if(daily_dd_pct > Settings.RRM_MaxDailyDrawdownPct)
+         {
+            if(Settings.DebugFlow)
+               PrintFormat("[RRM_DD_PROTECT] Trading PAUSED: Daily DD %.2f%% exceeds limit %.2f%%",
+                           daily_dd_pct, Settings.RRM_MaxDailyDrawdownPct);
+            return;  // Skip signal evaluation
+         }
+      }
+   }
+   
    FlowLog("Step B: Compute direction signal");
    int direction = Signal.GetDirection();
 
@@ -419,14 +540,7 @@ void OrchestrateTick()
    // Build pipeline diagnostics string (EMA values, structure gate, statistics)
    string diag_snap = Signal.GetDiagnosticsString();
 
-   // 260304_PR7: Retrieve phase/layer diagnostics for UI panels
-   EMarketPhase current_phase = Signal.GetLastDetectedPhase();
-   EEntryLayer  entry_layer   = Signal.GetLastEntryLayer();
-   bool phase_layer_active    = Settings.PhaseDetectionEnabled && Settings.EnableLayerDetection;
-   bool layer_allowed         = Signal.GetLayerAllowed();
-
-   SEA_UI_UpdateSettingsPanel(current_phase);
-   SEA_UI_UpdateCockpitPanel(atr, direction, snap_bias, snap_votes, snap_reason, ts_snap, te_snap, vote_snaps, vote_snap_count, diag_snap, current_phase, entry_layer, phase_layer_active, layer_allowed);
+   SEA_UI_UpdateCockpitPanel(atr, direction, snap_bias, snap_votes, snap_reason, ts_snap, te_snap, vote_snaps, vote_snap_count, diag_snap);
    FlowLog("Bar pipeline complete");
 }
 
