@@ -684,7 +684,7 @@ input group "=== MACD: BASE MODE (Choose ONE) ==="
 input EMacdVoteMode  Inp_MacdVoteMode           = MACD_ZERO_AND_CROSS; // MACD base mode
 
 input group "=== MACD: ADVANCED FILTERS (Optional Add-Ons) ==="
-input string         Inp_MacdFilterInfo         = "Enable filters below to ADD requirements to base mode";  // ℹ️ Info
+input string         Inp_MacdFilterInfo         = "Enable filters below to add requirements to base mode";  // [Info]
 input bool           Inp_MacdRequireSlope       = false;  // ✓ Add: Require MACD rising/falling (momentum acceleration)
 input bool           Inp_MacdRequireDivergence  = false;  // ✓ Add: Require price/MACD divergence (reversal signal)
 input bool           Inp_MacdRequireHook        = false;  // ✓ Add: Require histogram flip (early reversal)
@@ -694,7 +694,7 @@ input int            Inp_P_MacdFast             = 8;      // MACD Fast EMA perio
 input int            Inp_P_MacdSlow             = 13;     // MACD Slow EMA period
 input int            Inp_P_MacdSig              = 8;      // MACD Signal SMA period
 input int            Inp_MacdFreshBars          = 3;      // Fresh signal validity (for _N modes, 0=disabled)
-input double         Inp_MacdSlopeMin           = 0.00001; // Min slope threshold (0=any slope, adaptive recommended)
+input double         Inp_MacdSlopeMin           = 0.00001; // Min slope change per bar (0=disabled, smaller = more permissive)
 
 input group "=== MACD: HELP ==="
 input string         Inp_MacdHelp1              = "BASE MODE: Select primary logic from dropdown above";            // Line 1

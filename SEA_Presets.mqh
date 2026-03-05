@@ -99,10 +99,17 @@ string GetPresetContractWording(EStrategyPreset preset)
 //            (RequirePriceCross, UseHTF, CloseOnReverse, RiskPercent,
 //             SL/TP modes and multipliers, trailing stop, breakeven,
 //             and phase detection & layer filtering settings (§5)).
+//
+// NOTE: MACD mode/filter settings are unconditionally applied from user inputs at the top
+//       of this function, BEFORE the AdminOverridePreset gate. This is by design (two-tier
+//       MACD architecture): the preset sets a safe default (e.g. MACD_ZERO_AND_CROSS), then
+//       the user's MACD inputs ALWAYS override it so signal configuration changes are never
+//       silently blocked by a preset. All other preset-locked settings still respect the gate.
 void ApplyAdminOverrides(ST_Settings &cfg)
 {
    // MACD settings — ALWAYS apply from user inputs (not gated by AdminOverridePreset)
-   // This ensures MACD mode changes are always respected regardless of preset
+   // Rationale: MACD vote mode is a signal-tuning parameter that users must be able to
+   //            change at any time without enabling full AdminOverridePreset mode.
    cfg.MacdVoteMode          = Inp_MacdVoteMode;
    cfg.MacdRequireSlope      = Inp_MacdRequireSlope;
    cfg.MacdRequireDivergence = Inp_MacdRequireDivergence;

@@ -246,7 +246,8 @@ private:
 
    // Helper: Detect bars since MACD main/signal crossover
    int GetBarsSinceMACDCrossover(int bias, int shift) {
-      for(int i = shift; i < shift + 20; i++) {
+      static const int MACD_EVENT_LOOKBACK = 20;  // Max bars to look back for a recent MACD event
+      for(int i = shift; i < shift + MACD_EVENT_LOOKBACK; i++) {
          double m_curr = GetVal(h_macd, i,     0);
          double s_curr = GetVal(h_macd, i,     1);
          double m_prev = GetVal(h_macd, i + 1, 0);
@@ -265,7 +266,8 @@ private:
 
    // Helper: Detect bars since MACD zero line cross
    int GetBarsSinceMACDZeroCross(int bias, int shift) {
-      for(int i = shift; i < shift + 20; i++) {
+      static const int MACD_EVENT_LOOKBACK = 20;  // Max bars to look back for a recent MACD event
+      for(int i = shift; i < shift + MACD_EVENT_LOOKBACK; i++) {
          double m_curr = GetVal(h_macd, i,     0);
          double m_prev = GetVal(h_macd, i + 1, 0);
 
@@ -282,30 +284,32 @@ private:
 
    // Helper: Check for bullish/bearish divergence
    bool CheckMACDDivergence(int bias, int shift) {
-      // Simple divergence check over last 10 bars
+      // Simple divergence check using two non-overlapping 10-bar windows
       // Bullish divergence: price makes lower low, MACD makes higher low
       // Bearish divergence: price makes higher high, MACD makes lower high
 
-      if(shift + 10 >= Bars(m_symbol, PERIOD_CURRENT)) return false;
+      if(shift + 20 >= Bars(m_symbol, PERIOD_CURRENT)) return false;
 
       if(bias == 1) {
+         // Recent swing low (bars shift..shift+9) vs prior swing low (bars shift+10..shift+19)
          int price_low_idx  = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, 10, shift);
-         int price_low_idx2 = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, 10, shift + 5);
+         int price_low_idx2 = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, 10, shift + 10);
          double price_low_curr = iLow(m_symbol, PERIOD_CURRENT, price_low_idx);
          double price_low_prev = iLow(m_symbol, PERIOD_CURRENT, price_low_idx2);
-         double macd_low_curr  = GetVal(h_macd, price_low_idx, 0);
-         double macd_low_prev  = GetVal(h_macd, shift + 5,     0);
+         double macd_low_curr  = GetVal(h_macd, price_low_idx,  0);
+         double macd_low_prev  = GetVal(h_macd, price_low_idx2, 0);
 
          // Bullish divergence: price lower low, MACD higher low
          return (price_low_curr < price_low_prev && macd_low_curr > macd_low_prev);
       }
       else {
+         // Recent swing high (bars shift..shift+9) vs prior swing high (bars shift+10..shift+19)
          int price_high_idx  = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, 10, shift);
-         int price_high_idx2 = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, 10, shift + 5);
+         int price_high_idx2 = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, 10, shift + 10);
          double price_high_curr = iHigh(m_symbol, PERIOD_CURRENT, price_high_idx);
          double price_high_prev = iHigh(m_symbol, PERIOD_CURRENT, price_high_idx2);
-         double macd_high_curr  = GetVal(h_macd, price_high_idx, 0);
-         double macd_high_prev  = GetVal(h_macd, shift + 5,      0);
+         double macd_high_curr  = GetVal(h_macd, price_high_idx,  0);
+         double macd_high_prev  = GetVal(h_macd, price_high_idx2, 0);
 
          // Bearish divergence: price higher high, MACD lower high
          return (price_high_curr > price_high_prev && macd_high_curr < macd_high_prev);
