@@ -2102,8 +2102,75 @@ public:
       }
 
    } // === GetDirection: END ===
-   
-   // --- RRM (Trend Pullback) helper checks ---
+
+   //==========================================================================
+   // === EvaluateTE: BEGIN ===
+   //==========================================================================
+   // EvaluateTE() — Trade Entry evaluation on the OPENING bar (shift=0).
+   //
+   // Called on the first tick of bar N+1, AFTER GetDirection() confirmed a TS
+   // signal on bar N (shift=1).  This method validates that the conditions
+   // at the moment of execution are still clean before entering a trade.
+   //
+   // Checks performed at shift=0 (forming/current candle):
+   //   1. Spread filter  — reject if spread is too wide right now.
+   //   2. Time filter    — reject if outside the allowed session window.
+   //   3. News filter    — reject if a high-impact news event is imminent.
+   //   4. Basic bias     — reject if current price is now on the WRONG side
+   //                       of the fast bias EMA at shift=0 (price gapped or
+   //                       reversed against the TS direction).
+   //
+   // Parameters:
+   //   ts_direction : 1 (LONG) or -1 (SHORT) from the prior TS evaluation.
+   //
+   // Returns : ts_direction if all TE conditions pass, 0 if any check fails.
+   //==========================================================================
+   int EvaluateTE(int ts_direction)
+   {
+      if(ts_direction == 0) return 0;
+
+      // 1-3. Reuse the existing filter suite (spread / time / news / ATR guard).
+      //      These always evaluate live conditions (no shift involved), so they
+      //      are appropriate for confirming the execution moment is clean.
+      if(!CheckFilters())
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[TE FILTER FAIL] TE rejected by live filters: %s", m_diag_last_reason);
+         return 0;
+      }
+
+      // 4. Basic price-direction check at shift=0 (forming candle).
+      //    Confirm the current close (best available for shift=0) is still on
+      //    the correct side of the fast bias EMA.  This catches gaps against
+      //    the TS direction.
+      int hf = BiasFastHandle();
+      if(hf != INVALID_HANDLE)
+      {
+         double price    = iClose(m_symbol, PERIOD_CURRENT, 0);
+         double ema_fast = GetMAVal(hf, 0, 0);
+
+         if(ema_fast != 0.0)
+         {
+            bool price_ok = (ts_direction == 1) ? (price > ema_fast) : (price < ema_fast);
+            if(!price_ok)
+            {
+               m_diag_last_reason = "TE_PRICE_DIRECTION";
+               if(m_settings.DebugFlow)
+                  PrintFormat("[TE REJECT] Price %.5f vs EMA %.5f does not confirm %s direction",
+                              price, ema_fast, (ts_direction > 0 ? "BUY" : "SELL"));
+               return 0;
+            }
+         }
+      }
+
+      if(m_settings.DebugFlow)
+         PrintFormat("[TE PASS] TE conditions confirmed at shift=0 for %s",
+                     (ts_direction > 0 ? "BUY" : "SELL"));
+
+      return ts_direction;
+   }
+   // === EvaluateTE: END ===
+
    int BiasFastHandle() {
       return (m_settings.BiasFastID==0)?h_ema1 : (m_settings.BiasFastID==1)?h_ema2 : (m_settings.BiasFastID==2)?h_ema3 : h_ema4;
    }
