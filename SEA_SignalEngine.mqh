@@ -395,7 +395,7 @@ private:
    // A flip occurs when PSAR switches from above price to below price (or vice-versa).
    // Returns the number of such flips in bars [lookback..1] (bar 0 is forming, excluded).
    int CountPSARFlips(int lookback = 3) {
-      if(lookback < 2) return 0;
+      if(lookback < 3) return 0;
 
       double psar0 = GetVal(h_psar, lookback);
       double cl0   = iClose(m_symbol, PERIOD_CURRENT, lookback);
@@ -1570,7 +1570,7 @@ public:
 
       // Use Vote_EvalShift for signal/vote evaluation (defaults to 1 = closed bar).
       // This ensures all indicator checks use the last fully-closed bar, matching
-      // the Python system's behaviour of always evaluating completed bars (shift=1).
+      // the Python system's behavior of always evaluating completed bars (shift=1).
       int v_shift = m_settings.Vote_EvalShift;
       
       // ═══════════════════════════════════════════════════════════════

@@ -259,6 +259,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RiskPercent       = 0.0;
 
       cfg.VoteThreshold     = 1;
+      cfg.VoteMode          = VOTE_MODE_ALL;  // All enabled indicators must agree
       cfg.MaxSpread         = 9999.0;
       cfg.MinATR            = 0.0;
       cfg.MaxATR            = 0.0;
@@ -329,6 +330,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ma_v_shift        = 1;
 
       cfg.VoteThreshold     = 1;
+      cfg.VoteMode          = VOTE_MODE_ALL;  // All enabled indicators must agree
       cfg.MaxSpread         = 5.0;
       cfg.MinATR            = 0.0;
       cfg.MaxATR            = 0.0;
@@ -389,6 +391,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasSlowID     = (int)ROLE_EMA2;
 
       cfg.VoteThreshold  = 3;
+      cfg.VoteMode       = VOTE_MODE_ALL;  // All enabled indicators must agree
       cfg.MaxSpread      = 3.0;
       cfg.MinATR         = 5.0;
       cfg.MaxATR         = 0.0;
@@ -452,6 +455,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasSlowID     = (int)ROLE_EMA4;
 
       cfg.VoteThreshold  = 1;
+      cfg.VoteMode       = VOTE_MODE_ALL;  // All enabled indicators must agree
       cfg.MaxSpread      = 5.0;
       cfg.MinATR         = 5.0;
       cfg.MaxATR         = 0.0;
@@ -515,6 +519,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasSlowID     = (int)ROLE_EMA4;
 
       cfg.VoteThreshold  = 4;
+      cfg.VoteMode       = VOTE_MODE_ALL;  // All enabled indicators must agree
       cfg.MaxSpread      = 4.0;
       cfg.MinATR         = 2.0;
       cfg.MaxATR         = 0.0;
