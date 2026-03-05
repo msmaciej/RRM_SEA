@@ -580,18 +580,18 @@ input group "══════════ ℹ️ ZONE 3A: PIPELINE CONFIG (pre
 // ── Step 1: Bias Calculation ─────────────────────────────────────────
 input group "═══ 🔧 STEP 1: Bias Calculation ═══"
 input string         Inp_Step1_Info             = "Configure major trend detection"; // Info
-input bool           Inp_BiasEnabled            = true;                 // (CUSTOM; presets override) Enable market bias filter
-input EBiasMode      Inp_BiasMode               = BIAS_AUTO;            // (CUSTOM; presets override) Bias mode (AUTO/MANUAL)
-input int            Inp_BiasFastID             = 2;                    // (CUSTOM; presets override) Bias Fast EMA (0=EMA1/5, 1=EMA2/13, 2=EMA3/34, 3=EMA4/89)
-input int            Inp_BiasSlowID             = 3;                    // (CUSTOM; presets override) Bias Slow EMA (0=EMA1/5, 1=EMA2/13, 2=EMA3/34, 3=EMA4/89)
-input EManualSide    Inp_ManualSide             = SIDE_BOTH;            // (CUSTOM; presets override) Manual direction (BOTH/LONG/SHORT)
-input EMaMethod      Inp_MaType                 = METHOD_EMA;          // (CUSTOM; presets override) MA method (EMA/SMA)
-input int            Inp_MaHorShift             = 0;                   // (CUSTOM; presets override) MA horizontal shift (bars)
-input int            Inp_MaVerShift             = 1;                   // (CUSTOM; presets override) MA vertical shift (pips)
-input int            InpEma1Period              = 5;                   // (CUSTOM; presets override) EMA1 period
-input int            InpEma2Period              = 13;                  // (CUSTOM; presets override) EMA2 period
-input int            InpEma3Period              = 34;                  // (CUSTOM; presets override) EMA3 period (RRM bias fast)
-input int            InpEma4Period              = 89;                  // (CUSTOM; presets override) EMA4 period (RRM bias slow)
+input bool           Inp_BiasEnabled            = true;              // (CUSTOM; presets override) Enable market bias filter
+input EBiasMode      Inp_BiasMode               = BIAS_AUTO_PHASE;   // (CUSTOM; presets override) Bias mode (AUTO/MANUAL)
+input int            Inp_BiasFastID             = 2;                 // (CUSTOM; presets override) Bias Fast EMA (0=EMA1/5, 1=EMA2/13, 2=EMA3/34, 3=EMA4/89)
+input int            Inp_BiasSlowID             = 3;                 // (CUSTOM; presets override) Bias Slow EMA (0=EMA1/5, 1=EMA2/13, 2=EMA3/34, 3=EMA4/89)
+input EManualSide    Inp_ManualSide             = SIDE_BOTH;         // (CUSTOM; presets override) Manual direction (BOTH/LONG/SHORT)
+input EMaMethod      Inp_MaType                 = METHOD_EMA;        // (CUSTOM; presets override) MA method (EMA/SMA)
+input int            Inp_MaHorShift             = 0;                 // (CUSTOM; presets override) MA horizontal shift (bars)
+input int            Inp_MaVerShift             = 1;                 // (CUSTOM; presets override) MA vertical shift (pips)
+input int            InpEma1Period              = 5;                 // (CUSTOM; presets override) EMA1 period
+input int            InpEma2Period              = 13;                // (CUSTOM; presets override) EMA2 period
+input int            InpEma3Period              = 34;                // (CUSTOM; presets override) EMA3 period (RRM bias fast)
+input int            InpEma4Period              = 89;                // (CUSTOM; presets override) EMA4 period (RRM bias slow)
 
 // ── Step 2: Entry Signal ─────────────────────────────────────────────
 input group "═══ 🔧 STEP 2: Entry Signal ═══"
@@ -853,7 +853,7 @@ input bool     Inp_Override_PhaseDetectionEnabled   = true;    // [Admin] Enable
 input bool     Inp_Override_EnableLayerDetection    = true;    // [Admin] Enable layer filtering when AdminOverride=true
 input bool     Inp_Override_BlockUnorderedPhase     = true;    // [Admin] Block all trades in UNORDERED phase when AdminOverride=true
 input bool     Inp_Override_RequireMinPhaseConfirm  = true;    // [Admin] Require min-bar phase confirmation when AdminOverride=true
-input int      Inp_Override_MinPhaseConfirmBars     = 3;       // [Admin] Min bars to confirm phase stability (1-10) when AdminOverride=true
+input int      Inp_Override_MinPhaseConfirmBars     = 2;       // [Admin] Min bars to confirm phase stability (1-10) when AdminOverride=true
 
 input group "--- 🔓 §5.1 Admin Override: Layer 1 (Weak/EMA5-13) Allowed Phases ---"
 input bool     Inp_Override_Layer1_AllowTrending    = true;    // [Admin] Layer 1: Allow TRENDING phase when AdminOverride=true

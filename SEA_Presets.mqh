@@ -646,53 +646,70 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       //
       // Architecture fit (Filters → Bias → Votes → User-controlled Exits):
       //   1) Filters (Spread/News/Session/HTF) gate out truly untradeable conditions.
-      //   2) Bias is defined by EMA pair trend direction (AUTO bias).
+      //   2) Bias is defined by EMA pair trend direction (AUTO bias) OR phase-based (AUTO_PHASE).
       //   3) Votes provide confluence confirmations (EMA ribbon + MACD/CCI/PSAR; no ATR vote).
       //   4) Exits remain as mapped from user inputs; only PSAR cushions are auto-scaled when
       //      user left defaults (non-invasive).
       //
       // ATR is fully disabled: MinATR=0, MaxATR=0, ATR_HardGate=false, Use_ATRVote=false.
       // Policy A: MaxSpread is operator-controlled; MinATR/MaxATR are NOT restored (kept at 0).
-
+   
       ERRMMode mode = Inp_RRM_Mode;
       if(mode == RRM_AUTO_BY_TF)
       {
          if(_Period == PERIOD_M1 || _Period == PERIOD_M5 || _Period == PERIOD_M15) mode = RRM_SCALP;
          else mode = RRM_SWING;
       }
-
+   
       cfg.CloseOnReverse = true;
       cfg.BiasEnabled    = true;
-      cfg.BiasMode       = BIAS_AUTO;
+      cfg.BiasMode       = Inp_BiasMode;  // ✅ FIX 1: Use input setting
       cfg.MaType         = METHOD_EMA;
-
+   
       // ATR gating fully disabled for strict mode
       cfg.MinATR       = 0.0;
       cfg.MaxATR       = 0.0;
       cfg.ATR_HardGate = false;
       cfg.Use_ATRVote  = false;
-
-      if(mode == RRM_SCALP)
+   
+      // ✅ FIX 2: Adaptive AutoStrat based on BiasMode
+      if(cfg.BiasMode == BIAS_AUTO_PHASE)
       {
+         // Phase-based bias: uses 3-EMA structure (EMA2/3/4) for phase detection
+         // AutoStrat and BiasFastID/SlowID are not used for bias calculation
+         // but kept for compatibility with signal validation logic
          cfg.AutoStrat  = STRAT_PAIR_CROSS;
-         cfg.BiasFastID = (int)ROLE_EMA3;  // EMA3(34) — stable bias, resists shallow pullbacks
-         cfg.BiasSlowID = (int)ROLE_EMA4;  // EMA4(89) — very stable; EMA1/EMA2 used only for entry timing
-
+         cfg.BiasFastID = (int)ROLE_EMA3;  // Not used in phase bias, kept for structure
+         cfg.BiasSlowID = (int)ROLE_EMA4;  // Not used in phase bias, kept for structure
+         
          cfg.P_Ema1 = 5; cfg.P_Ema2 = 13; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
-
-         cfg.MaxSpread = 2.5;
+         cfg.MaxSpread = (mode == RRM_SCALP) ? 2.5 : 5.0;
       }
       else
       {
-         cfg.AutoStrat  = STRAT_PAIR_CROSS;
-         cfg.BiasFastID = (int)ROLE_EMA3;
-         cfg.BiasSlowID = (int)ROLE_EMA4;
-
-         cfg.P_Ema1 = 5; cfg.P_Ema2 = 13; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
-
-         cfg.MaxSpread = 5.0;
+         // Traditional BIAS_AUTO: uses EMA3/EMA4 crossover for bias
+         if(mode == RRM_SCALP)
+         {
+            cfg.AutoStrat  = STRAT_PAIR_CROSS;
+            cfg.BiasFastID = (int)ROLE_EMA3;  // EMA3(34) — stable bias, resists shallow pullbacks
+            cfg.BiasSlowID = (int)ROLE_EMA4;  // EMA4(89) — very stable; EMA1/EMA2 used only for entry timing
+   
+            cfg.P_Ema1 = 5; cfg.P_Ema2 = 13; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
+   
+            cfg.MaxSpread = 2.5;
+         }
+         else
+         {
+            cfg.AutoStrat  = STRAT_PAIR_CROSS;
+            cfg.BiasFastID = (int)ROLE_EMA3;
+            cfg.BiasSlowID = (int)ROLE_EMA4;
+   
+            cfg.P_Ema1 = 5; cfg.P_Ema2 = 13; cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
+   
+            cfg.MaxSpread = 5.0;
+         }
       }
-
+   
       // Votes: EMA ribbon + MACD/CCI/PSAR (no ATR vote)
       cfg.VoteThreshold = 4;
       cfg.Ind_EmaSig_Enabled    = true;
@@ -706,25 +723,25 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Psar_Enabled      = true;
       cfg.Ind_P123_Enabled      = false;
       cfg.Ind_Ross_Enabled      = false;
-
+   
       cfg.P_MacdFast = 8;     //  8,
       cfg.P_MacdSlow = 13;    // 13,
       cfg.P_MacdSig  = 8;     //  8,
-
+   
       cfg.RRM_Lookback               = 5;
       cfg.RRM_MinDivPips             = 0.5;
-
+   
       // Dynamic structure pullback gate (no pip thresholds)
       ENUM_TIMEFRAMES tf = (ENUM_TIMEFRAMES)_Period;
-
+   
       cfg.RequirePullback            = true;
       cfg.PullbackLookback           = (tf <= PERIOD_M5 ? 15 : 10);
       cfg.RequireRecoveryMomentum    = false;
       cfg.Gate_UseMultiLayer         = true;
-
+   
       cfg.Vote_EvalShift    = 1;
       cfg.Vote_AllowPsarFlip = true;
-
+   
       // Enforce strict no-ATR exit contract (RRM design: swing-based SL, PSAR trail, no ATR)
       cfg.ExitProfile           = EXIT_PROFILE_RRM_STRICT_NO_ATR;
       cfg.SL_PlacementMode      = SL_SWING_HIGHLOW;
@@ -738,14 +755,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PSAR_TrailPipsCushion = GetRecommendedTrailPsarCushionPips();
       cfg.Use_BE                = false;
       cfg.BE_Mode               = BE_MODE_OFF;
-
+   
       // Phase Detection (PR1-5) — enabled in PRESET_RRM
       cfg.PhaseDetectionEnabled      = true;
       cfg.EnableLayerDetection       = true;
       cfg.BlockUnorderedPhase        = true;
       cfg.RequireMinPhaseConfirm     = true;
       cfg.MinPhaseConfirmBars        = 3;
-
+   
       // Layer phase permissions (PR4):
       // EMERGING phase: L1/L2 allowed, L3 blocked (deep pullback too risky in forming trend)
       cfg.Emerging_AllowWeakTrades   = true;
@@ -755,10 +772,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Trending_AllowWeakTrades   = true;
       cfg.Trending_AllowMediumTrades = true;
       cfg.Trending_AllowStrongTrades = true;
-
+   
       if(cfg.PrintEffectiveConfig || cfg.DebugFlow)
       {
          Print("=== PRESET APPLIED: RRM ===");
+         Print("  BiasMode: ", EnumToString(cfg.BiasMode));
          Print("  SL_PlacementMode: ", EnumToString(cfg.SL_PlacementMode));
          Print("  SL_Mult (ATR): ", cfg.SL_Mult, " (0.0 = ATR disabled)");
          Print("  SL_SwingPipsCushion: ", cfg.SL_SwingPipsCushion);
@@ -766,22 +784,22 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          Print("  TP_Mult: ", cfg.TP_Mult);
          Print("  TrailMode: ", EnumToString(cfg.TrailMode));
       }
-
+   
       // Restore operator-controlled gates (Policy A)
       // NOTE: MaxSpread is restored; MinATR/MaxATR are NOT restored (kept at 0 for strict mode).
       cfg.MaxSpread = op_MaxSpread;
       cfg.UseTime   = op_UseTime;
       cfg.StartHr   = op_StartHr;
       cfg.EndHr     = op_EndHr;
-
+   
       cfg.UseNews   = op_UseNews;
       cfg.NewsPre   = op_NewsPre;
       cfg.NewsPost  = op_NewsPost;
-
+   
       cfg.UseHTF    = op_UseHTF;
       cfg.HtfPeriod = op_HtfPeriod;
       cfg.P_HtfEma  = op_P_HtfEma;
-
+   
       ApplyAdminOverrides(cfg);
       return;
    }
