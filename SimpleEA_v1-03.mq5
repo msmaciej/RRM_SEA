@@ -77,6 +77,11 @@ int      g_ts_votes  = 0;
 int      g_ts_thr    = 0;
 string   g_ts_reason = "";
 
+// --- TS→TE Two-Phase Entry: pending trade entry waiting for next bar execution
+// On bar N a TS signal is detected and stored here; on bar N+1 the TE is executed.
+datetime g_te_pending_bar_time  = 0;   // Bar time of bar N (open time when TS was detected)
+int      g_te_pending_direction = 0;   // Direction of pending TE (1=BUY, -1=SELL, 0=none)
+
 // Global tracking for RRM drawdown protection
 int      g_consecutive_losses     = 0;
 int      g_trades_today           = 0;
@@ -474,7 +479,43 @@ void OrchestrateTick()
       }
    }
    
-   FlowLog("Step B: Compute direction signal");
+   // ═══════════════════════════════════════════════════════════════
+   // TS→TE Phase 2: Execute trade entry from previous bar's TS signal
+   // The signal was detected on bar N; we execute it now on bar N+1.
+   // ═══════════════════════════════════════════════════════════════
+   if(g_te_pending_direction != 0)
+   {
+      datetime prev_bar = iTime(_Symbol, PERIOD_CURRENT, 1);
+
+      if(prev_bar == g_te_pending_bar_time)
+      {
+         if(Settings.DebugFlow)
+            PrintFormat("[TE ENTRY] Executing entry from TS bar %s | direction=%d",
+                        TimeToString(g_te_pending_bar_time, TIME_DATE|TIME_MINUTES),
+                        g_te_pending_direction);
+
+         FlowLog(StringFormat("Step C: ProcessSignal/TE (direction=%d)", g_te_pending_direction));
+         Executor.ProcessSignal(g_te_pending_direction, atr);
+      }
+      else
+      {
+         if(Settings.DebugFlow)
+            PrintFormat("[TE EXPIRED] Pending TS from %s expired (prev bar %s does not match)",
+                        TimeToString(g_te_pending_bar_time, TIME_DATE|TIME_MINUTES),
+                        TimeToString(prev_bar, TIME_DATE|TIME_MINUTES));
+      }
+
+      // Reset pending TE state (fire or expire — always clear after one bar)
+      g_te_pending_direction = 0;
+      g_te_pending_bar_time  = 0;
+   }
+
+   // ═══════════════════════════════════════════════════════════════
+   // TS→TE Phase 1: Detect TS signal — store for next bar execution
+   // Signal is evaluated on the closed bar (shift=1) but NOT executed
+   // immediately; execution is deferred to Phase 2 on the next bar.
+   // ═══════════════════════════════════════════════════════════════
+   FlowLog("Step B: Compute direction signal (TS detection)");
    int direction = Signal.GetDirection();
 
    // Capture TS snapshot when a signal is generated (shift=1 bar time)
@@ -486,6 +527,14 @@ void OrchestrateTick()
       g_ts_votes  = Signal.LastVotes();
       g_ts_thr    = Settings.VoteThreshold;
       g_ts_reason = Signal.LastReason();
+
+      // TS→TE: store pending entry for execution on the next bar
+      g_te_pending_bar_time  = iTime(_Symbol, PERIOD_CURRENT, 0);
+      g_te_pending_direction = direction;
+
+      if(Settings.DebugFlow)
+         PrintFormat("[TS SIGNAL] Setup detected: %s | Reason: %s | Waiting for TE on next bar",
+                     (direction > 0 ? "BUY" : "SELL"), Signal.LastReason());
    }
 
    if(Settings.DebugFlow)
@@ -497,18 +546,16 @@ void OrchestrateTick()
       }
       else
       {
-         Print("DEBUG: SIGNAL GENERATED! Direction: ", direction, " | Bias: ", Signal.LastBias(),
+         Print("DEBUG: TS SIGNAL! Direction: ", direction, " | Bias: ", Signal.LastBias(),
                " | Votes: ", Signal.LastVotes(), "/", Settings.VoteThreshold,
-               " | Reason: ", Signal.LastReason());
+               " | Reason: ", Signal.LastReason(), " | TE pending for next bar");
       }
    }
 
    if(Settings.DrawEntryLines && direction != 0)
       SEA_DrawEntrySignalLine(iTime(_Symbol, PERIOD_CURRENT, 1), direction, Signal.LastReason());
 
-   FlowLog(StringFormat("Step C: ProcessSignal (direction=%d)", direction));
-   if(direction != 0)
-      Executor.ProcessSignal(direction, atr);
+   FlowLog(StringFormat("Step C: TS stored as pending TE (direction=%d)", direction));
 
    // Build TS/TE snapshot strings for cockpit display
    string ts_snap = "";
@@ -560,7 +607,9 @@ void OrchestrateDeinit(const int reason)
    FlowLog(StringFormat("EA stop -> OnDeinit(reason=%d)", reason));
 
    Signal.Release();
-   g_last_bar_time = 0;
+   g_last_bar_time        = 0;
+   g_te_pending_direction = 0;
+   g_te_pending_bar_time  = 0;
 
    FlowLog("OnDeinit complete");
 }

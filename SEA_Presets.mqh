@@ -628,6 +628,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Ross_Enabled      = false;
 
       cfg.VoteThreshold = 4;
+      cfg.VoteMode      = VOTE_MODE_ALL;  // All enabled indicators must agree (matches Python system)
 
       cfg.P_MacdFast = 8;
       cfg.P_MacdSlow = 13;
@@ -738,6 +739,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
       // Votes: EMA ribbon + MACD/CCI/PSAR (no ATR vote)
       cfg.VoteThreshold = 4;
+      cfg.VoteMode      = VOTE_MODE_ALL;  // All enabled indicators must agree (matches Python system)
       cfg.Ind_EmaSig_Enabled    = true;
       cfg.Ind_Adx_Enabled       = false;
       cfg.Ind_Macd_Enabled      = true;
