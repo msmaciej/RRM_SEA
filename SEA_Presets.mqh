@@ -696,6 +696,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CloseOnReverse = true;
       cfg.BiasEnabled    = true;
       cfg.BiasMode       = Inp_BiasMode;  // ✅ FIX 1: Use input setting
+      cfg.AutoStrat      = STRAT_LAYER_DETECTION;
       cfg.MaType         = METHOD_EMA;
    
       // ATR gating fully disabled for strict mode
@@ -811,7 +812,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EnableLayerDetection       = true;
       cfg.BlockUnorderedPhase        = true;
       cfg.RequireMinPhaseConfirm     = true;
-      cfg.MinPhaseConfirmBars        = 4;  // ✅ PROTECTION 1: Stricter confirmation (was 3)
+      cfg.MinPhaseConfirmBars        = 2;  // Change from 4 to 2
    
       // Layer phase permissions (PR4):
       // ✅ PROTECTION 5: Stricter EMERGING phase filtering
