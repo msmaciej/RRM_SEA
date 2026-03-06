@@ -771,21 +771,21 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MacdSlopeMin           = 0.00001;
    
       cfg.RRM_Lookback           = 5;
-      cfg.RRM_MinDivPips         = 1.5;  // ✅ PROTECTION 7: Deeper pullback required (was 0.5)
+      cfg.RRM_MinDivPips         = 0.5;  // Relaxed to Python EA parity level (was 1.5)
    
       // Dynamic structure pullback gate (no pip thresholds)
       ENUM_TIMEFRAMES tf = (ENUM_TIMEFRAMES)_Period;
    
       cfg.RequirePullback           = true;
-      cfg.PullbackLookback          = (tf <= PERIOD_M5 ? 20 : 15);  // ✅ PROTECTION 6: Longer lookback (was 15/10)
-      cfg.RequireRecoveryMomentum   = true;   // ✅ PROTECTION 2: Confirm momentum (was false)
+      cfg.PullbackLookback          = (tf <= PERIOD_M5 ? 10 : 8);  // Relaxed to Python EA parity levels (was 20/15)
+      cfg.RequireRecoveryMomentum   = false;  // Disabled - was blocking 60-80% of valid entries (was true)
       cfg.Gate_UseMultiLayer        = true;
 
       cfg.Vote_EvalShift            = 1;
-      cfg.Vote_AllowPsarFlip        = true;
-      cfg.Vote_PsarFlipLookback     = 5;     // Check last 5 bars for any flip
-      cfg.Vote_PsarMinFlips         = 1;     // At least 1 flip required
-      cfg.Vote_PsarMaxFlips         = 0;     // No upper limit (0 = disabled)
+      cfg.Vote_AllowPsarFlip        = false;  // Disabled - PSAR already in voting system (was true)
+      cfg.Vote_PsarFlipLookback     = 0;     // Ignored when AllowPsarFlip=false
+      cfg.Vote_PsarMinFlips         = 0;     // Ignored when AllowPsarFlip=false
+      cfg.Vote_PsarMaxFlips         = 0;     // Ignored when AllowPsarFlip=false
 
       // Risk management (portfolio-level)
       cfg.MaxTotalRisk              = 4.0;   // Max 4% total portfolio risk
@@ -811,7 +811,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EnableLayerDetection       = true;
       cfg.BlockUnorderedPhase        = true;
       cfg.RequireMinPhaseConfirm     = true;
-      cfg.MinPhaseConfirmBars        = 4;  // ✅ PROTECTION 1: Stricter confirmation (was 3)
+      cfg.MinPhaseConfirmBars        = 2;  // Reduced for faster entry (was 4)
    
       // Layer phase permissions (PR4):
       // ✅ PROTECTION 5: Stricter EMERGING phase filtering
@@ -826,13 +826,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
       if(cfg.PrintEffectiveConfig || cfg.DebugFlow)
       {
-         Print("=== PRESET APPLIED: RRM (Enhanced Protection) ===");
+         Print("=== PRESET APPLIED: RRM (Relaxed for Python EA Parity) ===");
          Print("  AutoStrat: ", EnumToString(cfg.AutoStrat), " (LayerTouchTolerance=", cfg.LayerTouchTolerance, ")");
          Print("  BiasMode: ", EnumToString(cfg.BiasMode));
-         Print("  MinPhaseConfirmBars: ", cfg.MinPhaseConfirmBars, " (4-bar confirmation)");
+         Print("  MinPhaseConfirmBars: ", cfg.MinPhaseConfirmBars, " (reduced for faster entry)");
          Print("  RequireRecoveryMomentum: ", cfg.RequireRecoveryMomentum ? "YES" : "NO");
          Print("  PullbackLookback: ", cfg.PullbackLookback);
          Print("  RRM_MinDivPips: ", cfg.RRM_MinDivPips);
+         Print("  Vote_AllowPsarFlip: ", cfg.Vote_AllowPsarFlip ? "YES" : "NO");
          Print("  MaxSpread: ", cfg.MaxSpread);
          Print("  SL_PlacementMode: ", EnumToString(cfg.SL_PlacementMode));
          Print("  SL_Mult (ATR): ", cfg.SL_Mult, " (0.0 = ATR disabled)");
