@@ -741,7 +741,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
             cfg.MaxSpread = 4.0;  // ✅ PROTECTION 3: Tighter spread (was 5.0)
          }
       }
-      cfg.LayerTouchTolerance = 0.01;  // 1% tolerance for EMA touch detection (Ribbon/Ghost/Shark)
+      cfg.LayerTouchTolerance = 0.01;  // 1% tolerance for EMA touch detection (Weak/Medium/Strong layers)
    
       // Votes: EMA ribbon + MACD/CCI/PSAR (no ATR vote)
       cfg.VoteThreshold          = 4;
