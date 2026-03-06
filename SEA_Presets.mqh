@@ -743,46 +743,46 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       }
    
       // Votes: EMA ribbon + MACD/CCI/PSAR (no ATR vote)
-      cfg.VoteThreshold = 4;
-      cfg.VoteMode      = VOTE_MODE_ALL;  // All enabled indicators must agree (matches Python system)
-      cfg.Ind_EmaSig_Enabled    = true;
-      cfg.Ind_Adx_Enabled       = false;
-      cfg.Ind_Macd_Enabled      = true;
-      cfg.Ind_Rsi_Enabled       = false;
-      cfg.Ind_Cci_Enabled       = true;
-      cfg.Ind_Mfi_Enabled       = false;
-      cfg.Ind_Sto_Enabled       = false;
-      cfg.Ind_Bb_Enabled        = false;
-      cfg.Ind_Psar_Enabled      = true;
-      cfg.Ind_P123_Enabled      = false;
-      cfg.Ind_Ross_Enabled      = false;
+      cfg.VoteThreshold          = 4;
+      cfg.VoteMode               = VOTE_MODE_ALL;  // All enabled indicators must agree (matches Python system)
+      cfg.Ind_EmaSig_Enabled     = true;
+      cfg.Ind_Adx_Enabled        = false;
+      cfg.Ind_Macd_Enabled       = true;
+      cfg.Ind_Rsi_Enabled        = false;
+      cfg.Ind_Cci_Enabled        = true;
+      cfg.Ind_Mfi_Enabled        = false;
+      cfg.Ind_Sto_Enabled        = false;
+      cfg.Ind_Bb_Enabled         = false;
+      cfg.Ind_Psar_Enabled       = true;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Ross_Enabled       = false;
    
-      cfg.P_MacdFast = 8;     //  8,
-      cfg.P_MacdSlow = 13;    // 13,
-      cfg.P_MacdSig  = 8;     //  8,
+      cfg.P_MacdFast             = 8;     //  8,
+      cfg.P_MacdSlow             = 13;    // 13,
+      cfg.P_MacdSig              = 8;     //  8,
 
       // MACD vote mode: default industry "traditional" (zero + crossover)
-      cfg.MacdVoteMode          = MACD_HISTOGRAM;
-      cfg.MacdRequireSlope      = false;
-      cfg.MacdRequireDivergence = false;
-      cfg.MacdRequireHook       = false;
-      cfg.MacdFreshBars         = 3;
-      cfg.MacdSlopeMin          = 0.00001;
+      cfg.MacdVoteMode           = MACD_HISTOGRAM;
+      cfg.MacdRequireSlope       = false;
+      cfg.MacdRequireDivergence  = false;
+      cfg.MacdRequireHook        = false;
+      cfg.MacdFreshBars          = 3;
+      cfg.MacdSlopeMin           = 0.00001;
    
-      cfg.RRM_Lookback               = 5;
-      cfg.RRM_MinDivPips             = 1.5;  // ✅ PROTECTION 7: Deeper pullback required (was 0.5)
+      cfg.RRM_Lookback           = 5;
+      cfg.RRM_MinDivPips         = 1.5;  // ✅ PROTECTION 7: Deeper pullback required (was 0.5)
    
       // Dynamic structure pullback gate (no pip thresholds)
       ENUM_TIMEFRAMES tf = (ENUM_TIMEFRAMES)_Period;
    
-      cfg.RequirePullback            = true;
-      cfg.PullbackLookback           = (tf <= PERIOD_M5 ? 20 : 15);  // ✅ PROTECTION 6: Longer lookback (was 15/10)
-      cfg.RequireRecoveryMomentum    = true;   // ✅ PROTECTION 2: Confirm momentum (was false)
-      cfg.Gate_UseMultiLayer         = true;
-   
-      cfg.Vote_EvalShift    = 1;
-      cfg.Vote_AllowPsarFlip = true;
-   
+      cfg.RequirePullback           = true;
+      cfg.PullbackLookback          = (tf <= PERIOD_M5 ? 20 : 15);  // ✅ PROTECTION 6: Longer lookback (was 15/10)
+      cfg.RequireRecoveryMomentum   = true;   // ✅ PROTECTION 2: Confirm momentum (was false)
+      cfg.Gate_UseMultiLayer        = true;
+
+      cfg.Vote_EvalShift            = 1;
+      cfg.Vote_AllowPsarFlip        = true;
+
       // Enforce strict no-ATR exit contract (RRM design: swing-based SL, PSAR trail, no ATR)
       cfg.ExitProfile           = EXIT_PROFILE_RRM_STRICT_NO_ATR;
       cfg.SL_PlacementMode      = SL_SWING_HIGHLOW;
@@ -806,8 +806,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
       // Layer phase permissions (PR4):
       // ✅ PROTECTION 5: Stricter EMERGING phase filtering
-      // EMERGING phase: Only L2 allowed, L1/L3 blocked (reduce false signals in forming trends)
-      cfg.Emerging_AllowWeakTrades   = true;  // ✅ Changed from true - L1 too risky
+      // EMERGING phase: L1, L2 allowed, L3 blocked
+      cfg.Emerging_AllowWeakTrades   = true;
       cfg.Emerging_AllowMediumTrades = true;
       cfg.Emerging_AllowStrongTrades = false;
       // TRENDING phase: all layers allowed (strong established trend)
@@ -845,8 +845,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
       // ✅ PROTECTION 4: Enable HTF filter for multi-timeframe confirmation
       cfg.UseHTF    = false;  // Changed from op_UseHTF - force enable
-      cfg.HtfPeriod = (_Period == PERIOD_M15) ? PERIOD_H1 : 
-                      (_Period <= PERIOD_M5) ? PERIOD_H1 : PERIOD_H4;
+      cfg.HtfPeriod = (_Period == PERIOD_M1) ? PERIOD_M5 : 
+                      (_Period == PERIOD_M5) ? PERIOD_M15 : 
+                      (_Period <= PERIOD_M15) ? PERIOD_H1 : PERIOD_H4;
       cfg.P_HtfEma  = 89;    // Use slow EMA on higher timeframe
    
       ApplyAdminOverrides(cfg);
