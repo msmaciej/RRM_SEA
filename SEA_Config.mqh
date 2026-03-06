@@ -80,7 +80,8 @@ enum EAutoStrategy
 {
    STRAT_SINGLE_SLOPE,
    STRAT_PAIR_CROSS,
-   STRAT_PRICE_CROSS
+   STRAT_PRICE_CROSS,
+   STRAT_LAYER_DETECTION    // Layer-based pullback detection (Ribbon/Ghost/Shark patterns)
 };
 
 enum EEmaRole
@@ -520,7 +521,8 @@ struct ST_Settings
    // 260304_PR3: LAYER DETECTION SETTINGS
    //==========================================================================
    bool     EnableLayerDetection;          // Master switch for multi-layer pullback detection
-   double   LayerTouchTolerancePips;       // Pip tolerance for EMA touch detection
+   double   LayerTouchTolerancePips;       // Pip tolerance for EMA touch detection (legacy)
+   double   LayerTouchTolerance;           // Percentage tolerance for EMA touch detection (e.g. 0.01 = 1%)
    bool     AllowLayer1_Entries;           // Allow Layer 1 (EMA1/EMA2 touch) entries
    bool     AllowLayer2_Entries;           // Allow Layer 2 (EMA2/EMA3 touch) entries
    bool     AllowLayer3_Entries;           // Allow Layer 3 (EMA3/EMA4 touch) entries
@@ -650,6 +652,7 @@ input int            InpEma4Period              = 89;                // (CUSTOM;
 input group "═══ 🔧 STEP 2: Entry Signal ═══"
 input string         Inp_Step2_Info             = "Configure entry timing strategy"; // Info
 input EAutoStrategy  Inp_AutoStrat              = STRAT_PAIR_CROSS;  // (CUSTOM; presets override) Entry strategy (price cross / pair cross)
+input double         Inp_LayerTolerance         = 0.01;             // (CUSTOM; presets override) Layer touch tolerance (%, e.g. 0.01=1%; used by STRAT_LAYER_DETECTION)
 input ERRMMode       Inp_RRM_Mode               = RRM_AUTO_BY_TF; // (RRM presets) RRM mode (AUTO uses timeframe mapping)
 input bool           Inp_RRM_EnableInCustom     = false;          // (CUSTOM only) Enable RRM logic while using PRESET_CUSTOM
 input bool           Inp_CloseOnReverse         = false;          // (CUSTOM; presets may override) Close on reverse signal
@@ -1124,6 +1127,7 @@ void InitializeConfig()
    Settings.BiasFastID           = MathMax(0, MathMin(3, Inp_BiasFastID));
    Settings.BiasSlowID           = MathMax(0, MathMin(3, Inp_BiasSlowID));
    Settings.AutoStrat            = Inp_AutoStrat;
+   Settings.LayerTouchTolerance  = Inp_LayerTolerance;
 
    // Execution / indicator method
    Settings.MaType               = Inp_MaType;
@@ -1328,6 +1332,7 @@ void InitializeConfig()
    // ═══════════════════════════════════════════════════════════════
    Settings.EnableLayerDetection         = false;
    Settings.LayerTouchTolerancePips      = 2.0;
+   Settings.LayerTouchTolerance          = 0.01;
    // Note: AllowLayer*_Entries defaults to true; these take effect once EnableLayerDetection = true
    Settings.AllowLayer1_Entries          = true;
    Settings.AllowLayer2_Entries          = true;

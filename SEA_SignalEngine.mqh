@@ -87,6 +87,7 @@ private:
 
    EEntryLayer  m_diag_last_entry_layer;  // 260304_PR4: Last detected entry layer
    bool         m_layer_allowed;          // 260304_PR7: Whether current entry layer is allowed in current phase
+   EEntryLayer  m_current_layer;          // Layer detected by STRAT_LAYER_DETECTION signal
 
    // --- 2c. STRUCTURE GATE DIAGNOSTICS ---
    int         m_active_layer;       // Active EMA layer (1/2/3/0=none)
@@ -858,6 +859,9 @@ public:
 
       // 260304_PR7: Initialize layer-allowed diagnostic
       m_layer_allowed = false;
+
+      // Initialize STRAT_LAYER_DETECTION layer
+      m_current_layer = LAYER_NONE;
 
       m_active_layer      = 0;
       m_pullback_found    = false;
@@ -1821,6 +1825,27 @@ public:
                            TimeToString(bar_time), ema_fast_name, price, ma, entry_signal);
             }
          }
+         else if(m_settings.AutoStrat == STRAT_LAYER_DETECTION) {
+            // Entry signal from layer-based pullback detection (Ribbon/Ghost/Shark patterns)
+            EEntryLayer layer = DetectLayerSignal(v_shift, market_bias);
+            m_current_layer = layer;
+
+            if(layer != LAYER_NONE) {
+               entry_signal = market_bias;
+            } else {
+               entry_signal = 0;
+            }
+
+            if(m_settings.DebugFlow) {
+               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+               if(layer != LAYER_NONE)
+                  PrintFormat("STEP 2 ENTRY[%s]: STRAT_LAYER_DETECTION %s detected → signal=%d",
+                              TimeToString(bar_time), GetLayerName(layer), entry_signal);
+               else
+                  PrintFormat("STEP 2 ENTRY[%s]: STRAT_LAYER_DETECTION no layer → signal=0",
+                              TimeToString(bar_time));
+            }
+         }
          else {  // STRAT_PAIR_CROSS
             // Check for EMA crossover
             double f_curr_cross = GetMAVal(hf, v_shift, 0);
@@ -2515,6 +2540,112 @@ public:
       }
 
       m_diag_last_layer = DetectEntryLayer(v_shift);
+   }
+
+   //+------------------------------------------------------------------+
+   //| STRAT_LAYER_DETECTION: Detect pullback-recovery layer            |
+   //|                                                                  |
+   //| Implements Python EA TrSet patterns:                             |
+   //|   LAYER_1_WEAK   (Ribbon): Low touches EMA1, Close beyond EMA2  |
+   //|   LAYER_2_MEDIUM (Ghost):  Low touches EMA2, Close beyond EMA3  |
+   //|   LAYER_3_STRONG (Shark):  Low touches EMA3, Close beyond EMA4  |
+   //|                                                                  |
+   //| Parameters:                                                      |
+   //|   v_shift - bar shift (1 = last closed bar)                     |
+   //|   bias    - market bias (1=LONG, -1=SHORT)                      |
+   //+------------------------------------------------------------------+
+   EEntryLayer DetectLayerSignal(const int v_shift, const int bias)
+   {
+      if(bias == 0) return LAYER_NONE;
+
+      double ema1 = GetMAVal(h_ema1, v_shift, 0);
+      double ema2 = GetMAVal(h_ema2, v_shift, 0);
+      double ema3 = GetMAVal(h_ema3, v_shift, 0);
+      double ema4 = GetMAVal(h_ema4, v_shift, 0);
+
+      if(ema1 == EMPTY_VALUE || ema1 == 0.0 ||
+         ema2 == EMPTY_VALUE || ema2 == 0.0 ||
+         ema3 == EMPTY_VALUE || ema3 == 0.0 ||
+         ema4 == EMPTY_VALUE || ema4 == 0.0)
+         return LAYER_NONE;
+
+      double high  = iHigh(m_symbol,  PERIOD_CURRENT, v_shift);
+      double low   = iLow(m_symbol,   PERIOD_CURRENT, v_shift);
+      double close = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+
+      double tol = m_settings.LayerTouchTolerance;  // Percentage tolerance (e.g. 0.01 = 1%)
+
+      if(bias == 1)  // LONG: look for bullish pullback-recovery
+      {
+         // LAYER_3_STRONG (Shark): Low touched EMA3, Close beyond EMA4
+         if(low <= ema3 * (1.0 + tol) && close > ema4 && ema3 > ema4)
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[LAYER] LAYER_3_STRONG (Shark): Low=%.5f touched EMA3=%.5f, Close=%.5f > EMA4=%.5f",
+                           low, ema3, close, ema4);
+            return LAYER_3_STRONG;
+         }
+         // LAYER_2_MEDIUM (Ghost): Low touched EMA2, Close beyond EMA3
+         if(low <= ema2 * (1.0 + tol) && close > ema3 && ema2 > ema3)
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[LAYER] LAYER_2_MEDIUM (Ghost): Low=%.5f touched EMA2=%.5f, Close=%.5f > EMA3=%.5f",
+                           low, ema2, close, ema3);
+            return LAYER_2_MEDIUM;
+         }
+         // LAYER_1_WEAK (Ribbon): Low touched EMA1, Close beyond EMA2
+         if(low <= ema1 * (1.0 + tol) && close > ema2 && ema1 > ema2)
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[LAYER] LAYER_1_WEAK (Ribbon): Low=%.5f touched EMA1=%.5f, Close=%.5f > EMA2=%.5f",
+                           low, ema1, close, ema2);
+            return LAYER_1_WEAK;
+         }
+      }
+      else  // SHORT (bias == -1): look for bearish pullback-recovery
+      {
+         // LAYER_3_STRONG (Shark): High touched EMA3, Close beyond EMA4
+         if(high >= ema3 * (1.0 - tol) && close < ema4 && ema3 < ema4)
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[LAYER] LAYER_3_STRONG (Shark): High=%.5f touched EMA3=%.5f, Close=%.5f < EMA4=%.5f",
+                           high, ema3, close, ema4);
+            return LAYER_3_STRONG;
+         }
+         // LAYER_2_MEDIUM (Ghost): High touched EMA2, Close beyond EMA3
+         if(high >= ema2 * (1.0 - tol) && close < ema3 && ema2 < ema3)
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[LAYER] LAYER_2_MEDIUM (Ghost): High=%.5f touched EMA2=%.5f, Close=%.5f < EMA3=%.5f",
+                           high, ema2, close, ema3);
+            return LAYER_2_MEDIUM;
+         }
+         // LAYER_1_WEAK (Ribbon): High touched EMA1, Close beyond EMA2
+         if(high >= ema1 * (1.0 - tol) && close < ema2 && ema1 < ema2)
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[LAYER] LAYER_1_WEAK (Ribbon): High=%.5f touched EMA1=%.5f, Close=%.5f < EMA2=%.5f",
+                           high, ema1, close, ema2);
+            return LAYER_1_WEAK;
+         }
+      }
+
+      return LAYER_NONE;
+   }
+
+   //+------------------------------------------------------------------+
+   //| Get human-readable layer name (for diagnostics)                 |
+   //+------------------------------------------------------------------+
+   string GetLayerName(EEntryLayer layer)
+   {
+      switch(layer)
+      {
+         case LAYER_1_WEAK:    return "LAYER_1_WEAK (Ribbon)";
+         case LAYER_2_MEDIUM:  return "LAYER_2_MEDIUM (Ghost)";
+         case LAYER_3_STRONG:  return "LAYER_3_STRONG (Shark)";
+         case LAYER_NONE:      return "LAYER_NONE";
+         default:              return "UNKNOWN";
+      }
    }
 };
 

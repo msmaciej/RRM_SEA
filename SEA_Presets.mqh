@@ -710,7 +710,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          // Phase-based bias: uses 3-EMA structure (EMA2/3/4) for phase detection
          // AutoStrat and BiasFastID/SlowID are not used for bias calculation
          // but kept for compatibility with signal validation logic
-         cfg.AutoStrat  = STRAT_PAIR_CROSS;
+         cfg.AutoStrat  = STRAT_LAYER_DETECTION;
          cfg.BiasFastID = (int)ROLE_EMA3;  // Not used in phase bias, kept for structure
          cfg.BiasSlowID = (int)ROLE_EMA4;  // Not used in phase bias, kept for structure
          
@@ -722,7 +722,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          // Traditional BIAS_AUTO: uses EMA3/EMA4 crossover for bias
          if(mode == RRM_SCALP)
          {
-            cfg.AutoStrat  = STRAT_PAIR_CROSS;
+            cfg.AutoStrat  = STRAT_LAYER_DETECTION;
             cfg.BiasFastID = (int)ROLE_EMA3;  // EMA3(34) — stable bias, resists shallow pullbacks
             cfg.BiasSlowID = (int)ROLE_EMA4;  // EMA4(89) — very stable; EMA1/EMA2 used only for entry timing
    
@@ -732,7 +732,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          }
          else
          {
-            cfg.AutoStrat  = STRAT_PAIR_CROSS;
+            cfg.AutoStrat  = STRAT_LAYER_DETECTION;
             cfg.BiasFastID = (int)ROLE_EMA3;
             cfg.BiasSlowID = (int)ROLE_EMA4;
    
@@ -741,6 +741,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
             cfg.MaxSpread = 4.0;  // ✅ PROTECTION 3: Tighter spread (was 5.0)
          }
       }
+      cfg.LayerTouchTolerance = 0.01;  // 1% tolerance for EMA touch detection (Ribbon/Ghost/Shark)
    
       // Votes: EMA ribbon + MACD/CCI/PSAR (no ATR vote)
       cfg.VoteThreshold          = 4;
@@ -826,6 +827,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       if(cfg.PrintEffectiveConfig || cfg.DebugFlow)
       {
          Print("=== PRESET APPLIED: RRM (Enhanced Protection) ===");
+         Print("  AutoStrat: ", EnumToString(cfg.AutoStrat), " (LayerTouchTolerance=", cfg.LayerTouchTolerance, ")");
          Print("  BiasMode: ", EnumToString(cfg.BiasMode));
          Print("  MinPhaseConfirmBars: ", cfg.MinPhaseConfirmBars, " (4-bar confirmation)");
          Print("  RequireRecoveryMomentum: ", cfg.RequireRecoveryMomentum ? "YES" : "NO");
