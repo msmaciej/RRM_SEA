@@ -2111,14 +2111,21 @@ public:
    // Called on the first tick of bar N+1, AFTER GetDirection() confirmed a TS
    // signal on bar N (shift=1).  This method validates that the conditions
    // at the moment of execution are still clean before entering a trade.
+   // Signal logic (bias, indicators, price direction) is NOT re-validated here —
+   // that was already confirmed by the TS evaluation at shift=1.
    //
    // Checks performed at shift=0 (forming/current candle):
    //   1. Spread filter  — reject if spread is too wide right now.
    //   2. Time filter    — reject if outside the allowed session window.
    //   3. News filter    — reject if a high-impact news event is imminent.
-   //   4. Basic bias     — reject if current price is now on the WRONG side
-   //                       of the fast bias EMA at shift=0 (price gapped or
-   //                       reversed against the TS direction).
+   //
+   // NOT checked at TE (already validated in TS at shift=1):
+   //   - ATR volatility gates (controlled by MinATR/MaxATR settings)
+   //   - Price direction vs bias EMAs
+   //   - Indicator voting/confirmation
+   //
+   // Design rationale: TS=1 at shift=1 confirms the trading opportunity exists.
+   // TE=1 at shift=0 only checks if RIGHT NOW is a good moment to execute.
    //
    // Parameters:
    //   ts_direction : 1 (LONG) or -1 (SHORT) from the prior TS evaluation.
@@ -2139,29 +2146,9 @@ public:
          return 0;
       }
 
-      // 4. Basic price-direction check at shift=0 (forming candle).
-      //    Confirm the current close (best available for shift=0) is still on
-      //    the correct side of the fast bias EMA.  This catches gaps against
-      //    the TS direction.
-      int hf = BiasFastHandle();
-      if(hf != INVALID_HANDLE)
-      {
-         double price    = iClose(m_symbol, PERIOD_CURRENT, 0);
-         double ema_fast = GetMAVal(hf, 0, 0);
-
-         if(ema_fast != 0.0)
-         {
-            bool price_ok = (ts_direction == 1) ? (price > ema_fast) : (price < ema_fast);
-            if(!price_ok)
-            {
-               m_diag_last_reason = "TE_PRICE_DIRECTION";
-               if(m_settings.DebugFlow)
-                  PrintFormat("[TE REJECT] Price %.5f vs EMA %.5f does not confirm %s direction",
-                              price, ema_fast, (ts_direction > 0 ? "BUY" : "SELL"));
-               return 0;
-            }
-         }
-      }
+      // Price direction check removed — trust TS evaluation from shift=1.
+      // Price naturally retraces to EMAs during healthy trends; re-checking at
+      // shift=0 would incorrectly reject valid TS signals on normal pullbacks.
 
       if(m_settings.DebugFlow)
          PrintFormat("[TE PASS] TE conditions confirmed at shift=0 for %s",

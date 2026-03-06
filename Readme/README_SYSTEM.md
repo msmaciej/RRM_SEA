@@ -226,6 +226,80 @@ The system uses a multiplicative formula where ANY component = 0 → entire resu
 * Trade entry: Happens on shift=0 (NEW candle open) for predictable execution.
 
 
+## TS→TE Two-Phase Signal Architecture
+
+SimpleEA implements a two-phase signal evaluation system that separates **Trade Setup (TS)** validation from **Trade Entry (TE)** execution checks. This architecture was implemented in PR #53 to align with the proven Python reference system.
+
+### Phase 1: TS (Trade Setup) Evaluation
+
+**When**: Every bar close (shift=1)  
+**Function**: `GetDirection()` in `SEA_SignalEngine.mqh`  
+**Purpose**: Complete signal validation using closed/confirmed bar data
+
+**9-Step Pipeline**:
+```
+Bar N closes (shift=1)
+  ├─ Step 1: Pre-filters (spread, ATR, time, news)
+  ├─ Step 2: Market bias (EMA structure)
+  ├─ Step 3: AutoStrat signal generation
+  ├─ Step 4: Signal validation
+  ├─ Step 5: HTF filter
+  ├─ Step 6: RRM gates (pullback/divergence)
+  ├─ Step 7: Voting bypass check
+  ├─ Step 8: Indicator voting (ALL-mode in presets)
+  └─ Step 9: Final decision → TS=1 or TS=0
+```
+
+**Evaluation details**:
+- Uses `Vote_EvalShift` (default=1, forced in RRM presets)
+- All presets use `VOTE_MODE_ALL` (unanimous indicator agreement)
+- PSAR flip-count validation (1-2 flips required when enabled)
+
+**If TS=1**: Store signal state (`g_ts_active = true`, `g_ts_direction`, `g_ts_bar_time`) for next bar's TE evaluation.
+
+### Phase 2: TE (Trade Entry) Evaluation
+
+**When**: First tick of bar N+1 open (shift=0), only if `g_ts_active == true`  
+**Function**: `EvaluateTE()` in `SEA_SignalEngine.mqh`  
+**Purpose**: Validate execution-moment conditions only
+
+**Pipeline**:
+```
+Bar N+1 opens (shift=0) - if g_ts_active == true
+  └─ EvaluateTE(ts_direction)
+       └─ CheckFilters() at shift=0
+            ├─ Spread check (live spread vs MaxSpread)
+            ├─ Time filter (current hour vs session window)
+            ├─ News filter (imminent high-impact events)
+            └─ ATR filter (if MinATR/MaxATR enabled)
+       └─ Result: TE=1 (execute) or TE=0 (reject)
+```
+
+**If TE=1**: Execute trade immediately via `Executor.ProcessSignal()`  
+**If TE=0**: Reject entry, clear TS state (`g_ts_active = false`), continue evaluating TS on subsequent bars
+
+**Critical**: TE does NOT re-validate signal logic (bias, indicators, price direction). It only checks if **right now** is a good moment to execute based on execution costs and timing.
+
+### Design Rationale
+
+- **TS at shift=1**: Uses confirmed closed-bar data for reliable signal detection
+- **TE at shift=0**: Real-time execution checks (spread/news can change tick-to-tick)
+- **1-bar delay**: Prevents premature entries on unconfirmed price action
+- **Separation of concerns**: Signal logic (TS) vs execution conditions (TE)
+- **Continuous monitoring**: TS evaluated every bar; TE only when TS=1
+
+This architecture matches the proven Python reference system where TS+ signals on bar N lead to TE+ execution on bar N+1, achieving 55-60% win ratios.
+
+### Key Implementation Changes (PR #53)
+
+1. **OrchestrateTick() restructure**: Runs TE check on every tick (before new-bar gate), evaluates TS on new bars only
+2. **Global state tracking**: `g_ts_active`, `g_ts_direction`, `g_ts_bar_time` replace old immediate-entry logic
+3. **EvaluateTE() function**: New shift=0 validation layer (spread/time/news only, no signal re-validation)
+4. **Vote_EvalShift setting**: Controls TS evaluation bar shift (default=1, forced in presets)
+5. **VOTE_MODE_ALL enforcement**: All 7 presets require unanimous indicator agreement
+6. **PSAR flip-count**: `CountPSARFlips()` and `Check_PSAR_WithFlip()` validate trend strength
+
+
 ## Architecture Changes (PR9–PR12)
 
 ### Multi-Layer Adaptive EMA System (PR12)

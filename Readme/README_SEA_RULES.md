@@ -16,10 +16,36 @@ This document defines the **operating rules** for maintaining and modifying Simp
   - Markdown docs are UTF-8.
 
 ## 2) Core timing architecture (non-negotiable)
-- **shift=1 (closed candle):** signal evaluation only
-- **shift=0 (new candle open):** trade execution only
 
-No signal evaluation on shift=0. No trade entries on shift=1.
+### TS (Trade Setup) Evaluation
+- **shift=1 (closed candle):** Complete signal validation pipeline
+- **Function**: `GetDirection()` in `SEA_SignalEngine.mqh`
+- **Evaluates**: Pre-filters, bias, indicators, voting (VOTE_MODE_ALL in presets), RRM gates, HTF filters
+- **When**: Every bar close
+- **Output**: TS=1 (signal confirmed, arm TE) or TS=0 (no signal)
+
+### TE (Trade Entry) Execution
+- **shift=0 (new candle open):** Execution-moment validation only
+- **Function**: `EvaluateTE()` in `SEA_SignalEngine.mqh`
+- **Evaluates**: Spread, time window, news events (NO signal re-validation)
+- **When**: First tick after TS=1 (if `g_ts_active == true`)
+- **Output**: TE=1 (execute trade) or TE=0 (reject, clear TS)
+
+### Flow
+```
+1. Bar N closes → TS evaluated at shift=1 → If TS=1, store signal
+2. Bar N+1 opens → TE evaluated at shift=0 → If TE=1, execute trade
+3. 1-bar delay ensures entry confirmation
+4. If TE=0, system continues evaluating TS on subsequent bar closes
+```
+
+**No signal evaluation on forming bars. No trade entries without TS→TE validation.**
+
+### Implementation Details (PR #53)
+- Global state: `g_ts_active`, `g_ts_direction`, `g_ts_bar_time`
+- TS uses `Vote_EvalShift` (default=1, forced in presets)
+- All presets use `VOTE_MODE_ALL` (unanimous voting)
+- PSAR flip-count validation when `Vote_AllowPsarFlip=true`
 
 ## 3) Preset policy (anti-confusion, Model A)
 To avoid misleading behavior and user confusion, presets are defined as **fully authoritative**.
