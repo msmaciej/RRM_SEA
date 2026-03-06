@@ -967,4 +967,75 @@ After testing with AdminOverride active, configurations can be saved as MT5 `.se
 - Load the `.set` file later to reproduce the exact tested configuration
 - `.set` files can be shared with the team or used as the basis for a new preset definition
 
+---
+
+## STRAT_LAYER_DETECTION (PR #57)
+
+### Overview
+Detects pullback depth by analyzing which EMA zones price has touched. This strategy replicates the Python EA's TrSet pattern detection (Ribbon/Ghost/Shark) using clearer naming.
+
+### Layer Definitions
+- **LAYER_1_WEAK**: Price touched EMA1/EMA2 zone (shallow pullback, fastest recovery, highest frequency)
+- **LAYER_2_MEDIUM**: Price touched EMA2/EMA3 zone (moderate pullback, balanced risk/reward)
+- **LAYER_3_STRONG**: Price touched EMA3/EMA4 zone (deep pullback, highest confirmation, lower frequency)
+
+### Detection Logic
+1. Check price position against each EMA pair using 1% tolerance
+2. Priority: Deepest layer takes precedence (L3 > L2 > L1)
+3. Evaluated once at bar close (shift=1) per TS/TE timing rules
+4. Requires recovery momentum confirmation when `RequireRecoveryMomentum=true`
+
+### Tolerance Calculation
+- **LayerTouchTolerance**: Default 1% (0.01)
+- Formula: `|price - EMA| <= EMA × tolerance`
+- Example: EMA3=1.08500, tolerance=1% → valid touch range: 1.08393–1.08608
+
+### Phase-Layer Integration (BiasMode = BIAS_AUTO_PHASE)
+- **PHASE_TRENDING**: All layers allowed (L1, L2, L3)
+- **PHASE_EMERGING**: L1 and L2 allowed; L3 blocked (trend still forming)
+- **PHASE_UNORDERED**: No trades allowed (EMAs crossed/choppy market)
+
+### Python EA Equivalence
+This strategy maps directly to Python EA's TrSet pattern detection:
+
+| Python EA | SimpleEA MQL5 | Pullback Depth |
+|-----------|---------------|----------------|
+| "Ribbon"  | LAYER_1_WEAK   | EMA1/2 zone   |
+| "Ghost"   | LAYER_2_MEDIUM | EMA2/3 zone   |
+| "Shark"   | LAYER_3_STRONG | EMA3/4 zone   |
+
+### Configuration
+- **Preset**: `PRESET_RRM` with `BiasMode = BIAS_AUTO_PHASE`
+- **Key Settings**:
+  - `EnableLayerDetection = true`
+  - `LayerTouchTolerance = 0.01` (1%)
+  - `MinPhaseConfirmBars = 4` (phase stability requirement)
+  - `RequireRecoveryMomentum = true` (price must close beyond touched EMA)
+
+### Tuning Guidance
+- **Higher tolerance (1.5–2%)**: More trades, earlier entries, lower win rate
+- **Lower tolerance (0.5%)**: Fewer trades, stricter entries, higher win rate
+- **Disable recovery check**: Increases trade frequency but may catch false pullbacks
+- **Reduce MinPhaseConfirmBars (2–3)**: Faster signal generation, less stable phase detection
+
+### Performance Characteristics
+Compared to Python EA (55–60% win rate, 5–8 trades/day on M1):
+- **SimpleEA**: 35–40% win rate, 2–3 trades/day (as of March 2026)
+- **Cause**: 7 additional protection filters in PRESET_RRM
+  - `MinPhaseConfirmBars = 4` (delays entry)
+  - `RequireRecoveryMomentum = true` (blocks weak signals)
+  - `RRM_MinDivPips = 1.5` (divergence gate)
+  - `PullbackLookback = 20` (strict pullback validation)
+- **Trade-off**: Lower frequency but potentially higher quality setups
+
+### Debugging
+Enable diagnostic logging:
+```mql5
+Inp_DebugFlow = true;  // Shows "[260304_ENTRY] WEAK/MEDIUM/STRONG layer detected" messages
+```
+Check Status Panel for:
+- Current phase: TRENDING/EMERGING/UNORDERED
+- Detected layer: L1/L2/L3/(none)
+- Filter status: ✓ ALLOWED / ✗ BLOCKED
+
 **End of README**

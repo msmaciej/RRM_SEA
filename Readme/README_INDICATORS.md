@@ -211,6 +211,44 @@ Consistent bars: 0 (flipping direction)
   Bearish cross: Fast was ≥ Slow, now < Slow
   ```
 
+#### 3.6 STRAT_LAYER_DETECTION Signal
+
+**Purpose:** Detect pullback-recovery patterns based on EMA zone touches (TrSet methodology)
+
+**Detection Algorithm:**
+1. **Check L3 first** (deepest): Price within 1% of EMA3 OR EMA4 → LAYER_3_STRONG
+2. **Check L2**: Price within 1% of EMA2 OR EMA3 → LAYER_2_MEDIUM
+3. **Check L1** (shallowest): Price within 1% of EMA1 OR EMA2 → LAYER_1_WEAK
+4. **Validate recovery** (if enabled):
+   - Bullish: `close > touched_EMA`
+   - Bearish: `close < touched_EMA`
+
+**Example (Bullish LAYER_3_STRONG):**
+```
+Bar N (shift=1):
+  EMA3 = 1.08500
+  EMA4 = 1.08200
+  Low  = 1.08450 (touched EMA3 within 1%)
+  Close = 1.08600 (recovered above EMA3)
+  
+Result: LAYER_3_STRONG signal → TS armed
+```
+
+**Parameters:**
+- `EnableLayerDetection`: Master toggle (default: true in PRESET_RRM)
+- `LayerTouchTolerance`: Percentage tolerance for "touch" (default: 0.01 = 1%)
+- `RequireRecoveryMomentum`: Require close beyond touched EMA (default: true)
+
+**Integration with Phase Detection:**
+- Phase determines which layers are tradeable
+- Layer detection runs independently (passive observation)
+- Both must align for valid TS signal
+
+**Code Location:**
+- Implementation: `SEA_SignalEngine.mqh::DetectEntryLayer()`
+- Enum definitions: `SEA_Config.mqh::EEntryLayer`
+- Preset configuration: `SEA_Presets.mqh` (PRESET_RRM, line ~744)
+
 **Result:** entry_signal ∈ {-1, 0, 1}
 
 ---
