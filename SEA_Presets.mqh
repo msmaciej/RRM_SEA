@@ -762,7 +762,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_MacdSig  = 8;     //  8,
 
       // MACD vote mode: default industry "traditional" (zero + crossover)
-      cfg.MacdVoteMode          = MACD_ZERO_AND_CROSS;
+      cfg.MacdVoteMode          = MACD_HISTOGRAM;
       cfg.MacdRequireSlope      = false;
       cfg.MacdRequireDivergence = false;
       cfg.MacdRequireHook       = false;
@@ -794,8 +794,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TrailMode             = TRAIL_PSAR;
       cfg.PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;
       cfg.PSAR_TrailPipsCushion = GetRecommendedTrailPsarCushionPips();
-      cfg.Use_BE                = false;
-      cfg.BE_Mode               = BE_MODE_OFF;
+      cfg.Use_BE                = true;
+      cfg.BE_Mode               = BE_MODE_R_MULTIPLE;
    
       // Phase Detection (PR1-5) — enabled in PRESET_RRM
       cfg.PhaseDetectionEnabled      = true;
@@ -807,7 +807,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Layer phase permissions (PR4):
       // ✅ PROTECTION 5: Stricter EMERGING phase filtering
       // EMERGING phase: Only L2 allowed, L1/L3 blocked (reduce false signals in forming trends)
-      cfg.Emerging_AllowWeakTrades   = false;  // ✅ Changed from true - L1 too risky
+      cfg.Emerging_AllowWeakTrades   = true;  // ✅ Changed from true - L1 too risky
       cfg.Emerging_AllowMediumTrades = true;
       cfg.Emerging_AllowStrongTrades = false;
       // TRENDING phase: all layers allowed (strong established trend)
@@ -844,7 +844,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.NewsPost  = op_NewsPost;
    
       // ✅ PROTECTION 4: Enable HTF filter for multi-timeframe confirmation
-      cfg.UseHTF    = true;  // Changed from op_UseHTF - force enable
+      cfg.UseHTF    = false;  // Changed from op_UseHTF - force enable
       cfg.HtfPeriod = (_Period == PERIOD_M15) ? PERIOD_H1 : 
                       (_Period <= PERIOD_M5) ? PERIOD_H1 : PERIOD_H4;
       cfg.P_HtfEma  = 89;    // Use slow EMA on higher timeframe
