@@ -47,6 +47,35 @@ This document defines the **operating rules** for maintaining and modifying Simp
 - All presets use `VOTE_MODE_ALL` (unanimous voting)
 - PSAR flip-count validation when `Vote_AllowPsarFlip=true`
 
+### Critical Timing Rules
+
+1. **TS evaluated once at bar close** (shift=1)
+2. **TE evaluated once at next bar open** (shift=0)
+3. **Bar where TE executes is SKIPPED for next TS** (no premature re-evaluation)
+4. **PSAR checked once at TS**, not re-checked at TE
+5. **Risk management gates TE**, not TS (signal can be valid but blocked by risk)
+
+### PSAR Flip Delay Logic
+
+When `Vote_AllowPsarFlip=true`:
+- PSAR flip must occur within last N bars (configurable via `Vote_PsarFlipLookback`)
+- Once detected, flip remains "valid" as long as it stays in the N-bar window
+- Sliding window automatically handles expiry
+- Example: Flip at bar 5, N=5 → valid at bars 4,3,2,1,0 → expires at next bar
+
+This matches Python EA behavior where flip detection "arms" the PSAR vote for multiple candles.
+
+### Risk Management Integration
+
+TE execution requires BOTH:
+1. Filters pass (spread, time, news)
+2. Risk limits satisfied:
+   - `active_risk + new_trade_risk <= MaxTotalRisk` (portfolio-level)
+   - `open_trades < MaxOpenTrades` (position count)
+   - BE trades count as 0% risk if `CountBEasZeroRisk=true`
+
+If risk limits block TE, signal is discarded (TS evaluation resumes next bar).
+
 ## 3) Preset policy (anti-confusion, Model A)
 To avoid misleading behavior and user confusion, presets are defined as **fully authoritative**.
 

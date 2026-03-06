@@ -394,8 +394,8 @@ private:
    // PSAR helper: count direction-changes (flips) in the PSAR signal over a lookback window.
    // A flip occurs when PSAR switches from above price to below price (or vice-versa).
    // Returns the number of such flips in bars [lookback..1] (bar 0 is forming, excluded).
-   int CountPSARFlips(int lookback = 3) {
-      if(lookback < 3) return 0;
+   int CountPSARFlips(int lookback) {
+      if(lookback < 2) return 0;  // Need at least 2 bars to detect flip
 
       double psar0 = GetVal(h_psar, lookback);
       double cl0   = iClose(m_symbol, PERIOD_CURRENT, lookback);
@@ -420,18 +420,27 @@ private:
    // lookback window) to confirm the signal reflects a genuine fresh reversal rather
    // than a stale or choppy market condition.  Mirrors the Python system's logic.
    bool Check_PSAR_WithFlip(int bias, int shift) {
-      // Basic direction check first
+      // 1. PSAR dot must be on correct side NOW (at shift=1 for TS evaluation)
       if(!Check_PSAR(bias, shift)) return false;
 
-      // Require 1 or 2 flips in the most recent 3 bars (fresh reversal):
-      //   0 flips = stale trend (PSAR hasn't changed sides recently)
-      //   3+ flips = choppy/oscillating (unreliable signal)
-      int flips = CountPSARFlips(3);
-      if(flips < 1 || flips > 2)
-      {
-         m_diag_last_reason = StringFormat("PSAR_FLIP_COUNT_INVALID(%d)", flips);
+      // 2. Check for flip within configured lookback window
+      int lookback = m_settings.Vote_PsarFlipLookback;
+      int flips = CountPSARFlips(lookback);
+
+      // 3. Require at least MinFlips (trend changed recently)
+      if(flips < m_settings.Vote_PsarMinFlips) {
+         m_diag_last_reason = StringFormat("PSAR_NO_RECENT_FLIP (flips=%d, min=%d, lookback=%d)",
+                                           flips, m_settings.Vote_PsarMinFlips, lookback);
          return false;
       }
+
+      // 4. Optional: Reject if too choppy (MaxFlips=0 means no limit)
+      if(m_settings.Vote_PsarMaxFlips > 0 && flips > m_settings.Vote_PsarMaxFlips) {
+         m_diag_last_reason = StringFormat("PSAR_TOO_CHOPPY (flips=%d, max=%d, lookback=%d)",
+                                           flips, m_settings.Vote_PsarMaxFlips, lookback);
+         return false;
+      }
+
       return true;
    }
    
@@ -2052,7 +2061,7 @@ public:
             double p = GetVal(h_psar, v_shift);
             double cl = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             bool pass = (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift));
-            int flips = (m_settings.Vote_AllowPsarFlip ? CountPSARFlips(3) : -1);
+            int flips = (m_settings.Vote_AllowPsarFlip ? CountPSARFlips(m_settings.Vote_PsarFlipLookback) : -1);
             string flip_info = (m_settings.Vote_AllowPsarFlip ? StringFormat(" flips=%d", flips) : "");
             vote_details += StringFormat(" | PSAR: sar=%.5f cl=%.5f%s %s(w=%d)", p, cl, flip_info, pass?"PASS":"FAIL", m_settings.Ind_Psar_Weight);
          }

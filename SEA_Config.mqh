@@ -310,6 +310,9 @@ struct ST_Settings
 
    // Risk
    double RiskPercent;
+   double MaxTotalRisk;          // Max % of account at risk simultaneously (e.g., 4.0)
+   int    MaxOpenTrades;         // Max number of concurrent trades (0 = no limit)
+   bool   CountBEasZeroRisk;     // If true, trades at breakeven don't count toward risk
    double MaxSpread;
    double MinATR;
    double MaxATR;
@@ -461,6 +464,10 @@ struct ST_Settings
    bool        Gate_UseMultiLayer;       // Enable multi-layer cascading EMA pullback detection (RRM standard)
    int         Vote_EvalShift;          // Shift for vote evaluation
    bool        Vote_AllowPsarFlip;      // Allow PSAR flip signal in votes
+   // PSAR flip validation parameters (when Vote_AllowPsarFlip=true)
+   int         Vote_PsarFlipLookback;   // How many bars to check for flips (e.g., 5)
+   int         Vote_PsarMinFlips;       // Minimum flips required (e.g., 1)
+   int         Vote_PsarMaxFlips;       // Maximum flips allowed (0 = no limit, e.g., 6)
 
    // Reporting
    bool ExportCSV;
@@ -1240,6 +1247,15 @@ void InitializeConfig()
    // RequirePullback, PullbackLookback, RequireRecoveryMomentum are mapped from inputs above
    Settings.Vote_EvalShift           = 1;
    Settings.Vote_AllowPsarFlip       = false;
+   // PSAR flip defaults
+   Settings.Vote_PsarFlipLookback    = 5;
+   Settings.Vote_PsarMinFlips        = 1;
+   Settings.Vote_PsarMaxFlips        = 0;  // No upper limit by default
+
+   // Risk management defaults
+   Settings.MaxTotalRisk      = 0.0;  // 0 = no portfolio limit (backward compatible)
+   Settings.MaxOpenTrades     = 0;    // 0 = unlimited (backward compatible)
+   Settings.CountBEasZeroRisk = true; // BE trades have 0 risk
 
    // === Adaptive settings: map inputs and derive effective values ===
 
