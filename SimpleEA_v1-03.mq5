@@ -86,6 +86,7 @@ string   g_ts_reason = "";
 bool     g_ts_active    = false;  // True while a TS signal is pending TE execution
 datetime g_ts_bar_time  = 0;      // Bar N open-time when the TS was generated
 int      g_ts_direction = 0;      // TS direction: 1=BUY, -1=SELL
+datetime g_last_te_bar_time = 0;  // Bar time when TE executed (to skip next TS)
 
 // Global tracking for RRM drawdown protection
 int      g_consecutive_losses     = 0;
@@ -444,9 +445,19 @@ void OrchestrateTick()
 
       if(te_result != 0)
       {
-         if(Settings.DebugFlow)
-            PrintFormat("[TE ENTRY] TE confirmed at shift=0 | direction=%d", te_result);
-         Executor.ProcessSignal(te_result, atr_te);
+         // Check risk management before executing
+         if(Executor.CheckRiskAllowsNewTrade())
+         {
+            if(Settings.DebugFlow)
+               PrintFormat("[TE ENTRY] TE confirmed at shift=0 | direction=%d", te_result);
+            Executor.ProcessSignal(te_result, atr_te);
+            g_last_te_bar_time = current_bar;  // Mark this bar as TE execution bar
+         }
+         else
+         {
+            if(Settings.DebugFlow)
+               Print("[TE BLOCKED] Risk management rejected new trade");
+         }
       }
       else
       {
@@ -539,6 +550,18 @@ void OrchestrateTick()
    // ═══════════════════════════════════════════════════════════════
    if(!drawdown_blocked && !g_ts_active)
    {
+      // Skip TS evaluation if previous bar was a TE execution bar
+      // (gives indicators time to develop a new setup)
+      // prev_bar = shift=1 (the bar that just closed); if TE executed on it, skip TS
+      datetime prev_bar = iTime(_Symbol, PERIOD_CURRENT, 1);
+      if(prev_bar == g_last_te_bar_time)
+      {
+         if(Settings.DebugFlow)
+            PrintFormat("[TS SKIP] Not evaluating TS - previous bar %s was TE execution bar",
+                        TimeToString(prev_bar, TIME_DATE|TIME_MINUTES));
+      }
+      else
+      {
       FlowLog("Step B: Compute direction signal (TS evaluation at shift=1)");
       int direction = Signal.GetDirection();
 
@@ -576,6 +599,7 @@ void OrchestrateTick()
 
       FlowLog(StringFormat("Step B done: TS=%d (pending=%s)",
                            direction, (g_ts_active ? "YES" : "NO")));
+      } // end else (not TE execution bar)
    }
    else if(g_ts_active)
    {
@@ -636,10 +660,11 @@ void OrchestrateDeinit(const int reason)
    FlowLog(StringFormat("EA stop -> OnDeinit(reason=%d)", reason));
 
    Signal.Release();
-   g_last_bar_time  = 0;
-   g_ts_active      = false;
-   g_ts_direction   = 0;
-   g_ts_bar_time    = 0;
+   g_last_bar_time     = 0;
+   g_ts_active         = false;
+   g_ts_direction      = 0;
+   g_ts_bar_time       = 0;
+   g_last_te_bar_time  = 0;
 
    FlowLog("OnDeinit complete");
 }

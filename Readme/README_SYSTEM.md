@@ -299,6 +299,116 @@ This architecture matches the proven Python reference system where TS+ signals o
 5. **VOTE_MODE_ALL enforcement**: All 7 presets require unanimous indicator agreement
 6. **PSAR flip-count**: `CountPSARFlips()` and `Check_PSAR_WithFlip()` validate trend strength
 
+### Process Flow Diagram
+
+The following diagram illustrates the complete bar-by-bar evaluation cycle:
+
+```mermaid
+flowchart TD
+    Start([New Bar Closes]) --> TSEval[TS Evaluation at shift=1]
+
+    TSEval --> CheckIndicators{Check ALL Indicators\nVOTE_MODE_ALL}
+
+    CheckIndicators --> PSARCheck{PSAR Vote}
+    PSARCheck -->|FLIP mode| PSARFlip[Check flip in last N bars\nAND dot on correct side]
+    PSARCheck -->|DOT mode| PSARDot[Check dot position at shift=1]
+
+    PSARFlip --> PSARResult{PSAR Pass?}
+    PSARDot --> PSARResult
+
+    PSARResult -->|No| TSFail[TS=0: Rejected]
+    PSARResult -->|Yes| CheckOtherInd{EmaSig + MACD + CCI Pass?}
+
+    CheckOtherInd -->|No| TSFail
+    CheckOtherInd -->|Yes| TSPass[TS=1: Store Signal\ng_ts_active = true]
+
+    TSPass --> BarOpen([Next Bar Opens shift=0])
+
+    BarOpen --> TECheck{g_ts_active?}
+    TECheck -->|No| Wait1[Wait for next bar]
+    TECheck -->|Yes| TEFilters{Check Filters\nspread/time/news}
+
+    TEFilters -->|Fail| TEReject[TE=0: Clear signal]
+    TEFilters -->|Pass| RiskCheck{Risk Management}
+
+    RiskCheck --> CalcRisk[Calculate active risk\nBE trades = 0%]
+    CalcRisk --> RiskOK{Risk + new trade\n<= MaxTotalRisk?}
+
+    RiskOK -->|No| RiskBlock[TE blocked\nRisk limit reached]
+    RiskOK -->|Yes| TEExecute[TE=1: Execute Trade\nMark bar as TE bar]
+
+    TEExecute --> BarClose([Bar Closes])
+    TEReject --> BarClose
+    RiskBlock --> BarClose
+
+    BarClose --> CheckSkip{Was TE executed\non previous bar?}
+    CheckSkip -->|Yes| SkipTS[SKIP TS Evaluation\nBar consumed by TE]
+    CheckSkip -->|No| NormalTS[Resume TS Evaluation]
+
+    SkipTS --> Start
+    NormalTS --> Start
+    TSFail --> Wait1
+    Wait1 --> Start
+
+    classDef tsNode fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    classDef teNode fill:#fff4e6,stroke:#ff9800,stroke-width:2px
+    classDef skipNode fill:#ffebee,stroke:#f44336,stroke-width:2px
+    classDef execNode fill:#e8f5e9,stroke:#4caf50,stroke-width:3px
+
+    class TSEval,CheckIndicators,PSARCheck tsNode
+    class TECheck,TEFilters,RiskCheck,CalcRisk teNode
+    class SkipTS,TSFail,TEReject,RiskBlock skipNode
+    class TSPass,TEExecute execNode
+```
+
+### Bar-by-Bar Timeline Example
+
+```
+Bar N+2 closes (shift=1 from current perspective):
+  ├─ TS evaluation: ALL indicators checked including PSAR
+  ├─ PSAR FLIP mode: Check if flip occurred in last 5 bars AND dot on correct side
+  └─ If ALL pass → TS=1 stored
+
+Bar N+1 opens (shift=0):
+  ├─ TE evaluation: Filters ONLY (spread, time, news)
+  ├─ Risk check: (active_risk + new_trade_risk) <= MaxTotalRisk?
+  └─ If both OK → Execute trade, mark bar as "TE bar"
+
+Bar N+1 closes:
+  └─ SKIP TS evaluation (bar consumed by TE, indicators haven't reset)
+
+Bar N closes (shift=0→1):
+  └─ Resume TS evaluation (fresh setup possible)
+```
+
+### PSAR Logic Modes
+
+**Mode A: PSAR FLIP (Vote_AllowPsarFlip=true)**
+- Requires flip within last N bars (`Vote_PsarFlipLookback`)
+- Flip "remembered" for N candles via sliding window
+- Example: Flip at bar 5, lookback=5 → valid for bars 4,3,2,1,0
+
+**Mode B: Simple PSAR DOT (Vote_AllowPsarFlip=false)**
+- Just checks: is dot on correct side at shift=1?
+- No flip requirement, simpler logic
+
+### Risk Management
+
+**Portfolio-Level Gates:**
+- `MaxTotalRisk`: Maximum % of account at risk simultaneously (e.g., 4%)
+- `MaxOpenTrades`: Maximum concurrent positions (e.g., 3)
+- `CountBEasZeroRisk`: Trades at breakeven count as 0% risk
+
+**Example:**
+```
+MaxTotalRisk = 4%, RiskPercent = 2%
+Open trades:
+  - Trade1: 2% risk (active SL)
+  - Trade2: 0% risk (at BE)
+New trade: 2% risk
+Calculation: 2% + 0% + 2% = 4% <= 4% → ALLOWED
+```
+
 
 ## Architecture Changes (PR9–PR12)
 

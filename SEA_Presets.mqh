@@ -782,6 +782,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       cfg.Vote_EvalShift            = 1;
       cfg.Vote_AllowPsarFlip        = true;
+      cfg.Vote_PsarFlipLookback     = 5;     // Check last 5 bars for any flip
+      cfg.Vote_PsarMinFlips         = 1;     // At least 1 flip required
+      cfg.Vote_PsarMaxFlips         = 0;     // No upper limit (0 = disabled)
+
+      // Risk management (portfolio-level)
+      cfg.MaxTotalRisk              = 4.0;   // Max 4% total portfolio risk
+      cfg.MaxOpenTrades             = 3;     // Max 3 concurrent trades
+      cfg.CountBEasZeroRisk         = true;  // Trades at BE don't count toward risk
 
       // Enforce strict no-ATR exit contract (RRM design: swing-based SL, PSAR trail, no ATR)
       cfg.ExitProfile           = EXIT_PROFILE_RRM_STRICT_NO_ATR;
