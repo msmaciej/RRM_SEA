@@ -13,6 +13,16 @@ Core Philosophy: Simple systems that work > Complex systems that don't.
 ## Table of Contents
 
 * System Architecture
+* Bias, Market Phase, and Entry Layer Concepts
+  * Overview
+  * Bias
+  * Market Phase
+  * Entry Layer
+  * How They Work Together
+  * TS Evaluation Priority
+  * Complete TS Formula
+  * Configuration Examples
+  * Complete TS Evaluation Flow
 * How SimpleEA Works: Complete Process Flow
 * The 9-Step Signal Pipeline: Visual Overview
 * Key Concepts (Quick Summary)
@@ -32,6 +42,303 @@ For detailed technical documentation: See README_INDICATORS.md
 
 The v1.02.016d refactor decoupled the system into specialized modules to separate state, logic, and execution.
 
+
+## Bias, Market Phase, and Entry Layer Concepts
+
+### Overview
+
+The TS (Trade Setup) evaluation pipeline uses three hierarchical, **separate** evaluations that multiply together. Understanding each concept independently is essential before reading the code.
+
+| Concept | Purpose | Depends on |
+|---|---|---|
+| **Bias** | Direction of the trade (LONG / SHORT / NONE) | Bias mode setting |
+| **Market Phase** | Structure quality of the trend | Only used with `BIAS_AUTO_PHASE` |
+| **Entry Layer** | Pullback-recovery timing within that trend | Bias direction (any mode) |
+
+These are **not** the same thing. Bias says *which way*, Market Phase says *how strong the structure is*, and Entry Layer says *when to time the entry*.
+
+**Formula:**
+```
+TS = Bias × MarketPhase × EntryLayer × [all indicators]
+```
+
+Because they multiply, **any zero stops the trade**.
+
+---
+
+### Bias
+
+The Bias determines the primary trend direction. Three modes are available:
+
+**Option 1: `BIAS_AUTO` (Traditional EMA method)**
+```
+Uses: Fast EMA vs Slow EMA comparison (NOT just price position)
+Logic:
+├─ EMA_Fast > EMA_Slow AND both slopes up    → Bias = 1 (LONG)
+├─ EMA_Fast < EMA_Slow AND both slopes down  → Bias = -1 (SHORT)
+└─ EMAs crossing or slopes conflicting       → Bias = 0 (no trade)
+```
+
+**Option 2: `BIAS_AUTO_PHASE` (Market Phase method)**
+```
+Uses: 4 EMAs (EMA1, EMA2, EMA3, EMA4) structure analysis
+Logic:
+1. Analyze EMA2, EMA3, EMA4 relative positions and slopes
+2. Determine Market Phase (TRENDING / EMERGING / UNORDERED)
+3. Extract Bias direction from phase structure
+Special: UNORDERED phase forces Bias = 0 → blocks all trades
+```
+
+**Option 3: `BIAS_MANUAL`**
+```
+Uses: Operator-configured fixed direction
+Logic: Always returns the configured side (LONG, SHORT, or BOTH)
+Use case: Override mode, single-direction backtesting
+```
+
+---
+
+### Market Phase
+
+Market Phase is **only** evaluated when `BiasMode = BIAS_AUTO_PHASE`. It classifies the quality of EMA structure using EMA2, EMA3, and EMA4.
+
+**`PHASE_TRENDING`**
+```
+├─ EMAs properly ordered: EMA2 > EMA3 > EMA4 (LONG) or reversed (SHORT)
+├─ All slopes aligned in same direction
+└─ Result: Allow trades, Bias = 1 or -1 (from EMA order)
+```
+
+**`PHASE_EMERGING`**
+```
+├─ EMA4 temporarily between EMA2 and EMA3
+├─ Trend is forming / strengthening
+└─ Result: Allow trades, Bias = 1 or -1 (from emerging direction)
+```
+
+**`PHASE_UNORDERED`**
+```
+├─ Any other EMA configuration (mixed, crossing, contradicting)
+├─ No clear trend structure
+└─ Result: Block ALL trades (TS = 0), Bias forced to 0
+```
+
+**Market Phase Determination Flow:**
+```mermaid
+graph TD
+    A[Analyze EMA2, EMA3, EMA4<br/>positions and slopes] --> B{Check EMA Order}
+
+    B -->|Properly Ordered<br/>EMA2 &gt; EMA3 &gt; EMA4 LONG<br/>or EMA2 &lt; EMA3 &lt; EMA4 SHORT| C[PHASE_TRENDING]
+    B -->|EMA4 Between<br/>EMA2 and EMA3| D[PHASE_EMERGING]
+    B -->|Mixed or<br/>Contradicting| E[PHASE_UNORDERED]
+
+    C --> F[✅ Allow Trades<br/>Extract Bias Direction]
+    D --> F
+    E --> G[❌ Block All Trades<br/>TS = 0]
+
+    F --> H[Continue to<br/>Entry Layer Check]
+    G --> I[Stop Evaluation]
+```
+
+---
+
+### Entry Layer
+
+Entry Layer detects a **pullback-recovery pattern** to time entries. It can be used with **any** Bias mode and is independent of Market Phase.
+
+Three layers represent different pullback depths:
+
+| Layer | EMA Pair | Nickname | Depth | Risk/Reward |
+|---|---|---|---|---|
+| `LAYER_1_WEAK` | EMA1 – EMA2 | "Ribbon" | Shallow | Lower risk, lower reward |
+| `LAYER_2_MEDIUM` | EMA2 – EMA3 | "Ghost" | Medium | Balanced |
+| `LAYER_3_STRONG` | EMA3 – EMA4 | "Shark" | Deep | Higher risk, higher reward |
+
+**Pullback-Recovery Detection Pattern:**
+
+1. **Pullback Phase:** EMA_fast slope moves toward EMA_slow (or flattens)
+2. **Flat Phase:** EMA_fast slope becomes flat (brief consolidation)
+3. **Recovery Phase:** EMA_fast slope resumes trend direction
+4. **Confirmation:** Price candle body closes beyond EMA_fast (in bias direction)
+
+**Return values from layer check:**
+- `1` = Recovery detected, matches bias direction → **PASS**
+- `0` = No recovery detected → **FAIL**
+- `-1` = Recovery contradicts bias direction → **FAIL**
+
+**Pullback-Recovery Sequence:**
+```mermaid
+sequenceDiagram
+    participant Price
+    participant EMA_fast
+    participant EMA_slow
+
+    Note over Price,EMA_slow: Trend is active (EMA_fast above EMA_slow for LONG)
+
+    Price->>EMA_fast: Price pulls back toward EMA_fast
+    EMA_fast->>EMA_slow: EMA_fast slope flattens (pullback phase)
+
+    Note over EMA_fast: Flat phase - slope ≈ 0
+
+    EMA_fast->>EMA_slow: EMA_fast slope resumes upward (recovery)
+    Price->>EMA_fast: Price candle body closes above EMA_fast
+
+    Note over Price,EMA_slow: ✅ Entry signal confirmed
+```
+
+---
+
+### How They Work Together
+
+**Example 1: `BIAS_AUTO` + Entry Layer**
+```
+1. BiasMode = BIAS_AUTO
+2. Bias: EMA_Fast (13) > EMA_Slow (34), both slopes up → Bias = 1 (LONG)
+3. MarketPhase = 1 (not evaluated, treated as pass)
+4. EntryLayer: Pullback to EMA3-EMA4 zone detected, recovery confirmed → 1
+5. TS = 1 × 1 × 1 × [indicators] → if all pass → LONG signal
+```
+
+**Example 2: `BIAS_AUTO_PHASE` + Entry Layer**
+```
+1. BiasMode = BIAS_AUTO_PHASE
+2. Analyze EMA2/EMA3/EMA4: EMA2 > EMA3 > EMA4, all slopes up
+3. Phase = PHASE_TRENDING → Bias = 1 (LONG), MarketPhase = 1
+4. EntryLayer: Pullback to EMA2-EMA3 "Ghost" zone, recovery confirmed → 1
+5. TS = 1 × 1 × 1 × [indicators] → if all pass → LONG signal
+```
+
+**Example 3: UNORDERED Phase blocks everything**
+```
+1. BiasMode = BIAS_AUTO_PHASE
+2. Analyze EMA2/EMA3/EMA4: EMAs crossed/mixed, slopes conflicting
+3. Phase = PHASE_UNORDERED → Bias forced to 0, MarketPhase = 0
+4. TS = 0 × 0 × ? = 0 → NO TRADE (evaluation stops here)
+```
+
+---
+
+### TS Evaluation Priority
+
+The pipeline evaluates in this order:
+
+```
+1. BIAS (direction)          → If 0, stop immediately
+2. MARKET PHASE (structure)  → If UNORDERED, stop (only with BIAS_AUTO_PHASE)
+3. ENTRY LAYER (pullback)    → If 0 or -1, stop (only if layer detection enabled)
+4. INDICATORS (all equal)    → If any fail, stop
+```
+
+**Why this order?**
+- Determine *which way* first (Bias) — no point evaluating structure without direction
+- Validate *how strong* the structure is (Market Phase) — prevent trading in choppy conditions
+- Confirm *timing of entry* (Entry Layer) — ensure the pullback is complete before entering
+- Apply *final quality filters* (Indicators) — all indicators evaluated after structural checks pass
+
+---
+
+### Complete TS Formula
+
+```
+TS = Bias × MarketPhase × EntryLayer × MACD × CCI × PSAR × ATR × RSI × Stoch × ADX × BB × HTF × ...
+
+Where each factor is:
+  1  = pass (condition met, or feature disabled → neutral)
+  0  = fail (condition not met)
+ -1  = contradicts (used by directional checks)
+
+Multiplicative system: ANY 0 or -1 in the chain → TS = 0 (no trade)
+Disabled factors always contribute 1 (they are ignored, not blocking).
+```
+
+---
+
+### Configuration Examples
+
+**Conservative (RRM-style)**
+```
+BiasMode       = BIAS_AUTO_PHASE   ← Use 4-EMA structure check
+BlockUnordered = true              ← Hard-block in choppy markets
+LayerDetect    = true              ← Require pullback-recovery
+AllowLayer1    = false             ← No shallow entries
+AllowLayer2    = true              ← Medium pullbacks only
+AllowLayer3    = true              ← Deep pullbacks allowed
+VoteThreshold  = 3                 ← Need 3+ indicators to agree
+```
+
+**Aggressive (Scalp-style)**
+```
+BiasMode       = BIAS_AUTO         ← Simple Fast/Slow EMA comparison
+BlockUnordered = false             ← Don't block by phase
+LayerDetect    = false             ← No pullback requirement
+AllowLayer1    = true              ← All entries allowed
+VoteThreshold  = 1                 ← Any single indicator passes
+```
+
+**Flexible (Custom)**
+```
+BiasMode       = BIAS_AUTO_PHASE   ← Market Phase analysis
+BlockUnordered = true              ← Block choppy conditions
+LayerDetect    = true              ← Pullback detection on
+AllowLayer1    = true              ← All layer depths allowed
+AllowLayer2    = true
+AllowLayer3    = true
+VoteThreshold  = 2                 ← Moderate indicator consensus
+```
+
+---
+
+### Complete TS Evaluation Flow
+
+```mermaid
+flowchart TD
+    START[Bar Close<br/>shift=1] --> BIAS{Evaluate BIAS}
+
+    BIAS -->|BIAS_MANUAL| B1[Use Configured Direction]
+    BIAS -->|BIAS_AUTO| B2[Compare Fast/Slow EMA slopes]
+    BIAS -->|BIAS_AUTO_PHASE| B3[Analyze EMA2/EMA3/EMA4 Structure]
+
+    B1 --> BIASCHECK{Bias = ?}
+    B2 --> BIASCHECK
+    B3 --> PHASECHECK{Market Phase = ?}
+
+    PHASECHECK -->|PHASE_UNORDERED| FAIL[TS = 0<br/>❌ NO TRADE]
+    PHASECHECK -->|PHASE_TRENDING or PHASE_EMERGING| BIASCHECK
+
+    BIASCHECK -->|0| FAIL
+    BIASCHECK -->|1 or -1| LAYER{Entry Layer<br/>Enabled?}
+
+    LAYER -->|No| INDICATORS
+    LAYER -->|Yes| LAYERCHECK[Check Pullback-Recovery]
+
+    LAYERCHECK --> LAYERRESULT{Layer = ?}
+    LAYERRESULT -->|0 or -1| FAIL
+    LAYERRESULT -->|1| INDICATORS[Evaluate All<br/>Enabled Indicators]
+
+    INDICATORS --> IND1{MACD?}
+    IND1 -->|Enabled and Fail| FAIL
+    IND1 -->|Pass or Disabled| IND2{PSAR?}
+
+    IND2 -->|Enabled and Fail| FAIL
+    IND2 -->|Pass or Disabled| IND3{ATR?}
+
+    IND3 -->|Enabled and Fail| FAIL
+    IND3 -->|Pass or Disabled| IND4{RSI?}
+
+    IND4 -->|Enabled and Fail| FAIL
+    IND4 -->|Pass or Disabled| MORE[... more indicators ...]
+
+    MORE -->|Any Fail| FAIL
+    MORE -->|All Pass| SUCCESS[TS = Bias<br/>✅ SIGNAL CONFIRMED]
+
+    SUCCESS --> ARMTE[Arm TE for<br/>Next Bar Open]
+
+    style FAIL fill:#ffcccc
+    style SUCCESS fill:#ccffcc
+    style ARMTE fill:#ccffcc
+```
+
+---
 
 ## Core Components
 
