@@ -446,11 +446,11 @@ void OrchestrateTick()
       if(te_result != 0)
       {
          // Check risk management before executing
-         if(Executor.CheckRiskAllowsNewTrade())
+   if(Executor.EvaluateRC())
          {
             if(Settings.DebugFlow)
                PrintFormat("[TE ENTRY] TE confirmed at shift=0 | direction=%d", te_result);
-            Executor.ProcessSignal(te_result, atr_te);
+            Executor.ExecuteTrade(te_result, atr_te);
             g_last_te_bar_time = current_bar;  // Mark this bar as TE execution bar
          }
          else
@@ -484,7 +484,7 @@ void OrchestrateTick()
    double atr = Signal.GetATR();
 
    FlowLog("Step A: Manage open positions (Trailing/BE)");
-   Executor.ManageTrade(atr);
+   Executor.EvaluateTM(atr);
 
    // ═══════════════════════════════════════════════════════════════
    // RRM Drawdown Protection Filter (§6)
@@ -543,7 +543,7 @@ void OrchestrateTick()
    // TS→TE Phase 1: Trade Setup evaluation on bar close (shift=1)
    //
    // Runs once per bar when no TS is pending and drawdown is not blocked.
-   // GetDirection() evaluates ALL pipeline steps (bias, filters, voting)
+   // EvaluateTS() evaluates ALL pipeline steps (bias, filters, voting)
    // on the CLOSED bar (shift=1 via Vote_EvalShift=1) and returns a
    // direction if a valid TS is found.  The TS is stored; execution is
    // deferred to Phase 2 on the next tick.
@@ -563,13 +563,13 @@ void OrchestrateTick()
       else
       {
       FlowLog("Step B: Compute direction signal (TS evaluation at shift=1)");
-      int direction = Signal.GetDirection();
+      int ts = Signal.EvaluateTS();
 
       // Capture TS display snapshot
-      if(direction != 0)
+      if(ts != 0)
       {
          g_ts_time   = iTime(_Symbol, PERIOD_CURRENT, 1);
-         g_ts_dir    = direction;
+         g_ts_dir    = ts;
          g_ts_bias   = Signal.LastBias();
          g_ts_votes  = Signal.LastVotes();
          g_ts_thr    = Settings.VoteThreshold;
@@ -578,16 +578,16 @@ void OrchestrateTick()
          // Arm TS→TE state for Phase 2 evaluation on the next bar's first tick.
          // Store current bar's open-time; Phase 2 fires when current_bar != g_ts_bar_time.
          g_ts_active    = true;
-         g_ts_direction = direction;
+         g_ts_direction = ts;
          g_ts_bar_time  = current_bar;  // Open-time of bar N where TS was detected
 
          if(Settings.DebugFlow)
             PrintFormat("[TS=1] Setup confirmed at bar close %s | %s | Waiting for TE on next bar open",
                         TimeToString(g_ts_time, TIME_DATE|TIME_MINUTES),
-                        (direction > 0 ? "BUY" : "SELL"));
+                        (ts > 0 ? "BUY" : "SELL"));
 
          if(Settings.DrawEntryLines)
-            SEA_DrawEntrySignalLine(g_ts_time, direction, Signal.LastReason());
+            SEA_DrawEntrySignalLine(g_ts_time, ts, Signal.LastReason());
       }
       else
       {
@@ -598,7 +598,7 @@ void OrchestrateTick()
       }
 
       FlowLog(StringFormat("Step B done: TS=%d (pending=%s)",
-                           direction, (g_ts_active ? "YES" : "NO")));
+                           ts, (g_ts_active ? "YES" : "NO")));
       } // end else (not TE execution bar)
    }
    else if(g_ts_active)
