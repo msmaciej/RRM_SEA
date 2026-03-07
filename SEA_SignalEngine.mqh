@@ -29,7 +29,7 @@
 // - RRM Gates: Optional quality filters (pullback, divergence)
 //
 // RETURN VALUES:
-// GetDirection() returns: 1 (LONG), -1 (SHORT), 0 (NO TRADE)
+// EvaluateTS() returns: 1 (LONG), -1 (SHORT), 0 (NO TRADE)
 //
 // See README.md for complete documentation
 //+------------------------------------------------------------------+
@@ -97,7 +97,7 @@ private:
    bool        m_recovery_detected;  // Was recovery detected?
 
    // --- 2d. REJECTION STATISTICS ---
-   int         m_bars_evaluated;     // Total bars evaluated by GetDirection()
+   int         m_bars_evaluated;     // Total bars evaluated by EvaluateTS()
    int         m_signals_generated;  // Signals returned (TS != 0)
    int         m_reject_filter;      // Rejections at pre-filter step (spread, ATR, time, news)
    int         m_reject_bias;        // Rejections at bias step (no trend, signal mismatch)
@@ -1517,7 +1517,7 @@ public:
    }
 
    //==========================================================================
-   // === GetDirection: BEGIN ===
+   // === EvaluateTS: BEGIN ===
    //==========================================================================
    // This function implements the 9-step signal validation pipeline.
    // Each step must pass before moving to the next.
@@ -1542,9 +1542,9 @@ public:
    //
    // RETURNS: 1 (LONG), -1 (SHORT), 0 (NO TRADE)
    //==========================================================================
-   // GetDirection() - Main Signal Processing Pipeline (WITH DIAGNOSTICS)
+   // EvaluateTS() - Main Signal Processing Pipeline (WITH DIAGNOSTICS)
    //==========================================================================
-   int GetDirection() 
+   int EvaluateTS() 
    {
       // ═══════════════════════════════════════════════════════════════
       // 260304_PR1: Update phase diagnostics (passive - doesn't affect logic)
@@ -2135,14 +2135,14 @@ public:
          return 0;
       }
 
-   } // === GetDirection: END ===
+   } // === EvaluateTS: END ===
 
    //==========================================================================
    // === EvaluateTE: BEGIN ===
    //==========================================================================
    // EvaluateTE() — Trade Entry evaluation on the OPENING bar (shift=0).
    //
-   // Called on the first tick of bar N+1, AFTER GetDirection() confirmed a TS
+   // Called on the first tick of bar N+1, AFTER EvaluateTS() confirmed a TS
    // signal on bar N (shift=1).  This method validates that the conditions
    // at the moment of execution are still clean before entering a trade.
    // Signal logic (bias, indicators, price direction) is NOT re-validated here —
