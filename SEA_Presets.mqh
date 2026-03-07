@@ -826,6 +826,21 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SLPercent     = 0.5;
       cfg.RRRatio       = 3.0;
       cfg.SwingLookback = 20;
+
+      // Phase 2.2: Fractal/PSAR SL/TP defaults for RRM preset
+      cfg.FractalPeriod      = 5;
+      cfg.TPFractalOffset    = 1;
+      cfg.PSARStep           = 0.02;
+      cfg.PSARMax            = 0.2;
+
+      // Phase 2.2: Advanced trailing trigger defaults for RRM preset
+      cfg.TrailTrigger       = TRIGGER_BREAKEVEN;
+      cfg.TrailDistancePips  = 15.0;
+      cfg.TrailATRMultiplier = 1.5;
+      cfg.BEThresholdPips    = 10.0;
+      cfg.TrailProfitPercent = 1.0;
+      cfg.TrailStepPips      = 5.0;
+      cfg.TrailLockProfit    = true;
    
       // Phase Detection (PR1-5) — enabled in PRESET_RRM
       cfg.PhaseDetectionEnabled      = true;
