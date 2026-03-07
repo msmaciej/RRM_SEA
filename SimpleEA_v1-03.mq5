@@ -311,6 +311,68 @@ void UpdateRRMDrawdownTracking(bool was_profitable)
 //| INIT                                                             |
 //+------------------------------------------------------------------+
 
+void ValidateConfiguration()
+{
+   Print("════════════════════════════════════════════════");
+   Print("  CONFIGURATION VALIDATION");
+   Print("════════════════════════════════════════════════");
+
+   bool has_warnings = false;
+
+   // Warn if preset + admin override both active
+   if(InpPreset != PRESET_CUSTOM && Settings.AdminOverridePreset) {
+      Print("WARNING: Preset=", EnumToString(InpPreset), " but AdminOverride=true");
+      Print("   Admin settings will OVERRIDE preset values");
+      has_warnings = true;
+   }
+
+   // Warn if phase detection enabled but BiasMode is not AUTO_PHASE
+   if(Settings.PhaseDetectionEnabled && Settings.BiasMode != BIAS_AUTO_PHASE) {
+      Print("WARNING: PhaseDetection=true but BiasMode != AUTO_PHASE");
+      Print("   Phase detection only works with BIAS_AUTO_PHASE");
+      has_warnings = true;
+   }
+
+   // Warn if layer detection enabled but phase detection is off
+   if(Settings.EnableLayerDetection && !Settings.PhaseDetectionEnabled) {
+      Print("WARNING: LayerDetection=true but PhaseDetection=false");
+      Print("   Layer filtering has no effect without phase detection");
+      has_warnings = true;
+   }
+
+   // Count enabled indicators
+   int enabled = 0;
+   if(Settings.Ind_EmaSig_Enabled) enabled++;
+   if(Settings.Ind_Macd_Enabled)   enabled++;
+   if(Settings.Ind_Psar_Enabled)   enabled++;
+   if(Settings.Ind_Cci_Enabled)    enabled++;
+   if(Settings.Ind_Rsi_Enabled)    enabled++;
+   if(Settings.Ind_Adx_Enabled)    enabled++;
+   if(Settings.Ind_Mfi_Enabled)    enabled++;
+   if(Settings.Ind_Sto_Enabled)    enabled++;
+   if(Settings.Ind_Bb_Enabled)     enabled++;
+   if(Settings.Ind_P123_Enabled)   enabled++;
+   if(Settings.Ind_Ross_Enabled)   enabled++;
+
+   if(enabled == 0) {
+      Print("WARNING: NO indicators enabled!");
+      Print("   No trades possible (at least 1 indicator required for signal generation)");
+      has_warnings = true;
+   }
+
+   if(enabled > 6) {
+      Print("WARNING: ", enabled, " indicators enabled (ALL must pass)");
+      Print("   Very restrictive, consider disabling some");
+      has_warnings = true;
+   }
+
+   if(!has_warnings) {
+      Print("OK: No configuration warnings");
+   }
+
+   Print("════════════════════════════════════════════════");
+}
+
 int OrchestrateInit()
 {
    FlowLog("EA start -> OnInit()");
@@ -432,6 +494,7 @@ int OrchestrateInit()
    }
 
    FlowLog("OnInit complete -> INIT_SUCCEEDED");
+   ValidateConfiguration();
    return INIT_SUCCEEDED;
 }
 
@@ -605,6 +668,8 @@ void OrchestrateTick()
 
 void OrchestrateDeinit(const int reason)
 {
+   Signal.PrintRejectionStatistics();
+
    if(Settings.ExportCSV)
       SEA_Report_Generate();
 
