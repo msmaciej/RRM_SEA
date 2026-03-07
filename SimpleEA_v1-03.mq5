@@ -81,8 +81,8 @@ string   g_ts_reason = "";
 // Phase 1 (TS): evaluated at bar-close (shift=1) when a new bar opens.
 //               Sets g_ts_active=true and records the bar time + direction.
 // Phase 2 (TE): evaluated on the very first tick of the NEXT bar (shift=0).
-//               Calls EvaluateTE() which checks live conditions; if valid,
-//               the trade is executed and g_ts_active is reset.
+//               Calls Executor.EvaluateTE() which handles the complete entry
+//               process (filters → RC → CM → execute); resets g_ts_active.
 bool     g_ts_active    = false;  // True while a TS signal is pending TE execution
 datetime g_ts_bar_time  = 0;      // Bar N open-time when the TS was generated
 int      g_ts_direction = 0;      // TS direction: 1=BUY, -1=SELL
@@ -428,8 +428,7 @@ void OrchestrateTick()
    // TS→TE Phase 2: Trade Entry evaluation on bar N+1 open (shift=0)
    //
    // Fires on the first tick of the bar AFTER the TS signal was generated.
-   // EvaluateTE() checks live conditions at shift=0 (forming candle) before
-   // granting entry: spread, time/news filters, and basic price direction.
+   // EvaluateTE() handles the complete entry process: filters → RC → CM → Execute.
    // g_ts_active is reset unconditionally so TE fires at most once per TS.
    // ═══════════════════════════════════════════════════════════════
    if(g_ts_active && current_bar != g_ts_bar_time)
@@ -439,40 +438,17 @@ void OrchestrateTick()
                      (g_ts_direction > 0 ? "BUY" : "SELL"),
                      TimeToString(g_ts_bar_time, TIME_DATE|TIME_MINUTES));
 
-      int te_result = Signal.EvaluateTE(g_ts_direction);
+      // TE: handles filters, RC, CM and order execution internally
+      int te_result = Executor.EvaluateTE(g_ts_direction);
 
       if(te_result != 0)
       {
-         // Step 2: RC - Risk control gate
-         if(Executor.EvaluateRC())
-         {
-            // Step 3: CM - Capital management (lot sizing, ATR-independent)
-            double lots = Executor.EvaluateCM(te_result);
-
-            if(lots > 0)
-            {
-               // Step 4: Execute - Place order (ATR-independent)
-               if(Settings.DebugFlow)
-                  PrintFormat("[TE ENTRY] TE confirmed at shift=0 | direction=%d | lots=%.2f", te_result, lots);
-               Executor.ExecuteTrade(te_result, lots);
-               g_last_te_bar_time = current_bar;  // Mark this bar as TE execution bar
-            }
-            else
-            {
-               if(Settings.DebugFlow)
-                  Print("[PIPELINE] CM returned invalid lot size");
-            }
-         }
-         else
-         {
-            if(Settings.DebugFlow)
-               Print("[TE BLOCKED] Risk management rejected new trade");
-         }
+         g_last_te_bar_time = current_bar;  // Mark this bar as TE execution bar
       }
       else
       {
          if(Settings.DebugFlow)
-            PrintFormat("[TE SKIPPED] EvaluateTE returned 0 for TS from %s",
+            PrintFormat("[TE SKIPPED/BLOCKED] EvaluateTE returned 0 for TS from %s",
                         TimeToString(g_ts_bar_time, TIME_DATE|TIME_MINUTES));
       }
 
@@ -491,11 +467,8 @@ void OrchestrateTick()
    g_last_bar_time = current_bar;
    FlowLog("OnTick -> NewBar detected -> begin bar pipeline");
 
-   // ATR is only needed for TM when using ATR-based trailing stops
-   double atr = (Settings.TrailMode == TRAIL_ATR) ? Signal.GetATR() : 0.0;
-
    FlowLog("Step A: Manage open positions (Trailing/BE)");
-   Executor.EvaluateTM(atr);
+   Executor.EvaluateTM();
 
    // ═══════════════════════════════════════════════════════════════
    // RRM Drawdown Protection Filter (§6)

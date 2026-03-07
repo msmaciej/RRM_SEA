@@ -688,7 +688,7 @@ private:
 
    //+------------------------------------------------------------------+
    //| HELPER: Calculate initial SL price for a given entry             |
-   //| Used by both EvaluateCM (lot sizing) and ExecuteTrade (order).   |
+   //| Used by both EvaluateCM (lot sizing) and ExecuteTradeOrder (order).|
    //| ATR is fetched internally when needed (not a mandatory param).   |
    //+------------------------------------------------------------------+
    double CalcEntrySL(bool isBuy, double price)
@@ -1090,6 +1090,7 @@ public:
       return tp_pips;
    }
 
+private:
    //+------------------------------------------------------------------+
    //| CM: Capital Management — compute lot size for an entry signal   |
    //| Returns lot size (> 0) or 0 if sizing is not possible.          |
@@ -1102,7 +1103,7 @@ public:
       double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK)
                            : SymbolInfoDouble(_Symbol, SYMBOL_BID);
 
-      // Determine SL price (same logic as ExecuteTrade for consistent sizing)
+      // Determine SL price (same logic as ExecuteTradeOrder for consistent sizing)
       double sl = CalcEntrySL(isBuy, price);
 
       // Position sizing precedence:
@@ -1199,16 +1200,17 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| EXECUTE SIGNAL                                                   |
+   //| ExecuteTradeOrder - Private helper for broker order execution    |
+   //| Returns: true = order sent successfully, false = execution failed|
    //+------------------------------------------------------------------+
-   void ExecuteTrade(int direction, double lots) {
+   bool ExecuteTradeOrder(int direction, double lots) {
       // 1. Check Execution Timing (Avoid multiple entries per bar if not Aggressive)
       // If Vertical Shift is 1 (Closed Bar), we only trade once per bar.
       if(m_settings.ma_v_shift == 1 && m_last_trade_bar == iTime(_Symbol, PERIOD_CURRENT, 0)) {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
          m_last_te_result = "BLOCKED"; m_last_te_reason = "already traded this bar";
          if(m_settings.DebugFlow) PrintFormat("TE: BLOCKED already traded this bar [%s]", _Symbol);
-         return;
+         return false;
       }
    
       // 2. Manage Existing Trades (Hedge-safe): ensure only one net direction
@@ -1219,12 +1221,12 @@ public:
       if(direction == 1 && buy_count > 0 && sell_count == 0) {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
          m_last_te_result = "BLOCKED"; m_last_te_reason = "already in position";
-         return;
+         return false;
       }
       if(direction == -1 && sell_count > 0 && buy_count == 0) {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
          m_last_te_result = "BLOCKED"; m_last_te_reason = "already in position";
-         return;
+         return false;
       }
    
       // If we have any positions and the signal is opposite -> REVERSE handling
@@ -1237,18 +1239,18 @@ public:
             if(m_settings.MABenchmarkStrict) {
                m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
                m_last_te_result = "BLOCKED"; m_last_te_reason = "closed reverse, no new entry (MABench)";
-               return;
+               return false;
             }
             // otherwise continue to open the new trade below...
          } else {
             m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
             m_last_te_result = "BLOCKED"; m_last_te_reason = "already in position, no reverse";
-            return;
+            return false;
          }
       }
    
       // 3. Open New Trade
-      if(direction == 0) return;
+      if(direction == 0) return false;
    
       double price = (direction == 1) ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
       double sl = 0, tp = 0;
@@ -1364,7 +1366,7 @@ public:
       {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
          m_last_te_result = "BLOCKED"; m_last_te_reason = "stop level validation failed";
-         return;
+         return false;
       }
 
       if(m_trade.PositionOpen(_Symbol, type, lot, price, sl, tp, comment)) {
@@ -1393,12 +1395,27 @@ public:
          if(m_settings.DebugFlow)
             PrintFormat("TE: BLOCKED order rejected retcode=%d %s", (int)m_trade.ResultRetcode(), m_trade.ResultComment());
       }
+      return (m_last_te_result == "ENTERED");
    }
 
+public:
    //+------------------------------------------------------------------+
    //| MANAGE OPEN TRADE (Trailing / Breakeven)                         |
    //+------------------------------------------------------------------+
-   void EvaluateTM(double atr) {
+   void EvaluateTM() {
+      // Calculate ATR only when needed (matches existing main EA behavior:
+      // atr was non-zero only when TrailMode == TRAIL_ATR)
+      double atr = 0.0;
+      if(m_settings.TrailMode == TRAIL_ATR)
+      {
+         int h = iATR(_Symbol, PERIOD_CURRENT, m_settings.P_Atr > 0 ? m_settings.P_Atr : 14);
+         if(h != INVALID_HANDLE)
+         {
+            double buf[1];
+            if(CopyBuffer(h, 0, 1, 1, buf) > 0) atr = buf[0];
+            IndicatorRelease(h);
+         }
+      }
       ulong ticket = GetMyPosition();
       if(ticket == 0 || !PositionSelectByTicket(ticket)) return;
 
@@ -1586,5 +1603,90 @@ public:
             }
          }
       }
+   }
+
+   //+------------------------------------------------------------------+
+   //| EvaluateTE - Complete Trade Entry Process                        |
+   //| Handles: Filters → RC → CM → ExecuteTradeOrder                  |
+   //| Returns: 1 = trade entered, 0 = rejected                         |
+   //+------------------------------------------------------------------+
+   int EvaluateTE(int ts_direction)
+   {
+      if(ts_direction == 0) return 0;
+
+      // === STEP 1: Final Execution Filters ===
+
+      // Spread check (uses same pip calculation pattern as the rest of the Executor)
+      if(m_settings.MaxSpread > 0.0)
+      {
+         bool   isJPY       = (StringFind(_Symbol, "JPY") >= 0);
+         double pipSize     = _Point * (isJPY ? 100.0 : 10.0);
+         double bid         = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         double ask         = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         double spread_pips = (pipSize > 0.0) ? (ask - bid) / pipSize : 0.0;
+         if(spread_pips > m_settings.MaxSpread)
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[TE] Rejected: Spread %.1f pips > max %.1f pips", spread_pips, m_settings.MaxSpread);
+            return 0;
+         }
+      }
+
+      // Time filter check (replicates Signal.CheckFilters time logic)
+      if(m_settings.UseTime)
+      {
+         MqlDateTime dt; TimeCurrent(dt);
+         bool pass = (m_settings.StartHr < m_settings.EndHr) ?
+                     (dt.hour >= m_settings.StartHr && dt.hour < m_settings.EndHr) :
+                     (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
+         if(!pass)
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[TE] Rejected: Outside trading hours (hour=%d, window=%d-%d)",
+                           dt.hour, m_settings.StartHr, m_settings.EndHr);
+            return 0;
+         }
+      }
+
+      // News filter: news calendar data resides in SignalEngine; TE relies on the
+      // TS-phase news check (which also calls CheckFilters) as the primary guard.
+      // A separate TE news block can be added here when news data is made available
+      // to the executor (e.g. via Init or a shared pointer).
+
+      if(m_settings.DebugFlow)
+         PrintFormat("[TE] Filters passed for %s", (ts_direction > 0 ? "BUY" : "SELL"));
+
+      // === STEP 2: RC - Risk Control ===
+      if(!EvaluateRC())
+      {
+         if(m_settings.DebugFlow)
+            Print("[TE] Rejected: Risk control (max positions/drawdown)");
+         return 0;
+      }
+
+      // === STEP 3: CM - Capital Management ===
+      double lots = EvaluateCM(ts_direction);
+      if(lots <= 0)
+      {
+         if(m_settings.DebugFlow)
+            Print("[TE] Rejected: Invalid lot size from CM");
+         return 0;
+      }
+
+      if(m_settings.DebugFlow)
+         PrintFormat("[TE ENTRY] direction=%d | lots=%.2f", ts_direction, lots);
+
+      // === STEP 4: Execute Trade Order ===
+      bool success = ExecuteTradeOrder(ts_direction, lots);
+
+      if(m_settings.DebugFlow)
+      {
+         if(success)
+            PrintFormat("[TE] SUCCESS: Trade entered, direction=%d, lots=%.2f", ts_direction, lots);
+         else
+            PrintFormat("[TE] FAILED/BLOCKED: %s", m_last_te_reason);
+      }
+
+      return success ? 1 : 0;
    }
 };
