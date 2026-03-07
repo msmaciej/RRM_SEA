@@ -816,8 +816,8 @@ The RRM preset (`PRESET_RRM`) automatically detects market phase using EMA3/EMA4
 | Phase | Definition | EMAs | Slope Stability | Trade Strategy |
 |-------|------------|------|-----------------|----------------|
 | **UNORDERED** | Choppy, no clear trend | EMA3 ≈ EMA4 (misaligned or flat) | Inconsistent recent slopes | **Block all trades** |
-| **EMERGING** | Trend starting to form | EMA3 and EMA4 aligned AND both sloping | 2-3 bars stable direction | **L3 entries only** (bias layer) |
-| **TRENDING** | Strong established trend | EMA3 and EMA4 aligned AND both sloping | 4+ bars stable direction | **L1 and L2 entries** (fast layers) |
+| **EMERGING** | Trend starting to form | EMA3 and EMA4 aligned AND both sloping | 2-3 bars stable direction | **L1 and L2 entries** (shallow pullbacks only) |
+| **TRENDING** | Strong established trend | EMA3 and EMA4 aligned AND both sloping | 4+ bars stable direction | **L1, L2, and L3 entries** (all depths allowed) |
 
 #### Detection Logic
 
@@ -857,22 +857,22 @@ When `RRM_FilterByPhase=true` AND `RRM_FilterLayersByPhase=true`:
 │ PHASE: EMERGING                             │
 ├─────────────────────────────────────────────┤
 │ Status: Trend forming but not confirmed     │
-│ Action: ALLOW L3 ONLY (EMA3↔EMA4)           │
-│        BLOCK L1 (EMA1↔EMA2)                 │
-│        BLOCK L2 (EMA2↔EMA3)                 │
-│ Reason: Use bias-layer entries only;        │
-│         avoid false fast-layer signals      │
+│ Action: ALLOW L1 (EMA1↔EMA2)  ✅ Shallow   │
+│        ALLOW L2 (EMA2↔EMA3)   ✅ Medium    │
+│        BLOCK L3 (EMA3↔EMA4)   ❌ Blocked   │
+│ Reason: Trend not strong enough for deep    │
+│         pullbacks; avoid deep reversals     │
 └─────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────┐
 │ PHASE: TRENDING                             │
 ├─────────────────────────────────────────────┤
 │ Status: Strong established trend            │
-│ Action: ALLOW L1 (EMA1↔EMA2)                │
-│        ALLOW L2 (EMA2↔EMA3)                 │
-│        BLOCK L3 (EMA3↔EMA4)                 │
-│ Reason: Use fast pullback entries;          │
-│         avoid late bias-layer entries       │
+│ Action: ALLOW L1 (EMA1↔EMA2)  ✅ Fast      │
+│        ALLOW L2 (EMA2↔EMA3)   ✅ Medium    │
+│        ALLOW L3 (EMA3↔EMA4)   ✅ Deep      │
+│ Reason: Strong trend can handle all         │
+│         pullback depths (ALL ALLOWED)       │
 └─────────────────────────────────────────────┘
 ```
 
@@ -894,11 +894,11 @@ Check:
 ```
 Phase: EMERGING
 Bias: SHORT (EMA3 < EMA4, recently aligned)
-Entry Layer Detected: L2 (price pulled back to EMA13)
+Entry Layer Detected: L3 (price pulled back to EMA34)
 
 Check:
-  Is L2 allowed in EMERGING phase? NO ❌
-  Only L3 allowed in EMERGING
+  Is L3 allowed in EMERGING phase? NO ❌
+  Only L1 and L2 allowed in EMERGING
   
 → Trade REJECTED (reason: "LAYER_NOT_ALLOWED_IN_PHASE")
 ```
@@ -907,10 +907,335 @@ Check:
 
 When phase filtering rejects a trade:
 ```
-STRUCTURE GATE 2 FAIL: Layer=L2 Phase=EMERGING (LAYER_NOT_ALLOWED_IN_PHASE)
+STRUCTURE GATE 2 FAIL: Layer=L3 Phase=EMERGING (LAYER_NOT_ALLOWED_IN_PHASE)
 ```
 
-### Hard Gate System (PR9)
+---
+
+## Phase 2: Bias Mode Refactoring and Layer Detection (PR #12)
+
+### Overview
+
+Phase 2 refactored the bias evaluation system to support three distinct modes and integrated market phase detection with entry layer filtering. This implementation matches the Python EA's fractal methodology.
+
+### Three Bias Modes
+
+The system now supports three independent bias calculation methods:
+
+#### Mode 1: BIAS_MANUAL (Manual Direction)
+```
+User sets:
+├─ SIDE_LONG  → Always returns Bias = 1
+├─ SIDE_SHORT → Always returns Bias = -1
+└─ SIDE_BOTH  → Returns Bias = 0 (no directional preference)
+
+Use case: Testing, directional trading sessions
+```
+
+#### Mode 2: BIAS_AUTO (Traditional 2-EMA)
+```
+Logic:
+├─ Compare Fast EMA vs Slow EMA (configurable via BiasFastID/BiasSlowID)
+├─ Check BOTH position AND slopes
+│
+LONG conditions:
+  Fast > Slow  AND  Fast rising  AND  Slow rising  → Bias = 1
+│
+SHORT conditions:
+  Fast < Slow  AND  Fast falling  AND  Slow falling  → Bias = -1
+│
+Mixed/Conflicting:
+  Any other configuration  → Bias = 0 (no trade)
+
+Use case: Standard trend-following strategies
+Function: GetBias_2EMA()
+```
+
+#### Mode 3: BIAS_AUTO_PHASE (4-EMA Market Phase)
+```
+Logic:
+├─ Analyze EMA2, EMA3, EMA4 structure
+├─ Determine Market Phase (TRENDING/EMERGING/UNORDERED)
+├─ Extract Bias direction from phase
+│
+TRENDING/EMERGING (up):
+  EMA2 > EMA3 > EMA4  AND  both sloping up  → Bias = 1
+│
+TRENDING/EMERGING (down):
+  EMA2 < EMA3 < EMA4  AND  both sloping down  → Bias = -1
+│
+UNORDERED:
+  Mixed EMA positions or flat slopes  → Bias = 0
+│
+Phase confirmation:
+  Uses configurable MinPhaseConfirmBars to validate stability
+
+Use case: RRM strategy, advanced trend detection
+Function: GetBias_4EMA() → calls DetectMarketPhase()
+```
+
+### Market Phase Detection (BIAS_AUTO_PHASE only)
+
+When `BiasMode = BIAS_AUTO_PHASE`, the system classifies market structure quality:
+
+#### DetectMarketPhase() Algorithm
+
+```
+Step 1: Check EMA3/EMA4 Slope Alignment
+├─ Get EMA3 slope (current vs previous)
+├─ Get EMA4 slope (current vs previous)
+│
+If slopes don't match or either is flat:
+  → PHASE_UNORDERED (choppy market)
+│
+Step 2: Count Consistent Slope Bars
+├─ Scan last N bars (configurable via MinPhaseConfirmBars)
+├─ Count bars where EMA3 and EMA4 slopes agree
+│
+Consistency thresholds (CONFIGURABLE):
+  0-1 bars consistent → PHASE_UNORDERED
+  2-3 bars consistent → PHASE_EMERGING
+  4+ bars consistent  → PHASE_TRENDING
+│
+Step 3: Check EMA Order
+├─ TRENDING: EMAs properly ordered (2>3>4 for LONG, 2<3<4 for SHORT)
+├─ EMERGING: EMA4 temporarily between EMA2 and EMA3
+└─ UNORDERED: Any other configuration
+
+Step 4: Return Phase + Direction
+├─ PHASE_TRENDING_UP / PHASE_TRENDING_DN
+├─ PHASE_EMERGING_UP / PHASE_EMERGING_DN
+└─ PHASE_UNORDERED
+```
+
+**Key Feature:** `MinPhaseConfirmBars` is **CONFIGURABLE** because:
+- Signals may occur at the current bar (shift=0) or the previous bar (shift=1)
+- Different symbols/timeframes need different stability thresholds
+- Lower values (1-2) = more responsive, more trades
+- Higher values (4-5) = more stable, fewer false signals
+
+### Entry Layer Detection
+
+Detects pullback-recovery patterns within the trend:
+
+#### Layer Definitions
+
+| Layer | EMA Pair | Nickname | Depth | Risk/Reward |
+|-------|----------|----------|-------|-------------|
+| **L1** | EMA1–EMA2 | "Ribbon" | Shallow | Lower risk, quick entries |
+| **L2** | EMA2–EMA3 | "Ghost" | Medium | Balanced |
+| **L3** | EMA3–EMA4 | "Shark" | Deep | Higher risk, trend confirmation |
+
+#### CheckLayerPullbackRecovery() Pattern
+
+```
+Pullback-Recovery Detection:
+├─ Step 1: EMAs aligned with bias
+│    LONG: Fast EMA > Slow EMA
+│    SHORT: Fast EMA < Slow EMA
+│
+├─ Step 2: Price touched Fast EMA (within tolerance)
+│    Tolerance = LayerTouchTolerance (default 1%)
+│
+├─ Step 3: Recovery - Fast EMA slope resuming trend direction
+│    LONG: Fast EMA rising again
+│    SHORT: Fast EMA falling again
+│
+└─ Step 4: Confirmation (optional via RequireRecoveryMomentum)
+     LONG: Candle closes above Fast EMA (bullish body)
+     SHORT: Candle closes below Fast EMA (bearish body)
+
+Returns:
+  true  = Pullback-recovery detected, matches bias → PASS
+  false = No pattern detected → FAIL
+```
+
+#### GetEntryLayer() Priority
+
+Checks layers from **strongest to weakest** (L3 → L2 → L1):
+- Deepest pullback takes precedence
+- Returns first matching layer or LAYER_NONE
+
+### Phase-Layer Filtering Integration
+
+When `RRM_FilterByPhase=true` AND `RRM_FilterLayersByPhase=true`:
+
+#### IsLayerAllowedInPhase() Rules
+
+```
+┌─────────────────────────────────────────────┐
+│ PHASE: UNORDERED                            │
+├─────────────────────────────────────────────┤
+│ Allowed Layers: NONE                        │
+│ Action: BLOCK L1, L2, L3                    │
+│ Reason: No clear trend, high whipsaw risk   │
+└─────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────┐
+│ PHASE: EMERGING                             │
+├─────────────────────────────────────────────┤
+│ Allowed Layers: L1, L2 ONLY                 │
+│ Action: ALLOW L1 (shallow), L2 (medium)     │
+│         BLOCK L3 (deep)                     │
+│ Reason: Trend forming, avoid deep reversals │
+└─────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────┐
+│ PHASE: TRENDING                             │
+├─────────────────────────────────────────────┤
+│ Allowed Layers: L1, L2, L3 (ALL)            │
+│ Action: ALLOW all pullback depths           │
+│ Reason: Strong trend can handle deep pulls  │
+└─────────────────────────────────────────────┘
+```
+
+**Logic:** Progressive risk management
+- **EMERGING**: Be cautious, trend not proven → shallow entries only
+- **TRENDING**: Aggressive, trend confirmed → all entries allowed
+
+### New Configuration Settings
+
+#### Zone 3B: RRM/Phase Settings
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| **Inp_PhaseDetectionEnabled** | bool | false* | Enable market phase detection |
+| **Inp_BlockUnorderedPhase** | bool | true | Block trades in UNORDERED phase |
+| **Inp_MinPhaseConfirmBars** | int | 2 | Lookback window for slope consistency check (0-5) |
+| | | | Phase determined by count of consistent bars: 0-1→UNORDERED, 2-3→EMERGING, 4+→TRENDING |
+| **Inp_EnableLayerDetection** | bool | false* | Enable entry layer detection |
+| **Inp_LayerTouchTolerance** | double | 0.01 | Price-EMA touch tolerance (% of EMA value) |
+| **Inp_RequireRecoveryMomentum** | bool | false | Require bullish/bearish candle close |
+| **Inp_RRM_FilterByPhase** | bool | false* | Enable phase-based layer filtering |
+| **Inp_RRM_FilterLayersByPhase** | bool | false* | Apply strict layer rules per phase |
+
+\* **Note:** Default = false for backward compatibility. `PRESET_RRM` enables these automatically.
+
+### New Enums
+
+#### EMarketPhase
+```mql5
+enum EMarketPhase
+{
+   PHASE_UNORDERED,    // Choppy, no clear trend
+   PHASE_EMERGING_UP,  // Trend forming upward
+   PHASE_EMERGING_DN,  // Trend forming downward
+   PHASE_TRENDING_UP,  // Strong established uptrend
+   PHASE_TRENDING_DN   // Strong established downtrend
+};
+```
+
+#### EEntryLayer
+```mql5
+enum EEntryLayer
+{
+   LAYER_NONE,         // No layer detected
+   LAYER_1_WEAK,       // EMA1–EMA2 (Ribbon) - Shallow
+   LAYER_2_MEDIUM,     // EMA2–EMA3 (Ghost) - Medium
+   LAYER_3_STRONG      // EMA3–EMA4 (Shark) - Deep/Bias
+};
+```
+
+### Function Reference
+
+#### Core Bias Functions
+
+| Function | Purpose | Returns |
+|----------|---------|---------|
+| `GetBias(shift)` | Master bias dispatcher | 1 (LONG), -1 (SHORT), 0 (NEUTRAL) |
+| `GetBias_Manual()` | Manual direction mode | Per user config |
+| `GetBias_2EMA(shift)` | Traditional 2-EMA comparison | Based on position + slopes |
+| `GetBias_4EMA(shift)` | Market phase analysis | Based on EMA structure |
+
+#### Phase Detection Functions
+
+| Function | Purpose | Returns |
+|----------|---------|---------|
+| `DetectMarketPhase(shift)` | Classify market structure | EMarketPhase enum |
+| `CountConsistentSlopes(h3, h4, shift)` | Count stable slope bars | int (0-5+) |
+
+#### Layer Detection Functions
+
+| Function | Purpose | Returns |
+|----------|---------|---------|
+| `GetEntryLayer(shift, bias)` | Detect pullback-recovery | EEntryLayer enum |
+| `CheckLayerPullbackRecovery(...)` | Pattern matcher | true/false |
+| `IsLayerAllowedInPhase(layer, phase)` | Validate layer vs phase | true/false |
+
+### Updated EvaluateTS() Pipeline
+
+```mql5
+int EvaluateTS(const int v_shift = 1)
+{
+   // STEP 1: Determine Bias (direction)
+   int bias = GetBias(v_shift);  // Dispatches to Manual/2EMA/4EMA
+   if(bias == 0) return 0;        // No bias = reject
+   
+   // STEP 2: Market Phase Check (O3 mode only)
+   if(m_settings.BiasMode == BIAS_AUTO_PHASE) {
+      phase = DetectMarketPhase(v_shift);
+      if(phase == PHASE_UNORDERED && BlockUnorderedPhase)
+         return 0;  // Reject choppy markets
+   }
+   
+   // STEP 3: Entry Layer Check (if enabled)
+   if(EnableLayerDetection) {
+      layer = GetEntryLayer(v_shift, bias);
+      if(layer == LAYER_NONE) return 0;  // No pullback signal
+      
+      // Phase-layer filtering (if enabled)
+      if(!IsLayerAllowedInPhase(layer, phase))
+         return 0;  // Layer not allowed in this phase
+   }
+   
+   // STEP 4: Indicator Voting (unchanged)
+   // ALL enabled indicators must agree with bias
+   // ...
+   
+   return bias;  // 1 or -1
+}
+```
+
+### PRESET_RRM Configuration
+
+Phase 2 features are **enabled by default** in `PRESET_RRM`:
+
+```mql5
+case PRESET_RRM:
+{
+   // Bias Mode
+   cfg.BiasMode = BIAS_AUTO_PHASE;
+   
+   // Phase Detection
+   cfg.PhaseDetectionEnabled = true;
+   cfg.BlockUnorderedPhase = true;
+   cfg.MinPhaseConfirmBars = 2;  // Configurable (2-3 = EMERGING)
+   
+   // Entry Layer Detection
+   cfg.EnableLayerDetection = true;
+   cfg.LayerTouchTolerance = 0.01;  // 1%
+   cfg.RequireRecoveryMomentum = false;
+   
+   // Phase-Layer Filtering
+   cfg.RRM_FilterByPhase = true;
+   cfg.RRM_FilterLayersByPhase = true;
+   
+   // ... (rest of RRM settings)
+}
+```
+
+### Expected Performance Improvement
+
+| Implementation Stage | Win Rate | Trade Frequency | Notes |
+|---------------------|----------|-----------------|-------|
+| Phase 1 (no phase/layer) | 30-40% | 2-3/day | Simple bias, over-trading |
+| + Phase detection (O3) | 40-50% | 1-2/day | Blocks choppy markets |
+| + Layer detection | 50-55% | 2-4/day | Better entry timing |
+| + Phase-layer filtering | 55-60% | 3-5/day | **Target: Python EA parity** |
+
+---
+
+
 
 Step 6 of the pipeline runs **four sequential hard gates**. Any gate failure immediately rejects the signal (returns 0). All gates are configurable via `SGateConfig { EGateScaleMode mode; double value; }`.
 

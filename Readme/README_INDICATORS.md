@@ -456,8 +456,8 @@ SHORT: Close[2] > FastEMA[2] AND Close[1] < FastEMA[1]
 | Market Phase | Allowed Layers | Blocked Layers | Reason |
 |--------------|----------------|----------------|--------|
 | UNORDERED | NONE | L1, L2, L3 | No clear trend |
-| EMERGING | L3 only | L1, L2 | Use bias-layer entries |
-| TRENDING | L1, L2 | L3 | Use fast pullback entries |
+| EMERGING | L1, L2 | L3 | Shallow entries, trend forming |
+| TRENDING | L1, L2, L3 (ALL) | NONE | Strong trend, all depths allowed |
 
 **Logic Flow:**
 ```
@@ -470,20 +470,20 @@ SHORT: Close[2] > FastEMA[2] AND Close[1] < FastEMA[1]
 **Example:**
 ```
 Phase = EMERGING
-Entry Layer = L2
+Entry Layer = L3
 Bias = SHORT
 
 Check:
-  EMERGING phase allows: L3 only
-  Detected layer: L2
-  Is L2 in allowed list? NO ❌
+  EMERGING phase allows: L1, L2 only
+  Detected layer: L3
+  Is L3 in allowed list? NO ❌
   
 → STOP → Return 0 (reason: "LAYER_NOT_ALLOWED_IN_PHASE")
 ```
 
 **Why:** RRM methodology requires:
-- Conservative entries during trend formation (EMERGING → L3 only)
-- Aggressive entries during strong trends (TRENDING → L1/L2 only)
+- Conservative entries during trend formation (EMERGING → L1/L2 only, avoid deep pullbacks)
+- Aggressive entries during strong trends (TRENDING → L1/L2/L3 all allowed)
 - No entries during chop (UNORDERED → block all)
 
 **Configuration:**
