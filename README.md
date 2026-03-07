@@ -26,6 +26,20 @@ Do not use it unless explicitly required:
 
 ## Python EA vs SimpleEA MQL5 Comparison
 
+### Phase 2 Implementation Status (PR #12)
+
+**COMPLETED** ✅:
+- ✅ 3 Bias Modes (Manual, 2-EMA, 4-EMA Phase)
+- ✅ Market Phase Detection (TRENDING/EMERGING/UNORDERED)
+- ✅ Entry Layer Detection (L1/L2/L3)
+- ✅ Phase-Layer Filtering (progressive risk management)
+- ✅ Configurable phase confirmation bars
+
+**Target Metrics**:
+- Win Rate: 50-55% (approaching Python EA's 55-60%)
+- Trade Quality: Reduced false signals in choppy markets
+- Configurability: `MinPhaseConfirmBars` tunable per symbol/timeframe
+
 ### Layer Detection Equivalence
 SimpleEA's STRAT_LAYER_DETECTION replicates Python EA's TrSet pattern logic:
 
