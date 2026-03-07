@@ -261,7 +261,11 @@ enum ETrailingMode
    TRAIL_NONE,
    TRAIL_ATR,
    TRAIL_PSAR,
-   TRAIL_FRACTAL
+   TRAIL_FRACTAL,
+   TRAIL_PSAR_FLIP_EXIT,    // NEW: Close position when PSAR flips
+   TRAIL_FIXED_PIPS,        // NEW: Fixed pips trailing stop
+   TRAIL_BREAKEVEN,         // NEW: Trail to breakeven then fixed pips
+   TRAIL_PROFIT_PERCENT     // NEW: Trail after profit % threshold
 };
 
 // SL - Stop Loss: Initial SL Placement Methods
@@ -283,7 +287,9 @@ enum ESLMode
    SL_MODE_FIXED_PIPS,    // Fixed pips (default, ATR-independent)
    SL_MODE_ATR,           // ATR-based (optional, requires UseATRforSL=true)
    SL_MODE_PERCENT,       // Percentage of entry price
-   SL_MODE_SWING          // Based on recent swing high/low (SwingLookback bars)
+   SL_MODE_SWING,         // Based on recent swing high/low (SwingLookback bars)
+   SL_FRACTAL,            // NEW: Last fractal level (Bill Williams)
+   SL_PSAR_DOT            // NEW: PSAR dot position
 };
 
 //+------------------------------------------------------------------+
@@ -294,7 +300,23 @@ enum ETPMode
 {
    TP_MODE_FIXED_PIPS,    // Fixed pips (default)
    TP_MODE_RR,            // Risk:Reward ratio (TP = SL distance × RRRatio)
-   TP_MODE_ATR            // ATR-based (optional, requires UseATRforTP=true)
+   TP_MODE_ATR,           // ATR-based (optional, requires UseATRforTP=true)
+   TP_FRACTAL,            // NEW: Next fractal level as TP target
+   TP_PSAR_FLIP,          // NEW: Exit when PSAR flips (TP handled by TM)
+   TP_NONE                // NEW: No TP, rely on trailing stop only
+};
+
+//+------------------------------------------------------------------+
+//| Trailing Stop Trigger Condition (NEW: Phase 2.2)                 |
+//| Determines when trailing stop activation begins                   |
+//+------------------------------------------------------------------+
+enum ETrailTrigger
+{
+   TRIGGER_IMMEDIATE,       // Trail from entry (default)
+   TRIGGER_BREAKEVEN,       // Trail after breakeven threshold reached
+   TRIGGER_PROFIT_PIPS,     // Trail after X pips profit (TrailDistancePips)
+   TRIGGER_PROFIT_PERCENT,  // Trail after X% profit (TrailProfitPercent)
+   TRIGGER_PSAR_ALIGN       // Trail when PSAR aligns with position direction
 };
 
 // TR - Trailing Stop: PSAR Trailing Cushion Mode
@@ -564,6 +586,23 @@ struct ST_Settings
    double   SLPercent;        // SL as % of entry price (SL_MODE_PERCENT, e.g. 0.5 = 0.5%)
    double   RRRatio;          // Risk:Reward ratio (TP_MODE_RR, e.g. 2.0 = 1:2)
    int      SwingLookback;    // Bars to look back for swing high/low (SL_MODE_SWING)
+
+   // === Fractal Settings (NEW: Phase 2.2) ===
+   int      FractalPeriod;        // Fractal indicator period (default: 5)
+   int      TPFractalOffset;      // How many fractals ahead for TP (default: 1)
+
+   // === PSAR SL/TP Settings (NEW: Phase 2.2) ===
+   double   PSARStep;             // PSAR step for SL/TP calculations (default: 0.02)
+   double   PSARMax;              // PSAR max for SL/TP calculations (default: 0.2)
+
+   // === Advanced Trailing Settings (NEW: Phase 2.2) ===
+   ETrailTrigger TrailTrigger;       // When to begin trailing (default: TRIGGER_IMMEDIATE)
+   double   TrailDistancePips;       // Fixed trail distance in pips (TRAIL_FIXED_PIPS / trigger threshold)
+   double   TrailATRMultiplier;      // ATR multiplier for trail distance (TRAIL_ATR mode)
+   double   BEThresholdPips;         // Profit pips required before moving to breakeven
+   double   TrailProfitPercent;      // Profit % threshold for TRIGGER_PROFIT_PERCENT
+   double   TrailStepPips;           // Minimum pips movement before updating SL
+   bool     TrailLockProfit;         // Lock in profit (never move SL backwards)
 
    // TS - Trailing SL / TP / BE
    double              TP_Mult;
@@ -935,6 +974,23 @@ input double         Inp_Trail_Mult             = 3.0;                 // (CUSTO
 input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // (CUSTOM; presets override) PSAR trail cushion mode
 input double         Inp_PSAR_TrailPipsCushion  = 5.0;                 // (CUSTOM; presets override) PSAR trail cushion (pips)
 input double         Inp_PSAR_TrailCushionATR   = 0.2;                 // (CUSTOM; presets override) PSAR trail cushion (ATR)
+
+input group "--- ℹ️ Step 9 · Fractal SL/TP (Phase 2.2) ---"
+input int            Inp_FractalPeriod          = 5;                   // (CUSTOM) Fractal period for SL/TP (SL_FRACTAL / TP_FRACTAL)
+input int            Inp_TPFractalOffset        = 1;                   // (CUSTOM) Fractal offset for TP (1=nearest fractal)
+
+input group "--- ℹ️ Step 9 · PSAR SL/TP (Phase 2.2) ---"
+input double         Inp_PSARStep               = 0.02;                // (CUSTOM) PSAR step for SL/TP (SL_PSAR_DOT / TP_PSAR_FLIP)
+input double         Inp_PSARMax                = 0.2;                 // (CUSTOM) PSAR max for SL/TP
+
+input group "--- ℹ️ Step 9 · Advanced Trailing Trigger (Phase 2.2) ---"
+input ETrailTrigger  Inp_TrailTrigger           = TRIGGER_IMMEDIATE;   // (CUSTOM) When to start trailing
+input double         Inp_TrailDistancePips      = 15.0;                // (CUSTOM) Fixed trail distance pips / profit trigger pips
+input double         Inp_TrailATRMultiplier     = 1.5;                 // (CUSTOM) ATR multiplier for TRAIL_ATR mode
+input double         Inp_BEThresholdPips        = 10.0;                // (CUSTOM) Pips profit needed before breakeven (TRIGGER_BREAKEVEN)
+input double         Inp_TrailProfitPercent     = 1.0;                 // (CUSTOM) Profit % to trigger trailing (TRIGGER_PROFIT_PERCENT)
+input double         Inp_TrailStepPips          = 5.0;                 // (CUSTOM) Minimum pips to move SL each step
+input bool           Inp_TrailLockProfit        = true;                // (CUSTOM) Never move SL backwards (lock profit)
 
 input group "--- ℹ️ Benchmark: MT5 Moving Average ---"
 input double         Inp_MA_MaximumRiskPct      = 0.02;         // (PRESET_MA_BENCHMARK only) Max risk (%) for MA benchmark sizer
@@ -1374,6 +1430,21 @@ void InitializeConfig()
    Settings.SLPercent      = Inp_SLPercent;
    Settings.RRRatio        = Inp_RRRatio;
    Settings.SwingLookback  = Inp_SwingLookback;
+
+   // Phase 2.2: Fractal/PSAR SL/TP settings
+   Settings.FractalPeriod      = Inp_FractalPeriod;
+   Settings.TPFractalOffset    = Inp_TPFractalOffset;
+   Settings.PSARStep           = Inp_PSARStep;
+   Settings.PSARMax            = Inp_PSARMax;
+
+   // Phase 2.2: Advanced trailing trigger settings
+   Settings.TrailTrigger       = Inp_TrailTrigger;
+   Settings.TrailDistancePips  = Inp_TrailDistancePips;
+   Settings.TrailATRMultiplier = Inp_TrailATRMultiplier;
+   Settings.BEThresholdPips    = Inp_BEThresholdPips;
+   Settings.TrailProfitPercent = Inp_TrailProfitPercent;
+   Settings.TrailStepPips      = Inp_TrailStepPips;
+   Settings.TrailLockProfit    = Inp_TrailLockProfit;
 
    Settings.TP_Mult              = Inp_TP_Mult;
    Settings.Use_BE               = Inp_Use_BE;
