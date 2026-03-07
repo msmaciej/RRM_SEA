@@ -1,0 +1,1 @@
+Closed pull request #67 in favor of PR #68 with a simplified approach: one EvaluateTE() function with all logic inline, no separate RC/CM/Execute functions.
