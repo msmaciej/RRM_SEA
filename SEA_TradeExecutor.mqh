@@ -1396,9 +1396,92 @@ public:
    }
 
    //+------------------------------------------------------------------+
+   //| EvaluateTE - Complete Trade Entry                                |
+   //| Handles: Filters → Risk Check → Position Sizing → Order Execute  |
+   //| Returns: 1 = trade entered, 0 = rejected or failed              |
+   //+------------------------------------------------------------------+
+   int EvaluateTE(int ts_direction)
+   {
+      if(ts_direction == 0) return 0;
+
+      if(m_settings.DebugFlow)
+         PrintFormat("[TE] Starting trade entry evaluation for direction=%d", ts_direction);
+
+      // ═══════════════════════════════════════════════════════
+      // STEP 1: Check Execution Filters
+      // ═══════════════════════════════════════════════════════
+
+      // Check spread
+      if(m_settings.MaxSpread > 0) {
+         bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
+         double pipSize = _Point * (isJPY ? 100.0 : 10.0);
+         double spread_pips = (SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) * _Point) / pipSize;
+         if(spread_pips > m_settings.MaxSpread) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[TE] Rejected: Spread %.1f > max %.1f pips",
+                           spread_pips, m_settings.MaxSpread);
+            return 0;
+         }
+      }
+
+      // Check trading hours
+      if(m_settings.UseTime) {
+         MqlDateTime dt;
+         TimeToStruct(TimeCurrent(), dt);
+         bool pass = (m_settings.StartHr < m_settings.EndHr) ?
+                     (dt.hour >= m_settings.StartHr && dt.hour < m_settings.EndHr) :
+                     (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
+         if(!pass) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[TE] Rejected: Outside trading hours (hour=%d)", dt.hour);
+            return 0;
+         }
+      }
+
+      // ═══════════════════════════════════════════════════════
+      // STEP 2: Check Risk Control
+      // ═══════════════════════════════════════════════════════
+      if(!EvaluateRC()) {
+         if(m_settings.DebugFlow)
+            Print("[TE] Rejected: Risk control blocked entry");
+         return 0;
+      }
+
+      // ═══════════════════════════════════════════════════════
+      // STEP 3: Calculate Position Size
+      // ═══════════════════════════════════════════════════════
+      double lots = EvaluateCM(ts_direction);
+      if(lots <= 0) {
+         if(m_settings.DebugFlow)
+            Print("[TE] Rejected: Invalid lot size");
+         return 0;
+      }
+
+      if(m_settings.DebugFlow)
+         PrintFormat("[TE] Position size: %.2f lots", lots);
+
+      // ═══════════════════════════════════════════════════════
+      // STEP 4: Execute Order
+      // ═══════════════════════════════════════════════════════
+      ExecuteTrade(ts_direction, lots);
+
+      int result = (m_last_te_result == "ENTERED") ? 1 : 0;
+
+      if(m_settings.DebugFlow) {
+         if(result == 1)
+            PrintFormat("[TE] ✅ SUCCESS - Trade entered: %s %.2f lots",
+                        (ts_direction > 0 ? "BUY" : "SELL"), lots);
+         else
+            PrintFormat("[TE] ❌ FAILED/REJECTED - %s", m_last_te_reason);
+      }
+
+      return result;
+   }
+
+   //+------------------------------------------------------------------+
    //| MANAGE OPEN TRADE (Trailing / Breakeven)                         |
    //+------------------------------------------------------------------+
-   void EvaluateTM(double atr) {
+   void EvaluateTM() {
       ulong ticket = GetMyPosition();
       if(ticket == 0 || !PositionSelectByTicket(ticket)) return;
 
@@ -1407,6 +1490,25 @@ public:
       {
          RRM_ManageStrictNoATR(ticket);
          return;
+      }
+
+      // Compute ATR internally only for modes that require it (BE, ATR trailing, PSAR ATR cushion)
+      bool need_atr = m_settings.Use_BE ||
+                      m_settings.TrailMode == TRAIL_ATR ||
+                      (m_settings.TrailMode == TRAIL_PSAR &&
+                       ((m_settings.Adaptive.UseTrailCushion && m_settings.Adaptive.PsarUseATR) ||
+                        (!m_settings.Adaptive.UseTrailCushion &&
+                         m_settings.PSAR_TrailCushionMode != PSAR_CUSHION_PIPS)));
+      double atr = 0.0;
+      if(need_atr) {
+         int atr_period = m_settings.P_Atr > 0 ? m_settings.P_Atr : 14;
+         int h = iATR(_Symbol, PERIOD_CURRENT, atr_period);
+         if(h != INVALID_HANDLE) {
+            double buf[1];
+            if(CopyBuffer(h, 0, 1, 1, buf) > 0)
+               atr = buf[0];
+            IndicatorRelease(h);
+         }
       }
 
       // 1. Breakeven Logic
