@@ -74,7 +74,6 @@ datetime g_ts_time   = 0;
 int      g_ts_dir    = 0;
 int      g_ts_bias   = 0;
 int      g_ts_votes  = 0;
-int      g_ts_thr    = 0;
 string   g_ts_reason = "";
 
 // Global tracking for RRM drawdown protection
@@ -289,12 +288,6 @@ bool ValidateEffectiveSettings()
       return false;
    }
 
-   if(Settings.VoteThreshold < 1)
-   {
-      Print("ERROR: VoteThreshold must be >= 1 (got ", Settings.VoteThreshold, ")");
-      return false;
-   }
-
    return true;
 }
 
@@ -357,6 +350,44 @@ int OrchestrateInit()
       if(Settings.Adaptive.UseTrailCushion)
          Print("Adaptive trail cushion: ", DoubleToString(GetAdaptiveTrailCushion(tf, Settings.Adaptive), 1), " pips");
       Print("═════════════════════════════");
+   }
+
+   // Active configuration summary
+   {
+      Print("════════════════════════════════════════════");
+      Print("  SimpleEA v", SEA_BUILD_STR, " - ACTIVE CONFIGURATION");
+      Print("  Symbol: ", _Symbol, " | TF: ", EnumToString(_Period));
+      Print("  Preset: ", EnumToString(InpPreset));
+      if(Settings.AdminOverridePreset)
+         Print("  ADMIN OVERRIDE ACTIVE");
+      Print("════════════════════════════════════════════");
+
+      Print("BIAS & PHASE:");
+      Print("  BiasMode: ", EnumToString(Settings.BiasMode));
+      Print("  PhaseDetectionEnabled: ", (Settings.PhaseDetectionEnabled ? "true" : "false"));
+      Print("  MinPhaseConfirmBars: ", Settings.MinPhaseConfirmBars, " (0=instant EMA check)");
+      Print("  BlockUnorderedPhase: ", (Settings.BlockUnorderedPhase ? "true" : "false"));
+
+      Print("ENTRY LAYER:");
+      Print("  EnableLayerDetection: ", (Settings.EnableLayerDetection ? "true" : "false"));
+      Print("  LayerTouchTolerance: ", DoubleToString(Settings.LayerTouchTolerance * 100.0, 1), "%");
+      Print("  RequireRecoveryMomentum: ", (Settings.RequireRecoveryMomentum ? "true" : "false"));
+
+      Print("VOTING MODE: ", (Settings.VoteMode == VOTE_MODE_ALL ? "ALL (pure multiplicative)" : "THRESHOLD"));
+      int enabled_count = 0;
+      if(Settings.Ind_EmaSig_Enabled) { Print("  + EmaSig"); enabled_count++; }
+      if(Settings.Ind_Macd_Enabled)   { Print("  + MACD");   enabled_count++; }
+      if(Settings.Ind_Psar_Enabled)   { Print("  + PSAR");   enabled_count++; }
+      if(Settings.Ind_Cci_Enabled)    { Print("  + CCI");    enabled_count++; }
+      if(Settings.Ind_Rsi_Enabled)    { Print("  + RSI");    enabled_count++; }
+      if(Settings.Ind_Adx_Enabled)    { Print("  + ADX");    enabled_count++; }
+      if(Settings.Ind_Mfi_Enabled)    { Print("  + MFI");    enabled_count++; }
+      if(Settings.Ind_Sto_Enabled)    { Print("  + Stoch");  enabled_count++; }
+      if(Settings.Ind_Bb_Enabled)     { Print("  + BB");     enabled_count++; }
+      if(Settings.Ind_P123_Enabled)   { Print("  + P123");   enabled_count++; }
+      if(Settings.Ind_Ross_Enabled)   { Print("  + Ross");   enabled_count++; }
+      Print("  Total: ", enabled_count, " indicators (ALL must pass)");
+      Print("════════════════════════════════════════════");
    }
 
    FlowLog("Step D: Init Signal Engine");
@@ -501,7 +532,6 @@ void OrchestrateTick()
          g_ts_dir    = ts;
          g_ts_bias   = Signal.LastBias();
          g_ts_votes  = Signal.LastVotes();
-         g_ts_thr    = Settings.VoteThreshold;
          g_ts_reason = Signal.LastReason();
 
          if(Settings.DebugFlow)
@@ -526,7 +556,7 @@ void OrchestrateTick()
          if(Settings.DebugFlow)
             Print("[PIPELINE] TS=0, no setup. Reason: ", Signal.LastReason(),
                   " | Bias: ", Signal.LastBias(),
-                  " | Votes: ", Signal.LastVotes(), "/", Settings.VoteThreshold);
+                  " | Votes: ", Signal.LastVotes());
       }
 
       FlowLog(StringFormat("Step B done: TS=%d", ts));
@@ -537,8 +567,8 @@ void OrchestrateTick()
    if(g_ts_time > 0)
    {
       string dir_str = (g_ts_dir > 0 ? "BUY" : "SELL");
-      ts_snap = StringFormat("TS@%s dir=%s votes=%d/%d reason=%s",
-         TimeToString(g_ts_time, TIME_DATE|TIME_MINUTES), dir_str, g_ts_votes, g_ts_thr, g_ts_reason);
+      ts_snap = StringFormat("TS@%s dir=%s votes=%d reason=%s",
+         TimeToString(g_ts_time, TIME_DATE|TIME_MINUTES), dir_str, g_ts_votes, g_ts_reason);
    }
    string te_snap = "";
    if(Executor.LastTETime() > 0)
@@ -595,7 +625,7 @@ void SEA_UI_ManageChartIndicators()
    //
    // ARCHITECTURE:
    // 1. Bias determination (EMAs)
-   // 2. TS evaluation on shift=1: VoteCount >= VoteThreshold
+   // 2. TS evaluation on shift=1: ALL enabled indicators must pass
    // 3. TE execution on shift=0: if TS=1 confirmed
    // =====================================================================
 
@@ -615,7 +645,7 @@ void SEA_UI_ManageChartIndicators()
 
    Print("═══════════════════════════════════════════════════════════");
    Print("UI: Chart Indicator Manager - Rebuilding from Settings...");
-   Print("  → Vote Threshold: ", Settings.VoteThreshold);
+   Print("  → Vote Mode: ", (Settings.VoteMode == VOTE_MODE_ALL ? "ALL (all enabled must pass)" : "THRESHOLD"));
    Print("═══════════════════════════════════════════════════════════");
 
    // ========================
@@ -916,7 +946,7 @@ void SEA_UI_ManageChartIndicators()
    Print("  → ", overlays_added, " overlays on main chart");
    Print("  → ", subwindows_added, " indicators in subwindows");
    Print("  → ", ts_components_visible, " TS components visible");
-   Print("  → Vote Threshold: ", Settings.VoteThreshold, " (need ", Settings.VoteThreshold, "/", ts_components_visible, " to trigger TS=1)");
+   Print("  → Vote Mode: ", (Settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD"), " (", ts_components_visible, " indicators visible)");
    Print("═══════════════════════════════════════════════════════════");
 }
 

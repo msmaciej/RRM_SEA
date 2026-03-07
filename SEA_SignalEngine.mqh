@@ -908,25 +908,28 @@ public:
       if(layer == LAYER_NONE)
          return false;  // No layer detected - nothing to allow
 
-      switch(phase)
+      bool is_emerging = (phase == PHASE_EMERGING || phase == PHASE_EMERGING_UP || phase == PHASE_EMERGING_DN);
+      bool is_trending = (phase == PHASE_TRENDING || phase == PHASE_TRENDING_UP || phase == PHASE_TRENDING_DN);
+
+      if(phase == PHASE_UNORDERED)
       {
-         case PHASE_UNORDERED:
-            // Choppy/mixed market → Block ALL (L1, L2, L3)
-            return false;
-
-         case PHASE_EMERGING:
-            // Trend forming but not confirmed → ALLOW L1/L2 only; BLOCK L3 (STRONG)
-            // Deep pullbacks (L3/Shark) are too risky before the trend is established
-            return (layer == LAYER_1_WEAK || layer == LAYER_2_MEDIUM);
-
-         case PHASE_TRENDING:
-            // Strong established trend → ALLOW ALL layers (L1/L2/L3)
-            // Deep pullbacks (L3/Shark) are valid — the trend has the strength to recover
-            return true;
-
-         default:
-            return false;
+         // Choppy/mixed market → Block ALL (L1, L2, L3)
+         return false;
       }
+      else if(is_emerging)
+      {
+         // Trend forming but not confirmed → ALLOW L1/L2 only; BLOCK L3 (STRONG)
+         // Deep pullbacks (L3/Shark) are too risky before the trend is established
+         return (layer == LAYER_1_WEAK || layer == LAYER_2_MEDIUM);
+      }
+      else if(is_trending)
+      {
+         // Strong established trend → ALLOW ALL layers (L1/L2/L3)
+         // Deep pullbacks (L3/Shark) are valid — the trend has the strength to recover
+         return true;
+      }
+
+      return false;
    }
 
    // Structure gate diagnostics
@@ -1633,6 +1636,8 @@ public:
          m_diag_last_entry_layer != LAYER_NONE)
       {
          EMarketPhase phase = m_diag_last_phase;
+         bool is_emerging = (phase == PHASE_EMERGING || phase == PHASE_EMERGING_UP || phase == PHASE_EMERGING_DN);
+         bool is_trending = (phase == PHASE_TRENDING || phase == PHASE_TRENDING_UP || phase == PHASE_TRENDING_DN);
          
          // Rule 1: UNORDERED phase blocks ALL trades (choppy market)
          if(phase == PHASE_UNORDERED) {
@@ -1647,20 +1652,21 @@ public:
          }
          
          // Rule 2: EMERGING phase blocks STRONG (Layer 3) trades only
-         if(phase == PHASE_EMERGING && m_diag_last_entry_layer == LAYER_3_STRONG) {
+         if(is_emerging && m_diag_last_entry_layer == LAYER_3_STRONG) {
             m_diag_last_reason = "PHASE_EMERGING_BLOCKS_STRONG";
             m_reject_bias++;
             
             if(m_settings.DebugFlow) {
-               Print("[260304_PR5] EMERGING phase detected - blocking STRONG layer trade (deep pullback too risky)");
+               PrintFormat("[260304_PR5] %s phase detected - blocking STRONG layer trade (deep pullback too risky)",
+                           EnumToString(phase));
             }
             return 0;
          }
          
          // Rule 3: TRENDING phase allows ALL layers (L1/L2/L3 — no blocking)
-         if(m_settings.DebugFlow && phase == PHASE_TRENDING) {
-            PrintFormat("[260304_PR5] TRENDING phase - allowing ALL layers (%s); deep pullbacks valid in strong trend",
-                        EnumToString(m_diag_last_entry_layer));
+         if(m_settings.DebugFlow && is_trending) {
+            PrintFormat("[260304_PR5] %s phase - allowing ALL layers (%s); deep pullbacks valid in strong trend",
+                        EnumToString(phase), EnumToString(m_diag_last_entry_layer));
          }
       }
 
@@ -1988,17 +1994,9 @@ public:
          if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Dynamic Pullback → PASS");
       }
 
-      // 4. VOTING BYPASS (Speed Mode)
-      if(m_settings.VoteThreshold <= 1) { 
-         m_diag_last_votes=0; 
-         m_diag_last_reason="BYPASS";
-         m_signals_generated++;
-         return bias; 
-      }
-
-      // 5. Voting Logic — Dynamic weight-based consensus
+      // 4. Voting Logic — Dynamic weight-based consensus
       // VOTE_MODE_ALL:       every enabled indicator must agree (weights ignored)
-      // VOTE_MODE_THRESHOLD: weighted vote sum must reach VoteThreshold
+      // VOTE_MODE_THRESHOLD: weighted vote sum must reach enabled-indicator count
       double vote_weight = 0.0;
       bool   all_pass    = true;
 
@@ -2039,9 +2037,9 @@ public:
       if(m_settings.DebugFlow) {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
          string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
-         string vote_details = StringFormat("STEP 6 VOTES[%s]: mode=%s bias=%d weight=%.2f/%d",
+         string vote_details = StringFormat("STEP 6 VOTES[%s]: mode=%s bias=%d weight=%.2f",
                                            TimeToString(bar_time),
-                                           mode_str, bias, vote_weight, m_settings.VoteThreshold);
+                                           mode_str, bias, vote_weight);
          
          // Log each enabled vote with actual indicator values
          if(m_settings.Ind_EmaSig_Enabled) {
@@ -2122,11 +2120,11 @@ public:
       // Final Decision
       if(m_settings.VoteMode == VOTE_MODE_ALL)
       {
-         // ALL mode: every enabled indicator must agree
+         // ALL mode: every enabled indicator must agree (pure multiplicative)
          if(all_pass) {
             m_diag_last_reason="OK";
             m_signals_generated++;
-            if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=%d (ALL votes pass)", bias);
+            if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=%d (ALL votes pass, weight=%.2f)", bias, vote_weight);
             return bias;
          }
          m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
@@ -2136,14 +2134,14 @@ public:
       }
       else
       {
-         // THRESHOLD mode: weighted sum >= VoteThreshold
-         if(vote_weight >= (double)m_settings.VoteThreshold) { 
+         // THRESHOLD mode: weighted sum >= total enabled-indicator weight
+         if(all_pass) { 
             m_diag_last_reason="OK";
             m_signals_generated++;
-            if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=%d (votes %.2f>=%d)", bias, vote_weight, m_settings.VoteThreshold);
+            if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=%d (votes %.2f all pass)", bias, vote_weight);
             return bias; 
          }
-         m_diag_last_reason = StringFormat("VOTES %.2f/%d", vote_weight, m_settings.VoteThreshold);
+         m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
          m_reject_votes++;
          if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=0 REJECT (%s)", m_diag_last_reason);
          return 0;
@@ -2168,6 +2166,13 @@ public:
       double p = GetMAVal(handle, 2);
       return (c > p) ? 1 : (c < p) ? -1 : 0;
    }
+   
+   // Shift-aware slope: compares MA at [shift] vs [shift+1]
+   int GetSlope(int handle, int shift) {
+      double c = GetMAVal(handle, shift);
+      double p = GetMAVal(handle, shift + 1);
+      return (c > p) ? 1 : (c < p) ? -1 : 0;
+   }
 
    //+------------------------------------------------------------------+
    //| 260304_PR2: Phase-Based Bias Calculation                        |
@@ -2184,14 +2189,14 @@ public:
          return 0;  // No bias - configuration error
       }
       
-      // Detect current market phase
+      // Detect current market phase (instant EMA + slope check)
       EMarketPhase current_phase = DetectMarketPhase(v_shift);
       
       // Update diagnostics
       m_diag_last_phase = current_phase;
       
-      // Check phase stability if required
-      if(m_settings.RequireMinPhaseConfirm)
+      // Check phase stability if required (optional, default min_bars=0 = instant)
+      if(m_settings.RequireMinPhaseConfirm && m_settings.MinPhaseConfirmBars > 0)
       {
          bool is_stable = ConfirmPhaseStability(current_phase, m_settings.MinPhaseConfirmBars);
          
@@ -2214,73 +2219,58 @@ public:
          return 0;  // No bias in choppy markets
       }
       
-      // Determine bias based on phase
-      int bias = 0;
-      
-      // Get EMA values to determine direction within phase
-      double ema13 = GetMAVal(h_ema2, v_shift, 0);  // EMA2 = 13-period
-      double ema34 = GetMAVal(h_ema3, v_shift, 0);  // EMA3 = 34-period
-      double ema89 = GetMAVal(h_ema4, v_shift, 0);  // EMA4 = 89-period
-      
-      if(ema13 == EMPTY_VALUE || ema34 == EMPTY_VALUE || ema89 == EMPTY_VALUE)
-      {
-         if(m_settings.DebugFlow)
-            Print("[260304_BIAS] ERROR: Invalid EMA values");
-         return 0;
-      }
-      
-      double tolerance = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);  // 2 pips
-      
-      // Map phase to bias direction
+      // Map phase directly to bias direction (phase encodes direction)
       switch(current_phase)
       {
+         case PHASE_TRENDING_UP:
+            if(m_settings.DebugFlow) Print("[260304_BIAS] TRENDING_UP → LONG bias");
+            return 1;
+            
+         case PHASE_TRENDING_DN:
+            if(m_settings.DebugFlow) Print("[260304_BIAS] TRENDING_DN → SHORT bias");
+            return -1;
+            
+         case PHASE_EMERGING_UP:
+            if(m_settings.DebugFlow) Print("[260304_BIAS] EMERGING_UP → LONG bias (trend forming)");
+            return 1;
+            
+         case PHASE_EMERGING_DN:
+            if(m_settings.DebugFlow) Print("[260304_BIAS] EMERGING_DN → SHORT bias (trend forming)");
+            return -1;
+            
          case PHASE_TRENDING:
-            // TRENDING: EMAs fully stacked
-            if(ema13 > ema34 + tolerance && ema34 > ema89 + tolerance)
-            {
-               bias = 1;  // LONG (bullish trend)
-               if(m_settings.DebugFlow)
-                  Print("[260304_BIAS] TRENDING Bullish → LONG bias");
-            }
-            else if(ema89 > ema34 + tolerance && ema34 > ema13 + tolerance)
-            {
-               bias = -1;  // SHORT (bearish trend)
-               if(m_settings.DebugFlow)
-                  Print("[260304_BIAS] TRENDING Bearish → SHORT bias");
-            }
-            break;
+         {
+            // Legacy: re-evaluate direction from EMA values for backward compat
+            double ema13 = GetMAVal(h_ema2, v_shift, 0);
+            double ema89 = GetMAVal(h_ema4, v_shift, 0);
+            double tolerance = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+            if(ema13 > ema89 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] TRENDING Bullish → LONG"); return 1; }
+            if(ema89 > ema13 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] TRENDING Bearish → SHORT"); return -1; }
+            return 0;
+         }
             
          case PHASE_EMERGING:
-            // EMERGING: Trend forming (EMA4 sandwiched)
-            if(ema13 > ema89 + tolerance && ema89 > ema34 + tolerance)
-            {
-               bias = 1;  // LONG (bullish emerging)
-               if(m_settings.DebugFlow)
-                  Print("[260304_BIAS] EMERGING Bullish → LONG bias (trend forming)");
-            }
-            else if(ema34 > ema89 + tolerance && ema89 > ema13 + tolerance)
-            {
-               bias = -1;  // SHORT (bearish emerging)
-               if(m_settings.DebugFlow)
-                  Print("[260304_BIAS] EMERGING Bearish → SHORT bias (trend forming)");
-            }
-            break;
+         {
+            // Legacy: re-evaluate direction from EMA values for backward compat
+            double ema13 = GetMAVal(h_ema2, v_shift, 0);
+            double ema89 = GetMAVal(h_ema4, v_shift, 0);
+            double tolerance = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+            if(ema13 > ema89 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] EMERGING Bullish → LONG"); return 1; }
+            if(ema89 > ema13 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] EMERGING Bearish → SHORT"); return -1; }
+            return 0;
+         }
             
          case PHASE_UNORDERED:
-            // UNORDERED: No bias (choppy/mixed structure)
-            bias = 0;
-            if(m_settings.DebugFlow)
-               Print("[260304_BIAS] UNORDERED phase → NO BIAS");
-            break;
+         default:
+            if(m_settings.DebugFlow) Print("[260304_BIAS] UNORDERED phase → NO BIAS");
+            return 0;
       }
-      
-      return bias;
    }
 
    //+------------------------------------------------------------------+
    //| 260304_PR1: Detect Market Phase Based on 3 Slowest EMAs         |
-   //| Uses EMA2(13), EMA3(34), EMA4(89) to classify market structure  |
-   //| EMERGING phase: EMA4(89) sandwiched between EMA2(13) and EMA3(34)|
+   //| Instant EMA snapshot: checks slopes at current bar + EMA order  |
+   //| Returns directional phases (UP/DN) for direct bias mapping      |
    //+------------------------------------------------------------------+
    EMarketPhase DetectMarketPhase(const int shift = 1)
    {
@@ -2296,76 +2286,75 @@ public:
          return PHASE_UNORDERED;
       }
       
-      // Tolerance for "approximate equality" to avoid false transitions on flat markets
-      double tolerance = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);  // 2 pips
+      // STEP 1: Check current slopes (instant, no bar counting)
+      // Slope is determined by comparing EMA at current bar vs previous bar
+      int slope3 = GetSlope(h_ema3, shift);  // EMA3(34) slope
+      int slope4 = GetSlope(h_ema4, shift);  // EMA4(89) slope
       
-      //==========================================================================
-      // BULLISH PHASE DETECTION
-      //==========================================================================
-      
-      // TRENDING Bullish: 13 > 34 > 89 (fully stacked ascending order)
-      if(ema13 > ema34 + tolerance && ema34 > ema89 + tolerance)
+      // If slopes don't match or either is flat → UNORDERED (no directional momentum)
+      if(slope3 != slope4 || slope3 == 0)
       {
          if(m_settings.DebugFlow)
-            PrintFormat("[260304_PHASE] TRENDING Bullish (13=%.5f > 34=%.5f > 89=%.5f) - Established uptrend", 
-                        ema13, ema34, ema89);
-         return PHASE_TRENDING;
+            PrintFormat("[260304_PHASE] UNORDERED: slope3=%d, slope4=%d (mismatch or flat)", slope3, slope4);
+         return PHASE_UNORDERED;
       }
       
-      // EMERGING Bullish: 13 > 89 > 34 
-      // EMA4(89) is SANDWICHED between EMA2(13) and EMA3(34)
-      // EMA34 is approaching EMA89 from below - trend forming
-      if(ema13 > ema89 + tolerance && ema89 > ema34 + tolerance)
+      bool is_long  = (slope3 > 0);
+      bool is_short = (slope3 < 0);
+      
+      // STEP 2: Check EMA order (instant structure check at current bar)
+      bool ema2_above_ema3 = (ema13 > ema34);
+      bool ema3_above_ema4 = (ema34 > ema89);
+      
+      // === TRENDING: Proper EMA order (EMAs fully stacked) ===
+      if(is_long && ema2_above_ema3 && ema3_above_ema4)
       {
          if(m_settings.DebugFlow)
-            PrintFormat("[260304_PHASE] EMERGING Bullish (13=%.5f > 89=%.5f > 34=%.5f) - EMA34 converging to EMA89, trend forming", 
-                        ema13, ema89, ema34);
-         return PHASE_EMERGING;
+            PrintFormat("[260304_PHASE] TRENDING_UP: slopes=(%d,%d) EMA13=%.5f > EMA34=%.5f > EMA89=%.5f",
+                        slope3, slope4, ema13, ema34, ema89);
+         return PHASE_TRENDING_UP;
       }
       
-      //==========================================================================
-      // BEARISH PHASE DETECTION
-      //==========================================================================
-      
-      // TRENDING Bearish: 89 > 34 > 13 (fully stacked descending order)
-      if(ema89 > ema34 + tolerance && ema34 > ema13 + tolerance)
+      if(is_short && !ema2_above_ema3 && !ema3_above_ema4)
       {
          if(m_settings.DebugFlow)
-            PrintFormat("[260304_PHASE] TRENDING Bearish (89=%.5f > 34=%.5f > 13=%.5f) - Established downtrend", 
-                        ema89, ema34, ema13);
-         return PHASE_TRENDING;
+            PrintFormat("[260304_PHASE] TRENDING_DN: slopes=(%d,%d) EMA13=%.5f < EMA34=%.5f < EMA89=%.5f",
+                        slope3, slope4, ema13, ema34, ema89);
+         return PHASE_TRENDING_DN;
       }
       
-      // EMERGING Bearish: 34 > 89 > 13
-      // EMA4(89) is SANDWICHED between EMA3(34) and EMA2(13)
-      // EMA13 is approaching EMA89 from above - trend forming
-      if(ema34 > ema89 + tolerance && ema89 > ema13 + tolerance)
+      // === EMERGING: EMA4 sandwiched between EMA2 and EMA3 (trend forming) ===
+      if(is_long && ema89 > ema34 && ema89 < ema13)
       {
          if(m_settings.DebugFlow)
-            PrintFormat("[260304_PHASE] EMERGING Bearish (34=%.5f > 89=%.5f > 13=%.5f) - EMA13 converging to EMA89, trend forming", 
-                        ema34, ema89, ema13);
-         return PHASE_EMERGING;
+            PrintFormat("[260304_PHASE] EMERGING_UP: slopes=(%d,%d) EMA13=%.5f > EMA89=%.5f > EMA34=%.5f",
+                        slope3, slope4, ema13, ema89, ema34);
+         return PHASE_EMERGING_UP;
       }
       
-      //==========================================================================
-      // UNORDERED (Default): None of the above patterns matched
-      // EMAs are crossed/mixed - no clear directional structure
-      //==========================================================================
+      if(is_short && ema89 < ema34 && ema89 > ema13)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[260304_PHASE] EMERGING_DN: slopes=(%d,%d) EMA13=%.5f < EMA89=%.5f < EMA34=%.5f",
+                        slope3, slope4, ema13, ema89, ema34);
+         return PHASE_EMERGING_DN;
+      }
       
+      // UNORDERED (Default): slopes agree but EMA order doesn't match any valid pattern
       if(m_settings.DebugFlow)
-         PrintFormat("[260304_PHASE] UNORDERED (13=%.5f, 34=%.5f, 89=%.5f) - Choppy/mixed structure", 
-                     ema13, ema34, ema89);
+         PrintFormat("[260304_PHASE] UNORDERED: slopes=(%d,%d) EMA13=%.5f, EMA34=%.5f, EMA89=%.5f",
+                     slope3, slope4, ema13, ema34, ema89);
       
       return PHASE_UNORDERED;
    }
    
    //+------------------------------------------------------------------+
-   //| 260304_PR1: Confirm Phase Stability                             |
-   //| Requires N consecutive bars in same phase to avoid whipsaws     |
+   //| 260304_PR1: Confirm Phase Stability (Optional)                  |
+   //| Checks N consecutive bars in same phase (min_bars=0 = instant)  |
    //+------------------------------------------------------------------+
    bool ConfirmPhaseStability(const EMarketPhase current_phase, const int min_bars)
    {
-      if(min_bars <= 1) return true;  // No confirmation required
+      if(min_bars <= 0) return true;  // 0=instant (no confirmation required)
       
       // Count consecutive bars in current phase
       int confirmed_bars = 1;  // Current bar (shift=1) counts as 1

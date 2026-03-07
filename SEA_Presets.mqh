@@ -124,7 +124,6 @@ void ApplyAdminOverrides(ST_Settings &cfg)
    if(!cfg.AdminOverridePreset) return;
 
    cfg.AutoStrat      = Inp_Override_AutoStrat;
-   cfg.VoteThreshold  = Inp_Override_VoteThreshold;
    cfg.P_Ema1         = Inp_Override_EMA1;
    cfg.P_Ema2         = Inp_Override_EMA2;
    cfg.P_Ema3         = Inp_Override_EMA3;
@@ -258,7 +257,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.UseMACompatSizer  = true;
       cfg.RiskPercent       = 0.0;
 
-      cfg.VoteThreshold     = 1;
       cfg.VoteMode          = VOTE_MODE_ALL;  // All enabled indicators must agree
       cfg.MaxSpread         = 9999.0;
       cfg.MinATR            = 0.0;
@@ -329,7 +327,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RequirePriceCross = true;
       cfg.ma_v_shift        = 1;
 
-      cfg.VoteThreshold     = 1;
       cfg.VoteMode          = VOTE_MODE_ALL;  // All enabled indicators must agree
       cfg.MaxSpread         = 5.0;
       cfg.MinATR            = 0.0;
@@ -390,7 +387,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasFastID     = (int)ROLE_EMA1;
       cfg.BiasSlowID     = (int)ROLE_EMA2;
 
-      cfg.VoteThreshold  = 3;
       cfg.VoteMode       = VOTE_MODE_ALL;  // All enabled indicators must agree
       cfg.MaxSpread      = 3.0;
       cfg.MinATR         = 5.0;
@@ -454,7 +450,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasFastID     = (int)ROLE_EMA3;
       cfg.BiasSlowID     = (int)ROLE_EMA4;
 
-      cfg.VoteThreshold  = 1;
       cfg.VoteMode       = VOTE_MODE_ALL;  // All enabled indicators must agree
       cfg.MaxSpread      = 5.0;
       cfg.MinATR         = 5.0;
@@ -518,7 +513,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasFastID     = (int)ROLE_EMA2;
       cfg.BiasSlowID     = (int)ROLE_EMA4;
 
-      cfg.VoteThreshold  = 4;
       cfg.VoteMode       = VOTE_MODE_ALL;  // All enabled indicators must agree
       cfg.MaxSpread      = 4.0;
       cfg.MinATR         = 2.0;
@@ -632,7 +626,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_P123_Enabled      = false;
       cfg.Ind_Ross_Enabled      = false;
 
-      cfg.VoteThreshold = 4;
       cfg.VoteMode      = VOTE_MODE_ALL;  // All enabled indicators must agree (matches Python system)
 
       cfg.P_MacdFast = 8;
@@ -755,7 +748,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.LayerTouchTolerance = 0.01;  // 1% tolerance for EMA touch detection (Weak/Medium/Strong layers)
    
       // Votes: EMA ribbon + MACD/CCI/PSAR (no ATR vote)
-      cfg.VoteThreshold          = 4;
       cfg.VoteMode               = VOTE_MODE_ALL;  // All enabled indicators must agree (matches Python system)
       cfg.Ind_EmaSig_Enabled     = true;
       cfg.Ind_Adx_Enabled        = false;
@@ -846,8 +838,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PhaseDetectionEnabled      = true;
       cfg.EnableLayerDetection       = true;
       cfg.BlockUnorderedPhase        = true;
-      cfg.RequireMinPhaseConfirm     = true;
-      cfg.MinPhaseConfirmBars        = 2;  // Change from 4 to 2
+      cfg.RequireMinPhaseConfirm     = false;   // No bar counting required (instant EMA check)
+      cfg.MinPhaseConfirmBars        = 0;        // 0=instant (recommended; no delay)
    
       // Layer phase permissions (PR4):
       // ✅ PROTECTION 5: Stricter EMERGING phase filtering
@@ -865,7 +857,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          Print("=== PRESET APPLIED: RRM (Enhanced Protection) ===");
          Print("  AutoStrat: ", EnumToString(cfg.AutoStrat), " (LayerTouchTolerance=", cfg.LayerTouchTolerance, ")");
          Print("  BiasMode: ", EnumToString(cfg.BiasMode));
-         Print("  MinPhaseConfirmBars: ", cfg.MinPhaseConfirmBars, " (4-bar confirmation)");
+         Print("  PhaseDetection: INSTANT EMA check (MinPhaseConfirmBars=0, no delay)");
+         Print("  VoteMode: ALL (all enabled indicators must pass)");
+         Print("  Enabled indicators: EmaSig=", cfg.Ind_EmaSig_Enabled, " MACD=", cfg.Ind_Macd_Enabled, " CCI=", cfg.Ind_Cci_Enabled, " PSAR=", cfg.Ind_Psar_Enabled);
          Print("  RequireRecoveryMomentum: ", cfg.RequireRecoveryMomentum ? "YES" : "NO");
          Print("  PullbackLookback: ", cfg.PullbackLookback);
          Print("  RRM_MinDivPips: ", cfg.RRM_MinDivPips);

@@ -57,9 +57,21 @@ string SEA_UI_FormatPhase(EMarketPhase phase, color &out_color)
 {
    switch(phase)
    {
+      case PHASE_TRENDING_UP:
+         out_color = clrLimeGreen;
+         return "TRENDING UP";
+      case PHASE_TRENDING_DN:
+         out_color = clrLimeGreen;
+         return "TRENDING DN";
       case PHASE_TRENDING:
          out_color = clrLimeGreen;
          return "TRENDING";
+      case PHASE_EMERGING_UP:
+         out_color = clrGold;
+         return "EMERGING UP";
+      case PHASE_EMERGING_DN:
+         out_color = clrGold;
+         return "EMERGING DN";
       case PHASE_EMERGING:
          out_color = clrGold;
          return "EMERGING";
@@ -82,13 +94,13 @@ string SEA_UI_FormatAllowedLayers(EMarketPhase phase, bool filter_active)
    if(!filter_active)
       return "ALL (filter disabled)";
 
-   switch(phase)
-   {
-      case PHASE_TRENDING:  return "L1, L2, L3";
-      case PHASE_EMERGING:  return "L1, L2";
-      case PHASE_UNORDERED: return "NONE";
-      default:              return "UNKNOWN";
-   }
+   bool is_emerging = (phase == PHASE_EMERGING || phase == PHASE_EMERGING_UP || phase == PHASE_EMERGING_DN);
+   bool is_trending = (phase == PHASE_TRENDING || phase == PHASE_TRENDING_UP || phase == PHASE_TRENDING_DN);
+
+   if(is_trending)  return "L1, L2, L3";
+   if(is_emerging)  return "L1, L2";
+   if(phase == PHASE_UNORDERED) return "NONE";
+   return "UNKNOWN";
 }
 
 // 260304_PR7: Format phase-layer filter status with icon and color coding
@@ -305,7 +317,7 @@ string SEA_UI_BuildActiveVotesList(const ST_Settings &cfg)
    if(cfg.Ind_Psar_Enabled)   { output += StringFormat("  + PSAR    (trend dir)       w=%d\n", cfg.Ind_Psar_Weight);   count++; }
    if(cfg.Ind_P123_Enabled)   { output += StringFormat("  + P123    (123 pattern)     w=%d\n", cfg.Ind_P123_Weight);   count++; }
    if(cfg.Ind_Ross_Enabled)   { output += StringFormat("  + Ross    (Ross hook)       w=%d\n", cfg.Ind_Ross_Weight);   count++; }
-   string mode_str = (cfg.VoteMode == VOTE_MODE_ALL ? "ALL" : StringFormat("THRESHOLD>=%d", cfg.VoteThreshold));
+   string mode_str = (cfg.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
    return StringFormat("Step 6 · Votes (%d enabled, mode=%s):\n%s", count, mode_str, output);
 }
 
@@ -359,7 +371,7 @@ string SEA_UI_BuildIndicatorConfigs(const ST_Settings &cfg)
    return output;
 }
 
-string SEA_UI_BuildVoteBreakdown(const SVoteSnapshot &votes[], const int voteCount, const int threshold)
+string SEA_UI_BuildVoteBreakdown(const SVoteSnapshot &votes[], const int voteCount, const int threshold = 0)
 {
    if(voteCount <= 0) return "";
    int passingVotes = 0;
@@ -374,7 +386,7 @@ string SEA_UI_BuildVoteBreakdown(const SVoteSnapshot &votes[], const int voteCou
                             votes[i].reason);
       if(votes[i].vote_result == 1) passingVotes++;
    }
-   return StringFormat("Vote Status: %d/%d (need %d)\n", passingVotes, voteCount, threshold) + lines;
+   return StringFormat("Vote Status: %d/%d\n", passingVotes, voteCount) + lines;
 }
 
 // -----------------------------------
@@ -579,12 +591,10 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
    }
 
    string sig_line = StringFormat("Signal=%s  Bias=%s", SEA_UI_SignalLabel(last_signal_dir), SEA_UI_BiasLabel(last_bias));
-   if(Settings.VoteThreshold <= 1)
-      sig_line += "  Votes=BYPASS";
-   else if(Settings.VoteMode == VOTE_MODE_ALL)
+   if(Settings.VoteMode == VOTE_MODE_ALL)
       sig_line += StringFormat("  Votes=ALL(%d enabled)", last_votes);
    else
-      sig_line += StringFormat("  Votes=%d/%d", last_votes, Settings.VoteThreshold);
+      sig_line += StringFormat("  Votes=%d", last_votes);
 
    if(last_signal_dir == 0 && last_reason != "")
       sig_line += StringFormat("  (%s)", last_reason);
@@ -628,7 +638,7 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
 
    // Per-vote runtime breakdown
    if(vote_snap_count > 0)
-      txt += SEA_UI_BuildVoteBreakdown(vote_snaps, vote_snap_count, Settings.VoteThreshold);
+      txt += SEA_UI_BuildVoteBreakdown(vote_snaps, vote_snap_count);
 
    if(has_pos)
    {
