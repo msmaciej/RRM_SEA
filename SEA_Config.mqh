@@ -90,33 +90,35 @@ enum EBiasMode
 //+------------------------------------------------------------------+
 //| Market Phase (for 4-EMA Bias Mode)                               |
 //|                                                                  |
-//| Analyzes the relationship between EMA2, EMA3, and EMA4 to       |
-//| determine overall market structure quality. Only used when       |
-//| BiasMode = BIAS_AUTO_PHASE.                                      |
+//| Analyzes EMA slopes + ordering for instant market structure.     |
+//| Only used when BiasMode = BIAS_AUTO_PHASE.                       |
 //|                                                                  |
-//| PHASE_TRENDING:                                                  |
-//|   - EMAs properly ordered (EMA2 > EMA3 > EMA4 for LONG)        |
-//|   - All slopes aligned in same direction                        |
+//| PHASE_TRENDING_UP / PHASE_TRENDING_DN:                           |
+//|   - EMA3 and EMA4 slopes agree (both up or both down)           |
+//|   - EMAs properly ordered (EMA2>EMA3>EMA4 for UP)               |
 //|   - Strong, clear trend structure                               |
-//|   → Allow trades, extract Bias from order (1 or -1)            |
+//|   → Allow all layers (L1, L2, L3), Bias = 1 or -1              |
 //|                                                                  |
-//| PHASE_EMERGING:                                                  |
-//|   - EMA4 temporarily between EMA2 and EMA3                     |
-//|   - Trend is forming/strengthening                              |
-//|   - Transitioning to TRENDING phase                             |
-//|   → Allow trades, extract Bias from emerging direction (1 or -1)|
+//| PHASE_EMERGING_UP / PHASE_EMERGING_DN:                           |
+//|   - EMA3 and EMA4 slopes agree (both up or both down)           |
+//|   - EMA4 sandwiched between EMA2 and EMA3 (trend forming)       |
+//|   - Transitioning towards TRENDING phase                        |
+//|   → Allow L1/L2 only (block L3), Bias = 1 or -1                |
 //|                                                                  |
 //| PHASE_UNORDERED:                                                 |
+//|   - EMA3/EMA4 slopes conflict, or either is flat                |
 //|   - Any other EMA configuration not matching above              |
-//|   - No clear trend structure, contradicting signals             |
 //|   - Mixed or choppy market                                      |
 //|   → Block all trades (TS = 0), Bias = 0                        |
-//|   → Note: Sub-markets may still show trends (for logging only)  |
 //+------------------------------------------------------------------+
 enum EMarketPhase {
-   PHASE_UNORDERED,   // No clear structure - block all trades (TS = 0)
-   PHASE_EMERGING,    // Trend forming (EMA4 between EMA2/EMA3) - allow trades
-   PHASE_TRENDING     // EMAs fully stacked, strong established trend - allow trades
+   PHASE_UNORDERED,      // No clear structure - block all trades (TS = 0)
+   PHASE_EMERGING,       // Trend forming (EMA4 between EMA2/EMA3) - allow trades (legacy; use UP/DN variants)
+   PHASE_TRENDING,       // EMAs fully stacked, strong established trend (legacy; use UP/DN variants)
+   PHASE_TRENDING_UP,    // Trending bullish: slopes up + EMA2>EMA3>EMA4
+   PHASE_TRENDING_DN,    // Trending bearish: slopes down + EMA2<EMA3<EMA4
+   PHASE_EMERGING_UP,    // Emerging bullish: slopes up + EMA4 between EMA2 and EMA3
+   PHASE_EMERGING_DN     // Emerging bearish: slopes down + EMA4 between EMA2 and EMA3
 };
 
 //+------------------------------------------------------------------+
@@ -498,8 +500,7 @@ struct ST_Settings
    int             P_HtfEma;
 
    // Voting
-   int       VoteThreshold;
-   EVoteMode VoteMode;        // THRESHOLD: weighted sum >= VoteThreshold; ALL: every indicator must agree (weights ignored)
+   EVoteMode VoteMode;        // ALL: every enabled indicator must agree (recommended); THRESHOLD: uses same all_pass logic as ALL mode
 
    // Per-indicator weights (1 = standard; only used in VOTE_MODE_THRESHOLD for weighted sum)
    // In VOTE_MODE_ALL, weights are ignored — all enabled indicators must simply agree.
@@ -839,9 +840,8 @@ input double         Inp_RRM_MinDivPips         = 0.5;            // (CUSTOM; pr
 
 // ── Step 6: Indicator Voting ──────────────────────────────────────────
 input group "═══ 🔧 STEP 6: Voting Configuration ═══"
-input string         Inp_Step6_Info             = "Configure multi-indicator consensus"; // Info
-input bool           Inp_VoteMode_All           = true;                 // (CUSTOM; presets override) Vote mode: TRUE=all must agree, FALSE=threshold
-input int            Inp_VoteThreshold          = 4;                    // (CUSTOM; presets override) Votes required to enter (threshold; weighted sum in THRESHOLD mode)
+input string         Inp_Step6_Info             = "Configure multi-indicator consensus (ALL enabled must pass)"; // Info
+input bool           Inp_VoteMode_All           = true;                 // (CUSTOM; presets override) Vote mode: TRUE=all must agree (recommended), FALSE=threshold
 
 input group "═══ 📊 Indicator: EmaSig ═══"
 input bool           Inp_Ind_EmaSig_Enabled     = true;                // [EmaSig] Enable EMA signal vote
@@ -1049,7 +1049,6 @@ input bool           Inp_AdminOverridePreset        = false; // [Admin] Unlock p
 
 input group "--- 🔓 §1 Admin Override: Strategy, EMAs & Votes ---"
 input EAutoStrategy  Inp_Override_AutoStrat          = STRAT_PAIR_CROSS; // [Admin] Override AutoStrat when AdminOverride=true
-input int            Inp_Override_VoteThreshold       = 4;                // [Admin] Override Vote Threshold when AdminOverride=true
 input int            Inp_Override_EMA1               = 5;                 // [Admin] Override EMA1 period when AdminOverride=true
 input int            Inp_Override_EMA2               = 13;                // [Admin] Override EMA2 period when AdminOverride=true
 input int            Inp_Override_EMA3               = 34;                // [Admin] Override EMA3 period when AdminOverride=true
@@ -1122,7 +1121,7 @@ input bool     Inp_Override_PhaseDetectionEnabled   = true;    // [Admin] Enable
 input bool     Inp_Override_EnableLayerDetection    = true;    // [Admin] Enable layer filtering when AdminOverride=true
 input bool     Inp_Override_BlockUnorderedPhase     = true;    // [Admin] Block all trades in UNORDERED phase when AdminOverride=true
 input bool     Inp_Override_RequireMinPhaseConfirm  = true;    // [Admin] Require min-bar phase confirmation when AdminOverride=true
-input int      Inp_Override_MinPhaseConfirmBars     = 2;       // [Admin] Min bars to confirm phase stability (1-10) when AdminOverride=true
+input int      Inp_Override_MinPhaseConfirmBars     = 0;       // [Admin] Min bars to confirm phase stability (0=instant, 1-10=delay) when AdminOverride=true
 
 input group "--- 🔓 §5.1 Admin Override: Layer 1 (Weak/EMA5-13) Allowed Phases ---"
 input bool     Inp_Override_Layer1_AllowTrending    = true;    // [Admin] Layer 1: Allow TRENDING phase when AdminOverride=true
@@ -1342,7 +1341,6 @@ void InitializeConfig()
    Settings.P_HtfEma             = Inp_HtfEmaPeriod;
 
    // Voting
-   Settings.VoteThreshold        = Inp_VoteThreshold;
    Settings.VoteMode             = (Inp_VoteMode_All ? VOTE_MODE_ALL : VOTE_MODE_THRESHOLD);
 
    // Indicator periods / thresholds
@@ -1400,8 +1398,8 @@ void InitializeConfig()
    Settings.Ind_P123_Enabled     = Inp_Ind_P123_Enabled;
    Settings.Ind_Ross_Enabled     = Inp_Ind_Ross_Enabled;
 
-   // Per-indicator vote weights (1 = standard; weighted sum compared to VoteThreshold in THRESHOLD mode)
-   // In VOTE_MODE_ALL, weights are ignored — all enabled indicators must simply agree.
+   // Per-indicator vote weights (1 = standard; used in VOTE_MODE_THRESHOLD for weighted sum)
+   // In VOTE_MODE_ALL (recommended), weights are ignored — all enabled indicators must simply agree.
    Settings.Ind_EmaSig_Weight    = Inp_Ind_EmaSig_Weight;
    Settings.Ind_Adx_Weight       = Inp_Ind_Adx_Weight;
    Settings.Ind_Macd_Weight      = Inp_Ind_Macd_Weight;
@@ -1537,8 +1535,8 @@ void InitializeConfig()
    // ═══════════════════════════════════════════════════════════════
    Settings.PhaseDetectionEnabled        = false;  // Not used yet - will be enabled in future updates
    Settings.BlockUnorderedPhase          = true;   // Block UNORDERED when enabled
-   Settings.RequireMinPhaseConfirm       = false;  // No stability requirement initially
-   Settings.MinPhaseConfirmBars          = 3;      // 3-bar confirmation when enabled
+   Settings.RequireMinPhaseConfirm       = false;  // No stability requirement by default
+   Settings.MinPhaseConfirmBars          = 0;      // 0=instant EMA check (recommended)
    
    // Phase-specific permissions (default: allow all)
    Settings.Emerging_AllowWeakTrades     = true;
