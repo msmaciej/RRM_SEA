@@ -434,8 +434,6 @@ void OrchestrateTick()
    // ═══════════════════════════════════════════════════════════════
    if(g_ts_active && current_bar != g_ts_bar_time)
    {
-      double atr_te = Signal.GetATR();
-
       if(Settings.DebugFlow)
          PrintFormat("[TE CHECK] Evaluating TE at shift=0 for %s | TS bar: %s",
                      (g_ts_direction > 0 ? "BUY" : "SELL"),
@@ -448,15 +446,15 @@ void OrchestrateTick()
          // Step 2: RC - Risk control gate
          if(Executor.EvaluateRC())
          {
-            // Step 3: CM - Capital management (lot sizing)
-            double lots = Executor.EvaluateCM(te_result, atr_te);
+            // Step 3: CM - Capital management (lot sizing, ATR-independent)
+            double lots = Executor.EvaluateCM(te_result);
 
             if(lots > 0)
             {
-               // Step 4: Execute - Place order
+               // Step 4: Execute - Place order (ATR-independent)
                if(Settings.DebugFlow)
                   PrintFormat("[TE ENTRY] TE confirmed at shift=0 | direction=%d | lots=%.2f", te_result, lots);
-               Executor.ExecuteTrade(te_result, lots, atr_te);
+               Executor.ExecuteTrade(te_result, lots);
                g_last_te_bar_time = current_bar;  // Mark this bar as TE execution bar
             }
             else
@@ -493,7 +491,8 @@ void OrchestrateTick()
    g_last_bar_time = current_bar;
    FlowLog("OnTick -> NewBar detected -> begin bar pipeline");
 
-   double atr = Signal.GetATR();
+   // ATR is only needed for TM when using ATR-based trailing stops
+   double atr = (Settings.TrailMode == TRAIL_ATR) ? Signal.GetATR() : 0.0;
 
    FlowLog("Step A: Manage open positions (Trailing/BE)");
    Executor.EvaluateTM(atr);

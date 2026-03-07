@@ -651,6 +651,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TrailMode             = TRAIL_PSAR;
       cfg.P_PsarTrailCushionATR = 0.5;
 
+      // SL/TP strategy (RRM_ATR: ATR-based SL/TP)
+      cfg.SLMode        = SL_MODE_ATR;
+      cfg.TPMode        = TP_MODE_ATR;
+      cfg.FixedTPPips   = 40.0;
+      cfg.UseATRforSL   = true;
+      cfg.UseATRforTP   = true;
+      cfg.SLPercent     = 0.5;
+      cfg.RRRatio       = 2.0;
+      cfg.SwingLookback = 20;
+
       // Restore operator-controlled gates (Policy A)
       cfg.MaxSpread = op_MaxSpread;
       cfg.MinATR    = op_MinATR;
@@ -806,6 +816,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PSAR_TrailPipsCushion = GetRecommendedTrailPsarCushionPips();
       cfg.Use_BE                = true;
       cfg.BE_Mode               = BE_MODE_R_MULTIPLE;
+
+      // SL/TP strategy (RRM: swing-based SL, R:R ratio TP, ATR disabled)
+      cfg.SLMode        = SL_MODE_SWING;
+      cfg.TPMode        = TP_MODE_RR;
+      cfg.FixedTPPips   = 40.0;
+      cfg.UseATRforSL   = false;
+      cfg.UseATRforTP   = false;
+      cfg.SLPercent     = 0.5;
+      cfg.RRRatio       = 3.0;
+      cfg.SwingLookback = 20;
    
       // Phase Detection (PR1-5) — enabled in PRESET_RRM
       cfg.PhaseDetectionEnabled      = true;
