@@ -274,6 +274,29 @@ enum ESlPlacementMode
    SL_FIXED_PIPS
 };
 
+//+------------------------------------------------------------------+
+//| Stop Loss Strategy Mode (new; ATR-optional, strategy-based)      |
+//| Defines how SL distance is calculated in GetStopLossPips()       |
+//+------------------------------------------------------------------+
+enum ESLMode
+{
+   SL_MODE_FIXED_PIPS,    // Fixed pips (default, ATR-independent)
+   SL_MODE_ATR,           // ATR-based (optional, requires UseATRforSL=true)
+   SL_MODE_PERCENT,       // Percentage of entry price
+   SL_MODE_SWING          // Based on recent swing high/low (SwingLookback bars)
+};
+
+//+------------------------------------------------------------------+
+//| Take Profit Strategy Mode (new; ATR-optional, strategy-based)    |
+//| Defines how TP distance is calculated in GetTakeProfitPips()     |
+//+------------------------------------------------------------------+
+enum ETPMode
+{
+   TP_MODE_FIXED_PIPS,    // Fixed pips (default)
+   TP_MODE_RR,            // Risk:Reward ratio (TP = SL distance × RRRatio)
+   TP_MODE_ATR            // ATR-based (optional, requires UseATRforTP=true)
+};
+
 // TR - Trailing Stop: PSAR Trailing Cushion Mode
 enum EPsarTrailCushionMode
 {
@@ -531,6 +554,16 @@ struct ST_Settings
    double           SL_PsarPipsCushion;
    double           SL_SwingPipsCushion;
    double           SL_FixedPips;
+
+   // SL/TP Strategy Configuration (new; ATR-optional, strategy-based)
+   ESLMode  SLMode;           // How to calculate SL distance (new strategy enums)
+   ETPMode  TPMode;           // How to calculate TP distance (new strategy enums)
+   double   FixedTPPips;      // Fixed TP distance in pips (TP_MODE_FIXED_PIPS)
+   bool     UseATRforSL;      // Enable ATR-based SL (SL_MODE_ATR only)
+   bool     UseATRforTP;      // Enable ATR-based TP (TP_MODE_ATR only)
+   double   SLPercent;        // SL as % of entry price (SL_MODE_PERCENT, e.g. 0.5 = 0.5%)
+   double   RRRatio;          // Risk:Reward ratio (TP_MODE_RR, e.g. 2.0 = 1:2)
+   int      SwingLookback;    // Bars to look back for swing high/low (SL_MODE_SWING)
 
    // TS - Trailing SL / TP / BE
    double              TP_Mult;
@@ -879,6 +912,16 @@ input double         Inp_SL_Mult                = 1.5;                 // (CUSTO
 input double         Inp_SL_PsarPipsCushion     = 5.0;                 // (CUSTOM; presets override) SL PSAR cushion (pips)
 input double         Inp_SL_SwingPipsCushion    = 10.0;                // (CUSTOM; presets override) SL swing cushion (pips)
 input double         Inp_SL_FixedPips           = 20.0;                // (CUSTOM; presets override) SL fixed distance (pips)
+
+input group "--- ℹ️ Step 9 · SL/TP Strategy (ATR-optional) ---"
+input ESLMode        Inp_SLMode                 = SL_MODE_FIXED_PIPS; // (CUSTOM) SL strategy mode (SL_MODE_FIXED_PIPS by default)
+input ETPMode        Inp_TPMode                 = TP_MODE_RR;         // (CUSTOM) TP strategy mode (TP_MODE_RR by default)
+input double         Inp_FixedTPPips            = 40.0;               // (CUSTOM) Fixed TP distance in pips (TP_MODE_FIXED_PIPS only)
+input bool           Inp_UseATRforSL            = false;              // (CUSTOM) Enable ATR-based SL (SL_MODE_ATR only)
+input bool           Inp_UseATRforTP            = false;              // (CUSTOM) Enable ATR-based TP (TP_MODE_ATR only)
+input double         Inp_SLPercent              = 0.5;                // (CUSTOM) SL as % of entry price (SL_MODE_PERCENT only)
+input double         Inp_RRRatio                = 2.0;                // (CUSTOM) Risk:Reward ratio (TP_MODE_RR only)
+input int            Inp_SwingLookback          = 20;                 // (CUSTOM) Swing high/low lookback bars (SL_MODE_SWING only)
 
 input group "--- ℹ️ Step 9 · TP & Breakeven ---"
 input double         Inp_TP_Mult                = 3.0;                 // (CUSTOM; presets override) TP R-multiple (legacy TP_Mult)
@@ -1321,6 +1364,16 @@ void InitializeConfig()
    Settings.SL_PsarPipsCushion   = Inp_SL_PsarPipsCushion;
    Settings.SL_SwingPipsCushion  = Inp_SL_SwingPipsCushion;
    Settings.SL_FixedPips         = Inp_SL_FixedPips;
+
+   // New strategy-based SL/TP configuration (ATR-optional)
+   Settings.SLMode         = Inp_SLMode;
+   Settings.TPMode         = Inp_TPMode;
+   Settings.FixedTPPips    = Inp_FixedTPPips;
+   Settings.UseATRforSL    = Inp_UseATRforSL;
+   Settings.UseATRforTP    = Inp_UseATRforTP;
+   Settings.SLPercent      = Inp_SLPercent;
+   Settings.RRRatio        = Inp_RRRatio;
+   Settings.SwingLookback  = Inp_SwingLookback;
 
    Settings.TP_Mult              = Inp_TP_Mult;
    Settings.Use_BE               = Inp_Use_BE;
