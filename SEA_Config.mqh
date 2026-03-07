@@ -45,28 +45,125 @@ enum EMaMethod
    METHOD_SMA                 // Simple
 };
 
+//+------------------------------------------------------------------+
+//| Bias Mode (How to Determine Market Direction)                    |
+//|                                                                  |
+//| Three methods for calculating trend bias (market direction).     |
+//| Each method differs in how many EMAs it uses and how it         |
+//| determines the prevailing trend.                                 |
+//|                                                                  |
+//| BIAS_MANUAL:                                                     |
+//|   Uses: Operator-set fixed direction                             |
+//|   Logic: Always returns configured side (LONG, SHORT, or BOTH)  |
+//|   When to use: Override mode, backtesting a single direction     |
+//|   MarketPhase: NOT calculated (always = 1)                      |
+//|   EntryLayer: Can still be used (if enabled)                    |
+//|                                                                  |
+//| BIAS_AUTO (Traditional EMA method):                              |
+//|   Uses: Fast EMA vs Slow EMA comparison                         |
+//|   Logic:                                                         |
+//|     - EMA_Fast > EMA_Slow (both slopes up)   → Bias = 1 (LONG) |
+//|     - EMA_Fast < EMA_Slow (both slopes down) → Bias = -1 (SHORT)|
+//|     - EMAs crossing or flat                  → Bias = 0 (NEUTRAL)|
+//|   When to use: Standard trend-following strategies               |
+//|   MarketPhase: NOT calculated (always = 1)                      |
+//|   EntryLayer: Can still be used (if enabled)                    |
+//|                                                                  |
+//| BIAS_AUTO_PHASE (Market Phase method):                           |
+//|   Uses: 4 EMAs (EMA1, EMA2, EMA3, EMA4) structure analysis     |
+//|   Logic:                                                         |
+//|     1. Analyze EMA2, EMA3, EMA4 relative positions and slopes   |
+//|     2. Determine Market Phase (TRENDING/EMERGING/UNORDERED)     |
+//|     3. Extract Bias direction from phase structure              |
+//|   When to use: RRM strategy, advanced trend detection            |
+//|   MarketPhase: CALCULATED (TRENDING/EMERGING/UNORDERED)        |
+//|   EntryLayer: Can still be used (if enabled)                    |
+//|   Special: UNORDERED phase blocks all trades (TS = 0)          |
+//+------------------------------------------------------------------+
 enum EBiasMode
 {
    BIAS_MANUAL,       // Manual direction (LONG_ONLY, SHORT_ONLY, BOTH)
    BIAS_AUTO,         // Auto: Traditional EMA-based bias (single or dual EMA)
-   BIAS_AUTO_PHASE    // 260304_PR2: Auto bias based on market phase (TRENDING/EMERGING/UNORDERED)
+   BIAS_AUTO_PHASE    // Auto: Market Phase bias (4-EMA structure → TRENDING/EMERGING/UNORDERED)
 };
 
 //+------------------------------------------------------------------+
-//| Market Phase Classification (Russ Horn's Rapid Results Method)   |
-//| 260304_PR1: Phase detection infrastructure - not used yet        |
+//| Market Phase (for 4-EMA Bias Mode)                               |
+//|                                                                  |
+//| Analyzes the relationship between EMA2, EMA3, and EMA4 to       |
+//| determine overall market structure quality. Only used when       |
+//| BiasMode = BIAS_AUTO_PHASE.                                      |
+//|                                                                  |
+//| PHASE_TRENDING:                                                  |
+//|   - EMAs properly ordered (EMA2 > EMA3 > EMA4 for LONG)        |
+//|   - All slopes aligned in same direction                        |
+//|   - Strong, clear trend structure                               |
+//|   → Allow trades, extract Bias from order (1 or -1)            |
+//|                                                                  |
+//| PHASE_EMERGING:                                                  |
+//|   - EMA4 temporarily between EMA2 and EMA3                     |
+//|   - Trend is forming/strengthening                              |
+//|   - Transitioning to TRENDING phase                             |
+//|   → Allow trades, extract Bias from emerging direction (1 or -1)|
+//|                                                                  |
+//| PHASE_UNORDERED:                                                 |
+//|   - Any other EMA configuration not matching above              |
+//|   - No clear trend structure, contradicting signals             |
+//|   - Mixed or choppy market                                      |
+//|   → Block all trades (TS = 0), Bias = 0                        |
+//|   → Note: Sub-markets may still show trends (for logging only)  |
 //+------------------------------------------------------------------+
 enum EMarketPhase {
-   PHASE_UNORDERED,   // EMAs crossed/mixed - choppy market (NO TRADE)
-   PHASE_EMERGING,    // EMAs forming trend - EMA4(89) between EMA2(13) and EMA3(34)
-   PHASE_TRENDING     // EMAs fully stacked - strong established trend
+   PHASE_UNORDERED,   // No clear structure - block all trades (TS = 0)
+   PHASE_EMERGING,    // Trend forming (EMA4 between EMA2/EMA3) - allow trades
+   PHASE_TRENDING     // EMAs fully stacked, strong established trend - allow trades
 };
 
+//+------------------------------------------------------------------+
+//| Entry Layer (Pullback-Recovery Detection)                        |
+//|                                                                  |
+//| Identifies which EMA pair price is pulling back to, based on    |
+//| a pullback-recovery pattern. Can be used with ANY bias mode     |
+//| (independent of Market Phase).                                   |
+//|                                                                  |
+//| With 4 active EMAs, we have 3 EMA pairs representing different  |
+//| trade aggressiveness levels:                                     |
+//|                                                                  |
+//| LAYER_1_WEAK (EMA1-EMA2) "Ribbon":                              |
+//|   - Shallow pullback to fast EMAs                               |
+//|   - Less aggressive entry, tighter stops                        |
+//|   - Lower risk, lower reward potential                          |
+//|   - Best for: Scalping, quick entries in strong trends          |
+//|                                                                  |
+//| LAYER_2_MEDIUM (EMA2-EMA3) "Ghost":                             |
+//|   - Medium pullback to mid EMAs                                 |
+//|   - Moderate entry, balanced stops                              |
+//|   - Balanced risk/reward                                        |
+//|   - Best for: Swing trading, standard trend setups              |
+//|                                                                  |
+//| LAYER_3_STRONG (EMA3-EMA4) "Shark":                             |
+//|   - Deep pullback to slow EMAs                                  |
+//|   - Aggressive entry, wider stops                               |
+//|   - Higher risk, higher reward potential                        |
+//|   - Best for: Position trading, major trend continuations       |
+//|                                                                  |
+//| Detection Logic (Pullback-Recovery Pattern):                    |
+//|   1. Pullback: EMA_fast slope moves toward EMA_slow (flattens) |
+//|   2. Flat:     EMA_fast slope becomes flat (consolidation)     |
+//|   3. Recovery: EMA_fast slope resumes trend direction           |
+//|   4. Confirm:  Price candle body closes beyond EMA_fast         |
+//|                (in bias direction)                              |
+//|                                                                  |
+//| Return Values from layer check:                                  |
+//|    1  = Pullback-recovery detected, matches bias (PASS)         |
+//|    0  = No pullback-recovery detected (FAIL)                    |
+//|   -1  = Pullback-recovery contradicts bias direction (FAIL)    |
+//+------------------------------------------------------------------+
 enum EEntryLayer {
    LAYER_NONE,        // No layer detected or detection disabled
-   LAYER_1_WEAK,      // Layer 1: price touched EMA1/EMA2 zone (shallow pullback)
-   LAYER_2_MEDIUM,    // Layer 2: price touched EMA2/EMA3 zone (medium pullback)
-   LAYER_3_STRONG     // Layer 3: price touched EMA3/EMA4 zone (deep pullback)
+   LAYER_1_WEAK,      // Layer 1: EMA1-EMA2 "Ribbon" zone (shallow pullback)
+   LAYER_2_MEDIUM,    // Layer 2: EMA2-EMA3 "Ghost" zone (medium pullback)
+   LAYER_3_STRONG     // Layer 3: EMA3-EMA4 "Shark" zone (deep pullback)
 };
 
 enum EManualSide

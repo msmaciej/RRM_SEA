@@ -21,7 +21,9 @@ This document provides detailed technical documentation for the SimpleEA signal 
 ## Table of Contents
 
 - [The 9-Step Signal Pipeline: Detailed Walkthrough](#the-9-step-signal-pipeline-detailed-walkthrough)
+- [Entry Layer: Pullback-Recovery Detection](#entry-layer-pullback-recovery-detection)
 - [The Multiplicative Voting System Explained](#the-multiplicative-voting-system-explained)
+- [TS Evaluation Trace: BIAS_AUTO_PHASE + Entry Layer Example](#ts-evaluation-trace-bias_auto_phase--entry-layer-example)
 - [Complete Execution Trace: Real-World Example](#complete-execution-trace-real-world-example)
 - [Indicator Voting Logic (Detailed)](#indicator-voting-logic-detailed)
 - [Advanced Topics](#advanced-topics)
@@ -32,7 +34,17 @@ This document provides detailed technical documentation for the SimpleEA signal 
 
 ### Overview
 
-The Signal Engine evaluates **EVERY condition on the CLOSED candle** (shift=1) before allowing any trade. If any step fails, the process stops immediately and returns 0 (NO TRADE).
+The Signal Engine evaluates **EVERY condition on the CLOSED candle** (shift=1, the **TS — Trade Setup** evaluation) before allowing any trade. If any step fails, the process stops immediately and returns 0 (NO TRADE).
+
+The TS evaluation uses a multiplicative pipeline. At its core:
+
+```
+TS = Bias × MarketPhase × EntryLayer × [all enabled indicators]
+```
+
+Each factor returns 1 (pass), 0 (fail), or -1 (contradicts). Any 0 or -1 makes the whole product 0.
+
+> **See also:** [README_SYSTEM.md — Bias, Market Phase, and Entry Layer Concepts](README_SYSTEM.md) for a conceptual overview of these three components and how they relate.
 
 ---
 
@@ -74,7 +86,11 @@ The Signal Engine evaluates **EVERY condition on the CLOSED candle** (shift=1) b
 
 ### Step 2: Market Bias Determination
 
-**Purpose:** Determine the PRIMARY trend direction
+**Purpose:** Determine the PRIMARY trend direction (the **Bias** component of the TS formula)
+
+> **For a complete conceptual explanation of all three Bias modes, Market Phase types, and how Bias relates to MarketPhase and EntryLayer, see [README_SYSTEM.md — Bias, Market Phase, and Entry Layer Concepts](README_SYSTEM.md).**
+
+This step produces `bias ∈ {-1, 0, 1}`. If the result is 0 (NEUTRAL), the pipeline stops here.
 
 **How It Works:**
 
@@ -293,6 +309,65 @@ Check L2:
 
 ---
 
+## Entry Layer: Pullback-Recovery Detection
+
+> **For a conceptual overview of all three Entry Layer types and the pullback-recovery pattern, see [README_SYSTEM.md — Entry Layer](README_SYSTEM.md).**
+
+The Entry Layer check is the **timing** component of the TS formula. It confirms that price has completed a pullback and resumed the trend direction before entering — filtering out entries made into the middle of a move.
+
+### Layer Types
+
+| Layer | EMA Pair | Nickname | Description |
+|---|---|---|---|
+| `LAYER_1_WEAK` | EMA1 – EMA2 | "Ribbon" | Shallow pullback; less aggressive entry |
+| `LAYER_2_MEDIUM` | EMA2 – EMA3 | "Ghost" | Medium pullback; balanced risk/reward |
+| `LAYER_3_STRONG` | EMA3 – EMA4 | "Shark" | Deep pullback; aggressive entry |
+
+Each layer uses its EMA pair's relative position and slope to determine whether a pullback-recovery event has occurred.
+
+### Pullback-Recovery Logic
+
+For each layer (e.g., `LAYER_3_STRONG` = EMA3-EMA4):
+
+```
+1. Check EMA positions:
+   - For LONG: EMA3 > EMA4  (EMA_fast above EMA_slow)
+   - For SHORT: EMA3 < EMA4
+
+2. Check slope alignment:
+   - Both slopes in same direction (trending)
+
+3. Detect pullback phase:
+   - EMA3 slope flattens (moves toward EMA4 slope value)
+   - EMA3 slope moves toward EMA4 (converging)
+
+4. Detect flat phase:
+   - EMA3 slope becomes flat (consolidation / brief pause)
+
+5. Detect recovery phase:
+   - EMA3 slope resumes trend direction (diverging from EMA4)
+   - Price candle body closes beyond EMA3 (in bias direction)
+     → LONG: Close > EMA3
+     → SHORT: Close < EMA3
+
+6. Return signal:
+    1 = Recovery detected, matches bias  → PASS
+    0 = No recovery detected             → FAIL
+   -1 = Recovery contradicts bias        → FAIL
+```
+
+### Implementation Notes
+
+- **Lookback window:** Configurable (e.g., 20 bars) — how far back to search for the pullback phase
+- **Slope threshold:** Configurable — the minimum slope magnitude to distinguish "flat" from "trending"
+- **Body close confirmation:** Price candle *body* (not wick) must close beyond EMA_fast in the bias direction; wicks are excluded to avoid false recoveries
+
+### Which Layer Is Checked?
+
+The system checks the configured layer (e.g., `LAYER_3_STRONG`). If `AllowLayer1`, `AllowLayer2`, and `AllowLayer3` are all enabled, all active layers are checked and the closest matching pullback is used.
+
+---
+
 ### Step 4: Signal Validation
 
 **Purpose:** Ensure entry signal matches the bias
@@ -466,6 +541,8 @@ ELSE:
 
 **Purpose:** Get multi-indicator confirmation
 
+> **Note:** Indicator voting occurs **after** Bias, MarketPhase, and EntryLayer have all passed. Indicators are the final quality filter in the TS formula.
+
 **How It Works:**
 
 #### 8.1 Initialize
@@ -478,6 +555,22 @@ votes = 0
 Call indicator's `Check_XXX(bias, shift)` function:
 - Function returns: `true` (agrees) or `false` (disagrees)
 - If `true` → `votes++`
+
+#### 8.2a Indicator Types
+
+Indicators fall into two categories based on whether they need to know the trade direction:
+
+**Directional indicators** (receive bias parameter, check direction vs threshold):
+- **MACD** — Checks histogram or crossover direction vs bias
+- **RSI** — Checks overbought/oversold zones vs bias direction
+- **Stochastic** — Checks %K/%D levels vs bias direction
+- **CCI** — Checks commodity channel index level vs bias
+- **Bollinger Bands** — Checks band touch or middle-line position vs bias
+- **HTF** — Checks higher-timeframe EMA alignment with bias
+
+**Non-directional indicators** (check market condition regardless of direction):
+- **ATR** — Checks volatility is within acceptable range (min/max)
+- **ADX** — Checks trend strength is above minimum threshold
 
 #### 8.3 Available Indicators
 
@@ -653,6 +746,53 @@ Votes (4) >= VoteThreshold (4) ✅
 
 ---
 
+
+---
+
+## TS Evaluation Trace: BIAS_AUTO_PHASE + Entry Layer Example
+
+This trace shows a complete TS evaluation using `BIAS_AUTO_PHASE` mode with the Entry Layer check enabled — matching the full TS formula described in [README_SYSTEM.md](README_SYSTEM.md).
+
+```
+Bar Close: 2026-03-07 14:00:00
+Symbol:    EURUSD
+Timeframe: M1
+Config:    BiasMode=BIAS_AUTO_PHASE, LayerDetect=true, AllowLayer3=true
+
+─────────────────────────────────────────────────────────────────
+STEP 1: Determine Bias
+├─ BiasMode = BIAS_AUTO_PHASE
+├─ EMA2 (1.08500) > EMA3 (1.08450) > EMA4 (1.08400)
+├─ EMA2 slope: +0.0003 (rising) ✅
+├─ EMA3 slope: +0.0002 (rising) ✅
+├─ EMA4 slope: +0.0001 (rising) ✅
+├─ EMAs properly ordered → Phase = PHASE_TRENDING
+└─ Bias = 1 (LONG) ✅
+
+STEP 2: Validate Market Phase
+├─ Phase = PHASE_TRENDING (not UNORDERED)
+└─ MarketPhase = 1 ✅
+
+STEP 3: Check Entry Layer
+├─ LayerDetect = true, checking LAYER_3_STRONG (EMA3-EMA4)
+├─ EMA3 (1.08450) > EMA4 (1.08400) ✅ (LONG order)
+├─ Pullback detected 3 bars ago: EMA3 slope flattened to ~0
+├─ Recovery detected: EMA3 slope resumed +0.0002 (upward)
+├─ Price body close (1.08462) > EMA3 (1.08450) ✅
+└─ EntryLayer = 1 (matches bias LONG) ✅
+
+STEP 4: Evaluate Indicators (post-structure checks)
+├─ MACD: Histogram = +0.00015 (positive, matches LONG) → 1 ✅
+├─ PSAR: Dots at 1.08390 (below price 1.08462) → 1 ✅
+├─ ADX:  32.4 (> threshold 25) → 1 ✅
+├─ RSI:  57.8 (not overbought < 70) → 1 ✅
+└─ All enabled indicators passed ✅
+
+─────────────────────────────────────────────────────────────────
+RESULT: TS = Bias(1) × MarketPhase(1) × EntryLayer(1) × indicators(1) = 1
+→ LONG signal confirmed ✅
+→ Arm TE for next bar open
+```
 
 ---
 
