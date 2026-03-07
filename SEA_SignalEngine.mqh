@@ -895,25 +895,38 @@ public:
 
    // Returns true if the given entry layer is permitted in the given phase.
    // Requires PhaseDetectionEnabled AND EnableLayerDetection to activate filtering.
-   // Filtering rules (260304_PR5 methodology):
-   //   UNORDERED  -> no layers allowed (choppy market)
-   //   EMERGING   -> L1 (WEAK) and L2 (MEDIUM) allowed; L3 (STRONG) blocked
-   //   TRENDING   -> all layers allowed (strong established trend)
+   //
+   // Phase-layer filtering rules:
+   //   UNORDERED → Block ALL layers (L1, L2, L3)  — choppy/mixed market, no clear trend
+   //   EMERGING  → ALLOW L1/L2 only; BLOCK L3     — trend forming, avoid deep pullbacks
+   //   TRENDING  → ALLOW L1/L2/L3 (ALL layers)    — strong established trend, all depths valid
    bool IsLayerAllowed(EEntryLayer layer, EMarketPhase phase) const
    {
       if(!m_settings.PhaseDetectionEnabled || !m_settings.EnableLayerDetection)
          return true;  // Filtering disabled - all layers allowed
 
       if(layer == LAYER_NONE)
-         return false;  // No layer detected
+         return false;  // No layer detected - nothing to allow
 
-      if(phase == PHASE_UNORDERED)
-         return false;  // Choppy market - block all entries
+      switch(phase)
+      {
+         case PHASE_UNORDERED:
+            // Choppy/mixed market → Block ALL (L1, L2, L3)
+            return false;
 
-      if(phase == PHASE_EMERGING && layer == LAYER_3_STRONG)
-         return false;  // Deep pullbacks too risky in forming trend
+         case PHASE_EMERGING:
+            // Trend forming but not confirmed → ALLOW L1/L2 only; BLOCK L3 (STRONG)
+            // Deep pullbacks (L3/Shark) are too risky before the trend is established
+            return (layer == LAYER_1_WEAK || layer == LAYER_2_MEDIUM);
 
-      return true;  // TRENDING allows all; EMERGING allows L1/L2
+         case PHASE_TRENDING:
+            // Strong established trend → ALLOW ALL layers (L1/L2/L3)
+            // Deep pullbacks (L3/Shark) are valid — the trend has the strength to recover
+            return true;
+
+         default:
+            return false;
+      }
    }
 
    // Structure gate diagnostics
@@ -1602,9 +1615,10 @@ public:
       //| 260304_PR5: Phase-Based Layer Filtering                          |
       //|                                                                  |
       //| Enforces RRM methodology rules for entry filtering:              |
-      //| - UNORDERED: Block ALL trades (choppy, no clear trend)           |
-      //| - EMERGING: Block STRONG trades (deep pullbacks too risky)       |
-      //| - TRENDING: Allow all layers (strong established trend)          |
+      //| - UNORDERED: Block ALL layers (L1, L2, L3) — choppy market      |
+      //| - EMERGING:  ALLOW L1/L2 only; Block L3 — trend forming         |
+      //| - TRENDING:  ALLOW ALL layers (L1/L2/L3) — strong established   |
+      //|              trend; deep pullbacks (L3/Shark) are valid here     |
       //|                                                                  |
       //| Requires BOTH PhaseDetectionEnabled=true AND                     |
       //| EnableLayerDetection=true to activate filtering                  |
@@ -1643,9 +1657,9 @@ public:
             return 0;
          }
          
-         // Rule 3: TRENDING phase allows all layers (no blocking)
+         // Rule 3: TRENDING phase allows ALL layers (L1/L2/L3 — no blocking)
          if(m_settings.DebugFlow && phase == PHASE_TRENDING) {
-            PrintFormat("[260304_PR5] TRENDING phase detected - allowing %s layer trade",
+            PrintFormat("[260304_PR5] TRENDING phase - allowing ALL layers (%s); deep pullbacks valid in strong trend",
                         EnumToString(m_diag_last_entry_layer));
          }
       }
