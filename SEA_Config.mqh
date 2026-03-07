@@ -1046,6 +1046,11 @@ input double         Inp_Adaptive_PsarATR_Multiplier = 0.5;      // PSAR cushion
 // ════════════════════════════════════════════════════════════════════
 input group "══════════ 🔓 ZONE 3B: ADMIN OVERRIDE (set true to activate §1-§5 below) ══════════"
 input bool           Inp_AdminOverridePreset        = false; // [Admin] Unlock preset parameters for testing (true=admin mode, false=normal user)
+input string         _admin_info1                   = "OFF: Inp_Override_* inputs IGNORED (preset used)"; // [Info] Admin OFF behaviour
+input string         _admin_info2                   = "ON:  Inp_Override_* inputs REPLACE preset values"; // [Info] Admin ON behaviour
+input string         _admin_info3                   = "";                                                  // [Info] Spacer
+input string         _admin_scope1                  = "Overridable: Bias, Phase, Layer, Indicators";       // [Info] Overridable settings scope
+input string         _admin_scope2                  = "NOT overridable: Adaptive (use Zone 2)";            // [Info] Non-overridable scope
 
 input group "--- 🔓 §1 Admin Override: Strategy, EMAs & Votes ---"
 input EAutoStrategy  Inp_Override_AutoStrat          = STRAT_PAIR_CROSS; // [Admin] Override AutoStrat when AdminOverride=true

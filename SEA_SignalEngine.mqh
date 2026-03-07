@@ -49,6 +49,32 @@ enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103001 = SEA_BUILD_TOKEN_103001 };
 
 // Note: Requires ST_Settings and SNewsEvent structs to be defined in main file
 
+// Granular per-reason rejection statistics for EvaluateTS()
+struct SRejectionStats {
+   int total_bars;
+   int rejected_spread;
+   int rejected_atr_min;
+   int rejected_atr_max;
+   int rejected_time;
+   int rejected_news;
+   int rejected_bias;
+   int rejected_phase;
+   int rejected_layer_none;
+   int rejected_layer_blocked;
+   int rejected_emasig;
+   int rejected_macd;
+   int rejected_psar;
+   int rejected_cci;
+   int rejected_rsi;
+   int rejected_adx;
+   int rejected_mfi;
+   int rejected_sto;
+   int rejected_bb;
+   int rejected_p123;
+   int rejected_ross;
+   int signals_confirmed;
+};
+
 class CSignalEngine {
 private:
    // --- 1. INDICATOR HANDLES ---
@@ -103,6 +129,9 @@ private:
    int         m_reject_bias;        // Rejections at bias step (no trend, signal mismatch)
    int         m_reject_gate;        // Rejections at gate step (HTF, RRM, structure gates)
    int         m_reject_votes;       // Rejections at vote step
+
+   // --- 2e. GRANULAR REJECTION STATISTICS ---
+   SRejectionStats m_stats;
 
    // --- 3. DATA HELPERS ---
    // Simplified buffer access for cleaner logic code
@@ -875,6 +904,8 @@ public:
       m_reject_bias       = 0;
       m_reject_gate       = 0;
       m_reject_votes      = 0;
+
+      ZeroMemory(m_stats);
    }
 
    // --- DIAGNOSTIC GETTERS (for Cockpit/UI) ---
@@ -1017,6 +1048,134 @@ public:
       if(bias ==  1 && state == "BUY")  return 1;
       if(bias == -1 && state == "SELL") return 1;
       return 0;
+   }
+
+   // Prints a sorted summary of top rejection reasons to the MT5 log.
+   // Call from OnDeinit() to diagnose why trades are being filtered.
+   void PrintRejectionStatistics()
+   {
+      if(m_stats.total_bars == 0) return;
+
+      Print("════════════════════════════════════════════════");
+      Print("  REJECTION STATISTICS");
+      Print("════════════════════════════════════════════════");
+      PrintFormat("Bars evaluated: %d", m_stats.total_bars);
+      PrintFormat("Signals confirmed: %d (%.2f%%)",
+                  m_stats.signals_confirmed,
+                  m_stats.signals_confirmed * 100.0 / m_stats.total_bars);
+      Print("");
+      Print("TOP REJECTION REASONS:");
+
+      // Build sortable array of reason/count pairs
+      struct SReason { string name; int count; double pct; };
+      SReason reasons[20];
+      int idx = 0;
+
+      reasons[idx].name = "Phase=UNORDERED";
+      reasons[idx].count = m_stats.rejected_phase;
+      reasons[idx++].pct = m_stats.rejected_phase * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "Bias=0";
+      reasons[idx].count = m_stats.rejected_bias;
+      reasons[idx++].pct = m_stats.rejected_bias * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "Layer=NONE";
+      reasons[idx].count = m_stats.rejected_layer_none;
+      reasons[idx++].pct = m_stats.rejected_layer_none * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "Layer blocked";
+      reasons[idx].count = m_stats.rejected_layer_blocked;
+      reasons[idx++].pct = m_stats.rejected_layer_blocked * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "MACD";
+      reasons[idx].count = m_stats.rejected_macd;
+      reasons[idx++].pct = m_stats.rejected_macd * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "PSAR";
+      reasons[idx].count = m_stats.rejected_psar;
+      reasons[idx++].pct = m_stats.rejected_psar * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "CCI";
+      reasons[idx].count = m_stats.rejected_cci;
+      reasons[idx++].pct = m_stats.rejected_cci * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "EmaSig";
+      reasons[idx].count = m_stats.rejected_emasig;
+      reasons[idx++].pct = m_stats.rejected_emasig * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "RSI";
+      reasons[idx].count = m_stats.rejected_rsi;
+      reasons[idx++].pct = m_stats.rejected_rsi * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "ADX";
+      reasons[idx].count = m_stats.rejected_adx;
+      reasons[idx++].pct = m_stats.rejected_adx * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "Spread";
+      reasons[idx].count = m_stats.rejected_spread;
+      reasons[idx++].pct = m_stats.rejected_spread * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "ATR Min";
+      reasons[idx].count = m_stats.rejected_atr_min;
+      reasons[idx++].pct = m_stats.rejected_atr_min * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "ATR Max";
+      reasons[idx].count = m_stats.rejected_atr_max;
+      reasons[idx++].pct = m_stats.rejected_atr_max * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "Time filter";
+      reasons[idx].count = m_stats.rejected_time;
+      reasons[idx++].pct = m_stats.rejected_time * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "News filter";
+      reasons[idx].count = m_stats.rejected_news;
+      reasons[idx++].pct = m_stats.rejected_news * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "MFI";
+      reasons[idx].count = m_stats.rejected_mfi;
+      reasons[idx++].pct = m_stats.rejected_mfi * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "Stoch";
+      reasons[idx].count = m_stats.rejected_sto;
+      reasons[idx++].pct = m_stats.rejected_sto * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "BB";
+      reasons[idx].count = m_stats.rejected_bb;
+      reasons[idx++].pct = m_stats.rejected_bb * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "P123";
+      reasons[idx].count = m_stats.rejected_p123;
+      reasons[idx++].pct = m_stats.rejected_p123 * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "Ross";
+      reasons[idx].count = m_stats.rejected_ross;
+      reasons[idx++].pct = m_stats.rejected_ross * 100.0 / m_stats.total_bars;
+
+      // Bubble sort descending by count
+      for(int i = 0; i < idx - 1; i++) {
+         for(int j = i + 1; j < idx; j++) {
+            if(reasons[j].count > reasons[i].count) {
+               SReason temp = reasons[i];
+               reasons[i] = reasons[j];
+               reasons[j] = temp;
+            }
+         }
+      }
+
+      // Print top 10 non-zero reasons
+      int printed = 0;
+      for(int i = 0; i < idx && printed < 10; i++) {
+         if(reasons[i].count > 0) {
+            PrintFormat("  %2d. %-20s: %5d bars (%.1f%%)",
+                        printed + 1, reasons[i].name, reasons[i].count, reasons[i].pct);
+            printed++;
+         }
+      }
+
+      if(printed == 0)
+         Print("  (no rejections recorded)");
+
+      Print("════════════════════════════════════════════════");
    }
 
    // --- VOTE SNAPSHOT (for Cockpit per-vote display) ---
@@ -1476,6 +1635,7 @@ public:
                                  m_settings.NewsPost);
                      m_last_news_block_log = now;
                   }
+                  m_diag_last_reason = "NEWS";
                   return false;
                }
             }
@@ -1581,6 +1741,7 @@ public:
       m_diag_last_reason = "";
 
       m_bars_evaluated++;
+      m_stats.total_bars++;
 
       // Bar-close diagnostic banner
       if(m_settings.DebugFlow)
@@ -1592,10 +1753,18 @@ public:
       }
 
       // 1. Check Filters First
-      if(!CheckFilters()) { m_reject_filter++; return 0; }
+      if(!CheckFilters()) {
+         m_reject_filter++;
+         if(m_diag_last_reason == "SPREAD")        m_stats.rejected_spread++;
+         else if(m_diag_last_reason == "MIN_ATR")  m_stats.rejected_atr_min++;
+         else if(m_diag_last_reason == "MAX_ATR")  m_stats.rejected_atr_max++;
+         else if(m_diag_last_reason == "TIME")     m_stats.rejected_time++;
+         else if(m_diag_last_reason == "NEWS")     m_stats.rejected_news++;
+         return 0;
+      }
 
       // 1b. Master bias gate (BiasEnabled)
-      if(!m_settings.BiasEnabled) { m_diag_last_reason="BIAS_DISABLED"; m_reject_bias++; return 0; }
+      if(!m_settings.BiasEnabled) { m_diag_last_reason="BIAS_DISABLED"; m_reject_bias++; m_stats.rejected_bias++; return 0; }
 
       // Use Vote_EvalShift for signal/vote evaluation (defaults to 1 = closed bar).
       // This ensures all indicator checks use the last fully-closed bar, matching
@@ -1643,6 +1812,7 @@ public:
          if(phase == PHASE_UNORDERED) {
             m_diag_last_reason = "PHASE_UNORDERED_BLOCKS_ALL";
             m_reject_bias++;
+            m_stats.rejected_phase++;
             
             if(m_settings.DebugFlow) {
                PrintFormat("[260304_PR5] UNORDERED phase detected - blocking ALL trades (layer=%s)",
@@ -1655,6 +1825,7 @@ public:
          if(is_emerging && m_diag_last_entry_layer == LAYER_3_STRONG) {
             m_diag_last_reason = "PHASE_EMERGING_BLOCKS_STRONG";
             m_reject_bias++;
+            m_stats.rejected_layer_blocked++;
             
             if(m_settings.DebugFlow) {
                PrintFormat("[260304_PR5] %s phase detected - blocking STRONG layer trade (deep pullback too risky)",
@@ -1690,6 +1861,7 @@ public:
             m_diag_last_bias = 0;
             m_diag_last_reason = "BIAS_ZERO";
             m_reject_bias++;
+            m_stats.rejected_bias++;
             return 0;
          }
          
@@ -1806,6 +1978,7 @@ public:
             m_diag_last_bias = 0;
             m_diag_last_reason = "BIAS_ZERO";
             m_reject_bias++;
+            m_stats.rejected_bias++;
             
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
@@ -1854,6 +2027,8 @@ public:
                entry_signal = market_bias;
             } else {
                entry_signal = 0;
+               m_diag_last_reason = "LAYER_NONE";
+               m_stats.rejected_layer_none++;
             }
 
             if(m_settings.DebugFlow) {
@@ -1947,6 +2122,7 @@ public:
                            TimeToString(bar_time), entry_signal, market_bias);
             }
             m_reject_bias++;
+            m_stats.rejected_bias++;
             return 0;
          }
       }
@@ -1956,6 +2132,7 @@ public:
       if(bias == 0) { 
          m_diag_last_reason="BIAS_ZERO";
          m_reject_bias++;
+         m_stats.rejected_bias++;
          return 0; 
       }
 
@@ -2001,6 +2178,7 @@ public:
       bool   all_pass    = true;
 
       // Helper lambda-style macro not available in MQL5; use inline checks
+      // CAST_VOTE_STAT also increments the granular rejection counter when indicator fails
       #define CAST_VOTE(use_flag, weight_field, check_expr) \
          if(use_flag) { \
             bool _cv_pass = (check_expr); \
@@ -2008,19 +2186,27 @@ public:
             else         all_pass    = false; \
          }
 
-      CAST_VOTE(m_settings.Ind_EmaSig_Enabled, m_settings.Ind_EmaSig_Weight, Check_EMA1(bias, v_shift))
-      CAST_VOTE(m_settings.Ind_Adx_Enabled,    m_settings.Ind_Adx_Weight,    Check_ADX(v_shift))
-      CAST_VOTE(m_settings.Ind_Macd_Enabled,   m_settings.Ind_Macd_Weight,   Check_MACD(bias, v_shift))
-      CAST_VOTE(m_settings.Ind_Rsi_Enabled,    m_settings.Ind_Rsi_Weight,    Check_RSI(bias, v_shift))
-      CAST_VOTE(m_settings.Ind_Cci_Enabled,    m_settings.Ind_Cci_Weight,    Check_CCI(bias, v_shift))
-      CAST_VOTE(m_settings.Ind_Mfi_Enabled,    m_settings.Ind_Mfi_Weight,    Check_MFI(bias, v_shift))
-      CAST_VOTE(m_settings.Ind_Sto_Enabled,    m_settings.Ind_Sto_Weight,    Check_Sto(bias, v_shift))
-      CAST_VOTE(m_settings.Ind_Bb_Enabled,     m_settings.Ind_Bb_Weight,     Check_BB(bias, v_shift))
-      CAST_VOTE(m_settings.Ind_Psar_Enabled,   m_settings.Ind_Psar_Weight,
-                (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)))
-      CAST_VOTE(m_settings.Ind_P123_Enabled,   m_settings.Ind_P123_Weight,   Check_P123(bias, v_shift))
-      CAST_VOTE(m_settings.Ind_Ross_Enabled,   m_settings.Ind_Ross_Weight,   Check_Ross(bias, v_shift))
+      #define CAST_VOTE_STAT(use_flag, weight_field, check_expr, stat_field) \
+         if(use_flag) { \
+            bool _cv_pass = (check_expr); \
+            if(_cv_pass) vote_weight += weight_field; \
+            else { all_pass = false; stat_field++; } \
+         }
 
+      CAST_VOTE_STAT(m_settings.Ind_EmaSig_Enabled, m_settings.Ind_EmaSig_Weight, Check_EMA1(bias, v_shift), m_stats.rejected_emasig)
+      CAST_VOTE_STAT(m_settings.Ind_Adx_Enabled,    m_settings.Ind_Adx_Weight,    Check_ADX(v_shift),        m_stats.rejected_adx)
+      CAST_VOTE_STAT(m_settings.Ind_Macd_Enabled,   m_settings.Ind_Macd_Weight,   Check_MACD(bias, v_shift), m_stats.rejected_macd)
+      CAST_VOTE_STAT(m_settings.Ind_Rsi_Enabled,    m_settings.Ind_Rsi_Weight,    Check_RSI(bias, v_shift),  m_stats.rejected_rsi)
+      CAST_VOTE_STAT(m_settings.Ind_Cci_Enabled,    m_settings.Ind_Cci_Weight,    Check_CCI(bias, v_shift),  m_stats.rejected_cci)
+      CAST_VOTE_STAT(m_settings.Ind_Mfi_Enabled,    m_settings.Ind_Mfi_Weight,    Check_MFI(bias, v_shift),  m_stats.rejected_mfi)
+      CAST_VOTE_STAT(m_settings.Ind_Sto_Enabled,    m_settings.Ind_Sto_Weight,    Check_Sto(bias, v_shift),  m_stats.rejected_sto)
+      CAST_VOTE_STAT(m_settings.Ind_Bb_Enabled,     m_settings.Ind_Bb_Weight,     Check_BB(bias, v_shift),   m_stats.rejected_bb)
+      CAST_VOTE_STAT(m_settings.Ind_Psar_Enabled,   m_settings.Ind_Psar_Weight,
+                (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)), m_stats.rejected_psar)
+      CAST_VOTE_STAT(m_settings.Ind_P123_Enabled,   m_settings.Ind_P123_Weight,   Check_P123(bias, v_shift), m_stats.rejected_p123)
+      CAST_VOTE_STAT(m_settings.Ind_Ross_Enabled,   m_settings.Ind_Ross_Weight,   Check_Ross(bias, v_shift), m_stats.rejected_ross)
+
+      #undef CAST_VOTE_STAT
       #undef CAST_VOTE
 
       // Volatility regime vote (soft; ATR has no weight field — always weight 1.0)
@@ -2124,6 +2310,7 @@ public:
          if(all_pass) {
             m_diag_last_reason="OK";
             m_signals_generated++;
+            m_stats.signals_confirmed++;
             if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=%d (ALL votes pass, weight=%.2f)", bias, vote_weight);
             return bias;
          }
@@ -2138,6 +2325,7 @@ public:
          if(all_pass) { 
             m_diag_last_reason="OK";
             m_signals_generated++;
+            m_stats.signals_confirmed++;
             if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=%d (votes %.2f all pass)", bias, vote_weight);
             return bias; 
          }
