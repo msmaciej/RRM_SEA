@@ -445,13 +445,25 @@ void OrchestrateTick()
 
       if(te_result != 0)
       {
-         // Check risk management before executing
-   if(Executor.EvaluateRC())
+         // Step 2: RC - Risk control gate
+         if(Executor.EvaluateRC())
          {
-            if(Settings.DebugFlow)
-               PrintFormat("[TE ENTRY] TE confirmed at shift=0 | direction=%d", te_result);
-            Executor.ExecuteTrade(te_result, atr_te);
-            g_last_te_bar_time = current_bar;  // Mark this bar as TE execution bar
+            // Step 3: CM - Capital management (lot sizing)
+            double lots = Executor.EvaluateCM(te_result, atr_te);
+
+            if(lots > 0)
+            {
+               // Step 4: Execute - Place order
+               if(Settings.DebugFlow)
+                  PrintFormat("[TE ENTRY] TE confirmed at shift=0 | direction=%d | lots=%.2f", te_result, lots);
+               Executor.ExecuteTrade(te_result, lots, atr_te);
+               g_last_te_bar_time = current_bar;  // Mark this bar as TE execution bar
+            }
+            else
+            {
+               if(Settings.DebugFlow)
+                  Print("[PIPELINE] CM returned invalid lot size");
+            }
          }
          else
          {
