@@ -1492,9 +1492,15 @@ public:
          return;
       }
 
-      // Compute ATR internally for BE and ATR-based trailing/cushion modes
+      // Compute ATR internally only for modes that require it (BE, ATR trailing, PSAR ATR cushion)
+      bool need_atr = m_settings.Use_BE ||
+                      m_settings.TrailMode == TRAIL_ATR ||
+                      (m_settings.TrailMode == TRAIL_PSAR &&
+                       ((m_settings.Adaptive.UseTrailCushion && m_settings.Adaptive.PsarUseATR) ||
+                        (!m_settings.Adaptive.UseTrailCushion &&
+                         m_settings.PSAR_TrailCushionMode != PSAR_CUSHION_PIPS)));
       double atr = 0.0;
-      {
+      if(need_atr) {
          int atr_period = m_settings.P_Atr > 0 ? m_settings.P_Atr : 14;
          int h = iATR(_Symbol, PERIOD_CURRENT, atr_period);
          if(h != INVALID_HANDLE) {
