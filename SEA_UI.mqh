@@ -73,10 +73,10 @@ string SEA_UI_FormatPhase(EMarketPhase phase, color &out_color)
 }
 
 // 260304_PR7: Format allowed layers string based on current phase and filter state.
-// Filtering rules (PR5 methodology):
-//   TRENDING   -> L1, L2, L3 (all layers)
-//   EMERGING   -> L1, L2 (L3/STRONG blocked)
-//   UNORDERED  -> NONE
+// Phase-layer filtering rules:
+//   UNORDERED  → NONE            — Block ALL layers (L1, L2, L3)
+//   EMERGING   → L1, L2          — Allow L1/L2 only; Block L3 (STRONG)
+//   TRENDING   → L1, L2, L3      — Allow ALL layers (deep pullbacks valid in strong trend)
 string SEA_UI_FormatAllowedLayers(EMarketPhase phase, bool filter_active)
 {
    if(!filter_active)
