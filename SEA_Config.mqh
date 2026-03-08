@@ -1068,7 +1068,9 @@ input string         _admin_info3                   = "";                       
 input string         _admin_scope1                  = "Overridable: Bias, Phase, Layer, Indicators";       // [Info] Overridable settings scope
 input string         _admin_scope2                  = "NOT overridable: Adaptive (use Zone 2)";            // [Info] Non-overridable scope
 
-input group "--- 🔓 §1 Admin Override: Strategy, EMAs & Votes ---"
+input group "════════════════════════════════════════════"
+input group "  🔓 ADMIN OVERRIDE: §1 Strategy, EMAs & Votes"
+input group "════════════════════════════════════════════"
 input EAutoStrategy  Inp_Override_AutoStrat          = STRAT_PAIR_CROSS; // [Admin] Override AutoStrat when AdminOverride=true
 input int            Inp_Override_EMA1               = 5;                 // [Admin] Override EMA1 period when AdminOverride=true
 input int            Inp_Override_EMA2               = 13;                // [Admin] Override EMA2 period when AdminOverride=true
@@ -1090,7 +1092,9 @@ input int            Inp_Override_PullbackLookback           = 10;        // [Ad
 input bool           Inp_Override_RequireRecoveryMomentum    = false;     // [Admin] Override RequireRecoveryMomentum when AdminOverride=true
 input bool           Inp_Override_UseMultiLayer              = true;      // [Admin] Override UseMultiLayer (cascading EMA pullback) when AdminOverride=true
 
-input group "--- 🔓 §2 Admin Override: Indicator Periods & Thresholds ---"
+input group "════════════════════════════════════════════"
+input group "  🔓 ADMIN OVERRIDE: §2 Indicator Parameters"
+input group "════════════════════════════════════════════"
 input int            Inp_Override_MACD_Fast           = 8;                // [Admin] Override MACD Fast period when AdminOverride=true
 input int            Inp_Override_MACD_Slow           = 13;               // [Admin] Override MACD Slow period when AdminOverride=true
 input int            Inp_Override_MACD_Signal         = 8;                // [Admin] Override MACD Signal period when AdminOverride=true
@@ -1117,7 +1121,9 @@ input double         Inp_Override_ATR_MinPips                = 0.0;       // [Ad
 input double         Inp_Override_ATR_MaxPips                = 0.0;       // [Admin] Override ATR max pips gate when AdminOverride=true
 input bool           Inp_Override_ATR_UseAsVote              = false;     // [Admin] Override ATR use-as-vote when AdminOverride=true
 
-input group "--- 🔓 §3 Admin Override: Risk & Entry ---"
+input group "════════════════════════════════════════════"
+input group "  🔓 ADMIN OVERRIDE: §3 Risk & Entry"
+input group "════════════════════════════════════════════"
 input bool                Inp_Override_RequirePriceCross     = false;     // [Admin] Override RequirePriceCross when AdminOverride=true
 input bool                Inp_Override_UseHTF                = false;     // [Admin] Override HTF filter enabled when AdminOverride=true
 input bool                Inp_Override_CloseOnReverse        = true;      // [Admin] Override CloseOnReverse when AdminOverride=true
@@ -1127,7 +1133,9 @@ input double              Inp_Override_SL_Mult               = 1.5;       // [Ad
 input double              Inp_Override_SL_PsarPipsCushion    = 5.0;       // [Admin] Override SL PSAR cushion (pips) when AdminOverride=true
 input double              Inp_Override_SL_SwingPipsCushion   = 10.0;      // [Admin] Override SL swing cushion (pips) when AdminOverride=true
 
-input group "--- 🔓 §4 Admin Override: Exits — TP, Breakeven & Trailing ---"
+input group "════════════════════════════════════════════"
+input group "  🔓 ADMIN OVERRIDE: §4 Exits & Trailing"
+input group "════════════════════════════════════════════"
 input double              Inp_Override_TP_Mult               = 3.0;       // [Admin] Override TP multiplier when AdminOverride=true
 input bool                Inp_Override_Use_BE                = false;      // [Admin] Override breakeven enabled when AdminOverride=true
 input double              Inp_Override_BE_Trig               = 1.0;       // [Admin] Override BE trigger (R-multiple) when AdminOverride=true
@@ -1137,22 +1145,34 @@ input double              Inp_Override_Trail_Mult            = 1.5;       // [Ad
 input EPsarTrailCushionMode Inp_Override_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // [Admin] Override PSAR trail cushion mode when AdminOverride=true
 input double              Inp_Override_PSAR_TrailPipsCushion = 5.0;       // [Admin] Override PSAR trail cushion (pips) when AdminOverride=true
 
-input group "--- 🔓 §5 Admin Override: Phase Detection & Layer Filtering ---"
+input group "════════════════════════════════════════════"
+input group "  🔓 ADMIN OVERRIDE: $5 Phase Settings"
+input group "════════════════════════════════════════════"
 input bool     Inp_Override_PhaseDetectionEnabled   = true;    // [Admin] Enable phase detection when AdminOverride=true
-input bool     Inp_Override_EnableLayerDetection    = true;    // [Admin] Enable layer filtering when AdminOverride=true
 input bool     Inp_Override_BlockUnorderedPhase     = true;    // [Admin] Block all trades in UNORDERED phase when AdminOverride=true
 input bool     Inp_Override_RequireMinPhaseConfirm  = true;    // [Admin] Require min-bar phase confirmation when AdminOverride=true
 input int      Inp_Override_MinPhaseConfirmBars     = 0;       // [Admin] Min bars to confirm phase stability (0=instant, 1-10=delay) when AdminOverride=true
 
-input group "--- 🔓 §5.1 Admin Override: Layer 1 (Weak/EMA5-13) Allowed Phases ---"
+input group "════════════════════════════════════════════"
+input group "  🔓 ADMIN OVERRIDE: $6 Layer Settings"
+input group "════════════════════════════════════════════"
+input bool     Inp_Override_EnableLayerDetection    = true;    // [Admin] Enable layer filtering when AdminOverride=true
+
+input group "════════════════════════════════════════════"
+input group "  🔓 ADMIN OVERRIDE: $6.1 Layer 1 (Weak/EMA1-EMA2)"
+input group "════════════════════════════════════════════"
 input bool     Inp_Override_Layer1_AllowTrending    = true;    // [Admin] Layer 1: Allow TRENDING phase when AdminOverride=true
 input bool     Inp_Override_Layer1_AllowEmerging    = true;    // [Admin] Layer 1: Allow EMERGING phase when AdminOverride=true
 
-input group "--- 🔓 §5.2 Admin Override: Layer 2 (Medium/EMA13-34) Allowed Phases ---"
+input group "════════════════════════════════════════════"
+input group "  🔓 ADMIN OVERRIDE: $6.2 Layer 2 (Medium/EMA2-EMA3)"
+input group "════════════════════════════════════════════"
 input bool     Inp_Override_Layer2_AllowTrending    = true;    // [Admin] Layer 2: Allow TRENDING phase when AdminOverride=true
 input bool     Inp_Override_Layer2_AllowEmerging    = true;    // [Admin] Layer 2: Allow EMERGING phase when AdminOverride=true
 
-input group "--- 🔓 §5.3 Admin Override: Layer 3 (Strong/EMA34-89) Allowed Phases ---"
+input group "════════════════════════════════════════════"
+input group "  🔓 ADMIN OVERRIDE: $6.3 Layer 3 (Strong/EMA3-EMA4)"
+input group "════════════════════════════════════════════"
 input bool     Inp_Override_Layer3_AllowTrending    = true;    // [Admin] Layer 3: Allow TRENDING phase when AdminOverride=true
 input bool     Inp_Override_Layer3_AllowEmerging    = false;   // [Admin] Layer 3: Allow EMERGING phase when AdminOverride=true
 
@@ -1160,7 +1180,9 @@ input bool     Inp_Override_Layer3_AllowEmerging    = false;   // [Admin] Layer 
 // 🔓 ZONE 3B: ADMIN OVERRIDE (§6 — RRM Drawdown Protection)
 //══════════════════════════════════════════════════════════════════════════════
 
-input group "--- 🔓 §6 Admin Override: RRM Drawdown Protection ---"
+input group "════════════════════════════════════════════"
+input group "  🔓 ADMIN OVERRIDE: $7 RRM Drawdown Protection"
+input group "════════════════════════════════════════════"
 input bool   Inp_RRM_EnableDrawdownProtection = false;  // [Admin] Enable DD protection
 input int    Inp_RRM_MaxConsecutiveLosses     = 5;      // [Admin] Pause after X consecutive losses
 input int    Inp_RRM_MaxTradesPerDay          = 15;     // [Admin] Max trades per day (0=unlimited)
