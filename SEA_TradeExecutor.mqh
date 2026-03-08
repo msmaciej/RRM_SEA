@@ -1413,6 +1413,19 @@ public:
       if(m_settings.DebugFlow)
          PrintFormat("[TE] Starting trade entry evaluation for direction=%d", ts_direction);
 
+      // Track per-step results for pipeline summary
+      string te_reject_reason  = "";
+      bool   te_spread_pass    = true;
+      double te_spread_pips    = 0.0;
+      bool   te_time_pass      = true;
+      bool   te_time_checked   = false;  // true only when time check was actually run
+      bool   te_rc_pass        = false;
+      bool   te_rc_checked     = false;  // true only when RC check was actually run
+      bool   te_lots_pass      = false;
+      bool   te_lots_checked   = false;  // true only when lot sizing was actually run
+      double te_lots           = 0.0;
+      int    result            = 0;
+
       // ═══════════════════════════════════════════════════════
       // STEP 1: Check Execution Filters
       // ═══════════════════════════════════════════════════════
@@ -1421,65 +1434,123 @@ public:
       if(m_settings.MaxSpread > 0) {
          bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
          double pipSize = _Point * (isJPY ? 100.0 : 10.0);
-         double spread_pips = (SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) * _Point) / pipSize;
-         if(spread_pips > m_settings.MaxSpread) {
+         te_spread_pips = (SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) * _Point) / pipSize;
+         te_spread_pass = (te_spread_pips <= m_settings.MaxSpread);
+         if(!te_spread_pass) {
             if(m_settings.DebugFlow)
                PrintFormat("[TE] Rejected: Spread %.1f > max %.1f pips",
-                           spread_pips, m_settings.MaxSpread);
-            return 0;
+                           te_spread_pips, m_settings.MaxSpread);
+            te_reject_reason = "SPREAD";
          }
       }
 
       // Check trading hours
-      if(m_settings.UseTime) {
+      if(te_reject_reason == "" && m_settings.UseTime) {
          MqlDateTime dt;
          TimeToStruct(TimeCurrent(), dt);
-         bool pass = (m_settings.StartHr < m_settings.EndHr) ?
-                     (dt.hour >= m_settings.StartHr && dt.hour < m_settings.EndHr) :
-                     (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
-         if(!pass) {
+         te_time_checked = true;
+         te_time_pass = (m_settings.StartHr < m_settings.EndHr) ?
+                        (dt.hour >= m_settings.StartHr && dt.hour < m_settings.EndHr) :
+                        (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
+         if(!te_time_pass) {
             if(m_settings.DebugFlow)
                PrintFormat("[TE] Rejected: Outside trading hours (hour=%d)", dt.hour);
-            return 0;
+            te_reject_reason = "TIME";
          }
       }
 
       // ═══════════════════════════════════════════════════════
       // STEP 2: Check Risk Control
       // ═══════════════════════════════════════════════════════
-      if(!EvaluateRC()) {
-         if(m_settings.DebugFlow)
-            Print("[TE] Rejected: Risk control blocked entry");
-         return 0;
+      if(te_reject_reason == "") {
+         te_rc_checked = true;
+         te_rc_pass = EvaluateRC();
+         if(!te_rc_pass) {
+            if(m_settings.DebugFlow)
+               Print("[TE] Rejected: Risk control blocked entry");
+            te_reject_reason = "RISK_CONTROL";
+         }
       }
 
       // ═══════════════════════════════════════════════════════
       // STEP 3: Calculate Position Size
       // ═══════════════════════════════════════════════════════
-      double lots = EvaluateCM(ts_direction);
-      if(lots <= 0) {
-         if(m_settings.DebugFlow)
-            Print("[TE] Rejected: Invalid lot size");
-         return 0;
+      if(te_reject_reason == "") {
+         te_lots_checked = true;
+         te_lots = EvaluateCM(ts_direction);
+         te_lots_pass = (te_lots > 0);
+         if(!te_lots_pass) {
+            if(m_settings.DebugFlow)
+               Print("[TE] Rejected: Invalid lot size");
+            te_reject_reason = "INVALID_LOT_SIZE";
+         }
       }
-
-      if(m_settings.DebugFlow)
-         PrintFormat("[TE] Position size: %.2f lots", lots);
 
       // ═══════════════════════════════════════════════════════
       // STEP 4: Execute Order
       // ═══════════════════════════════════════════════════════
-      ExecuteTrade(ts_direction, lots);
+      if(te_reject_reason == "") {
+         if(m_settings.DebugFlow)
+            PrintFormat("[TE] Position size: %.2f lots", te_lots);
 
-      int result = (m_last_te_result == "ENTERED") ? 1 : 0;
+         ExecuteTrade(ts_direction, te_lots);
 
-      if(m_settings.DebugFlow) {
-         if(result == 1)
-            PrintFormat("[TE] ✅ SUCCESS - Trade entered: %s %.2f lots",
-                        (ts_direction > 0 ? "BUY" : "SELL"), lots);
-         else
-            PrintFormat("[TE] ❌ FAILED/REJECTED - %s", m_last_te_reason);
+         result = (m_last_te_result == "ENTERED") ? 1 : 0;
+         if(result == 0 && te_reject_reason == "")
+            te_reject_reason = m_last_te_reason;
+
+         if(m_settings.DebugFlow) {
+            if(result == 1)
+               PrintFormat("[TE] ✅ SUCCESS - Trade entered: %s %.2f lots",
+                           (ts_direction > 0 ? "BUY" : "SELL"), te_lots);
+            else
+               PrintFormat("[TE] ❌ FAILED/REJECTED - %s", m_last_te_reason);
+         }
       }
+
+      // ===== TE PIPELINE SUMMARY =====
+      if(m_settings.DebugFlow) {
+         Print("════════════════════════════════════════════════════════════");
+         PrintFormat("[TE_SUMMARY] Direction: %s", ts_direction > 0 ? "LONG" : "SHORT");
+         Print("════════════════════════════════════════════════════════════");
+         Print("");
+
+         Print("GATES:");
+         if(m_settings.MaxSpread > 0) {
+            PrintFormat("  %s Spread: %.1f / %.1f pips max",
+                        te_spread_pass ? "✅" : "❌", te_spread_pips, m_settings.MaxSpread);
+         } else {
+            Print("  ⏭️  Spread: disabled");
+         }
+         if(m_settings.UseTime) {
+            if(te_time_checked)
+               PrintFormat("  %s Time window: active", te_time_pass ? "✅" : "❌");
+            else
+               Print("  ⏭️  Time window: not evaluated");
+         } else {
+            Print("  ⏭️  Time window: disabled");
+         }
+         if(te_rc_checked)
+            PrintFormat("  %s Risk control", te_rc_pass ? "✅" : "❌");
+         else
+            Print("  ⏭️  Risk control: not evaluated");
+         if(te_lots_checked)
+            PrintFormat("  %s Position size: %.2f lots", te_lots_pass ? "✅" : "❌", te_lots);
+         else
+            Print("  ⏭️  Position size: not evaluated");
+         Print("");
+
+         Print("════════════════════════════════════════════════════════════");
+         if(result == 1) {
+            PrintFormat("[TE_RESULT] ✅✅✅ TRADE ENTERED: %s %.2f lots ✅✅✅",
+                        ts_direction > 0 ? "LONG" : "SHORT", te_lots);
+         } else {
+            PrintFormat("[TE_RESULT] ❌ REJECTED - Reason: %s", te_reject_reason);
+         }
+         Print("════════════════════════════════════════════════════════════");
+         Print("");
+      }
+      // ===== TE PIPELINE SUMMARY: END =====
 
       return result;
    }

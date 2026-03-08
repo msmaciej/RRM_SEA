@@ -2843,6 +2843,11 @@ public:
       // Store integer-rounded weight for display (backward-compatible diagnostics)
       m_diag_last_votes = (int)MathRound(vote_weight);
 
+      // Per-indicator results captured during diagnostic logging (used by pipeline summary)
+      bool _res_emasig=false, _res_adx=false, _res_macd=false, _res_rsi=false,
+           _res_cci=false, _res_mfi=false, _res_sto=false, _res_bb=false,
+           _res_psar=false, _res_p123=false, _res_ross=false;
+
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGIN =====
       if(m_settings.DebugFlow) {
          string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
@@ -2853,7 +2858,7 @@ public:
          if(m_settings.Ind_EmaSig_Enabled) {
             double p = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             double e = GetMAVal(h_ema1, v_shift);
-            bool pass = Check_EMA1(bias, v_shift);
+            bool pass = Check_EMA1(bias, v_shift); _res_emasig = pass;
             PrintFormat("[IND] EmaSig: price=%.5f ema=%.5f → %s (w=%d)",
                         p, e, pass ? "PASS" : "FAIL", m_settings.Ind_EmaSig_Weight);
          } else Print("[IND] EmaSig: DISABLED → SKIP");
@@ -2861,7 +2866,7 @@ public:
          // ADX
          if(m_settings.Ind_Adx_Enabled) {
             double adx = GetVal(h_adx, v_shift);
-            bool pass = Check_ADX(v_shift);
+            bool pass = Check_ADX(v_shift); _res_adx = pass;
             PrintFormat("[IND] ADX: %.2f / threshold=%.2f → %s (w=%d)",
                         adx, m_settings.T_Adx, pass ? "PASS" : "FAIL", m_settings.Ind_Adx_Weight);
          } else Print("[IND] ADX: DISABLED → SKIP");
@@ -2870,7 +2875,7 @@ public:
          if(m_settings.Ind_Macd_Enabled) {
             double macd_m = GetVal(h_macd, v_shift, 0);
             double macd_s = GetVal(h_macd, v_shift, 1);
-            bool pass = Check_MACD(bias, v_shift);
+            bool pass = Check_MACD(bias, v_shift); _res_macd = pass;
             PrintFormat("[IND] MACD: main=%.6f signal=%.6f hist=%.6f → %s (w=%d)",
                         macd_m, macd_s, macd_m - macd_s, pass ? "PASS" : "FAIL", m_settings.Ind_Macd_Weight);
          } else Print("[IND] MACD: DISABLED → SKIP");
@@ -2878,7 +2883,7 @@ public:
          // RSI
          if(m_settings.Ind_Rsi_Enabled) {
             double r = GetVal(h_rsi, v_shift);
-            bool pass = Check_RSI(bias, v_shift);
+            bool pass = Check_RSI(bias, v_shift); _res_rsi = pass;
             PrintFormat("[IND] RSI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
                         r, m_settings.T_RsiOB, m_settings.T_RsiOS, pass ? "PASS" : "FAIL", m_settings.Ind_Rsi_Weight);
          } else Print("[IND] RSI: DISABLED → SKIP");
@@ -2886,7 +2891,7 @@ public:
          // CCI
          if(m_settings.Ind_Cci_Enabled) {
             double c = GetVal(h_cci, v_shift);
-            bool pass = Check_CCI(bias, v_shift);
+            bool pass = Check_CCI(bias, v_shift); _res_cci = pass;
             PrintFormat("[IND] CCI: %.2f → %s (w=%d)",
                         c, pass ? "PASS" : "FAIL", m_settings.Ind_Cci_Weight);
          } else Print("[IND] CCI: DISABLED → SKIP");
@@ -2894,7 +2899,7 @@ public:
          // MFI
          if(m_settings.Ind_Mfi_Enabled) {
             double mfi = GetVal(h_mfi, v_shift);
-            bool pass = Check_MFI(bias, v_shift);
+            bool pass = Check_MFI(bias, v_shift); _res_mfi = pass;
             PrintFormat("[IND] MFI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
                         mfi, m_settings.T_MfiOB, m_settings.T_MfiOS, pass ? "PASS" : "FAIL", m_settings.Ind_Mfi_Weight);
          } else Print("[IND] MFI: DISABLED → SKIP");
@@ -2903,7 +2908,7 @@ public:
          if(m_settings.Ind_Sto_Enabled) {
             double sk = GetVal(h_sto, v_shift, 0);
             double sd = GetVal(h_sto, v_shift, 1);
-            bool pass = Check_Sto(bias, v_shift);
+            bool pass = Check_Sto(bias, v_shift); _res_sto = pass;
             PrintFormat("[IND] Stoch: K=%.2f D=%.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
                         sk, sd, m_settings.T_StoOB, m_settings.T_StoOS, pass ? "PASS" : "FAIL", m_settings.Ind_Sto_Weight);
          } else Print("[IND] Stoch: DISABLED → SKIP");
@@ -2912,7 +2917,7 @@ public:
          if(m_settings.Ind_Bb_Enabled) {
             double bb_mid = GetVal(h_bb, v_shift, 0);
             double cl_bb  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-            bool pass = Check_BB(bias, v_shift);
+            bool pass = Check_BB(bias, v_shift); _res_bb = pass;
             PrintFormat("[IND] BB: mid=%.5f close=%.5f → %s (w=%d)",
                         bb_mid, cl_bb, pass ? "PASS" : "FAIL", m_settings.Ind_Bb_Weight);
          } else Print("[IND] BB: DISABLED → SKIP");
@@ -2922,6 +2927,7 @@ public:
             double psar_v = GetVal(h_psar, v_shift);
             double cl_p   = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             bool pass = (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift));
+            _res_psar = pass;
             string flip_info = "";
             if(m_settings.Vote_AllowPsarFlip) {
                int bars_since_flip = GetBarsSinceLastFlip(bias, v_shift);
@@ -2937,13 +2943,13 @@ public:
 
          // P123
          if(m_settings.Ind_P123_Enabled) {
-            bool pass = Check_P123(bias, v_shift);
+            bool pass = Check_P123(bias, v_shift); _res_p123 = pass;
             PrintFormat("[IND] P123: → %s (w=%d)", pass ? "PASS" : "FAIL", m_settings.Ind_P123_Weight);
          } else Print("[IND] P123: DISABLED → SKIP");
 
          // Ross Hook
          if(m_settings.Ind_Ross_Enabled) {
-            bool pass = Check_Ross(bias, v_shift);
+            bool pass = Check_Ross(bias, v_shift); _res_ross = pass;
             PrintFormat("[IND] RossHook: → %s (w=%d)", pass ? "PASS" : "FAIL", m_settings.Ind_Ross_Weight);
          } else Print("[IND] RossHook: DISABLED → SKIP");
 
@@ -2956,7 +2962,8 @@ public:
       }
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: END =====
 
-      // Final Decision
+      // Final Decision — compute result without returning yet so summary can be printed
+      int final_signal = 0;
       if(m_settings.VoteMode == VOTE_MODE_ALL)
       {
          // ALL mode: every enabled indicator must agree (pure multiplicative)
@@ -2965,38 +2972,198 @@ public:
             m_signals_generated++;
             m_stats.signals_confirmed++;
             if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=%d (ALL votes pass, weight=%.2f)", bias, vote_weight);
-            return bias;
+            final_signal = bias;
          }
-         if(any_failure) {
+         else if(any_failure) {
             if(m_diag_last_reason == "") m_diag_last_reason = first_failure;
             if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
-            return 0;
          }
-         m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
-         m_reject_votes++;
-         if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
-         return 0;
+         else {
+            m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
+            m_reject_votes++;
+            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
+         }
       }
       else
       {
          // THRESHOLD mode: weighted sum >= total enabled-indicator weight
-         if(all_pass && !any_failure) { 
+         if(all_pass && !any_failure) {
             m_diag_last_reason="OK";
             m_signals_generated++;
             m_stats.signals_confirmed++;
             if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=%d (votes %.2f all pass)", bias, vote_weight);
-            return bias; 
+            final_signal = bias;
          }
-         if(any_failure) {
+         else if(any_failure) {
             if(m_diag_last_reason == "") m_diag_last_reason = first_failure;
             if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
-            return 0;
          }
-         m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
-         m_reject_votes++;
-         if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
-         return 0;
+         else {
+            m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
+            m_reject_votes++;
+            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
+         }
       }
+
+      // ===== TS PIPELINE SUMMARY =====
+      if(m_settings.DebugFlow) {
+         datetime sum_bar_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.ma_v_shift);
+         Print("════════════════════════════════════════════════════════════");
+         PrintFormat("[TS_SUMMARY] Bar: %s (shift=%d)",
+                     TimeToString(sum_bar_time, TIME_DATE|TIME_MINUTES),
+                     m_settings.ma_v_shift);
+         Print("════════════════════════════════════════════════════════════");
+         Print("");
+
+         // GATES SECTION
+         Print("GATES:");
+         if(m_settings.MaxSpread > 0.0) {
+            PrintFormat("  %s Spread: %.1f / %.1f pips max",
+                        spread_pass ? "✅" : "❌", spread_pips, m_settings.MaxSpread);
+         } else {
+            Print("  ⏭️  Spread: disabled");
+         }
+         if(m_settings.MinATR > 0.0) {
+            bool atr_min_ok = (atr_pips >= m_settings.MinATR);
+            PrintFormat("  %s ATR Min: %.1f / %.1f pips",
+                        atr_min_ok ? "✅" : "❌", atr_pips, m_settings.MinATR);
+         } else {
+            Print("  ⏭️  ATR Min: disabled");
+         }
+         if(m_settings.MaxATR > 0.0) {
+            bool atr_max_ok = (atr_pips <= m_settings.MaxATR);
+            PrintFormat("  %s ATR Max: %.1f / %.1f pips",
+                        atr_max_ok ? "✅" : "❌", atr_pips, m_settings.MaxATR);
+         } else {
+            Print("  ⏭️  ATR Max: disabled");
+         }
+         Print("  ⏭️  Time window: " + (m_settings.UseTime ? "active" : "disabled"));
+         Print("  ⏭️  News filter: " + (m_settings.UseNews ? "active" : "disabled"));
+         Print("");
+
+         // BIAS & STRUCTURE SECTION
+         Print("BIAS & STRUCTURE:");
+         if(bias == 0) {
+            PrintFormat("  ❌ Bias: NEUTRAL (%s)", m_diag_last_reason);
+         } else {
+            PrintFormat("  ✅ Bias: %s (EMAs aligned)", bias > 0 ? "LONG" : "SHORT");
+         }
+         if(m_settings.PhaseDetectionEnabled) {
+            string phase_str = EnumToString(m_diag_last_phase);
+            bool phase_blocked = (m_diag_last_phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase);
+            PrintFormat("  %s Phase: %s%s",
+                        phase_blocked ? "❌" : "✅", phase_str,
+                        phase_blocked ? " (blocked)" : "");
+         } else {
+            Print("  ⏭️  Phase: disabled");
+         }
+         if(m_settings.EnableLayerDetection) {
+            PrintFormat("  ✅ Layer: %s", LayerBitfieldToString((int)m_diag_last_entry_layer));
+         } else {
+            Print("  ⏭️  Layer: disabled");
+         }
+         Print("");
+
+         // INDICATORS SECTION
+         int s_enabled=0, s_disabled=0, s_passed=0;
+         if(m_settings.Ind_EmaSig_Enabled) s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Adx_Enabled)    s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Macd_Enabled)   s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Rsi_Enabled)    s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Cci_Enabled)    s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Mfi_Enabled)    s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Sto_Enabled)    s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Bb_Enabled)     s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Psar_Enabled)   s_enabled++; else s_disabled++;
+         if(m_settings.Ind_P123_Enabled)   s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Ross_Enabled)   s_enabled++; else s_disabled++;
+
+         PrintFormat("INDICATORS (%d enabled, %d disabled):", s_enabled, s_disabled);
+
+         string saved_reason = m_diag_last_reason;
+
+         if(m_settings.Ind_EmaSig_Enabled) {
+            PrintFormat("  %s EmaSig", _res_emasig ? "✅" : "❌");
+            if(_res_emasig) s_passed++;
+         } else Print("  ⏭️  EmaSig: disabled");
+
+         if(m_settings.Ind_Adx_Enabled) {
+            PrintFormat("  %s ADX", _res_adx ? "✅" : "❌");
+            if(_res_adx) s_passed++;
+         } else Print("  ⏭️  ADX: disabled");
+
+         if(m_settings.Ind_Macd_Enabled) {
+            PrintFormat("  %s MACD", _res_macd ? "✅" : "❌");
+            if(_res_macd) s_passed++;
+         } else Print("  ⏭️  MACD: disabled");
+
+         if(m_settings.Ind_Rsi_Enabled) {
+            PrintFormat("  %s RSI", _res_rsi ? "✅" : "❌");
+            if(_res_rsi) s_passed++;
+         } else Print("  ⏭️  RSI: disabled");
+
+         if(m_settings.Ind_Cci_Enabled) {
+            PrintFormat("  %s CCI", _res_cci ? "✅" : "❌");
+            if(_res_cci) s_passed++;
+         } else Print("  ⏭️  CCI: disabled");
+
+         if(m_settings.Ind_Mfi_Enabled) {
+            PrintFormat("  %s MFI", _res_mfi ? "✅" : "❌");
+            if(_res_mfi) s_passed++;
+         } else Print("  ⏭️  MFI: disabled");
+
+         if(m_settings.Ind_Sto_Enabled) {
+            PrintFormat("  %s Stochastic", _res_sto ? "✅" : "❌");
+            if(_res_sto) s_passed++;
+         } else Print("  ⏭️  Stochastic: disabled");
+
+         if(m_settings.Ind_Bb_Enabled) {
+            PrintFormat("  %s Bollinger Bands", _res_bb ? "✅" : "❌");
+            if(_res_bb) s_passed++;
+         } else Print("  ⏭️  Bollinger Bands: disabled");
+
+         if(m_settings.Ind_Psar_Enabled) {
+            PrintFormat("  %s PSAR (%s mode)",
+                        _res_psar ? "✅" : "❌",
+                        m_settings.Vote_AllowPsarFlip ? "FLIP" : "DOT");
+            if(_res_psar) s_passed++;
+         } else Print("  ⏭️  PSAR: disabled");
+
+         if(m_settings.Ind_P123_Enabled) {
+            PrintFormat("  %s Pattern 1-2-3", _res_p123 ? "✅" : "❌");
+            if(_res_p123) s_passed++;
+         } else Print("  ⏭️  Pattern 1-2-3: disabled");
+
+         if(m_settings.Ind_Ross_Enabled) {
+            PrintFormat("  %s Ross Hook", _res_ross ? "✅" : "❌");
+            if(_res_ross) s_passed++;
+         } else Print("  ⏭️  Ross Hook: disabled");
+
+         Print("");
+
+         // VOTING SUMMARY
+         if(s_enabled > 0) {
+            double pass_pct = (double)s_passed / s_enabled * 100.0;
+            PrintFormat("VOTING: %d/%d passed (%.1f%%) - requires %s",
+                        s_passed, s_enabled, pass_pct,
+                        m_settings.VoteMode == VOTE_MODE_ALL ? "ALL (100%)" : "THRESHOLD");
+         }
+         Print("");
+
+         // FINAL RESULT
+         Print("════════════════════════════════════════════════════════════");
+         if(final_signal == 0) {
+            PrintFormat("[TS_RESULT] ❌ REJECTED - Reason: %s", saved_reason);
+         } else {
+            PrintFormat("[TS_RESULT] ✅✅✅ SIGNAL CONFIRMED: %s ✅✅✅",
+                        final_signal > 0 ? "LONG" : "SHORT");
+         }
+         Print("════════════════════════════════════════════════════════════");
+         Print("");
+      }
+      // ===== TS PIPELINE SUMMARY: END =====
+
+      return final_signal;
 
    } // === EvaluateTS: END ===
 
