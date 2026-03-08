@@ -801,8 +801,8 @@ input group "══════════════════════�
 input bool Inp_Stats_TrackRejections = true;   // Track rejection counts
 input bool Inp_Stats_TrackPasses = true;       // Track pass counts (positive stats)
 input bool Inp_Stats_FullEvaluation = true;    // Evaluate ALL indicators per bar (no early exit)
-input string _stats_info1 = "FullEvaluation=false: waterfall (stop at first fail)"; // Info
-input string _stats_info2 = "FullEvaluation=true: evaluate all, identify true bottlenecks"; // Info
+input string Inp_Stats_Info1 = "FullEvaluation=false: waterfall (stop at first fail)"; // Info
+input string Inp_Stats_Info2 = "FullEvaluation=true: evaluate all, identify true bottlenecks"; // Info
 
 input group "--- ✅ Reporting ---"
 input bool           Inp_ExportCSV              = false;        // (Global; allowed under presets) Export CSV reporting

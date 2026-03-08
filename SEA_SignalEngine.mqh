@@ -2114,7 +2114,7 @@ public:
          if(phase == PHASE_UNORDERED) {
             m_diag_last_reason = "PHASE_UNORDERED_BLOCKS_ALL";
             m_reject_bias++;
-            m_stats.rejected_phase++;
+            if(m_settings.Stats_TrackRejections) m_stats.rejected_phase++;
             
             if(m_settings.DebugFlow) {
                PrintFormat("[260304_PR5] UNORDERED phase detected - blocking ALL trades (layer=%s)",
@@ -2132,7 +2132,7 @@ public:
          if(is_emerging && m_diag_last_entry_layer == LAYER_3_STRONG) {
             m_diag_last_reason = "PHASE_EMERGING_BLOCKS_STRONG";
             m_reject_bias++;
-            m_stats.rejected_layer_blocked++;
+            if(m_settings.Stats_TrackRejections) m_stats.rejected_layer_blocked++;
             
             if(m_settings.DebugFlow) {
                PrintFormat("[260304_PR5] %s phase detected - blocking STRONG layer trade (deep pullback too risky)",
