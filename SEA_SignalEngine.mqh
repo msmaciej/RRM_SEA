@@ -2113,89 +2113,20 @@ public:
       int v_shift = m_settings.Vote_EvalShift;
       
       // ═══════════════════════════════════════════════════════════════
-      // 260304_PR4: Detect entry layer (passive detection - no filtering yet)
-      // Layer detection is DISABLED by default (EnableLayerDetection = false)
-      // This only detects and logs layer information when DebugFlow = true
+      // STEP 2: DIAGNOSTIC UPDATES (passive - for UI/stats only)
+      // Sets m_diag_last_phase and m_diag_last_entry_layer before any
+      // active filtering so all diagnostics are consistent per bar.
       // ═══════════════════════════════════════════════════════════════
-      m_diag_last_entry_layer = DetectEntryLayer(v_shift);
+      UpdatePhaseDiagnostics(v_shift);    // Sets m_diag_last_phase
+      UpdateLayerDiagnostics(v_shift);    // Sets m_diag_last_entry_layer
+
       if(m_settings.DebugFlow) {
          PrintFormat("ENTRY LAYER[%s]: Detected %s",
                      TimeToString(iTime(m_symbol, PERIOD_CURRENT, v_shift)),
                      EnumToString(m_diag_last_entry_layer));
       }
 
-      //+------------------------------------------------------------------+
-      //| 260304_PR5: Phase-Based Layer Filtering                          |
-      //|                                                                  |
-      //| Enforces RRM methodology rules for entry filtering:              |
-      //| - UNORDERED: Block ALL layers (L1, L2, L3) — choppy market      |
-      //| - EMERGING:  ALLOW L1/L2 only; Block L3 — trend forming         |
-      //| - TRENDING:  ALLOW ALL layers (L1/L2/L3) — strong established   |
-      //|              trend; deep pullbacks (L3/Shark) are valid here     |
-      //|                                                                  |
-      //| Requires BOTH PhaseDetectionEnabled=true AND                     |
-      //| EnableLayerDetection=true to activate filtering                  |
-      //+------------------------------------------------------------------+
-      // ═══════════════════════════════════════════════════════════════
-      // 260304_PR5: Phase-based layer filtering
-      // If both phase detection and layer detection are enabled,
-      // enforce RRM methodology rules for trade filtering by phase
-      // ═══════════════════════════════════════════════════════════════
-      if(m_settings.EnableLayerDetection && 
-         m_settings.PhaseDetectionEnabled &&
-         m_diag_last_entry_layer != LAYER_NONE)
-      {
-         EMarketPhase phase = m_diag_last_phase;
-         bool is_emerging = (phase == PHASE_EMERGING || phase == PHASE_EMERGING_UP || phase == PHASE_EMERGING_DN);
-         bool is_trending = (phase == PHASE_TRENDING || phase == PHASE_TRENDING_UP || phase == PHASE_TRENDING_DN);
-         
-         // Rule 1: UNORDERED phase blocks ALL trades (choppy market)
-         if(phase == PHASE_UNORDERED) {
-            m_diag_last_reason = "PHASE_UNORDERED_BLOCKS_ALL";
-            m_reject_bias++;
-            if(m_settings.Stats_TrackRejections) m_stats.rejected_phase++;
-            
-            if(m_settings.DebugFlow) {
-               PrintFormat("[260304_PR5] UNORDERED phase detected - blocking ALL trades (layer=%s)",
-                           EnumToString(m_diag_last_entry_layer));
-            }
-            if(!m_settings.Stats_FullEvaluation) return 0;
-            if(first_failure == "") first_failure = "PHASE_UNORDERED";
-            any_failure = true;
-         }
-         else {
-            if(m_settings.Stats_TrackPasses) m_stats.passed_phase++;
-         }
-         
-         // Rule 2: EMERGING phase blocks STRONG (Layer 3) trades only
-         if(is_emerging && m_diag_last_entry_layer == LAYER_3_STRONG) {
-            m_diag_last_reason = "PHASE_EMERGING_BLOCKS_STRONG";
-            m_reject_bias++;
-            if(m_settings.Stats_TrackRejections) m_stats.rejected_layer_blocked++;
-            
-            if(m_settings.DebugFlow) {
-               PrintFormat("[260304_PR5] %s phase detected - blocking STRONG layer trade (deep pullback too risky)",
-                           EnumToString(phase));
-            }
-            if(!m_settings.Stats_FullEvaluation) return 0;
-            if(first_failure == "") first_failure = "PHASE_EMERGING_L3";
-            any_failure = true;
-         }
-         else if(phase != PHASE_UNORDERED) {
-            if(m_settings.Stats_TrackPasses) m_stats.passed_layer_blocked++;
-         }
-         
-         // Rule 3: TRENDING phase allows ALL layers (L1/L2/L3 — no blocking)
-         if(m_settings.DebugFlow && is_trending) {
-            PrintFormat("[260304_PR5] %s phase - allowing ALL layers (%s); deep pullbacks valid in strong trend",
-                        EnumToString(phase), EnumToString(m_diag_last_entry_layer));
-         }
-      }
-
-      // 260304_PR7: Store layer-allowed state for UI diagnostics
-      m_layer_allowed = IsLayerAllowed(m_diag_last_entry_layer, m_diag_last_phase);
-
-      // 2. Determine MASTER BIAS (Strategy)
+      // STEP 3: Determine MASTER BIAS (Strategy)
       int bias = 0;
       
       // 260304_PR2: Route to phase-based bias if selected
@@ -2499,6 +2430,77 @@ public:
          if(m_settings.Stats_TrackPasses) m_stats.passed_bias++;
       }
 
+      // ═══════════════════════════════════════════════════════════════
+      // STEP 4: PHASE-LAYER FILTERING (active blocking)
+      // Runs AFTER bias determination so bias direction is known.
+      // Only active when BOTH EnableLayerDetection AND PhaseDetectionEnabled.
+      // ═══════════════════════════════════════════════════════════════
+      //+------------------------------------------------------------------+
+      //| 260304_PR5: Phase-Based Layer Filtering                          |
+      //|                                                                  |
+      //| Enforces RRM methodology rules for entry filtering:              |
+      //| - UNORDERED: Block ALL layers (L1, L2, L3) — choppy market      |
+      //| - EMERGING:  ALLOW L1/L2 only; Block L3 — trend forming         |
+      //| - TRENDING:  ALLOW ALL layers (L1/L2/L3) — strong established   |
+      //|              trend; deep pullbacks (L3/Shark) are valid here     |
+      //|                                                                  |
+      //| Requires BOTH PhaseDetectionEnabled=true AND                     |
+      //| EnableLayerDetection=true to activate filtering                  |
+      //+------------------------------------------------------------------+
+      if(m_settings.EnableLayerDetection && 
+         m_settings.PhaseDetectionEnabled &&
+         m_diag_last_entry_layer != LAYER_NONE)
+      {
+         EMarketPhase phase = m_diag_last_phase;
+         bool is_emerging = (phase == PHASE_EMERGING || phase == PHASE_EMERGING_UP || phase == PHASE_EMERGING_DN);
+         bool is_trending = (phase == PHASE_TRENDING || phase == PHASE_TRENDING_UP || phase == PHASE_TRENDING_DN);
+         
+         // Rule 1: UNORDERED phase blocks ALL trades (choppy market)
+         if(phase == PHASE_UNORDERED) {
+            m_diag_last_reason = "PHASE_UNORDERED_BLOCKS_ALL";
+            m_reject_bias++;
+            if(m_settings.Stats_TrackRejections) m_stats.rejected_phase++;
+            
+            if(m_settings.DebugFlow) {
+               PrintFormat("[260304_PR5] UNORDERED phase detected - blocking ALL trades (layer=%s)",
+                           EnumToString(m_diag_last_entry_layer));
+            }
+            if(!m_settings.Stats_FullEvaluation) return 0;
+            if(first_failure == "") first_failure = "PHASE_UNORDERED";
+            any_failure = true;
+         }
+         else {
+            if(m_settings.Stats_TrackPasses) m_stats.passed_phase++;
+         }
+         
+         // Rule 2: EMERGING phase blocks STRONG (Layer 3) trades only
+         if(is_emerging && m_diag_last_entry_layer == LAYER_3_STRONG) {
+            m_diag_last_reason = "PHASE_EMERGING_BLOCKS_STRONG";
+            m_reject_bias++;
+            if(m_settings.Stats_TrackRejections) m_stats.rejected_layer_blocked++;
+            
+            if(m_settings.DebugFlow) {
+               PrintFormat("[260304_PR5] %s phase detected - blocking STRONG layer trade (deep pullback too risky)",
+                           EnumToString(phase));
+            }
+            if(!m_settings.Stats_FullEvaluation) return 0;
+            if(first_failure == "") first_failure = "PHASE_EMERGING_L3";
+            any_failure = true;
+         }
+         else if(phase != PHASE_UNORDERED) {
+            if(m_settings.Stats_TrackPasses) m_stats.passed_layer_blocked++;
+         }
+         
+         // Rule 3: TRENDING phase allows ALL layers (L1/L2/L3 — no blocking)
+         if(m_settings.DebugFlow && is_trending) {
+            PrintFormat("[260304_PR5] %s phase - allowing ALL layers (%s); deep pullbacks valid in strong trend",
+                        EnumToString(phase), EnumToString(m_diag_last_entry_layer));
+         }
+      }
+
+      // 260304_PR7: Store layer-allowed state for UI diagnostics
+      m_layer_allowed = IsLayerAllowed(m_diag_last_entry_layer, m_diag_last_phase);
+
       // 3. HTF Filter Check
       if(m_settings.UseHTF) {
          double curr = GetMAVal(h_htf_ema, 1);
@@ -2758,11 +2760,11 @@ public:
          return 0;  // No bias - configuration error
       }
       
-      // Detect current market phase (instant EMA + slope check)
-      EMarketPhase current_phase = DetectMarketPhase(v_shift);
-      
-      // Update diagnostics
-      m_diag_last_phase = current_phase;
+      // Use m_diag_last_phase already set by UpdatePhaseDiagnostics() (no redundant detection)
+      // NOTE: This function must be called after UpdatePhaseDiagnostics() in EvaluateTS().
+      //       Calling it standalone without a prior UpdatePhaseDiagnostics() call will use
+      //       the phase from the previous bar, which may produce stale results.
+      EMarketPhase current_phase = m_diag_last_phase;
       
       // Check phase stability if required (optional, default min_bars=0 = instant)
       if(m_settings.RequireMinPhaseConfirm && m_settings.MinPhaseConfirmBars > 0)
@@ -2837,76 +2839,113 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| ValidateLayer: Check alignment of a single EMA pair            |
-   //| Returns: 1=LONG, -1=SHORT, 0=INVALID                           |
+   //| 260304_PR1: Validate a single EMA layer (position + slopes)     |
+   //| Returns: 1 = LONG confirmed, -1 = SHORT confirmed, 0 = INVALID  |
    //+------------------------------------------------------------------+
    int ValidateLayer(double ema_fast, double ema_slow, int slope_fast, int slope_slow, string layer_name)
    {
       bool fast_above_slow = (ema_fast > ema_slow);
       
-      if(fast_above_slow && slope_fast > 0 && slope_slow > 0) 
+      // LONG signal: fast above slow AND both slopes up
+      if(fast_above_slow && slope_fast > 0 && slope_slow > 0)
       {
          if(m_settings.DebugFlow)
-            PrintFormat("[LAYER %s] LONG: FastEMA %.5f > SlowEMA %.5f slopes %d/%d", 
-                        layer_name, ema_fast, ema_slow, slope_fast, slope_slow);
+            PrintFormat("[LAYER %s] LONG confirmed: FastEMA > SlowEMA, slopes both UP", layer_name);
          return 1;
       }
       
-      if(!fast_above_slow && slope_fast < 0 && slope_slow < 0) 
+      // SHORT signal: slow above fast AND both slopes down
+      if(!fast_above_slow && slope_fast < 0 && slope_slow < 0)
       {
          if(m_settings.DebugFlow)
-            PrintFormat("[LAYER %s] SHORT: SlowEMA %.5f > FastEMA %.5f slopes %d/%d", 
-                        layer_name, ema_slow, ema_fast, slope_fast, slope_slow);
+            PrintFormat("[LAYER %s] SHORT confirmed: SlowEMA > FastEMA, slopes both DOWN", layer_name);
          return -1;
       }
       
+      // Invalid: position/slopes mismatch
       if(m_settings.DebugFlow)
-         PrintFormat("[LAYER %s] INVALID: pos=%s slopeF=%d slopeS=%d", 
-                     layer_name, fast_above_slow ? "F>S" : "S>F", slope_fast, slope_slow);
+         PrintFormat("[LAYER %s] INVALID: pos=%s, slopeF=%d, slopeS=%d",
+                     layer_name, (fast_above_slow ? "F>S" : "S>F"), slope_fast, slope_slow);
       return 0;
    }
 
    //+------------------------------------------------------------------+
-   //| 260304_PR1: Detect Market Phase Based on 3-Layer EMA Voting     |
-   //| Checks all 4 EMAs across 3 layers; requires majority agreement  |
-   //| Returns directional phases (UP/DN) for direct bias mapping      |
+   //| 260304_PR1: Detect Market Phase via 3-Layer Hierarchical Check   |
+   //| Validates all 3 EMA layers (EMA1-2, EMA2-3, EMA3-4) by position |
+   //| AND slope agreement. Phase determined by layer vote count:       |
+   //|   3 of 3 agree → TRENDING, 2 of 3 agree → EMERGING, <2 → UNORD |
    //+------------------------------------------------------------------+
    EMarketPhase DetectMarketPhase(const int shift = 1)
    {
+      // Get all 4 EMA values
       double ema1 = GetMAVal(h_ema1, shift, 0);
       double ema2 = GetMAVal(h_ema2, shift, 0);
       double ema3 = GetMAVal(h_ema3, shift, 0);
       double ema4 = GetMAVal(h_ema4, shift, 0);
       
-      if(ema1 == EMPTY_VALUE || ema2 == EMPTY_VALUE || 
+      if(ema1 == EMPTY_VALUE || ema2 == EMPTY_VALUE ||
          ema3 == EMPTY_VALUE || ema4 == EMPTY_VALUE)
+      {
+         if(m_settings.DebugFlow)
+            Print("[260304_PHASE] ERROR: Invalid EMA values at shift ", shift);
          return PHASE_UNORDERED;
+      }
       
+      // Get slopes for all 4 EMAs
       int slope1 = GetSlope(h_ema1, shift);
       int slope2 = GetSlope(h_ema2, shift);
       int slope3 = GetSlope(h_ema3, shift);
       int slope4 = GetSlope(h_ema4, shift);
       
-      int layer1 = ValidateLayer(ema1, ema2, slope1, slope2, "L1");
-      int layer2 = ValidateLayer(ema2, ema3, slope2, slope3, "L2");
-      int layer3 = ValidateLayer(ema3, ema4, slope3, slope4, "L3");
+      // Validate 3 interwired sub-market layers
+      int layer1_signal = ValidateLayer(ema1, ema2, slope1, slope2, "L1_WEAK");
+      int layer2_signal = ValidateLayer(ema2, ema3, slope2, slope3, "L2_MEDIUM");
+      int layer3_signal = ValidateLayer(ema3, ema4, slope3, slope4, "L3_STRONG");
       
-      int long_votes = 0;
-      int short_votes = 0;
+      // Count directional votes
+      int long_votes  = (layer1_signal == 1 ? 1 : 0)
+                      + (layer2_signal == 1 ? 1 : 0)
+                      + (layer3_signal == 1 ? 1 : 0);
+      int short_votes = (layer1_signal == -1 ? 1 : 0)
+                      + (layer2_signal == -1 ? 1 : 0)
+                      + (layer3_signal == -1 ? 1 : 0);
       
-      if(layer1 == 1) long_votes++;
-      if(layer1 == -1) short_votes++;
-      if(layer2 == 1) long_votes++;
-      if(layer2 == -1) short_votes++;
-      if(layer3 == 1) long_votes++;
-      if(layer3 == -1) short_votes++;
+      if(m_settings.DebugFlow)
+         PrintFormat("[260304_PHASE] Layer votes: LONG=%d SHORT=%d (L1=%d L2=%d L3=%d)",
+                     long_votes, short_votes, layer1_signal, layer2_signal, layer3_signal);
       
-      if(long_votes == 3) return PHASE_TRENDING_UP;
-      if(short_votes == 3) return PHASE_TRENDING_DN;
-      if(long_votes == 2) return PHASE_EMERGING_UP;
-      if(short_votes == 2) return PHASE_EMERGING_DN;
-      
-      return PHASE_UNORDERED;
+      // Determine phase by vote count
+      if(long_votes == 3)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[260304_PHASE] TRENDING_UP: 3 LONG votes");
+         return PHASE_TRENDING_UP;
+      }
+      else if(short_votes == 3)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[260304_PHASE] TRENDING_DN: 3 SHORT votes");
+         return PHASE_TRENDING_DN;
+      }
+      else if(long_votes == 2)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[260304_PHASE] EMERGING_UP: 2 LONG votes");
+         return PHASE_EMERGING_UP;
+      }
+      else if(short_votes == 2)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[260304_PHASE] EMERGING_DN: 2 SHORT votes");
+         return PHASE_EMERGING_DN;
+      }
+      else
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[260304_PHASE] UNORDERED: < 2 layers agree (long=%d short=%d)",
+                        long_votes, short_votes);
+         return PHASE_UNORDERED;
+      }
    }
    
    //+------------------------------------------------------------------+
@@ -3045,12 +3084,14 @@ public:
    {
       if(!m_settings.EnableLayerDetection)
       {
-         m_diag_last_layer    = LAYER_NONE;
-         m_diag_layer_distance = 0.0;
+         m_diag_last_layer       = LAYER_NONE;
+         m_diag_last_entry_layer = LAYER_NONE;
+         m_diag_layer_distance   = 0.0;
          return;
       }
 
-      m_diag_last_layer = DetectEntryLayer(v_shift);
+      m_diag_last_layer       = DetectEntryLayer(v_shift);
+      m_diag_last_entry_layer = m_diag_last_layer;
    }
 
    //+------------------------------------------------------------------+

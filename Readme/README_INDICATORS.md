@@ -46,6 +46,23 @@ Each factor returns 1 (pass), 0 (fail), or -1 (contradicts). Any 0 or -1 makes t
 
 > **See also:** [README_SYSTEM.md — Bias, Market Phase, and Entry Layer Concepts](README_SYSTEM.md) for a conceptual overview of these three components and how they relate.
 
+### Detailed TS Evaluation Walkthrough
+
+For the complete pipeline diagram showing each step in order, see [README_SYSTEM.md — Complete TS Evaluation Pipeline](README_SYSTEM.md#complete-ts-evaluation-pipeline).
+
+**Quick Summary**:
+```
+TS = [Pre-Filters] × [Bias × Phase] × [Layer] × [Indicators]
+      ↓                ↓                 ↓         ↓
+      Hard gates       Direction         Timing    Confirmation
+```
+
+1. **Pre-Filters** (Step 1): Block unsafe conditions (spread, ATR, time, news)
+2. **Diagnostics** (Step 2): Passive — populate `m_diag_last_phase` and `m_diag_last_entry_layer`
+3. **Bias** (Step 3): Determine LONG/SHORT/NONE using phase detection (3-layer voting when `BIAS_AUTO_PHASE`)
+4. **Phase-Layer Filter** (Step 4): Validate pullback depth vs phase structure (blocks L3 in EMERGING, all in UNORDERED)
+5. **Indicators** (Step 5): Final confirmation — multiplicative in VOTE_MODE_ALL
+
 ---
 
 ### Step 1: Pre-Filters (Safety Checks)
