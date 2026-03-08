@@ -2701,6 +2701,9 @@ public:
       }
       
       // Use m_diag_last_phase already set by UpdatePhaseDiagnostics() (no redundant detection)
+      // NOTE: This function must be called after UpdatePhaseDiagnostics() in EvaluateTS().
+      //       Calling it standalone without a prior UpdatePhaseDiagnostics() call will use
+      //       the phase from the previous bar, which may produce stale results.
       EMarketPhase current_phase = m_diag_last_phase;
       
       // Check phase stability if required (optional, default min_bars=0 = instant)
