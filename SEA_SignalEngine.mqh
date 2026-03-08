@@ -576,6 +576,7 @@ private:
    // PSAR flip tracker: call once per bar close to record the most recent flip.
    // Stores direction-specific timestamps so bullish and bearish flips are tracked independently.
    void UpdatePSARFlipTracking(int shift = 1) {
+      Print("[DEBUG_TEST] UpdatePSARFlipTracking() CALLED");
       int flip = DetectPSARFlipAt(shift);
       if(flip != 0) {
          datetime flip_time = iTime(m_symbol, PERIOD_CURRENT, shift);
@@ -614,6 +615,12 @@ private:
    //   2. A flip in the matching direction has been recorded
    //   3. The flip occurred within the last Vote_PsarFlipDelay bars
    bool Check_PSAR_WithFlip(int bias, int shift) {
+      // === UNCONDITIONAL DEBUG TEST ===
+      Print("[DEBUG_TEST] Check_PSAR_WithFlip() CALLED");
+      PrintFormat("[DEBUG_TEST] bias=%d shift=%d DebugFlow=%s",
+                  bias, shift, m_settings.DebugFlow ? "TRUE" : "FALSE");
+      // === END DEBUG TEST ===
+
       // START DEBUG LOGGING BANNER
       if(m_settings.DebugFlow) {
          datetime eval_bar_time = iTime(m_symbol, PERIOD_CURRENT, shift);
@@ -2186,6 +2193,14 @@ public:
    //==========================================================================
    int EvaluateTS() 
    {
+      // === UNCONDITIONAL DEBUG TEST (always prints) ===
+      Print("═══════════════════════════════════════════════════════════");
+      Print("[DEBUG_TEST] EvaluateTS() CALLED");
+      PrintFormat("[DEBUG_TEST] m_settings.DebugFlow = %s", m_settings.DebugFlow ? "TRUE" : "FALSE");
+      PrintFormat("[DEBUG_TEST] Current time: %s", TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES));
+      Print("═══════════════════════════════════════════════════════════");
+      // === END DEBUG TEST ===
+
       // Update PSAR flip tracking on each bar close (uses shift=1 for closed bar)
       if(m_settings.Vote_AllowPsarFlip)
          UpdatePSARFlipTracking(m_settings.Vote_EvalShift);
