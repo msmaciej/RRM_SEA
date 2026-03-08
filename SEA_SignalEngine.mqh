@@ -2113,9 +2113,10 @@ public:
       if(m_settings.DebugFlow)
       {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.ma_v_shift);
-         Print("========================================");
-         PrintFormat("BAR CLOSE: %s", TimeToString(bar_time, TIME_DATE|TIME_MINUTES));
-         Print("========================================");
+         PrintFormat("[EVAL_START] ===========================================");
+         PrintFormat("[EVAL_START] Bar: %s (shift=%d)",
+                     TimeToString(bar_time, TIME_DATE|TIME_MINUTES), m_settings.ma_v_shift);
+         PrintFormat("[EVAL_START] ===========================================");
       }
 
       // 1. Check Filters (inline for full-eval mode support and per-filter pass tracking)
@@ -2132,6 +2133,10 @@ public:
                           (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
          if(m_settings.Stats_TrackPasses && time_pass) m_stats.passed_time++;
          if(m_settings.Stats_TrackRejections && !time_pass) m_stats.rejected_time++;
+         if(m_settings.DebugFlow)
+            PrintFormat("[GATE] Time: hour=%d window=[%d-%d] → %s",
+                        dt.hour, m_settings.StartHr, m_settings.EndHr,
+                        time_pass ? "PASS" : "FAIL");
          if(!time_pass) {
             if(first_failure == "") first_failure = "TIME";
             any_failure = true;
@@ -2140,6 +2145,8 @@ public:
             }
          }
       }
+      else if(m_settings.DebugFlow)
+         Print("[GATE] Time: DISABLED → SKIP");
 
       // --- News Filter ---
       if(m_settings.UseNews && m_news_count > 0) {
@@ -2171,6 +2178,8 @@ public:
          }
          if(m_settings.Stats_TrackPasses && news_pass) m_stats.passed_news++;
          if(m_settings.Stats_TrackRejections && !news_pass) m_stats.rejected_news++;
+         if(m_settings.DebugFlow)
+            PrintFormat("[GATE] News: %s", news_pass ? "PASS" : "FAIL (event active)");
          if(!news_pass) {
             if(first_failure == "") first_failure = "NEWS";
             any_failure = true;
@@ -2179,12 +2188,21 @@ public:
             }
          }
       }
+      else if(m_settings.DebugFlow)
+         Print("[GATE] News: DISABLED → SKIP");
 
       // --- Spread ---
       double spread_pips = SpreadPips();
       bool spread_pass = !(m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread);
       if(m_settings.Stats_TrackPasses && spread_pass) m_stats.passed_spread++;
       if(m_settings.Stats_TrackRejections && !spread_pass) m_stats.rejected_spread++;
+      if(m_settings.DebugFlow) {
+         if(m_settings.MaxSpread <= 0.0)
+            Print("[GATE] Spread: DISABLED → SKIP");
+         else
+            PrintFormat("[GATE] Spread: %.1f pips / %.1f max → %s",
+                        spread_pips, m_settings.MaxSpread, spread_pass ? "PASS" : "FAIL");
+      }
       if(!spread_pass) {
          if(first_failure == "") first_failure = "SPREAD";
          any_failure = true;
@@ -2202,6 +2220,11 @@ public:
          if(!atr_min_pass) m_diag_last_atr_ok = false;
          if(m_settings.Stats_TrackPasses && atr_min_pass) m_stats.passed_atr_min++;
          if(m_settings.Stats_TrackRejections && !atr_min_pass) m_stats.rejected_atr_min++;
+         if(m_settings.DebugFlow)
+            PrintFormat("[GATE] ATR Min: %.1f pips / min=%.1f → %s%s",
+                        atr_pips, m_settings.MinATR,
+                        atr_min_pass ? "PASS" : "FAIL",
+                        (!atr_min_pass && !m_settings.ATR_HardGate) ? " (soft)" : "");
          if(!atr_min_pass && m_settings.ATR_HardGate) {
             if(first_failure == "") first_failure = "MIN_ATR";
             any_failure = true;
@@ -2210,11 +2233,18 @@ public:
             }
          }
       }
+      else if(m_settings.DebugFlow)
+         Print("[GATE] ATR Min: DISABLED → SKIP");
       if(m_settings.MaxATR > 0.0) {
          bool atr_max_pass = (atr_pips <= m_settings.MaxATR);
          if(!atr_max_pass) m_diag_last_atr_ok = false;
          if(m_settings.Stats_TrackPasses && atr_max_pass) m_stats.passed_atr_max++;
          if(m_settings.Stats_TrackRejections && !atr_max_pass) m_stats.rejected_atr_max++;
+         if(m_settings.DebugFlow)
+            PrintFormat("[GATE] ATR Max: %.1f pips / max=%.1f → %s%s",
+                        atr_pips, m_settings.MaxATR,
+                        atr_max_pass ? "PASS" : "FAIL",
+                        (!atr_max_pass && !m_settings.ATR_HardGate) ? " (soft)" : "");
          if(!atr_max_pass && m_settings.ATR_HardGate) {
             if(first_failure == "") first_failure = "MAX_ATR";
             any_failure = true;
@@ -2223,6 +2253,8 @@ public:
             }
          }
       }
+      else if(m_settings.DebugFlow)
+         Print("[GATE] ATR Max: DISABLED → SKIP");
       // In full-eval mode, track filter rejection if any filter failed (waterfall would have exited above)
       if(any_failure && m_settings.Stats_FullEvaluation) m_reject_filter++;
 
@@ -2711,93 +2743,114 @@ public:
 
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGIN =====
       if(m_settings.DebugFlow) {
-         datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
          string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
-         string vote_details = StringFormat("STEP 6 VOTES[%s]: mode=%s bias=%d weight=%.2f",
-                                           TimeToString(bar_time),
-                                           mode_str, bias, vote_weight);
-         
-         // Log each enabled vote with actual indicator values
+         PrintFormat("[IND] --- Indicators (mode=%s bias=%d weight=%.2f) ---",
+                     mode_str, bias, vote_weight);
+
+         // EmaSig
          if(m_settings.Ind_EmaSig_Enabled) {
             double p = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             double e = GetMAVal(h_ema1, v_shift);
             bool pass = Check_EMA1(bias, v_shift);
-            vote_details += StringFormat(" | EmaSig: p=%.5f e=%.5f %s(w=%d)", p, e, pass?"PASS":"FAIL", m_settings.Ind_EmaSig_Weight);
-         }
-         
+            PrintFormat("[IND] EmaSig: price=%.5f ema=%.5f → %s (w=%d)",
+                        p, e, pass ? "PASS" : "FAIL", m_settings.Ind_EmaSig_Weight);
+         } else Print("[IND] EmaSig: DISABLED → SKIP");
+
+         // ADX
          if(m_settings.Ind_Adx_Enabled) {
             double adx = GetVal(h_adx, v_shift);
             bool pass = Check_ADX(v_shift);
-            vote_details += StringFormat(" | ADX: %.2f %s(w=%d)", adx, pass?"PASS":"FAIL", m_settings.Ind_Adx_Weight);
-         }
-         
+            PrintFormat("[IND] ADX: %.2f / threshold=%.2f → %s (w=%d)",
+                        adx, m_settings.T_Adx, pass ? "PASS" : "FAIL", m_settings.Ind_Adx_Weight);
+         } else Print("[IND] ADX: DISABLED → SKIP");
+
+         // MACD
          if(m_settings.Ind_Macd_Enabled) {
-            double m = GetVal(h_macd, v_shift, 0);
-            double s = GetVal(h_macd, v_shift, 1);
+            double macd_m = GetVal(h_macd, v_shift, 0);
+            double macd_s = GetVal(h_macd, v_shift, 1);
             bool pass = Check_MACD(bias, v_shift);
-            vote_details += StringFormat(" | MACD: main=%.6f sig=%.6f %s(w=%d)", m, s, pass?"PASS":"FAIL", m_settings.Ind_Macd_Weight);
-         }
-         
+            PrintFormat("[IND] MACD: main=%.6f signal=%.6f hist=%.6f → %s (w=%d)",
+                        macd_m, macd_s, macd_m - macd_s, pass ? "PASS" : "FAIL", m_settings.Ind_Macd_Weight);
+         } else Print("[IND] MACD: DISABLED → SKIP");
+
+         // RSI
          if(m_settings.Ind_Rsi_Enabled) {
             double r = GetVal(h_rsi, v_shift);
             bool pass = Check_RSI(bias, v_shift);
-            vote_details += StringFormat(" | RSI: %.2f %s(w=%d)", r, pass?"PASS":"FAIL", m_settings.Ind_Rsi_Weight);
-         }
-         
+            PrintFormat("[IND] RSI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
+                        r, m_settings.T_RsiOB, m_settings.T_RsiOS, pass ? "PASS" : "FAIL", m_settings.Ind_Rsi_Weight);
+         } else Print("[IND] RSI: DISABLED → SKIP");
+
+         // CCI
          if(m_settings.Ind_Cci_Enabled) {
             double c = GetVal(h_cci, v_shift);
             bool pass = Check_CCI(bias, v_shift);
-            vote_details += StringFormat(" | CCI: %.2f %s(w=%d)", c, pass?"PASS":"FAIL", m_settings.Ind_Cci_Weight);
-         }
-         
+            PrintFormat("[IND] CCI: %.2f → %s (w=%d)",
+                        c, pass ? "PASS" : "FAIL", m_settings.Ind_Cci_Weight);
+         } else Print("[IND] CCI: DISABLED → SKIP");
+
+         // MFI
          if(m_settings.Ind_Mfi_Enabled) {
             double mfi = GetVal(h_mfi, v_shift);
             bool pass = Check_MFI(bias, v_shift);
-            vote_details += StringFormat(" | MFI: %.2f %s(w=%d)", mfi, pass?"PASS":"FAIL", m_settings.Ind_Mfi_Weight);
-         }
-         
+            PrintFormat("[IND] MFI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
+                        mfi, m_settings.T_MfiOB, m_settings.T_MfiOS, pass ? "PASS" : "FAIL", m_settings.Ind_Mfi_Weight);
+         } else Print("[IND] MFI: DISABLED → SKIP");
+
+         // Stochastic
          if(m_settings.Ind_Sto_Enabled) {
-            double k = GetVal(h_sto, v_shift, 0);
-            double d = GetVal(h_sto, v_shift, 1);
+            double sk = GetVal(h_sto, v_shift, 0);
+            double sd = GetVal(h_sto, v_shift, 1);
             bool pass = Check_Sto(bias, v_shift);
-            vote_details += StringFormat(" | STO: k=%.2f d=%.2f %s(w=%d)", k, d, pass?"PASS":"FAIL", m_settings.Ind_Sto_Weight);
-         }
-         
+            PrintFormat("[IND] Stoch: K=%.2f D=%.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
+                        sk, sd, m_settings.T_StoOB, m_settings.T_StoOS, pass ? "PASS" : "FAIL", m_settings.Ind_Sto_Weight);
+         } else Print("[IND] Stoch: DISABLED → SKIP");
+
+         // Bollinger Bands
          if(m_settings.Ind_Bb_Enabled) {
-            double mid = GetVal(h_bb, v_shift, 0);
-            double cl = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+            double bb_mid = GetVal(h_bb, v_shift, 0);
+            double cl_bb  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             bool pass = Check_BB(bias, v_shift);
-            vote_details += StringFormat(" | BB: mid=%.5f cl=%.5f %s(w=%d)", mid, cl, pass?"PASS":"FAIL", m_settings.Ind_Bb_Weight);
-         }
-         
+            PrintFormat("[IND] BB: mid=%.5f close=%.5f → %s (w=%d)",
+                        bb_mid, cl_bb, pass ? "PASS" : "FAIL", m_settings.Ind_Bb_Weight);
+         } else Print("[IND] BB: DISABLED → SKIP");
+
+         // PSAR
          if(m_settings.Ind_Psar_Enabled) {
-            double p = GetVal(h_psar, v_shift);
-            double cl = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+            double psar_v = GetVal(h_psar, v_shift);
+            double cl_p   = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             bool pass = (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift));
             string flip_info = "";
             if(m_settings.Vote_AllowPsarFlip) {
-               int bars_since = GetBarsSinceLastFlip(bias, v_shift);
-               if(bars_since == INT_MAX)
-                  flip_info = " N=none";
-               else {
-                  int countdown = m_settings.Vote_PsarFlipDelay - bars_since;
-                  flip_info = StringFormat(" N=%d", MathMax(0, countdown));
-               }
+               int bars_since_flip = GetBarsSinceLastFlip(bias, v_shift);
+               if(bars_since_flip == INT_MAX)
+                  flip_info = " flip=none";
+               else
+                  flip_info = StringFormat(" flip=%d bars ago (N=%d)", bars_since_flip,
+                                           MathMax(0, m_settings.Vote_PsarFlipDelay - bars_since_flip));
             }
-            vote_details += StringFormat(" | PSAR: sar=%.5f cl=%.5f%s %s(w=%d)", p, cl, flip_info, pass?"PASS":"FAIL", m_settings.Ind_Psar_Weight);
-         }
-         
+            PrintFormat("[IND] PSAR: dot=%.5f close=%.5f%s → %s (w=%d)",
+                        psar_v, cl_p, flip_info, pass ? "PASS" : "FAIL", m_settings.Ind_Psar_Weight);
+         } else Print("[IND] PSAR: DISABLED → SKIP");
+
+         // P123
          if(m_settings.Ind_P123_Enabled) {
             bool pass = Check_P123(bias, v_shift);
-            vote_details += StringFormat(" | P123: %s(w=%d)", pass?"PASS":"FAIL", m_settings.Ind_P123_Weight);
-         }
-         
+            PrintFormat("[IND] P123: → %s (w=%d)", pass ? "PASS" : "FAIL", m_settings.Ind_P123_Weight);
+         } else Print("[IND] P123: DISABLED → SKIP");
+
+         // Ross Hook
          if(m_settings.Ind_Ross_Enabled) {
             bool pass = Check_Ross(bias, v_shift);
-            vote_details += StringFormat(" | ROSS: %s(w=%d)", pass?"PASS":"FAIL", m_settings.Ind_Ross_Weight);
-         }
-         
-         Print(vote_details);
+            PrintFormat("[IND] RossHook: → %s (w=%d)", pass ? "PASS" : "FAIL", m_settings.Ind_Ross_Weight);
+         } else Print("[IND] RossHook: DISABLED → SKIP");
+
+         // ATR Vote (soft)
+         if(m_settings.Use_ATRVote)
+            PrintFormat("[IND] ATR Vote: %.1f pips → %s (w=1)",
+                        atr_pips, m_diag_last_atr_ok ? "PASS" : "FAIL");
+         else
+            Print("[IND] ATR Vote: DISABLED → SKIP");
       }
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: END =====
 
@@ -2809,17 +2862,17 @@ public:
             m_diag_last_reason="OK";
             m_signals_generated++;
             m_stats.signals_confirmed++;
-            if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=%d (ALL votes pass, weight=%.2f)", bias, vote_weight);
+            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=%d (ALL votes pass, weight=%.2f)", bias, vote_weight);
             return bias;
          }
          if(any_failure) {
             if(m_diag_last_reason == "") m_diag_last_reason = first_failure;
-            if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=0 REJECT (full-eval: %s)", m_diag_last_reason);
+            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
             return 0;
          }
          m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
          m_reject_votes++;
-         if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=0 REJECT (%s)", m_diag_last_reason);
+         if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
          return 0;
       }
       else
@@ -2829,17 +2882,17 @@ public:
             m_diag_last_reason="OK";
             m_signals_generated++;
             m_stats.signals_confirmed++;
-            if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=%d (votes %.2f all pass)", bias, vote_weight);
+            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=%d (votes %.2f all pass)", bias, vote_weight);
             return bias; 
          }
          if(any_failure) {
             if(m_diag_last_reason == "") m_diag_last_reason = first_failure;
-            if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=0 REJECT (full-eval: %s)", m_diag_last_reason);
+            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
             return 0;
          }
          m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
          m_reject_votes++;
-         if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=0 REJECT (%s)", m_diag_last_reason);
+         if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
          return 0;
       }
 
