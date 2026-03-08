@@ -140,6 +140,10 @@ private:
    // --- 2e. GRANULAR REJECTION STATISTICS ---
    SRejectionStats m_stats;
 
+   // --- 2f. PSAR FLIP TRACKING ---
+   datetime m_psar_last_flip_time;       // Time of last PSAR flip (0 = no flip recorded)
+   int      m_psar_last_flip_direction;  // 1=bullish flip, -1=bearish flip, 0=none
+
    // --- 3. DATA HELPERS ---
    // Simplified buffer access for cleaner logic code
    double GetVal(int handle, int shift, int buffer_num=0) const {
@@ -428,58 +432,85 @@ private:
       return (bias==1) ? (cl > p) : (cl < p);
    }
 
-   // PSAR helper: count direction-changes (flips) in the PSAR signal over a lookback window.
-   // A flip occurs when PSAR switches from above price to below price (or vice-versa).
-   // Returns the number of such flips in bars [lookback..1] (bar 0 is forming, excluded).
-   int CountPSARFlips(int lookback) {
-      if(lookback < 2) return 0;  // Need at least 2 bars to detect flip
+   // PSAR flip helper: detect if a flip occurred at the given bar shift.
+   // A flip occurs when PSAR crosses from above price to below price (bullish: +1)
+   // or from below price to above price (bearish: -1).
+   // Returns 1 (bullish flip), -1 (bearish flip), or 0 (no flip / insufficient data).
+   // Uses closed bars only: checks shift vs shift+1 (shift+1 is the previous closed bar).
+   int DetectPSARFlipAt(int shift) {
+      double psar_curr = GetVal(h_psar, shift);
+      double cl_curr   = iClose(m_symbol, PERIOD_CURRENT, shift);
+      double psar_prev = GetVal(h_psar, shift + 1);
+      double cl_prev   = iClose(m_symbol, PERIOD_CURRENT, shift + 1);
 
-      double psar0 = GetVal(h_psar, lookback);
-      double cl0   = iClose(m_symbol, PERIOD_CURRENT, lookback);
-      if(psar0 == 0.0 || cl0 == 0.0) return 0;
-      bool prev_bullish = (cl0 > psar0);
+      if(psar_curr == 0.0 || cl_curr == 0.0 || psar_prev == 0.0 || cl_prev == 0.0)
+         return 0;
 
-      int flips = 0;
-      for(int i = lookback - 1; i >= 1; i--)
-      {
-         double psar_i = GetVal(h_psar, i);
-         double cl_i   = iClose(m_symbol, PERIOD_CURRENT, i);
-         if(psar_i == 0.0 || cl_i == 0.0) continue;
-         bool curr_bullish = (cl_i > psar_i);
-         if(curr_bullish != prev_bullish) flips++;
-         prev_bullish = curr_bullish;
-      }
-      return flips;
+      bool curr_bullish = (cl_curr > psar_curr);
+      bool prev_bullish = (cl_prev > psar_prev);
+
+      if(curr_bullish && !prev_bullish) return  1;   // Bullish flip: PSAR moved below price
+      if(!curr_bullish && prev_bullish) return -1;   // Bearish flip: PSAR moved above price
+      return 0;
    }
 
-   // Vote 9 (enhanced): PSAR with flip-count validation.
-   // Requires basic PSAR position check AND a recent trend change (1–2 flips in the
-   // lookback window) to confirm the signal reflects a genuine fresh reversal rather
-   // than a stale or choppy market condition.  Mirrors the Python system's logic.
+   // PSAR flip tracker: call once per bar close to record the most recent flip.
+   // If a flip is detected at the given shift, stores its time and direction.
+   void UpdatePSARFlipTracking(int shift = 1) {
+      int flip = DetectPSARFlipAt(shift);
+      if(flip != 0) {
+         m_psar_last_flip_time      = iTime(m_symbol, PERIOD_CURRENT, shift);
+         m_psar_last_flip_direction = flip;
+      }
+   }
+
+   // Returns the number of bars elapsed since the last recorded PSAR flip,
+   // measured from current_shift. Returns INT_MAX if no flip has been recorded.
+   int GetBarsSinceLastFlip(int current_shift) {
+      if(m_psar_last_flip_time == 0) return INT_MAX;
+      // Find the bar index of the flip time
+      int flip_bar = iBarShift(m_symbol, PERIOD_CURRENT, m_psar_last_flip_time, false);
+      if(flip_bar < 0) return INT_MAX;
+      int elapsed = flip_bar - current_shift;
+      // If elapsed is negative, the flip is in the future relative to current_shift (shouldn't occur)
+      return (elapsed < 0) ? INT_MAX : elapsed;
+   }
+
+   // Vote 9 (enhanced): PSAR with countdown-based flip validation.
+   // Passes only if:
+   //   1. PSAR dot is on the correct side of price (basic position check)
+   //   2. A flip has been recorded matching the bias direction
+   //   3. The flip occurred within the last Vote_PsarFlipDelay bars
    bool Check_PSAR_WithFlip(int bias, int shift) {
-      // 1. PSAR dot must be on correct side NOW (at shift=1 for TS evaluation)
+      // 1. PSAR dot must be on correct side NOW
       if(!Check_PSAR(bias, shift)) return false;
 
-      // 2. Check for flip within configured lookback window
-      int lookback = m_settings.Vote_PsarFlipLookback;
-      int flips = CountPSARFlips(lookback);
-
-      // 3. Require at least MinFlips (trend changed recently)
-      if(flips < m_settings.Vote_PsarMinFlips) {
-         m_diag_last_reason = StringFormat("PSAR_NO_RECENT_FLIP (flips=%d, min=%d, lookback=%d)",
-                                           flips, m_settings.Vote_PsarMinFlips, lookback);
+      // 2. Flip must have been recorded
+      if(m_psar_last_flip_time == 0) {
+         m_diag_last_reason = "PSAR_NO_FLIP_RECORDED";
          return false;
       }
 
-      // 4. Optional: Reject if too choppy (MaxFlips=0 means no limit)
-      if(m_settings.Vote_PsarMaxFlips > 0 && flips > m_settings.Vote_PsarMaxFlips) {
-         m_diag_last_reason = StringFormat("PSAR_TOO_CHOPPY (flips=%d, max=%d, lookback=%d)",
-                                           flips, m_settings.Vote_PsarMaxFlips, lookback);
+      // 3. Flip direction must match bias
+      if(m_psar_last_flip_direction != bias) {
+         m_diag_last_reason = StringFormat("PSAR_FLIP_WRONG_DIR (flip_dir=%d, bias=%d)",
+                                           m_psar_last_flip_direction, bias);
+         return false;
+      }
+
+      // 4. Calculate bars since flip and compare against delay
+      int bars_since = GetBarsSinceLastFlip(shift);
+      int delay      = m_settings.Vote_PsarFlipDelay;
+
+      if(bars_since > delay) {
+         m_diag_last_reason = StringFormat("PSAR_FLIP_EXPIRED (bars_since=%d, delay=%d)",
+                                           bars_since, delay);
          return false;
       }
 
       return true;
    }
+
    
    // Vote 10: Pattern 1-2-3 (Breakout)
    bool Check_P123(int bias, int shift) {
@@ -913,6 +944,10 @@ public:
       m_reject_votes      = 0;
 
       ZeroMemory(m_stats);
+
+      // Initialize PSAR flip tracking
+      m_psar_last_flip_time      = 0;
+      m_psar_last_flip_direction = 0;
    }
 
    // --- DIAGNOSTIC GETTERS (for Cockpit/UI) ---
@@ -1926,6 +1961,10 @@ public:
    //==========================================================================
    int EvaluateTS() 
    {
+      // Update PSAR flip tracking on each bar close (uses shift=1 for closed bar)
+      if(m_settings.Vote_AllowPsarFlip)
+         UpdatePSARFlipTracking(m_settings.Vote_EvalShift);
+
       // ═══════════════════════════════════════════════════════════════
       // 260304_PR1: Update phase diagnostics (passive - doesn't affect logic)
       // Phase detection is DISABLED by default (PhaseDetectionEnabled = false)
@@ -2608,8 +2647,16 @@ public:
             double p = GetVal(h_psar, v_shift);
             double cl = iClose(m_symbol, PERIOD_CURRENT, v_shift);
             bool pass = (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift));
-            int flips = (m_settings.Vote_AllowPsarFlip ? CountPSARFlips(m_settings.Vote_PsarFlipLookback) : -1);
-            string flip_info = (m_settings.Vote_AllowPsarFlip ? StringFormat(" flips=%d", flips) : "");
+            string flip_info = "";
+            if(m_settings.Vote_AllowPsarFlip) {
+               int bars_since = GetBarsSinceLastFlip(v_shift);
+               if(bars_since == INT_MAX)
+                  flip_info = " N=none";
+               else {
+                  int countdown = m_settings.Vote_PsarFlipDelay - bars_since;
+                  flip_info = StringFormat(" N=%d", MathMax(0, countdown));
+               }
+            }
             vote_details += StringFormat(" | PSAR: sar=%.5f cl=%.5f%s %s(w=%d)", p, cl, flip_info, pass?"PASS":"FAIL", m_settings.Ind_Psar_Weight);
          }
          

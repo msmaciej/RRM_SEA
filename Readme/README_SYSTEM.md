@@ -604,7 +604,7 @@ This architecture matches the proven Python reference system where TS+ signals o
 3. **EvaluateTE() function**: New shift=0 validation layer (spread/time/news only, no signal re-validation)
 4. **Vote_EvalShift setting**: Controls TS evaluation bar shift (default=1, forced in presets)
 5. **VOTE_MODE_ALL enforcement**: All 7 presets require unanimous indicator agreement
-6. **PSAR flip-count**: `CountPSARFlips()` and `Check_PSAR_WithFlip()` validate trend strength
+6. **PSAR flip countdown**: `DetectPSARFlipAt()`, `UpdatePSARFlipTracking()`, `GetBarsSinceLastFlip()`, and `Check_PSAR_WithFlip()` implement countdown-based flip validation
 
 ### Process Flow Diagram
 
@@ -617,7 +617,7 @@ flowchart TD
     TSEval --> CheckIndicators{Check ALL Indicators\nVOTE_MODE_ALL}
 
     CheckIndicators --> PSARCheck{PSAR Vote}
-    PSARCheck -->|FLIP mode| PSARFlip[Check flip in last N bars\nAND dot on correct side]
+    PSARCheck -->|FLIP mode| PSARFlip[Check bars since last flip\nAND dot on correct side]
     PSARCheck -->|DOT mode| PSARDot[Check dot position at shift=1]
 
     PSARFlip --> PSARResult{PSAR Pass?}
@@ -673,7 +673,7 @@ flowchart TD
 ```
 Bar N+2 closes (shift=1 from current perspective):
   ├─ TS evaluation: ALL indicators checked including PSAR
-  ├─ PSAR FLIP mode: Check if flip occurred in last 5 bars AND dot on correct side
+  ├─ PSAR FLIP mode: Check bars since last flip <= delay AND dot on correct side
   └─ If ALL pass → TS=1 stored
 
 Bar N+1 opens (shift=0):
@@ -691,9 +691,10 @@ Bar N closes (shift=0→1):
 ### PSAR Logic Modes
 
 **Mode A: PSAR FLIP (Vote_AllowPsarFlip=true)**
-- Requires flip within last N bars (`Vote_PsarFlipLookback`)
-- Flip "remembered" for N candles via sliding window
-- Example: Flip at bar 5, lookback=5 → valid for bars 4,3,2,1,0
+- Flip is detected when PSAR crosses price on a closed bar and stored with its timestamp
+- Each bar calculates `bars_since_flip` from the stored flip time
+- Passes only if `bars_since_flip <= Vote_PsarFlipDelay` and dot is on correct side
+- Example: Flip at bar 5, delay=2 → valid for bars 5 (N=2) and 4 (N=1), expires at bar 3
 
 **Mode B: Simple PSAR DOT (Vote_AllowPsarFlip=false)**
 - Just checks: is dot on correct side at shift=1?
