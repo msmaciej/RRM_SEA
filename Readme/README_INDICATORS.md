@@ -1341,7 +1341,20 @@ Inp_PSAR_TrailPipsCushion = 5.0  // Auto-scales by TF and pair type
 - Applies a fixed pips cushion below/above PSAR dot
 - Auto-scales based on timeframe (M1: 0.5×, M5: 0.8×, M15: 1.0×, H1+: 2.0×)
 - Auto-adjusts for JPY pairs (×100 vs ×10 for standard pairs)
-- Uses PSAR value at shift=1 (last confirmed bar) to avoid repainting
+- Uses PSAR value at configurable bar-shift delay to avoid repainting
+
+**PSAR Trailing Delay Parameter:**
+```mql5
+Inp_PSAR_TrailDelay = 1  // Bar shift delay (1-3)
+```
+- `1` = use PSAR at shift=1 (last confirmed bar) — fast response
+- `2` = use PSAR at shift=2 (2 bars ago) — wait for confirmation
+- `3` = use PSAR at shift=3 (3 bars ago) — very conservative
+
+**When to Use:**
+- Lower timeframes (M1-M15): `delay=1` (fast response)
+- Medium timeframes (M30-H1): `delay=1` or `2` (balanced)
+- Higher timeframes (H4-D1): `delay=2` or `3` (avoid whipsaws)
 
 **2. PSAR_CUSHION_ATR (Dynamic ATR):**
 ```mql5

@@ -515,7 +515,7 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
       if(Settings.PSAR_TrailCushionMode == PSAR_CUSHION_ATR)
          trail_str += StringFormat("  CushionATR=%.2f", Settings.P_PsarTrailCushionATR);
       else
-         trail_str += StringFormat("  CushionPips=%.1f", Settings.PSAR_TrailPipsCushion);
+         trail_str += StringFormat("  CushionPips=%.1f  Delay=%d", Settings.PSAR_TrailPipsCushion, Settings.PSAR_TrailDelay);
    }
    txt += trail_str + "\n";
 
