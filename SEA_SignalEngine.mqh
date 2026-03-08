@@ -3086,7 +3086,7 @@ public:
    //+------------------------------------------------------------------+
    //| 260308_PR: Check if a specific layer flag is set in a bitfield  |
    //+------------------------------------------------------------------+
-   bool IsLayerActive(EEntryLayer bitfield, EEntryLayer layer)
+   bool IsLayerActive(EEntryLayer bitfield, EEntryLayer layer) const
    {
       return ((int)bitfield & (int)layer) != 0;
    }
