@@ -184,12 +184,25 @@ private:
    bool Check_EMA1(int bias, int shift) {
       double p = iClose(m_symbol, PERIOD_CURRENT, shift);
       double e = GetMAVal(h_ema1, shift);
-      return (bias == 1) ? (p > e) : (p < e);
+      bool result = (bias == 1) ? (p > e) : (p < e);
+      if(m_settings.DebugFlow)
+         PrintFormat("[IND_EMASIG] ENABLED | Price=%.5f EMA=%.5f | Result: %s",
+                     p, e, result ? "PASS" : "FAIL");
+      return result;
    }
    
    // Vote 2: ADX Strength (Trend Strength)
    bool Check_ADX(int shift) { 
-      return GetVal(h_adx, shift) > m_settings.T_Adx; 
+      double adx = GetVal(h_adx, shift);
+      bool result = adx > m_settings.T_Adx;
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_Adx_Enabled)
+            PrintFormat("[IND_ADX] ENABLED | Value=%.2f | Threshold=%.2f | Result: %s",
+                        adx, m_settings.T_Adx, result ? "PASS" : "FAIL");
+         else
+            Print("[IND_ADX] DISABLED - skipped");
+      }
+      return result;
    }
    
    // Vote 3: MACD — two-tier architecture (base mode + optional filters)
@@ -200,7 +213,10 @@ private:
    //   Buffer 2 = MACD Histogram (Main - Signal)
    //
    bool Check_MACD(int bias, int shift) {
-      if(!m_settings.Ind_Macd_Enabled) return false;
+      if(!m_settings.Ind_Macd_Enabled) {
+         if(m_settings.DebugFlow) Print("[IND_MACD] DISABLED - skipped");
+         return false;
+      }
 
       double m = GetVal(h_macd, shift, 0);  // Main line
       double s = GetVal(h_macd, shift, 1);  // Signal line
@@ -250,7 +266,12 @@ private:
          }
       }
 
-      if(!base_pass) return false;
+      if(!base_pass) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (base mode)",
+                        m, s);
+         return false;
+      }
 
       // ══════════════════════════════════════════════════════════
       // STEP 2: Advanced Filters (optional add-ons)
@@ -262,26 +283,48 @@ private:
          double slope  = m - m_prev;
 
          // Check minimum slope threshold (if configured)
-         if(m_settings.MacdSlopeMin > 0 && MathAbs(slope) < m_settings.MacdSlopeMin)
+         if(m_settings.MacdSlopeMin > 0 && MathAbs(slope) < m_settings.MacdSlopeMin) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (slope min)",
+                           m, s);
             return false;
+         }
 
          // Check direction matches bias
          bool accelerating = (bias == 1) ? (slope > 0) : (slope < 0);
-         if(!accelerating) return false;
+         if(!accelerating) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (slope dir)",
+                           m, s);
+            return false;
+         }
       }
 
       // Filter B: Divergence (price vs MACD disagreement)
       if(m_settings.MacdRequireDivergence) {
-         if(!CheckMACDDivergence(bias, shift)) return false;
+         if(!CheckMACDDivergence(bias, shift)) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (divergence)",
+                           m, s);
+            return false;
+         }
       }
 
       // Filter C: Hook (histogram reversal)
       if(m_settings.MacdRequireHook) {
          double h_prev = GetVal(h_macd, shift + 1, 0) - GetVal(h_macd, shift + 1, 1);
          bool hook = (bias == 1) ? (h > 0 && h_prev <= 0) : (h < 0 && h_prev >= 0);
-         if(!hook) return false;
+         if(!hook) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (hook)",
+                           m, s);
+            return false;
+         }
       }
 
+      if(m_settings.DebugFlow)
+         PrintFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: PASS",
+                     m, s);
       return true;  // Base + all filters passed
    }
 
@@ -370,59 +413,107 @@ private:
 
 
    bool Check_RSI(int bias, int shift) {
+      if(!m_settings.Ind_Rsi_Enabled) {
+         if(m_settings.DebugFlow) Print("[IND_RSI] DISABLED - skipped");
+         return true;
+      }
       double r = GetVal(h_rsi, shift);
+      bool result;
       
       if(m_settings.RsiMode == RSI_FILTER_EXTREME) {
          // Buy if NOT Overbought, Sell if NOT Oversold
-         return (bias==1) ? (r < m_settings.T_RsiOB) : (r > m_settings.T_RsiOS);
+         result = (bias==1) ? (r < m_settings.T_RsiOB) : (r > m_settings.T_RsiOS);
       }
-      if(m_settings.RsiMode == RSI_TREND_ABOVE_50) {
-         return (bias==1) ? (r > 50) : (r < 50);
+      else if(m_settings.RsiMode == RSI_TREND_ABOVE_50) {
+         result = (bias==1) ? (r > 50) : (r < 50);
       }
-      // Cross Level Mode
-      return (bias==1) ? (r > m_settings.T_RsiOS) : (r < m_settings.T_RsiOB);
+      else {
+         // Cross Level Mode
+         result = (bias==1) ? (r > m_settings.T_RsiOS) : (r < m_settings.T_RsiOB);
+      }
+      if(m_settings.DebugFlow)
+         PrintFormat("[IND_RSI] ENABLED | Value=%.2f | Result: %s",
+                     r, result ? "PASS" : "FAIL");
+      return result;
    }
    
    // Vote 5: CCI (Zero or Impulse)
    bool Check_CCI(int bias, int shift) {
       double c = GetVal(h_cci, shift);
-      if(m_settings.CciMode == CCI_TREND_ZERO) return (bias==1) ? (c > 0) : (c < 0);
-      return (bias==1) ? (c > 100) : (c < -100);
+      bool result;
+      if(m_settings.CciMode == CCI_TREND_ZERO) result = (bias==1) ? (c > 0) : (c < 0);
+      else result = (bias==1) ? (c > 100) : (c < -100);
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_Cci_Enabled)
+            PrintFormat("[IND_CCI] ENABLED | Value=%.2f | Result: %s",
+                        c, result ? "PASS" : "FAIL");
+         else
+            Print("[IND_CCI] DISABLED - skipped");
+      }
+      return result;
    }
    
    // Vote 6: MFI (Money Flow)
    bool Check_MFI(int bias, int shift) {
-      double m = GetVal(h_mfi, shift);
-      return (bias==1) ? (m > m_settings.T_MfiOB) : (m < m_settings.T_MfiOS);
+      double mfi = GetVal(h_mfi, shift);
+      bool result = (bias==1) ? (mfi > m_settings.T_MfiOB) : (mfi < m_settings.T_MfiOS);
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_Mfi_Enabled)
+            PrintFormat("[IND_MFI] ENABLED | Value=%.2f | Result: %s",
+                        mfi, result ? "PASS" : "FAIL");
+         else
+            Print("[IND_MFI] DISABLED - skipped");
+      }
+      return result;
    }
    
    // Vote 7: Stochastic
    bool Check_Sto(int bias, int shift) {
       double k = GetVal(h_sto, shift, 0);
       double d = GetVal(h_sto, shift, 1);
+      bool result;
       
       if(m_settings.StoMode == STO_CROSS_SIGNAL) 
-         return (bias==1) ? (k > d) : (k < d);
-         
-      // Zone Filter: Buy if NOT overbought
-      return (bias==1) ? (k < m_settings.T_StoOB) : (k > m_settings.T_StoOS);
+         result = (bias==1) ? (k > d) : (k < d);
+      else
+         // Zone Filter: Buy if NOT overbought
+         result = (bias==1) ? (k < m_settings.T_StoOB) : (k > m_settings.T_StoOS);
+
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_Sto_Enabled)
+            PrintFormat("[IND_STOCH] ENABLED | K=%.2f D=%.2f | Result: %s",
+                        k, d, result ? "PASS" : "FAIL");
+         else
+            Print("[IND_STOCH] DISABLED - skipped");
+      }
+      return result;
    }
    
    // Vote 8: Bollinger Bands
    bool Check_BB(int bias, int shift) {
       double mid = GetVal(h_bb, shift, 0);
       double cl  = iClose(m_symbol, PERIOD_CURRENT, shift);
+      bool result;
       
-      if(m_settings.BbMode == BB_TREND_FOLLOW) 
-         return (bias==1) ? (cl > mid) : (cl < mid);
-      
-      // Mean Reversion: Price touched Lower/Upper Band
-      double lower = GetVal(h_bb, shift, 2);
-      double upper = GetVal(h_bb, shift, 1);
-      double low   = iLow(m_symbol, PERIOD_CURRENT, shift);
-      double high  = iHigh(m_symbol, PERIOD_CURRENT, shift);
-      
-      return (bias==1) ? (low <= lower) : (high >= upper);
+      if(m_settings.BbMode == BB_TREND_FOLLOW) {
+         result = (bias==1) ? (cl > mid) : (cl < mid);
+      }
+      else {
+         // Mean Reversion: Price touched Lower/Upper Band
+         double lower = GetVal(h_bb, shift, 2);
+         double upper = GetVal(h_bb, shift, 1);
+         double low   = iLow(m_symbol, PERIOD_CURRENT, shift);
+         double high  = iHigh(m_symbol, PERIOD_CURRENT, shift);
+         result = (bias==1) ? (low <= lower) : (high >= upper);
+      }
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_Bb_Enabled)
+            PrintFormat("[IND_BB] ENABLED | Mid=%.5f Close=%.5f | Result: %s",
+                        mid, cl, result ? "PASS" : "FAIL");
+         else
+            Print("[IND_BB] DISABLED - skipped");
+      }
+      return result;
    }
    
    // Vote 9: PSAR (basic price vs. PSAR position check)
@@ -636,13 +727,20 @@ private:
       double last_down = GetFractalPrice(1); // 1 = LOWER
       double close     = iClose(m_symbol, PERIOD_CURRENT, shift);
       
+      bool result = false;
       // Buy: Breakout above last Upper Fractal
-      if(bias == 1  && last_up > 0   && close > last_up)   return true;
+      if(bias == 1  && last_up > 0   && close > last_up)   result = true;
       // Sell: Breakout below last Lower Fractal
-      if(bias == -1 && last_down > 0 && close < last_down) return true;
+      if(bias == -1 && last_down > 0 && close < last_down) result = true;
       
-      m_diag_last_reason="NEWS";
-                  return false;
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_P123_Enabled)
+            PrintFormat("[IND_P123] ENABLED | Result: %s", result ? "PASS" : "FAIL");
+         else
+            Print("[IND_P123] DISABLED - skipped");
+      }
+      if(!result) m_diag_last_reason = "P123_NO_FRACTAL_BREAKOUT"; // no fractal breakout found
+      return result;
    }
    
    // Vote 11: Ross Hook (Trend-Following Momentum Interlock)
@@ -659,11 +757,15 @@ private:
       int trendSlope = (c > p) ? 1 : (c < p) ? -1 : 0;
       
       // 3. THE "PURIST" INTERLOCK (Breakout + Momentum Alignment)
-      if(fractalBreakout && trendSlope == bias) {
-         return true; 
+      bool result = (fractalBreakout && trendSlope == bias);
+
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_Ross_Enabled)
+            PrintFormat("[IND_ROSS] ENABLED | Result: %s", result ? "PASS" : "FAIL");
+         else
+            Print("[IND_ROSS] DISABLED - skipped");
       }
-      
-      return false;
+      return result;
    }
 
    // --- 12. NEWS HELPERS (CSV calendar_statement.csv) ---
