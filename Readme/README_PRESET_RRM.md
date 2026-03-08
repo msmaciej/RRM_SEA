@@ -223,6 +223,67 @@ Layer detection is most useful with `STRAT_LAYER_DETECTION` and `BIAS_AUTO_PHASE
 
 ---
 
+## Multi-Layer Signal Examples
+
+### Example 1: Single Layer (L2 only)
+```
+Phase: TRENDING_UP
+Active Layers: L2 (EMA2↔EMA3)
+Decision: Enter on L2 pullback-recovery
+TP Target: Medium (balanced R:R)
+```
+
+### Example 2: Stacked Layers (L1+L2)
+```
+Phase: EMERGING_UP
+Active Layers: L1+L2 (EMA1↔EMA2 + EMA2↔EMA3)
+Decision: Strong confirmation — both shallow and medium pullbacks recovering
+TP Target: Use L1 (shorter) to lock profit faster in emerging trend
+```
+
+### Example 3: Triple Stack (L1+L2+L3)
+```
+Phase: TRENDING_UP
+Active Layers: L1+L2+L3 (all layers)
+Decision: Maximum confirmation — entire EMA structure pulling back and recovering
+TP Target: Use L3 (deepest) for extended profit run in strong trend
+```
+
+### Example 4: Blocked Multi-Layer (L2+L3 in EMERGING)
+```
+Phase: EMERGING_UP
+Active Layers: L2+L3 detected
+Decision: BLOCKED — L3 not allowed in EMERGING phase
+Reason: Trend not strong enough for deep pullbacks
+```
+
+### Visual: RRM Layer Selection Logic
+
+```mermaid
+graph TD
+    A[EvaluateTS: Bias & Phase OK] --> B{EnableLayerDetection?}
+    B -->|No| C[Proceed to Votes]
+    B -->|Yes| D[GetEntryLayer<br>Check all 3 layers]
+
+    D --> E{Active Layers?}
+    E -->|NONE| F[REJECT: No pullback]
+    E -->|L1/L2/L3/combo| G{IsLayerAllowedInPhase?}
+
+    G -->|UNORDERED| H[REJECT: All blocked in choppy market]
+    G -->|EMERGING + L3| I[REJECT: L3 too deep for emerging trend]
+    G -->|EMERGING + L1/L2| J[PASS: Shallow/medium OK in emerging]
+    G -->|TRENDING + any| K[PASS: All layers OK in strong trend]
+
+    J --> C
+    K --> C
+    F --> L[Return 0]
+    H --> L
+    I --> L
+    C --> M[Indicator Voting]
+```
+
+---
+
 ## H4 Timeframe Tuning Notes
 
 H4 is a longer timeframe with fewer bars. Expect:

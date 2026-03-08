@@ -337,6 +337,89 @@ sequenceDiagram
     Note over Price,EMA_slow: ✅ Entry signal confirmed
 ```
 
+### Visual: 3-Layer Phase Detection Flow
+
+```mermaid
+graph TD
+    A[Get EMA Values & Slopes<br>at shift=1] --> B1[ValidateLayer L1<br>EMA1 vs EMA2]
+    A --> B2[ValidateLayer L2<br>EMA2 vs EMA3]
+    A --> B3[ValidateLayer L3<br>EMA3 vs EMA4]
+
+    B1 --> C1{Position & Slopes<br>Agree?}
+    C1 -->|Yes LONG| D1[L1 Vote: +1]
+    C1 -->|Yes SHORT| D2[L1 Vote: -1]
+    C1 -->|No| D3[L1 Vote: 0]
+
+    B2 --> E1{Position & Slopes<br>Agree?}
+    E1 -->|Yes LONG| F1[L2 Vote: +1]
+    E1 -->|Yes SHORT| F2[L2 Vote: -1]
+    E1 -->|No| F3[L2 Vote: 0]
+
+    B3 --> G1{Position & Slopes<br>Agree?}
+    G1 -->|Yes LONG| H1[L3 Vote: +1]
+    G1 -->|Yes SHORT| H2[L3 Vote: -1]
+    G1 -->|No| H3[L3 Vote: 0]
+
+    D1 --> I[Count Votes]
+    D2 --> I
+    D3 --> I
+    F1 --> I
+    F2 --> I
+    F3 --> I
+    H1 --> I
+    H2 --> I
+    H3 --> I
+
+    I -->|3 LONG| J1[PHASE_TRENDING_UP<br>Bias = +1]
+    I -->|3 SHORT| J2[PHASE_TRENDING_DN<br>Bias = -1]
+    I -->|2 LONG| K1[PHASE_EMERGING_UP<br>Bias = +1]
+    I -->|2 SHORT| K2[PHASE_EMERGING_DN<br>Bias = -1]
+    I -->|< 2 agree| L[PHASE_UNORDERED<br>Bias = 0]
+```
+
+### Visual: Multi-Layer Signal Detection
+
+```mermaid
+graph LR
+    A[Check Layer 1<br>EMA1↔EMA2] --> B{Pullback-<br>Recovery?}
+    B -->|Yes| C1[L1 Active ✓]
+    B -->|No| C2[L1 Inactive]
+
+    D[Check Layer 2<br>EMA2↔EMA3] --> E{Pullback-<br>Recovery?}
+    E -->|Yes| F1[L2 Active ✓]
+    E -->|No| F2[L2 Inactive]
+
+    G[Check Layer 3<br>EMA3↔EMA4] --> H{Pullback-<br>Recovery?}
+    H -->|Yes| I1[L3 Active ✓]
+    H -->|No| I2[L3 Inactive]
+
+    C1 --> J[Combine Bitfield]
+    F1 --> J
+    I1 --> J
+    C2 --> J
+    F2 --> J
+    I2 --> J
+
+    J --> K{Active<br>Layers?}
+    K -->|L1 only| M1[Entry: Shallow<br>Lower R:R]
+    K -->|L2 only| M2[Entry: Medium<br>Balanced R:R]
+    K -->|L3 only| M3[Entry: Deep<br>Higher R:R]
+    K -->|L1+L2| M4[Multi-Layer Entry<br>Stacked confirmation]
+    K -->|L2+L3| M5[Multi-Layer Entry<br>Stacked confirmation]
+    K -->|L1+L2+L3| M6[Triple Stack Entry<br>Maximum confirmation]
+    K -->|None| M7[LAYER_NONE<br>No entry]
+```
+
+### Phase-Layer Filtering Matrix
+
+| Phase | L1 (Shallow) | L2 (Medium) | L3 (Deep) | Multi-Layer |
+|-------|--------------|-------------|-----------|-------------|
+| **UNORDERED** | ❌ Blocked | ❌ Blocked | ❌ Blocked | ❌ All blocked |
+| **EMERGING** | ✅ Allowed | ✅ Allowed | ❌ Blocked | ✅ L1+L2 only |
+| **TRENDING** | ✅ Allowed | ✅ Allowed | ✅ Allowed | ✅ All combinations |
+
+**Example**: In EMERGING phase, `L1+L2` fires → ALLOWED, `L2+L3` fires → BLOCKED (L3 component rejected)
+
 ---
 
 ### How They Work Together
