@@ -2837,82 +2837,74 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| 260304_PR1: Detect Market Phase Based on 3 Slowest EMAs         |
-   //| Instant EMA snapshot: checks slopes at current bar + EMA order  |
+   //| ValidateLayer: Check alignment of a single EMA pair            |
+   //| Returns: 1=LONG, -1=SHORT, 0=INVALID                           |
+   //+------------------------------------------------------------------+
+   int ValidateLayer(double ema_fast, double ema_slow, int slope_fast, int slope_slow, string layer_name)
+   {
+      bool fast_above_slow = (ema_fast > ema_slow);
+      
+      if(fast_above_slow && slope_fast > 0 && slope_slow > 0) 
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[LAYER %s] LONG: FastEMA %.5f > SlowEMA %.5f slopes %d/%d", 
+                        layer_name, ema_fast, ema_slow, slope_fast, slope_slow);
+         return 1;
+      }
+      
+      if(!fast_above_slow && slope_fast < 0 && slope_slow < 0) 
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[LAYER %s] SHORT: SlowEMA %.5f > FastEMA %.5f slopes %d/%d", 
+                        layer_name, ema_slow, ema_fast, slope_fast, slope_slow);
+         return -1;
+      }
+      
+      if(m_settings.DebugFlow)
+         PrintFormat("[LAYER %s] INVALID: pos=%s slopeF=%d slopeS=%d", 
+                     layer_name, fast_above_slow ? "F>S" : "S>F", slope_fast, slope_slow);
+      return 0;
+   }
+
+   //+------------------------------------------------------------------+
+   //| 260304_PR1: Detect Market Phase Based on 3-Layer EMA Voting     |
+   //| Checks all 4 EMAs across 3 layers; requires majority agreement  |
    //| Returns directional phases (UP/DN) for direct bias mapping      |
    //+------------------------------------------------------------------+
    EMarketPhase DetectMarketPhase(const int shift = 1)
    {
-      // Get the 3 key EMAs for phase classification
-      double ema13 = GetMAVal(h_ema2, shift, 0);  // EMA2 = 13-period
-      double ema34 = GetMAVal(h_ema3, shift, 0);  // EMA3 = 34-period
-      double ema89 = GetMAVal(h_ema4, shift, 0);  // EMA4 = 89-period
+      double ema1 = GetMAVal(h_ema1, shift, 0);
+      double ema2 = GetMAVal(h_ema2, shift, 0);
+      double ema3 = GetMAVal(h_ema3, shift, 0);
+      double ema4 = GetMAVal(h_ema4, shift, 0);
       
-      if(ema13 == EMPTY_VALUE || ema34 == EMPTY_VALUE || ema89 == EMPTY_VALUE)
-      {
-         if(m_settings.DebugFlow)
-            Print("[260304_PHASE] ERROR: Invalid EMA values at shift ", shift);
+      if(ema1 == EMPTY_VALUE || ema2 == EMPTY_VALUE || 
+         ema3 == EMPTY_VALUE || ema4 == EMPTY_VALUE)
          return PHASE_UNORDERED;
-      }
       
-      // STEP 1: Check current slopes (instant, no bar counting)
-      // Slope is determined by comparing EMA at current bar vs previous bar
-      int slope3 = GetSlope(h_ema3, shift);  // EMA3(34) slope
-      int slope4 = GetSlope(h_ema4, shift);  // EMA4(89) slope
+      int slope1 = GetSlope(h_ema1, shift);
+      int slope2 = GetSlope(h_ema2, shift);
+      int slope3 = GetSlope(h_ema3, shift);
+      int slope4 = GetSlope(h_ema4, shift);
       
-      // If slopes don't match or either is flat → UNORDERED (no directional momentum)
-      if(slope3 != slope4 || slope3 == 0)
-      {
-         if(m_settings.DebugFlow)
-            PrintFormat("[260304_PHASE] UNORDERED: slope3=%d, slope4=%d (mismatch or flat)", slope3, slope4);
-         return PHASE_UNORDERED;
-      }
+      int layer1 = ValidateLayer(ema1, ema2, slope1, slope2, "L1");
+      int layer2 = ValidateLayer(ema2, ema3, slope2, slope3, "L2");
+      int layer3 = ValidateLayer(ema3, ema4, slope3, slope4, "L3");
       
-      bool is_long  = (slope3 > 0);
-      bool is_short = (slope3 < 0);
+      int long_votes = 0;
+      int short_votes = 0;
       
-      // STEP 2: Check EMA order (instant structure check at current bar)
-      bool ema2_above_ema3 = (ema13 > ema34);
-      bool ema3_above_ema4 = (ema34 > ema89);
+      if(layer1 == 1) long_votes++;
+      if(layer1 == -1) short_votes++;
+      if(layer2 == 1) long_votes++;
+      if(layer2 == -1) short_votes++;
+      if(layer3 == 1) long_votes++;
+      if(layer3 == -1) short_votes++;
       
-      // === TRENDING: Proper EMA order (EMAs fully stacked) ===
-      if(is_long && ema2_above_ema3 && ema3_above_ema4)
-      {
-         if(m_settings.DebugFlow)
-            PrintFormat("[260304_PHASE] TRENDING_UP: slopes=(%d,%d) EMA13=%.5f > EMA34=%.5f > EMA89=%.5f",
-                        slope3, slope4, ema13, ema34, ema89);
-         return PHASE_TRENDING_UP;
-      }
-      
-      if(is_short && !ema2_above_ema3 && !ema3_above_ema4)
-      {
-         if(m_settings.DebugFlow)
-            PrintFormat("[260304_PHASE] TRENDING_DN: slopes=(%d,%d) EMA13=%.5f < EMA34=%.5f < EMA89=%.5f",
-                        slope3, slope4, ema13, ema34, ema89);
-         return PHASE_TRENDING_DN;
-      }
-      
-      // === EMERGING: EMA4 sandwiched between EMA2 and EMA3 (trend forming) ===
-      if(is_long && ema89 > ema34 && ema89 < ema13)
-      {
-         if(m_settings.DebugFlow)
-            PrintFormat("[260304_PHASE] EMERGING_UP: slopes=(%d,%d) EMA13=%.5f > EMA89=%.5f > EMA34=%.5f",
-                        slope3, slope4, ema13, ema89, ema34);
-         return PHASE_EMERGING_UP;
-      }
-      
-      if(is_short && ema89 < ema34 && ema89 > ema13)
-      {
-         if(m_settings.DebugFlow)
-            PrintFormat("[260304_PHASE] EMERGING_DN: slopes=(%d,%d) EMA13=%.5f < EMA89=%.5f < EMA34=%.5f",
-                        slope3, slope4, ema13, ema89, ema34);
-         return PHASE_EMERGING_DN;
-      }
-      
-      // UNORDERED (Default): slopes agree but EMA order doesn't match any valid pattern
-      if(m_settings.DebugFlow)
-         PrintFormat("[260304_PHASE] UNORDERED: slopes=(%d,%d) EMA13=%.5f, EMA34=%.5f, EMA89=%.5f",
-                     slope3, slope4, ema13, ema34, ema89);
+      if(long_votes == 3) return PHASE_TRENDING_UP;
+      if(short_votes == 3) return PHASE_TRENDING_DN;
+      if(long_votes == 2) return PHASE_EMERGING_UP;
+      if(short_votes == 2) return PHASE_EMERGING_DN;
       
       return PHASE_UNORDERED;
    }
