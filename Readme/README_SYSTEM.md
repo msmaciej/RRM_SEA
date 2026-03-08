@@ -81,11 +81,13 @@ Logic:
 
 **Option 2: `BIAS_AUTO_PHASE` (Market Phase method)**
 ```
-Uses: 4 EMAs (EMA1, EMA2, EMA3, EMA4) structure analysis
+Uses: 4 EMAs (EMA1, EMA2, EMA3, EMA4) 3-layer hierarchical validation
 Logic:
-1. Analyze EMA2, EMA3, EMA4 relative positions and slopes
-2. Determine Market Phase (TRENDING / EMERGING / UNORDERED)
-3. Extract Bias direction from phase structure
+1. Validate Layer 1 (EMA1-EMA2): position + slope agreement
+2. Validate Layer 2 (EMA2-EMA3): position + slope agreement
+3. Validate Layer 3 (EMA3-EMA4): position + slope agreement
+4. Count layer votes: 3=TRENDING, 2=EMERGING, <2=UNORDERED
+5. Extract Bias direction from phase result
 Special: UNORDERED phase forces Bias = 0 → blocks all trades
 ```
 
@@ -98,46 +100,195 @@ Use case: Override mode, single-direction backtesting
 
 ---
 
+### Complete TS Evaluation Pipeline
+
+The TS evaluation follows this exact order:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ EvaluateTS() - Called on Bar Close (shift=1)                │
+└─────────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────┐
+│ STEP 1: PRE-FILTERS (Hard Gates)                            │
+│   ✓ Spread < MaxSpreadPips                                  │
+│   ✓ MinATR < ATR < MaxATR                                   │
+│   ✓ Time within session window                              │
+│   ✓ No high-impact news events                              │
+│   → ANY fail → return 0 (unless Stats_FullEvaluation=true)  │
+└─────────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────┐
+│ STEP 2: DIAGNOSTIC UPDATES (Passive - For UI/Stats)         │
+│   UpdatePhaseDiagnostics(shift):                            │
+│     → m_diag_last_phase = TRENDING/EMERGING/UNORDERED       │
+│   UpdateLayerDiagnostics(shift):                            │
+│     → m_diag_last_entry_layer = L1/L2/L3/NONE              │
+│   → Does NOT block trades yet                               │
+└─────────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────┐
+│ STEP 3: BIAS DETERMINATION (Active - Returns 1/-1/0)        │
+│                                                             │
+│ Route by BiasMode:                                          │
+│ ┌─────────────────────────────────────────────────────┐    │
+│ │ BIAS_MANUAL:                                        │    │
+│ │   → bias = user setting (LONG/SHORT/NONE)           │    │
+│ └─────────────────────────────────────────────────────┘    │
+│ ┌─────────────────────────────────────────────────────┐    │
+│ │ BIAS_AUTO (Traditional):                            │    │
+│ │   → bias = FastEMA vs SlowEMA + slope check         │    │
+│ └─────────────────────────────────────────────────────┘    │
+│ ┌─────────────────────────────────────────────────────┐    │
+│ │ BIAS_AUTO_PHASE (4-EMA Phase):                      │    │
+│ │   → GetBias_PhaseBased():                           │    │
+│ │      • Uses m_diag_last_phase (from Step 2)         │    │
+│ │      • TRENDING/EMERGING → bias = ±1                │    │
+│ │      • UNORDERED → bias = 0                         │    │
+│ │                                                     │    │
+│ │   Phase Detection Logic:                            │    │
+│ │   DetectMarketPhase():                              │    │
+│ │     1. Validate Layer 1 (EMA1-EMA2): pos+slopes     │    │
+│ │     2. Validate Layer 2 (EMA2-EMA3): pos+slopes     │    │
+│ │     3. Validate Layer 3 (EMA3-EMA4): pos+slopes     │    │
+│ │     4. Count layer votes:                           │    │
+│ │        • 3 of 3 agree → TRENDING                    │    │
+│ │        • 2 of 3 agree → EMERGING                    │    │
+│ │        • < 2 agree → UNORDERED                      │    │
+│ └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│   → If bias = 0 → return 0 (unless Stats_FullEvaluation)   │
+└─────────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────┐
+│ STEP 4: PHASE-LAYER FILTERING (Active - Blocks Trades)      │
+│   Only if EnableLayerDetection=true AND                     │
+│          PhaseDetectionEnabled=true                         │
+│                                                             │
+│   Rules:                                                    │
+│   • UNORDERED phase → Block ALL layers (L1/L2/L3)          │
+│   • EMERGING phase → Block Layer 3 (deep pullback risky)   │
+│   • TRENDING phase → Allow ALL layers                       │
+│                                                             │
+│   → If blocked → return 0 (unless Stats_FullEvaluation)    │
+└─────────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────┐
+│ STEP 5: INDICATOR VOTING (Multiplicative)                   │
+│   For each enabled indicator (EmaSig, MACD, PSAR, CCI...): │
+│   • Check vote against bias direction                       │
+│   • In VOTE_MODE_ALL: ALL must pass                         │
+│   • In VOTE_MODE_THRESHOLD: Sum weights ≥ threshold         │
+│                                                             │
+│   → If voting fails → return 0                              │
+└─────────────────────────────────────────────────────────────┘
+                          ↓
+              ┌───────────────────┐
+              │  TS = 1 or -1 ✅  │
+              │  (Signal Valid)   │
+              └───────────────────┘
+                          ↓
+                   Next Bar Opens
+                          ↓
+              ┌───────────────────┐
+              │   EvaluateTE()    │
+              │  (Execution Gate) │
+              └───────────────────┘
+```
+
+**Key Points:**
+1. **Diagnostic vs Active**: Steps 1-2 populate variables; Steps 3-5 make pass/fail decisions
+2. **Phase Detection**: Only active when `BiasMode = BIAS_AUTO_PHASE`
+3. **Layer Filtering**: Only active when BOTH `PhaseDetectionEnabled=true` AND `EnableLayerDetection=true`
+4. **Stats_FullEvaluation**: When `true`, continues evaluating all steps even after failures (for statistics)
+
+---
+
 ### Market Phase
 
-Market Phase is **only** evaluated when `BiasMode = BIAS_AUTO_PHASE`. It classifies the quality of EMA structure using EMA2, EMA3, and EMA4.
+Market Phase is **only** evaluated when `BiasMode = BIAS_AUTO_PHASE`. It uses **3-layer hierarchical validation** across all 4 EMAs.
 
 **`PHASE_TRENDING`**
 ```
-├─ EMAs properly ordered: EMA2 > EMA3 > EMA4 (LONG) or reversed (SHORT)
-├─ All slopes aligned in same direction
-└─ Result: Allow trades, Bias = 1 or -1 (from EMA order)
+├─ All 3 layers confirm same direction (3 of 3 votes agree)
+├─ Each layer: fast EMA above slow AND both slopes aligned
+└─ Result: Allow trades, Bias = 1 or -1
 ```
 
 **`PHASE_EMERGING`**
 ```
-├─ EMA4 temporarily between EMA2 and EMA3
-├─ Trend is forming / strengthening
-└─ Result: Allow trades, Bias = 1 or -1 (from emerging direction)
+├─ 2 of 3 layers confirm same direction
+├─ Trend is forming — partial alignment
+└─ Result: Allow trades (but block L3), Bias = 1 or -1
 ```
 
 **`PHASE_UNORDERED`**
 ```
-├─ Any other EMA configuration (mixed, crossing, contradicting)
+├─ Fewer than 2 layers agree on direction
 ├─ No clear trend structure
 └─ Result: Block ALL trades (TS = 0), Bias forced to 0
+```
+
+### Phase Detection: 3-Layer Hierarchical Validation
+
+When `BiasMode = BIAS_AUTO_PHASE`, phase detection evaluates **3 interwired sub-markets** simultaneously.
+
+Each layer checks **two conditions**:
+1. **Position**: Which EMA is on top?
+2. **Slopes**: Do both EMAs' slopes agree with the position?
+
+**Layer 1 (WEAK) - EMA1 vs EMA2:**
+```
+LONG:  EMA1 > EMA2, slope1=UP, slope2=UP   → Layer 1 votes LONG
+SHORT: EMA2 > EMA1, slope1=DN, slope2=DN   → Layer 1 votes SHORT
+Other: Any mismatch between pos and slopes  → INVALID (no vote)
+```
+
+**Layer 2 (MEDIUM) - EMA2 vs EMA3:**
+Same validation logic using EMA2 and EMA3 values/slopes.
+
+**Layer 3 (STRONG) - EMA3 vs EMA4:**
+Same validation logic using EMA3 and EMA4 values/slopes.
+
+**Phase Determination by Layer Votes:**
+
+| Long Votes | Short Votes | Phase Result       | Bias |
+|------------|-------------|-------------------|------|
+| 3          | 0           | PHASE_TRENDING_UP  | +1   |
+| 0          | 3           | PHASE_TRENDING_DN  | -1   |
+| 2          | 0           | PHASE_EMERGING_UP  | +1   |
+| 0          | 2           | PHASE_EMERGING_DN  | -1   |
+| < 2        | < 2         | PHASE_UNORDERED    | 0    |
+
+**Debug output example** (when `DebugFlow = true`):
+```
+[LAYER L1_WEAK]   LONG confirmed: FastEMA > SlowEMA, slopes both UP
+[LAYER L2_MEDIUM] LONG confirmed: FastEMA > SlowEMA, slopes both UP
+[LAYER L3_STRONG] INVALID: pos=F>S, slopeF=+1, slopeS=0
+[260304_PHASE]    Layer votes: LONG=2 SHORT=0 (L1=1 L2=1 L3=0)
+[260304_PHASE]    EMERGING_UP: 2 LONG votes
+[260304_BIAS]     EMERGING_UP → LONG bias (trend forming)
 ```
 
 **Market Phase Determination Flow:**
 ```mermaid
 graph TD
-    A[Analyze EMA2, EMA3, EMA4<br/>positions and slopes] --> B{Check EMA Order}
+    A[Get all 4 EMA values<br/>and slopes at shift] --> B[ValidateLayer L1<br/>EMA1 vs EMA2]
+    B --> C[ValidateLayer L2<br/>EMA2 vs EMA3]
+    C --> D[ValidateLayer L3<br/>EMA3 vs EMA4]
+    D --> E{Count votes}
 
-    B -->|Properly Ordered<br/>EMA2 &gt; EMA3 &gt; EMA4 LONG<br/>or EMA2 &lt; EMA3 &lt; EMA4 SHORT| C[PHASE_TRENDING]
-    B -->|EMA4 Between<br/>EMA2 and EMA3| D[PHASE_EMERGING]
-    B -->|Mixed or<br/>Contradicting| E[PHASE_UNORDERED]
+    E -->|3 LONG votes| F[PHASE_TRENDING_UP]
+    E -->|3 SHORT votes| G[PHASE_TRENDING_DN]
+    E -->|2 LONG votes| H[PHASE_EMERGING_UP]
+    E -->|2 SHORT votes| I[PHASE_EMERGING_DN]
+    E -->|< 2 agree| J[PHASE_UNORDERED]
 
-    C --> F[✅ Allow Trades<br/>Extract Bias Direction]
-    D --> F
-    E --> G[❌ Block All Trades<br/>TS = 0]
-
-    F --> H[Continue to<br/>Entry Layer Check]
-    G --> I[Stop Evaluation]
+    F --> K[✅ Bias = +1]
+    G --> L[✅ Bias = -1]
+    H --> K
+    I --> L
+    J --> M[❌ Bias = 0]
 ```
 
 ---
