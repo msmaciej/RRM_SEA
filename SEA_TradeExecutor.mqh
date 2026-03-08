@@ -663,6 +663,24 @@ private:
    }
 
    //+------------------------------------------------------------------+
+   //| HELPER: Scale pips cushion to price distance (TF + JPY aware)    |
+   //+------------------------------------------------------------------+
+   double ScalePipsToPriceDistance(double base_pips) {
+      // Apply timeframe multiplier
+      double scaled_pips = base_pips;
+      if(_Period == PERIOD_M1)           scaled_pips *= 0.5;
+      else if(_Period == PERIOD_M5)      scaled_pips *= 0.8;
+      else if(_Period == PERIOD_M15)     scaled_pips *= 1.0;
+      else if(_Period >= PERIOD_H1)      scaled_pips *= 2.0;
+
+      // Apply currency pair multiplier
+      bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
+      double price_distance = scaled_pips * _Point * (isJPY ? 100.0 : 10.0);
+
+      return price_distance;
+   }
+
+   //+------------------------------------------------------------------+
    //| HELPER: Calculate SL distance in pips using swing high/low      |
    //| Returns pips distance, or 0 if swing level could not be found.  |
    //+------------------------------------------------------------------+
@@ -737,13 +755,7 @@ private:
                   {
                      double psar = GetPsarForTrail(1);
                      if(psar > 0.0) {
-                        double cushion_pips = m_settings.SL_PsarPipsCushion;
-                        if(_Period == PERIOD_M1)           cushion_pips *= 0.5;
-                        else if(_Period == PERIOD_M5)      cushion_pips *= 0.8;
-                        else if(_Period == PERIOD_M15)     cushion_pips *= 1.0;
-                        else if(_Period >= PERIOD_H1)      cushion_pips *= 2.0;
-                        bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
-                        double cushion_price = cushion_pips * _Point * (isJPY ? 100.0 : 10.0);
+                        double cushion_price = ScalePipsToPriceDistance(m_settings.SL_PsarPipsCushion);
                         sl = isBuy ? (psar - cushion_price) : (psar + cushion_price);
                      } else {
                         sl = isBuy ? (price - atr_dist) : (price + atr_dist);
@@ -759,13 +771,7 @@ private:
                      else
                         swing = GetFractalForTrail(0);
                      if(swing > 0.0) {
-                        double cushion_pips = m_settings.SL_SwingPipsCushion;
-                        if(_Period == PERIOD_M1)           cushion_pips *= 0.5;
-                        else if(_Period == PERIOD_M5)      cushion_pips *= 0.8;
-                        else if(_Period == PERIOD_M15)     cushion_pips *= 1.0;
-                        else if(_Period >= PERIOD_H1)      cushion_pips *= 2.0;
-                        bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
-                        double cushion_price = cushion_pips * _Point * (isJPY ? 100.0 : 10.0);
+                        double cushion_price = ScalePipsToPriceDistance(m_settings.SL_SwingPipsCushion);
                         sl = isBuy ? (swing - cushion_price) : (swing + cushion_price);
                      } else {
                         sl = isBuy ? (price - atr_dist) : (price + atr_dist);
@@ -1576,8 +1582,11 @@ public:
       }
       else if(m_settings.TrailMode == TRAIL_PSAR) {
          // Trail stop to Parabolic SAR with cushion (PIPS or ATR mode).
-         // Uses last confirmed PSAR (shift=1) to avoid intra-bar repainting.
-         double psar = GetPsarForTrail(1);
+         // Uses configurable bar-shift delay to avoid intra-bar repainting.
+         int psar_shift = m_settings.PSAR_TrailDelay;
+         if(psar_shift < 1) psar_shift = 1;
+         if(psar_shift > 3) psar_shift = 3;
+         double psar = GetPsarForTrail(psar_shift);
          if(psar > 0.0) {
             double cushion = 0.0;
             
@@ -1594,20 +1603,8 @@ public:
                }
             }
             else if(m_settings.PSAR_TrailCushionMode == PSAR_CUSHION_PIPS) {
-               // PIPS mode: apply fixed pips cushion with timeframe scaling
-               double cushion_pips = m_settings.PSAR_TrailPipsCushion;
-               
-               // Apply timeframe auto-scaling
-               double scale = 1.0;
-               switch(_Period) {
-                  case PERIOD_M1:  scale = 0.5; break;
-                  case PERIOD_M5:  scale = 0.8; break;
-                  case PERIOD_M15: scale = 1.0; break;
-                  default:         scale = 2.0; break;  // H1+
-               }
-               
-               // Convert pips to price units (handle JPY pairs)
-               cushion = cushion_pips * _Point * scale * (isJPY ? 100.0 : 10.0);
+               // PIPS mode: apply fixed pips cushion with centralized TF/JPY scaling
+               cushion = ScalePipsToPriceDistance(m_settings.PSAR_TrailPipsCushion);
             }
             else {
                // ATR mode: multiply ATR by cushion factor

@@ -614,6 +614,7 @@ struct ST_Settings
    double              Trail_Mult;
    EPsarTrailCushionMode PSAR_TrailCushionMode;
    double              PSAR_TrailPipsCushion;
+   int                 PSAR_TrailDelay;         // PSAR trailing bar-shift delay (1-3)
 
    // --- Strict non-ATR RRM exit contract (for future PRs; defaults preserve current behavior) ---
    EExitProfile ExitProfile;            // Exit profile selector; EXIT_PROFILE_LEGACY = current ATR-based behavior
@@ -988,6 +989,7 @@ input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR;          // (CUSTO
 input double         Inp_Trail_Mult             = 3.0;                 // (CUSTOM; presets override) Trail multiplier (ATR modes only; ignored in strict)
 input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // (CUSTOM; presets override) PSAR trail cushion mode
 input double         Inp_PSAR_TrailPipsCushion  = 5.0;                 // (CUSTOM; presets override) PSAR trail cushion (pips)
+input int            Inp_PSAR_TrailDelay        = 1;             // PSAR trailing delay (bar shift: 1-3; 1=last confirmed bar)
 input double         Inp_PSAR_TrailCushionATR   = 0.2;                 // (CUSTOM; presets override) PSAR trail cushion (ATR)
 
 input group "--- ℹ️ Step 9 · Fractal SL/TP (Phase 2.2) ---"
@@ -1499,6 +1501,7 @@ void InitializeConfig()
    Settings.Trail_Mult           = Inp_Trail_Mult;
    Settings.PSAR_TrailCushionMode= Inp_PSAR_TrailCushionMode;
    Settings.PSAR_TrailPipsCushion= Inp_PSAR_TrailPipsCushion;
+   Settings.PSAR_TrailDelay      = (Inp_PSAR_TrailDelay < 1) ? 1 : (Inp_PSAR_TrailDelay > 3) ? 3 : Inp_PSAR_TrailDelay;
 
    // === Strict non-ATR RRM exit contract (PR 1: config only, no executor reads these yet) ===
    // Defaults preserve existing behavior for all presets and CUSTOM mode.
