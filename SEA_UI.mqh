@@ -54,6 +54,12 @@ string SEA_UI_EntryLayerLabel(EEntryLayer layer)
    return result;
 }
 
+// 260308_PR: Check if a specific layer flag is active in an EEntryLayer bitfield.
+bool SEA_UI_IsLayerActive(EEntryLayer bitfield, EEntryLayer layer)
+{
+   return ((int)bitfield & (int)layer) != 0;
+}
+
 // 260304_PR7: Format market phase as text with color coding
 // TRENDING=LimeGreen, EMERGING=Gold, UNORDERED=OrangeRed, unknown=Gray
 string SEA_UI_FormatPhase(EMarketPhase phase, color &out_color)
@@ -644,10 +650,9 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
       // Show individual layer status for multi-layer visibility
       if(entry_layer != LAYER_NONE)
       {
-         int bits = (int)entry_layer;
-         if((bits & (int)LAYER_1_WEAK)   != 0) txt += "  " + ShortToString(0x2713) + " L1 (EMA1" + ShortToString(0x2194) + "EMA2) Ribbon\n";
-         if((bits & (int)LAYER_2_MEDIUM) != 0) txt += "  " + ShortToString(0x2713) + " L2 (EMA2" + ShortToString(0x2194) + "EMA3) Ghost\n";
-         if((bits & (int)LAYER_3_STRONG) != 0) txt += "  " + ShortToString(0x2713) + " L3 (EMA3" + ShortToString(0x2194) + "EMA4) Shark\n";
+         if(SEA_UI_IsLayerActive(entry_layer, LAYER_1_WEAK))   txt += "  " + ShortToString(0x2713) + " L1 (EMA1" + ShortToString(0x2194) + "EMA2) Ribbon\n";
+         if(SEA_UI_IsLayerActive(entry_layer, LAYER_2_MEDIUM)) txt += "  " + ShortToString(0x2713) + " L2 (EMA2" + ShortToString(0x2194) + "EMA3) Ghost\n";
+         if(SEA_UI_IsLayerActive(entry_layer, LAYER_3_STRONG)) txt += "  " + ShortToString(0x2713) + " L3 (EMA3" + ShortToString(0x2194) + "EMA4) Shark\n";
       }
 
       color status_color_dummy;

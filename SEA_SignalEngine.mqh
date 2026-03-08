@@ -997,9 +997,9 @@ public:
          // Trend forming but not confirmed → ALLOW L1/L2 only; BLOCK L3 (STRONG)
          // Deep pullbacks (L3/Shark) are too risky before the trend is established.
          // 260308_PR: If L3 flag is set in the bitfield, the whole signal is blocked.
-         if(((int)layer_bitfield & (int)LAYER_3_STRONG) != 0)
+         if(IsLayerActive(layer_bitfield, LAYER_3_STRONG))
             return false;  // L3 component blocked in EMERGING
-         return (((int)layer_bitfield & ((int)LAYER_1_WEAK | (int)LAYER_2_MEDIUM)) != 0);
+         return (IsLayerActive(layer_bitfield, LAYER_1_WEAK) || IsLayerActive(layer_bitfield, LAYER_2_MEDIUM));
       }
       else if(is_trending)
       {
