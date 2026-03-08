@@ -636,9 +636,7 @@ struct ST_Settings
    int         Vote_EvalShift;          // Shift for vote evaluation
    bool        Vote_AllowPsarFlip;      // Allow PSAR flip signal in votes
    // PSAR flip validation parameters (when Vote_AllowPsarFlip=true)
-   int         Vote_PsarFlipLookback;   // How many bars to check for flips (e.g., 5)
-   int         Vote_PsarMinFlips;       // Minimum flips required (e.g., 1)
-   int         Vote_PsarMaxFlips;       // Maximum flips allowed (0 = no limit, e.g., 6)
+   int         Vote_PsarFlipDelay;      // Bars countdown after flip (0-10)
 
    // Reporting
    bool ExportCSV;
@@ -943,6 +941,7 @@ input int            Inp_Ind_Psar_Weight        = 1;                   // [PSAR]
 input string         Inp_Ind_Psar_Info          = "Parabolic SAR position"; // [PSAR] Description
 input double         Inp_Ind_Psar_Step          = 0.05;                // [PSAR] Step
 input double         Inp_Ind_Psar_Max           = 0.5;                 // [PSAR] Maximum
+input int            Inp_Vote_PsarFlipDelay     = 2;                   // [PSAR] Bars flip remains valid (0-10; FLIP mode only)
 
 input group "═══ 📊 Indicator: Pattern123 ═══"
 input bool           Inp_Ind_P123_Enabled       = false;               // [P123] Enable 1-2-3 pattern vote
@@ -1518,9 +1517,7 @@ void InitializeConfig()
    Settings.Vote_EvalShift           = 1;
    Settings.Vote_AllowPsarFlip       = false;
    // PSAR flip defaults
-   Settings.Vote_PsarFlipLookback    = 5;
-   Settings.Vote_PsarMinFlips        = 1;
-   Settings.Vote_PsarMaxFlips        = 0;  // No upper limit by default
+   Settings.Vote_PsarFlipDelay       = Inp_Vote_PsarFlipDelay;  // Countdown: bars after flip
 
    // Risk management defaults
    Settings.MaxTotalRisk      = 0.0;  // 0 = no portfolio limit (backward compatible)

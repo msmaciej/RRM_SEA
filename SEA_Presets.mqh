@@ -785,10 +785,44 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Gate_UseMultiLayer        = true;
 
       cfg.Vote_EvalShift            = 1;
-      cfg.Vote_AllowPsarFlip        = true;
-      cfg.Vote_PsarFlipLookback     = 5;     // Check last 5 bars for any flip
-      cfg.Vote_PsarMinFlips         = 1;     // At least 1 flip required
-      cfg.Vote_PsarMaxFlips         = 0;     // No upper limit (0 = disabled)
+
+      // Timeframe-adaptive PSAR flip configuration
+      if(tf >= PERIOD_H4)
+      {
+         // H4+: DOT mode (flip disabled — too slow for higher timeframes)
+         cfg.Vote_AllowPsarFlip     = false;
+         cfg.Vote_PsarFlipDelay     = 0;
+      }
+      else if(tf == PERIOD_H1)
+      {
+         // H1: FLIP mode, delay=4
+         cfg.Vote_AllowPsarFlip     = true;
+         cfg.Vote_PsarFlipDelay     = 4;
+      }
+      else if(tf == PERIOD_M30)
+      {
+         // M30: FLIP mode, delay=3
+         cfg.Vote_AllowPsarFlip     = true;
+         cfg.Vote_PsarFlipDelay     = 3;
+      }
+      else if(tf == PERIOD_M15)
+      {
+         // M15: FLIP mode, delay=3
+         cfg.Vote_AllowPsarFlip     = true;
+         cfg.Vote_PsarFlipDelay     = 3;
+      }
+      else if(tf == PERIOD_M5)
+      {
+         // M5: FLIP mode, delay=2
+         cfg.Vote_AllowPsarFlip     = true;
+         cfg.Vote_PsarFlipDelay     = 2;
+      }
+      else
+      {
+         // M1 and below: FLIP mode, delay=1
+         cfg.Vote_AllowPsarFlip     = true;
+         cfg.Vote_PsarFlipDelay     = 1;
+      }
 
       // Risk management (portfolio-level)
       cfg.MaxTotalRisk              = 4.0;   // Max 4% total portfolio risk
