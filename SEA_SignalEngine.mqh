@@ -141,8 +141,8 @@ private:
    SRejectionStats m_stats;
 
    // --- 2f. PSAR FLIP TRACKING ---
-   datetime m_psar_last_flip_time;       // Time of last PSAR flip (0 = no flip recorded)
-   int      m_psar_last_flip_direction;  // 1=bullish flip, -1=bearish flip, 0=none
+   datetime m_psar_last_flip_time_bull;  // Timestamp of last bullish flip (0 = none recorded)
+   datetime m_psar_last_flip_time_bear;  // Timestamp of last bearish flip (0 = none recorded)
 
    // --- 3. DATA HELPERS ---
    // Simplified buffer access for cleaner logic code
@@ -455,21 +455,34 @@ private:
    }
 
    // PSAR flip tracker: call once per bar close to record the most recent flip.
-   // If a flip is detected at the given shift, stores its time and direction.
+   // Stores direction-specific timestamps so bullish and bearish flips are tracked independently.
    void UpdatePSARFlipTracking(int shift = 1) {
       int flip = DetectPSARFlipAt(shift);
       if(flip != 0) {
-         m_psar_last_flip_time      = iTime(m_symbol, PERIOD_CURRENT, shift);
-         m_psar_last_flip_direction = flip;
+         datetime flip_time = iTime(m_symbol, PERIOD_CURRENT, shift);
+         if(flip == 1) {
+            m_psar_last_flip_time_bull = flip_time;
+            if(m_settings.DebugFlow)
+               PrintFormat("[PSAR_FLIP] Bullish flip registered at %s (bar shift=%d)",
+                           TimeToString(flip_time, TIME_DATE|TIME_MINUTES), shift);
+         }
+         else if(flip == -1) {
+            m_psar_last_flip_time_bear = flip_time;
+            if(m_settings.DebugFlow)
+               PrintFormat("[PSAR_FLIP] Bearish flip registered at %s (bar shift=%d)",
+                           TimeToString(flip_time, TIME_DATE|TIME_MINUTES), shift);
+         }
       }
    }
 
-   // Returns the number of bars elapsed since the last recorded PSAR flip,
-   // measured from current_shift. Returns INT_MAX if no flip has been recorded.
-   int GetBarsSinceLastFlip(int current_shift) {
-      if(m_psar_last_flip_time == 0) return INT_MAX;
+   // Returns the number of bars elapsed since the last recorded PSAR flip in the given bias direction,
+   // measured from current_shift. Returns INT_MAX if no flip has been recorded for that direction.
+   // bias: 1 = bullish, -1 = bearish.
+   int GetBarsSinceLastFlip(int bias, int current_shift) {
+      datetime flip_time = (bias == 1) ? m_psar_last_flip_time_bull : m_psar_last_flip_time_bear;
+      if(flip_time == 0) return INT_MAX;
       // Find the bar index of the flip time
-      int flip_bar = iBarShift(m_symbol, PERIOD_CURRENT, m_psar_last_flip_time, false);
+      int flip_bar = iBarShift(m_symbol, PERIOD_CURRENT, flip_time, false);
       if(flip_bar < 0) return INT_MAX;
       int elapsed = flip_bar - current_shift;
       // If elapsed is negative, the flip is in the future relative to current_shift (shouldn't occur)
@@ -479,34 +492,40 @@ private:
    // Vote 9 (enhanced): PSAR with countdown-based flip validation.
    // Passes only if:
    //   1. PSAR dot is on the correct side of price (basic position check)
-   //   2. A flip has been recorded matching the bias direction
+   //   2. A flip in the matching direction has been recorded
    //   3. The flip occurred within the last Vote_PsarFlipDelay bars
    bool Check_PSAR_WithFlip(int bias, int shift) {
       // 1. PSAR dot must be on correct side NOW
       if(!Check_PSAR(bias, shift)) return false;
 
-      // 2. Flip must have been recorded
-      if(m_psar_last_flip_time == 0) {
-         m_diag_last_reason = "PSAR_NO_FLIP_RECORDED";
-         return false;
-      }
+      string dir_str = (bias == 1) ? "Bullish" : "Bearish";
 
-      // 3. Flip direction must match bias
-      if(m_psar_last_flip_direction != bias) {
-         m_diag_last_reason = StringFormat("PSAR_FLIP_WRONG_DIR (flip_dir=%d, bias=%d)",
-                                           m_psar_last_flip_direction, bias);
-         return false;
-      }
-
-      // 4. Calculate bars since flip and compare against delay
-      int bars_since = GetBarsSinceLastFlip(shift);
+      // 2. Calculate bars since direction-specific flip
+      int bars_since = GetBarsSinceLastFlip(bias, shift);
       int delay      = m_settings.Vote_PsarFlipDelay;
 
+      // 3. Check if a flip was recorded for this direction
+      if(bars_since == INT_MAX) {
+         m_diag_last_reason = StringFormat("PSAR_NO_FLIP_RECORDED (bias=%d)", bias);
+         if(m_settings.DebugFlow)
+            PrintFormat("[PSAR_CHECK] No %s flip recorded yet", dir_str);
+         return false;
+      }
+
+      // 4. Check if flip is within delay window
       if(bars_since > delay) {
          m_diag_last_reason = StringFormat("PSAR_FLIP_EXPIRED (bars_since=%d, delay=%d)",
                                            bars_since, delay);
+         if(m_settings.DebugFlow)
+            PrintFormat("[PSAR_CHECK] %s flip expired: %d bars ago (delay=%d)",
+                        dir_str, bars_since, delay);
          return false;
       }
+
+      // 5. Success - flip is valid
+      if(m_settings.DebugFlow)
+         PrintFormat("[PSAR_CHECK] %s flip PASSED: %d bars ago (delay=%d)",
+                     dir_str, bars_since, delay);
 
       return true;
    }
@@ -946,8 +965,8 @@ public:
       ZeroMemory(m_stats);
 
       // Initialize PSAR flip tracking
-      m_psar_last_flip_time      = 0;
-      m_psar_last_flip_direction = 0;
+      m_psar_last_flip_time_bull = 0;
+      m_psar_last_flip_time_bear = 0;
    }
 
    // --- DIAGNOSTIC GETTERS (for Cockpit/UI) ---
@@ -2659,7 +2678,7 @@ public:
             bool pass = (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift));
             string flip_info = "";
             if(m_settings.Vote_AllowPsarFlip) {
-               int bars_since = GetBarsSinceLastFlip(v_shift);
+               int bars_since = GetBarsSinceLastFlip(bias, v_shift);
                if(bars_since == INT_MAX)
                   flip_info = " N=none";
                else {
