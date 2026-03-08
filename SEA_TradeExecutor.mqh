@@ -1414,14 +1414,17 @@ public:
          PrintFormat("[TE] Starting trade entry evaluation for direction=%d", ts_direction);
 
       // Track per-step results for pipeline summary
-      string te_reject_reason = "";
-      bool   te_spread_pass   = true;
-      double te_spread_pips   = 0.0;
-      bool   te_time_pass     = true;
-      bool   te_rc_pass       = false;
-      bool   te_lots_pass     = false;
-      double te_lots          = 0.0;
-      int    result           = 0;
+      string te_reject_reason  = "";
+      bool   te_spread_pass    = true;
+      double te_spread_pips    = 0.0;
+      bool   te_time_pass      = true;
+      bool   te_time_checked   = false;  // true only when time check was actually run
+      bool   te_rc_pass        = false;
+      bool   te_rc_checked     = false;  // true only when RC check was actually run
+      bool   te_lots_pass      = false;
+      bool   te_lots_checked   = false;  // true only when lot sizing was actually run
+      double te_lots           = 0.0;
+      int    result            = 0;
 
       // ═══════════════════════════════════════════════════════
       // STEP 1: Check Execution Filters
@@ -1445,6 +1448,7 @@ public:
       if(te_reject_reason == "" && m_settings.UseTime) {
          MqlDateTime dt;
          TimeToStruct(TimeCurrent(), dt);
+         te_time_checked = true;
          te_time_pass = (m_settings.StartHr < m_settings.EndHr) ?
                         (dt.hour >= m_settings.StartHr && dt.hour < m_settings.EndHr) :
                         (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
@@ -1459,6 +1463,7 @@ public:
       // STEP 2: Check Risk Control
       // ═══════════════════════════════════════════════════════
       if(te_reject_reason == "") {
+         te_rc_checked = true;
          te_rc_pass = EvaluateRC();
          if(!te_rc_pass) {
             if(m_settings.DebugFlow)
@@ -1471,6 +1476,7 @@ public:
       // STEP 3: Calculate Position Size
       // ═══════════════════════════════════════════════════════
       if(te_reject_reason == "") {
+         te_lots_checked = true;
          te_lots = EvaluateCM(ts_direction);
          te_lots_pass = (te_lots > 0);
          if(!te_lots_pass) {
@@ -1517,12 +1523,21 @@ public:
             Print("  ⏭️  Spread: disabled");
          }
          if(m_settings.UseTime) {
-            PrintFormat("  %s Time window: active", te_time_pass ? "✅" : "❌");
+            if(te_time_checked)
+               PrintFormat("  %s Time window: active", te_time_pass ? "✅" : "❌");
+            else
+               Print("  ⏭️  Time window: not evaluated");
          } else {
             Print("  ⏭️  Time window: disabled");
          }
-         PrintFormat("  %s Risk control", te_rc_pass ? "✅" : "❌");
-         PrintFormat("  %s Position size: %.2f lots", te_lots_pass ? "✅" : "❌", te_lots);
+         if(te_rc_checked)
+            PrintFormat("  %s Risk control", te_rc_pass ? "✅" : "❌");
+         else
+            Print("  ⏭️  Risk control: not evaluated");
+         if(te_lots_checked)
+            PrintFormat("  %s Position size: %.2f lots", te_lots_pass ? "✅" : "❌", te_lots);
+         else
+            Print("  ⏭️  Position size: not evaluated");
          Print("");
 
          Print("════════════════════════════════════════════════════════════");
