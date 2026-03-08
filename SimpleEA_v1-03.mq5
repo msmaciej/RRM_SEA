@@ -669,6 +669,7 @@ void OrchestrateTick()
 void OrchestrateDeinit(const int reason)
 {
    Signal.PrintRejectionStatistics();
+   Signal.PrintEnhancedStatistics();
 
    if(Settings.ExportCSV)
       SEA_Report_Generate();

@@ -52,26 +52,33 @@ enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103001 = SEA_BUILD_TOKEN_103001 };
 // Granular per-reason rejection statistics for EvaluateTS()
 struct SRejectionStats {
    int total_bars;
-   int rejected_spread;
-   int rejected_atr_min;
-   int rejected_atr_max;
-   int rejected_time;
-   int rejected_news;
-   int rejected_bias;
-   int rejected_phase;
-   int rejected_layer_none;
-   int rejected_layer_blocked;
-   int rejected_emasig;
-   int rejected_macd;
-   int rejected_psar;
-   int rejected_cci;
-   int rejected_rsi;
-   int rejected_adx;
-   int rejected_mfi;
-   int rejected_sto;
-   int rejected_bb;
-   int rejected_p123;
-   int rejected_ross;
+
+   // Non-directional gates (passed + rejected)
+   int passed_spread,       rejected_spread;
+   int passed_atr_min,      rejected_atr_min;
+   int passed_atr_max,      rejected_atr_max;
+   int passed_time,         rejected_time;
+   int passed_news,         rejected_news;
+
+   // Bias & Layer (passed + rejected)
+   int passed_bias,         rejected_bias;
+   int passed_phase,        rejected_phase;
+   int passed_layer_none,   rejected_layer_none;
+   int passed_layer_blocked,rejected_layer_blocked;
+
+   // Directional indicators (passed + rejected)
+   int passed_emasig,  rejected_emasig;
+   int passed_macd,    rejected_macd;
+   int passed_psar,    rejected_psar;
+   int passed_cci,     rejected_cci;
+   int passed_rsi,     rejected_rsi;
+   int passed_adx,     rejected_adx;
+   int passed_mfi,     rejected_mfi;
+   int passed_sto,     rejected_sto;
+   int passed_bb,      rejected_bb;
+   int passed_p123,    rejected_p123;
+   int passed_ross,    rejected_ross;
+
    int signals_confirmed;
 };
 
@@ -1178,6 +1185,203 @@ public:
       Print("════════════════════════════════════════════════");
    }
 
+
+   void PrintEnhancedStatistics()
+   {
+      if(m_stats.total_bars == 0) return;
+      Print("================================================================");
+      Print("  EVALUATION STATISTICS REPORT");
+      PrintFormat("  %s %s | %d bars evaluated", m_symbol, EnumToString(PERIOD_CURRENT), m_stats.total_bars);
+      if(m_settings.Stats_FullEvaluation)
+         Print("  Mode: FULL EVALUATION (all indicators per bar)");
+      else
+         Print("  Mode: WATERFALL (stop at first failure)");
+      Print("================================================================");
+      Print("");
+      Print("SUMMARY:");
+      PrintFormat("  Signals Confirmed : %d (%.2f%%)", m_stats.signals_confirmed, m_stats.signals_confirmed * 100.0 / m_stats.total_bars);
+      PrintFormat("  Total Rejections  : %d (%.2f%%)", m_stats.total_bars - m_stats.signals_confirmed, (m_stats.total_bars - m_stats.signals_confirmed) * 100.0 / m_stats.total_bars);
+      Print("");
+      Print("================================================================");
+      Print("1. NON-DIRECTIONAL GATES");
+      Print("================================================================");
+      PrintFormat("%-18s %-8s %7s %7s %7s   %s", "Gate", "Status", "Passed", "Failed", "Pass%", "Impact");
+      Print("----------------------------------------------------------------");
+      PrintGateStat("Spread",      true,                   m_stats.passed_spread,        m_stats.rejected_spread,       StringFormat("%.1f pips max", m_settings.MaxSpread));
+      PrintGateStat("ATR Min",    (m_settings.MinATR > 0), m_stats.passed_atr_min,       m_stats.rejected_atr_min,      StringFormat(">=%.1f pips",   m_settings.MinATR));
+      PrintGateStat("ATR Max",    (m_settings.MaxATR > 0), m_stats.passed_atr_max,       m_stats.rejected_atr_max,      StringFormat("<=%.1f pips",   m_settings.MaxATR));
+      PrintGateStat("Time Window", m_settings.UseTime,     m_stats.passed_time,          m_stats.rejected_time,         m_settings.UseTime ? StringFormat("%02d:00-%02d:00", m_settings.StartHr, m_settings.EndHr) : "(disabled)");
+      PrintGateStat("News Filter", m_settings.UseNews,     m_stats.passed_news,          m_stats.rejected_news,         m_settings.UseNews  ? StringFormat("%dm pre/post", m_settings.NewsPre) : "(disabled)");
+      Print("----------------------------------------------------------------");
+      PrintFormat("Gates blocked: %d bars", m_stats.rejected_spread + m_stats.rejected_atr_min + m_stats.rejected_atr_max + m_stats.rejected_time + m_stats.rejected_news);
+      Print("");
+      Print("================================================================");
+      Print("2. BIAS & LAYER DETECTION");
+      Print("================================================================");
+      PrintFormat("%-20s %-8s %7s %7s %7s   %s", "Component", "Status", "Passed", "Failed", "Pass%", "Impact");
+      Print("----------------------------------------------------------------");
+      PrintGateStat("Bias Detection",   true,                             m_stats.passed_bias,          m_stats.rejected_bias,         StringFormat("Mode: %s", EnumToString(m_settings.BiasMode)));
+      PrintGateStat("Phase Check",      (m_settings.PhaseDetectionEnabled && m_settings.BlockUnorderedPhase), m_stats.passed_phase, m_stats.rejected_phase, m_settings.PhaseDetectionEnabled ? "BlockUnordered" : "(disabled)");
+      PrintGateStat("Layer (none)",      m_settings.EnableLayerDetection, m_stats.passed_layer_none,    m_stats.rejected_layer_none,   m_settings.EnableLayerDetection ? "L1/L2/L3 pullback" : "(disabled)");
+      PrintGateStat("Layer-Phase Rules", m_settings.EnableLayerDetection, m_stats.passed_layer_blocked, m_stats.rejected_layer_blocked, m_settings.EnableLayerDetection ? "L3 blocked in EMERGING" : "(disabled)");
+      Print("----------------------------------------------------------------");
+      PrintFormat("No-bias bars: %d", m_stats.rejected_bias);
+      Print("");
+      Print("================================================================");
+      Print("3. DIRECTIONAL INDICATORS (Must agree with detected bias)");
+      Print("================================================================");
+      PrintFormat("%-14s %-8s %7s %7s %7s   %-12s %s", "Indicator", "Status", "Passed", "Failed", "Pass%", "Agreement", "Impact");
+      Print("----------------------------------------------------------------");
+      PrintIndicatorStat("EmaSig",     m_settings.Ind_EmaSig_Enabled, m_stats.passed_emasig, m_stats.rejected_emasig);
+      PrintIndicatorStat("MACD",       m_settings.Ind_Macd_Enabled,   m_stats.passed_macd,   m_stats.rejected_macd);
+      PrintIndicatorStat("PSAR",       m_settings.Ind_Psar_Enabled,   m_stats.passed_psar,   m_stats.rejected_psar);
+      PrintIndicatorStat("CCI",        m_settings.Ind_Cci_Enabled,    m_stats.passed_cci,    m_stats.rejected_cci);
+      PrintIndicatorStat("RSI",        m_settings.Ind_Rsi_Enabled,    m_stats.passed_rsi,    m_stats.rejected_rsi);
+      PrintIndicatorStat("ADX",        m_settings.Ind_Adx_Enabled,    m_stats.passed_adx,    m_stats.rejected_adx);
+      PrintIndicatorStat("MFI",        m_settings.Ind_Mfi_Enabled,    m_stats.passed_mfi,    m_stats.rejected_mfi);
+      PrintIndicatorStat("Stochastic", m_settings.Ind_Sto_Enabled,    m_stats.passed_sto,    m_stats.rejected_sto);
+      PrintIndicatorStat("BB",         m_settings.Ind_Bb_Enabled,     m_stats.passed_bb,     m_stats.rejected_bb);
+      PrintIndicatorStat("P123",       m_settings.Ind_P123_Enabled,   m_stats.passed_p123,   m_stats.rejected_p123);
+      PrintIndicatorStat("Ross Hook",  m_settings.Ind_Ross_Enabled,   m_stats.passed_ross,   m_stats.rejected_ross);
+      Print("----------------------------------------------------------------");
+      int enabled_count = 0;
+      if(m_settings.Ind_EmaSig_Enabled) enabled_count++;
+      if(m_settings.Ind_Macd_Enabled)   enabled_count++;
+      if(m_settings.Ind_Psar_Enabled)   enabled_count++;
+      if(m_settings.Ind_Cci_Enabled)    enabled_count++;
+      if(m_settings.Ind_Rsi_Enabled)    enabled_count++;
+      if(m_settings.Ind_Adx_Enabled)    enabled_count++;
+      if(m_settings.Ind_Mfi_Enabled)    enabled_count++;
+      if(m_settings.Ind_Sto_Enabled)    enabled_count++;
+      if(m_settings.Ind_Bb_Enabled)     enabled_count++;
+      if(m_settings.Ind_P123_Enabled)   enabled_count++;
+      if(m_settings.Ind_Ross_Enabled)   enabled_count++;
+      PrintFormat("Indicators: %d enabled (ALL must pass)", enabled_count);
+      Print("");
+      Print("================================================================");
+      Print("4. BOTTLENECK ANALYSIS (Ranked by impact)");
+      Print("================================================================");
+      PrintBottleneckAnalysis();
+      Print("");
+      Print("================================================================");
+      Print("5. RECOMMENDATIONS");
+      Print("================================================================");
+      PrintRecommendations();
+      Print("================================================================");
+   }
+
+   void PrintGateStat(string name, bool enabled, int passed, int failed, string note)
+   {
+      int    total    = passed + failed;
+      double pass_pct = (total > 0) ? (passed * 100.0 / total) : 0.0;
+      string status   = enabled ? "ON"  : "OFF";
+      string impact   = "";
+      if(!enabled) {
+         impact = "(disabled)";
+      } else if(total == 0 || (failed == 0 && total > 0)) {
+         impact = "No blocks";
+      } else if(m_stats.total_bars > 0) {
+         double block_pct = failed * 100.0 / m_stats.total_bars;
+         if(block_pct < 5)       impact = "Minor";
+         else if(block_pct < 20) impact = StringFormat("%.1f%% blocked", block_pct);
+         else                    impact = StringFormat("%.1f%% BLOCKED", block_pct);
+      }
+      if(enabled)
+         PrintFormat("%-18s %-8s %7d %7d %6.1f%%   %s  (%s)", name, status, passed, failed, pass_pct, impact, note);
+      else
+         PrintFormat("%-18s %-8s %7s %7s %7s   %s", name, status, "-", "-", "-", impact);
+   }
+
+   void PrintIndicatorStat(string name, bool enabled, int passed, int failed)
+   {
+      if(!enabled) {
+         PrintFormat("%-14s %-8s %7s %7s %7s   %-12s %s", name, "OFF", "-", "-", "-", "(disabled)", "-");
+         return;
+      }
+      int    total    = passed + failed;
+      double pass_pct = (total > 0) ? (passed * 100.0 / total) : 0.0;
+      string agreement = (pass_pct >= 90) ? "Very High" : (pass_pct >= 75) ? "High" : (pass_pct >= 50) ? "Medium" : (pass_pct >= 25) ? "Low" : "Very Low";
+      string impact    = (pass_pct >= 90) ? "Good"      : (pass_pct >= 70) ? "OK"   : (pass_pct >= 50) ? "Check"  : (pass_pct >= 25) ? "Issue" : "BLOCKER!";
+      PrintFormat("%-14s %-8s %7d %7d %6.1f%%   %-12s %s", name, "ON", passed, failed, pass_pct, agreement, impact);
+   }
+
+   void PrintBottleneckAnalysis()
+   {
+      if(m_stats.total_bars == 0) return;
+      struct SBottleneck { string name; int rejected; double pct; };
+      SBottleneck bn[20];
+      int idx = 0;
+      if(m_stats.rejected_spread > 0)         { bn[idx].name="Spread";         bn[idx].rejected=m_stats.rejected_spread;        bn[idx++].pct=m_stats.rejected_spread*100.0/m_stats.total_bars; }
+      if(m_stats.rejected_atr_min > 0)        { bn[idx].name="ATR Min";        bn[idx].rejected=m_stats.rejected_atr_min;       bn[idx++].pct=m_stats.rejected_atr_min*100.0/m_stats.total_bars; }
+      if(m_stats.rejected_atr_max > 0)        { bn[idx].name="ATR Max";        bn[idx].rejected=m_stats.rejected_atr_max;       bn[idx++].pct=m_stats.rejected_atr_max*100.0/m_stats.total_bars; }
+      if(m_stats.rejected_time > 0)           { bn[idx].name="Time Window";    bn[idx].rejected=m_stats.rejected_time;          bn[idx++].pct=m_stats.rejected_time*100.0/m_stats.total_bars; }
+      if(m_stats.rejected_news > 0)           { bn[idx].name="News Filter";    bn[idx].rejected=m_stats.rejected_news;          bn[idx++].pct=m_stats.rejected_news*100.0/m_stats.total_bars; }
+      if(m_stats.rejected_bias > 0)           { bn[idx].name="Bias=0";         bn[idx].rejected=m_stats.rejected_bias;          bn[idx++].pct=m_stats.rejected_bias*100.0/m_stats.total_bars; }
+      if(m_stats.rejected_phase > 0)          { bn[idx].name="Phase=UNORD";    bn[idx].rejected=m_stats.rejected_phase;         bn[idx++].pct=m_stats.rejected_phase*100.0/m_stats.total_bars; }
+      if(m_stats.rejected_layer_none > 0)     { bn[idx].name="Layer=NONE";     bn[idx].rejected=m_stats.rejected_layer_none;    bn[idx++].pct=m_stats.rejected_layer_none*100.0/m_stats.total_bars; }
+      if(m_stats.rejected_layer_blocked > 0)  { bn[idx].name="Layer blocked";  bn[idx].rejected=m_stats.rejected_layer_blocked; bn[idx++].pct=m_stats.rejected_layer_blocked*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_EmaSig_Enabled && m_stats.rejected_emasig > 0) { bn[idx].name="EmaSig";    bn[idx].rejected=m_stats.rejected_emasig; bn[idx++].pct=m_stats.rejected_emasig*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_Macd_Enabled   && m_stats.rejected_macd   > 0) { bn[idx].name="MACD";      bn[idx].rejected=m_stats.rejected_macd;   bn[idx++].pct=m_stats.rejected_macd*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_Psar_Enabled   && m_stats.rejected_psar   > 0) { bn[idx].name="PSAR";      bn[idx].rejected=m_stats.rejected_psar;   bn[idx++].pct=m_stats.rejected_psar*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_Cci_Enabled    && m_stats.rejected_cci    > 0) { bn[idx].name="CCI";       bn[idx].rejected=m_stats.rejected_cci;    bn[idx++].pct=m_stats.rejected_cci*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_Rsi_Enabled    && m_stats.rejected_rsi    > 0) { bn[idx].name="RSI";       bn[idx].rejected=m_stats.rejected_rsi;    bn[idx++].pct=m_stats.rejected_rsi*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_Adx_Enabled    && m_stats.rejected_adx    > 0) { bn[idx].name="ADX";       bn[idx].rejected=m_stats.rejected_adx;    bn[idx++].pct=m_stats.rejected_adx*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_Mfi_Enabled    && m_stats.rejected_mfi    > 0) { bn[idx].name="MFI";       bn[idx].rejected=m_stats.rejected_mfi;    bn[idx++].pct=m_stats.rejected_mfi*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_Sto_Enabled    && m_stats.rejected_sto    > 0) { bn[idx].name="Stochastic";bn[idx].rejected=m_stats.rejected_sto;    bn[idx++].pct=m_stats.rejected_sto*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_Bb_Enabled     && m_stats.rejected_bb     > 0) { bn[idx].name="BB";        bn[idx].rejected=m_stats.rejected_bb;     bn[idx++].pct=m_stats.rejected_bb*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_P123_Enabled   && m_stats.rejected_p123   > 0) { bn[idx].name="P123";      bn[idx].rejected=m_stats.rejected_p123;   bn[idx++].pct=m_stats.rejected_p123*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_Ross_Enabled   && m_stats.rejected_ross   > 0) { bn[idx].name="Ross Hook"; bn[idx].rejected=m_stats.rejected_ross;   bn[idx++].pct=m_stats.rejected_ross*100.0/m_stats.total_bars; }
+      if(idx == 0) { Print("  (no rejections recorded)"); return; }
+      for(int i = 0; i < idx-1; i++)
+         for(int j = i+1; j < idx; j++)
+            if(bn[j].rejected > bn[i].rejected) { SBottleneck tmp=bn[i]; bn[i]=bn[j]; bn[j]=tmp; }
+      int show = (idx < 5) ? idx : 5;
+      for(int i = 0; i < show; i++) {
+         string sev = (bn[i].pct > 50) ? "PRIMARY" : (bn[i].pct > 20) ? "SECONDARY" : "MINOR";
+         PrintFormat("  #%d: %-18s %5d bars (%.1f%%)  [%s]", i+1, bn[i].name, bn[i].rejected, bn[i].pct, sev);
+      }
+   }
+
+   void PrintRecommendations()
+   {
+      if(m_stats.total_bars == 0) return;
+      bool any_rec = false;
+      if(m_settings.Ind_Psar_Enabled && m_stats.rejected_psar > m_stats.total_bars / 2) {
+         any_rec = true;
+         PrintFormat("Priority 1: PSAR is blocking %.1f%% of bars.", m_stats.rejected_psar * 100.0 / m_stats.total_bars);
+         Print("  -> Consider disabling PSAR on higher timeframes.");
+         Print("  -> PSAR is most effective on M5/M15 scalping.");
+         Print("");
+      }
+      if(m_stats.rejected_bias > m_stats.total_bars / 5) {
+         any_rec = true;
+         PrintFormat("Priority 2: Bias=0 blocks %.1f%% of bars (ranging market).", m_stats.rejected_bias * 100.0 / m_stats.total_bars);
+         PrintFormat("  -> Current bias mode: %s", EnumToString(m_settings.BiasMode));
+         Print("  -> Consider a simpler bias mode or a more trending instrument.");
+         Print("");
+      }
+      string worst_ind = ""; int worst_cnt = 0;
+      if(m_settings.Ind_EmaSig_Enabled && m_stats.rejected_emasig > worst_cnt) { worst_cnt=m_stats.rejected_emasig; worst_ind="EmaSig"; }
+      if(m_settings.Ind_Macd_Enabled   && m_stats.rejected_macd   > worst_cnt) { worst_cnt=m_stats.rejected_macd;   worst_ind="MACD"; }
+      if(m_settings.Ind_Psar_Enabled   && m_stats.rejected_psar   > worst_cnt) { worst_cnt=m_stats.rejected_psar;   worst_ind="PSAR"; }
+      if(m_settings.Ind_Cci_Enabled    && m_stats.rejected_cci    > worst_cnt) { worst_cnt=m_stats.rejected_cci;    worst_ind="CCI"; }
+      if(m_settings.Ind_Rsi_Enabled    && m_stats.rejected_rsi    > worst_cnt) { worst_cnt=m_stats.rejected_rsi;    worst_ind="RSI"; }
+      if(m_settings.Ind_Adx_Enabled    && m_stats.rejected_adx    > worst_cnt) { worst_cnt=m_stats.rejected_adx;    worst_ind="ADX"; }
+      if(m_settings.Ind_Mfi_Enabled    && m_stats.rejected_mfi    > worst_cnt) { worst_cnt=m_stats.rejected_mfi;    worst_ind="MFI"; }
+      if(m_settings.Ind_Sto_Enabled    && m_stats.rejected_sto    > worst_cnt) { worst_cnt=m_stats.rejected_sto;    worst_ind="Stochastic"; }
+      if(m_settings.Ind_Bb_Enabled     && m_stats.rejected_bb     > worst_cnt) { worst_cnt=m_stats.rejected_bb;     worst_ind="BB"; }
+      if(m_settings.Ind_P123_Enabled   && m_stats.rejected_p123   > worst_cnt) { worst_cnt=m_stats.rejected_p123;   worst_ind="P123"; }
+      if(m_settings.Ind_Ross_Enabled   && m_stats.rejected_ross   > worst_cnt) { worst_cnt=m_stats.rejected_ross;   worst_ind="Ross Hook"; }
+      if(worst_ind != "" && m_stats.total_bars > 0 && worst_cnt * 100.0 / m_stats.total_bars > 30) {
+         any_rec = true;
+         PrintFormat("Priority 3: %s is the top indicator bottleneck (%.1f%% blocked).", worst_ind, worst_cnt * 100.0 / m_stats.total_bars);
+         PrintFormat("  -> Disable %s to test signal frequency impact.", worst_ind);
+         Print("");
+      }
+      if(!any_rec)
+         Print("  No critical bottlenecks detected. Configuration appears balanced.");
+   }
+
    // --- VOTE SNAPSHOT (for Cockpit per-vote display) ---
    // Evaluates each enabled vote independently (BUY/SELL/FLAT) without changing internal state.
    void CaptureVoteSnapshots(SVoteSnapshot &out[], int &count, const int current_bias = 0)
@@ -1752,19 +1956,117 @@ public:
          Print("========================================");
       }
 
-      // 1. Check Filters First
-      if(!CheckFilters()) {
-         m_reject_filter++;
-         if(m_diag_last_reason == "SPREAD")        m_stats.rejected_spread++;
-         else if(m_diag_last_reason == "MIN_ATR")  m_stats.rejected_atr_min++;
-         else if(m_diag_last_reason == "MAX_ATR")  m_stats.rejected_atr_max++;
-         else if(m_diag_last_reason == "TIME")     m_stats.rejected_time++;
-         else if(m_diag_last_reason == "NEWS")     m_stats.rejected_news++;
-         return 0;
+      // 1. Check Filters (inline for full-eval mode support and per-filter pass tracking)
+      // In waterfall mode: return early on first failure (existing behavior).
+      // In full-eval mode: evaluate ALL filters, track pass/fail, continue to indicators.
+      bool any_failure  = false;
+      string first_failure = "";
+
+      // --- Time Window ---
+      if(m_settings.UseTime) {
+         MqlDateTime dt; TimeCurrent(dt);
+         bool time_pass = (m_settings.StartHr < m_settings.EndHr) ?
+                          (dt.hour >= m_settings.StartHr && dt.hour < m_settings.EndHr) :
+                          (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
+         if(m_settings.Stats_TrackPasses && time_pass) m_stats.passed_time++;
+         if(m_settings.Stats_TrackRejections && !time_pass) m_stats.rejected_time++;
+         if(!time_pass) {
+            if(first_failure == "") first_failure = "TIME";
+            any_failure = true;
+            if(!m_settings.Stats_FullEvaluation) {
+               m_diag_last_reason = "TIME"; m_reject_filter++; return 0;
+            }
+         }
       }
 
-      // 1b. Master bias gate (BiasEnabled)
+      // --- News Filter ---
+      if(m_settings.UseNews && m_news_count > 0) {
+         bool news_pass = true;
+         string base, quote;
+         GetSymbolCurrencies(m_symbol, base, quote);
+         if(base != "" && quote != "") {
+            datetime now = TimeCurrent();
+            int pre_sec  = m_settings.NewsPre  * 60;
+            int post_sec = m_settings.NewsPost * 60;
+            for(int i=0; i<m_news_count; i++) {
+               if(!NewsImpactPass(m_news_events[i].impact)) continue;
+               string ccy = m_news_events[i].currency;
+               if(ccy != base && ccy != quote) continue;
+               datetime t = m_news_events[i].time;
+               if(now >= (t - pre_sec) && now <= (t + post_sec)) {
+                  news_pass = false;
+                  if(m_last_news_block_log == 0 || (now - m_last_news_block_log) >= 60) {
+                     PrintFormat("News Filter: blocked %s due to %s %s event at %s (window -%d/+%d min)",
+                                 m_symbol, ccy,
+                                 (m_news_events[i].impact==""?"(impact n/a)":m_news_events[i].impact),
+                                 TimeToString(t, TIME_DATE|TIME_MINUTES),
+                                 m_settings.NewsPre, m_settings.NewsPost);
+                     m_last_news_block_log = now;
+                  }
+                  break;
+               }
+            }
+         }
+         if(m_settings.Stats_TrackPasses && news_pass) m_stats.passed_news++;
+         if(m_settings.Stats_TrackRejections && !news_pass) m_stats.rejected_news++;
+         if(!news_pass) {
+            if(first_failure == "") first_failure = "NEWS";
+            any_failure = true;
+            if(!m_settings.Stats_FullEvaluation) {
+               m_diag_last_reason = "NEWS"; m_reject_filter++; return 0;
+            }
+         }
+      }
+
+      // --- Spread ---
+      double spread_pips = SpreadPips();
+      bool spread_pass = !(m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread);
+      if(m_settings.Stats_TrackPasses && spread_pass) m_stats.passed_spread++;
+      if(m_settings.Stats_TrackRejections && !spread_pass) m_stats.rejected_spread++;
+      if(!spread_pass) {
+         if(first_failure == "") first_failure = "SPREAD";
+         any_failure = true;
+         if(!m_settings.Stats_FullEvaluation) {
+            m_diag_last_reason = "SPREAD"; m_reject_filter++; return 0;
+         }
+      }
+
+      // --- ATR (volatility regime) ---
+      double atr_pips = AtrPips();
+      m_diag_last_atr_pips = atr_pips;
+      m_diag_last_atr_ok   = true;
+      if(m_settings.MinATR > 0.0) {
+         bool atr_min_pass = (atr_pips >= m_settings.MinATR);
+         if(!atr_min_pass) m_diag_last_atr_ok = false;
+         if(m_settings.Stats_TrackPasses && atr_min_pass) m_stats.passed_atr_min++;
+         if(m_settings.Stats_TrackRejections && !atr_min_pass) m_stats.rejected_atr_min++;
+         if(!atr_min_pass && m_settings.ATR_HardGate) {
+            if(first_failure == "") first_failure = "MIN_ATR";
+            any_failure = true;
+            if(!m_settings.Stats_FullEvaluation) {
+               m_diag_last_reason = "MIN_ATR"; m_reject_filter++; return 0;
+            }
+         }
+      }
+      if(m_settings.MaxATR > 0.0) {
+         bool atr_max_pass = (atr_pips <= m_settings.MaxATR);
+         if(!atr_max_pass) m_diag_last_atr_ok = false;
+         if(m_settings.Stats_TrackPasses && atr_max_pass) m_stats.passed_atr_max++;
+         if(m_settings.Stats_TrackRejections && !atr_max_pass) m_stats.rejected_atr_max++;
+         if(!atr_max_pass && m_settings.ATR_HardGate) {
+            if(first_failure == "") first_failure = "MAX_ATR";
+            any_failure = true;
+            if(!m_settings.Stats_FullEvaluation) {
+               m_diag_last_reason = "MAX_ATR"; m_reject_filter++; return 0;
+            }
+         }
+      }
+      // In full-eval mode, track filter rejection if any filter failed (waterfall would have exited above)
+      if(any_failure && m_settings.Stats_FullEvaluation) m_reject_filter++;
+
+      // 1b. Master bias gate (BiasEnabled) — always a hard gate regardless of eval mode
       if(!m_settings.BiasEnabled) { m_diag_last_reason="BIAS_DISABLED"; m_reject_bias++; m_stats.rejected_bias++; return 0; }
+
 
       // Use Vote_EvalShift for signal/vote evaluation (defaults to 1 = closed bar).
       // This ensures all indicator checks use the last fully-closed bar, matching
@@ -1818,7 +2120,12 @@ public:
                PrintFormat("[260304_PR5] UNORDERED phase detected - blocking ALL trades (layer=%s)",
                            EnumToString(m_diag_last_entry_layer));
             }
-            return 0;
+            if(!m_settings.Stats_FullEvaluation) return 0;
+            if(first_failure == "") first_failure = "PHASE_UNORDERED";
+            any_failure = true;
+         }
+         else {
+            if(m_settings.Stats_TrackPasses) m_stats.passed_phase++;
          }
          
          // Rule 2: EMERGING phase blocks STRONG (Layer 3) trades only
@@ -1831,7 +2138,12 @@ public:
                PrintFormat("[260304_PR5] %s phase detected - blocking STRONG layer trade (deep pullback too risky)",
                            EnumToString(phase));
             }
-            return 0;
+            if(!m_settings.Stats_FullEvaluation) return 0;
+            if(first_failure == "") first_failure = "PHASE_EMERGING_L3";
+            any_failure = true;
+         }
+         else if(phase != PHASE_UNORDERED) {
+            if(m_settings.Stats_TrackPasses) m_stats.passed_layer_blocked++;
          }
          
          // Rule 3: TRENDING phase allows ALL layers (L1/L2/L3 — no blocking)
@@ -1862,7 +2174,9 @@ public:
             m_diag_last_reason = "BIAS_ZERO";
             m_reject_bias++;
             m_stats.rejected_bias++;
-            return 0;
+            if(!m_settings.Stats_FullEvaluation) return 0;
+            if(first_failure == "") first_failure = "BIAS_ZERO";
+            any_failure = true;
          }
          
          m_diag_last_bias = bias;
@@ -1985,7 +2299,9 @@ public:
                PrintFormat("STEP 1 BIAS[%s]: bias=0 → REJECT (no trend)", TimeToString(bar_time));
             }
             
-            return 0;
+            if(!m_settings.Stats_FullEvaluation) return 0;
+            if(first_failure == "") first_failure = "BIAS_ZERO";
+            any_failure = true;
          }
          
          // === STEP 2: Evaluate AutoStrat for Entry Signal ===
@@ -2025,10 +2341,11 @@ public:
 
             if(layer != LAYER_NONE) {
                entry_signal = market_bias;
+               if(m_settings.Stats_TrackPasses) m_stats.passed_layer_none++;
             } else {
                entry_signal = 0;
                m_diag_last_reason = "LAYER_NONE";
-               m_stats.rejected_layer_none++;
+               if(m_settings.Stats_TrackRejections) m_stats.rejected_layer_none++;
             }
 
             if(m_settings.DebugFlow) {
@@ -2123,7 +2440,9 @@ public:
             }
             m_reject_bias++;
             m_stats.rejected_bias++;
-            return 0;
+            if(!m_settings.Stats_FullEvaluation) return 0;
+            if(first_failure == "") first_failure = "SIGNAL_MISMATCH";
+            any_failure = true;
          }
       }
       
@@ -2133,7 +2452,12 @@ public:
          m_diag_last_reason="BIAS_ZERO";
          m_reject_bias++;
          m_stats.rejected_bias++;
-         return 0; 
+         if(!m_settings.Stats_FullEvaluation) return 0;
+         if(first_failure == "") first_failure = "BIAS_ZERO";
+         any_failure = true;
+      }
+      else {
+         if(m_settings.Stats_TrackPasses) m_stats.passed_bias++;
       }
 
       // 3. HTF Filter Check
@@ -2186,25 +2510,25 @@ public:
             else         all_pass    = false; \
          }
 
-      #define CAST_VOTE_STAT(use_flag, weight_field, check_expr, stat_field) \
+      #define CAST_VOTE_STAT(use_flag, weight_field, check_expr, stat_rej_field, stat_pass_field) \
          if(use_flag) { \
             bool _cv_pass = (check_expr); \
-            if(_cv_pass) vote_weight += weight_field; \
-            else { all_pass = false; stat_field++; } \
+            if(_cv_pass) { vote_weight += weight_field; if(m_settings.Stats_TrackPasses) stat_pass_field++; } \
+            else { all_pass = false; if(m_settings.Stats_TrackRejections) stat_rej_field++; } \
          }
 
-      CAST_VOTE_STAT(m_settings.Ind_EmaSig_Enabled, m_settings.Ind_EmaSig_Weight, Check_EMA1(bias, v_shift), m_stats.rejected_emasig)
-      CAST_VOTE_STAT(m_settings.Ind_Adx_Enabled,    m_settings.Ind_Adx_Weight,    Check_ADX(v_shift),        m_stats.rejected_adx)
-      CAST_VOTE_STAT(m_settings.Ind_Macd_Enabled,   m_settings.Ind_Macd_Weight,   Check_MACD(bias, v_shift), m_stats.rejected_macd)
-      CAST_VOTE_STAT(m_settings.Ind_Rsi_Enabled,    m_settings.Ind_Rsi_Weight,    Check_RSI(bias, v_shift),  m_stats.rejected_rsi)
-      CAST_VOTE_STAT(m_settings.Ind_Cci_Enabled,    m_settings.Ind_Cci_Weight,    Check_CCI(bias, v_shift),  m_stats.rejected_cci)
-      CAST_VOTE_STAT(m_settings.Ind_Mfi_Enabled,    m_settings.Ind_Mfi_Weight,    Check_MFI(bias, v_shift),  m_stats.rejected_mfi)
-      CAST_VOTE_STAT(m_settings.Ind_Sto_Enabled,    m_settings.Ind_Sto_Weight,    Check_Sto(bias, v_shift),  m_stats.rejected_sto)
-      CAST_VOTE_STAT(m_settings.Ind_Bb_Enabled,     m_settings.Ind_Bb_Weight,     Check_BB(bias, v_shift),   m_stats.rejected_bb)
+      CAST_VOTE_STAT(m_settings.Ind_EmaSig_Enabled, m_settings.Ind_EmaSig_Weight, Check_EMA1(bias, v_shift), m_stats.rejected_emasig, m_stats.passed_emasig)
+      CAST_VOTE_STAT(m_settings.Ind_Adx_Enabled,    m_settings.Ind_Adx_Weight,    Check_ADX(v_shift),        m_stats.rejected_adx, m_stats.passed_adx)
+      CAST_VOTE_STAT(m_settings.Ind_Macd_Enabled,   m_settings.Ind_Macd_Weight,   Check_MACD(bias, v_shift), m_stats.rejected_macd, m_stats.passed_macd)
+      CAST_VOTE_STAT(m_settings.Ind_Rsi_Enabled,    m_settings.Ind_Rsi_Weight,    Check_RSI(bias, v_shift),  m_stats.rejected_rsi, m_stats.passed_rsi)
+      CAST_VOTE_STAT(m_settings.Ind_Cci_Enabled,    m_settings.Ind_Cci_Weight,    Check_CCI(bias, v_shift),  m_stats.rejected_cci, m_stats.passed_cci)
+      CAST_VOTE_STAT(m_settings.Ind_Mfi_Enabled,    m_settings.Ind_Mfi_Weight,    Check_MFI(bias, v_shift),  m_stats.rejected_mfi, m_stats.passed_mfi)
+      CAST_VOTE_STAT(m_settings.Ind_Sto_Enabled,    m_settings.Ind_Sto_Weight,    Check_Sto(bias, v_shift),  m_stats.rejected_sto, m_stats.passed_sto)
+      CAST_VOTE_STAT(m_settings.Ind_Bb_Enabled,     m_settings.Ind_Bb_Weight,     Check_BB(bias, v_shift),   m_stats.rejected_bb, m_stats.passed_bb)
       CAST_VOTE_STAT(m_settings.Ind_Psar_Enabled,   m_settings.Ind_Psar_Weight,
-                (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)), m_stats.rejected_psar)
-      CAST_VOTE_STAT(m_settings.Ind_P123_Enabled,   m_settings.Ind_P123_Weight,   Check_P123(bias, v_shift), m_stats.rejected_p123)
-      CAST_VOTE_STAT(m_settings.Ind_Ross_Enabled,   m_settings.Ind_Ross_Weight,   Check_Ross(bias, v_shift), m_stats.rejected_ross)
+                (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)), m_stats.rejected_psar, m_stats.passed_psar)
+      CAST_VOTE_STAT(m_settings.Ind_P123_Enabled,   m_settings.Ind_P123_Weight,   Check_P123(bias, v_shift), m_stats.rejected_p123, m_stats.passed_p123)
+      CAST_VOTE_STAT(m_settings.Ind_Ross_Enabled,   m_settings.Ind_Ross_Weight,   Check_Ross(bias, v_shift), m_stats.rejected_ross, m_stats.passed_ross)
 
       #undef CAST_VOTE_STAT
       #undef CAST_VOTE
@@ -2307,12 +2631,17 @@ public:
       if(m_settings.VoteMode == VOTE_MODE_ALL)
       {
          // ALL mode: every enabled indicator must agree (pure multiplicative)
-         if(all_pass) {
+         if(all_pass && !any_failure) {
             m_diag_last_reason="OK";
             m_signals_generated++;
             m_stats.signals_confirmed++;
             if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=%d (ALL votes pass, weight=%.2f)", bias, vote_weight);
             return bias;
+         }
+         if(any_failure) {
+            if(m_diag_last_reason == "") m_diag_last_reason = first_failure;
+            if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=0 REJECT (full-eval: %s)", m_diag_last_reason);
+            return 0;
          }
          m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
          m_reject_votes++;
@@ -2322,12 +2651,17 @@ public:
       else
       {
          // THRESHOLD mode: weighted sum >= total enabled-indicator weight
-         if(all_pass) { 
+         if(all_pass && !any_failure) { 
             m_diag_last_reason="OK";
             m_signals_generated++;
             m_stats.signals_confirmed++;
             if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=%d (votes %.2f all pass)", bias, vote_weight);
             return bias; 
+         }
+         if(any_failure) {
+            if(m_diag_last_reason == "") m_diag_last_reason = first_failure;
+            if(m_settings.DebugFlow) PrintFormat("STEP 9 RESULT: TS=0 REJECT (full-eval: %s)", m_diag_last_reason);
+            return 0;
          }
          m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
          m_reject_votes++;

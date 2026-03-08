@@ -696,6 +696,13 @@ struct ST_Settings
    bool     AllowLayer1_Entries;           // Allow Layer 1 (EMA1/EMA2 touch) entries
    bool     AllowLayer2_Entries;           // Allow Layer 2 (EMA2/EMA3 touch) entries
    bool     AllowLayer3_Entries;           // Allow Layer 3 (EMA3/EMA4 touch) entries
+
+   //==========================================================================
+   // DIAGNOSTICS: STATISTICS CONFIGURATION
+   //==========================================================================
+   bool Stats_TrackRejections;  // Track rejection counts per indicator
+   bool Stats_TrackPasses;      // Track pass counts (positive stats)
+   bool Stats_FullEvaluation;   // Evaluate ALL indicators per bar (no early exit)
 };
 
 // Global Configuration Instance
@@ -787,6 +794,15 @@ input int              Inp_UI_FramePadPx         = 6;           // (Global; allo
 input group "--- ✅ Diagnostics ---"
 input bool           Inp_PrintEffectiveConfig   = true;         // (Global; allowed under presets) Print effective config on init
 input bool           Inp_DebugFlow              = true;         // (Global; allowed under presets) Print OnInit/OnTick/OnDeinit flow
+
+input group "════════════════════════════════════════════"
+input group "  DIAGNOSTICS: STATISTICS CONFIGURATION"
+input group "════════════════════════════════════════════"
+input bool Inp_Stats_TrackRejections = true;   // Track rejection counts
+input bool Inp_Stats_TrackPasses = true;       // Track pass counts (positive stats)
+input bool Inp_Stats_FullEvaluation = true;    // Evaluate ALL indicators per bar (no early exit)
+input string _stats_info1 = "FullEvaluation=false: waterfall (stop at first fail)"; // Info
+input string _stats_info2 = "FullEvaluation=true: evaluate all, identify true bottlenecks"; // Info
 
 input group "--- ✅ Reporting ---"
 input bool           Inp_ExportCSV              = false;        // (Global; allowed under presets) Export CSV reporting
@@ -1278,6 +1294,10 @@ void InitializeConfig()
    Settings.PrintEffectiveConfig     = Inp_PrintEffectiveConfig;
    Settings.DebugFlow                = Inp_DebugFlow;
    Settings.AdminOverridePreset      = Inp_AdminOverridePreset;
+
+   Settings.Stats_TrackRejections    = Inp_Stats_TrackRejections;
+   Settings.Stats_TrackPasses        = Inp_Stats_TrackPasses;
+   Settings.Stats_FullEvaluation     = Inp_Stats_FullEvaluation;
 
    Settings.UI_ShowStatusPanel       = Inp_UI_ShowStatusPanel;
    Settings.UI_ShowCockpitPanel      = Inp_UI_ShowCockpitPanel;
