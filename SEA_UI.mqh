@@ -39,16 +39,19 @@ string SEA_UI_SignalLabel(const int signal_dir)
    return "FLAT";
 }
 
-// 260304_PR7: Format EEntryLayer enum as short label (L1/L2/L3 or "(none)")
+// 260308_PR: Format EEntryLayer bitfield as short label.
+// Handles multi-layer combinations (e.g. L1+L2, L2+L3, L1+L2+L3).
 string SEA_UI_EntryLayerLabel(EEntryLayer layer)
 {
-   switch(layer)
-   {
-      case LAYER_1_WEAK:   return "L1";
-      case LAYER_2_MEDIUM: return "L2";
-      case LAYER_3_STRONG: return "L3";
-      default:             return "(none)";
-   }
+   int bits = (int)layer;
+   if(bits == 0) return "(none)";
+
+   string result = "";
+   if((bits & (int)LAYER_1_WEAK)   != 0) result += (result == "" ? "" : "+") + "L1";
+   if((bits & (int)LAYER_2_MEDIUM) != 0) result += (result == "" ? "" : "+") + "L2";
+   if((bits & (int)LAYER_3_STRONG) != 0) result += (result == "" ? "" : "+") + "L3";
+
+   return result;
 }
 
 // 260304_PR7: Format market phase as text with color coding
@@ -629,13 +632,24 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
    txt += pipeline_line + "\n";
    txt += sig_line      + "\n";
 
-   // 260304_PR7: Phase & Layer section (only shown when phase+layer filtering is active)
+   // 260308_PR: Phase & Layer section (only shown when phase+layer filtering is active)
    if(filter_active)
    {
       txt += "--- Phase & Layer ---\n";
       color phase_color_dummy;
       txt += StringFormat("Phase: %s\n", SEA_UI_FormatPhase(current_phase, phase_color_dummy));
-      txt += StringFormat("Entry Layer: %s\n", SEA_UI_EntryLayerLabel(entry_layer));
+      string layer_str = SEA_UI_EntryLayerLabel(entry_layer);
+      txt += StringFormat("Entry Layers: %s\n", layer_str);
+
+      // Show individual layer status for multi-layer visibility
+      if(entry_layer != LAYER_NONE)
+      {
+         int bits = (int)entry_layer;
+         if((bits & (int)LAYER_1_WEAK)   != 0) txt += "  " + ShortToString(0x2713) + " L1 (EMA1" + ShortToString(0x2194) + "EMA2) Ribbon\n";
+         if((bits & (int)LAYER_2_MEDIUM) != 0) txt += "  " + ShortToString(0x2713) + " L2 (EMA2" + ShortToString(0x2194) + "EMA3) Ghost\n";
+         if((bits & (int)LAYER_3_STRONG) != 0) txt += "  " + ShortToString(0x2713) + " L3 (EMA3" + ShortToString(0x2194) + "EMA4) Shark\n";
+      }
+
       color status_color_dummy;
       txt += StringFormat("Filter Status: %s\n", SEA_UI_FormatFilterStatus(layer_allowed, filter_active, status_color_dummy));
    }

@@ -969,16 +969,19 @@ public:
    // Returns true if the given entry layer is permitted in the given phase.
    // Requires PhaseDetectionEnabled AND EnableLayerDetection to activate filtering.
    //
+   // 260308_PR: layer_bitfield may contain multiple layer flags OR-combined.
+   // All active layers in the bitfield must pass the phase-layer rules.
+   //
    // Phase-layer filtering rules:
    //   UNORDERED → Block ALL layers (L1, L2, L3)  — choppy/mixed market, no clear trend
    //   EMERGING  → ALLOW L1/L2 only; BLOCK L3     — trend forming, avoid deep pullbacks
    //   TRENDING  → ALLOW L1/L2/L3 (ALL layers)    — strong established trend, all depths valid
-   bool IsLayerAllowed(EEntryLayer layer, EMarketPhase phase) const
+   bool IsLayerAllowed(EEntryLayer layer_bitfield, EMarketPhase phase) const
    {
       if(!m_settings.PhaseDetectionEnabled || !m_settings.EnableLayerDetection)
          return true;  // Filtering disabled - all layers allowed
 
-      if(layer == LAYER_NONE)
+      if(layer_bitfield == LAYER_NONE)
          return false;  // No layer detected - nothing to allow
 
       bool is_emerging = (phase == PHASE_EMERGING || phase == PHASE_EMERGING_UP || phase == PHASE_EMERGING_DN);
@@ -992,8 +995,11 @@ public:
       else if(is_emerging)
       {
          // Trend forming but not confirmed → ALLOW L1/L2 only; BLOCK L3 (STRONG)
-         // Deep pullbacks (L3/Shark) are too risky before the trend is established
-         return (layer == LAYER_1_WEAK || layer == LAYER_2_MEDIUM);
+         // Deep pullbacks (L3/Shark) are too risky before the trend is established.
+         // 260308_PR: If L3 flag is set in the bitfield, the whole signal is blocked.
+         if(((int)layer_bitfield & (int)LAYER_3_STRONG) != 0)
+            return false;  // L3 component blocked in EMERGING
+         return (((int)layer_bitfield & ((int)LAYER_1_WEAK | (int)LAYER_2_MEDIUM)) != 0);
       }
       else if(is_trending)
       {
@@ -2119,9 +2125,10 @@ public:
       // ═══════════════════════════════════════════════════════════════
       m_diag_last_entry_layer = DetectEntryLayer(v_shift);
       if(m_settings.DebugFlow) {
-         PrintFormat("ENTRY LAYER[%s]: Detected %s",
+         PrintFormat("ENTRY LAYER[%s]: Detected %s (bitfield=%d)",
                      TimeToString(iTime(m_symbol, PERIOD_CURRENT, v_shift)),
-                     EnumToString(m_diag_last_entry_layer));
+                     LayerBitfieldToString((int)m_diag_last_entry_layer),
+                     (int)m_diag_last_entry_layer);
       }
 
       //+------------------------------------------------------------------+
@@ -2137,9 +2144,11 @@ public:
       //| EnableLayerDetection=true to activate filtering                  |
       //+------------------------------------------------------------------+
       // ═══════════════════════════════════════════════════════════════
-      // 260304_PR5: Phase-based layer filtering
+      // 260304_PR5 / 260308_PR: Phase-based layer filtering
       // If both phase detection and layer detection are enabled,
-      // enforce RRM methodology rules for trade filtering by phase
+      // enforce RRM methodology rules for trade filtering by phase.
+      // 260308_PR: m_diag_last_entry_layer is now a bitfield — check
+      // individual layer flags rather than equality comparisons.
       // ═══════════════════════════════════════════════════════════════
       if(m_settings.EnableLayerDetection && 
          m_settings.PhaseDetectionEnabled &&
@@ -2156,8 +2165,8 @@ public:
             if(m_settings.Stats_TrackRejections) m_stats.rejected_phase++;
             
             if(m_settings.DebugFlow) {
-               PrintFormat("[260304_PR5] UNORDERED phase detected - blocking ALL trades (layer=%s)",
-                           EnumToString(m_diag_last_entry_layer));
+               PrintFormat("[260308_PR5] UNORDERED phase detected - blocking ALL trades (layers=%s)",
+                           LayerBitfieldToString((int)m_diag_last_entry_layer));
             }
             if(!m_settings.Stats_FullEvaluation) return 0;
             if(first_failure == "") first_failure = "PHASE_UNORDERED";
@@ -2168,14 +2177,15 @@ public:
          }
          
          // Rule 2: EMERGING phase blocks STRONG (Layer 3) trades only
-         if(is_emerging && m_diag_last_entry_layer == LAYER_3_STRONG) {
+         // 260308_PR: Check L3 flag in bitfield rather than equality
+         if(is_emerging && IsLayerActive(m_diag_last_entry_layer, LAYER_3_STRONG)) {
             m_diag_last_reason = "PHASE_EMERGING_BLOCKS_STRONG";
             m_reject_bias++;
             if(m_settings.Stats_TrackRejections) m_stats.rejected_layer_blocked++;
             
             if(m_settings.DebugFlow) {
-               PrintFormat("[260304_PR5] %s phase detected - blocking STRONG layer trade (deep pullback too risky)",
-                           EnumToString(phase));
+               PrintFormat("[260308_PR5] %s phase detected - blocking L3 component (deep pullback too risky); layers=%s",
+                           EnumToString(phase), LayerBitfieldToString((int)m_diag_last_entry_layer));
             }
             if(!m_settings.Stats_FullEvaluation) return 0;
             if(first_failure == "") first_failure = "PHASE_EMERGING_L3";
@@ -2187,8 +2197,8 @@ public:
          
          // Rule 3: TRENDING phase allows ALL layers (L1/L2/L3 — no blocking)
          if(m_settings.DebugFlow && is_trending) {
-            PrintFormat("[260304_PR5] %s phase - allowing ALL layers (%s); deep pullbacks valid in strong trend",
-                        EnumToString(phase), EnumToString(m_diag_last_entry_layer));
+            PrintFormat("[260308_PR5] %s phase - allowing ALL layers (%s); deep pullbacks valid in strong trend",
+                        EnumToString(phase), LayerBitfieldToString((int)m_diag_last_entry_layer));
          }
       }
 
@@ -2982,11 +2992,12 @@ public:
    //| 260304_PR4: Entry Layer Detection                                |
    //| Classifies pullback depth based on which EMAs price touched      |
    //|                                                                  |
+   //| 260308_PR: Returns a BITFIELD of all active layers so that      |
+   //| simultaneous multi-layer signals are captured.                  |
+   //|                                                                  |
    //| Returns:                                                         |
-   //|   LAYER_1_WEAK   - Price within tolerance of EMA1/EMA2 zone     |
-   //|   LAYER_2_MEDIUM - Price within tolerance of EMA2/EMA3 zone     |
-   //|   LAYER_3_STRONG - Price within tolerance of EMA3/EMA4 zone     |
-   //|   LAYER_NONE     - Detection disabled or no EMA touch found     |
+   //|   Bitfield of LAYER_x flags (OR-combined)                       |
+   //|   LAYER_NONE (0)  - Detection disabled or no EMA touch found   |
    //|                                                                  |
    //| Note: Detection is PASSIVE - results stored in diagnostic field |
    //|       but do not affect trade execution (filtering not enabled) |
@@ -3009,34 +3020,36 @@ public:
       double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
       double tol   = m_settings.LayerTouchTolerancePips * SymbolInfoDouble(m_symbol, SYMBOL_POINT) * 10.0;
 
-      // Layer 3: price touches EMA3 or EMA4 zone (checked first - deepest layer has priority)
-      if(MathAbs(price - ema3) <= tol || MathAbs(price - ema4) <= tol)
+      int active_layers = 0;  // 260308_PR: Bitfield accumulator — check ALL layers
+
+      // Layer 1: price touches EMA1 or EMA2 zone
+      if(MathAbs(price - ema1) <= tol || MathAbs(price - ema2) <= tol)
       {
+         active_layers |= (int)LAYER_1_WEAK;
          if(m_settings.DebugFlow)
-            PrintFormat("[260304_ENTRY] STRONG layer detected: Price=%.5f touched EMA3(%.5f) tolerance=%.5f",
-                        price, ema3, tol);
-         return LAYER_3_STRONG;
+            PrintFormat("[260304_ENTRY] WEAK layer detected: Price=%.5f touched EMA1(%.5f) tolerance=%.5f",
+                        price, ema1, tol);
       }
 
       // Layer 2: price touches EMA2 or EMA3 zone
       if(MathAbs(price - ema2) <= tol || MathAbs(price - ema3) <= tol)
       {
+         active_layers |= (int)LAYER_2_MEDIUM;
          if(m_settings.DebugFlow)
             PrintFormat("[260304_ENTRY] MEDIUM layer detected: Price=%.5f touched EMA2(%.5f) tolerance=%.5f",
                         price, ema2, tol);
-         return LAYER_2_MEDIUM;
       }
 
-      // Layer 1: price touches EMA1 or EMA2 zone
-      if(MathAbs(price - ema1) <= tol || MathAbs(price - ema2) <= tol)
+      // Layer 3: price touches EMA3 or EMA4 zone
+      if(MathAbs(price - ema3) <= tol || MathAbs(price - ema4) <= tol)
       {
+         active_layers |= (int)LAYER_3_STRONG;
          if(m_settings.DebugFlow)
-            PrintFormat("[260304_ENTRY] WEAK layer detected: Price=%.5f touched EMA1(%.5f) tolerance=%.5f",
-                        price, ema1, tol);
-         return LAYER_1_WEAK;
+            PrintFormat("[260304_ENTRY] STRONG layer detected: Price=%.5f touched EMA3(%.5f) tolerance=%.5f",
+                        price, ema3, tol);
       }
 
-      return LAYER_NONE;
+      return (EEntryLayer)active_layers;
    }
 
    //+------------------------------------------------------------------+
@@ -3055,7 +3068,34 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| STRAT_LAYER_DETECTION: Detect pullback-recovery layer            |
+   //| 260308_PR: Convert layer bitfield to readable string            |
+   //| Examples: 0→"NONE", 1→"L1", 3→"L1+L2", 7→"L1+L2+L3"         |
+   //+------------------------------------------------------------------+
+   string LayerBitfieldToString(int bitfield)
+   {
+      if(bitfield == 0) return "NONE";
+
+      string result = "";
+      if((bitfield & (int)LAYER_1_WEAK)   != 0) result += (result == "" ? "" : "+") + "L1";
+      if((bitfield & (int)LAYER_2_MEDIUM) != 0) result += (result == "" ? "" : "+") + "L2";
+      if((bitfield & (int)LAYER_3_STRONG) != 0) result += (result == "" ? "" : "+") + "L3";
+
+      return result;
+   }
+
+   //+------------------------------------------------------------------+
+   //| 260308_PR: Check if a specific layer flag is set in a bitfield  |
+   //+------------------------------------------------------------------+
+   bool IsLayerActive(EEntryLayer bitfield, EEntryLayer layer)
+   {
+      return ((int)bitfield & (int)layer) != 0;
+   }
+
+   //+------------------------------------------------------------------+
+   //| STRAT_LAYER_DETECTION: Detect pullback-recovery layer(s)        |
+   //|                                                                  |
+   //| 260308_PR: Returns a BITFIELD of all active layers so that      |
+   //| simultaneous multi-layer signals (e.g. L1+L2) are captured.    |
    //|                                                                  |
    //| Implements Python EA TrSet patterns:                             |
    //|   LAYER_1_WEAK   (Ribbon): Low touches EMA1, Close beyond EMA2  |
@@ -3087,66 +3127,72 @@ public:
 
       double tol = m_settings.LayerTouchTolerance;  // Percentage tolerance (e.g. 0.01 = 1%)
 
+      int active_layers = 0;  // 260308_PR: Bitfield accumulator — check ALL layers
+
       if(bias == 1)  // LONG: look for bullish pullback-recovery
       {
-         // LAYER_3_STRONG (Shark): Low touched EMA3, Close beyond EMA4
-         if(low <= ema3 * (1.0 + tol) && close > ema4 && ema3 > ema4)
+         // LAYER_1_WEAK (Ribbon): Low touched EMA1, Close beyond EMA2
+         if(low <= ema1 * (1.0 + tol) && close > ema2 && ema1 > ema2)
          {
+            active_layers |= (int)LAYER_1_WEAK;
             if(m_settings.DebugFlow)
-               PrintFormat("[LAYER] LAYER_3_STRONG (Shark): Low=%.5f touched EMA3=%.5f, Close=%.5f > EMA4=%.5f",
-                           low, ema3, close, ema4);
-            return LAYER_3_STRONG;
+               PrintFormat("[LAYER] LAYER_1_WEAK (Ribbon): Low=%.5f touched EMA1=%.5f, Close=%.5f > EMA2=%.5f",
+                           low, ema1, close, ema2);
          }
          // LAYER_2_MEDIUM (Ghost): Low touched EMA2, Close beyond EMA3
          if(low <= ema2 * (1.0 + tol) && close > ema3 && ema2 > ema3)
          {
+            active_layers |= (int)LAYER_2_MEDIUM;
             if(m_settings.DebugFlow)
                PrintFormat("[LAYER] LAYER_2_MEDIUM (Ghost): Low=%.5f touched EMA2=%.5f, Close=%.5f > EMA3=%.5f",
                            low, ema2, close, ema3);
-            return LAYER_2_MEDIUM;
          }
-         // LAYER_1_WEAK (Ribbon): Low touched EMA1, Close beyond EMA2
-         if(low <= ema1 * (1.0 + tol) && close > ema2 && ema1 > ema2)
+         // LAYER_3_STRONG (Shark): Low touched EMA3, Close beyond EMA4
+         if(low <= ema3 * (1.0 + tol) && close > ema4 && ema3 > ema4)
          {
+            active_layers |= (int)LAYER_3_STRONG;
             if(m_settings.DebugFlow)
-               PrintFormat("[LAYER] LAYER_1_WEAK (Ribbon): Low=%.5f touched EMA1=%.5f, Close=%.5f > EMA2=%.5f",
-                           low, ema1, close, ema2);
-            return LAYER_1_WEAK;
+               PrintFormat("[LAYER] LAYER_3_STRONG (Shark): Low=%.5f touched EMA3=%.5f, Close=%.5f > EMA4=%.5f",
+                           low, ema3, close, ema4);
          }
       }
       else  // SHORT (bias == -1): look for bearish pullback-recovery
       {
-         // LAYER_3_STRONG (Shark): High touched EMA3, Close beyond EMA4
-         if(high >= ema3 * (1.0 - tol) && close < ema4 && ema3 < ema4)
+         // LAYER_1_WEAK (Ribbon): High touched EMA1, Close beyond EMA2
+         if(high >= ema1 * (1.0 - tol) && close < ema2 && ema1 < ema2)
          {
+            active_layers |= (int)LAYER_1_WEAK;
             if(m_settings.DebugFlow)
-               PrintFormat("[LAYER] LAYER_3_STRONG (Shark): High=%.5f touched EMA3=%.5f, Close=%.5f < EMA4=%.5f",
-                           high, ema3, close, ema4);
-            return LAYER_3_STRONG;
+               PrintFormat("[LAYER] LAYER_1_WEAK (Ribbon): High=%.5f touched EMA1=%.5f, Close=%.5f < EMA2=%.5f",
+                           high, ema1, close, ema2);
          }
          // LAYER_2_MEDIUM (Ghost): High touched EMA2, Close beyond EMA3
          if(high >= ema2 * (1.0 - tol) && close < ema3 && ema2 < ema3)
          {
+            active_layers |= (int)LAYER_2_MEDIUM;
             if(m_settings.DebugFlow)
                PrintFormat("[LAYER] LAYER_2_MEDIUM (Ghost): High=%.5f touched EMA2=%.5f, Close=%.5f < EMA3=%.5f",
                            high, ema2, close, ema3);
-            return LAYER_2_MEDIUM;
          }
-         // LAYER_1_WEAK (Ribbon): High touched EMA1, Close beyond EMA2
-         if(high >= ema1 * (1.0 - tol) && close < ema2 && ema1 < ema2)
+         // LAYER_3_STRONG (Shark): High touched EMA3, Close beyond EMA4
+         if(high >= ema3 * (1.0 - tol) && close < ema4 && ema3 < ema4)
          {
+            active_layers |= (int)LAYER_3_STRONG;
             if(m_settings.DebugFlow)
-               PrintFormat("[LAYER] LAYER_1_WEAK (Ribbon): High=%.5f touched EMA1=%.5f, Close=%.5f < EMA2=%.5f",
-                           high, ema1, close, ema2);
-            return LAYER_1_WEAK;
+               PrintFormat("[LAYER] LAYER_3_STRONG (Shark): High=%.5f touched EMA3=%.5f, Close=%.5f < EMA4=%.5f",
+                           high, ema3, close, ema4);
          }
       }
 
-      return LAYER_NONE;
+      if(m_settings.DebugFlow)
+         PrintFormat("[260308_LAYER] Active layers: %s (bitfield=%d)", LayerBitfieldToString(active_layers), active_layers);
+
+      return (EEntryLayer)active_layers;
    }
 
    //+------------------------------------------------------------------+
    //| Get human-readable layer name (for diagnostics)                 |
+   //| 260308_PR: Handles bitfield values via LayerBitfieldToString()  |
    //+------------------------------------------------------------------+
    string GetLayerName(EEntryLayer layer)
    {
@@ -3156,7 +3202,7 @@ public:
          case LAYER_2_MEDIUM:  return "LAYER_2_MEDIUM (Ghost)";
          case LAYER_3_STRONG:  return "LAYER_3_STRONG (Shark)";
          case LAYER_NONE:      return "LAYER_NONE";
-         default:              return "UNKNOWN";
+         default:              return LayerBitfieldToString((int)layer);
       }
    }
 };

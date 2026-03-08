@@ -161,11 +161,16 @@ enum EMarketPhase {
 //|    0  = No pullback-recovery detected (FAIL)                    |
 //|   -1  = Pullback-recovery contradicts bias direction (FAIL)    |
 //+------------------------------------------------------------------+
+// 260308_PR: Bitfield enum — each layer is a power-of-2 flag so multiple layers
+// can be OR-combined into a single value (e.g. L1+L2 = 3, L2+L3 = 6, L1+L2+L3 = 7).
 enum EEntryLayer {
-   LAYER_NONE,        // No layer detected or detection disabled
-   LAYER_1_WEAK,      // Layer 1: EMA1-EMA2 "Ribbon" zone (shallow pullback)
-   LAYER_2_MEDIUM,    // Layer 2: EMA2-EMA3 "Ghost" zone (medium pullback)
-   LAYER_3_STRONG     // Layer 3: EMA3-EMA4 "Shark" zone (deep pullback)
+   LAYER_NONE          = 0,   // 0b0000 — No layer detected or detection disabled
+   LAYER_1_WEAK        = 1,   // 0b0001 — Layer 1: EMA1-EMA2 "Ribbon" zone (shallow pullback)
+   LAYER_2_MEDIUM      = 2,   // 0b0010 — Layer 2: EMA2-EMA3 "Ghost" zone (medium pullback)
+   LAYER_3_STRONG      = 4,   // 0b0100 — Layer 3: EMA3-EMA4 "Shark" zone (deep pullback)
+   LAYER_1_2           = 3,   // 0b0011 — L1 + L2 active simultaneously
+   LAYER_2_3           = 6,   // 0b0110 — L2 + L3 active simultaneously
+   LAYER_1_2_3         = 7    // 0b0111 — All three layers active simultaneously
 };
 
 enum EManualSide
