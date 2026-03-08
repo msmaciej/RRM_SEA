@@ -349,9 +349,13 @@ string SEA_UI_BuildIndicatorConfigs(const ST_Settings &cfg)
                              cfg.P_MacdFast, cfg.P_MacdSlow, cfg.P_MacdSig,
                              GetMACDModeDescription(cfg.MacdVoteMode, cfg.MacdRequireSlope,
                                                     cfg.MacdRequireDivergence, cfg.MacdRequireHook));
-   if(cfg.Ind_Psar_Enabled)
-      output += StringFormat("  PSAR: Step=%.2f, Max=%.2f\n",
-                             cfg.P_PsarStep, cfg.P_PsarMax);
+   if(cfg.Ind_Psar_Enabled) {
+      string psar_mode = cfg.Vote_AllowPsarFlip
+         ? StringFormat("[FLIP mode: delay=%d bars]", cfg.Vote_PsarFlipDelay)
+         : "[DOT mode]";
+      output += StringFormat("  PSAR: Step=%.2f, Max=%.2f %s\n",
+                             cfg.P_PsarStep, cfg.P_PsarMax, psar_mode);
+   }
    if(cfg.Ind_Rsi_Enabled)
       output += StringFormat("  RSI: Period=%d, OB=%.0f, OS=%.0f\n",
                              cfg.P_Rsi, cfg.T_RsiOB, cfg.T_RsiOS);

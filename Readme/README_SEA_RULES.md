@@ -58,12 +58,13 @@ This document defines the **operating rules** for maintaining and modifying Simp
 ### PSAR Flip Delay Logic
 
 When `Vote_AllowPsarFlip=true`:
-- PSAR flip must occur within last N bars (configurable via `Vote_PsarFlipLookback`)
-- Once detected, flip remains "valid" as long as it stays in the N-bar window
-- Sliding window automatically handles expiry
-- Example: Flip at bar 5, N=5 → valid at bars 4,3,2,1,0 → expires at next bar
+- A flip is detected when PSAR crosses from below to above price (or vice versa) on a closed bar
+- The flip timestamp and direction are stored in memory
+- Each bar, `bars_since_flip` is calculated from the stored flip time
+- PSAR vote passes only if `bars_since_flip <= Vote_PsarFlipDelay`
+- Example: Flip at bar 5, DelayN=2 → valid at bars 5 (N=2) and 4 (N=1) → expires at bar 3 (N=0)
 
-This matches Python EA behavior where flip detection "arms" the PSAR vote for multiple candles.
+This countdown-based approach provides exact N-bar validity windows, unlike sliding window logic.
 
 ### Risk Management Integration
 
