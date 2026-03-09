@@ -146,9 +146,17 @@ private:
 
    // --- 3. DATA HELPERS ---
    // Simplified buffer access for cleaner logic code
-   double GetVal(int handle, int shift, int buffer_num=0, bool *out_valid=NULL) const {
+
+   // Version 1: No validity checking (backward compatible)
+   double GetVal(int handle, int shift, int buffer_num=0) const {
+      bool ignored_valid = false;
+      return GetVal(handle, shift, buffer_num, ignored_valid);
+   }
+
+   // Version 2: With validity checking via MQL5 reference parameter
+   double GetVal(int handle, int shift, int buffer_num, bool &out_valid) const {
       if(handle == INVALID_HANDLE) {
-         if(out_valid != NULL) *out_valid = false;
+         out_valid = false;
          return 0.0;
       }
 
@@ -159,9 +167,10 @@ private:
          int error = GetLastError();
 
          // Distinguish temporary vs permanent errors
-         if(error == ERR_HISTORY_WILL_UPDATED || error == ERR_NO_HISTORY_DATA) {
+         // MQL5 error codes: 4066 = ERR_HISTORY_WILL_UPDATED, 4073 = ERR_NO_HISTORY_DATA
+         if(error == 4066 || error == 4073) {
             // Temporary - data loading
-            if(out_valid != NULL) *out_valid = false;
+            out_valid = false;
             return 0.0;
          }
 
@@ -170,34 +179,49 @@ private:
             PrintFormat("[IND_ERROR] Handle=%d Buffer=%d Shift=%d Error=%d",
                         handle, buffer_num, shift, error);
          }
-         if(out_valid != NULL) *out_valid = false;
+         out_valid = false;
          return 0.0;
       }
 
-      if(out_valid != NULL) *out_valid = true;
+      out_valid = true;
       return b[0];
    }
 
    // NOTE: In MT5, the iMA() 'ma_shift' parameter already shifts the indicator line.
    // Therefore CopyBuffer() returns a series aligned to that shifted plot.
    // IMPORTANT: Do NOT apply ma_h_shift a second time in logic reads.
-   double GetMAVal(const int handle, const int shift, const int buffer_num=0, bool *out_valid=NULL) {
+
+   // Version 1: No validity checking (backward compatible)
+   double GetMAVal(const int handle, const int shift, const int buffer_num=0) {
+      bool ignored_valid = false;
+      return GetVal(handle, shift, buffer_num, ignored_valid);
+   }
+
+   // Version 2: With validity checking via MQL5 reference parameter
+   double GetMAVal(const int handle, const int shift, const int buffer_num, bool &out_valid) {
       return GetVal(handle, shift, buffer_num, out_valid);
    }
 
-   bool GetBuf(int handle, int buf_idx, int shift, double &arr[], int *out_error=NULL) {
+   // Version 1: No error reporting (backward compatible)
+   bool GetBuf(int handle, int buf_idx, int shift, double &arr[]) {
+      int ignored_error = 0;
+      return GetBuf(handle, buf_idx, shift, arr, ignored_error);
+   }
+
+   // Version 2: With error reporting via MQL5 reference parameter
+   bool GetBuf(int handle, int buf_idx, int shift, double &arr[], int &out_error) {
       if(handle == INVALID_HANDLE) {
-         if(out_error != NULL) *out_error = -1;
+         out_error = -1;
          return false;
       }
 
       int result = CopyBuffer(handle, buf_idx, shift, 1, arr);
       if(result <= 0) {
-         if(out_error != NULL) *out_error = GetLastError();
+         out_error = GetLastError();
          return false;
       }
 
-      if(out_error != NULL) *out_error = 0;
+      out_error = 0;
       return true;
    }
 
@@ -580,10 +604,11 @@ private:
    // Returns 1 (bullish flip), -1 (bearish flip), or 0 (no flip / insufficient data).
    // Uses closed bars only: checks shift vs shift+1 (shift+1 is the previous closed bar).
    int DetectPSARFlipAt(int shift) {
-      bool psar_curr_valid, psar_prev_valid;
+      bool psar_curr_valid = false;
+      bool psar_prev_valid = false;
 
-      double psar_curr = GetVal(h_psar, shift, 0, &psar_curr_valid);
-      double psar_prev = GetVal(h_psar, shift + 1, 0, &psar_prev_valid);
+      double psar_curr = GetVal(h_psar, shift, 0, psar_curr_valid);
+      double psar_prev = GetVal(h_psar, shift + 1, 0, psar_prev_valid);
 
       if(!psar_curr_valid || !psar_prev_valid) {
          if(m_settings.DebugFlow)
