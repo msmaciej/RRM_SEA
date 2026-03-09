@@ -146,21 +146,59 @@ private:
 
    // --- 3. DATA HELPERS ---
    // Simplified buffer access for cleaner logic code
-   double GetVal(int handle, int shift, int buffer_num=0) const {
+   double GetVal(int handle, int shift, int buffer_num=0, bool *out_valid=NULL) const {
+      if(handle == INVALID_HANDLE) {
+         if(out_valid != NULL) *out_valid = false;
+         return 0.0;
+      }
+
       double b[1];
-      if(CopyBuffer(handle, buffer_num, shift, 1, b) > 0) return b[0];
-      return 0.0;
+      int result = CopyBuffer(handle, buffer_num, shift, 1, b);
+
+      if(result <= 0) {
+         int error = GetLastError();
+
+         // Distinguish temporary vs permanent errors
+         if(error == ERR_HISTORY_WILL_UPDATED || error == ERR_NO_HISTORY_DATA) {
+            // Temporary - data loading
+            if(out_valid != NULL) *out_valid = false;
+            return 0.0;
+         }
+
+         // Permanent error - log if DebugFlow enabled
+         if(m_settings.DebugFlow) {
+            PrintFormat("[IND_ERROR] Handle=%d Buffer=%d Shift=%d Error=%d",
+                        handle, buffer_num, shift, error);
+         }
+         if(out_valid != NULL) *out_valid = false;
+         return 0.0;
+      }
+
+      if(out_valid != NULL) *out_valid = true;
+      return b[0];
    }
 
    // NOTE: In MT5, the iMA() 'ma_shift' parameter already shifts the indicator line.
    // Therefore CopyBuffer() returns a series aligned to that shifted plot.
    // IMPORTANT: Do NOT apply ma_h_shift a second time in logic reads.
-   double GetMAVal(const int handle, const int shift, const int buffer_num=0) {
-      return GetVal(handle, shift, buffer_num);
+   double GetMAVal(const int handle, const int shift, const int buffer_num=0, bool *out_valid=NULL) {
+      return GetVal(handle, shift, buffer_num, out_valid);
    }
 
-   bool GetBuf(int handle, int buf_idx, int shift, double &arr[]) {
-      return (CopyBuffer(handle, buf_idx, shift, 1, arr) > 0);
+   bool GetBuf(int handle, int buf_idx, int shift, double &arr[], int *out_error=NULL) {
+      if(handle == INVALID_HANDLE) {
+         if(out_error != NULL) *out_error = -1;
+         return false;
+      }
+
+      int result = CopyBuffer(handle, buf_idx, shift, 1, arr);
+      if(result <= 0) {
+         if(out_error != NULL) *out_error = GetLastError();
+         return false;
+      }
+
+      if(out_error != NULL) *out_error = 0;
+      return true;
    }
 
    // --- 4. PATTERN RECOGNITION HELPERS ---
@@ -542,18 +580,29 @@ private:
    // Returns 1 (bullish flip), -1 (bearish flip), or 0 (no flip / insufficient data).
    // Uses closed bars only: checks shift vs shift+1 (shift+1 is the previous closed bar).
    int DetectPSARFlipAt(int shift) {
-      double psar_curr = GetVal(h_psar, shift);
-      double cl_curr   = iClose(m_symbol, PERIOD_CURRENT, shift);
-      double psar_prev = GetVal(h_psar, shift + 1);
-      double cl_prev   = iClose(m_symbol, PERIOD_CURRENT, shift + 1);
+      bool psar_curr_valid, psar_prev_valid;
 
-      PrintFormat("[PSAR_FLIP_DETECT] shift=%d | psar_curr=%.5f cl_curr=%.5f psar_prev=%.5f cl_prev=%.5f",
-                  shift, psar_curr, cl_curr, psar_prev, cl_prev);
+      double psar_curr = GetVal(h_psar, shift, 0, &psar_curr_valid);
+      double psar_prev = GetVal(h_psar, shift + 1, 0, &psar_prev_valid);
 
-      if(psar_curr == 0.0 || cl_curr == 0.0 || psar_prev == 0.0 || cl_prev == 0.0) {
-         Print("[PSAR_FLIP_DETECT] SKIP: one or more values are 0 (insufficient data)");
+      if(!psar_curr_valid || !psar_prev_valid) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[PSAR_FLIP_DETECT] shift=%d | SKIP: PSAR data not ready (history loading)", shift);
          return 0;
       }
+
+      double cl_curr = iClose(m_symbol, PERIOD_CURRENT, shift);
+      double cl_prev = iClose(m_symbol, PERIOD_CURRENT, shift + 1);
+
+      if(cl_curr == 0.0 || cl_prev == 0.0) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[PSAR_FLIP_DETECT] shift=%d | SKIP: close price not available", shift);
+         return 0;
+      }
+
+      if(m_settings.DebugFlow)
+         PrintFormat("[PSAR_FLIP_DETECT] shift=%d | psar_curr=%.5f cl_curr=%.5f psar_prev=%.5f cl_prev=%.5f",
+                     shift, psar_curr, cl_curr, psar_prev, cl_prev);
 
       bool curr_bullish = (cl_curr > psar_curr);
       bool prev_bullish = (cl_prev > psar_prev);
@@ -562,10 +611,11 @@ private:
       if(curr_bullish && !prev_bullish) flip =  1;   // Bullish flip: PSAR moved below price
       if(!curr_bullish && prev_bullish) flip = -1;   // Bearish flip: PSAR moved above price
 
-      PrintFormat("[PSAR_FLIP_DETECT] curr_bullish=%s prev_bullish=%s → result=%s",
-                  (curr_bullish ? "true" : "false"),
-                  (prev_bullish ? "true" : "false"),
-                  (flip == 1 ? "BULLISH FLIP" : (flip == -1 ? "BEARISH FLIP" : "NO FLIP (same side)")));
+      if(m_settings.DebugFlow)
+         PrintFormat("[PSAR_FLIP_DETECT] curr_bullish=%s prev_bullish=%s -> result=%s",
+                     (curr_bullish ? "true" : "false"),
+                     (prev_bullish ? "true" : "false"),
+                     (flip == 1 ? "BULLISH FLIP" : (flip == -1 ? "BEARISH FLIP" : "NO FLIP (same side)")));
 
       if(m_settings.DebugFlow && flip != 0) {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, shift);
@@ -586,7 +636,8 @@ private:
    // PSAR flip tracker: call once per bar close to record the most recent flip.
    // Stores direction-specific timestamps so bullish and bearish flips are tracked independently.
    void UpdatePSARFlipTracking(int shift = 1) {
-      Print("[DEBUG_TEST] UpdatePSARFlipTracking() CALLED");
+      if(m_settings.DebugFlow)
+         Print("[DEBUG_TEST] UpdatePSARFlipTracking() CALLED");
       int flip = DetectPSARFlipAt(shift);
       if(flip != 0) {
          datetime flip_time = iTime(m_symbol, PERIOD_CURRENT, shift);
@@ -625,11 +676,11 @@ private:
    //   2. A flip in the matching direction has been recorded
    //   3. The flip occurred within the last Vote_PsarFlipDelay bars
    bool Check_PSAR_WithFlip(int bias, int shift) {
-      // === UNCONDITIONAL DEBUG TEST ===
-      Print("[DEBUG_TEST] Check_PSAR_WithFlip() CALLED");
-      PrintFormat("[DEBUG_TEST] bias=%d shift=%d DebugFlow=%s",
-                  bias, shift, m_settings.DebugFlow ? "TRUE" : "FALSE");
-      // === END DEBUG TEST ===
+      if(m_settings.DebugFlow) {
+         Print("[DEBUG_TEST] Check_PSAR_WithFlip() CALLED");
+         PrintFormat("[DEBUG_TEST] bias=%d shift=%d DebugFlow=%s",
+                     bias, shift, m_settings.DebugFlow ? "TRUE" : "FALSE");
+      }
 
       // START DEBUG LOGGING BANNER
       if(m_settings.DebugFlow) {
@@ -1875,6 +1926,12 @@ public:
       bool need_psar = (m_settings.Ind_Psar_Enabled || m_settings.TrailMode == TRAIL_PSAR);
       h_psar = (need_psar ? iSAR(m_symbol, PERIOD_CURRENT, m_settings.P_PsarStep, m_settings.P_PsarMax) : INVALID_HANDLE);
 
+      if(need_psar && h_psar == INVALID_HANDLE) {
+         PrintFormat("CRITICAL ERROR: Failed to create PSAR indicator (Step=%.4f Max=%.4f Error=%d)",
+                     m_settings.P_PsarStep, m_settings.P_PsarMax, GetLastError());
+         return false;
+      }
+
       bool need_fractals = (m_settings.Ind_P123_Enabled || m_settings.Ind_Ross_Enabled || m_settings.TrailMode == TRAIL_FRACTAL);
       h_fractals = (need_fractals ? iFractals(m_symbol, PERIOD_CURRENT) : INVALID_HANDLE);
       // B. Create HTF Filter (If Enabled)
@@ -2224,13 +2281,11 @@ public:
    //==========================================================================
    int EvaluateTS() 
    {
-      // === UNCONDITIONAL DEBUG TEST (always prints) ===
-      Print("═══════════════════════════════════════════════════════════");
-      Print("[DEBUG_TEST] EvaluateTS() CALLED");
-      PrintFormat("[DEBUG_TEST] m_settings.DebugFlow = %s", m_settings.DebugFlow ? "TRUE" : "FALSE");
-      PrintFormat("[DEBUG_TEST] Current time: %s", TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES));
-      Print("═══════════════════════════════════════════════════════════");
-      // === END DEBUG TEST ===
+      if(m_settings.DebugFlow) {
+         Print("[DEBUG_TEST] EvaluateTS() CALLED");
+         PrintFormat("[DEBUG_TEST] m_settings.DebugFlow = %s", m_settings.DebugFlow ? "TRUE" : "FALSE");
+         PrintFormat("[DEBUG_TEST] Current time: %s", TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES));
+      }
 
       // Update PSAR flip tracking on each bar close (uses shift=1 for closed bar)
       if(m_settings.Vote_AllowPsarFlip)

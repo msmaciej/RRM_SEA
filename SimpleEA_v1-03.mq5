@@ -586,9 +586,11 @@ void OrchestrateTick()
    if(!drawdown_blocked)
    {
       FlowLog("Step B: Compute direction signal (TS evaluation at shift=1)");
-      Print("[DEBUG_TEST] About to call Signal.EvaluateTS()");
+      if(Settings.DebugFlow)
+         Print("[DEBUG_TEST] About to call Signal.EvaluateTS()");
       int ts = Signal.EvaluateTS();
-      PrintFormat("[DEBUG_TEST] Signal.EvaluateTS() returned: %d", ts);
+      if(Settings.DebugFlow)
+         PrintFormat("[DEBUG_TEST] Signal.EvaluateTS() returned: %d", ts);
 
       // Capture TS display snapshot
       if(ts != 0)
