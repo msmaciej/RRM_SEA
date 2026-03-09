@@ -667,6 +667,27 @@ private:
       // 2. Check if a flip was recorded for this direction
       datetime flip_time = (bias > 0) ? m_psar_last_flip_time_bull : m_psar_last_flip_time_bear;
 
+      // Display flip countdown status
+      if(m_settings.DebugFlow) {
+         if(flip_time == 0) {
+            PrintFormat("[PSAR_FLIP_CHECK] STEP 2: No %s flip recorded yet",
+                        (bias > 0 ? "BULLISH" : "BEARISH"));
+         } else {
+            int bars_elapsed   = GetBarsSinceLastFlip(bias, shift);
+            int bars_remaining = m_settings.Vote_PsarFlipDelay - bars_elapsed;
+            bool is_valid      = (bars_elapsed <= m_settings.Vote_PsarFlipDelay);
+
+            PrintFormat("[PSAR_FLIP_CHECK] STEP 2: Flip recorded at %s",
+                        TimeToString(flip_time, TIME_DATE|TIME_MINUTES));
+            PrintFormat("[PSAR_FLIP_CHECK]    Flip age: %d bars | Delay limit: %d bars | Remaining: %d bars",
+                        bars_elapsed,
+                        m_settings.Vote_PsarFlipDelay,
+                        bars_remaining);
+            PrintFormat("[PSAR_FLIP_CHECK]    Status: %s",
+                        is_valid ? "VALID (within delay window)" : "EXPIRED (too old)");
+         }
+      }
+
       if(flip_time == 0) {
          m_diag_last_reason = StringFormat("PSAR_NO_FLIP_RECORDED (bias=%d)", bias);
 
