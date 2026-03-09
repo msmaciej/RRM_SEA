@@ -547,8 +547,13 @@ private:
       double psar_prev = GetVal(h_psar, shift + 1);
       double cl_prev   = iClose(m_symbol, PERIOD_CURRENT, shift + 1);
 
-      if(psar_curr == 0.0 || cl_curr == 0.0 || psar_prev == 0.0 || cl_prev == 0.0)
+      PrintFormat("[PSAR_FLIP_DETECT] shift=%d | psar_curr=%.5f cl_curr=%.5f psar_prev=%.5f cl_prev=%.5f",
+                  shift, psar_curr, cl_curr, psar_prev, cl_prev);
+
+      if(psar_curr == 0.0 || cl_curr == 0.0 || psar_prev == 0.0 || cl_prev == 0.0) {
+         Print("[PSAR_FLIP_DETECT] SKIP: one or more values are 0 (insufficient data)");
          return 0;
+      }
 
       bool curr_bullish = (cl_curr > psar_curr);
       bool prev_bullish = (cl_prev > psar_prev);
@@ -556,6 +561,11 @@ private:
       int flip = 0;
       if(curr_bullish && !prev_bullish) flip =  1;   // Bullish flip: PSAR moved below price
       if(!curr_bullish && prev_bullish) flip = -1;   // Bearish flip: PSAR moved above price
+
+      PrintFormat("[PSAR_FLIP_DETECT] curr_bullish=%s prev_bullish=%s → result=%s",
+                  (curr_bullish ? "true" : "false"),
+                  (prev_bullish ? "true" : "false"),
+                  (flip == 1 ? "BULLISH FLIP" : (flip == -1 ? "BEARISH FLIP" : "NO FLIP (same side)")));
 
       if(m_settings.DebugFlow && flip != 0) {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, shift);
