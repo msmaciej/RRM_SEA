@@ -547,8 +547,13 @@ private:
       double psar_prev = GetVal(h_psar, shift + 1);
       double cl_prev   = iClose(m_symbol, PERIOD_CURRENT, shift + 1);
 
-      if(psar_curr == 0.0 || cl_curr == 0.0 || psar_prev == 0.0 || cl_prev == 0.0)
+      PrintFormat("[PSAR_FLIP_DETECT] shift=%d | psar_curr=%.5f cl_curr=%.5f psar_prev=%.5f cl_prev=%.5f",
+                  shift, psar_curr, cl_curr, psar_prev, cl_prev);
+
+      if(psar_curr == 0.0 || cl_curr == 0.0 || psar_prev == 0.0 || cl_prev == 0.0) {
+         Print("[PSAR_FLIP_DETECT] SKIP: one or more values are 0 (insufficient data)");
          return 0;
+      }
 
       bool curr_bullish = (cl_curr > psar_curr);
       bool prev_bullish = (cl_prev > psar_prev);
@@ -556,6 +561,11 @@ private:
       int flip = 0;
       if(curr_bullish && !prev_bullish) flip =  1;   // Bullish flip: PSAR moved below price
       if(!curr_bullish && prev_bullish) flip = -1;   // Bearish flip: PSAR moved above price
+
+      PrintFormat("[PSAR_FLIP_DETECT] curr_bullish=%s prev_bullish=%s → result=%s",
+                  (curr_bullish ? "true" : "false"),
+                  (prev_bullish ? "true" : "false"),
+                  (flip == 1 ? "BULLISH FLIP" : (flip == -1 ? "BEARISH FLIP" : "NO FLIP (same side)")));
 
       if(m_settings.DebugFlow && flip != 0) {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, shift);
@@ -656,6 +666,27 @@ private:
 
       // 2. Check if a flip was recorded for this direction
       datetime flip_time = (bias > 0) ? m_psar_last_flip_time_bull : m_psar_last_flip_time_bear;
+
+      // Display flip countdown status
+      if(m_settings.DebugFlow) {
+         if(flip_time == 0) {
+            PrintFormat("[PSAR_FLIP_CHECK] STEP 2: No %s flip recorded yet",
+                        (bias > 0 ? "BULLISH" : "BEARISH"));
+         } else {
+            int bars_elapsed   = GetBarsSinceLastFlip(bias, shift);
+            int bars_remaining = m_settings.Vote_PsarFlipDelay - bars_elapsed;
+            bool is_valid      = (bars_elapsed <= m_settings.Vote_PsarFlipDelay);
+
+            PrintFormat("[PSAR_FLIP_CHECK] STEP 2: Flip recorded at %s",
+                        TimeToString(flip_time, TIME_DATE|TIME_MINUTES));
+            PrintFormat("[PSAR_FLIP_CHECK]    Flip age: %d bars | Delay limit: %d bars | Remaining: %d bars",
+                        bars_elapsed,
+                        m_settings.Vote_PsarFlipDelay,
+                        bars_remaining);
+            PrintFormat("[PSAR_FLIP_CHECK]    Status: %s",
+                        is_valid ? "VALID (within delay window)" : "EXPIRED (too old)");
+         }
+      }
 
       if(flip_time == 0) {
          m_diag_last_reason = StringFormat("PSAR_NO_FLIP_RECORDED (bias=%d)", bias);
