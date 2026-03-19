@@ -945,13 +945,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       Print("═══════════════════════════════════════════════════════════");
 
       // ───────────────────────────────────────────────────────────
-      // 1. BIAS: Simple EMA bias (no phase complexity)
+      // 1. BIAS: Position + Slope (persistent bias for multi-indicator systems)
       // ───────────────────────────────────────────────────────────
       cfg.BiasEnabled            = true;
       cfg.BiasMode               = BIAS_AUTO;
-      cfg.AutoStrat              = STRAT_PAIR_CROSS;
-      cfg.BiasFastID             = (int)ROLE_EMA2;   // EMA2 = 13-period
-      cfg.BiasSlowID             = (int)ROLE_EMA4;   // EMA4 = 144-period
+      cfg.AutoStrat              = STRAT_POSITION_SLOPE;  // Persistent bias: position + slope (not one-bar cross)
+      cfg.BiasFastID             = (int)ROLE_EMA2;        // EMA2 = 13-period
+      cfg.BiasSlowID             = (int)ROLE_EMA4;        // EMA4 = 144-period
       cfg.PhaseDetectionEnabled  = false;
       cfg.MinPhaseConfirmBars    = 0;
       cfg.BlockUnorderedPhase    = false;

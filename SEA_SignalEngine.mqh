@@ -2778,6 +2778,21 @@ public:
                            TimeToString(bar_time), ema_fast_name, price, ma, entry_signal);
             }
          }
+         else if(m_settings.AutoStrat == STRAT_POSITION_SLOPE) {
+            // Entry signal from EMA position + slope: persistent bias that lasts for many bars.
+            // market_bias in STEP 1 already encodes "Fast > Slow AND both rising" (or reverse),
+            // so we simply propagate it as the entry signal (no one-bar crossover required).
+            entry_signal = market_bias;
+            
+            if(m_settings.DebugFlow) {
+               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+               string direction = (entry_signal == 1) ? "LONG (position + slopes aligned UP)" :
+                                  (entry_signal == -1) ? "SHORT (position + slopes aligned DOWN)" :
+                                  "NEUTRAL (slopes not aligned or conflicting)";
+               PrintFormat("[BIAS_POSITION_SLOPE][%s] Fast=%.5f Slow=%.5f | SlopeFast=%d SlopeSlow=%d → %s",
+                           TimeToString(bar_time), f_curr, s_curr, fast_slope, slow_slope, direction);
+            }
+         }
          else if(m_settings.AutoStrat == STRAT_LAYER_DETECTION) {
             // Entry signal from layer-based pullback detection (Ribbon/Ghost/Shark patterns)
             EEntryLayer layer = DetectLayerSignal(v_shift, market_bias);
