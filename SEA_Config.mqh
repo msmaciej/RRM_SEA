@@ -186,6 +186,7 @@ enum EAutoStrategy
    STRAT_SINGLE_SLOPE,
    STRAT_PAIR_CROSS,
    STRAT_PRICE_CROSS,
+   STRAT_POSITION_SLOPE,    // EMA position + slope confirmation (persistent bias for multi-indicator systems)
    STRAT_LAYER_DETECTION    // Layer-based pullback detection (Ribbon/Ghost/Shark patterns)
 };
 
