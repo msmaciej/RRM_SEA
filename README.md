@@ -74,7 +74,94 @@ To increase trade frequency closer to Python EA levels:
 
 See `Readme/README_SYSTEM.md` STRAT_LAYER_DETECTION section for full details.
 
-## Debug Levels
+## System Analysis Report
+
+After each backtest, SimpleEA automatically outputs comprehensive performance metrics
+immediately following the rejection statistics.
+
+### Trade Performance
+```
+================================================================
+  TRADE PERFORMANCE
+================================================================
+Total Trades         : 45
+  ├─ Long            : 22 (48.9%)
+  └─ Short           : 23 (51.1%)
+
+Win Rate             : 62.2% (28W / 17L)
+  ├─ Long win rate   : 59.1% (13/22)
+  └─ Short win rate  : 65.2% (15/23)
+
+Profit Factor        : 2.34
+  ├─ Gross profit    : $4,680.00
+  └─ Gross loss      : -$2,000.00
+
+Average Trade        : $59.56
+  ├─ Average win     : $167.14
+  └─ Average loss    : -$117.65
+
+Best Trade           : $420.50
+Worst Trade          : -$245.80
+
+Consecutive Wins     : 7 (max)
+Consecutive Losses   : 4 (max)
+================================================================
+```
+
+### Risk Analysis
+```
+================================================================
+  RISK ANALYSIS
+================================================================
+Starting Balance     : $10,000.00
+Ending Balance       : $11,195.00
+Net Profit           : $1,195.00 (+11.95%)
+
+Maximum Drawdown     : 8.5% ($850.00)
+  ├─ Absolute        : $850.00
+  └─ Relative        : 8.5%
+
+Recovery Factor      : 1.41 (Net Profit / Max DD)
+Risk-Reward Ratio    : 1.42 (Avg Win / Avg Loss)
+================================================================
+```
+
+### Signal Efficiency
+```
+================================================================
+  SIGNAL EFFICIENCY ANALYSIS
+================================================================
+Signal Generation
+  ├─ Total bars evaluated    : 1,606
+  ├─ Signals confirmed       : 370 (23.04%)
+  ├─ Signals rejected        : 1,236 (76.96%)
+  └─ Avg bars between signals: 4.3 bars
+
+Signal-to-Trade Conversion
+  ├─ Signals confirmed       : 370
+  ├─ Trades executed         : 45 (12.2% conversion)
+  └─ Signals filtered out    : 325 (87.8%)
+
+Component Efficiency (Pass Rate Among Bias-Confirmed Bars)
+  ├─ Bias detection          : 63.6% (1,022 / 1,606 bars)
+  └─ When bias ≠ 0:
+      ├─ PSAR         : 36.2% (370 / 1,022)   ← if enabled
+      └─ MACD         : 55.3% (565 / 1,022)   ← if enabled
+
+Combined Efficiency          : 23.0% (signals / total bars)
+================================================================
+```
+
+The **Component Efficiency** section is **dynamic** — it lists only enabled indicators
+(controlled by `Inp_Ind_XXX_Enabled` input flags). Disabled indicators are not shown.
+
+**Implementation notes:**
+- Trade data queried from MT5 history via `HistorySelect()` at `OnDeinit`
+- Maximum drawdown tracked every tick via peak-equity calculation
+- In Strategy Tester, uses `TesterStatistics()` for balance/drawdown; falls back to manual tracking in live
+- All three sections are graceful when no trades were executed
+
+
 
 SimpleEA supports 4 debug verbosity levels controlled by `Inp_DebugLevel`:
 
