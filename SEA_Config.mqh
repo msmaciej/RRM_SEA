@@ -176,26 +176,26 @@ enum EEntryLayer {
 
 enum EManualSide
 {
-   SIDE_BOTH,
-   SIDE_LONG,
-   SIDE_SHORT
+   SIDE_BOTH,     // Allow both long and short trades
+   SIDE_LONG,     // Long trades only
+   SIDE_SHORT     // Short trades only
 };
 
 enum EAutoStrategy
 {
-   STRAT_SINGLE_SLOPE,
-   STRAT_PAIR_CROSS,
-   STRAT_PRICE_CROSS,
-   STRAT_POSITION_SLOPE,    // EMA position + slope confirmation (persistent bias for multi-indicator systems)
-   STRAT_LAYER_DETECTION    // Layer-based pullback detection (Ribbon/Ghost/Shark patterns)
+   STRAT_SINGLE_SLOPE,      // Single EMA slope direction
+   STRAT_PAIR_CROSS,        // Two-EMA cross (one-bar signal at cross point)
+   STRAT_PRICE_CROSS,       // Price crosses EMA (one-bar signal at cross point)
+   STRAT_POSITION_SLOPE,    // EMA position + slope confirmation (persistent bias)
+   STRAT_LAYER_DETECTION    // Layer-based pullback detection (Strong/Medium/Weak layers)
 };
 
 enum EEmaRole
 {
-   ROLE_EMA1,
-   ROLE_EMA2,
-   ROLE_EMA3,
-   ROLE_EMA4
+   ROLE_EMA1,     // Fast EMA (5-period default) - L1_WEAK layer
+   ROLE_EMA2,     // Medium-fast EMA (13-period default) - L2_MEDIUM layer
+   ROLE_EMA3,     // Medium-slow EMA (34-period default) - L3_STRONG layer
+   ROLE_EMA4      // Slow EMA (144-period default) - Trend filter
 };
 
 // Indicator Modes
@@ -241,50 +241,48 @@ string GetMACDModeDescription(EMacdVoteMode mode, bool has_slope, bool has_div, 
 
 enum ERsiMode
 {
-   RSI_FILTER_EXTREME,
-   RSI_TREND_ABOVE_50,
-   RSI_CROSS_LEVEL
+   RSI_FILTER_EXTREME,    // Extreme zones only (>70 overbought, <30 oversold)
+   RSI_TREND_ABOVE_50,    // Trend following (>50 bullish, <50 bearish)
+   RSI_CROSS_LEVEL        // Cross 50-level signal
 };
 
 enum ECciMode
 {
-   CCI_TREND_ZERO,
-   CCI_IMPULSE_100
+   CCI_TREND_ZERO,        // Trend based on zero line (>0 bull, <0 bear)
+   CCI_IMPULSE_100        // Strong impulse (>100 or <-100)
 };
 
 enum EStochMode
 {
-   STO_CROSS_SIGNAL,
-   STO_ZONE_FILTER
+   STO_CROSS_SIGNAL,      // %K crosses %D signal line
+   STO_ZONE_FILTER        // Overbought/oversold zones (>80 / <20)
 };
 
 enum EBbMode
 {
-   BB_TREND_FOLLOW,
-   BB_MEAN_REVERSION
+   BB_TREND_FOLLOW,       // Price near outer band = trend continuation
+   BB_MEAN_REVERSION      // Price at outer band = reversion to middle
 };
 
-// TR - Trailing Stop: Exit Logic
 enum ETrailingMode
 {
-   TRAIL_NONE,
-   TRAIL_ATR,
-   TRAIL_PSAR,
-   TRAIL_FRACTAL,
-   TRAIL_PSAR_FLIP_EXIT,    // NEW: Close position when PSAR flips
-   TRAIL_FIXED_PIPS,        // NEW: Fixed pips trailing stop
-   TRAIL_BREAKEVEN,         // NEW: Trail to breakeven then fixed pips
-   TRAIL_PROFIT_PERCENT     // NEW: Trail after profit % threshold
+   TRAIL_NONE,            // No trailing stop
+   TRAIL_ATR,             // ATR-based dynamic trailing
+   TRAIL_PSAR,            // PSAR dot trailing
+   TRAIL_FRACTAL,         // Fractal-based trailing
+   TRAIL_PSAR_FLIP_EXIT,  // Close position on PSAR flip
+   TRAIL_FIXED_PIPS,      // Fixed pip distance trailing
+   TRAIL_BREAKEVEN,       // Move to breakeven then trail fixed pips
+   TRAIL_PROFIT_PERCENT   // Trail after profit % threshold reached
 };
 
-// SL - Stop Loss: Initial SL Placement Methods
 enum ESlPlacementMode
 {
-   SL_ATR,
-   SL_PSAR_ATR,
-   SL_PSAR_PIPS,
-   SL_SWING_HIGHLOW,
-   SL_FIXED_PIPS
+   SL_ATR,                // ATR multiple from entry
+   SL_PSAR_ATR,           // PSAR dot + ATR cushion
+   SL_PSAR_PIPS,          // PSAR dot + fixed pips cushion
+   SL_SWING_HIGHLOW,      // Recent swing high/low + cushion
+   SL_FIXED_PIPS          // Fixed pip distance from entry
 };
 
 //+------------------------------------------------------------------+
