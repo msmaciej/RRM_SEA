@@ -153,7 +153,7 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
 
 void FlowLog(const string msg)
 {
-   if(Inp_DebugFlow) Print("FLOW: ", msg);
+   if(Inp_DebugFlow && Inp_DebugLevel >= DEBUG_FULL) Print("FLOW: ", msg);
 }
 
 void BuildUiReportingState()
@@ -217,7 +217,8 @@ void PrintEffectiveConfig()
    }
 
    Print("Diagnostics: PrintEffectiveConfig=", (Settings.PrintEffectiveConfig ? "true" : "false"),
-         " DebugFlow=", (Settings.DebugFlow ? "true" : "false"));
+         " DebugFlow=", (Settings.DebugFlow ? "true" : "false"),
+         " DebugLevel=", EnumToString(Settings.DebugLevel));
 
    Print("UI: StatusPanel=", (Settings.UI_ShowStatusPanel ? "true" : "false"),
          " CockpitPanel=", (Settings.UI_ShowCockpitPanel ? "true" : "false"),

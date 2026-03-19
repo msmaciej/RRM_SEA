@@ -3008,116 +3008,122 @@ public:
            _res_psar=false, _res_p123=false, _res_ross=false;
 
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGIN =====
-      if(m_settings.DebugFlow) {
-         string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
-         PrintFormat("[IND] --- Indicators (mode=%s bias=%d weight=%.2f) ---",
-                     mode_str, bias, vote_weight);
+      // DEBUG_INDICATORS: populate _res_* for TS_SUMMARY (pass/fail per indicator)
+      // DEBUG_FULL: also print detailed [IND] lines with indicator values
+      if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
+         // Populate _res_* results for the TS_SUMMARY block below
+         if(m_settings.Ind_EmaSig_Enabled) _res_emasig = Check_EMA1(bias, v_shift);
+         if(m_settings.Ind_Adx_Enabled)    _res_adx    = Check_ADX(v_shift);
+         if(m_settings.Ind_Macd_Enabled)   _res_macd   = Check_MACD(bias, v_shift);
+         if(m_settings.Ind_Rsi_Enabled)    _res_rsi    = Check_RSI(bias, v_shift);
+         if(m_settings.Ind_Cci_Enabled)    _res_cci    = Check_CCI(bias, v_shift);
+         if(m_settings.Ind_Mfi_Enabled)    _res_mfi    = Check_MFI(bias, v_shift);
+         if(m_settings.Ind_Sto_Enabled)    _res_sto    = Check_Sto(bias, v_shift);
+         if(m_settings.Ind_Bb_Enabled)     _res_bb     = Check_BB(bias, v_shift);
+         if(m_settings.Ind_Psar_Enabled)   _res_psar   = (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift));
+         if(m_settings.Ind_P123_Enabled)   _res_p123   = Check_P123(bias, v_shift);
+         if(m_settings.Ind_Ross_Enabled)   _res_ross   = Check_Ross(bias, v_shift);
 
-         // EmaSig
-         if(m_settings.Ind_EmaSig_Enabled) {
-            double p = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-            double e = GetMAVal(h_ema1, v_shift);
-            bool pass = Check_EMA1(bias, v_shift); _res_emasig = pass;
-            PrintFormat("[IND] EmaSig: price=%.5f ema=%.5f → %s (w=%d)",
-                        p, e, pass ? "PASS" : "FAIL", m_settings.Ind_EmaSig_Weight);
-         } else Print("[IND] EmaSig: DISABLED → SKIP");
+         // DEBUG_FULL: print detailed [IND] lines with indicator values
+         if(m_settings.DebugLevel >= DEBUG_FULL) {
+            string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
+            PrintFormat("[IND] --- Indicators (mode=%s bias=%d weight=%.2f) ---",
+                        mode_str, bias, vote_weight);
 
-         // ADX
-         if(m_settings.Ind_Adx_Enabled) {
-            double adx = GetVal(h_adx, v_shift);
-            bool pass = Check_ADX(v_shift); _res_adx = pass;
-            PrintFormat("[IND] ADX: %.2f / threshold=%.2f → %s (w=%d)",
-                        adx, m_settings.T_Adx, pass ? "PASS" : "FAIL", m_settings.Ind_Adx_Weight);
-         } else Print("[IND] ADX: DISABLED → SKIP");
+            // EmaSig
+            if(m_settings.Ind_EmaSig_Enabled) {
+               double p = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+               double e = GetMAVal(h_ema1, v_shift);
+               PrintFormat("[IND] EmaSig: price=%.5f ema=%.5f → %s (w=%d)",
+                           p, e, _res_emasig ? "PASS" : "FAIL", m_settings.Ind_EmaSig_Weight);
+            } else Print("[IND] EmaSig: DISABLED → SKIP");
 
-         // MACD
-         if(m_settings.Ind_Macd_Enabled) {
-            double macd_m = GetVal(h_macd, v_shift, 0);
-            double macd_s = GetVal(h_macd, v_shift, 1);
-            bool pass = Check_MACD(bias, v_shift); _res_macd = pass;
-            PrintFormat("[IND] MACD: main=%.6f signal=%.6f hist=%.6f → %s (w=%d)",
-                        macd_m, macd_s, macd_m - macd_s, pass ? "PASS" : "FAIL", m_settings.Ind_Macd_Weight);
-         } else Print("[IND] MACD: DISABLED → SKIP");
+            // ADX
+            if(m_settings.Ind_Adx_Enabled) {
+               double adx = GetVal(h_adx, v_shift);
+               PrintFormat("[IND] ADX: %.2f / threshold=%.2f → %s (w=%d)",
+                           adx, m_settings.T_Adx, _res_adx ? "PASS" : "FAIL", m_settings.Ind_Adx_Weight);
+            } else Print("[IND] ADX: DISABLED → SKIP");
 
-         // RSI
-         if(m_settings.Ind_Rsi_Enabled) {
-            double r = GetVal(h_rsi, v_shift);
-            bool pass = Check_RSI(bias, v_shift); _res_rsi = pass;
-            PrintFormat("[IND] RSI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
-                        r, m_settings.T_RsiOB, m_settings.T_RsiOS, pass ? "PASS" : "FAIL", m_settings.Ind_Rsi_Weight);
-         } else Print("[IND] RSI: DISABLED → SKIP");
+            // MACD
+            if(m_settings.Ind_Macd_Enabled) {
+               double macd_m = GetVal(h_macd, v_shift, 0);
+               double macd_s = GetVal(h_macd, v_shift, 1);
+               PrintFormat("[IND] MACD: main=%.6f signal=%.6f hist=%.6f → %s (w=%d)",
+                           macd_m, macd_s, macd_m - macd_s, _res_macd ? "PASS" : "FAIL", m_settings.Ind_Macd_Weight);
+            } else Print("[IND] MACD: DISABLED → SKIP");
 
-         // CCI
-         if(m_settings.Ind_Cci_Enabled) {
-            double c = GetVal(h_cci, v_shift);
-            bool pass = Check_CCI(bias, v_shift); _res_cci = pass;
-            PrintFormat("[IND] CCI: %.2f → %s (w=%d)",
-                        c, pass ? "PASS" : "FAIL", m_settings.Ind_Cci_Weight);
-         } else Print("[IND] CCI: DISABLED → SKIP");
+            // RSI
+            if(m_settings.Ind_Rsi_Enabled) {
+               double r = GetVal(h_rsi, v_shift);
+               PrintFormat("[IND] RSI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
+                           r, m_settings.T_RsiOB, m_settings.T_RsiOS, _res_rsi ? "PASS" : "FAIL", m_settings.Ind_Rsi_Weight);
+            } else Print("[IND] RSI: DISABLED → SKIP");
 
-         // MFI
-         if(m_settings.Ind_Mfi_Enabled) {
-            double mfi = GetVal(h_mfi, v_shift);
-            bool pass = Check_MFI(bias, v_shift); _res_mfi = pass;
-            PrintFormat("[IND] MFI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
-                        mfi, m_settings.T_MfiOB, m_settings.T_MfiOS, pass ? "PASS" : "FAIL", m_settings.Ind_Mfi_Weight);
-         } else Print("[IND] MFI: DISABLED → SKIP");
+            // CCI
+            if(m_settings.Ind_Cci_Enabled) {
+               double c = GetVal(h_cci, v_shift);
+               PrintFormat("[IND] CCI: %.2f → %s (w=%d)",
+                           c, _res_cci ? "PASS" : "FAIL", m_settings.Ind_Cci_Weight);
+            } else Print("[IND] CCI: DISABLED → SKIP");
 
-         // Stochastic
-         if(m_settings.Ind_Sto_Enabled) {
-            double sk = GetVal(h_sto, v_shift, 0);
-            double sd = GetVal(h_sto, v_shift, 1);
-            bool pass = Check_Sto(bias, v_shift); _res_sto = pass;
-            PrintFormat("[IND] Stoch: K=%.2f D=%.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
-                        sk, sd, m_settings.T_StoOB, m_settings.T_StoOS, pass ? "PASS" : "FAIL", m_settings.Ind_Sto_Weight);
-         } else Print("[IND] Stoch: DISABLED → SKIP");
+            // MFI
+            if(m_settings.Ind_Mfi_Enabled) {
+               double mfi = GetVal(h_mfi, v_shift);
+               PrintFormat("[IND] MFI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
+                           mfi, m_settings.T_MfiOB, m_settings.T_MfiOS, _res_mfi ? "PASS" : "FAIL", m_settings.Ind_Mfi_Weight);
+            } else Print("[IND] MFI: DISABLED → SKIP");
 
-         // Bollinger Bands
-         if(m_settings.Ind_Bb_Enabled) {
-            double bb_mid = GetVal(h_bb, v_shift, 0);
-            double cl_bb  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-            bool pass = Check_BB(bias, v_shift); _res_bb = pass;
-            PrintFormat("[IND] BB: mid=%.5f close=%.5f → %s (w=%d)",
-                        bb_mid, cl_bb, pass ? "PASS" : "FAIL", m_settings.Ind_Bb_Weight);
-         } else Print("[IND] BB: DISABLED → SKIP");
+            // Stochastic
+            if(m_settings.Ind_Sto_Enabled) {
+               double sk = GetVal(h_sto, v_shift, 0);
+               double sd = GetVal(h_sto, v_shift, 1);
+               PrintFormat("[IND] Stoch: K=%.2f D=%.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
+                           sk, sd, m_settings.T_StoOB, m_settings.T_StoOS, _res_sto ? "PASS" : "FAIL", m_settings.Ind_Sto_Weight);
+            } else Print("[IND] Stoch: DISABLED → SKIP");
 
-         // PSAR
-         if(m_settings.Ind_Psar_Enabled) {
-            double psar_v = GetVal(h_psar, v_shift);
-            double cl_p   = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-            bool pass = (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift));
-            _res_psar = pass;
-            string flip_info = "";
-            if(m_settings.Vote_AllowPsarFlip) {
-               int bars_since_flip = GetBarsSinceLastFlip(bias, v_shift);
-               if(bars_since_flip == INT_MAX)
-                  flip_info = " flip=none";
-               else
-                  flip_info = StringFormat(" flip=%d bars ago (N=%d)", bars_since_flip,
-                                           MathMax(0, m_settings.Vote_PsarFlipDelay - bars_since_flip));
-            }
-            PrintFormat("[IND] PSAR: dot=%.5f close=%.5f%s → %s (w=%d)",
-                        psar_v, cl_p, flip_info, pass ? "PASS" : "FAIL", m_settings.Ind_Psar_Weight);
-         } else Print("[IND] PSAR: DISABLED → SKIP");
+            // Bollinger Bands
+            if(m_settings.Ind_Bb_Enabled) {
+               double bb_mid = GetVal(h_bb, v_shift, 0);
+               double cl_bb  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+               PrintFormat("[IND] BB: mid=%.5f close=%.5f → %s (w=%d)",
+                           bb_mid, cl_bb, _res_bb ? "PASS" : "FAIL", m_settings.Ind_Bb_Weight);
+            } else Print("[IND] BB: DISABLED → SKIP");
 
-         // P123
-         if(m_settings.Ind_P123_Enabled) {
-            bool pass = Check_P123(bias, v_shift); _res_p123 = pass;
-            PrintFormat("[IND] P123: → %s (w=%d)", pass ? "PASS" : "FAIL", m_settings.Ind_P123_Weight);
-         } else Print("[IND] P123: DISABLED → SKIP");
+            // PSAR
+            if(m_settings.Ind_Psar_Enabled) {
+               double psar_v = GetVal(h_psar, v_shift);
+               double cl_p   = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+               string flip_info = "";
+               if(m_settings.Vote_AllowPsarFlip) {
+                  int bars_since_flip = GetBarsSinceLastFlip(bias, v_shift);
+                  if(bars_since_flip == INT_MAX)
+                     flip_info = " flip=none";
+                  else
+                     flip_info = StringFormat(" flip=%d bars ago (N=%d)", bars_since_flip,
+                                              MathMax(0, m_settings.Vote_PsarFlipDelay - bars_since_flip));
+               }
+               PrintFormat("[IND] PSAR: dot=%.5f close=%.5f%s → %s (w=%d)",
+                           psar_v, cl_p, flip_info, _res_psar ? "PASS" : "FAIL", m_settings.Ind_Psar_Weight);
+            } else Print("[IND] PSAR: DISABLED → SKIP");
 
-         // Ross Hook
-         if(m_settings.Ind_Ross_Enabled) {
-            bool pass = Check_Ross(bias, v_shift); _res_ross = pass;
-            PrintFormat("[IND] RossHook: → %s (w=%d)", pass ? "PASS" : "FAIL", m_settings.Ind_Ross_Weight);
-         } else Print("[IND] RossHook: DISABLED → SKIP");
+            // P123
+            if(m_settings.Ind_P123_Enabled) {
+               PrintFormat("[IND] P123: → %s (w=%d)", _res_p123 ? "PASS" : "FAIL", m_settings.Ind_P123_Weight);
+            } else Print("[IND] P123: DISABLED → SKIP");
 
-         // ATR Vote (soft)
-         if(m_settings.Use_ATRVote)
-            PrintFormat("[IND] ATR Vote: %.1f pips → %s (w=1)",
-                        atr_pips, m_diag_last_atr_ok ? "PASS" : "FAIL");
-         else
-            Print("[IND] ATR Vote: DISABLED → SKIP");
+            // Ross Hook
+            if(m_settings.Ind_Ross_Enabled) {
+               PrintFormat("[IND] RossHook: → %s (w=%d)", _res_ross ? "PASS" : "FAIL", m_settings.Ind_Ross_Weight);
+            } else Print("[IND] RossHook: DISABLED → SKIP");
+
+            // ATR Vote (soft)
+            if(m_settings.Use_ATRVote)
+               PrintFormat("[IND] ATR Vote: %.1f pips → %s (w=1)",
+                           atr_pips, m_diag_last_atr_ok ? "PASS" : "FAIL");
+            else
+               Print("[IND] ATR Vote: DISABLED → SKIP");
+         }
       }
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: END =====
 
@@ -3165,7 +3171,8 @@ public:
       }
 
       // ===== TS PIPELINE SUMMARY =====
-      if(m_settings.DebugFlow) {
+      // DEBUG_INDICATORS+: show per-bar gate/bias/indicator summary (20-30 lines)
+      if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
          datetime sum_bar_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.ma_v_shift);
          Print("════════════════════════════════════════════════════════════");
          PrintFormat("[TS_SUMMARY] Bar: %s (shift=%d)",
@@ -3321,6 +3328,19 @@ public:
          Print("");
       }
       // ===== TS PIPELINE SUMMARY: END =====
+
+      // DEBUG_SUMMARY: 1-2 line per-bar result (not shown when DEBUG_INDICATORS+ already printed it)
+      else if(m_settings.DebugLevel >= DEBUG_SUMMARY) {
+         datetime sum_bar_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.ma_v_shift);
+         if(final_signal != 0)
+            PrintFormat("%s: %s CONFIRMED",
+                        TimeToString(sum_bar_time, TIME_DATE|TIME_MINUTES),
+                        final_signal > 0 ? "LONG" : "SHORT");
+         else
+            PrintFormat("%s: REJECTED (%s)",
+                        TimeToString(sum_bar_time, TIME_DATE|TIME_MINUTES),
+                        m_diag_last_reason);
+      }
 
       return final_signal;
 

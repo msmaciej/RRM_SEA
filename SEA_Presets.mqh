@@ -1056,6 +1056,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ═══════════════════════════════════════════════════════════
 
       Print("═══════════════════════════════════════════════════════════");
+      Print("  Recommended debug levels:");
+      Print("    - Short test (<100 bars): DEBUG_INDICATORS or DEBUG_FULL");
+      Print("    - Long test (year+):      DEBUG_SUMMARY");
+      Print("    - Optimization:           DEBUG_SILENT");
+      Print("═══════════════════════════════════════════════════════════");
 
       return;
    }

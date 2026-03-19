@@ -73,3 +73,30 @@ To increase trade frequency closer to Python EA levels:
 - Consider implementing multi-bar lookback (future enhancement)
 
 See `Readme/README_SYSTEM.md` STRAT_LAYER_DETECTION section for full details.
+
+## Debug Levels
+
+SimpleEA supports 4 debug verbosity levels controlled by `Inp_DebugLevel`:
+
+| Level | Name | Per-bar output | Log size (year) | Use case |
+|-------|------|----------------|-----------------|----------|
+| 0 | `DEBUG_SILENT` | None | ~100 lines | Optimization runs |
+| 1 | `DEBUG_SUMMARY` | 1-2 lines (result only) | ~3,000 lines | Long-term tests |
+| 2 | `DEBUG_INDICATORS` | 20-30 lines (pass/fail summary) | ~15,000 lines | Multi-indicator analysis |
+| 3 | `DEBUG_FULL` | 50+ lines (all diagnostics) | ~75,000 lines | Development/debugging |
+
+**Configuration:**
+```mql5
+input bool        Inp_DebugFlow  = true;           // Master on/off switch
+input EDebugLevel Inp_DebugLevel = DEBUG_SUMMARY;  // Verbosity level
+```
+
+**Backward compatibility:**
+- `Inp_DebugFlow = false` → Forces `DEBUG_SILENT` regardless of `Inp_DebugLevel`
+- `Inp_DebugFlow = true` → Uses `Inp_DebugLevel` setting
+- `Inp_DebugLevel = DEBUG_FULL` → Identical to old `Inp_DebugFlow = true` behaviour
+
+**Recommendations:**
+- Short tests (<100 bars): `DEBUG_INDICATORS` or `DEBUG_FULL`
+- Long tests (year+): `DEBUG_SUMMARY`
+- Optimization runs: `DEBUG_SILENT`

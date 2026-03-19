@@ -190,6 +190,14 @@ enum EAutoStrategy
    STRAT_LAYER_DETECTION    // Layer-based pullback detection (Strong/Medium/Weak layers)
 };
 
+enum EDebugLevel
+{
+   DEBUG_SILENT,      // No per-bar output (statistics only at end)
+   DEBUG_SUMMARY,     // Per-bar: signal result + rejection reason (1-2 lines)
+   DEBUG_INDICATORS,  // Per-bar: indicator pass/fail + summary (20-30 lines)
+   DEBUG_FULL         // Everything: all internal steps + diagnostics (50+ lines)
+};
+
 enum EEmaRole
 {
    ROLE_EMA1,     // Fast EMA (5-period default) - L1_WEAK layer
@@ -651,8 +659,9 @@ struct ST_Settings
    bool AdminOverridePreset;
 
    // --- Global toggles allowed under presets ---
-   bool PrintEffectiveConfig;
-   bool DebugFlow;
+   bool         PrintEffectiveConfig;
+   bool         DebugFlow;           // Master on/off switch (true = DEBUG_FULL verbosity)
+   EDebugLevel  DebugLevel;          // Debug verbosity level
 
    // UI
    bool UI_ShowStatusPanel;
@@ -798,6 +807,7 @@ input int              Inp_UI_FramePadPx         = 6;           // (Global; allo
 input group "--- ✅ Diagnostics ---"
 input bool           Inp_PrintEffectiveConfig   = true;         // (Global; allowed under presets) Print effective config on init
 input bool           Inp_DebugFlow              = true;         // (Global; allowed under presets) Print OnInit/OnTick/OnDeinit flow
+input EDebugLevel    Inp_DebugLevel             = DEBUG_SUMMARY; // (Global; allowed under presets) Debug verbosity level (SILENT/SUMMARY/INDICATORS/FULL)
 
 input group "════════════════════════════════════════════"
 input group "  DIAGNOSTICS: STATISTICS CONFIGURATION"
@@ -1320,7 +1330,10 @@ void InitializeConfig()
 
    // === Global inputs allowed under presets (still mapped normally) ===
    Settings.PrintEffectiveConfig     = Inp_PrintEffectiveConfig;
-   Settings.DebugFlow                = Inp_DebugFlow;
+   // Map debug level first; DebugFlow=false forces SILENT mode
+   Settings.DebugLevel               = Inp_DebugFlow ? Inp_DebugLevel : DEBUG_SILENT;
+   // DebugFlow=true only when running at full verbosity (maintains backward compat for all existing checks)
+   Settings.DebugFlow                = (Settings.DebugLevel >= DEBUG_FULL);
    Settings.AdminOverridePreset      = Inp_AdminOverridePreset;
 
    Settings.Stats_TrackRejections    = Inp_Stats_TrackRejections;
