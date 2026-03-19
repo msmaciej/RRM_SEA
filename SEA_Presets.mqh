@@ -949,6 +949,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ───────────────────────────────────────────────────────────
       cfg.BiasEnabled            = true;
       cfg.BiasMode               = BIAS_AUTO;
+      cfg.AutoStrat              = STRAT_PAIR_CROSS;
+      cfg.BiasFastID             = (int)ROLE_EMA2;   // EMA2 = 13-period
+      cfg.BiasSlowID             = (int)ROLE_EMA4;   // EMA4 = 144-period
       cfg.PhaseDetectionEnabled  = false;
       cfg.MinPhaseConfirmBars    = 0;
       cfg.BlockUnorderedPhase    = false;
@@ -968,7 +971,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ───────────────────────────────────────────────────────────
       // 3. DISABLE ENTRY LAYERS (remove structure requirements)
       // ───────────────────────────────────────────────────────────
-      cfg.AutoStrat                = STRAT_PAIR_CROSS;
       cfg.EnableLayerDetection     = false;
       cfg.LayerTouchTolerance      = 0.0;
       cfg.RequireRecoveryMomentum  = false;

@@ -604,6 +604,24 @@ private:
    // Returns 1 (bullish flip), -1 (bearish flip), or 0 (no flip / insufficient data).
    // Uses closed bars only: checks shift vs shift+1 (shift+1 is the previous closed bar).
    int DetectPSARFlipAt(int shift) {
+      // Log handle status periodically
+      static datetime last_log_time = 0;
+      datetime current_time = TimeCurrent();
+      
+      if(current_time - last_log_time > 86400) { // Log once per day
+         last_log_time = current_time;
+         PrintFormat("[PSAR_HEALTH] Date: %s | Handle: %d | Valid: %s",
+                     TimeToString(current_time, TIME_DATE),
+                     h_psar,
+                     (h_psar != INVALID_HANDLE) ? "YES" : "NO");
+      }
+      // Check if handle is still valid
+      if(h_psar == INVALID_HANDLE) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[PSAR_ERROR] Handle became INVALID! Need to reinitialize.");
+         return 0;
+      }
+      
       bool psar_curr_valid = false;
       bool psar_prev_valid = false;
 
