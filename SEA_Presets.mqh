@@ -950,8 +950,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasEnabled            = true;
       cfg.BiasMode               = BIAS_AUTO;
       cfg.AutoStrat              = STRAT_POSITION_SLOPE;  // Persistent bias: position + slope (not one-bar cross)
-      cfg.BiasFastID             = (int)ROLE_EMA2;        // EMA2 = 13-period
-      cfg.BiasSlowID             = (int)ROLE_EMA4;        // EMA4 = 144-period
+      cfg.BiasFastID             = (int)ROLE_EMA3;        // EMA3 = 34-period
+      cfg.BiasSlowID             = (int)ROLE_EMA4;        // EMA4 = 89-period
       cfg.PhaseDetectionEnabled  = false;
       cfg.MinPhaseConfirmBars    = 0;
       cfg.BlockUnorderedPhase    = false;
