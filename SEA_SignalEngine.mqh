@@ -1377,6 +1377,9 @@ public:
    int    RejectGate()        const { return m_reject_gate; }
    int    RejectVotes()       const { return m_reject_votes; }
 
+   // Returns granular per-reason rejection stats for system analysis report
+   const SRejectionStats& GetStats() const { return m_stats; }
+
    // Returns the number of currently enabled indicator votes.
    int CountEnabledIndicators() const
    {

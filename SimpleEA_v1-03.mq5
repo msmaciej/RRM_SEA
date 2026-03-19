@@ -82,6 +82,11 @@ int      g_trades_today           = 0;
 datetime g_last_trade_date        = 0;
 double   g_daily_starting_balance = 0.0;
 
+// System analysis tracking (for end-of-test report)
+double g_starting_balance = 0.0;   // Account balance captured at EA start
+double g_peak_equity      = 0.0;   // Highest equity seen during the test
+double g_max_drawdown_abs = 0.0;   // Maximum absolute equity drawdown (peak - trough)
+
 //+------------------------------------------------------------------+
 //| EXPERT LIFECYCLE                                                 |
 //+------------------------------------------------------------------+
@@ -496,6 +501,11 @@ int OrchestrateInit()
 
    FlowLog("OnInit complete -> INIT_SUCCEEDED");
    ValidateConfiguration();
+
+   // Capture starting balance for end-of-test system analysis report
+   g_starting_balance = AccountInfoDouble(ACCOUNT_BALANCE);
+   g_peak_equity      = g_starting_balance;
+
    return INIT_SUCCEEDED;
 }
 
@@ -507,6 +517,14 @@ void OrchestrateTick()
 {
    datetime current_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
    bool     is_new_bar  = (current_bar != g_last_bar_time);
+
+   // ═══════════════════════════════════════════════════════════════
+   // Track peak equity and maximum drawdown (every tick, for report)
+   // ═══════════════════════════════════════════════════════════════
+   double current_equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   if(current_equity > g_peak_equity) g_peak_equity = current_equity;
+   double current_dd = g_peak_equity - current_equity;
+   if(current_dd > g_max_drawdown_abs) g_max_drawdown_abs = current_dd;
 
    // ═══════════════════════════════════════════════════════════════
    // TM: Trade Management (every tick)
@@ -668,6 +686,323 @@ void OrchestrateTick()
 }
 
 //+------------------------------------------------------------------+
+//| SYSTEM ANALYSIS REPORT                                           |
+//+------------------------------------------------------------------+
+
+// Prints Trade Performance section: totals, win rate, profit factor,
+// average trade, best/worst, consecutive streaks.
+void PrintTradePerformance()
+{
+   Print("================================================================");
+   Print("  TRADE PERFORMANCE");
+   Print("================================================================");
+
+   if(!HistorySelect(g_start_time, TimeCurrent()))
+   {
+      Print("  No trade history available");
+      Print("================================================================");
+      return;
+   }
+
+   int    total_trades = 0, long_trades = 0, short_trades = 0;
+   int    wins = 0, losses = 0, long_wins = 0;
+   double gross_profit = 0.0, gross_loss = 0.0;
+   double largest_win  = 0.0, largest_loss = 0.0;
+   int    cur_win_streak = 0, cur_loss_streak = 0;
+   int    max_win_streak = 0, max_loss_streak = 0;
+
+   int total_deals = HistoryDealsTotal();
+   for(int i = 0; i < total_deals; i++)
+   {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(ticket == 0) continue;
+
+      // Only count closing deals where P&L is realized
+      long entry = HistoryDealGetInteger(ticket, DEAL_ENTRY);
+      if(entry != DEAL_ENTRY_OUT && entry != DEAL_ENTRY_INOUT) continue;
+
+      long deal_type = HistoryDealGetInteger(ticket, DEAL_TYPE);
+      if(deal_type != DEAL_TYPE_BUY && deal_type != DEAL_TYPE_SELL) continue;
+
+      double profit = HistoryDealGetDouble(ticket, DEAL_PROFIT)
+                    + HistoryDealGetDouble(ticket, DEAL_SWAP)
+                    + HistoryDealGetDouble(ticket, DEAL_COMMISSION);
+
+      total_trades++;
+
+      // A SELL closing deal closes a LONG position; a BUY closing deal closes a SHORT position
+      bool is_long = (deal_type == DEAL_TYPE_SELL);
+      if(is_long) long_trades++;
+      else        short_trades++;
+
+      if(profit > 0.0)
+      {
+         wins++;
+         gross_profit += profit;
+         if(is_long) long_wins++;
+         if(profit > largest_win) largest_win = profit;
+         cur_win_streak++;
+         cur_loss_streak = 0;
+         if(cur_win_streak > max_win_streak) max_win_streak = cur_win_streak;
+      }
+      else if(profit < 0.0)
+      {
+         losses++;
+         gross_loss += profit;
+         if(profit < largest_loss) largest_loss = profit;
+         cur_loss_streak++;
+         cur_win_streak = 0;
+         if(cur_loss_streak > max_loss_streak) max_loss_streak = cur_loss_streak;
+      }
+      else
+      {
+         // Breakeven: reset both streaks
+         cur_win_streak  = 0;
+         cur_loss_streak = 0;
+      }
+   }
+
+   if(total_trades == 0)
+   {
+      Print("  No trades executed during this test");
+      Print("================================================================");
+      return;
+   }
+
+   double win_rate       = wins * 100.0 / total_trades;
+   double long_win_rate  = long_trades > 0 ? long_wins * 100.0 / long_trades : 0.0;
+   int    short_wins     = wins - long_wins;
+   double short_win_rate = short_trades > 0 ? short_wins * 100.0 / short_trades : 0.0;
+   double net_profit     = gross_profit + gross_loss;
+   // Profit factor: N/A when no losing trades (all winners); shown as "N/A" separately
+   bool   has_losses     = (gross_loss != 0.0);
+   double profit_factor  = has_losses ? gross_profit / MathAbs(gross_loss) : 0.0;
+   double avg_trade      = net_profit / total_trades;
+   double avg_win        = wins   > 0 ? gross_profit / wins   : 0.0;
+   double avg_loss       = losses > 0 ? gross_loss   / losses : 0.0;
+
+   PrintFormat("Total Trades         : %d", total_trades);
+   PrintFormat("  ├─ Long            : %d (%.1f%%)", long_trades,
+               long_trades * 100.0 / total_trades);
+   PrintFormat("  └─ Short           : %d (%.1f%%)", short_trades,
+               short_trades * 100.0 / total_trades);
+   Print("");
+   PrintFormat("Win Rate             : %.1f%% (%dW / %dL)", win_rate, wins, losses);
+   PrintFormat("  ├─ Long win rate   : %.1f%% (%d/%d)", long_win_rate, long_wins, long_trades);
+   PrintFormat("  └─ Short win rate  : %.1f%% (%d/%d)", short_win_rate, short_wins, short_trades);
+   Print("");
+   if(has_losses) PrintFormat("Profit Factor        : %.2f",  profit_factor);
+   else            Print("Profit Factor        : N/A (no losing trades)");
+   PrintFormat("  ├─ Gross profit    : $%.2f", gross_profit);
+   PrintFormat("  └─ Gross loss      : $%.2f", gross_loss);
+   Print("");
+   PrintFormat("Average Trade        : $%.2f", avg_trade);
+   PrintFormat("  ├─ Average win     : $%.2f", avg_win);
+   PrintFormat("  └─ Average loss    : $%.2f", avg_loss);
+   Print("");
+   PrintFormat("Best Trade           : $%.2f", largest_win);
+   PrintFormat("Worst Trade          : $%.2f", largest_loss);
+   Print("");
+   PrintFormat("Consecutive Wins     : %d (max)", max_win_streak);
+   PrintFormat("Consecutive Losses   : %d (max)", max_loss_streak);
+   Print("================================================================");
+}
+
+// Prints Risk Analysis section: starting/ending balance, net profit,
+// max drawdown, recovery factor, and risk-reward ratio.
+void PrintRiskAnalysis()
+{
+   Print("================================================================");
+   Print("  RISK ANALYSIS");
+   Print("================================================================");
+
+   bool   in_tester  = (bool)MQLInfoInteger(MQL_TESTER);
+   double start_bal  = in_tester ? TesterStatistics(STAT_INITIAL_DEPOSIT) : g_starting_balance;
+   double end_bal    = AccountInfoDouble(ACCOUNT_BALANCE);
+   double net_profit = end_bal - start_bal;
+   double net_pct    = (start_bal > 0.0) ? net_profit * 100.0 / start_bal : 0.0;
+
+   // Use tester-computed drawdown when available; fall back to our tick tracker
+   double dd_abs = 0.0, dd_pct = 0.0;
+   if(in_tester)
+   {
+      dd_abs = TesterStatistics(STAT_BALANCE_DD);
+      dd_pct = TesterStatistics(STAT_BALANCE_DDREL_PERCENT);
+   }
+   else
+   {
+      dd_abs = g_max_drawdown_abs;
+      // Use peak equity (not starting balance) as the denominator for accuracy
+      dd_pct = (g_peak_equity > 0.0) ? dd_abs * 100.0 / g_peak_equity : 0.0;
+   }
+
+   // Recovery factor: net profit / max drawdown
+   double recovery_factor = (dd_abs > 0.0) ? net_profit / dd_abs : 0.0;
+
+   // Risk-reward: avg win / |avg loss| — query closing deals from history
+   double avg_win = 0.0, avg_loss = 0.0;
+   if(HistorySelect(g_start_time, TimeCurrent()))
+   {
+      double gross_profit = 0.0, gross_loss = 0.0;
+      int    wins = 0, losses = 0;
+      int    total_deals = HistoryDealsTotal();
+      for(int i = 0; i < total_deals; i++)
+      {
+         ulong ticket = HistoryDealGetTicket(i);
+         if(ticket == 0) continue;
+         long entry = HistoryDealGetInteger(ticket, DEAL_ENTRY);
+         if(entry != DEAL_ENTRY_OUT && entry != DEAL_ENTRY_INOUT) continue;
+         long dt = HistoryDealGetInteger(ticket, DEAL_TYPE);
+         if(dt != DEAL_TYPE_BUY && dt != DEAL_TYPE_SELL) continue;
+         double profit = HistoryDealGetDouble(ticket, DEAL_PROFIT)
+                       + HistoryDealGetDouble(ticket, DEAL_SWAP)
+                       + HistoryDealGetDouble(ticket, DEAL_COMMISSION);
+         if(profit > 0.0) { gross_profit += profit; wins++; }
+         else if(profit < 0.0) { gross_loss += profit; losses++; }
+      }
+      avg_win  = (wins   > 0) ? gross_profit / wins   : 0.0;
+      avg_loss = (losses > 0) ? gross_loss   / losses : 0.0;
+   }
+   double rr_ratio = (avg_loss != 0.0) ? avg_win / MathAbs(avg_loss) : 0.0;
+
+   PrintFormat("Starting Balance     : $%.2f", start_bal);
+   PrintFormat("Ending Balance       : $%.2f", end_bal);
+   PrintFormat("Net Profit           : $%.2f (%+.2f%%)", net_profit, net_pct);
+   Print("");
+   PrintFormat("Maximum Drawdown     : %.1f%% ($%.2f)", dd_pct, dd_abs);
+   PrintFormat("  ├─ Absolute        : $%.2f", dd_abs);
+   PrintFormat("  └─ Relative        : %.1f%%", dd_pct);
+   Print("");
+   PrintFormat("Recovery Factor      : %.2f (Net Profit / Max DD)", recovery_factor);
+   PrintFormat("Risk-Reward Ratio    : %.2f (Avg Win / Avg Loss)", rr_ratio);
+   Print("================================================================");
+}
+
+// Prints Signal Efficiency section: signal generation rate,
+// signal-to-trade conversion, and per-indicator component efficiency.
+// Component Efficiency is DYNAMIC — only enabled indicators are listed.
+void PrintSignalEfficiency()
+{
+   Print("================================================================");
+   Print("  SIGNAL EFFICIENCY ANALYSIS");
+   Print("================================================================");
+
+   const SRejectionStats& st = Signal.GetStats();
+
+   if(st.total_bars == 0)
+   {
+      Print("  No bars evaluated");
+      Print("================================================================");
+      return;
+   }
+
+   int    total_bars       = st.total_bars;
+   int    sigs_confirmed   = st.signals_confirmed;
+   int    sigs_rejected    = total_bars - sigs_confirmed;
+   double signal_rate      = sigs_confirmed * 100.0 / total_bars;
+   double avg_bars_between = (sigs_confirmed > 0) ? total_bars * 1.0 / sigs_confirmed : 0.0;
+
+   // Count closed trades from history for conversion rate
+   int total_trades = 0;
+   if(HistorySelect(g_start_time, TimeCurrent()))
+   {
+      int total_deals = HistoryDealsTotal();
+      for(int i = 0; i < total_deals; i++)
+      {
+         ulong ticket = HistoryDealGetTicket(i);
+         if(ticket == 0) continue;
+         long entry = HistoryDealGetInteger(ticket, DEAL_ENTRY);
+         if(entry != DEAL_ENTRY_OUT && entry != DEAL_ENTRY_INOUT) continue;
+         long dt = HistoryDealGetInteger(ticket, DEAL_TYPE);
+         if(dt == DEAL_TYPE_BUY || dt == DEAL_TYPE_SELL) total_trades++;
+      }
+   }
+
+   double conversion_rate = (sigs_confirmed > 0) ? total_trades * 100.0 / sigs_confirmed : 0.0;
+   int    filtered_out    = sigs_confirmed - total_trades;
+
+   Print("Signal Generation");
+   PrintFormat("  ├─ Total bars evaluated    : %d",         total_bars);
+   PrintFormat("  ├─ Signals confirmed       : %d (%.2f%%)", sigs_confirmed, signal_rate);
+   PrintFormat("  ├─ Signals rejected        : %d (%.2f%%)", sigs_rejected, 100.0 - signal_rate);
+   PrintFormat("  └─ Avg bars between signals: %.1f bars",  avg_bars_between);
+   Print("");
+   Print("Signal-to-Trade Conversion");
+   PrintFormat("  ├─ Signals confirmed       : %d",         sigs_confirmed);
+   PrintFormat("  ├─ Trades executed         : %d (%.1f%% conversion)", total_trades, conversion_rate);
+   PrintFormat("  └─ Signals filtered out    : %d (%.1f%%)", filtered_out,
+               sigs_confirmed > 0 ? filtered_out * 100.0 / sigs_confirmed : 0.0);
+   Print("");
+
+   // ── Component Efficiency ──
+   // Shows each enabled indicator's pass rate relative to bias-confirmed bars.
+   // DYNAMIC: only enabled indicators appear (controlled by Settings flags).
+   Print("Component Efficiency (Pass Rate Among Bias-Confirmed Bars)");
+   int    bias_passed = st.passed_bias;
+   double bias_rate   = bias_passed * 100.0 / total_bars;
+   PrintFormat("  ├─ Bias detection          : %.1f%% (%d / %d bars)",
+               bias_rate, bias_passed, total_bars);
+   Print("  └─ When bias ≠ 0:");
+
+   // Build a list of enabled indicators with their pass counts
+   // Array size = total supported indicator slots (11: EmaSig,MACD,PSAR,CCI,RSI,ADX,MFI,Sto,BB,P123,Ross)
+   struct SIndEntry { string name; int passed; };
+   SIndEntry inds[11];
+   int ind_count = 0;
+
+   if(Settings.Ind_EmaSig_Enabled)
+      { inds[ind_count].name = "EmaSig";     inds[ind_count++].passed = st.passed_emasig; }
+   if(Settings.Ind_Macd_Enabled)
+      { inds[ind_count].name = "MACD";       inds[ind_count++].passed = st.passed_macd; }
+   if(Settings.Ind_Psar_Enabled)
+      { inds[ind_count].name = "PSAR";       inds[ind_count++].passed = st.passed_psar; }
+   if(Settings.Ind_Cci_Enabled)
+      { inds[ind_count].name = "CCI";        inds[ind_count++].passed = st.passed_cci; }
+   if(Settings.Ind_Rsi_Enabled)
+      { inds[ind_count].name = "RSI";        inds[ind_count++].passed = st.passed_rsi; }
+   if(Settings.Ind_Adx_Enabled)
+      { inds[ind_count].name = "ADX";        inds[ind_count++].passed = st.passed_adx; }
+   if(Settings.Ind_Mfi_Enabled)
+      { inds[ind_count].name = "MFI";        inds[ind_count++].passed = st.passed_mfi; }
+   if(Settings.Ind_Sto_Enabled)
+      { inds[ind_count].name = "Stochastic"; inds[ind_count++].passed = st.passed_sto; }
+   if(Settings.Ind_Bb_Enabled)
+      { inds[ind_count].name = "BB";         inds[ind_count++].passed = st.passed_bb; }
+   if(Settings.Ind_P123_Enabled)
+      { inds[ind_count].name = "P123";       inds[ind_count++].passed = st.passed_p123; }
+   if(Settings.Ind_Ross_Enabled)
+      { inds[ind_count].name = "Ross Hook";  inds[ind_count++].passed = st.passed_ross; }
+
+   if(ind_count == 0)
+      Print("      └─ (no indicators enabled)");
+   else
+   {
+      for(int i = 0; i < ind_count; i++)
+      {
+         double rate   = (bias_passed > 0) ? inds[i].passed * 100.0 / bias_passed : 0.0;
+         string branch = (i < ind_count - 1) ? "      ├─ " : "      └─ ";
+         PrintFormat("%s%-12s : %.1f%% (%d / %d)", branch,
+                     inds[i].name, rate, inds[i].passed, bias_passed);
+      }
+   }
+
+   Print("");
+   PrintFormat("Combined Efficiency          : %.1f%% (signals / total bars)", signal_rate);
+   Print("================================================================");
+}
+
+// Wrapper: prints the full System Analysis Report (Trade Performance +
+// Risk Analysis + Signal Efficiency) at end of test.
+void PrintSystemAnalysisReport()
+{
+   PrintTradePerformance();
+   Print("");
+   PrintRiskAnalysis();
+   Print("");
+   PrintSignalEfficiency();
+}
+
+//+------------------------------------------------------------------+
 //| DEINIT                                                           |
 //+------------------------------------------------------------------+
 
@@ -675,6 +1010,7 @@ void OrchestrateDeinit(const int reason)
 {
    Signal.PrintRejectionStatistics();
    Signal.PrintEnhancedStatistics();
+   PrintSystemAnalysisReport();
 
    if(Settings.ExportCSV)
       SEA_Report_Generate();
