@@ -933,49 +933,42 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
    if(preset == PRESET_TEST_INDICATOR)
    {
-      // ═══════════════════════════════════════════════════════════
-      // INDICATOR TESTING MODE
-      // Minimal configuration for testing ONE indicator at a time.
-      // All gates, layers, and indicators are disabled so that only
-      // the bias and the single enabled indicator can reject a signal.
-      // ═══════════════════════════════════════════════════════════
-
       Print("═══════════════════════════════════════════════════════════");
       Print("  PRESET: TEST_INDICATOR (Isolated Testing Mode)");
       Print("═══════════════════════════════════════════════════════════");
-
+   
       // ───────────────────────────────────────────────────────────
-      // 1. BIAS: Position + Slope (persistent bias for multi-indicator systems)
+      // 1. BIAS: Position + Slope
       // ───────────────────────────────────────────────────────────
       cfg.BiasEnabled            = true;
       cfg.BiasMode               = BIAS_AUTO;
-      cfg.AutoStrat              = STRAT_POSITION_SLOPE;  // Persistent bias: position + slope (not one-bar cross)
-      cfg.BiasFastID             = (int)ROLE_EMA3;        // EMA3 = 34-period
-      cfg.BiasSlowID             = (int)ROLE_EMA4;        // EMA4 = 89-period
+      cfg.AutoStrat              = STRAT_POSITION_SLOPE;
+      cfg.BiasFastID             = (int)ROLE_EMA3;
+      cfg.BiasSlowID             = (int)ROLE_EMA4;
       cfg.PhaseDetectionEnabled  = false;
       cfg.MinPhaseConfirmBars    = 0;
       cfg.BlockUnorderedPhase    = false;
-
+   
       // ───────────────────────────────────────────────────────────
-      // 2. DISABLE ALL GATES (remove filtering noise)
+      // 2. DISABLE ALL GATES
       // ───────────────────────────────────────────────────────────
-      cfg.MaxSpread    = 100.0;   // Effectively disabled
-      cfg.MinATR       = 0.0;     // Disabled
-      cfg.MaxATR       = 0.0;     // Disabled
+      cfg.MaxSpread    = 100.0;
+      cfg.MinATR       = 0.0;
+      cfg.MaxATR       = 0.0;
       cfg.ATR_HardGate = false;
       cfg.Use_ATRVote  = false;
       cfg.UseTime      = false;
       cfg.UseNews      = false;
       cfg.UseHTF       = false;
-
+   
       // ───────────────────────────────────────────────────────────
-      // 3. DISABLE ENTRY LAYERS (remove structure requirements)
+      // 3. DISABLE ENTRY LAYERS
       // ───────────────────────────────────────────────────────────
       cfg.EnableLayerDetection     = false;
       cfg.LayerTouchTolerance      = 0.0;
       cfg.RequireRecoveryMomentum  = false;
       cfg.RequirePullback          = false;
-
+   
       // ───────────────────────────────────────────────────────────
       // 4. DISABLE ALL INDICATORS (start from zero)
       // ───────────────────────────────────────────────────────────
@@ -990,12 +983,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Psar_Enabled   = false;
       cfg.Ind_P123_Enabled   = false;
       cfg.Ind_Ross_Enabled   = false;
-
+   
       // ───────────────────────────────────────────────────────────
       // 5. VOTING MODE: ALL (single indicator must pass)
       // ───────────────────────────────────────────────────────────
       cfg.VoteMode = VOTE_MODE_ALL;
-
+   
       // ═══════════════════════════════════════════════════════════
       // TESTING SECTION: Enable ONE indicator below.
       // Uncomment ONE block and recompile to isolate that indicator.
@@ -1006,79 +999,88 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       Print("  │ Uncomment ONE block below and recompile            │");
       Print("  └─────────────────────────────────────────────────────┘");
       Print("");
-
+   
       // Uncomment ONE indicator block to test:
-
+   
       // cfg.Ind_EmaSig_Enabled = true;  // Test: EMA Signal
-
+   
       // cfg.Ind_Adx_Enabled = true;     // Test: ADX
       // cfg.T_Adx = 25.0;
-
+   
       // cfg.Ind_Macd_Enabled   = true;                       // Test: MACD
       // cfg.MacdVoteMode       = MACD_ZERO_AND_CROSS;
       // cfg.P_MacdFast         = 12;
       // cfg.P_MacdSlow         = 26;
       // cfg.P_MacdSig          = 9;
-
+   
       // cfg.Ind_Rsi_Enabled = true;     // Test: RSI
       // cfg.RsiMode = RSI_TREND_ABOVE_50;
       // cfg.P_Rsi = 14;
-
+   
       // cfg.Ind_Cci_Enabled = true;     // Test: CCI
       // cfg.CciMode = CCI_TREND_ZERO;
       // cfg.P_Cci = 14;
-
+   
       // cfg.Ind_Mfi_Enabled = true;     // Test: MFI
       // cfg.P_Mfi = 14;
       // cfg.T_Mfi = 50.0;
-
+   
       // cfg.Ind_Sto_Enabled = true;     // Test: Stochastic
       // cfg.StoMode = STO_CROSS_SIGNAL;
       // cfg.P_StoK = 5;
       // cfg.P_StoD = 3;
       // cfg.P_StoSlow = 3;
-
+   
       // cfg.Ind_Bb_Enabled = true;      // Test: Bollinger Bands
       // cfg.BbMode = BB_TREND_FOLLOW;
       // cfg.P_Bb = 20;
       // cfg.P_BbDev = 2.0;
-
+   
       cfg.Ind_Psar_Enabled     = true;   // Test: PSAR ← CURRENTLY ACTIVE
       cfg.Vote_AllowPsarFlip   = true;
       cfg.Vote_PsarFlipDelay   = 10;
       cfg.P_PsarStep           = 0.02;
       cfg.P_PsarMax            = 0.2;
-
+   
       // cfg.Ind_P123_Enabled = true;    // Test: Pattern 1-2-3
-
+   
       // cfg.Ind_Ross_Enabled = true;    // Test: Ross Hook
-
+   
       // ═══════════════════════════════════════════════════════════
-
+      // EXIT MANAGEMENT: Inherit from input parameters or preset
+      // 
+      // NOTE: PRESET_TEST_INDICATOR does NOT override exit settings.
+      // It inherits exit management from:
+      // 1. Input parameters (if InpPreset == PRESET_TEST_INDICATOR)
+      // 2. The preset you were using before (settings persist)
+      //
+      // This allows testing indicators with YOUR chosen exit strategy.
+      // ═══════════════════════════════════════════════════════════
+      
+      Print("");
+      Print("  ┌─────────────────────────────────────────────────────┐");
+      Print("  │ EXIT MANAGEMENT:                                    │");
+      Print("  │ Inheriting from input parameters/active preset     │");
+      Print("  │ (PRESET_TEST_INDICATOR does not override exits)   │");
+      Print("  └─────────────────────────────────────────────────────┘");
+      Print("  Exit settings in use:");
+      Print("    ├─ ExitProfile: ", EnumToString(cfg.ExitProfile));
+      Print("    ├─ SLMode: ", EnumToString(cfg.SLMode));
+      Print("    ├─ TPMode: ", EnumToString(cfg.TPMode));
+      Print("    ├─ BE: ", cfg.Use_BE ? "Enabled" : "Disabled");
+      Print("    └─ TrailMode: ", EnumToString(cfg.TrailMode));
+      Print("");
+   
       Print("═══════════════════════════════════════════════════════════");
       Print("  Recommended debug levels:");
       Print("    - Short test (<100 bars): DEBUG_INDICATORS or DEBUG_FULL");
       Print("    - Long test (year+):      DEBUG_SUMMARY");
       Print("    - Optimization:           DEBUG_SILENT");
       Print("═══════════════════════════════════════════════════════════");
-
+   
       return;
    }
-   cfg.MaxSpread = op_MaxSpread;
-   cfg.MinATR    = op_MinATR;
-   cfg.MaxATR    = op_MaxATR;
 
-   cfg.UseTime   = op_UseTime;
-   cfg.StartHr   = op_StartHr;
-   cfg.EndHr     = op_EndHr;
-
-   cfg.UseNews   = op_UseNews;
-   cfg.NewsPre   = op_NewsPre;
-   cfg.NewsPost  = op_NewsPost;
-
-   cfg.UseHTF    = op_UseHTF;
-   cfg.HtfPeriod = op_HtfPeriod;
-   cfg.P_HtfEma  = op_P_HtfEma;
 }
 
 /*

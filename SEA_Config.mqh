@@ -744,8 +744,8 @@ ST_Settings Settings;
 // 🎯 ZONE 1 — PRESET SELECTION
 // ════════════════════════════════════════════════════════════════════
 input group "══════════ 🎯 ZONE 1: PRESET SELECTION ══════════"
-input ulong           Inp_MagicNum               = 12345;       // (Global) Magic number (trade identifier)
-input EStrategyPreset InpPreset                 = PRESET_RRM;   // (Global) Strategy preset (presets may override many inputs below)
+input ulong           Inp_MagicNum              = 12345;       // (Global) Magic number (trade identifier)
+input EStrategyPreset InpPreset                 = PRESET_TEST_INDICATOR;   // (Global) Strategy preset (presets may override many inputs below)
 
 // ════════════════════════════════════════════════════════════════════
 // ✅ ZONE 2 — USER CONTROLS  (Policy A gates — always editable)

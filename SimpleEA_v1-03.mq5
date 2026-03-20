@@ -949,8 +949,9 @@ void PrintSignalEfficiency()
    Print("  SIGNAL EFFICIENCY ANALYSIS");
    Print("================================================================");
 
-   const SRejectionStats& st = Signal.GetStats();
-
+   // const SRejectionStats& st = Signal.GetStats();  // ❌ WRONG   
+   SRejectionStats st = Signal.GetStats();  // ✅ CORRECT
+   
    if(st.total_bars == 0)
    {
       Print("  No bars evaluated");
