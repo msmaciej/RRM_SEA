@@ -729,15 +729,18 @@ ST_Settings Settings;
 // Many inputs are overridden by presets; descriptions below include applicability tags.
 //
 // Input Zone Layout:
-//   🎯 ZONE 1  — Preset Selection         : choose preset & magic number
-//   ✅ ZONE 2  — User Controls (Policy A) : always editable, gates & UI
-//   ℹ️ ZONE 3A — Preset Info              : reference defaults; presets override when active
-//   🔓 ZONE 3B — Admin Override (§1–§4)  : unlock preset parameters for testing
+//   🎯 ZONE 1   — Preset Selection             : choose preset & magic number
+//   ✅ ZONE 2A  — Operator Gates & UI          : Policy A; always honored by all presets
+//   ✅ ZONE 2B  — Exit Management              : used by PRESET_TEST_INDICATOR & PRESET_CUSTOM;
+//                                               other presets override with optimized values
+//   ℹ️ ZONE 3A  — Pipeline Config (Steps 1–6) : reference defaults; presets override when active
+//   🔧 ZONE 3C  — Adaptive Settings           : auto-scale by pair type & timeframe
+//   🔓 ZONE 3B  — Admin Override (§1–§7)     : unlock preset parameters for testing
 //
 // Tags used in descriptions:
-//   (Global; allowed under presets)                 - always honored (Zone 2)
-//   (Operator gate; preserved under presets)        - Policy A: user-controlled even under presets (Zone 2)
-//   (CUSTOM; presets override)                      - effective mainly in PRESET_CUSTOM (Zone 3A)
+//   (Global; allowed under presets)                 - always honored (Zone 2A)
+//   (Operator gate; preserved under presets)        - Policy A: user-controlled even under presets (Zone 2A)
+//   (CUSTOM/TEST: editable; presets override)       - used by PRESET_CUSTOM & PRESET_TEST_INDICATOR (Zone 2B / Zone 3A)
 //   (CUSTOM; most presets override; strict sets 0)  - ATR gates forced off under strict RRM (Zone 3A)
 
 // ════════════════════════════════════════════════════════════════════
@@ -748,10 +751,10 @@ input ulong           Inp_MagicNum              = 12345;       // (Global) Magic
 input EStrategyPreset InpPreset                 = PRESET_TEST_INDICATOR;   // (Global) Strategy preset (presets may override many inputs below)
 
 // ════════════════════════════════════════════════════════════════════
-// ✅ ZONE 2 — USER CONTROLS  (Policy A gates — always editable)
-// These inputs are always respected regardless of which preset is active.
+// ✅ ZONE 2A — OPERATOR GATES & UI  (Policy A — always editable)
+// These inputs are ALWAYS respected by all presets.
 // ════════════════════════════════════════════════════════════════════
-input group "══════════ ✅ ZONE 2: USER CONTROLS (Policy A — always editable) ══════════"
+input group "══════════ ✅ ZONE 2A: OPERATOR GATES & UI (Policy A — always editable) ══════════"
 
 input group "--- ✅ Operator Gates: Spread & ATR Limits ---"
 input double         Inp_MaxSpreadPips          = 3.0;    // (Operator gate; preserved under presets) Max spread (pips)
@@ -809,12 +812,10 @@ input bool           Inp_PrintEffectiveConfig   = true;         // (Global; allo
 input bool           Inp_DebugFlow              = true;         // (Global; allowed under presets) Print OnInit/OnTick/OnDeinit flow
 input EDebugLevel    Inp_DebugLevel             = DEBUG_SUMMARY; // (Global; allowed under presets) Debug verbosity level (SILENT/SUMMARY/INDICATORS/FULL)
 
-input group "════════════════════════════════════════════"
-input group "  DIAGNOSTICS: STATISTICS CONFIGURATION"
-input group "════════════════════════════════════════════"
-input bool Inp_Stats_TrackRejections = true;   // Track rejection counts
-input bool Inp_Stats_TrackPasses = true;       // Track pass counts (positive stats)
-input bool Inp_Stats_FullEvaluation = true;    // Evaluate ALL indicators per bar (no early exit)
+input group "--- ✅ Diagnostics: Statistics Configuration ---"
+input bool Inp_Stats_TrackRejections = true;   // (Global; allowed under presets) Track rejection counts
+input bool Inp_Stats_TrackPasses = true;       // (Global; allowed under presets) Track pass counts (positive stats)
+input bool Inp_Stats_FullEvaluation = true;    // (Global; allowed under presets) Evaluate ALL indicators per bar (no early exit)
 input string Inp_Stats_Info1 = "FullEvaluation=false: waterfall (stop at first fail)"; // Info
 input string Inp_Stats_Info2 = "FullEvaluation=true: evaluate all, identify true bottlenecks"; // Info
 
@@ -823,14 +824,99 @@ input bool           Inp_ExportCSV              = false;        // (Global; allo
 input bool           Inp_ExportUseCommonFiles   = false;        // (Global; allowed under presets) Use terminal Common Files folder for export
 
 // ════════════════════════════════════════════════════════════════════
+// ✅ ZONE 2B — EXIT MANAGEMENT  (PRESET_TEST_INDICATOR & PRESET_CUSTOM)
+// These settings are used directly by PRESET_TEST_INDICATOR and PRESET_CUSTOM.
+// Other presets (TREND_SCALP, TREND_SWING, RRM, etc.) override these with their optimized values.
+// To tune exits while using a non-TEST/CUSTOM preset, use ZONE 3B Admin Override §4.
+// ════════════════════════════════════════════════════════════════════
+input group "══════════ ✅ ZONE 2B: EXIT MANAGEMENT (PRESET_TEST_INDICATOR / PRESET_CUSTOM) ══════════"
+input string Inp_Exit_Zone_Info1 = "Active for: PRESET_TEST_INDICATOR & PRESET_CUSTOM (direct input control)"; // [Zone 2B]
+input string Inp_Exit_Zone_Info2 = "Other presets override exits with strategy-optimized values";               // [Zone 2B]
+
+input group "═══ ✅ Exit: Risk ═══"
+input double         Inp_RiskPercent            = 2.0;    // (CUSTOM/TEST: editable; presets may override) Risk per trade (%)
+
+input group "═══ ✅ Exit: Profile Selector ═══"
+input EExitProfile   Inp_ExitProfile            = EXIT_PROFILE_LEGACY; // (CUSTOM/TEST: editable; strict presets override) Exit profile selector
+input string         Inp_ExitProfile_Info       = "LEGACY=absolute-pips BE/Trail  |  RRM_STRICT=percentage/R-multiple based"; // [Info]
+
+input group "═══ ✅ Exit: Initial SL Placement ═══"
+input ESlPlacementMode Inp_SL_PlacementMode     = SL_SWING_HIGHLOW;    // (CUSTOM/TEST: editable; presets override) SL placement method
+input double         Inp_SL_Mult                = 1.5;                 // (CUSTOM/TEST: editable; ATR modes only) SL ATR multiplier
+input double         Inp_SL_PsarPipsCushion     = 5.0;                 // (CUSTOM/TEST: pips) SL PSAR cushion (pips; SL_PSAR_DOT mode)
+input double         Inp_SL_SwingPipsCushion    = 10.0;                // (CUSTOM/TEST: pips) SL swing cushion (pips; SL_MODE_SWING mode)
+input double         Inp_SL_FixedPips           = 20.0;                // (CUSTOM/TEST: pips) SL fixed distance (pips; SL_MODE_FIXED_PIPS mode)
+
+input group "═══ ✅ Exit: SL / TP Strategy ═══"
+input ESLMode        Inp_SLMode                 = SL_MODE_FIXED_PIPS; // (CUSTOM/TEST: editable; presets override) SL strategy mode
+input ETPMode        Inp_TPMode                 = TP_MODE_RR;         // (CUSTOM/TEST: editable; presets override) TP strategy mode
+input double         Inp_FixedTPPips            = 40.0;               // (CUSTOM/TEST: pips; TP_MODE_FIXED_PIPS only) Fixed TP distance (pips)
+input bool           Inp_UseATRforSL            = false;              // (CUSTOM/TEST: editable; SL_MODE_ATR only) ATR-based SL
+input bool           Inp_UseATRforTP            = false;              // (CUSTOM/TEST: editable; TP_MODE_ATR only) ATR-based TP
+input double         Inp_SLPercent              = 0.5;                // (CUSTOM/TEST: %; SL_MODE_PERCENT only) SL as % of entry price
+input double         Inp_RRRatio                = 2.0;                // (CUSTOM/TEST: ratio; TP_MODE_RR only) Risk:Reward ratio (e.g. 2.0 = 2:1)
+input int            Inp_SwingLookback          = 20;                 // (CUSTOM/TEST: bars; SL_MODE_SWING only) Swing lookback bars
+
+input group "═══ ✅ Exit: Take Profit ═══"
+input bool           Inp_TP_Enabled             = true;                // (CUSTOM/TEST: editable; presets override) Enable take profit
+input double         Inp_TP_Mult                = 3.0;                 // (CUSTOM/TEST: editable; presets override) TP R-multiple (legacy TP_Mult)
+
+input group "═══ ✅ Exit: Breakeven — LEGACY Mode ═══"
+input string         Inp_BE_Legacy_Info         = "LEGACY BE uses ATR multipliers (ExitProfile = EXIT_PROFILE_LEGACY)"; // [Info]
+input bool           Inp_Use_BE                 = false;               // (CUSTOM/TEST: editable; presets override) Enable legacy breakeven
+input double         Inp_BE_Trig                = 1.0;                 // (CUSTOM/TEST: ATR multiplier) Legacy BE trigger: move SL when profit ≥ X × ATR
+input double         Inp_BE_Buff                = 0.1;                 // (CUSTOM/TEST: ATR multiplier) Legacy BE buffer: lock SL at entry + X × ATR
+
+input group "═══ ✅ Exit: Trailing Stop ═══"
+input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR;          // (CUSTOM/TEST: editable; presets override) Trailing stop mode
+input double         Inp_Trail_Mult             = 3.0;                 // (CUSTOM/TEST: editable; ATR modes only) Trail ATR multiplier
+input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // (CUSTOM/TEST: editable; presets override) PSAR trail cushion mode
+input double         Inp_PSAR_TrailPipsCushion  = 5.0;                 // (CUSTOM/TEST: pips) PSAR trail cushion (pips; PSAR_CUSHION_PIPS mode)
+input int            Inp_PSAR_TrailDelay        = 1;                   // (CUSTOM/TEST: bars; 1-3) PSAR trailing delay (1=tight, 3=loose)
+input double         Inp_PSAR_TrailCushionATR   = 0.2;                 // (CUSTOM/TEST: ATR fraction) PSAR trail cushion as ATR fraction
+
+input group "═══ ✅ Exit: Fractal & PSAR SL/TP ═══"
+input int            Inp_FractalPeriod          = 5;                   // (CUSTOM/TEST: editable) Fractal period for SL/TP (SL_FRACTAL / TP_FRACTAL)
+input int            Inp_TPFractalOffset        = 1;                   // (CUSTOM/TEST: editable) Fractal offset for TP (1=nearest fractal)
+input double         Inp_PSARStep               = 0.02;                // (CUSTOM/TEST: editable) PSAR step for SL/TP (SL_PSAR_DOT / TP_PSAR_FLIP)
+input double         Inp_PSARMax                = 0.2;                 // (CUSTOM/TEST: editable) PSAR max for SL/TP
+
+input group "═══ ✅ Exit: Advanced Trailing Trigger ═══"
+input ETrailTrigger  Inp_TrailTrigger           = TRIGGER_IMMEDIATE;   // (CUSTOM/TEST: editable) When to start trailing
+input double         Inp_TrailDistancePips      = 15.0;                // (CUSTOM/TEST: pips) Fixed trail distance / profit trigger (pips)
+input double         Inp_TrailATRMultiplier     = 1.5;                 // (CUSTOM/TEST: ATR multiplier) Trail ATR multiplier (TRAIL_ATR mode)
+input double         Inp_BEThresholdPips        = 10.0;                // (CUSTOM/TEST: pips) Pips profit needed to trigger breakeven (TRIGGER_BREAKEVEN)
+input double         Inp_TrailProfitPercent     = 1.0;                 // (CUSTOM/TEST: %) Profit % needed to start trailing (TRIGGER_PROFIT_PERCENT)
+input double         Inp_TrailStepPips          = 5.0;                 // (CUSTOM/TEST: pips) Minimum pips to move SL each step
+input bool           Inp_TrailLockProfit        = true;                // (CUSTOM/TEST: editable) Never move SL backwards (lock in profit)
+
+input group "═══ ✅ Exit: RRM Strict Mode ═══"
+input string         Inp_RRM_Info1              = "RRM uses % of TP distance for BE — not absolute pips"; // [RRM Info]
+input string         Inp_RRM_Info2              = "Only active when ExitProfile = EXIT_PROFILE_RRM_STRICT_NO_ATR"; // [RRM Info]
+input string         Inp_RRM_Info3              = "Example: SL=10 pips, TP=30 pips (3:1 RR), BE@33% → triggers at +10 pips profit"; // [RRM Info]
+
+input group "--- RRM: Breakeven Settings (Percentage-Based) ---"
+input EBeMode        Inp_BE_Mode                = BE_MODE_OFF;         // (CUSTOM/TEST: editable) RRM BE mode: OFF / TP_PROGRESS_PCT / R_MULTIPLE
+input double         Inp_RRM_BE_ProgressPct     = 33.0;                // (CUSTOM/TEST: %) RRM BE trigger — % of TP distance (BE_MODE_TP_PROGRESS_PCT)
+input double         Inp_RRM_BE_RMultiple       = 1.0;                 // (CUSTOM/TEST: R multiple) RRM BE trigger — R-multiple (BE_MODE_R_MULTIPLE)
+input double         Inp_RRM_BE_BufferPips      = 5.0;                 // (CUSTOM/TEST: pips) RRM BE buffer — lock SL at entry + X pips
+input string         Inp_RRM_BE_Example         = "Example: SL=10, TP=30 (3:1), BE@33% → triggers at +10 pips; SL locks at entry+5pips"; // [Info]
+
+input group "--- RRM: Trailing Settings (PSAR-Based) ---"
+input bool           Inp_RRM_TrailStartsAfterBE = true;                // (CUSTOM/TEST: editable) RRM: Start trailing only after BE is reached
+input int            Inp_RRM_TrailPsarShiftDelay = 1;                  // (CUSTOM/TEST: bars; 1-3) RRM: PSAR shift delay (1=tight, 3=loose)
+input bool           Inp_RRM_FreezeTrailOnFlip  = false;               // (CUSTOM/TEST: editable) RRM: Freeze trail on PSAR flip
+input string         Inp_RRM_Trail_Info         = "RRM trailing: PSAR-based with bar shift delay for flip stability"; // [Info]
+
+// ════════════════════════════════════════════════════════════════════
 // ℹ️ ZONE 3A — PIPELINE CONFIG  (reference defaults by pipeline step)
 // Organized by the 9-step signal processing pipeline.
 // When a preset is active these are overridden by the preset.
-// In PRESET_CUSTOM mode all inputs below are fully respected.
+// In PRESET_CUSTOM & PRESET_TEST_INDICATOR mode all inputs are fully respected.
 // Steps 3 (Signal-Bias Match), 7 (Position Check) have no user inputs.
-// Steps 4 (HTF) and 8 (Operator Gates) are in Zone 2 (always editable).
+// Steps 4 (HTF), 8 (Operator Gates), and 9 (Exit Management) are in Zone 2.
 // ════════════════════════════════════════════════════════════════════
-input group "══════════ ℹ️ ZONE 3A: PIPELINE CONFIG (presets override these when active) ══════════"
+input group "══════════ ℹ️ ZONE 3A: PIPELINE CONFIG (Steps 1–6; presets override when active) ══════════"
 
 // ── Step 1: Bias Calculation ─────────────────────────────────────────
 input group "═══ 🔧 STEP 1: Bias Calculation ═══"
@@ -856,7 +942,6 @@ input double         Inp_LayerTolerance         = 0.01;             // (CUSTOM; 
 input ERRMMode       Inp_RRM_Mode               = RRM_AUTO_BY_TF; // (RRM presets) RRM mode (AUTO uses timeframe mapping)
 input bool           Inp_RRM_EnableInCustom     = false;          // (CUSTOM only) Enable RRM logic while using PRESET_CUSTOM
 input bool           Inp_CloseOnReverse         = false;          // (CUSTOM; presets may override) Close on reverse signal
-input EExitProfile   Inp_ExitProfile            = EXIT_PROFILE_LEGACY; // (CUSTOM; presets override) Exit profile (strict presets force strict)
 
 // ── Step 5: Structure Gate (Multi-layer pullback) ─────────────────────
 input group "═══ 🔧 STEP 5: Structure Gate (Pullback) ═══"
@@ -973,76 +1058,9 @@ input group "═══ 📊 TEMPLATE: Add Custom Indicator ═══"
 input string         Inp_Ind_Template_Info      = "Copy a section above to add custom indicators"; // Instructions
 
 // ── Step 9: Risk & Execution ──────────────────────────────────────────
-input group "--- ℹ️ Step 9: Risk & Execution (SL, TP, trailing) ---"
-input double         Inp_RiskPercent            = 2.0;    // (CUSTOM; presets may override) Risk per trade (%)
-
-input group "--- ℹ️ Step 9 · Initial SL Placement ---"
-input ESlPlacementMode Inp_SL_PlacementMode     = SL_SWING_HIGHLOW;    // (CUSTOM; presets override) SL placement method
-input double         Inp_SL_Mult                = 1.5;                 // (CUSTOM; presets override) SL multiplier (ATR modes only; ignored in strict)
-input double         Inp_SL_PsarPipsCushion     = 5.0;                 // (CUSTOM; presets override) SL PSAR cushion (pips)
-input double         Inp_SL_SwingPipsCushion    = 10.0;                // (CUSTOM; presets override) SL swing cushion (pips)
-input double         Inp_SL_FixedPips           = 20.0;                // (CUSTOM; presets override) SL fixed distance (pips)
-
-input group "--- ℹ️ Step 9 · SL/TP Strategy (ATR-optional) ---"
-input ESLMode        Inp_SLMode                 = SL_MODE_FIXED_PIPS; // (CUSTOM) SL strategy mode (SL_MODE_FIXED_PIPS by default)
-input ETPMode        Inp_TPMode                 = TP_MODE_RR;         // (CUSTOM) TP strategy mode (TP_MODE_RR by default)
-input double         Inp_FixedTPPips            = 40.0;               // (CUSTOM) Fixed TP distance in pips (TP_MODE_FIXED_PIPS only)
-input bool           Inp_UseATRforSL            = false;              // (CUSTOM) Enable ATR-based SL (SL_MODE_ATR only)
-input bool           Inp_UseATRforTP            = false;              // (CUSTOM) Enable ATR-based TP (TP_MODE_ATR only)
-input double         Inp_SLPercent              = 0.5;                // (CUSTOM) SL as % of entry price (SL_MODE_PERCENT only)
-input double         Inp_RRRatio                = 2.0;                // (CUSTOM) Risk:Reward ratio (TP_MODE_RR only)
-input int            Inp_SwingLookback          = 20;                 // (CUSTOM) Swing high/low lookback bars (SL_MODE_SWING only)
-
-input group "--- ℹ️ Step 9 · TP & Breakeven ---"
-input bool           Inp_TP_Enabled             = true;                // (CUSTOM; presets override) Enable take profit
-input double         Inp_TP_Mult                = 3.0;                 // (CUSTOM; presets override) TP R-multiple (legacy TP_Mult)
-input bool           Inp_Use_BE                 = false;               // (CUSTOM; presets override) Use legacy BE (strict uses BE_Mode instead)
-input double         Inp_BE_Trig                = 1.0;                 // (CUSTOM; presets override) Legacy BE trigger (ATR multiplier; LEGACY mode: move SL at profit = X×ATR)
-input double         Inp_BE_Buff                = 0.1;                 // (CUSTOM; presets override) Legacy BE buffer (ATR multiplier; LEGACY mode: lock SL at entry + X×ATR)
-
-input group "--- ℹ️ Step 9 · Trailing Stop ---"
-input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR;          // (CUSTOM; presets override) Trailing stop mode
-input double         Inp_Trail_Mult             = 3.0;                 // (CUSTOM; presets override) Trail multiplier (ATR modes only; ignored in strict)
-input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // (CUSTOM; presets override) PSAR trail cushion mode
-input double         Inp_PSAR_TrailPipsCushion  = 5.0;                 // (CUSTOM; presets override) PSAR trail cushion (pips)
-input int            Inp_PSAR_TrailDelay        = 1;             // PSAR trailing delay (bar shift: 1-3; 1=last confirmed bar)
-input double         Inp_PSAR_TrailCushionATR   = 0.2;                 // (CUSTOM; presets override) PSAR trail cushion (ATR)
-
-input group "--- ℹ️ Step 9 · Fractal SL/TP (Phase 2.2) ---"
-input int            Inp_FractalPeriod          = 5;                   // (CUSTOM) Fractal period for SL/TP (SL_FRACTAL / TP_FRACTAL)
-input int            Inp_TPFractalOffset        = 1;                   // (CUSTOM) Fractal offset for TP (1=nearest fractal)
-
-input group "--- ℹ️ Step 9 · PSAR SL/TP (Phase 2.2) ---"
-input double         Inp_PSARStep               = 0.02;                // (CUSTOM) PSAR step for SL/TP (SL_PSAR_DOT / TP_PSAR_FLIP)
-input double         Inp_PSARMax                = 0.2;                 // (CUSTOM) PSAR max for SL/TP
-
-input group "--- ℹ️ Step 9 · Advanced Trailing Trigger (Phase 2.2) ---"
-input ETrailTrigger  Inp_TrailTrigger           = TRIGGER_IMMEDIATE;   // (CUSTOM) When to start trailing
-input double         Inp_TrailDistancePips      = 15.0;                // (CUSTOM) Fixed trail distance pips / profit trigger pips
-input double         Inp_TrailATRMultiplier     = 1.5;                 // (CUSTOM) ATR multiplier for TRAIL_ATR mode
-input double         Inp_BEThresholdPips        = 10.0;                // (CUSTOM) Pips profit needed before breakeven (TRIGGER_BREAKEVEN)
-input double         Inp_TrailProfitPercent     = 1.0;                 // (CUSTOM) Profit % to trigger trailing (TRIGGER_PROFIT_PERCENT)
-input double         Inp_TrailStepPips          = 5.0;                 // (CUSTOM) Minimum pips to move SL each step
-input bool           Inp_TrailLockProfit        = true;                // (CUSTOM) Never move SL backwards (lock profit)
-
-input group "════════════════════════════════════════════"
-input group "  EXIT MANAGEMENT: RRM STRICT MODE (Advanced)"
-input group "════════════════════════════════════════════"
-input string Inp_RRM_Info1 = "RRM uses % of TP distance for BE (not absolute pips)"; // Info
-input string Inp_RRM_Info2 = "Example: BE at 33% means trigger when profit = 33% of TP target"; // Info
-
-input group "--- RRM Breakeven Settings (Percentage-Based) ---"
-input EBeMode        Inp_BE_Mode                = BE_MODE_OFF;         // RRM BE Mode: OFF / TP_PROGRESS_PCT / R_MULTIPLE
-input double         Inp_RRM_BE_ProgressPct     = 33.0;                // RRM: BE at % to TP (e.g., 33.0 = trigger at 33% to target)
-input double         Inp_RRM_BE_RMultiple       = 1.0;                 // RRM: BE at R multiple (e.g., 1.0 = at 1×risk distance)
-input double         Inp_RRM_BE_BufferPips      = 5.0;                 // RRM: BE buffer pips (lock SL at entry + X pips)
-input string Inp_RRM_BE_Example = "Example: SL=10, TP=30 (3:1), BE@33% triggers at +10 pips"; // Info
-
-input group "--- RRM Trailing Settings (PSAR-Based) ---"
-input bool           Inp_RRM_TrailStartsAfterBE = true;                // RRM: Trailing starts only after BE reached
-input int            Inp_RRM_TrailPsarShiftDelay = 1;                  // RRM: PSAR shift delay (1-3 bars; 1=tight, 3=loose)
-input bool           Inp_RRM_FreezeTrailOnFlip  = false;               // RRM: Freeze trail on PSAR flip (safety feature)
-input string Inp_RRM_Trail_Info = "RRM Trailing: PSAR-based with shift delay for stability"; // Info
+input group "--- ℹ️ Step 9: Exit Management → see ZONE 2B above ---"
+input string         Inp_Step9_Ref1             = "All exit settings (SL/TP/BE/Trail/RRM) are in ZONE 2B above"; // [Reference]
+input string         Inp_Step9_Ref2             = "To adjust exits under a strict preset: use ZONE 3B Admin Override §4"; // [Reference]
 
 input group "--- ℹ️ Benchmark: MT5 Moving Average ---"
 input double         Inp_MA_MaximumRiskPct      = 0.02;         // (PRESET_MA_BENCHMARK only) Max risk (%) for MA benchmark sizer
