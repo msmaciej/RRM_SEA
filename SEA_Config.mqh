@@ -284,13 +284,18 @@ enum ETrailingMode
    TRAIL_PROFIT_PERCENT   // Trail after profit % threshold reached
 };
 
+//+------------------------------------------------------------------+
+//| ⚠️ DEPRECATED: Legacy SL Placement Mode (kept for compatibility)|
+//| Use ESLMode (Inp_SLMode) for new configurations.                 |
+//| This enum will be removed in a future version.                   |
+//+------------------------------------------------------------------+
 enum ESlPlacementMode
 {
-   SL_ATR,                // ATR multiple from entry
-   SL_PSAR_ATR,           // PSAR dot + ATR cushion
-   SL_PSAR_PIPS,          // PSAR dot + fixed pips cushion
-   SL_SWING_HIGHLOW,      // Recent swing high/low + cushion
-   SL_FIXED_PIPS          // Fixed pip distance from entry
+   SL_ATR,                // DEPRECATED: Use SL_MODE_ATR instead
+   SL_PSAR_ATR,           // DEPRECATED: Use SL_PSAR_DOT with adaptive PSAR cushion
+   SL_PSAR_PIPS,          // DEPRECATED: Use SL_PSAR_DOT with fixed pips cushion
+   SL_SWING_HIGHLOW,      // DEPRECATED: Use SL_MODE_SWING instead
+   SL_FIXED_PIPS          // DEPRECATED: Use SL_MODE_FIXED_PIPS instead
 };
 
 //+------------------------------------------------------------------+
@@ -903,22 +908,43 @@ input string         Inp_ExitProfile_Info       = "LEGACY=absolute-pips BE/Trail
 
 input group ""
 input group "╔════════════════════════════════════════════════════════╗"
-input group "║  📊 STOP LOSS: PLACEMENT                               ║"
+input group "║  📊 STOP LOSS CONFIGURATION                            ║"
+input group "║  Choose ONE method below for your strategy             ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input ESlPlacementMode Inp_SL_PlacementMode     = SL_SWING_HIGHLOW;    // SL placement method
-input double         Inp_SL_Mult                = 1.5;                 // SL ATR multiplier (ATR modes only)
-input double         Inp_SL_PsarPipsCushion     = 5.0;                 // SL PSAR cushion (pips; SL_PSAR_DOT mode)
-input double         Inp_SL_SwingPipsCushion    = 10.0;                // SL swing cushion (pips; SL_MODE_SWING mode)
-input double         Inp_SL_FixedPips           = 20.0;                // SL fixed distance (pips; SL_MODE_FIXED_PIPS mode)
+
+input group "┌─ Step 1: Choose SL Calculation Method ─┐"
+input ESLMode        Inp_SLMode                 = SL_MODE_FIXED_PIPS; // SL calculation method
+input string         Inp_SL_Help1               = "FIXED_PIPS: Simple pip distance  |  SWING: Recent structure high/low"; // [Info]
+input string         Inp_SL_Help2               = "ATR: Volatility-based  |  PSAR_DOT: PSAR level  |  PERCENT: % of price  |  FRACTAL: Bill Williams"; // [Info]
 
 input group ""
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  📊 STOP LOSS SETTINGS                                 ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input ESLMode        Inp_SLMode                 = SL_MODE_FIXED_PIPS; // SL calculation method
-input bool           Inp_UseATRforSL            = false;              // ATR-based SL (SL_MODE_ATR only)
-input double         Inp_SLPercent              = 0.5;                // SL as % of entry price (SL_MODE_PERCENT only)
-input int            Inp_SwingLookback          = 20;                 // Swing lookback bars (SL_MODE_SWING only)
+input group "┌─ Step 2: Configure Your Chosen Method ─┐"
+
+// FIXED_PIPS settings
+input double         Inp_SL_FixedPips           = 20.0;               // SL distance (pips; for SL_MODE_FIXED_PIPS)
+input string         Inp_SL_Fixed_Note          = "Overridden by Adaptive_SL when Adaptive_UseSL=true"; // [Info]
+
+// SWING settings
+input int            Inp_SwingLookback          = 20;                 // Swing lookback (bars; for SL_MODE_SWING)
+input double         Inp_SL_SwingPipsCushion    = 10.0;               // Swing cushion (pips; for SL_MODE_SWING)
+
+// ATR settings
+input bool           Inp_UseATRforSL            = false;              // Enable ATR mode (for SL_MODE_ATR)
+input double         Inp_SL_Mult                = 1.5;                // ATR multiplier (for SL_MODE_ATR)
+
+// PSAR settings
+input double         Inp_SL_PsarPipsCushion     = 5.0;                // PSAR cushion (pips; for SL_PSAR_DOT)
+
+// PERCENT settings
+input double         Inp_SLPercent              = 0.5;                // SL as % of entry (for SL_MODE_PERCENT; e.g. 0.5 = 0.5%)
+
+// FRACTAL / PSAR settings - see "FRACTAL & PSAR SL/TP SETTINGS" section below
+input string         Inp_SL_FractalPsar_Note    = "For SL_FRACTAL / SL_PSAR_DOT: see 'FRACTAL & PSAR SL/TP SETTINGS' below"; // [Info]
+
+input group ""
+input group "┌─ Legacy Compatibility (Deprecated) ─┐"
+input ESlPlacementMode Inp_SL_PlacementMode     = SL_SWING_HIGHLOW;   // ⚠️ DEPRECATED: Use Inp_SLMode instead
+input string         Inp_SL_Deprecated          = "Exists for backward compatibility only. Use SLMode above. Auto-migrates on load."; // [Info]
 
 input group ""
 input group "╔════════════════════════════════════════════════════════╗"
@@ -960,6 +986,16 @@ input int            Inp_FractalPeriod          = 5;                   // Fracta
 input int            Inp_TPFractalOffset        = 1;                   // Fractal offset for TP (1=nearest fractal)
 input double         Inp_PSARStep               = 0.02;                // PSAR step for SL/TP (SL_PSAR_DOT / TP_PSAR_FLIP)
 input double         Inp_PSARMax                = 0.2;                 // PSAR max for SL/TP
+
+input group ""
+input group "╔════════════════════════════════════════════════════════╗"
+input group "║  📚 COMMON SL CONFIGURATIONS (Examples)                ║"
+input group "╚════════════════════════════════════════════════════════╝"
+input string         Inp_Ex1_Header             = "Example 1 - Simple Fixed SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_SL_FixedPips=20, Inp_Adaptive_UseSL=false"; // [Info]
+input string         Inp_Ex2_Header             = "Example 2 - TF-Adaptive SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_Adaptive_UseSL=true, Inp_Adaptive_SL_Base=20"; // [Info]
+input string         Inp_Ex3_Header             = "Example 3 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20, Inp_SL_SwingPipsCushion=10"; // [Info]
+input string         Inp_Ex4_Header             = "Example 4 - ATR-Based SL:   Inp_SLMode=SL_MODE_ATR, Inp_UseATRforSL=true, Inp_SL_Mult=1.5"; // [Info]
+input string         Inp_Ex5_Header             = "Example 5 - PSAR Dot SL:    Inp_SLMode=SL_PSAR_DOT, Inp_SL_PsarPipsCushion=5 (or Inp_Adaptive_PsarUseATR=true)"; // [Info]
 
 input group ""
 input group "╔════════════════════════════════════════════════════════╗"
@@ -1721,6 +1757,36 @@ void InitializeConfig()
    Settings.SLPercent      = Inp_SLPercent;
    Settings.RRRatio        = Inp_RRRatio;
    Settings.SwingLookback  = Inp_SwingLookback;
+
+   // DEPRECATED: Legacy SL_PlacementMode compatibility
+   // If the user loaded an old .set file with a non-default SL_PlacementMode, auto-migrate
+   // to the new ESLMode system. Migration only runs when Inp_SL_PlacementMode has been
+   // explicitly changed from its default value (SL_SWING_HIGHLOW).
+   if(Inp_SL_PlacementMode != SL_SWING_HIGHLOW)
+   {
+      switch(Inp_SL_PlacementMode)
+      {
+         case SL_ATR:
+            Settings.SLMode      = SL_MODE_ATR;
+            Settings.UseATRforSL = true;
+            if(Settings.PrintEffectiveConfig)
+               Print("⚠️ Migrated: SL_PlacementMode=SL_ATR → SLMode=SL_MODE_ATR");
+            break;
+
+         case SL_PSAR_PIPS:
+         case SL_PSAR_ATR:
+            Settings.SLMode = SL_PSAR_DOT;
+            if(Settings.PrintEffectiveConfig)
+               Print("⚠️ Migrated: SL_PlacementMode=SL_PSAR_* → SLMode=SL_PSAR_DOT");
+            break;
+
+         case SL_FIXED_PIPS:
+            Settings.SLMode = SL_MODE_FIXED_PIPS;
+            if(Settings.PrintEffectiveConfig)
+               Print("⚠️ Migrated: SL_PlacementMode=SL_FIXED_PIPS → SLMode=SL_MODE_FIXED_PIPS");
+            break;
+      }
+   }
 
    // Phase 2.2: Fractal/PSAR SL/TP settings
    Settings.FractalPeriod      = Inp_FractalPeriod;
