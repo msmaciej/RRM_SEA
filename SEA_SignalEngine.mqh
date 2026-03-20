@@ -2920,7 +2920,7 @@ public:
          any_failure = true;
       }
       else {
-         if(m_settings.Stats_TrackPasses) m_stats.passed_bias++;
+         m_stats.passed_bias++;
       }
 
       // 3. HTF Filter Check
@@ -2976,8 +2976,8 @@ public:
       #define CAST_VOTE_STAT(use_flag, weight_field, check_expr, stat_rej_field, stat_pass_field) \
          if(use_flag) { \
             bool _cv_pass = (check_expr); \
-            if(_cv_pass) { vote_weight += weight_field; if(m_settings.Stats_TrackPasses) stat_pass_field++; } \
-            else { all_pass = false; if(m_settings.Stats_TrackRejections) stat_rej_field++; } \
+            if(_cv_pass) { vote_weight += weight_field; stat_pass_field++; } \
+            else { all_pass = false; stat_rej_field++; } \
          }
 
       CAST_VOTE_STAT(m_settings.Ind_EmaSig_Enabled, m_settings.Ind_EmaSig_Weight, Check_EMA1(bias, v_shift), m_stats.rejected_emasig, m_stats.passed_emasig)
