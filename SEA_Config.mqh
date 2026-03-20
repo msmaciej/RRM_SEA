@@ -994,10 +994,11 @@ input double         Inp_RRRatio                = 2.0;                // (CUSTOM
 input int            Inp_SwingLookback          = 20;                 // (CUSTOM) Swing high/low lookback bars (SL_MODE_SWING only)
 
 input group "--- ℹ️ Step 9 · TP & Breakeven ---"
+input bool           Inp_TP_Enabled             = true;                // (CUSTOM; presets override) Enable take profit
 input double         Inp_TP_Mult                = 3.0;                 // (CUSTOM; presets override) TP R-multiple (legacy TP_Mult)
 input bool           Inp_Use_BE                 = false;               // (CUSTOM; presets override) Use legacy BE (strict uses BE_Mode instead)
-input double         Inp_BE_Trig                = 1.0;                 // (CUSTOM; presets override) Legacy BE trigger (R multiple)
-input double         Inp_BE_Buff                = 0.1;                 // (CUSTOM; presets override) Legacy BE buffer (pips)
+input double         Inp_BE_Trig                = 1.0;                 // (CUSTOM; presets override) Legacy BE trigger (ATR multiplier; LEGACY mode: move SL at profit = X×ATR)
+input double         Inp_BE_Buff                = 0.1;                 // (CUSTOM; presets override) Legacy BE buffer (ATR multiplier; LEGACY mode: lock SL at entry + X×ATR)
 
 input group "--- ℹ️ Step 9 · Trailing Stop ---"
 input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR;          // (CUSTOM; presets override) Trailing stop mode
@@ -1023,6 +1024,25 @@ input double         Inp_BEThresholdPips        = 10.0;                // (CUSTO
 input double         Inp_TrailProfitPercent     = 1.0;                 // (CUSTOM) Profit % to trigger trailing (TRIGGER_PROFIT_PERCENT)
 input double         Inp_TrailStepPips          = 5.0;                 // (CUSTOM) Minimum pips to move SL each step
 input bool           Inp_TrailLockProfit        = true;                // (CUSTOM) Never move SL backwards (lock profit)
+
+input group "════════════════════════════════════════════"
+input group "  EXIT MANAGEMENT: RRM STRICT MODE (Advanced)"
+input group "════════════════════════════════════════════"
+input string Inp_RRM_Info1 = "RRM uses % of TP distance for BE (not absolute pips)"; // Info
+input string Inp_RRM_Info2 = "Example: BE at 33% means trigger when profit = 33% of TP target"; // Info
+
+input group "--- RRM Breakeven Settings (Percentage-Based) ---"
+input EBeMode        Inp_BE_Mode                = BE_MODE_OFF;         // RRM BE Mode: OFF / TP_PROGRESS_PCT / R_MULTIPLE
+input double         Inp_RRM_BE_ProgressPct     = 33.0;                // RRM: BE at % to TP (e.g., 33.0 = trigger at 33% to target)
+input double         Inp_RRM_BE_RMultiple       = 1.0;                 // RRM: BE at R multiple (e.g., 1.0 = at 1×risk distance)
+input double         Inp_RRM_BE_BufferPips      = 5.0;                 // RRM: BE buffer pips (lock SL at entry + X pips)
+input string Inp_RRM_BE_Example = "Example: SL=10, TP=30 (3:1), BE@33% triggers at +10 pips"; // Info
+
+input group "--- RRM Trailing Settings (PSAR-Based) ---"
+input bool           Inp_RRM_TrailStartsAfterBE = true;                // RRM: Trailing starts only after BE reached
+input int            Inp_RRM_TrailPsarShiftDelay = 1;                  // RRM: PSAR shift delay (1-3 bars; 1=tight, 3=loose)
+input bool           Inp_RRM_FreezeTrailOnFlip  = false;               // RRM: Freeze trail on PSAR flip (safety feature)
+input string Inp_RRM_Trail_Info = "RRM Trailing: PSAR-based with shift delay for stability"; // Info
 
 input group "--- ℹ️ Benchmark: MT5 Moving Average ---"
 input double         Inp_MA_MaximumRiskPct      = 0.02;         // (PRESET_MA_BENCHMARK only) Max risk (%) for MA benchmark sizer
@@ -1511,6 +1531,7 @@ void InitializeConfig()
    Settings.TrailLockProfit    = Inp_TrailLockProfit;
 
    Settings.TP_Mult              = Inp_TP_Mult;
+   Settings.TP_Enabled              = Inp_TP_Enabled;
    Settings.Use_BE               = Inp_Use_BE;
    Settings.BE_Trig              = Inp_BE_Trig;
    Settings.BE_Buff              = Inp_BE_Buff;
@@ -1521,17 +1542,15 @@ void InitializeConfig()
    Settings.PSAR_TrailPipsCushion= Inp_PSAR_TrailPipsCushion;
    Settings.PSAR_TrailDelay      = (Inp_PSAR_TrailDelay < 1) ? 1 : (Inp_PSAR_TrailDelay > 3) ? 3 : Inp_PSAR_TrailDelay;
 
-   // === Strict non-ATR RRM exit contract (PR 1: config only, no executor reads these yet) ===
-   // Defaults preserve existing behavior for all presets and CUSTOM mode.
-   Settings.ExitProfile             = Inp_ExitProfile;    // LEGACY by default
-   Settings.TP_Enabled              = true;               // TP active (mirrors TP_Mult>0 semantic)
-   Settings.BE_Mode                 = BE_MODE_OFF;        // OFF = legacy ATR BE fields remain authoritative
-   Settings.RRM_BE_ProgressPct      = 0.0;
-   Settings.RRM_BE_RMultiple        = 1.0;
-   Settings.RRM_BE_BufferPips       = 0.0;
-   Settings.RRM_TrailPsarShiftDelay = 1;
-   Settings.RRM_FreezeTrailOnFlip   = false;
-   Settings.RRM_TrailStartsAfterBE  = false;
+   // === Strict non-ATR RRM exit contract ===
+   Settings.ExitProfile             = Inp_ExitProfile;
+   Settings.BE_Mode                 = Inp_BE_Mode;
+   Settings.RRM_BE_ProgressPct      = Inp_RRM_BE_ProgressPct;
+   Settings.RRM_BE_RMultiple        = Inp_RRM_BE_RMultiple;
+   Settings.RRM_BE_BufferPips       = Inp_RRM_BE_BufferPips;
+   Settings.RRM_TrailPsarShiftDelay = (Inp_RRM_TrailPsarShiftDelay < 1) ? 1 : (Inp_RRM_TrailPsarShiftDelay > 3) ? 3 : Inp_RRM_TrailPsarShiftDelay;
+   Settings.RRM_FreezeTrailOnFlip   = Inp_RRM_FreezeTrailOnFlip;
+   Settings.RRM_TrailStartsAfterBE  = Inp_RRM_TrailStartsAfterBE;
 
    // Gate system defaults (all gates off; presets may enable them)
    // RequirePullback, PullbackLookback, RequireRecoveryMomentum are mapped from inputs above
