@@ -87,6 +87,10 @@ double g_starting_balance = 0.0;   // Account balance captured at EA start
 double g_peak_equity      = 0.0;   // Highest equity seen during the test
 double g_max_drawdown_abs = 0.0;   // Maximum absolute equity drawdown (peak - trough)
 
+// Trade return tracking for Sharpe Ratio calculation
+double g_trade_returns[];          // Array of % returns per trade (relative to starting balance)
+int    g_trade_return_count = 0;   // Number of trades tracked
+
 //+------------------------------------------------------------------+
 //| EXPERT LIFECYCLE                                                 |
 //+------------------------------------------------------------------+
@@ -137,7 +141,16 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
       double total_pl = profit + swap + commission;
       
       bool was_profitable = (total_pl > 0);
-      
+
+      // Store return as % of starting balance for Sharpe Ratio calculation
+      if(g_starting_balance > 0.0)
+      {
+         double return_pct = (total_pl / g_starting_balance) * 100.0;
+         ArrayResize(g_trade_returns, g_trade_return_count + 1);
+         g_trade_returns[g_trade_return_count] = return_pct;
+         g_trade_return_count++;
+      }
+
       // Update tracking
       UpdateRRMDrawdownTracking(was_profitable);
       
@@ -808,6 +821,36 @@ void PrintTradePerformance()
    Print("================================================================");
 }
 
+// Calculates the Sharpe Ratio from an array of per-trade % returns.
+// Uses sample standard deviation and a risk-free rate of 0% (standard for backtesting).
+// Returns 0.0 when fewer than 2 trades or zero standard deviation.
+double CalculateSharpeRatio(const double& returns[], int count, double risk_free_rate = 0.0)
+{
+   // Clamp count to actual array size to prevent out-of-bounds access
+   int array_size = ArraySize(returns);
+   if(count > array_size) count = array_size;
+   if(count < 2) return 0.0;
+
+   // Mean return
+   double sum = 0.0;
+   for(int i = 0; i < count; i++)
+      sum += returns[i];
+   double mean_return = sum / count;
+
+   // Sample standard deviation (divides by count-1 for unbiased estimate)
+   double variance_sum = 0.0;
+   for(int i = 0; i < count; i++)
+   {
+      double deviation = returns[i] - mean_return;
+      variance_sum += deviation * deviation;
+   }
+   double std_dev = MathSqrt(variance_sum / (count - 1));
+
+   if(std_dev == 0.0) return 0.0;
+
+   return (mean_return - risk_free_rate) / std_dev;
+}
+
 // Prints Risk Analysis section: starting/ending balance, net profit,
 // max drawdown, recovery factor, and risk-reward ratio.
 void PrintRiskAnalysis()
@@ -875,6 +918,25 @@ void PrintRiskAnalysis()
    Print("");
    PrintFormat("Recovery Factor      : %.2f (Net Profit / Max DD)", recovery_factor);
    PrintFormat("Risk-Reward Ratio    : %.2f (Avg Win / Avg Loss)", rr_ratio);
+
+   // Sharpe Ratio: (mean trade return - risk-free rate) / std dev of trade returns
+   if(g_trade_return_count < 2)
+   {
+      PrintFormat("Sharpe Ratio         : N/A (need >= 2 trades, have %d)", g_trade_return_count);
+   }
+   else
+   {
+      double sharpe = CalculateSharpeRatio(g_trade_returns, g_trade_return_count);
+      PrintFormat("Sharpe Ratio         : %.2f", sharpe);
+      string sharpe_rating = "";
+      if(sharpe > 2.0)       sharpe_rating = "Excellent";
+      else if(sharpe > 1.0)  sharpe_rating = "Good";
+      else if(sharpe > 0.5)  sharpe_rating = "Fair";
+      else if(sharpe > 0.0)  sharpe_rating = "Poor";
+      else                   sharpe_rating = "Losing";
+      PrintFormat("  └─ Rating          : %s", sharpe_rating);
+   }
+
    Print("================================================================");
 }
 
