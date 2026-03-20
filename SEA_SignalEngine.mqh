@@ -2381,8 +2381,8 @@ public:
          bool time_pass = (m_settings.StartHr < m_settings.EndHr) ?
                           (dt.hour >= m_settings.StartHr && dt.hour < m_settings.EndHr) :
                           (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
-         if(m_settings.Stats_TrackPasses && time_pass) m_stats.passed_time++;
-         if(m_settings.Stats_TrackRejections && !time_pass) m_stats.rejected_time++;
+         if(time_pass) m_stats.passed_time++;
+         else m_stats.rejected_time++;
          if(m_settings.DebugFlow)
             PrintFormat("[GATE] Time: hour=%d window=[%d-%d] → %s",
                         dt.hour, m_settings.StartHr, m_settings.EndHr,
@@ -2426,8 +2426,8 @@ public:
                }
             }
          }
-         if(m_settings.Stats_TrackPasses && news_pass) m_stats.passed_news++;
-         if(m_settings.Stats_TrackRejections && !news_pass) m_stats.rejected_news++;
+         if(news_pass) m_stats.passed_news++;
+         else m_stats.rejected_news++;
          if(m_settings.DebugFlow)
             PrintFormat("[GATE] News: %s", news_pass ? "PASS" : "FAIL (event active)");
          if(!news_pass) {
@@ -2444,8 +2444,8 @@ public:
       // --- Spread ---
       double spread_pips = SpreadPips();
       bool spread_pass = !(m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread);
-      if(m_settings.Stats_TrackPasses && spread_pass) m_stats.passed_spread++;
-      if(m_settings.Stats_TrackRejections && !spread_pass) m_stats.rejected_spread++;
+      if(spread_pass) m_stats.passed_spread++;
+      else m_stats.rejected_spread++;
       if(m_settings.DebugFlow) {
          if(m_settings.MaxSpread <= 0.0)
             Print("[GATE] Spread: DISABLED → SKIP");
@@ -2468,8 +2468,8 @@ public:
       if(m_settings.MinATR > 0.0) {
          bool atr_min_pass = (atr_pips >= m_settings.MinATR);
          if(!atr_min_pass) m_diag_last_atr_ok = false;
-         if(m_settings.Stats_TrackPasses && atr_min_pass) m_stats.passed_atr_min++;
-         if(m_settings.Stats_TrackRejections && !atr_min_pass) m_stats.rejected_atr_min++;
+         if(atr_min_pass) m_stats.passed_atr_min++;
+         else m_stats.rejected_atr_min++;
          if(m_settings.DebugFlow)
             PrintFormat("[GATE] ATR Min: %.1f pips / min=%.1f → %s%s",
                         atr_pips, m_settings.MinATR,
@@ -2488,8 +2488,8 @@ public:
       if(m_settings.MaxATR > 0.0) {
          bool atr_max_pass = (atr_pips <= m_settings.MaxATR);
          if(!atr_max_pass) m_diag_last_atr_ok = false;
-         if(m_settings.Stats_TrackPasses && atr_max_pass) m_stats.passed_atr_max++;
-         if(m_settings.Stats_TrackRejections && !atr_max_pass) m_stats.rejected_atr_max++;
+         if(atr_max_pass) m_stats.passed_atr_max++;
+         else m_stats.rejected_atr_max++;
          if(m_settings.DebugFlow)
             PrintFormat("[GATE] ATR Max: %.1f pips / max=%.1f → %s%s",
                         atr_pips, m_settings.MaxATR,
@@ -2561,7 +2561,7 @@ public:
          if(phase == PHASE_UNORDERED) {
             m_diag_last_reason = "PHASE_UNORDERED_BLOCKS_ALL";
             m_reject_bias++;
-            if(m_settings.Stats_TrackRejections) m_stats.rejected_phase++;
+            m_stats.rejected_phase++;
             
             if(m_settings.DebugFlow) {
                PrintFormat("[260308_PR5] UNORDERED phase detected - blocking ALL trades (layers=%s)",
@@ -2572,7 +2572,7 @@ public:
             any_failure = true;
          }
          else {
-            if(m_settings.Stats_TrackPasses) m_stats.passed_phase++;
+            m_stats.passed_phase++;
          }
          
          // Rule 2: EMERGING phase blocks STRONG (Layer 3) trades only
@@ -2580,7 +2580,7 @@ public:
          if(is_emerging && IsLayerActive(m_diag_last_entry_layer, LAYER_3_STRONG)) {
             m_diag_last_reason = "PHASE_EMERGING_BLOCKS_STRONG";
             m_reject_bias++;
-            if(m_settings.Stats_TrackRejections) m_stats.rejected_layer_blocked++;
+            m_stats.rejected_layer_blocked++;
             
             if(m_settings.DebugFlow) {
                PrintFormat("[260308_PR5] %s phase detected - blocking L3 component (deep pullback too risky); layers=%s",
@@ -2591,7 +2591,7 @@ public:
             any_failure = true;
          }
          else if(phase != PHASE_UNORDERED) {
-            if(m_settings.Stats_TrackPasses) m_stats.passed_layer_blocked++;
+            m_stats.passed_layer_blocked++;
          }
          
          // Rule 3: TRENDING phase allows ALL layers (L1/L2/L3 — no blocking)
@@ -2804,11 +2804,11 @@ public:
 
             if(layer != LAYER_NONE) {
                entry_signal = market_bias;
-               if(m_settings.Stats_TrackPasses) m_stats.passed_layer_none++;
+               m_stats.passed_layer_none++;
             } else {
                entry_signal = 0;
                m_diag_last_reason = "LAYER_NONE";
-               if(m_settings.Stats_TrackRejections) m_stats.rejected_layer_none++;
+               m_stats.rejected_layer_none++;
             }
 
             if(m_settings.DebugFlow) {
