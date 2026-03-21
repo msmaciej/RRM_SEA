@@ -304,9 +304,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    const bool   op_UseNews       = cfg.UseNews;
    const int    op_NewsPre       = cfg.NewsPre;
    const int    op_NewsPost      = cfg.NewsPost;
-   const double op_RiskPercent   = cfg.RiskPercent;   // Policy A: user risk tolerance
-   const int    op_MaxOpenTrades = cfg.MaxOpenTrades;  // Policy A: user position limit
-   const double op_MaxTotalRisk  = cfg.MaxTotalRisk;   // Policy A: user portfolio risk cap
+   
+   // Policy A: user risk tolerance
+   const double op_RiskPercent   = cfg.RiskPercent;   
+   
+   // Policy A: user position limit
+   const int    op_MaxOpenTrades = cfg.MaxOpenTrades;  
+   
+   // Policy A: user portfolio risk cap
+   const double op_MaxTotalRisk  = cfg.MaxTotalRisk;   
    
    if(preset == PRESET_MA)
    {
