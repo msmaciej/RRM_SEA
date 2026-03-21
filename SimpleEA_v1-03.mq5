@@ -403,6 +403,78 @@ int OrchestrateInit()
    FlowLog("Step B: ApplyPreset() (preset overrides -> Settings)");
    ApplyPreset(InpPreset, Settings);
 
+   // ═══════════════════════════════════════════════════════════════
+   // 🔍 DIAGNOSTIC: Verify exit settings after preset application
+   // ═══════════════════════════════════════════════════════════════
+   if(Settings.DebugLevel >= DEBUG_SUMMARY || Settings.PrintEffectiveConfig)
+   {
+      Print("════════════════════════════════════════════════════════════");
+      Print("🔍 DIAGNOSTIC: FINAL Exit Management Values");
+      Print("   (After InitializeConfig + ApplyPreset)");
+      Print("════════════════════════════════════════════════════════════");
+      Print("");
+      Print("📊 VERIFICATION - Input vs Settings:");
+      Print("");
+
+      Print("Exit Profile:");
+      PrintFormat("  Input:    %s", EnumToString(Inp_ExitProfile));
+      PrintFormat("  Settings: %s", EnumToString(Settings.ExitProfile));
+      PrintFormat("  ✓ Match:  %s", (Settings.ExitProfile == Inp_ExitProfile) ? "YES ✅" : "NO ❌ BUG DETECTED!");
+      Print("");
+
+      Print("Stop Loss Mode:");
+      PrintFormat("  Input:    %s", EnumToString(Inp_SLMode));
+      PrintFormat("  Settings: %s", EnumToString(Settings.SLMode));
+      PrintFormat("  ✓ Match:  %s", (Settings.SLMode == Inp_SLMode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
+      if(Inp_SLMode == SL_PSAR_DOT || Settings.SLMode == SL_PSAR_DOT)
+      {
+         PrintFormat("  PSAR Cushion Input:    %.1f pips", Inp_SL_PsarPipsCushion);
+         PrintFormat("  PSAR Cushion Settings: %.1f pips", Settings.SL_PsarPipsCushion);
+      }
+      Print("");
+
+      Print("Take Profit Mode:");
+      PrintFormat("  Input:    %s (Mult: %.1f)", EnumToString(Inp_TPMode), Inp_TP_Mult);
+      PrintFormat("  Settings: %s (Mult: %.1f)", EnumToString(Settings.TPMode), Settings.TP_Mult);
+      PrintFormat("  ✓ Match:  %s", (Settings.TPMode == Inp_TPMode && Settings.TP_Mult == Inp_TP_Mult) ? "YES ✅" : "NO ❌ BUG DETECTED!");
+      Print("");
+
+      Print("Breakeven Mode:");
+      PrintFormat("  RRM Input:    %s", EnumToString(Inp_BE_Mode));
+      PrintFormat("  RRM Settings: %s", EnumToString(Settings.BE_Mode));
+      PrintFormat("  ✓ Match:      %s", (Settings.BE_Mode == Inp_BE_Mode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
+      if(Inp_BE_Mode == BE_MODE_TP_PROGRESS_PCT || Settings.BE_Mode == BE_MODE_TP_PROGRESS_PCT)
+      {
+         PrintFormat("  Progress%% Input:    %.1f%%", Inp_RRM_BE_ProgressPct);
+         PrintFormat("  Progress%% Settings: %.1f%%", Settings.RRM_BE_ProgressPct);
+         PrintFormat("  Buffer Input:        %.1f pips", Inp_RRM_BE_BufferPips);
+         PrintFormat("  Buffer Settings:     %.1f pips", Settings.RRM_BE_BufferPips);
+      }
+      PrintFormat("  LEGACY Input:    Use_BE=%s, Trig=%.1f, Buff=%.1f", Inp_Use_BE ? "true" : "false", Inp_BE_Trig, Inp_BE_Buff);
+      PrintFormat("  LEGACY Settings: Use_BE=%s, Trig=%.1f, Buff=%.1f", Settings.Use_BE ? "true" : "false", Settings.BE_Trig, Settings.BE_Buff);
+      Print("");
+
+      Print("Trailing Stop Mode:");
+      PrintFormat("  Input:    %s", EnumToString(Inp_TrailMode));
+      PrintFormat("  Settings: %s", EnumToString(Settings.TrailMode));
+      PrintFormat("  ✓ Match:  %s", (Settings.TrailMode == Inp_TrailMode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
+      if(Inp_TrailMode == TRAIL_PSAR || Settings.TrailMode == TRAIL_PSAR)
+      {
+         PrintFormat("  PSAR Cushion Input:    %.1f pips", Inp_PSAR_TrailPipsCushion);
+         PrintFormat("  PSAR Cushion Settings: %.1f pips", Settings.PSAR_TrailPipsCushion);
+         PrintFormat("  PSAR Delay Input:      %d bars", Inp_PSAR_TrailDelay);
+         PrintFormat("  PSAR Delay Settings:   %d bars", Settings.PSAR_TrailDelay);
+         PrintFormat("  RRM StartAfterBE Input:    %s", Inp_RRM_TrailStartsAfterBE ? "true" : "false");
+         PrintFormat("  RRM StartAfterBE Settings: %s", Settings.RRM_TrailStartsAfterBE ? "true" : "false");
+      }
+      Print("");
+
+      Print("════════════════════════════════════════════════════════════");
+      Print("🎯 DIAGNOSIS COMPLETE - Check for ❌ above to find bugs");
+      Print("════════════════════════════════════════════════════════════");
+      Print("");
+   }
+
    // Build UI/Reporting compatibility strings AFTER preset application
    BuildUiReportingState();
 

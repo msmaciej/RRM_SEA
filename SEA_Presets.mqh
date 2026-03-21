@@ -933,6 +933,31 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
    if(preset == PRESET_TEST_INDICATOR)
    {
+      if(cfg.DebugLevel >= DEBUG_SUMMARY || cfg.PrintEffectiveConfig)
+      {
+         Print("════════════════════════════════════════════════════════════");
+         Print("🔍 DIAGNOSTIC: ApplyPreset(PRESET_TEST_INDICATOR) - ENTRY");
+         Print("════════════════════════════════════════════════════════════");
+         Print("");
+         Print("📊 Exit Management Values AT ENTRY:");
+         Print("  cfg.ExitProfile = ", EnumToString(cfg.ExitProfile));
+         Print("  cfg.SLMode = ", EnumToString(cfg.SLMode));
+         Print("  cfg.SL_PsarPipsCushion = ", cfg.SL_PsarPipsCushion);
+         Print("  cfg.TPMode = ", EnumToString(cfg.TPMode));
+         Print("  cfg.TP_Mult = ", cfg.TP_Mult);
+         Print("  cfg.BE_Mode = ", EnumToString(cfg.BE_Mode));
+         Print("  cfg.RRM_BE_ProgressPct = ", cfg.RRM_BE_ProgressPct);
+         Print("  cfg.RRM_BE_BufferPips = ", cfg.RRM_BE_BufferPips);
+         Print("  cfg.Use_BE = ", cfg.Use_BE);
+         Print("  cfg.BE_Trig = ", cfg.BE_Trig);
+         Print("  cfg.BE_Buff = ", cfg.BE_Buff);
+         Print("  cfg.TrailMode = ", EnumToString(cfg.TrailMode));
+         Print("  cfg.PSAR_TrailPipsCushion = ", cfg.PSAR_TrailPipsCushion);
+         Print("  cfg.PSAR_TrailDelay = ", cfg.PSAR_TrailDelay);
+         Print("  cfg.RRM_TrailStartsAfterBE = ", cfg.RRM_TrailStartsAfterBE);
+         Print("");
+      }
+
       Print("═══════════════════════════════════════════════════════════");
       Print("  PRESET: TEST_INDICATOR (Isolated Testing Mode)");
       Print("═══════════════════════════════════════════════════════════");
@@ -1077,7 +1102,37 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       Print("    - Long test (year+):      DEBUG_SUMMARY");
       Print("    - Optimization:           DEBUG_SILENT");
       Print("═══════════════════════════════════════════════════════════");
-   
+
+      if(cfg.DebugLevel >= DEBUG_SUMMARY || cfg.PrintEffectiveConfig)
+      {
+         Print("");
+         Print("════════════════════════════════════════════════════════════");
+         Print("🔍 DIAGNOSTIC: ApplyPreset(PRESET_TEST_INDICATOR) - EXIT");
+         Print("════════════════════════════════════════════════════════════");
+         Print("");
+         Print("📊 Exit Management Values AT EXIT:");
+         Print("  cfg.ExitProfile = ", EnumToString(cfg.ExitProfile));
+         Print("  cfg.SLMode = ", EnumToString(cfg.SLMode));
+         Print("  cfg.SL_PsarPipsCushion = ", cfg.SL_PsarPipsCushion);
+         Print("  cfg.TPMode = ", EnumToString(cfg.TPMode));
+         Print("  cfg.TP_Mult = ", cfg.TP_Mult);
+         Print("  cfg.BE_Mode = ", EnumToString(cfg.BE_Mode));
+         Print("  cfg.RRM_BE_ProgressPct = ", cfg.RRM_BE_ProgressPct);
+         Print("  cfg.RRM_BE_BufferPips = ", cfg.RRM_BE_BufferPips);
+         Print("  cfg.Use_BE = ", cfg.Use_BE);
+         Print("  cfg.BE_Trig = ", cfg.BE_Trig);
+         Print("  cfg.BE_Buff = ", cfg.BE_Buff);
+         Print("  cfg.TrailMode = ", EnumToString(cfg.TrailMode));
+         Print("  cfg.PSAR_TrailPipsCushion = ", cfg.PSAR_TrailPipsCushion);
+         Print("  cfg.PSAR_TrailDelay = ", cfg.PSAR_TrailDelay);
+         Print("  cfg.RRM_TrailStartsAfterBE = ", cfg.RRM_TrailStartsAfterBE);
+         Print("");
+         Print("════════════════════════════════════════════════════════════");
+         Print("✅ ApplyPreset(PRESET_TEST_INDICATOR) complete");
+         Print("════════════════════════════════════════════════════════════");
+         Print("");
+      }
+
       return;
    }
 
