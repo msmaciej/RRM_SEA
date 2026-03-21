@@ -15,7 +15,7 @@
 
 #include <RRMS\SEA_Config.mqh>
 
-// TF+JPY-aware initial SL cushion mapping (larger, suited for SL_PSAR_PIPS / SL_SWING_HIGHLOW)
+// TF+JPY-aware initial SL cushion mapping (suited for SL_PSAR_DOT / SL_MODE_SWING)
 double GetRecommendedInitialSlCushionPips()
 {
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
@@ -166,7 +166,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Ross_Enabled          = false;
       cfg.Ind_ATR_Enabled           = false;
 
-      cfg.SL_PlacementMode  = SL_ATR;
+      cfg.SLMode            = SL_MODE_FIXED_PIPS;
       cfg.SL_Mult           = 0.0;
       cfg.TP_Mult           = 0.0;
       cfg.Use_BE            = false;
@@ -303,7 +303,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // Exit profile
       cfg.ExitProfile           = EXIT_PROFILE_RRM;
-      cfg.SL_PlacementMode      = SL_SWING_HIGHLOW;
       cfg.SL_Mult               = 0.0;
       cfg.SL_SwingPipsCushion   = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion    = GetRecommendedInitialSlCushionPips();
@@ -315,12 +314,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Use_BE                = false;
       cfg.BE_Mode               = BE_MODE_R_MULTIPLE;  // Preferred BE mode when enabled; preserved for easy activation
 
-      // SL/TP strategy (RRM: swing-based SL, R:R ratio TP, ATR disabled for exit)
+      // SL/TP strategy (RRM: swing-based SL, R:R ratio TP)
       cfg.SLMode        = SL_MODE_SWING;
       cfg.TPMode        = TP_MODE_RR;
       cfg.FixedTPPips   = 40.0;
-      cfg.UseATRforSL   = false;
-      cfg.UseATRforTP   = false;
       cfg.SLPercent     = 0.5;
       cfg.RRRatio       = 3.0;
       cfg.SwingLookback = 20;
@@ -334,7 +331,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Advanced trailing trigger defaults
       cfg.TrailTrigger       = TRIGGER_BREAKEVEN;
       cfg.TrailDistancePips  = GetTFBasedCushion(tf);
-      cfg.TrailATRMultiplier = 0.0;   // ATR trail multiplier disabled; TRAIL_PSAR uses pip cushion (PSAR_TrailPipsCushion)
       cfg.BEThresholdPips    = GetTFBasedCushion(tf);
       cfg.TrailProfitPercent = 1.0;
       cfg.TrailStepPips      = 5.0;

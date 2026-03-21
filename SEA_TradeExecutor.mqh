@@ -315,9 +315,9 @@ private:
       bool   isJPY      = (StringFind(_Symbol, "JPY") >= 0);
       double fixed_dist = m_settings.SL_FixedPips * _Point * (isJPY ? 100.0 : 10.0);
 
-      switch(m_settings.SL_PlacementMode)
+      switch(m_settings.SLMode)
       {
-         case SL_SWING_HIGHLOW:
+         case SL_MODE_SWING:
          {
             double swing = isBuy ? GetFractalForTrail(1) : GetFractalForTrail(0);
             if(swing > 0.0)
@@ -327,7 +327,7 @@ private:
             }
             return isBuy ? (entry - fixed_dist) : (entry + fixed_dist);
          }
-         case SL_PSAR_PIPS:
+         case SL_PSAR_DOT:
          {
             double psar = GetPsarForTrail(1);
             if(psar > 0.0)
@@ -707,7 +707,6 @@ private:
    //+------------------------------------------------------------------+
    //| HELPER: Calculate initial SL price for a given entry             |
    //| Used by both EvaluateCM (lot sizing) and ExecuteTrade (order).   |
-   //| ATR is fetched internally when needed (not a mandatory param).   |
    //+------------------------------------------------------------------+
    double CalcEntrySL(bool isBuy, double price)
    {
@@ -718,81 +717,10 @@ private:
       }
       else
       {
-         // Fetch ATR internally only for modes that need it (avoids mandatory ATR dependency)
-         double atr = 0.0;
-         if(m_settings.SL_PlacementMode != SL_FIXED_PIPS && m_settings.SL_Mult > 0.0)
-            {
-               int atr_handle = iATR(_Symbol, PERIOD_CURRENT, m_settings.P_Atr > 0 ? m_settings.P_Atr : 14);
-               if(atr_handle != INVALID_HANDLE) {
-                  double atr_buf[1];
-                  if(CopyBuffer(atr_handle, 0, 1, 1, atr_buf) > 0)
-                     atr = atr_buf[0];
-                  IndicatorRelease(atr_handle);
-               }
-            }
-
-         if(m_settings.SL_Mult > 0 || m_settings.SL_PlacementMode == SL_FIXED_PIPS) {
-            double atr_dist = atr * m_settings.SL_Mult;
-
-            switch(m_settings.SL_PlacementMode) {
-               case SL_ATR:
-                  sl = isBuy ? (price - atr_dist) : (price + atr_dist);
-                  break;
-
-               case SL_PSAR_ATR:
-                  {
-                     double psar = GetPsarForTrail(1);
-                     if(psar > 0.0) {
-                        double cushion = atr * m_settings.P_PsarTrailCushionATR;
-                        sl = isBuy ? (psar - cushion) : (psar + cushion);
-                     } else {
-                        sl = isBuy ? (price - atr_dist) : (price + atr_dist);
-                     }
-                  }
-                  break;
-
-               case SL_PSAR_PIPS:
-                  {
-                     double psar = GetPsarForTrail(1);
-                     if(psar > 0.0) {
-                        double cushion_price = ScalePipsToPriceDistance(m_settings.SL_PsarPipsCushion);
-                        sl = isBuy ? (psar - cushion_price) : (psar + cushion_price);
-                     } else {
-                        sl = isBuy ? (price - atr_dist) : (price + atr_dist);
-                     }
-                  }
-                  break;
-
-               case SL_SWING_HIGHLOW:
-                  {
-                     double swing = 0.0;
-                     if(isBuy)
-                        swing = GetFractalForTrail(1);
-                     else
-                        swing = GetFractalForTrail(0);
-                     if(swing > 0.0) {
-                        double cushion_price = ScalePipsToPriceDistance(m_settings.SL_SwingPipsCushion);
-                        sl = isBuy ? (swing - cushion_price) : (swing + cushion_price);
-                     } else {
-                        sl = isBuy ? (price - atr_dist) : (price + atr_dist);
-                     }
-                  }
-                  break;
-
-               case SL_FIXED_PIPS:
-                  {
-                     double fixed_pips = m_settings.SL_FixedPips;
-                     bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
-                     double dist = fixed_pips * _Point * (isJPY ? 100.0 : 10.0);
-                     sl = isBuy ? (price - dist) : (price + dist);
-                  }
-                  break;
-
-               default:
-                  sl = isBuy ? (price - atr_dist) : (price + atr_dist);
-                  break;
-            }
-         }
+         bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
+         double sl_pips = GetStopLossPips(isBuy ? 1 : -1);
+         double dist = sl_pips * _Point * (isJPY ? 100.0 : 10.0);
+         sl = isBuy ? (price - dist) : (price + dist);
       }
       return sl;
    }
@@ -906,7 +834,7 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| GetStopLossPips: strategy-based SL distance (ATR optional)      |
+   //| GetStopLossPips: strategy-based SL distance                     |
    //| Returns SL distance in pips based on configured SLMode.         |
    //| Falls back to m_settings.SL_FixedPips if calculation fails.     |
    //+------------------------------------------------------------------+
@@ -918,37 +846,6 @@ public:
       {
          case SL_MODE_FIXED_PIPS:
             sl_pips = m_settings.SL_FixedPips;
-            break;
-
-         case SL_MODE_ATR:
-            if(m_settings.UseATRforSL)
-            {
-               int atr_period = m_settings.P_Atr > 0 ? m_settings.P_Atr : 14;
-               int atr_handle = iATR(_Symbol, PERIOD_CURRENT, atr_period);
-               double atr_val = 0.0;
-               if(atr_handle != INVALID_HANDLE) {
-                  double atr_buf[1];
-                  if(CopyBuffer(atr_handle, 0, 1, 1, atr_buf) > 0)
-                     atr_val = atr_buf[0];
-                  IndicatorRelease(atr_handle);
-               }
-               if(atr_val > 0.0)
-               {
-                  bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
-                  double pipSize = _Point * (isJPY ? 100.0 : 10.0);
-                  sl_pips = (atr_val / pipSize) * m_settings.SL_Mult;
-               }
-               else
-               {
-                  sl_pips = m_settings.SL_FixedPips;
-                  if(m_settings.DebugFlow)
-                     Print("[CM] ATR unavailable, using fixed SL");
-               }
-            }
-            else
-            {
-               sl_pips = m_settings.SL_FixedPips;
-            }
             break;
 
          case SL_MODE_PERCENT:
@@ -1035,34 +932,7 @@ public:
             }
             break;
 
-         case TP_MODE_ATR:
-            if(m_settings.UseATRforTP)
-            {
-               int atr_period = m_settings.P_Atr > 0 ? m_settings.P_Atr : 14;
-               int atr_handle = iATR(_Symbol, PERIOD_CURRENT, atr_period);
-               double atr_val = 0.0;
-               if(atr_handle != INVALID_HANDLE) {
-                  double atr_buf[1];
-                  if(CopyBuffer(atr_handle, 0, 1, 1, atr_buf) > 0)
-                     atr_val = atr_buf[0];
-                  IndicatorRelease(atr_handle);
-               }
-               if(atr_val > 0.0)
-               {
-                  bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
-                  double pipSize = _Point * (isJPY ? 100.0 : 10.0);
-                  tp_pips = (atr_val / pipSize) * m_settings.TP_Mult;
-               }
-               else
-                  tp_pips = m_settings.FixedTPPips;
-            }
-            else
-            {
-               tp_pips = m_settings.FixedTPPips;
-            }
-            break;
-
-         case TP_FRACTAL:  // Phase 2.2: Next fractal level as TP target
+         case TP_FRACTAL:  // Next fractal level as TP target
             tp_pips = GetFractalTP(direction);
             if(tp_pips <= 0.0)
             {
@@ -1303,40 +1173,20 @@ public:
          else if(m_settings.TP_Mult > 0) {
             double dist = 0.0;
 
-            // Fetch ATR internally only for modes that need it
-            double tp_atr = 0.0;
-            if(m_settings.SL_PlacementMode == SL_ATR || m_settings.SL_PlacementMode == SL_PSAR_ATR ||
-               sl <= 0 || MathAbs(price - sl) == 0)
-               {
-                  int atr_handle = iATR(_Symbol, PERIOD_CURRENT, m_settings.P_Atr > 0 ? m_settings.P_Atr : 14);
-                  if(atr_handle != INVALID_HANDLE) {
-                     double atr_buf[1];
-                     if(CopyBuffer(atr_handle, 0, 1, 1, atr_buf) > 0)
-                        tp_atr = atr_buf[0];
-                     IndicatorRelease(atr_handle);
-                  }
-               }
-
-            // Check if using swing-based or fixed-pips SL modes
-            if(m_settings.SL_PlacementMode == SL_SWING_HIGHLOW ||
-               m_settings.SL_PlacementMode == SL_FIXED_PIPS ||
-               m_settings.SL_PlacementMode == SL_PSAR_PIPS) {
-               // True R:R mode: TP = actual SL distance × R:R ratio
-               if(sl > 0) {
-                  double sl_distance = MathAbs(price - sl);
-                  if(sl_distance > 0) {
-                     dist = sl_distance * m_settings.TP_Mult;
-                  } else {
-                     // Fallback to ATR if SL distance is zero
-                     dist = tp_atr * m_settings.TP_Mult;
-                  }
+            // True R:R mode: TP = actual SL distance × R:R ratio
+            if(sl > 0) {
+               double sl_distance = MathAbs(price - sl);
+               if(sl_distance > 0) {
+                  dist = sl_distance * m_settings.TP_Mult;
                } else {
-                  // Fallback to ATR if SL calculation failed
-                  dist = tp_atr * m_settings.TP_Mult;
+                  // Fallback to fixed pips if SL distance is zero
+                  bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
+                  dist = m_settings.SL_FixedPips * _Point * (isJPY ? 100.0 : 10.0) * m_settings.TP_Mult;
                }
             } else {
-               // Legacy ATR mode (for SL_ATR and SL_PSAR_ATR modes)
-               dist = tp_atr * m_settings.TP_Mult;
+               // Fallback to fixed pips if SL calculation failed
+               bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
+               dist = m_settings.SL_FixedPips * _Point * (isJPY ? 100.0 : 10.0) * m_settings.TP_Mult;
             }
 
             tp = (direction == 1) ? price + dist : price - dist;
@@ -1353,13 +1203,13 @@ public:
       double lot = lots;  // Lot size computed by EvaluateCM
    
       // Build comment showing SL method used
-      string comment = StringFormat("SEA_%s", EnumToString(m_settings.SL_PlacementMode));
+      string comment = StringFormat("SEA_%s", EnumToString(m_settings.SLMode));
 
       if(m_settings.DebugFlow)
       {
          double pipScale = (StringFind(_Symbol, "JPY") >= 0) ? 100.0 : 10.0;
          PrintFormat("=== TRADE EXECUTION DEBUG ===");
-         PrintFormat("  SL Mode: %s", EnumToString(m_settings.SL_PlacementMode));
+         PrintFormat("  SL Mode: %s", EnumToString(m_settings.SLMode));
          PrintFormat("  Entry: %.5f", price);
          PrintFormat("  SL: %.5f (distance: %.1f pips)", sl, sl > 0.0 ? MathAbs(price - sl) / (_Point * pipScale) : 0.0);
          PrintFormat("  TP: %.5f (distance: %.1f pips)", tp, tp > 0.0 ? MathAbs(tp - price) / (_Point * pipScale) : 0.0);
@@ -1378,7 +1228,7 @@ public:
          m_last_te_result = "ENTERED";
          m_last_te_reason = StringFormat("@%.5f tk=%I64u", price, m_trade.ResultDeal());
          Print("Signal Executed: ", EnumToString(type), " at ", price, 
-               " | SL: ", sl, " (", EnumToString(m_settings.SL_PlacementMode), ")",
+               " | SL: ", sl, " (", EnumToString(m_settings.SLMode), ")",
                " | TP: ", tp,
                " | [Shift: ", m_settings.ma_v_shift, "]");
          m_last_trade_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
@@ -1569,13 +1419,8 @@ public:
          return;
       }
 
-      // Compute ATR internally only for modes that require it (BE, ATR trailing, PSAR ATR cushion)
-      bool need_atr = m_settings.Use_BE ||
-                      m_settings.TrailMode == TRAIL_ATR ||
-                      (m_settings.TrailMode == TRAIL_PSAR &&
-                       ((m_settings.Adaptive.UseTrailCushion && m_settings.Adaptive.PsarUseATR) ||
-                        (!m_settings.Adaptive.UseTrailCushion &&
-                         m_settings.PSAR_TrailCushionMode != PSAR_CUSHION_PIPS)));
+      // Compute ATR internally only if needed (Use_BE uses ATR-based trigger)
+      bool need_atr = m_settings.Use_BE;
       double atr = 0.0;
       if(need_atr) {
          int atr_period = m_settings.P_Atr > 0 ? m_settings.P_Atr : 14;
@@ -1645,14 +1490,8 @@ public:
       if(!should_trail) return;
 
       // Calculate new Stop based on Mode
-      if(m_settings.TrailMode == TRAIL_ATR) {
-         double dist = atr * m_settings.Trail_Mult;
-         new_sl = (type == POSITION_TYPE_BUY) ? 
-            SymbolInfoDouble(_Symbol, SYMBOL_BID) - dist : 
-            SymbolInfoDouble(_Symbol, SYMBOL_ASK) + dist;
-      }
-      else if(m_settings.TrailMode == TRAIL_PSAR) {
-         // Trail stop to Parabolic SAR with cushion (PIPS or ATR mode).
+      if(m_settings.TrailMode == TRAIL_PSAR) {
+         // Trail stop to PSAR with fixed pips cushion.
          // Uses configurable bar-shift delay to avoid intra-bar repainting.
          int psar_shift = m_settings.PSAR_TrailDelay;
          if(psar_shift < 1) psar_shift = 1;
@@ -1660,28 +1499,18 @@ public:
          double psar = GetPsarForTrail(psar_shift);
          if(psar > 0.0) {
             double cushion = 0.0;
-            
+
             // Calculate cushion based on mode
             if(m_settings.Adaptive.UseTrailCushion) {
-               // Adaptive mode: use GetAdaptivePsarCushion() for full TF/volatility awareness
-               if(m_settings.Adaptive.PsarUseATR) {
-                  // ATR-based adaptive cushion (already price units)
-                  cushion = atr * m_settings.Adaptive.PsarATR_Multiplier;
-               } else {
-                  // Pips-based adaptive cushion with full TF multiplier scaling
-                  double scale = GetTimeframeMultiplier(_Period);
-                  cushion = m_settings.Adaptive.PsarCushion_Pips * _Point * scale * (isJPY ? 100.0 : 10.0);
-               }
-            }
-            else if(m_settings.PSAR_TrailCushionMode == PSAR_CUSHION_PIPS) {
-               // PIPS mode: apply fixed pips cushion with centralized TF/JPY scaling
-               cushion = ScalePipsToPriceDistance(m_settings.PSAR_TrailPipsCushion);
+               // Adaptive pips cushion with TF multiplier scaling
+               double scale = GetTimeframeMultiplier(_Period);
+               cushion = m_settings.Adaptive.PsarCushion_Pips * _Point * scale * (isJPY ? 100.0 : 10.0);
             }
             else {
-               // ATR mode: multiply ATR by cushion factor
-               cushion = atr * m_settings.P_PsarTrailCushionATR;
+               // Fixed pips cushion
+               cushion = ScalePipsToPriceDistance(m_settings.PSAR_TrailPipsCushion);
             }
-            
+
             new_sl = (type == POSITION_TYPE_BUY) ? (psar - cushion) : (psar + cushion);
          }
       }

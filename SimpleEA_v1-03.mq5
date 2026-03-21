@@ -441,8 +441,6 @@ int OrchestrateInit()
          PrintFormat("  Buffer Input:        %.1f pips", Inp_RRM_BE_BufferPips);
          PrintFormat("  Buffer Settings:     %.1f pips", Settings.RRM_BE_BufferPips);
       }
-      PrintFormat("  LEGACY Input:    Use_BE=%s, Trig=%.1f, Buff=%.1f", Inp_Use_BE ? "true" : "false", Inp_BE_Trig, Inp_BE_Buff);
-      PrintFormat("  LEGACY Settings: Use_BE=%s, Trig=%.1f, Buff=%.1f", Settings.Use_BE ? "true" : "false", Settings.BE_Trig, Settings.BE_Buff);
       Print("");
 
       Print("Trailing Stop Mode:");
