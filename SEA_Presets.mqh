@@ -313,7 +313,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;
       cfg.PSAR_TrailPipsCushion = GetRecommendedTrailPsarCushionPips();
       cfg.Use_BE                = false;
-      cfg.BE_Mode               = BE_MODE_R_MULTIPLE;  // Preserved for future activation without recompilation
+      cfg.BE_Mode               = BE_MODE_R_MULTIPLE;  // Preferred BE mode when enabled; preserved for easy activation
 
       // SL/TP strategy (RRM: swing-based SL, R:R ratio TP, ATR disabled for exit)
       cfg.SLMode        = SL_MODE_SWING;
@@ -334,7 +334,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Advanced trailing trigger defaults
       cfg.TrailTrigger       = TRIGGER_BREAKEVEN;
       cfg.TrailDistancePips  = GetTFBasedCushion(tf);
-      cfg.TrailATRMultiplier = 0.0;   // ATR multiplier disabled; using fixed-pip trailing (TrailDistancePips)
+      cfg.TrailATRMultiplier = 0.0;   // ATR trail multiplier disabled; TRAIL_PSAR uses pip cushion (PSAR_TrailPipsCushion)
       cfg.BEThresholdPips    = GetTFBasedCushion(tf);
       cfg.TrailProfitPercent = 1.0;
       cfg.TrailStepPips      = 5.0;

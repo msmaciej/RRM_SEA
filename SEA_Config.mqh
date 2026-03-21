@@ -465,9 +465,9 @@ struct ST_Settings
    double MinATR;
    double MaxATR;
    bool   ATR_HardGate;
-   bool   Ind_ATR_Enabled;   // ATR as voting indicator
-   double ATR_MinPips;        // ATR voting: minimum pips threshold
-   double ATR_MaxPips;        // ATR voting: maximum pips threshold
+   bool   Ind_ATR_Enabled;   // ATR as voting indicator (Step 8)
+   double ATR_MinPips;        // ATR voting threshold: minimum pips (separate from pre-filter MinATR)
+   double ATR_MaxPips;        // ATR voting threshold: maximum pips (separate from pre-filter MaxATR)
 
    // MT5 Moving Average benchmark compatibility
    bool   UseMACompatSizer;
@@ -1478,17 +1478,17 @@ void InitializeConfig()
 
    // Exits
    Settings.SL_PlacementMode     = Inp_SL_PlacementMode;
-   Settings.SL_Mult              = 0.0;
+   Settings.SL_Mult              = 0.0;   // ATR-based SL multiplier removed; use SLMode=SL_MODE_SWING or SL_MODE_FIXED_PIPS
    Settings.SL_PsarPipsCushion   = Inp_SL_PsarPipsCushion;
    Settings.SL_SwingPipsCushion  = Inp_SL_SwingPipsCushion;
    Settings.SL_FixedPips         = Inp_SL_FixedPips;
 
-   // New strategy-based SL/TP configuration (ATR-optional)
+   // New strategy-based SL/TP configuration (ATR exits removed)
    Settings.SLMode         = Inp_SLMode;
    Settings.TPMode         = Inp_TPMode;
    Settings.FixedTPPips    = Inp_FixedTPPips;
-   Settings.UseATRforSL    = false;
-   Settings.UseATRforTP    = false;
+   Settings.UseATRforSL    = false;   // ATR-based SL disabled; use SL_MODE_SWING or SL_MODE_FIXED_PIPS
+   Settings.UseATRforTP    = false;   // ATR-based TP disabled; use TP_MODE_RR or TP_MODE_FIXED_PIPS
    Settings.SLPercent      = Inp_SLPercent;
    Settings.RRRatio        = Inp_RRRatio;
    Settings.SwingLookback  = Inp_SwingLookback;
@@ -1532,7 +1532,7 @@ void InitializeConfig()
    // Phase 2.2: Advanced trailing trigger settings
    Settings.TrailTrigger       = Inp_TrailTrigger;
    Settings.TrailDistancePips  = Inp_TrailDistancePips;
-   Settings.TrailATRMultiplier = 0.0;
+   Settings.TrailATRMultiplier = 0.0;   // ATR multiplier for trailing removed
    Settings.BEThresholdPips    = Inp_BEThresholdPips;
    Settings.TrailProfitPercent = Inp_TrailProfitPercent;
    Settings.TrailStepPips      = Inp_TrailStepPips;
@@ -1540,12 +1540,13 @@ void InitializeConfig()
 
    Settings.TP_Mult              = Inp_TP_Mult;
    Settings.TP_Enabled              = Inp_TP_Enabled;
+   // Legacy ATR-based BE (Use_BE, BE_Trig, BE_Buff) removed; use BE_Mode + RRM_BE_* for breakeven
    Settings.Use_BE               = false;
    Settings.BE_Trig              = 0.0;
    Settings.BE_Buff              = 0.0;
 
    Settings.TrailMode            = Inp_TrailMode;
-   Settings.Trail_Mult           = 0.0;
+   Settings.Trail_Mult           = 0.0;   // ATR trail multiplier removed
    Settings.PSAR_TrailCushionMode= Inp_PSAR_TrailCushionMode;
    Settings.PSAR_TrailPipsCushion= Inp_PSAR_TrailPipsCushion;
    Settings.PSAR_TrailDelay      = (Inp_PSAR_TrailDelay < 1) ? 1 : (Inp_PSAR_TrailDelay > 3) ? 3 : Inp_PSAR_TrailDelay;
