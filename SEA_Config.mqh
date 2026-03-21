@@ -556,6 +556,14 @@ struct ST_Settings
    bool     AllowLayer2_Entries;           // Allow Layer 2 (EMA2/EMA3 touch) entries
    bool     AllowLayer3_Entries;           // Allow Layer 3 (EMA3/EMA4 touch) entries
 
+   // Consecutive loss protection
+   bool   StopAfterConsecutiveLosses;   // Enable consecutive loss protection
+   int    MaxConsecutiveLosses;         // Max consecutive losses before pause
+   int    ConsecutiveLossCooldownHrs;   // Hours to wait after max losses hit
+
+   // Preset version identifier
+   string PresetVersion;                // Preset version string (e.g. "RRM_v1.1_2026-03-21")
+
    // Diagnostics: statistics configuration
    bool Stats_TrackRejections;  // Track rejection counts per indicator
    bool Stats_TrackPasses;      // Track pass counts (positive stats)
