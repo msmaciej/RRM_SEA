@@ -2997,10 +2997,16 @@ public:
       #undef CAST_VOTE
 
       // Volatility regime vote (ATR as non-directional voting indicator)
+      // Uses dedicated ATR_MinPips/ATR_MaxPips thresholds (separate from the hard pre-filter gates)
       if(m_settings.Ind_ATR_Enabled)
       {
-         if(m_diag_last_atr_ok) vote_weight += 1.0;
-         else                   all_pass     = false;
+         double atr_vote_pips = m_diag_last_atr_pips;
+         bool   atr_vote_ok   = true;
+         if(m_settings.ATR_MinPips > 0.0 && atr_vote_pips < m_settings.ATR_MinPips) atr_vote_ok = false;
+         if(m_settings.ATR_MaxPips > 0.0 && atr_vote_pips > m_settings.ATR_MaxPips) atr_vote_ok = false;
+
+         if(atr_vote_ok) vote_weight += 1.0;
+         else            all_pass     = false;
       }
 
       // Store integer-rounded weight for display (backward-compatible diagnostics)
@@ -3122,11 +3128,15 @@ public:
             } else Print("[IND] RossHook: DISABLED → SKIP");
 
             // ATR Vote (non-directional voting indicator)
-            if(m_settings.Ind_ATR_Enabled)
+            if(m_settings.Ind_ATR_Enabled) {
+               double atr_v_pips = m_diag_last_atr_pips;
+               bool   atr_v_ok   = true;
+               if(m_settings.ATR_MinPips > 0.0 && atr_v_pips < m_settings.ATR_MinPips) atr_v_ok = false;
+               if(m_settings.ATR_MaxPips > 0.0 && atr_v_pips > m_settings.ATR_MaxPips) atr_v_ok = false;
                PrintFormat("[IND] ATR Vote: %.1f pips (min=%.1f max=%.1f) → %s (w=1)",
-                           atr_pips, m_settings.MinATR, m_settings.MaxATR,
-                           m_diag_last_atr_ok ? "PASS" : "FAIL");
-            else
+                           atr_v_pips, m_settings.ATR_MinPips, m_settings.ATR_MaxPips,
+                           atr_v_ok ? "PASS" : "FAIL");
+            } else
                Print("[IND] ATR Vote: DISABLED → SKIP");
          }
       }

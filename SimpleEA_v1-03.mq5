@@ -228,10 +228,6 @@ void PrintEffectiveConfig()
    if(InpPreset != PRESET_CUSTOM)
    {
       Print("Preset ", PresetToString(InpPreset), " is active; strategy inputs ignored");
-      if(Settings.AdminOverridePreset)
-         Print("AdminOverride: ACTIVE [Admin Mode] - override inputs are applied on top of preset");
-      else
-         Print("AdminOverride: OFF [Normal User Mode] - preset is fully enforced");
    }
 
    Print("Diagnostics: PrintEffectiveConfig=", (Settings.PrintEffectiveConfig ? "true" : "false"),
@@ -274,7 +270,7 @@ void PrintEffectiveConfig()
                                                Settings.MacdRequireDivergence, Settings.MacdRequireHook));
 
 
-   if(Settings.ExitProfile != EXIT_PROFILE_LEGACY || InpPreset == PRESET_RRM)
+   if(Settings.ExitProfile == EXIT_PROFILE_RRM || InpPreset == PRESET_RRM)
    {
       Print("Effective: ExitProfile=", EnumToString(Settings.ExitProfile),
             " TP_Enabled=", (Settings.TP_Enabled ? "true" : "false"),
@@ -338,12 +334,7 @@ void ValidateConfiguration()
 
    bool has_warnings = false;
 
-   // Warn if preset + admin override both active
-   if(InpPreset != PRESET_CUSTOM && Settings.AdminOverridePreset) {
-      Print("WARNING: Preset=", EnumToString(InpPreset), " but AdminOverride=true");
-      Print("   Admin settings will OVERRIDE preset values");
-      has_warnings = true;
-   }
+   // (Admin override section removed)
 
    // Warn if phase detection enabled but BiasMode is not AUTO_PHASE
    if(Settings.PhaseDetectionEnabled && Settings.BiasMode != BIAS_AUTO_PHASE) {
@@ -511,8 +502,6 @@ int OrchestrateInit()
       Print("  SimpleEA v", SEA_BUILD_STR, " - ACTIVE CONFIGURATION");
       Print("  Symbol: ", _Symbol, " | TF: ", EnumToString(_Period));
       Print("  Preset: ", EnumToString(InpPreset));
-      if(Settings.AdminOverridePreset)
-         Print("  ADMIN OVERRIDE ACTIVE");
       Print("════════════════════════════════════════════");
 
       Print("BIAS & PHASE:");
