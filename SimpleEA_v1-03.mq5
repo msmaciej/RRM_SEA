@@ -417,7 +417,7 @@ int OrchestrateInit()
       PrintFormat("  Input:    %s", EnumToString(Inp_SLMode));
       PrintFormat("  Settings: %s", EnumToString(Settings.SLMode));
       PrintFormat("  ✓ Match:  %s", (Settings.SLMode == Inp_SLMode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
-      if(Inp_SLMode == SL_PSAR_DOT || Settings.SLMode == SL_PSAR_DOT)
+      if(Inp_SLMode == SL_MODE_PSAR_DOT || Settings.SLMode == SL_MODE_PSAR_DOT)
       {
          PrintFormat("  PSAR Cushion Input:    %.1f pips", Inp_SL_PsarPipsCushion);
          PrintFormat("  PSAR Cushion Settings: %.1f pips", Settings.SL_PsarPipsCushion);

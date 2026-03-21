@@ -186,8 +186,8 @@ enum ESLMode
    SL_MODE_FIXED_PIPS,    // Fixed pips (default)
    SL_MODE_PERCENT,       // Percentage of entry price
    SL_MODE_SWING,         // Recent swing high/low (SwingLookback bars)
-   SL_FRACTAL,            // Last fractal level (Bill Williams)
-   SL_PSAR_DOT            // PSAR dot position
+   SL_MODE_FRACTAL,            // Last fractal level (Bill Williams)
+   SL_MODE_PSAR_DOT            // PSAR dot position
 };
 
 // --- TAKE PROFIT STRATEGY MODE ---
@@ -195,9 +195,9 @@ enum ETPMode
 {
    TP_MODE_FIXED_PIPS,    // Fixed pips (default)
    TP_MODE_RR,            // Risk:Reward ratio (TP = SL distance × RRRatio)
-   TP_FRACTAL,            // Next fractal level as TP target
-   TP_PSAR_FLIP,          // Exit when PSAR flips (TP handled by TM)
-   TP_NONE                // No TP, rely on trailing stop only
+   TP_MODE_FRACTAL,            // Next fractal level as TP target
+   TP_MODE_PSAR_FLIP,          // Exit when PSAR flips (TP handled by TM)
+   TP_MODE_NONE                // No TP, rely on trailing stop only
 };
 
 // --- TRAILING STOP TRIGGER CONDITION ---

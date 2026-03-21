@@ -327,7 +327,7 @@ private:
             }
             return isBuy ? (entry - fixed_dist) : (entry + fixed_dist);
          }
-         case SL_PSAR_DOT:
+         case SL_MODE_PSAR_DOT:
          {
             double psar = GetPsarForTrail(1);
             if(psar > 0.0)
@@ -873,7 +873,7 @@ public:
             }
             break;
 
-         case SL_FRACTAL:  // Phase 2.2: Last fractal level
+         case SL_MODE_FRACTAL:  // Phase 2.2: Last fractal level
             sl_pips = GetFractalSL(direction);
             if(sl_pips <= 0.0)
             {
@@ -883,7 +883,7 @@ public:
             }
             break;
 
-         case SL_PSAR_DOT:  // Phase 2.2: PSAR dot position
+         case SL_MODE_PSAR_DOT:  // Phase 2.2: PSAR dot position
             sl_pips = GetPSARSL(direction);
             if(sl_pips <= 0.0)
             {
@@ -932,7 +932,7 @@ public:
             }
             break;
 
-         case TP_FRACTAL:  // Next fractal level as TP target
+         case TP_MODE_FRACTAL:  // Next fractal level as TP target
             tp_pips = GetFractalTP(direction);
             if(tp_pips <= 0.0)
             {
@@ -946,11 +946,11 @@ public:
             }
             break;
 
-         case TP_PSAR_FLIP:  // Phase 2.2: Exit managed by PSAR flip in EvaluateTM
+         case TP_MODE_PSAR_FLIP:  // Phase 2.2: Exit managed by PSAR flip in EvaluateTM
             tp_pips = 0.0;   // No fixed TP; PSAR flip exit handled in TM
             break;
 
-         case TP_NONE:  // Phase 2.2: No TP, rely on trailing stop only
+         case TP_MODE_NONE:  // Phase 2.2: No TP, rely on trailing stop only
             tp_pips = 0.0;
             break;
 
@@ -960,7 +960,7 @@ public:
       }
 
       // TP_PSAR_FLIP and TP_NONE intentionally return 0 (no fixed TP)
-      if(tp_pips <= 0.0 && m_settings.TPMode != TP_PSAR_FLIP && m_settings.TPMode != TP_NONE)
+      if(tp_pips <= 0.0 && m_settings.TPMode != TP_MODE_PSAR_FLIP && m_settings.TPMode != TP_MODE_NONE)
          tp_pips = m_settings.FixedTPPips;
 
       return tp_pips;
@@ -1144,15 +1144,15 @@ public:
       else
       {
          // Phase 2.2: Handle new TP modes first
-         if(m_settings.TPMode == TP_NONE)
+         if(m_settings.TPMode == TP_MODE_NONE)
          {
             tp = 0.0;  // No fixed TP; rely on trailing stop
          }
-         else if(m_settings.TPMode == TP_PSAR_FLIP)
+         else if(m_settings.TPMode == TP_MODE_PSAR_FLIP)
          {
             tp = 0.0;  // No fixed TP; PSAR flip exit handled in EvaluateTM
          }
-         else if(m_settings.TPMode == TP_FRACTAL)
+         else if(m_settings.TPMode == TP_MODE_FRACTAL)
          {
             double tp_pips = GetFractalTP(direction == 1 ? 1 : -1);
             if(tp_pips > 0.0)
@@ -1472,7 +1472,7 @@ public:
 
       // Phase 2.2: PSAR flip exit — close position immediately when PSAR flips
       if(m_settings.TrailMode == TRAIL_PSAR_FLIP_EXIT ||
-         m_settings.TPMode    == TP_PSAR_FLIP)
+         m_settings.TPMode    == TP_MODE_PSAR_FLIP)
       {
          if(CheckPSARFlip(direction, current_price))
          {
