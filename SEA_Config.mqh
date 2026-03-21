@@ -345,9 +345,11 @@ struct ST_Settings
    int    MaxOpenTrades;         // Max number of concurrent trades (0 = no limit)
    bool   CountBEasZeroRisk;     // If true, trades at breakeven don't count toward risk
    double MaxSpread;
+   bool   UseSpread;      // Enable spread filter (false = bypass spread gate)
    double MinATR;
    double MaxATR;
    bool   ATR_HardGate;
+   bool   UseATRGate;     // Enable ATR gate filter (false = ATR gate disabled)
    // MT5 Moving Average benchmark compatibility
    bool   UseMACompatSizer;
    double MA_MaximumRiskPct;
@@ -642,9 +644,11 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🚫 SPREAD & ATR LIMITS                                ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input double         Inp_MaxSpreadPips          = 3.0;    // Max spread (pips)
-input double         Inp_MinATRPips             = 0.0;    // Min ATR gate (pips; 0=off)
-input double         Inp_MaxATRPips             = 20.0;   // Max ATR gate (pips; 0=off)
+input bool           Inp_UseSpread              = true;   // Enable spread filter
+input double         Inp_MaxSpreadPips          = 3.0;    // Max spread (pips; ignored if UseSpread=false)
+input bool           Inp_UseATRGate             = false;  // Enable ATR gate filter
+input double         Inp_MinATRPips             = 0.0;    // Min ATR gate (pips; ignored if UseATRGate=false)
+input double         Inp_MaxATRPips             = 20.0;   // Max ATR gate (pips; ignored if UseATRGate=false)
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  ⏰ SESSION TIME FILTER                                 ║"
@@ -1230,11 +1234,13 @@ void InitializeConfig()
    Settings.RiskPercent          = Inp_RiskPercent;
    Settings.FixedLotSize         = 0.0;  // 0 = risk-based sizing (default)
    Settings.MaxSpread            = Inp_MaxSpreadPips;
+   Settings.UseSpread            = Inp_UseSpread;
    Settings.MinATR               = Inp_MinATRPips;
    Settings.MaxATR               = Inp_MaxATRPips;
 
    // Defaults for gating/vote semantics
    Settings.ATR_HardGate         = false;
+   Settings.UseATRGate           = Inp_UseATRGate;
    Settings.ATR_VoteMinPips      = Inp_Ind_Atr_VoteMinPips;
    Settings.ATR_VoteMaxPips      = Inp_Ind_Atr_VoteMaxPips;
 

@@ -1603,9 +1603,9 @@ public:
       Print("================================================================");
       PrintFormat("%-18s %-8s %7s %7s %7s   %s", "Gate", "Status", "Passed", "Failed", "Pass%", "Impact");
       Print("----------------------------------------------------------------");
-      PrintGateStat("Spread",      true,                   m_stats.passed_spread,        m_stats.rejected_spread,       StringFormat("%.1f pips max", m_settings.MaxSpread));
-      PrintGateStat("ATR Min",    (m_settings.MinATR > 0), m_stats.passed_atr_min,       m_stats.rejected_atr_min,      StringFormat(">=%.1f pips",   m_settings.MinATR));
-      PrintGateStat("ATR Max",    (m_settings.MaxATR > 0), m_stats.passed_atr_max,       m_stats.rejected_atr_max,      StringFormat("<=%.1f pips",   m_settings.MaxATR));
+      PrintGateStat("Spread",      m_settings.UseSpread,                          m_stats.passed_spread,        m_stats.rejected_spread,       StringFormat("%.1f pips max", m_settings.MaxSpread));
+      PrintGateStat("ATR Min",    (m_settings.UseATRGate && m_settings.MinATR > 0), m_stats.passed_atr_min,       m_stats.rejected_atr_min,      StringFormat(">=%.1f pips",   m_settings.MinATR));
+      PrintGateStat("ATR Max",    (m_settings.UseATRGate && m_settings.MaxATR > 0), m_stats.passed_atr_max,       m_stats.rejected_atr_max,      StringFormat("<=%.1f pips",   m_settings.MaxATR));
       PrintGateStat("Time Window", m_settings.UseTime,     m_stats.passed_time,          m_stats.rejected_time,         m_settings.UseTime ? StringFormat("%02d:00-%02d:00", m_settings.StartHr, m_settings.EndHr) : "(disabled)");
       PrintGateStat("News Filter", m_settings.UseNews,     m_stats.passed_news,          m_stats.rejected_news,         m_settings.UseNews  ? StringFormat("%dm pre/post", m_settings.NewsPre) : "(disabled)");
       Print("----------------------------------------------------------------");
@@ -2250,13 +2250,16 @@ public:
       
       // C. Spread Check
       double spread_pips = SpreadPips();
-      if(m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread) { m_diag_last_reason="SPREAD"; return false; }
+      if(m_settings.UseSpread && m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread) { m_diag_last_reason="SPREAD"; return false; }
       
       // D. Volatility regime (ATR in pips)
       double atr_pips = AtrPips();
       bool atr_ok = true;
-      if(m_settings.MinATR > 0.0 && atr_pips < m_settings.MinATR) atr_ok = false;
-      if(m_settings.MaxATR > 0.0 && atr_pips > m_settings.MaxATR) atr_ok = false;
+      if(m_settings.UseATRGate)
+      {
+         if(m_settings.MinATR > 0.0 && atr_pips < m_settings.MinATR) atr_ok = false;
+         if(m_settings.MaxATR > 0.0 && atr_pips > m_settings.MaxATR) atr_ok = false;
+      }
 
       // Cache for diagnostics and (optional) ATR-as-vote
       m_diag_last_atr_pips = atr_pips;
@@ -2265,7 +2268,7 @@ public:
       // Expert guidance:
       // - HARD ATR gating is useful as an execution safeguard, but it can starve signals on low TFs.
       // - When ATR_HardGate=false, ATR is treated as a soft regime preference (vote/management), not a blocker.
-      if(m_settings.ATR_HardGate && !atr_ok)
+      if(m_settings.UseATRGate && m_settings.ATR_HardGate && !atr_ok)
       {
          m_diag_last_reason = (atr_pips < m_settings.MinATR ? "MIN_ATR" : "MAX_ATR");
          return false;
@@ -2443,11 +2446,11 @@ public:
 
       // --- Spread ---
       double spread_pips = SpreadPips();
-      bool spread_pass = !(m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread);
+      bool spread_pass = !(m_settings.UseSpread && m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread);
       if(spread_pass) m_stats.passed_spread++;
       else m_stats.rejected_spread++;
       if(m_settings.DebugFlow) {
-         if(m_settings.MaxSpread <= 0.0)
+         if(!m_settings.UseSpread || m_settings.MaxSpread <= 0.0)
             Print("[GATE] Spread: DISABLED → SKIP");
          else
             PrintFormat("[GATE] Spread: %.1f pips / %.1f max → %s",
@@ -2465,46 +2468,50 @@ public:
       double atr_pips = AtrPips();
       m_diag_last_atr_pips = atr_pips;
       m_diag_last_atr_ok   = true;
-      if(m_settings.MinATR > 0.0) {
-         bool atr_min_pass = (atr_pips >= m_settings.MinATR);
-         if(!atr_min_pass) m_diag_last_atr_ok = false;
-         if(atr_min_pass) m_stats.passed_atr_min++;
-         else m_stats.rejected_atr_min++;
-         if(m_settings.DebugFlow)
-            PrintFormat("[GATE] ATR Min: %.1f pips / min=%.1f → %s%s",
-                        atr_pips, m_settings.MinATR,
-                        atr_min_pass ? "PASS" : "FAIL",
-                        (!atr_min_pass && !m_settings.ATR_HardGate) ? " (soft)" : "");
-         if(!atr_min_pass && m_settings.ATR_HardGate) {
-            if(first_failure == "") first_failure = "MIN_ATR";
-            any_failure = true;
-            if(!m_settings.Stats_FullEvaluation) {
-               m_diag_last_reason = "MIN_ATR"; m_reject_filter++; return 0;
+      if(m_settings.UseATRGate) {
+         if(m_settings.MinATR > 0.0) {
+            bool atr_min_pass = (atr_pips >= m_settings.MinATR);
+            if(!atr_min_pass) m_diag_last_atr_ok = false;
+            if(atr_min_pass) m_stats.passed_atr_min++;
+            else m_stats.rejected_atr_min++;
+            if(m_settings.DebugFlow)
+               PrintFormat("[GATE] ATR Min: %.1f pips / min=%.1f → %s%s",
+                           atr_pips, m_settings.MinATR,
+                           atr_min_pass ? "PASS" : "FAIL",
+                           (!atr_min_pass && !m_settings.ATR_HardGate) ? " (soft)" : "");
+            if(!atr_min_pass && m_settings.ATR_HardGate) {
+               if(first_failure == "") first_failure = "MIN_ATR";
+               any_failure = true;
+               if(!m_settings.Stats_FullEvaluation) {
+                  m_diag_last_reason = "MIN_ATR"; m_reject_filter++; return 0;
+               }
             }
          }
-      }
-      else if(m_settings.DebugFlow)
-         Print("[GATE] ATR Min: DISABLED → SKIP");
-      if(m_settings.MaxATR > 0.0) {
-         bool atr_max_pass = (atr_pips <= m_settings.MaxATR);
-         if(!atr_max_pass) m_diag_last_atr_ok = false;
-         if(atr_max_pass) m_stats.passed_atr_max++;
-         else m_stats.rejected_atr_max++;
-         if(m_settings.DebugFlow)
-            PrintFormat("[GATE] ATR Max: %.1f pips / max=%.1f → %s%s",
-                        atr_pips, m_settings.MaxATR,
-                        atr_max_pass ? "PASS" : "FAIL",
-                        (!atr_max_pass && !m_settings.ATR_HardGate) ? " (soft)" : "");
-         if(!atr_max_pass && m_settings.ATR_HardGate) {
-            if(first_failure == "") first_failure = "MAX_ATR";
-            any_failure = true;
-            if(!m_settings.Stats_FullEvaluation) {
-               m_diag_last_reason = "MAX_ATR"; m_reject_filter++; return 0;
+         else if(m_settings.DebugFlow)
+            Print("[GATE] ATR Min: DISABLED → SKIP");
+         if(m_settings.MaxATR > 0.0) {
+            bool atr_max_pass = (atr_pips <= m_settings.MaxATR);
+            if(!atr_max_pass) m_diag_last_atr_ok = false;
+            if(atr_max_pass) m_stats.passed_atr_max++;
+            else m_stats.rejected_atr_max++;
+            if(m_settings.DebugFlow)
+               PrintFormat("[GATE] ATR Max: %.1f pips / max=%.1f → %s%s",
+                           atr_pips, m_settings.MaxATR,
+                           atr_max_pass ? "PASS" : "FAIL",
+                           (!atr_max_pass && !m_settings.ATR_HardGate) ? " (soft)" : "");
+            if(!atr_max_pass && m_settings.ATR_HardGate) {
+               if(first_failure == "") first_failure = "MAX_ATR";
+               any_failure = true;
+               if(!m_settings.Stats_FullEvaluation) {
+                  m_diag_last_reason = "MAX_ATR"; m_reject_filter++; return 0;
+               }
             }
          }
+         else if(m_settings.DebugFlow)
+            Print("[GATE] ATR Max: DISABLED → SKIP");
       }
       else if(m_settings.DebugFlow)
-         Print("[GATE] ATR Max: DISABLED → SKIP");
+         Print("[GATE] ATR: DISABLED (UseATRGate=false) → SKIP");
       // In full-eval mode, track filter rejection if any filter failed (waterfall would have exited above)
       if(any_failure && m_settings.Stats_FullEvaluation) m_reject_filter++;
 
@@ -3198,25 +3205,29 @@ public:
 
          // GATES SECTION
          Print("GATES:");
-         if(m_settings.MaxSpread > 0.0) {
+         if(m_settings.UseSpread && m_settings.MaxSpread > 0.0) {
             PrintFormat("  %s Spread: %.1f / %.1f pips max",
                         spread_pass ? "✅" : "❌", spread_pips, m_settings.MaxSpread);
          } else {
             Print("  ⏭️  Spread: disabled");
          }
-         if(m_settings.MinATR > 0.0) {
-            bool atr_min_ok = (atr_pips >= m_settings.MinATR);
-            PrintFormat("  %s ATR Min: %.1f / %.1f pips",
-                        atr_min_ok ? "✅" : "❌", atr_pips, m_settings.MinATR);
+         if(m_settings.UseATRGate) {
+            if(m_settings.MinATR > 0.0) {
+               bool atr_min_ok = (atr_pips >= m_settings.MinATR);
+               PrintFormat("  %s ATR Min: %.1f / %.1f pips",
+                           atr_min_ok ? "✅" : "❌", atr_pips, m_settings.MinATR);
+            } else {
+               Print("  ⏭️  ATR Min: disabled");
+            }
+            if(m_settings.MaxATR > 0.0) {
+               bool atr_max_ok = (atr_pips <= m_settings.MaxATR);
+               PrintFormat("  %s ATR Max: %.1f / %.1f pips",
+                           atr_max_ok ? "✅" : "❌", atr_pips, m_settings.MaxATR);
+            } else {
+               Print("  ⏭️  ATR Max: disabled");
+            }
          } else {
-            Print("  ⏭️  ATR Min: disabled");
-         }
-         if(m_settings.MaxATR > 0.0) {
-            bool atr_max_ok = (atr_pips <= m_settings.MaxATR);
-            PrintFormat("  %s ATR Max: %.1f / %.1f pips",
-                        atr_max_ok ? "✅" : "❌", atr_pips, m_settings.MaxATR);
-         } else {
-            Print("  ⏭️  ATR Max: disabled");
+            Print("  ⏭️  ATR gates: disabled (UseATRGate=false)");
          }
          Print("  ⏭️  Time window: " + (m_settings.UseTime ? "active" : "disabled"));
          Print("  ⏭️  News filter: " + (m_settings.UseNews ? "active" : "disabled"));
