@@ -31,7 +31,7 @@ SimpleEA now provides 4 focused presets:
 | Preset | Description |
 |--------|-------------|
 | `PRESET_CUSTOM` | All inputs respected; full user control |
-| `PRESET_MA_BENCHMARK` | Replicates the MT5 Moving Average EA (no voting indicators) |
+| `PRESET_MA` | Replicates the MT5 Moving Average EA (no voting indicators) |
 | `PRESET_RRM` | Phase-based layer detection system with ATR voting |
 | `PRESET_TEST` | Minimal config for development/debugging |
 

@@ -72,7 +72,7 @@ string PresetToString(EStrategyPreset p)
    switch(p)
    {
       case PRESET_CUSTOM:       return "CUSTOM";
-      case PRESET_MA_BENCHMARK: return "MA_BENCHMARK";
+      case PRESET_MA:           return "MA";
       case PRESET_RRM:          return "RRM";
       case PRESET_TEST:         return "TEST";
       default:                  return "UNKNOWN";
@@ -87,7 +87,7 @@ string GetPresetContractWording(EStrategyPreset preset)
    {
       case PRESET_CUSTOM:
          return "All inputs respected; you control strategy, indicators, and operator gates.";
-      case PRESET_MA_BENCHMARK:
+      case PRESET_MA:
          return "MA benchmark mode: replicates MT5 Moving Average EA; all voting disabled.";
       case PRESET_RRM:
          return "RRM phase-based system fixed (AutoStrat, EMA/MACD config, vote threshold); only Policy A gates and exits user-controlled.";
@@ -126,11 +126,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    const ENUM_TIMEFRAMES op_HtfPeriod  = cfg.HtfPeriod;
    const int             op_P_HtfEma   = cfg.P_HtfEma;
 
-   if(preset == PRESET_MA_BENCHMARK)
+   if(preset == PRESET_MA)
    {
-      // Goal: Replicate MT5 Moving Average EA
+      // ═══════════════════════════════════════════════════════════
+      // PRESET_MA (Moving Average Benchmark)
+      // Simple MA cross system — all votes disabled, minimal config
+      // ═══════════════════════════════════════════════════════════
+
       cfg.CloseOnReverse    = true;
 
+      // Bias & AutoStrat
       cfg.BiasEnabled       = true;
       cfg.BiasMode          = BIAS_AUTO;
       cfg.AutoStrat         = STRAT_PRICE_CROSS;
@@ -139,60 +144,127 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       cfg.RequirePriceCross = true;
       cfg.MABenchmarkStrict = true;
-
       cfg.UseMACompatSizer  = true;
       cfg.RiskPercent       = 0.0;
 
+      // Voting
       cfg.VoteMode          = VOTE_MODE_ALL;
+
+      // ALL votes disabled
+      cfg.Ind_EmaSig_Enabled     = false;
+      cfg.Ind_Adx_Enabled        = false;
+      cfg.Ind_Macd_Enabled       = false;
+      cfg.Ind_Rsi_Enabled        = false;
+      cfg.Ind_Cci_Enabled        = false;
+      cfg.Ind_Mfi_Enabled        = false;
+      cfg.Ind_Sto_Enabled        = false;
+      cfg.Ind_Bb_Enabled         = false;
+      cfg.Ind_Psar_Enabled       = false;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Ross_Enabled       = false;
+      cfg.Ind_ATR_Enabled        = false;
+
+      // EMA periods (only EMA1 used)
+      cfg.P_Ema1            = Inp_MA_Period;
+      cfg.P_Ema2            = 13;
+      cfg.P_Ema3            = 34;
+      cfg.P_Ema4            = 89;
+
+      // MACD periods (disabled but defined)
+      cfg.P_MacdFast        = 12;
+      cfg.P_MacdSlow        = 26;
+      cfg.P_MacdSig         = 9;
+      cfg.MacdVoteMode      = MACD_HISTOGRAM;
+      cfg.MacdRequireSlope  = false;
+      cfg.MacdRequireDivergence = false;
+      cfg.MacdRequireHook   = false;
+      cfg.MacdFreshBars     = 3;
+      cfg.MacdSlopeMin      = 0.00001;
+
+      // Other indicator periods (disabled but defined)
+      cfg.P_Cci             = 14;
+      cfg.P_PsarStep        = 0.02;
+      cfg.P_PsarMax         = 0.2;
+      cfg.P_Atr             = 14;
+      // Commented untested indicators
+      // cfg.P_Rsi          = 14;
+      // cfg.T_RsiOB        = 70.0;
+      // cfg.T_RsiOS        = 30.0;
+      // cfg.P_Adx          = 14;
+      // cfg.T_Adx          = 20;
+      // cfg.P_Mfi          = 14;
+      // cfg.T_MfiOB        = 80.0;
+      // cfg.T_MfiOS        = 20.0;
+      // cfg.P_StoK         = 5;
+      // cfg.P_StoD         = 3;
+      // cfg.P_StoSlow      = 3;
+      // cfg.T_StoOB        = 80.0;
+      // cfg.T_StoOS        = 20.0;
+      // cfg.P_Bb           = 20;
+      // cfg.P_BbDev        = 2.0;
+
+      // Gates (all disabled)
       cfg.MaxSpread         = 9999.0;
       cfg.MinATR            = 0.0;
       cfg.MaxATR            = 0.0;
-
+      cfg.ATR_HardGate      = false;
+      cfg.Ind_ATR_Enabled   = false;
       cfg.UseTime           = false;
       cfg.UseNews           = false;
       cfg.UseHTF            = false;
 
-      // Disable all voting indicators
-      cfg.Ind_EmaSig_Enabled        = false;
-      cfg.Ind_Adx_Enabled           = false;
-      cfg.Ind_Macd_Enabled          = false;
-      cfg.Ind_Rsi_Enabled           = false;
-      cfg.Ind_Cci_Enabled           = false;
-      cfg.Ind_Mfi_Enabled           = false;
-      cfg.Ind_Sto_Enabled           = false;
-      cfg.Ind_Bb_Enabled            = false;
-      cfg.Ind_Psar_Enabled          = false;
-      cfg.Ind_P123_Enabled          = false;
-      cfg.Ind_Ross_Enabled          = false;
-      cfg.Ind_ATR_Enabled           = false;
+      // Phase detection (disabled)
+      cfg.PhaseDetectionEnabled      = false;
+      cfg.EnableLayerDetection       = false;
+      cfg.BlockUnorderedPhase        = false;
+      cfg.RequireMinPhaseConfirm     = false;
+      cfg.MinPhaseConfirmBars        = 0;
 
-      cfg.SLMode            = SL_MODE_FIXED_PIPS;
+      // RRM gates (disabled)
+      cfg.RequirePullback            = false;
+      cfg.PullbackLookback           = 0;
+      cfg.RequireRecoveryMomentum    = false;
+      cfg.Gate_UseMultiLayer         = false;
+      cfg.RRM_Lookback               = 0;
+      cfg.RRM_MinDivPips             = 0.0;
+
+      // Exits (all disabled)
       cfg.SL_Mult           = 0.0;
+      cfg.SL_SwingPipsCushion   = 0.0;
+      cfg.SL_PsarPipsCushion    = 0.0;
       cfg.TP_Mult           = 0.0;
+      cfg.TP_Enabled        = false;
       cfg.Use_BE            = false;
       cfg.BE_Trig           = 0.0;
       cfg.BE_Buff           = 0.0;
       cfg.TrailMode         = TRAIL_NONE;
       cfg.Trail_Mult        = 0.0;
+      cfg.PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;
+      cfg.PSAR_TrailPipsCushion = 0.0;
 
+      // SL/TP strategy modes
+      cfg.SLMode            = SL_MODE_FIXED_PIPS;
+      cfg.TPMode            = TP_MODE_NONE;
+      cfg.FixedTPPips       = 0.0;
+      cfg.SLPercent         = 0.0;
+      cfg.RRRatio           = 0.0;
+      cfg.SwingLookback     = 0;
+
+      // MA-specific settings
       cfg.MaType            = METHOD_SMA;
       cfg.ma_h_shift        = Inp_MA_Shift;
       cfg.ma_v_shift        = 1;
-      cfg.P_Ema1            = Inp_MA_Period;
 
       // Restore operator-controlled gates (Policy A)
       cfg.MaxSpread = op_MaxSpread;
       cfg.MinATR    = op_MinATR;
       cfg.MaxATR    = op_MaxATR;
-
       cfg.UseTime   = op_UseTime;
       cfg.StartHr   = op_StartHr;
       cfg.EndHr     = op_EndHr;
-
       cfg.UseNews   = op_UseNews;
       cfg.NewsPre   = op_NewsPre;
       cfg.NewsPost  = op_NewsPost;
-
       cfg.UseHTF    = op_UseHTF;
       cfg.HtfPeriod = op_HtfPeriod;
       cfg.P_HtfEma  = op_P_HtfEma;
@@ -250,6 +322,29 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MacdRequireHook        = false;
       cfg.MacdFreshBars          = 3;
       cfg.MacdSlopeMin           = 0.00001;
+
+      // Indicator periods (tested indicators — uncommented)
+      cfg.P_Cci                  = 14;
+      cfg.P_PsarStep             = 0.02;
+      cfg.P_PsarMax              = 0.2;
+      cfg.P_Atr                  = 14;  // Used for ATR vote when enabled
+
+      // Untested indicators (commented out — periods defined)
+      // cfg.P_Rsi          = 14;
+      // cfg.T_RsiOB        = 70.0;
+      // cfg.T_RsiOS        = 30.0;
+      // cfg.P_Adx          = 14;
+      // cfg.T_Adx          = 20;
+      // cfg.P_Mfi          = 14;
+      // cfg.T_MfiOB        = 80.0;
+      // cfg.T_MfiOS        = 20.0;
+      // cfg.P_StoK         = 5;
+      // cfg.P_StoD         = 3;
+      // cfg.P_StoSlow      = 3;
+      // cfg.T_StoOB        = 80.0;
+      // cfg.T_StoOS        = 20.0;
+      // cfg.P_Bb           = 20;
+      // cfg.P_BbDev        = 2.0;
 
       cfg.RRM_Lookback           = 5;
       cfg.RRM_MinDivPips         = 1.5;
@@ -376,60 +471,141 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
    if(preset == PRESET_TEST)
    {
-      // Minimal configuration for development/testing
-      cfg.BiasEnabled    = true;
-      cfg.BiasMode       = BIAS_AUTO;
-      cfg.AutoStrat      = STRAT_PAIR_CROSS;
-      cfg.BiasFastID     = (int)ROLE_EMA3;
-      cfg.BiasSlowID     = (int)ROLE_EMA4;
+      // ═══════════════════════════════════════════════════════════
+      // INDICATOR TESTING MODE
+      // Minimal configuration for testing ONE indicator at a time.
+      // All gates, layers, and indicators are disabled so that only
+      // the bias and the single enabled indicator can reject a signal.
+      // ═══════════════════════════════════════════════════════════
+
+      Print("═══════════════════════════════════════════════════════════");
+      Print("  PRESET: TEST (Isolated Testing Mode)");
+      Print("═══════════════════════════════════════════════════════════");
+
+      // Bias: Position + Slope (persistent bias for multi-indicator systems)
+      cfg.BiasEnabled            = true;
+      cfg.BiasMode               = BIAS_AUTO;
+      cfg.AutoStrat              = STRAT_POSITION_SLOPE;
+      cfg.BiasFastID             = (int)ROLE_EMA3;
+      cfg.BiasSlowID             = (int)ROLE_EMA4;
       cfg.PhaseDetectionEnabled  = false;
       cfg.MinPhaseConfirmBars    = 0;
       cfg.BlockUnorderedPhase    = false;
 
-      // Disable all gates (bypass for testing)
-      cfg.MaxSpread    = 100.0;
-      cfg.MinATR       = 0.0;
-      cfg.MaxATR       = 0.0;
-      cfg.ATR_HardGate = false;
-      cfg.UseTime      = false;
-      cfg.UseNews      = false;
-      cfg.UseHTF       = false;
+      // EMA periods
+      cfg.P_Ema1                 = 5;
+      cfg.P_Ema2                 = 13;
+      cfg.P_Ema3                 = 34;
+      cfg.P_Ema4                 = 89;
 
-      // Disable entry layers
-      cfg.EnableLayerDetection     = false;
-      cfg.LayerTouchTolerance      = 0.0;
-      cfg.RequireRecoveryMomentum  = false;
-      cfg.RequirePullback          = false;
+      // ALL VOTES DISABLED (user enables ONE to test)
+      cfg.Ind_EmaSig_Enabled     = false;
+      cfg.Ind_Adx_Enabled        = false;
+      cfg.Ind_Macd_Enabled       = false;
+      cfg.Ind_Rsi_Enabled        = false;
+      cfg.Ind_Cci_Enabled        = false;
+      cfg.Ind_Mfi_Enabled        = false;
+      cfg.Ind_Sto_Enabled        = false;
+      cfg.Ind_Bb_Enabled         = false;
+      cfg.Ind_Psar_Enabled       = false;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Ross_Enabled       = false;
+      cfg.Ind_ATR_Enabled        = false;
 
-      // Disable all indicators (user enables one at a time for testing)
-      cfg.Ind_EmaSig_Enabled = false;
-      cfg.Ind_Adx_Enabled    = false;
-      cfg.Ind_Macd_Enabled   = false;
-      cfg.Ind_Rsi_Enabled    = false;
-      cfg.Ind_Cci_Enabled    = false;
-      cfg.Ind_Mfi_Enabled    = false;
-      cfg.Ind_Sto_Enabled    = false;
-      cfg.Ind_Bb_Enabled     = false;
-      cfg.Ind_Psar_Enabled   = false;
-      cfg.Ind_P123_Enabled   = false;
-      cfg.Ind_Ross_Enabled   = false;
-      cfg.Ind_ATR_Enabled    = false;
+      // Voting: ALL mode (with all indicators disabled, no vote filter applies)
+      cfg.VoteMode               = VOTE_MODE_ALL;
 
-      // Single indicator test: enable PSAR
-      cfg.Ind_Psar_Enabled     = true;
-      cfg.Vote_AllowPsarFlip   = true;
-      cfg.Vote_PsarFlipDelay   = 10;
-      cfg.P_PsarStep           = 0.02;
-      cfg.P_PsarMax            = 0.2;
+      // Indicator periods (all defined — user can override via inputs)
+      cfg.P_MacdFast             = 12;
+      cfg.P_MacdSlow             = 26;
+      cfg.P_MacdSig              = 9;
+      cfg.MacdVoteMode           = MACD_HISTOGRAM;
+      cfg.MacdRequireSlope       = false;
+      cfg.MacdRequireDivergence  = false;
+      cfg.MacdRequireHook        = false;
+      cfg.MacdFreshBars          = 3;
+      cfg.MacdSlopeMin           = 0.00001;
 
-      // Voting: ALL mode with single indicator active
-      cfg.VoteMode = VOTE_MODE_ALL;
+      cfg.P_Cci                  = 14;
+      cfg.P_PsarStep             = 0.02;
+      cfg.P_PsarMax              = 0.2;
+      cfg.P_Atr                  = 14;
+      cfg.P_Rsi                  = 14;
+      cfg.T_RsiOB                = 70.0;
+      cfg.T_RsiOS                = 30.0;
+      cfg.P_Adx                  = 14;
+      cfg.T_Adx                  = 20;
+      cfg.P_Mfi                  = 14;
+      cfg.T_MfiOB                = 80.0;
+      cfg.T_MfiOS                = 20.0;
+      cfg.P_StoK                 = 5;
+      cfg.P_StoD                 = 3;
+      cfg.P_StoSlow              = 3;
+      cfg.T_StoOB                = 80.0;
+      cfg.T_StoOS                = 20.0;
+      cfg.P_Bb                   = 20;
+      cfg.P_BbDev                = 2.0;
 
-      // Simple fixed SL/TP for testing
-      cfg.SLMode        = SL_MODE_FIXED_PIPS;
-      cfg.TPMode        = TP_MODE_FIXED_PIPS;
-      cfg.TrailMode     = TRAIL_NONE;
-      cfg.Use_BE        = false;
+      // ALL GATES DISABLED (remove filtering noise)
+      cfg.MaxSpread              = 100.0;
+      cfg.MinATR                 = 0.0;
+      cfg.MaxATR                 = 0.0;
+      cfg.ATR_HardGate           = false;
+      cfg.UseTime                = false;
+      cfg.UseNews                = false;
+      cfg.UseHTF                 = false;
+
+      // Phase detection disabled
+      cfg.PhaseDetectionEnabled      = false;
+      cfg.EnableLayerDetection       = false;
+      cfg.BlockUnorderedPhase        = false;
+      cfg.RequireMinPhaseConfirm     = false;
+      cfg.MinPhaseConfirmBars        = 0;
+
+      // RRM gates disabled
+      cfg.RequirePullback            = false;
+      cfg.PullbackLookback           = 0;
+      cfg.RequireRecoveryMomentum    = false;
+      cfg.Gate_UseMultiLayer         = false;
+      cfg.RRM_Lookback               = 0;
+      cfg.RRM_MinDivPips             = 0.0;
+
+      // Exits
+      cfg.SL_Mult                = 0.0;
+      cfg.SL_SwingPipsCushion    = 10.0;
+      cfg.SL_PsarPipsCushion     = 5.0;
+      cfg.TP_Mult                = 3.0;
+      cfg.TP_Enabled             = true;
+      cfg.Use_BE                 = false;
+      cfg.BE_Mode                = BE_MODE_OFF;
+      cfg.BE_Trig                = 0.0;
+      cfg.BE_Buff                = 0.0;
+      cfg.TrailMode              = TRAIL_NONE;
+      cfg.Trail_Mult             = 0.0;
+      cfg.PSAR_TrailCushionMode  = PSAR_CUSHION_PIPS;
+      cfg.PSAR_TrailPipsCushion  = 0.0;
+
+      // SL/TP strategy modes
+      cfg.SLMode            = SL_MODE_SWING;
+      cfg.TPMode            = TP_MODE_RR;
+      cfg.FixedTPPips       = 40.0;
+      cfg.SLPercent         = 0.5;
+      cfg.RRRatio           = 3.0;
+      cfg.SwingLookback     = 20;
+
+      // Restore operator-controlled gates (Policy A)
+      cfg.MaxSpread = op_MaxSpread;
+      cfg.MinATR    = op_MinATR;
+      cfg.MaxATR    = op_MaxATR;
+      cfg.UseTime   = op_UseTime;
+      cfg.StartHr   = op_StartHr;
+      cfg.EndHr     = op_EndHr;
+      cfg.UseNews   = op_UseNews;
+      cfg.NewsPre   = op_NewsPre;
+      cfg.NewsPost  = op_NewsPost;
+      cfg.UseHTF    = op_UseHTF;
+      cfg.HtfPeriod = op_HtfPeriod;
+      cfg.P_HtfEma  = op_P_HtfEma;
 
       return;
    }

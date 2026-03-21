@@ -197,7 +197,7 @@ void BuildUiReportingState()
          g_effectiveEmaStrategy = EMA_STRAT_CUSTOM;
    }
 
-   g_ui_ma_source = (InpPreset == PRESET_MA_BENCHMARK ? "BENCHMARK" : "CUSTOM");
+   g_ui_ma_source = (InpPreset == PRESET_MA ? "BENCHMARK" : "CUSTOM");
 
    if(InpPreset == PRESET_CUSTOM)
    {
@@ -1184,7 +1184,7 @@ void SEA_UI_ManageChartIndicators()
    int overlays_added = 0;
    int ts_components_visible = 0; // TS voting components on chart
 
-   // --- Benchmark MA (PRESET_MA_BENCHMARK mode)
+   // --- Benchmark MA (PRESET_MA mode)
    if(Settings.MABenchmarkStrict)
    {
       int h = Signal.GetPrimaryMAHandle();
