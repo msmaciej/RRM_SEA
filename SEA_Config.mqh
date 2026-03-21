@@ -11,23 +11,10 @@
 // --- STRATEGY PRESETS ---
 enum EStrategyPreset
 {
-   PRESET_CUSTOM,             // CUSTOM - User controlled (no preset overrides)
-   PRESET_MA_BENCHMARK,       // PRESET - MT5 MA "Moving Average" compatibility
-   PRESET_TREND_REVERSAL,     // PRESET - Trend Reversal (Baseline)
-   PRESET_TREND_SCALP,        // PRESET - Trend Scalp (Intraday confluence)
-   PRESET_TREND_SWING,        // PRESET - Trend Swing (Institutional)
-   PRESET_RANGE_GRID,         // PRESET - Range Grid (Conservative mean reversion)
-   PRESET_RRM_ATR,            // PRESET - RRM ATR Trend Pullback (OPTIMIZED)
-   PRESET_RRM,                // PRESET - RRM Strict No-ATR Trend Pullback
-   PRESET_TEST_INDICATOR      // PRESET - Isolated Indicator Testing (minimal, one indicator at a time)
-};
-
-// --- RRM MODE (for PRESET_RRM / PRESET_RRM_ATR) ---
-enum ERRMMode
-{
-   RRM_AUTO_BY_TF,            // RRM_Auto: M1/M5/M15 => SCALP; H1/H4+ => SWING
-   RRM_SCALP,                 // RRM_Scalp: faster bias pair (EMA1/EMA2)
-   RRM_SWING                  // RRM_Swing: slower bias pair (EMA3/EMA4)
+   PRESET_CUSTOM,          // Custom: User-defined settings
+   PRESET_MA_BENCHMARK,    // MA Benchmark: MT5 MA EA compatibility
+   PRESET_RRM,             // RRM: Phase-based layer detection system
+   PRESET_TEST             // Test: Development/debugging preset
 };
 
 // --- SIMPLE EMA SELECTOR ---
@@ -347,12 +334,10 @@ enum EPsarTrailCushionMode
 };
 
 // --- EXIT PROFILE SELECTOR ---
-// Selects the exit contract for a trade. LEGACY preserves current ATR-based behavior.
-// RRM_STRICT_NO_ATR is reserved for future strict non-ATR RRM execution (PR 2+).
+// Selects the exit contract for a trade.
 enum EExitProfile
 {
-   EXIT_PROFILE_LEGACY,             // Legacy: ATR-based exits (current behavior, default)
-   EXIT_PROFILE_RRM_STRICT_NO_ATR   // Strict non-ATR RRM exits (future; no ATR cushion/BE/TP/trail fallback)
+   EXIT_PROFILE_RRM    // RRM: Swing-based SL, PSAR trail, no ATR multipliers
 };
 
 // --- BREAKEVEN MODE SELECTOR ---
@@ -480,7 +465,9 @@ struct ST_Settings
    double MinATR;
    double MaxATR;
    bool   ATR_HardGate;
-   bool   Use_ATRVote;
+   bool   Ind_ATR_Enabled;   // ATR as voting indicator
+   double ATR_MinPips;        // ATR voting: minimum pips threshold
+   double ATR_MaxPips;        // ATR voting: maximum pips threshold
 
    // MT5 Moving Average benchmark compatibility
    bool   UseMACompatSizer;
@@ -635,7 +622,7 @@ struct ST_Settings
    int                 PSAR_TrailDelay;         // PSAR trailing bar-shift delay (1-3)
 
    // --- Strict non-ATR RRM exit contract (for future PRs; defaults preserve current behavior) ---
-   EExitProfile ExitProfile;            // Exit profile selector; EXIT_PROFILE_LEGACY = current ATR-based behavior
+   EExitProfile ExitProfile;            // Exit profile selector
    bool         TP_Enabled;             // Whether TP is active; true preserves existing TP_Mult>0 semantics
    EBeMode      BE_Mode;                // BE mode for strict non-ATR RRM; BE_MODE_OFF = legacy ATR BE untouched
 
@@ -659,9 +646,6 @@ struct ST_Settings
 
    // Reporting
    bool ExportCSV;
-
-   // --- AdminOverride system ---
-   bool AdminOverridePreset;
 
    // --- Global toggles allowed under presets ---
    bool         PrintEffectiveConfig;
@@ -739,49 +723,39 @@ ST_Settings Settings;
 //   ℹ️ ZONE 3A  — Pipeline Config (Steps 1–9) : reference defaults; presets override when active
 //                 └─ ZONE 3A.9: EXIT MANAGEMENT (Stop Loss, Take Profit, Breakeven, Trailing)
 //   🔧 ZONE 3C  — Adaptive Settings           : auto-scale by pair type & timeframe
-//   🔓 ZONE 3B  — Admin Override (§1–§7)     : unlock preset parameters for testing
 //
 // Tags used in descriptions:
 //   (Global; allowed under presets)                 - always honored (Zone 2A)
 //   (Operator gate; preserved under presets)        - Policy A: user-controlled even under presets (Zone 2A)
-//   (CUSTOM/TEST: editable; presets override)       - used by PRESET_CUSTOM & PRESET_TEST_INDICATOR (Zone 3A / Zone 3A.9)
+//   (CUSTOM/TEST: editable; presets override)       - used by PRESET_CUSTOM & PRESET_TEST (Zone 3A / Zone 3A.9)
 //   (CUSTOM; most presets override; strict sets 0)  - ATR gates forced off under strict RRM (Zone 3A)
 
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 // 🎯 ZONE 1 — PRESET SELECTION
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
-input group ""
 input group "         🎯 ZONE 1: PRESET SELECTION"
-input group ""
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
 input ulong           Inp_MagicNum              = 12345;       // Magic number (trade identifier)
-input EStrategyPreset InpPreset                 = PRESET_TEST_INDICATOR;   // Strategy preset
+input EStrategyPreset InpPreset                 = PRESET_TEST;   // Strategy preset
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📖 NAVIGATION GUIDE (Scroll to find your section)     ║"
 input group "╠════════════════════════════════════════════════════════╣"
 input group "║  ✅ ZONE 2A: OPERATOR GATES & UI (always editable)     ║"
 input group "║  ⚠️  ZONE 3A: Pipeline Config (Steps 1–9)              ║"
 input group "║     └─ ZONE 3A.9: EXIT MANAGEMENT ← START HERE        ║"
-input group "║  🔒 ZONE 3B: Admin Override (advanced users only)      ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input group ""
-input group ""
 
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 // ✅ ZONE 2A — OPERATOR GATES & UI  (Policy A — always editable)
 // These inputs are ALWAYS respected by all presets.
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
-input group ""
 input group "         ✅ ZONE 2A: OPERATOR GATES & UI"
 input group "            (Works in ALL presets)"
-input group ""
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🚫 SPREAD & ATR LIMITS                                ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -789,7 +763,6 @@ input double         Inp_MaxSpreadPips          = 3.0;    // Max spread (pips)
 input double         Inp_MinATRPips             = 0.0;    // Min ATR gate (pips; 0=off)
 input double         Inp_MaxATRPips             = 20.0;   // Max ATR gate (pips; 0=off)
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  ⏰ SESSION TIME FILTER                                 ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -797,7 +770,6 @@ input bool            Inp_UseTime                = false;              // Enable
 input int             Inp_StartHour              = 8;                  // Session start hour (broker time)
 input int             Inp_EndHour                = 20;                 // Session end hour (broker time)
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📰 NEWS FILTER                                        ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -806,7 +778,6 @@ input string          Inp_NewsFile               = "calendar_statement.csv"; // 
 input int             Inp_NewsPre                = 60;                 // Minutes before news to block entries
 input int             Inp_NewsPost               = 60;                 // Minutes after news to block entries
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📈 HTF TREND FILTER                                   ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -814,7 +785,6 @@ input bool            Inp_UseHTF                 = false;              // Enable
 input ENUM_TIMEFRAMES Inp_HtfPeriod              = PERIOD_H4;          // HTF timeframe
 input int             Inp_HtfEmaPeriod           = 89;                 // HTF EMA period
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🎨 UI: STATUS PANEL                                   ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -827,7 +797,6 @@ input int              Inp_UI_PanelFontSize     = 10;           // Status panel 
 input int              Inp_UI_LineSpacingPx     = 28;           // Status panel line spacing (px)
 input string           Inp_UI_PanelFont         = "Arial";      // Status panel font
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🎨 UI: COCKPIT PANEL                                  ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -839,7 +808,6 @@ input int              Inp_UI_CockpitFontSize   = 10;           // Cockpit panel
 input int              Inp_UI_CockpitLineSpacingPx = 28;        // Cockpit panel line spacing (px)
 input string           Inp_UI_CockpitFont       = "Arial";      // Cockpit panel font
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🎨 UI: SIGNAL MARKERS & COLORS                        ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -851,7 +819,6 @@ input int              Inp_UI_PanelBgAlpha      = 110;          // Panel backgro
 input EUIFrameMode     Inp_UI_FrameMode          = UI_FRAME_NONE; // Panel frame mode (BG/NONE/TEXT_BOUNDS)
 input int              Inp_UI_FramePadPx         = 6;           // Panel padding (px)
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔍 DIAGNOSTICS                                        ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -859,7 +826,6 @@ input bool           Inp_PrintEffectiveConfig   = true;         // Print effecti
 input bool           Inp_DebugFlow              = true;         // Print OnInit/OnTick/OnDeinit flow
 input EDebugLevel    Inp_DebugLevel             = DEBUG_SUMMARY; // Debug verbosity (SILENT/SUMMARY/INDICATORS/FULL)
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔍 DIAGNOSTICS: STATISTICS                            ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -869,7 +835,6 @@ input bool Inp_Stats_FullEvaluation = true;    // Evaluate ALL indicators per ba
 input string Inp_Stats_Info1 = "FullEvaluation=false: waterfall (stop at first fail)"; // Info
 input string Inp_Stats_Info2 = "FullEvaluation=true: evaluate all, identify true bottlenecks"; // Info
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔍 REPORTING                                          ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -880,20 +845,17 @@ input bool           Inp_ExportUseCommonFiles   = false;        // Use terminal 
 // ℹ️ ZONE 3A — PIPELINE CONFIG  (reference defaults by pipeline step)
 // Organized by the 9-step signal processing pipeline.
 // When a preset is active these are overridden by the preset.
-// In PRESET_CUSTOM & PRESET_TEST_INDICATOR mode all inputs are fully respected.
+// In PRESET_CUSTOM & PRESET_TEST mode all inputs are fully respected.
 // Steps 3 (Signal-Bias Match), 7 (Position Check) have no user inputs.
 // Steps 4 (HTF) and 8 (Operator Gates) are in Zone 2A.
 // Step 9 (Exit Management) is in ZONE 3A.9 below.
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
-input group ""
 input group "         ⚠️  ZONE 3A: PIPELINE CONFIG"
 input group "            (Steps 1-6 + ZONE 3A.9 Exit Mgmt; presets override)"
-input group ""
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
 
 // ── Step 1: Bias Calculation ─────────────────────────────────────────
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔧 STEP 1: Bias Calculation                           ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -912,19 +874,16 @@ input int            InpEma3Period              = 34;                // (CUSTOM;
 input int            InpEma4Period              = 89;                // (CUSTOM; presets override) EMA4 period (RRM bias slow)
 
 // ── Step 2: Entry Signal ─────────────────────────────────────────────
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔧 STEP 2: Entry Signal                               ║"
 input group "╚════════════════════════════════════════════════════════╝"
 input string         Inp_Step2_Info             = "Configure entry timing strategy"; // Info
 input EAutoStrategy  Inp_AutoStrat              = STRAT_PAIR_CROSS;  // (CUSTOM; presets override) Entry strategy (price cross / pair cross)
 input double         Inp_LayerTolerance         = 0.01;             // (CUSTOM; presets override) Layer touch tolerance (%, e.g. 0.01=1%; used by STRAT_LAYER_DETECTION)
-input ERRMMode       Inp_RRM_Mode               = RRM_AUTO_BY_TF; // (RRM presets) RRM mode (AUTO uses timeframe mapping)
 input bool           Inp_RRM_EnableInCustom     = false;          // (CUSTOM only) Enable RRM logic while using PRESET_CUSTOM
 input bool           Inp_CloseOnReverse         = false;          // (CUSTOM; presets may override) Close on reverse signal
 
 // ── Step 5: Structure Gate (Multi-layer pullback) ─────────────────────
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔧 STEP 5: Structure Gate (Pullback)                  ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -937,14 +896,12 @@ input int            Inp_RRM_Lookback           = 5;              // (CUSTOM; pr
 input double         Inp_RRM_MinDivPips         = 0.5;            // (CUSTOM; presets override) Min EMA divergence (pips)
 
 // ── Step 6: Indicator Voting ──────────────────────────────────────────
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔧 STEP 6: Voting Configuration                       ║"
 input group "╚════════════════════════════════════════════════════════╝"
 input string         Inp_Step6_Info             = "Configure multi-indicator consensus (ALL enabled must pass)"; // Info
 input bool           Inp_VoteMode_All           = true;                 // (CUSTOM; presets override) Vote mode: TRUE=all must agree (recommended), FALSE=threshold
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: EmaSig                                  ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -952,7 +909,6 @@ input bool           Inp_Ind_EmaSig_Enabled     = true;                // [EmaSi
 input int            Inp_Ind_EmaSig_Weight      = 1;                   // [EmaSig] Vote weight
 input string         Inp_Ind_EmaSig_Info        = "Price position vs EMA1"; // [EmaSig] Description
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: ADX                                     ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -962,7 +918,6 @@ input string         Inp_Ind_Adx_Info           = "Trend strength filter"; // [A
 input int            Inp_Ind_Adx_Period         = 14;                  // [ADX] Period
 input int            Inp_Ind_Adx_Threshold      = 20;                  // [ADX] Threshold
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: MACD                                    ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -999,7 +954,6 @@ input string         Inp_MacdHelp2              = "FILTERS: Check boxes to add e
 input string         Inp_MacdHelp3              = "Example: ZERO_LINE + Slope = Main>0 AND rising";                // Line 3
 input string         Inp_MacdHelp4              = "Example: CROSSOVER_N + Divergence = Fresh cross + bullish div"; // Line 4
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: RSI                                     ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -1011,7 +965,6 @@ input int            Inp_Ind_Rsi_Period         = 14;                  // [RSI] 
 input double         Inp_Ind_Rsi_OB             = 70.0;                // [RSI] Overbought level
 input double         Inp_Ind_Rsi_OS             = 30.0;                // [RSI] Oversold level
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: CCI                                     ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -1021,7 +974,6 @@ input string         Inp_Ind_Cci_Info           = "Commodity Channel Index"; // 
 input ECciMode       Inp_Ind_Cci_Mode           = CCI_TREND_ZERO;      // [CCI] Mode
 input int            Inp_Ind_Cci_Period         = 14;                  // [CCI] Period
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: MFI                                     ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -1031,7 +983,6 @@ input string         Inp_Ind_Mfi_Info           = "Money Flow Index"; // [MFI] D
 input int            Inp_Ind_Mfi_Period         = 14;                  // [MFI] Period
 input double         Inp_Ind_Mfi_Level          = 50.0;                // [MFI] Threshold/level
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: Stochastic                              ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -1043,7 +994,6 @@ input int            Inp_Ind_Sto_K              = 5;                   // [Stoch
 input int            Inp_Ind_Sto_D              = 3;                   // [Stoch] %D period
 input int            Inp_Ind_Sto_Slow           = 3;                   // [Stoch] Slowing
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: Bollinger Bands                         ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -1054,7 +1004,6 @@ input EBbMode        Inp_Ind_Bb_Mode            = BB_TREND_FOLLOW;     // [BB] M
 input int            Inp_Ind_Bb_Period          = 20;                  // [BB] Period
 input double         Inp_Ind_Bb_Dev             = 2.0;                 // [BB] Deviation
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: PSAR                                    ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -1065,7 +1014,15 @@ input double         Inp_Ind_Psar_Step          = 0.05;                // [PSAR]
 input double         Inp_Ind_Psar_Max           = 0.5;                 // [PSAR] Maximum
 input int            Inp_Vote_PsarFlipDelay     = 2;                   // [PSAR] Bars flip remains valid (0-10; FLIP mode only)
 
-input group ""
+input group "╔════════════════════════════════════════════════════════╗"
+input group "║  📊 Indicator: ATR (Volatility)                        ║"
+input group "╚════════════════════════════════════════════════════════╝"
+input bool           Inp_Ind_ATR_Enabled       = true;                // [ATR] Enable ATR as voting indicator
+input int            Inp_Ind_ATR_Period         = 14;                  // [ATR] Period
+input double         Inp_Ind_ATR_MinPips        = 5.0;                 // [ATR] Minimum pips (gate filter)
+input double         Inp_Ind_ATR_MaxPips        = 50.0;                // [ATR] Maximum pips (gate filter)
+input string         Inp_Ind_ATR_Info           = "Non-directional: validates volatility range (pre-filter + voting)"; // [ATR] Description
+
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: Pattern 1-2-3                           ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -1073,7 +1030,6 @@ input bool           Inp_Ind_P123_Enabled       = false;               // [P123]
 input int            Inp_Ind_P123_Weight        = 1;                   // [P123] Vote weight
 input string         Inp_Ind_P123_Info          = "1-2-3 fractal breakout pattern"; // [P123] Description
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: Ross Hook                               ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -1081,7 +1037,6 @@ input bool           Inp_Ind_Ross_Enabled       = false;               // [Ross]
 input int            Inp_Ind_Ross_Weight        = 1;                   // [Ross] Vote weight
 input string         Inp_Ind_Ross_Info          = "Ross hook trend momentum"; // [Ross] Description
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 TEMPLATE: Add Custom Indicator                     ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -1099,10 +1054,10 @@ input group "══════════ ℹ️ ZONE 3A.9: EXIT MANAGEMENT �
 
 // ── Exit Profile (Contract Selector) ─────────────────────────────────
 input group "═══ 🎯 Exit Profile (Strategy Contract) ═══"
-input string         Inp_Exit_Zone_Info1        = "Active for: PRESET_TEST_INDICATOR & PRESET_CUSTOM (direct input control)"; // [Zone 3A.9]
+input string         Inp_Exit_Zone_Info1        = "Active for: PRESET_TEST & PRESET_CUSTOM (direct input control)"; // [Zone 3A.9]
 input string         Inp_Exit_Zone_Info2        = "Other presets override exits with strategy-optimized values";               // [Zone 3A.9]
-input EExitProfile   Inp_ExitProfile            = EXIT_PROFILE_LEGACY; // Exit profile selector
-input string         Inp_ExitProfile_Info       = "LEGACY=absolute-pips BE/Trail  |  RRM_STRICT=percentage/R-multiple based"; // [Info]
+input EExitProfile   Inp_ExitProfile            = EXIT_PROFILE_RRM; // Exit profile selector
+input string         Inp_ExitProfile_Info       = "RRM: Swing-based SL, PSAR trail, no ATR multipliers"; // [Info]
 
 // ── Stop Loss Configuration ──────────────────────────────────────────
 input group "═══ 🛑 Stop Loss Configuration ═══"
@@ -1111,8 +1066,6 @@ input string         Inp_SL_Help1               = "FIXED_PIPS: Simple pip distan
 input string         Inp_SL_Help2               = "ATR: Volatility-based  |  PSAR_DOT: PSAR level  |  PERCENT: % of price  |  FRACTAL: Bill Williams"; // [Info]
 input double         Inp_SL_FixedPips           = 20.0;               // SL distance (pips; for SL_MODE_FIXED_PIPS)
 input string         Inp_SL_Fixed_Note          = "Overridden by Adaptive_SL when Adaptive_UseSL=true"; // [Info]
-input double         Inp_SL_Mult                = 1.5;                // ATR multiplier (for SL_MODE_ATR)
-input bool           Inp_UseATRforSL            = false;              // Enable ATR mode (for SL_MODE_ATR)
 input double         Inp_SL_PsarPipsCushion     = 5.0;                // PSAR cushion (pips; for SL_PSAR_DOT)
 input double         Inp_SL_SwingPipsCushion    = 10.0;               // Swing cushion (pips; for SL_MODE_SWING)
 input int            Inp_SwingLookback          = 20;                 // Swing lookback (bars; for SL_MODE_SWING)
@@ -1136,20 +1089,19 @@ input ETPMode        Inp_TPMode                 = TP_MODE_RR;         // TP calc
 input double         Inp_TP_Mult                = 3.0;                 // TP R-multiple (e.g. 3.0 = 3:1 RR)
 input double         Inp_RRRatio                = 2.0;                // Risk:Reward ratio (TP_MODE_RR only)
 input double         Inp_FixedTPPips            = 40.0;               // Fixed TP distance (pips; TP_MODE_FIXED_PIPS only)
-input bool           Inp_UseATRforTP            = false;              // ATR-based TP (TP_MODE_ATR only)
 
 input group "--- SL Configuration Examples ---"
 input string         Inp_Ex1_Header             = "Example 1 - Simple Fixed SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_SL_FixedPips=20, Inp_Adaptive_UseSL=false"; // [Info]
 input string         Inp_Ex2_Header             = "Example 2 - TF-Adaptive SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_Adaptive_UseSL=true, Inp_Adaptive_SL_Base=20"; // [Info]
 input string         Inp_Ex3_Header             = "Example 3 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20, Inp_SL_SwingPipsCushion=10"; // [Info]
-input string         Inp_Ex4_Header             = "Example 4 - ATR-Based SL:   Inp_SLMode=SL_MODE_ATR, Inp_UseATRforSL=true, Inp_SL_Mult=1.5"; // [Info]
+input string         Inp_Ex4_Header             = "Example 4 - ATR-Based SL:   Inp_SLMode=SL_MODE_ATR, Inp_SL_PsarPipsCushion=5"; // [Info]
 input string         Inp_Ex5_Header             = "Example 5 - PSAR Dot SL:    Inp_SLMode=SL_PSAR_DOT, Inp_SL_PsarPipsCushion=5 (or Inp_Adaptive_PsarUseATR=true)"; // [Info]
 
 // ── Breakeven Configuration ──────────────────────────────────────────
 input group "═══ ⚖️ Breakeven Configuration ═══"
-input string         Inp_BE_Legacy_Info         = "LEGACY BE uses ATR multipliers (ExitProfile = EXIT_PROFILE_LEGACY)"; // [Info]
+input string         Inp_BE_Legacy_Info         = "RRM BE uses % of TP distance — not absolute pips"; // [Info]
 input string         Inp_RRM_Info1              = "RRM uses % of TP distance for BE — not absolute pips"; // [RRM Info]
-input string         Inp_RRM_Info2              = "Only active when ExitProfile = EXIT_PROFILE_RRM_STRICT_NO_ATR"; // [RRM Info]
+input string         Inp_RRM_Info2              = "Only active when ExitProfile = EXIT_PROFILE_RRM"; // [RRM Info]
 input string         Inp_RRM_Info3              = "Example: SL=10 pips, TP=30 pips (3:1 RR), BE@33% → triggers at +10 pips profit"; // [RRM Info]
 input EBeMode        Inp_BE_Mode                = BE_MODE_OFF;         // RRM BE mode: OFF / TP_PROGRESS_PCT / R_MULTIPLE
 
@@ -1159,18 +1111,12 @@ input double         Inp_RRM_BE_RMultiple       = 1.0;                 // BE at 
 input double         Inp_RRM_BE_BufferPips      = 5.0;                 // BE buffer: lock SL at entry + X pips
 input string         Inp_RRM_BE_Example         = "Example: SL=10, TP=30 (3:1), BE@33% → triggers at +10 pips; SL locks at entry+5pips"; // [Info]
 
-input group "--- LEGACY Breakeven (ATR-based) ---"
-input bool           Inp_Use_BE                 = false;               // Enable legacy breakeven
-input double         Inp_BE_Trig                = 1.0;                 // BE trigger (ATR multiplier): move SL when profit ≥ X × ATR
-input double         Inp_BE_Buff                = 0.1;                 // BE buffer (ATR multiplier): lock SL at entry + X × ATR
 
 // ── Trailing Stop Configuration ──────────────────────────────────────
 input group "═══ 📈 Trailing Stop Configuration ═══"
 input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR;          // Trailing method
 input ETrailTrigger  Inp_TrailTrigger           = TRIGGER_IMMEDIATE;   // When to start trailing
-input double         Inp_Trail_Mult             = 3.0;                 // Trail ATR multiplier (ATR modes only)
 input double         Inp_TrailDistancePips      = 15.0;                // Fixed trail distance / profit trigger (pips)
-input double         Inp_TrailATRMultiplier     = 1.5;                 // Trail ATR multiplier (TRAIL_ATR mode)
 input double         Inp_BEThresholdPips        = 10.0;                // Pips profit to trigger breakeven (TRIGGER_BREAKEVEN)
 input double         Inp_TrailProfitPercent     = 1.0;                 // Profit % to start trailing (TRIGGER_PROFIT_PERCENT)
 input double         Inp_TrailStepPips          = 5.0;                 // Minimum pips to move SL each step
@@ -1190,7 +1136,7 @@ input string         Inp_RRM_Trail_Info         = "RRM trailing: PSAR-based with
 input group "═══ 💰 Risk Management ═══"
 input double         Inp_RiskPercent            = 2.0;    // Risk per trade (%)
 input string         Inp_Step9_Ref1             = "Risk per trade applies to all presets unless overridden by Admin Override"; // [Reference]
-input string         Inp_Step9_Ref2             = "To adjust exits under a strict preset: use ZONE 3B Admin Override §4"; // [Reference]
+input string         Inp_Step9_Ref2             = "To adjust exits under a strict preset: use PRESET_CUSTOM mode"; // [Reference]
 
 input group "--- MT5 Moving Average Benchmark ---"
 input double         Inp_MA_MaximumRiskPct      = 0.02;         // (PRESET_MA_BENCHMARK only) Max risk (%) for MA benchmark sizer
@@ -1208,20 +1154,16 @@ input group "══════════ ℹ️ END: ZONE 3A.9 EXIT MANAGEMEN
 // When TF scaling is AUTO, all base values are multiplied by the TF factor.
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
-input group ""
 input group "         🔧 ZONE 3C: ADAPTIVE SETTINGS"
 input group "            (Auto-scale by pair & timeframe)"
-input group ""
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔧 Adaptive: Pair Type Detection                      ║"
 input group "╚════════════════════════════════════════════════════════╝"
 input EPairType      Inp_Adaptive_PairType      = PAIR_TYPE_AUTO; // Pair type (AUTO detects from symbol name)
 input string         Inp_Adaptive_PairInfo      = "AUTO: EURUSD/GBPUSD/USDJPY=MAJOR; XAUUSD/GOLD=GOLD; BTC/ETH=CRYPTO; TRY/ZAR/MXN=EXOTIC; others=MINOR"; // Pair detection reference
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔧 Adaptive: Spread Limits (by pair type)             ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -1231,7 +1173,6 @@ input double         Inp_Adaptive_Spread_Exotic = 10.0;          // Max spread f
 input double         Inp_Adaptive_Spread_Gold   = 5.0;           // Max spread for gold/XAU (pips)
 input double         Inp_Adaptive_Spread_Crypto = 50.0;          // Max spread for crypto (pips)
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔧 Adaptive: ATR Limits (by timeframe)                ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -1240,7 +1181,6 @@ input double         Inp_Adaptive_ATR_Min_Base  = 5.0;           // Base min ATR
 input double         Inp_Adaptive_ATR_Max_Base  = 20.0;          // Base max ATR for M15 (pips; 0=off)
 input string         Inp_Adaptive_ATR_Info      = "AUTO scales: M1×0.5, M5×0.67, M15×1.0, M30×1.5, H1×2, H4×4, D1×8, W1×24"; // Scaling reference
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔧 Adaptive: SL/TP Distance (by timeframe)            ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -1249,164 +1189,18 @@ input double         Inp_Adaptive_TP_Base       = 40.0;          // Base TP dist
 input bool           Inp_Adaptive_UseSL         = false;         // Apply adaptive SL (overrides SL_FixedPips when enabled)
 input bool           Inp_Adaptive_UseTP         = false;         // Apply adaptive TP (sets TP distance when enabled)
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔧 Adaptive: Trail Stop Cushion (by timeframe)        ║"
 input group "╚════════════════════════════════════════════════════════╝"
 input double         Inp_Adaptive_TrailCushion_Base = 5.0;       // Base trail cushion for M15 (pips)
 input bool           Inp_Adaptive_UseTrailCushion   = false;     // Apply adaptive trail cushion (replaces manual PSAR pips cushion)
 
-input group ""
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔧 Adaptive: PSAR Trail Cushion (by volatility)       ║"
 input group "╚════════════════════════════════════════════════════════╝"
 input double         Inp_Adaptive_PsarCushion_Pips  = 3.0;       // PSAR trail cushion when not using ATR mode (pips)
 input bool           Inp_Adaptive_PsarUseATR         = false;    // Use ATR multiplier for PSAR cushion instead of fixed pips
 input double         Inp_Adaptive_PsarATR_Multiplier = 0.5;      // PSAR cushion as fraction of ATR (e.g. 0.5 = half ATR)
-
-// ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-// 🔓 ZONE 3B — ADMIN OVERRIDE  (preset testing for experienced users)
-// Set Inp_AdminOverridePreset=true to activate §1–§5 override fields.
-// Has no effect in PRESET_CUSTOM mode (all inputs already respected).
-// ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
-input group ""
-input group "         🔒 ZONE 3B: ADMIN OVERRIDE"
-input group "            (Set AdminOverride=true to activate §1-§7)"
-input group ""
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
-input bool           Inp_AdminOverridePreset        = false; // Unlock preset parameters for testing (true=admin mode)
-input string         _admin_info1                   = "OFF: Inp_Override_* inputs IGNORED (preset used)"; // [Info] Admin OFF behaviour
-input string         _admin_info2                   = "ON:  Inp_Override_* inputs REPLACE preset values"; // [Info] Admin ON behaviour
-input string         _admin_info3                   = "";                                                  // [Info] Spacer
-input string         _admin_scope1                  = "Overridable: Bias, Phase, Layer, Indicators";       // [Info] Overridable settings scope
-input string         _admin_scope2                  = "NOT overridable: Adaptive (use Zone 2)";            // [Info] Non-overridable scope
-
-input group ""
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔓 ADMIN OVERRIDE: §1 Strategy, EMAs & Votes          ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input EAutoStrategy  Inp_Override_AutoStrat          = STRAT_PAIR_CROSS; // [Admin] Override AutoStrat when AdminOverride=true
-input int            Inp_Override_EMA1               = 5;                 // [Admin] Override EMA1 period when AdminOverride=true
-input int            Inp_Override_EMA2               = 13;                // [Admin] Override EMA2 period when AdminOverride=true
-input int            Inp_Override_EMA3               = 34;                // [Admin] Override EMA3 period when AdminOverride=true
-input int            Inp_Override_EMA4               = 89;                // [Admin] Override EMA4 period when AdminOverride=true
-input bool           Inp_Override_Use_EmaSig          = true;             // [Admin] Override EMA signal vote when AdminOverride=true
-input bool           Inp_Override_Use_Macd            = true;             // [Admin] Override MACD vote when AdminOverride=true
-input bool           Inp_Override_Use_Psar            = true;             // [Admin] Override PSAR vote when AdminOverride=true
-input bool           Inp_Override_Use_Cci             = true;             // [Admin] Override CCI vote when AdminOverride=true
-input bool           Inp_Override_Use_Rsi             = false;            // [Admin] Override RSI vote when AdminOverride=true
-input bool           Inp_Override_Use_Adx             = false;            // [Admin] Override ADX vote when AdminOverride=true
-input bool           Inp_Override_Use_Mfi             = false;            // [Admin] Override MFI vote when AdminOverride=true
-input bool           Inp_Override_Use_Sto             = false;            // [Admin] Override Stochastic vote when AdminOverride=true
-input bool           Inp_Override_Use_Bb              = false;            // [Admin] Override Bollinger vote when AdminOverride=true
-input bool           Inp_Override_Use_P123            = false;            // [Admin] Override 1-2-3 pattern vote when AdminOverride=true
-input bool           Inp_Override_Use_Ross            = false;            // [Admin] Override Ross hook vote when AdminOverride=true
-input bool           Inp_Override_RequirePullback            = false;     // [Admin] Override RequirePullback when AdminOverride=true
-input int            Inp_Override_PullbackLookback           = 10;        // [Admin] Override PullbackLookback when AdminOverride=true
-input bool           Inp_Override_RequireRecoveryMomentum    = false;     // [Admin] Override RequireRecoveryMomentum when AdminOverride=true
-input bool           Inp_Override_UseMultiLayer              = true;      // [Admin] Override UseMultiLayer (cascading EMA pullback) when AdminOverride=true
-
-input group ""
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔓 ADMIN OVERRIDE: §2 Indicator Parameters            ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input int            Inp_Override_MACD_Fast           = 8;                // [Admin] Override MACD Fast period when AdminOverride=true
-input int            Inp_Override_MACD_Slow           = 13;               // [Admin] Override MACD Slow period when AdminOverride=true
-input int            Inp_Override_MACD_Signal         = 8;                // [Admin] Override MACD Signal period when AdminOverride=true
-input int            Inp_Override_ADX_Period                 = 14;        // [Admin] Override ADX period when AdminOverride=true
-input int            Inp_Override_ADX_Threshold              = 20;        // [Admin] Override ADX threshold when AdminOverride=true
-input int            Inp_Override_RSI_Period                 = 14;        // [Admin] Override RSI period when AdminOverride=true
-input double         Inp_Override_RSI_OB                     = 70.0;      // [Admin] Override RSI overbought level when AdminOverride=true
-input double         Inp_Override_RSI_OS                     = 30.0;      // [Admin] Override RSI oversold level when AdminOverride=true
-input int            Inp_Override_STO_K                      = 5;         // [Admin] Override Stochastic %K period when AdminOverride=true
-input int            Inp_Override_STO_D                      = 3;         // [Admin] Override Stochastic %D period when AdminOverride=true
-input int            Inp_Override_STO_Slow                   = 3;         // [Admin] Override Stochastic slowing period when AdminOverride=true
-input double         Inp_Override_STO_OB                     = 80.0;      // [Admin] Override Stochastic overbought level when AdminOverride=true
-input double         Inp_Override_STO_OS                     = 20.0;      // [Admin] Override Stochastic oversold level when AdminOverride=true
-input double         Inp_Override_PSAR_Step                  = 0.05;      // [Admin] Override PSAR step when AdminOverride=true
-input double         Inp_Override_PSAR_Max                   = 0.5;       // [Admin] Override PSAR maximum when AdminOverride=true
-input int            Inp_Override_CCI_Period                 = 14;        // [Admin] Override CCI period when AdminOverride=true
-input int            Inp_Override_BB_Period                  = 20;        // [Admin] Override Bollinger Bands period when AdminOverride=true
-input double         Inp_Override_BB_Dev                     = 2.0;       // [Admin] Override Bollinger Bands deviation when AdminOverride=true
-input int            Inp_Override_MFI_Period                 = 14;        // [Admin] Override MFI period when AdminOverride=true
-input double         Inp_Override_MFI_OB                     = 50.0;      // [Admin] Override MFI overbought threshold when AdminOverride=true
-input double         Inp_Override_MFI_OS                     = 50.0;      // [Admin] Override MFI oversold threshold when AdminOverride=true
-input int            Inp_Override_ATR_Period                 = 14;        // [Admin] Override ATR period when AdminOverride=true
-input double         Inp_Override_ATR_MinPips                = 0.0;       // [Admin] Override ATR min pips gate when AdminOverride=true
-input double         Inp_Override_ATR_MaxPips                = 0.0;       // [Admin] Override ATR max pips gate when AdminOverride=true
-input bool           Inp_Override_ATR_UseAsVote              = false;     // [Admin] Override ATR use-as-vote when AdminOverride=true
-
-input group ""
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔓 ADMIN OVERRIDE: §3 Risk & Entry                    ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input bool                Inp_Override_RequirePriceCross     = false;     // [Admin] Override RequirePriceCross when AdminOverride=true
-input bool                Inp_Override_UseHTF                = false;     // [Admin] Override HTF filter enabled when AdminOverride=true
-input bool                Inp_Override_CloseOnReverse        = true;      // [Admin] Override CloseOnReverse when AdminOverride=true
-input double              Inp_Override_RiskPercent           = 2.0;       // [Admin] Override RiskPercent (%) when AdminOverride=true
-input ESlPlacementMode    Inp_Override_SL_PlacementMode      = SL_ATR;    // [Admin] Override SL placement mode when AdminOverride=true
-input double              Inp_Override_SL_Mult               = 1.5;       // [Admin] Override SL ATR multiplier when AdminOverride=true
-input double              Inp_Override_SL_PsarPipsCushion    = 5.0;       // [Admin] Override SL PSAR cushion (pips) when AdminOverride=true
-input double              Inp_Override_SL_SwingPipsCushion   = 10.0;      // [Admin] Override SL swing cushion (pips) when AdminOverride=true
-
-input group ""
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔓 ADMIN OVERRIDE: §4 Exits & Trailing                ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input double              Inp_Override_TP_Mult               = 3.0;       // [Admin] Override TP multiplier when AdminOverride=true
-input bool                Inp_Override_Use_BE                = false;      // [Admin] Override breakeven enabled when AdminOverride=true
-input double              Inp_Override_BE_Trig               = 1.0;       // [Admin] Override BE trigger (R-multiple) when AdminOverride=true
-input double              Inp_Override_BE_Buff               = 0.1;       // [Admin] Override BE buffer (pips) when AdminOverride=true
-input ETrailingMode       Inp_Override_TrailMode             = TRAIL_NONE; // [Admin] Override trailing stop mode when AdminOverride=true
-input double              Inp_Override_Trail_Mult            = 1.5;       // [Admin] Override trail ATR multiplier when AdminOverride=true
-input EPsarTrailCushionMode Inp_Override_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // [Admin] Override PSAR trail cushion mode when AdminOverride=true
-input double              Inp_Override_PSAR_TrailPipsCushion = 5.0;       // [Admin] Override PSAR trail cushion (pips) when AdminOverride=true
-
-input group ""
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔓 ADMIN OVERRIDE: §5 Phase Settings                  ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input bool     Inp_Override_PhaseDetectionEnabled   = true;    // [Admin] Enable phase detection when AdminOverride=true
-input bool     Inp_Override_BlockUnorderedPhase     = true;    // [Admin] Block all trades in UNORDERED phase when AdminOverride=true
-input bool     Inp_Override_RequireMinPhaseConfirm  = true;    // [Admin] Require min-bar phase confirmation when AdminOverride=true
-input int      Inp_Override_MinPhaseConfirmBars     = 0;       // [Admin] Min bars to confirm phase stability (0=instant, 1-10=delay) when AdminOverride=true
-
-input group ""
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔓 ADMIN OVERRIDE: §6 Layer Settings                  ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input bool     Inp_Override_EnableLayerDetection    = true;    // [Admin] Enable layer filtering when AdminOverride=true
-
-input group ""
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔓 ADMIN OVERRIDE: §6.1 Layer 1 (Weak/EMA1-EMA2)      ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input bool     Inp_Override_Layer1_AllowTrending    = true;    // [Admin] Layer 1: Allow TRENDING phase when AdminOverride=true
-input bool     Inp_Override_Layer1_AllowEmerging    = true;    // [Admin] Layer 1: Allow EMERGING phase when AdminOverride=true
-
-input group ""
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔓 ADMIN OVERRIDE: §6.2 Layer 2 (Medium/EMA2-EMA3)    ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input bool     Inp_Override_Layer2_AllowTrending    = true;    // [Admin] Layer 2: Allow TRENDING phase when AdminOverride=true
-input bool     Inp_Override_Layer2_AllowEmerging    = true;    // [Admin] Layer 2: Allow EMERGING phase when AdminOverride=true
-
-input group ""
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔓 ADMIN OVERRIDE: §6.3 Layer 3 (Strong/EMA3-EMA4)    ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input bool     Inp_Override_Layer3_AllowTrending    = true;    // [Admin] Layer 3: Allow TRENDING phase when AdminOverride=true
-input bool     Inp_Override_Layer3_AllowEmerging    = false;   // [Admin] Layer 3: Allow EMERGING phase when AdminOverride=true
-
-input group ""
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔓 ADMIN OVERRIDE: §7 RRM Drawdown Protection         ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input bool   Inp_RRM_EnableDrawdownProtection = false;  // [Admin] Enable DD protection
-input int    Inp_RRM_MaxConsecutiveLosses     = 5;      // [Admin] Pause after X consecutive losses
-input int    Inp_RRM_MaxTradesPerDay          = 15;     // [Admin] Max trades per day (0=unlimited)
-input double Inp_RRM_MaxDailyDrawdownPct      = 3.0;    // [Admin] Pause if daily DD exceeds % (0=disabled)
 
 //+------------------------------------------------------------------+
 //| ADAPTIVE UTILITY FUNCTIONS                                       |
@@ -1538,7 +1332,6 @@ void InitializeConfig()
    Settings.DebugLevel               = Inp_DebugFlow ? Inp_DebugLevel : DEBUG_SILENT;
    // DebugFlow=true only when running at full verbosity (maintains backward compat for all existing checks)
    Settings.DebugFlow                = (Settings.DebugLevel >= DEBUG_FULL);
-   Settings.AdminOverridePreset      = Inp_AdminOverridePreset;
 
    Settings.Stats_TrackRejections    = Inp_Stats_TrackRejections;
    Settings.Stats_TrackPasses        = Inp_Stats_TrackPasses;
@@ -1563,9 +1356,10 @@ void InitializeConfig()
    Settings.MaxATR               = Inp_MaxATRPips;
 
    // Defaults for gating/vote semantics
-   // (If you later add explicit inputs for these, map them here.)
    Settings.ATR_HardGate         = false;
-   Settings.Use_ATRVote          = false;
+   Settings.Ind_ATR_Enabled      = Inp_Ind_ATR_Enabled;
+   Settings.ATR_MinPips          = Inp_Ind_ATR_MinPips;
+   Settings.ATR_MaxPips          = Inp_Ind_ATR_MaxPips;
 
    // MA benchmark inputs (strategy fields; preset may use/override semantics later)
    Settings.UseMACompatSizer     = false;
@@ -1641,7 +1435,7 @@ void InitializeConfig()
    Settings.P_PsarStep           = Inp_Ind_Psar_Step;
    Settings.P_PsarMax            = Inp_Ind_Psar_Max;
    Settings.P_PsarTrailCushionATR= Inp_PSAR_TrailCushionATR;
-   Settings.P_Atr                = 14;
+   Settings.P_Atr                = Inp_Ind_ATR_Period;
 
    // Modes
    Settings.MacdVoteMode         = Inp_MacdVoteMode;
@@ -1684,7 +1478,7 @@ void InitializeConfig()
 
    // Exits
    Settings.SL_PlacementMode     = Inp_SL_PlacementMode;
-   Settings.SL_Mult              = Inp_SL_Mult;
+   Settings.SL_Mult              = 0.0;
    Settings.SL_PsarPipsCushion   = Inp_SL_PsarPipsCushion;
    Settings.SL_SwingPipsCushion  = Inp_SL_SwingPipsCushion;
    Settings.SL_FixedPips         = Inp_SL_FixedPips;
@@ -1693,8 +1487,8 @@ void InitializeConfig()
    Settings.SLMode         = Inp_SLMode;
    Settings.TPMode         = Inp_TPMode;
    Settings.FixedTPPips    = Inp_FixedTPPips;
-   Settings.UseATRforSL    = Inp_UseATRforSL;
-   Settings.UseATRforTP    = Inp_UseATRforTP;
+   Settings.UseATRforSL    = false;
+   Settings.UseATRforTP    = false;
    Settings.SLPercent      = Inp_SLPercent;
    Settings.RRRatio        = Inp_RRRatio;
    Settings.SwingLookback  = Inp_SwingLookback;
@@ -1738,7 +1532,7 @@ void InitializeConfig()
    // Phase 2.2: Advanced trailing trigger settings
    Settings.TrailTrigger       = Inp_TrailTrigger;
    Settings.TrailDistancePips  = Inp_TrailDistancePips;
-   Settings.TrailATRMultiplier = Inp_TrailATRMultiplier;
+   Settings.TrailATRMultiplier = 0.0;
    Settings.BEThresholdPips    = Inp_BEThresholdPips;
    Settings.TrailProfitPercent = Inp_TrailProfitPercent;
    Settings.TrailStepPips      = Inp_TrailStepPips;
@@ -1746,12 +1540,12 @@ void InitializeConfig()
 
    Settings.TP_Mult              = Inp_TP_Mult;
    Settings.TP_Enabled              = Inp_TP_Enabled;
-   Settings.Use_BE               = Inp_Use_BE;
-   Settings.BE_Trig              = Inp_BE_Trig;
-   Settings.BE_Buff              = Inp_BE_Buff;
+   Settings.Use_BE               = false;
+   Settings.BE_Trig              = 0.0;
+   Settings.BE_Buff              = 0.0;
 
    Settings.TrailMode            = Inp_TrailMode;
-   Settings.Trail_Mult           = Inp_Trail_Mult;
+   Settings.Trail_Mult           = 0.0;
    Settings.PSAR_TrailCushionMode= Inp_PSAR_TrailCushionMode;
    Settings.PSAR_TrailPipsCushion= Inp_PSAR_TrailPipsCushion;
    Settings.PSAR_TrailDelay      = (Inp_PSAR_TrailDelay < 1) ? 1 : (Inp_PSAR_TrailDelay > 3) ? 3 : Inp_PSAR_TrailDelay;
@@ -1809,11 +1603,8 @@ void InitializeConfig()
       Print("");
 
       Print("  Breakeven (LEGACY Mode):");
-      Print("    Input:  Inp_Use_BE = ", Inp_Use_BE);
       Print("    Mapped: Settings.Use_BE = ", Settings.Use_BE);
-      Print("    Input:  Inp_BE_Trig = ", Inp_BE_Trig);
       Print("    Mapped: Settings.BE_Trig = ", Settings.BE_Trig);
-      Print("    Input:  Inp_BE_Buff = ", Inp_BE_Buff);
       Print("    Mapped: Settings.BE_Buff = ", Settings.BE_Buff);
       Print("");
 
