@@ -1094,7 +1094,7 @@ input group "--- SL Configuration Examples ---"
 input string         Inp_Ex1_Header             = "Example 1 - Simple Fixed SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_SL_FixedPips=20, Inp_Adaptive_UseSL=false"; // [Info]
 input string         Inp_Ex2_Header             = "Example 2 - TF-Adaptive SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_Adaptive_UseSL=true, Inp_Adaptive_SL_Base=20"; // [Info]
 input string         Inp_Ex3_Header             = "Example 3 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20, Inp_SL_SwingPipsCushion=10"; // [Info]
-input string         Inp_Ex4_Header             = "Example 4 - ATR-Based SL:   Inp_SLMode=SL_MODE_ATR, Inp_SL_PsarPipsCushion=5"; // [Info]
+input string         Inp_Ex4_Header             = "Example 4 - Fractal SL:     Inp_SLMode=SL_FRACTAL, Inp_FractalPeriod=5, Inp_TPFractalOffset=1"; // [Info]
 input string         Inp_Ex5_Header             = "Example 5 - PSAR Dot SL:    Inp_SLMode=SL_PSAR_DOT, Inp_SL_PsarPipsCushion=5 (or Inp_Adaptive_PsarUseATR=true)"; // [Info]
 
 // ── Breakeven Configuration ──────────────────────────────────────────
