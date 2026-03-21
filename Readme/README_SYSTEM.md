@@ -1570,7 +1570,7 @@ Key settings (`PRESET_RRM` defaults):
 meet the broker's minimum stop level (`SYMBOL_TRADE_STOPS_LEVEL`). If validation fails, the trade is
 aborted and an error is logged (prevents Error 10041 / TRADE_RETCODE_LOCKED).
 
-Use `PRESET_RRM` for swing-anchored stops that respect structure regardless of ATR size, and to avoid broker minimum-stop rejections on small ATR readings. ATR still participates as a voting indicator (Step 8) even when ATR-based SL is disabled.
+Use `PRESET_RRM` for swing-anchored stops that respect structure regardless of ATR size, avoiding broker minimum-stop rejections on small ATR readings. Note that ATR still participates as a voting indicator (Step 8) even when ATR-based SL is disabled.
 
 ## PSAR/Swing Cushion System (Dual Cushion)
 
