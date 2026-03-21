@@ -1825,6 +1825,75 @@ void InitializeConfig()
    Settings.RRM_FreezeTrailOnFlip   = Inp_RRM_FreezeTrailOnFlip;
    Settings.RRM_TrailStartsAfterBE  = Inp_RRM_TrailStartsAfterBE;
 
+   // ═══════════════════════════════════════════════════════════════
+   // 🔍 DIAGNOSTIC: Log exit management mapping
+   // ═══════════════════════════════════════════════════════════════
+   if(Settings.DebugLevel >= DEBUG_SUMMARY || Settings.PrintEffectiveConfig)
+   {
+      Print("════════════════════════════════════════════════════════════");
+      Print("🔍 DIAGNOSTIC: InitializeConfig() - Exit Management Mapping");
+      Print("════════════════════════════════════════════════════════════");
+      Print("");
+      Print("📊 INPUTS → SETTINGS:");
+      Print("  ExitProfile:");
+      Print("    Input:  Inp_ExitProfile = ", EnumToString(Inp_ExitProfile));
+      Print("    Mapped: Settings.ExitProfile = ", EnumToString(Settings.ExitProfile));
+      Print("    ✓ Match: ", (Settings.ExitProfile == Inp_ExitProfile ? "YES" : "❌ NO - BUG!"));
+      Print("");
+
+      Print("  Stop Loss:");
+      Print("    Input:  Inp_SLMode = ", EnumToString(Inp_SLMode));
+      Print("    Mapped: Settings.SLMode = ", EnumToString(Settings.SLMode));
+      Print("    ✓ Match: ", (Settings.SLMode == Inp_SLMode ? "YES" : "❌ NO - BUG!"));
+      Print("    Input:  Inp_SL_PsarPipsCushion = ", Inp_SL_PsarPipsCushion);
+      Print("    Mapped: Settings.SL_PsarPipsCushion = ", Settings.SL_PsarPipsCushion);
+      Print("");
+
+      Print("  Take Profit:");
+      Print("    Input:  Inp_TPMode = ", EnumToString(Inp_TPMode));
+      Print("    Mapped: Settings.TPMode = ", EnumToString(Settings.TPMode));
+      Print("    ✓ Match: ", (Settings.TPMode == Inp_TPMode ? "YES" : "❌ NO - BUG!"));
+      Print("    Input:  Inp_TP_Mult = ", Inp_TP_Mult);
+      Print("    Mapped: Settings.TP_Mult = ", Settings.TP_Mult);
+      Print("");
+
+      Print("  Breakeven (RRM Mode):");
+      Print("    Input:  Inp_BE_Mode = ", EnumToString(Inp_BE_Mode));
+      Print("    Mapped: Settings.BE_Mode = ", EnumToString(Settings.BE_Mode));
+      Print("    ✓ Match: ", (Settings.BE_Mode == Inp_BE_Mode ? "YES" : "❌ NO - BUG!"));
+      Print("    Input:  Inp_RRM_BE_ProgressPct = ", Inp_RRM_BE_ProgressPct);
+      Print("    Mapped: Settings.RRM_BE_ProgressPct = ", Settings.RRM_BE_ProgressPct);
+      Print("    Input:  Inp_RRM_BE_BufferPips = ", Inp_RRM_BE_BufferPips);
+      Print("    Mapped: Settings.RRM_BE_BufferPips = ", Settings.RRM_BE_BufferPips);
+      Print("");
+
+      Print("  Breakeven (LEGACY Mode):");
+      Print("    Input:  Inp_Use_BE = ", Inp_Use_BE);
+      Print("    Mapped: Settings.Use_BE = ", Settings.Use_BE);
+      Print("    Input:  Inp_BE_Trig = ", Inp_BE_Trig);
+      Print("    Mapped: Settings.BE_Trig = ", Settings.BE_Trig);
+      Print("    Input:  Inp_BE_Buff = ", Inp_BE_Buff);
+      Print("    Mapped: Settings.BE_Buff = ", Settings.BE_Buff);
+      Print("");
+
+      Print("  Trailing Stop:");
+      Print("    Input:  Inp_TrailMode = ", EnumToString(Inp_TrailMode));
+      Print("    Mapped: Settings.TrailMode = ", EnumToString(Settings.TrailMode));
+      Print("    ✓ Match: ", (Settings.TrailMode == Inp_TrailMode ? "YES" : "❌ NO - BUG!"));
+      Print("    Input:  Inp_PSAR_TrailPipsCushion = ", Inp_PSAR_TrailPipsCushion);
+      Print("    Mapped: Settings.PSAR_TrailPipsCushion = ", Settings.PSAR_TrailPipsCushion);
+      Print("    Input:  Inp_PSAR_TrailDelay = ", Inp_PSAR_TrailDelay);
+      Print("    Mapped: Settings.PSAR_TrailDelay = ", Settings.PSAR_TrailDelay);
+      Print("    Input:  Inp_RRM_TrailStartsAfterBE = ", Inp_RRM_TrailStartsAfterBE);
+      Print("    Mapped: Settings.RRM_TrailStartsAfterBE = ", Settings.RRM_TrailStartsAfterBE);
+      Print("");
+
+      Print("════════════════════════════════════════════════════════════");
+      Print("✅ InitializeConfig() complete - values stored in Settings");
+      Print("════════════════════════════════════════════════════════════");
+      Print("");
+   }
+
    // Gate system defaults (all gates off; presets may enable them)
    // RequirePullback, PullbackLookback, RequireRecoveryMomentum are mapped from inputs above
    Settings.Vote_EvalShift           = 1;
