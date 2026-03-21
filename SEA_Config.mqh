@@ -214,7 +214,24 @@ enum ETrailTrigger
 // Selects the exit contract for a trade.
 enum EExitProfile
 {
-   EXIT_PROFILE_RRM    // RRM: Swing-based SL, PSAR trail, no ATR multipliers
+   EXIT_PROFILE_NONE,      // No exit profile (manual management)
+   EXIT_PROFILE_SIMPLE,    // Simple: Fixed SL/TP, basic trailing
+   EXIT_PROFILE_RRM        // RRM: Swing-based SL, PSAR trail, no ATR multipliers
+};
+
+// --- MFI MODE SELECTOR ---
+enum EMfiMode
+{
+   MFI_ZONE_FILTER,       // Zone-based filtering (>80 overbought, <20 oversold)
+   MFI_TREND_50           // Trend following (>50 bullish, <50 bearish)
+};
+
+// --- RRM MODE SELECTOR (for PRESET_RRM adaptive configuration) ---
+enum ERRMMode
+{
+   RRM_AUTO_BY_TF,        // Auto-select scalp/swing based on timeframe (M1-M15=scalp, M30+=swing)
+   RRM_SCALP,             // Scalp: Tight SL/TP, Layer 1 entries, fast exits
+   RRM_SWING              // Swing: Wide SL/TP, Layer 2-3 entries, patient exits
 };
 
 // --- BREAKEVEN MODE SELECTOR ---
@@ -440,6 +457,20 @@ struct ST_Settings
    bool Ind_Psar_Enabled;
    bool Ind_P123_Enabled;
    bool Ind_Ross_Enabled;
+
+   // ATR voting (separate from pre-filter gate)
+   bool   Use_ATRVote;              // Enable ATR as voting indicator (distinct from MinATR/MaxATR gates)
+
+   // MFI mode
+   EMfiMode MfiMode;                // MFI vote mode (ZONE_FILTER or TREND_50)
+
+   // RRM gate structures (SGateConfig defined above)
+   SGateConfig Gate_Recovery;       // Recovery momentum gate config
+   SGateConfig Gate_EmaDiv;         // EMA divergence gate config
+   SGateConfig Gate_CandleDirection; // Candle direction gate config
+
+   // Fixed lot sizing (0 = use risk-based sizing)
+   double FixedLotSize;             // Fixed lot size (0 = risk-based; >0 = fixed)
 
    // SL - Initial SL Placement
    double           SL_Mult;
@@ -696,6 +727,15 @@ input group "╚═════════════════════�
 input bool           Inp_ExportCSV              = false;        // Export CSV reporting
 input bool           Inp_ExportUseCommonFiles   = false;        // Use terminal Common Files folder for export
 
+input group "╔════════════════════════════════════════════════════════╗"
+input group "║  🔧 RRM MODE & DRAWDOWN PROTECTION (Policy A)          ║"
+input group "╚════════════════════════════════════════════════════════╝"
+input ERRMMode       Inp_RRM_Mode                       = RRM_AUTO_BY_TF; // RRM mode (auto/scalp/swing; PRESET_RRM only)
+input bool           Inp_RRM_EnableDrawdownProtection   = false;          // Enable RRM drawdown protection (PRESET_RRM only)
+input int            Inp_RRM_MaxConsecutiveLosses       = 5;              // Max consecutive losses before pause (PRESET_RRM only)
+input int            Inp_RRM_MaxTradesPerDay            = 15;             // Max trades per day (PRESET_RRM only)
+input double         Inp_RRM_MaxDailyDrawdownPct        = 3.0;            // Max daily drawdown % (PRESET_RRM only)
+
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 // ℹ️ ZONE 3A — PIPELINE CONFIG  (reference defaults by pipeline step)
 // Organized by the 9-step signal processing pipeline.
@@ -837,6 +877,7 @@ input int            Inp_Ind_Mfi_Weight         = 1;                   // [MFI] 
 input string         Inp_Ind_Mfi_Info           = "Money Flow Index"; // [MFI] Description
 input int            Inp_Ind_Mfi_Period         = 14;                  // [MFI] Period
 input double         Inp_Ind_Mfi_Level          = 50.0;                // [MFI] Threshold/level
+input EMfiMode       Inp_Ind_Mfi_Mode           = MFI_ZONE_FILTER;     // [MFI] Mode (ZONE_FILTER or TREND_50)
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: Stochastic                              ║"
@@ -1189,6 +1230,7 @@ void InitializeConfig()
    // Base settings from inputs
    Settings.CloseOnReverse       = Inp_CloseOnReverse;
    Settings.RiskPercent          = Inp_RiskPercent;
+   Settings.FixedLotSize         = 0.0;  // 0 = risk-based sizing (default)
    Settings.MaxSpread            = Inp_MaxSpreadPips;
    Settings.MinATR               = Inp_MinATRPips;
    Settings.MaxATR               = Inp_MaxATRPips;
@@ -1198,6 +1240,7 @@ void InitializeConfig()
    Settings.Ind_ATR_Enabled      = Inp_Ind_ATR_Enabled;
    Settings.ATR_MinPips          = Inp_Ind_ATR_MinPips;
    Settings.ATR_MaxPips          = Inp_Ind_ATR_MaxPips;
+   Settings.Use_ATRVote          = false;  // Default off; presets override
 
    // MA benchmark inputs (strategy fields; preset may use/override semantics later)
    Settings.UseMACompatSizer     = false;
@@ -1213,6 +1256,14 @@ void InitializeConfig()
    Settings.PullbackLookback           = Inp_Gate_PullbackLookback;
    Settings.RequireRecoveryMomentum    = Inp_Gate_RequireRecoveryMomentum;
    Settings.Gate_UseMultiLayer         = Inp_Gate_UseMultiLayer;
+
+   // RRM gate structures (default: all gates disabled)
+   Settings.Gate_Recovery.mode         = GATE_SCALE_OFF;
+   Settings.Gate_Recovery.value        = 0.0;
+   Settings.Gate_EmaDiv.mode           = GATE_SCALE_OFF;
+   Settings.Gate_EmaDiv.value          = 0.0;
+   Settings.Gate_CandleDirection.mode  = GATE_SCALE_OFF;
+   Settings.Gate_CandleDirection.value = 0.0;
 
    // Bias
    Settings.BiasEnabled          = Inp_BiasEnabled;
@@ -1285,6 +1336,7 @@ void InitializeConfig()
    Settings.CciMode              = Inp_Ind_Cci_Mode;
    Settings.StoMode              = Inp_Ind_Sto_Mode;
    Settings.BbMode               = Inp_Ind_Bb_Mode;
+   Settings.MfiMode              = Inp_Ind_Mfi_Mode;
 
    // Active votes
    Settings.Ind_EmaSig_Enabled   = Inp_Ind_EmaSig_Enabled;
@@ -1504,11 +1556,11 @@ void InitializeConfig()
    Settings.AllowLayer2_Entries          = true;
    Settings.AllowLayer3_Entries          = true;
 
-   // RRM Drawdown Protection (disabled by default)
-   Settings.RRM_EnableDrawdownProtection = false;
-   Settings.RRM_MaxConsecutiveLosses     = 5;
-   Settings.RRM_MaxTradesPerDay          = 15;
-   Settings.RRM_MaxDailyDrawdownPct      = 3.0;
+   // RRM Drawdown Protection (map from inputs)
+   Settings.RRM_EnableDrawdownProtection = Inp_RRM_EnableDrawdownProtection;
+   Settings.RRM_MaxConsecutiveLosses     = Inp_RRM_MaxConsecutiveLosses;
+   Settings.RRM_MaxTradesPerDay          = Inp_RRM_MaxTradesPerDay;
+   Settings.RRM_MaxDailyDrawdownPct      = Inp_RRM_MaxDailyDrawdownPct;
 }
 
 //+------------------------------------------------------------------+
