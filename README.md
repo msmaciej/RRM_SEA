@@ -24,6 +24,24 @@ Do not use it unless explicitly required:
 2. Follow `Readme/README_SEA_RULES.md`
 3. Define the task and proceed via the SEA Architect → Specialized Agent workflow
 
+## Strategy Presets
+
+SimpleEA now provides 4 focused presets:
+
+| Preset | Description |
+|--------|-------------|
+| `PRESET_CUSTOM` | All inputs respected; full user control |
+| `PRESET_MA_BENCHMARK` | Replicates the MT5 Moving Average EA (no voting indicators) |
+| `PRESET_RRM` | Phase-based layer detection system with ATR voting |
+| `PRESET_TEST` | Minimal config for development/debugging |
+
+### ATR's Dual Role
+ATR serves **two distinct roles** in the pipeline:
+1. **Pre-filter (Step 1):** `Inp_MinATRPips`/`Inp_MaxATRPips` — hard gate that blocks trades outside volatility range
+2. **Voting Indicator (Step 8):** `Inp_Ind_ATR_Enabled` — non-directional vote that validates market conditions
+
+In `PRESET_RRM`, ATR participates as a voting indicator (Step 8) rather than a hard gate.
+
 ## Python EA vs SimpleEA MQL5 Comparison
 
 ### Phase 2 Implementation Status (PR #12)

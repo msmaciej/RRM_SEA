@@ -112,7 +112,7 @@ The TS evaluation follows this exact order:
 ┌─────────────────────────────────────────────────────────────┐
 │ STEP 1: PRE-FILTERS (Hard Gates)                            │
 │   ✓ Spread < MaxSpreadPips                                  │
-│   ✓ MinATR < ATR < MaxATR                                   │
+│   ✓ MinATR < ATR < MaxATR  (ATR also votes at Step 8)      │
 │   ✓ Time within session window                              │
 │   ✓ No high-impact news events                              │
 │   → ANY fail → return 0 (unless Stats_FullEvaluation=true)  │
@@ -175,7 +175,8 @@ The TS evaluation follows this exact order:
                           ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ STEP 5: INDICATOR VOTING (Multiplicative)                   │
-│   For each enabled indicator (EmaSig, MACD, PSAR, CCI...): │
+│   For each enabled indicator (EmaSig, MACD, PSAR, CCI,     │
+│   ATR [non-directional], ...):                              │
 │   • Check vote against bias direction                       │
 │   • In VOTE_MODE_ALL: ALL must pass                         │
 │   • In VOTE_MODE_THRESHOLD: Sum weights ≥ threshold         │
@@ -660,7 +661,7 @@ flowchart TD
     S5["Step 5: HTF FILTER (Optional)\nHigher-TF EMA alignment check"]
     S6["Step 6: HARD GATES (Sequential)\nDynamic Pullback · Recovery · EMA Div · Candle Dir\n+ PHASE-BASED LAYER FILTER (RRM)"]
     S7["Step 7: VOTING BYPASS\nSkip if VoteThreshold ≤ 1"]
-    S8["Step 8: INDICATOR VOTING\nMACD · CCI · PSAR · RSI · ADX · etc."]
+    S8["Step 8: INDICATOR VOTING\nMACD · CCI · PSAR · RSI · ADX · ATR (non-directional) · etc."]
     S9["Step 9: FINAL DECISION\nVotes ≥ VoteThreshold → return signal"]
 
     S1 -->|pass| S2
@@ -1509,7 +1510,7 @@ flowchart TD
 
 ### RRM Continuation Mode (PR10)
 
-When `ExitProfile = EXIT_PROFILE_RRM_STRICT_NO_ATR` and `AutoStrat = STRAT_PAIR_CROSS`, the entry signal generator allows entries **within an established trend** even when no fresh EMA crossover has occurred on the current bar.
+When `ExitProfile = EXIT_PROFILE_RRM` and `AutoStrat = STRAT_PAIR_CROSS`, the entry signal generator allows entries **within an established trend** even when no fresh EMA crossover has occurred on the current bar.
 
 **Condition for continuation entry:**
 - Market bias is non-zero (trend is established).
@@ -1546,7 +1547,7 @@ Key settings (`PRESET_RRM` defaults):
 **SL Placement:**
 - Primary: Swing high/low (`SL_SWING_HIGHLOW`) with timeframe-based cushion
 - Backup: PSAR dot with timeframe-based cushion (used by `RRM_GetStrictSL` fallback)
-- ATR: **DISABLED** (`SL_Mult = 0.0`, `ExitProfile = EXIT_PROFILE_RRM_STRICT_NO_ATR`)
+- ATR: **DISABLED** (`SL_Mult = 0.0`, `ExitProfile = EXIT_PROFILE_RRM`)
 
 **Cushion Auto-Scaling (non-JPY / JPY):**
 
@@ -1569,10 +1570,7 @@ Key settings (`PRESET_RRM` defaults):
 meet the broker's minimum stop level (`SYMBOL_TRADE_STOPS_LEVEL`). If validation fails, the trade is
 aborted and an error is logged (prevents Error 10041 / TRADE_RETCODE_LOCKED).
 
-**PRESET_RRM_ATR** is the ATR-based hybrid variant (`SL_ATR`, `SL_Mult = 2.0`). Use `PRESET_RRM_ATR`
-when you prefer ATR-scaled stops (adapts to current volatility) and are comfortable with tighter
-SLs on low-volatility sessions. Use `PRESET_RRM` when you need swing-anchored stops that respect
-structure regardless of ATR size, and to avoid broker minimum-stop rejections on small ATR readings.
+Use `PRESET_RRM` for swing-anchored stops that respect structure regardless of ATR size, and to avoid broker minimum-stop rejections on small ATR readings. ATR still participates as a voting indicator (Step 8) even when ATR-based SL is disabled.
 
 ## PSAR/Swing Cushion System (Dual Cushion)
 
@@ -1586,6 +1584,22 @@ SimpleEA implements an auto-scaling cushion system for stop loss placement and t
 | H1        | 12 pips             | 60 pips          | 5 pips            | 25 pips        |
 | H4        | 20 pips             | 100 pips         | 8 pips            | 40 pips        |
 | D1        | 40 pips             | 200 pips         | 15 pips           | 80 pips        |
+
+### TF-Based Cushion Values
+
+Default breakeven/trail cushion values by timeframe:
+
+| Timeframe | Cushion (pips) |
+|-----------|----------------|
+| M1        | 3.0            |
+| M5        | 3.0            |
+| M15       | 5.0            |
+| M30       | 8.0            |
+| H1        | 10.0           |
+| H4        | 15.0           |
+| D1        | 25.0           |
+
+These are applied automatically by `GetTFBasedCushion()` in PRESET_RRM.
 
 
 ## Extensible Indicator System (PR16)
@@ -1929,7 +1943,7 @@ Generates a **persistent bias** based on EMA position and slope alignment. Unlik
 [BIAS_POSITION_SLOPE][2026.02.14 12:00] Fast=1.03247 Slow=1.02833 | SlopeFast=0 SlopeSlow=1 → NEUTRAL (slopes not aligned or conflicting)
 ```
 
-### Configuration (PRESET_TEST_INDICATOR default)
+### Configuration (PRESET_TEST default)
 ```mql5
 cfg.BiasMode   = BIAS_AUTO;
 cfg.AutoStrat  = STRAT_POSITION_SLOPE;
