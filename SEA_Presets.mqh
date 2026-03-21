@@ -13,6 +13,9 @@
 //+-------------------------------------------------------------------+
 #property strict
 
+// Preset system version
+#define PRESET_SYSTEM_VERSION "2.1.0"  // Major.Minor.Patch
+
 #include <RRMS\SEA_Config.mqh>
 
 // TF+JPY-aware initial SL cushion mapping (suited for SL_PSAR_DOT / SL_MODE_SWING)
@@ -98,6 +101,180 @@ string GetPresetContractWording(EStrategyPreset preset)
    }
 }
 
+//+------------------------------------------------------------------+
+//| GetActiveIndicatorCount(): Count enabled voting indicators       |
+//+------------------------------------------------------------------+
+int GetActiveIndicatorCount(const ST_Settings &cfg)
+{
+   int count = 0;
+   if(cfg.Ind_EmaSig_Enabled) count++;
+   if(cfg.Ind_Adx_Enabled)    count++;
+   if(cfg.Ind_Macd_Enabled)   count++;
+   if(cfg.Ind_Rsi_Enabled)    count++;
+   if(cfg.Ind_Cci_Enabled)    count++;
+   if(cfg.Ind_Mfi_Enabled)    count++;
+   if(cfg.Ind_Sto_Enabled)    count++;
+   if(cfg.Ind_Bb_Enabled)     count++;
+   if(cfg.Ind_Psar_Enabled)   count++;
+   if(cfg.Ind_ATR_Enabled)    count++;
+   if(cfg.Ind_P123_Enabled)   count++;
+   if(cfg.Ind_Ross_Enabled)   count++;
+   return count;
+}
+
+//+------------------------------------------------------------------+
+//| DetectSymbolType(): Detect symbol category for spread defaults   |
+//+------------------------------------------------------------------+
+string DetectSymbolType(const string symbol)
+{
+   string sym = symbol;
+   StringToUpper(sym);
+
+   // Majors
+   if(StringFind(sym, "EURUSD") >= 0) return "MAJOR";
+   if(StringFind(sym, "GBPUSD") >= 0) return "MAJOR";
+   if(StringFind(sym, "USDJPY") >= 0) return "MAJOR";
+   if(StringFind(sym, "USDCHF") >= 0) return "MAJOR";
+   if(StringFind(sym, "AUDUSD") >= 0) return "MAJOR";
+   if(StringFind(sym, "USDCAD") >= 0) return "MAJOR";
+   if(StringFind(sym, "NZDUSD") >= 0) return "MAJOR";
+
+   // Gold
+   if(StringFind(sym, "XAUUSD") >= 0) return "GOLD";
+   if(StringFind(sym, "GOLD")   >= 0) return "GOLD";
+
+   // Crypto
+   if(StringFind(sym, "BTC") >= 0) return "CRYPTO";
+   if(StringFind(sym, "ETH") >= 0) return "CRYPTO";
+
+   // Exotics
+   if(StringFind(sym, "TRY") >= 0) return "EXOTIC";
+   if(StringFind(sym, "ZAR") >= 0) return "EXOTIC";
+   if(StringFind(sym, "MXN") >= 0) return "EXOTIC";
+
+   // Default: minor
+   return "MINOR";
+}
+
+//+------------------------------------------------------------------+
+//| PrintPresetConfiguration(): Print active preset config           |
+//+------------------------------------------------------------------+
+void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
+{
+   Print("═══════════════════════════════════════════════════════════");
+   Print("🎯 PRESET ACTIVE: ", preset_name);
+   Print("═══════════════════════════════════════════════════════════");
+   Print("");
+
+   Print("📊 BIAS & STRATEGY:");
+   Print("  BiasMode:       ", EnumToString(cfg.BiasMode));
+   Print("  AutoStrat:      ", EnumToString(cfg.AutoStrat));
+   Print("  EMA Periods:    ", cfg.P_Ema1, "/", cfg.P_Ema2, "/", cfg.P_Ema3, "/", cfg.P_Ema4);
+   Print("");
+
+   Print("🗳️  VOTING:");
+   Print("  Mode:           ", EnumToString(cfg.VoteMode));
+   Print("  Active Votes:   ", GetActiveIndicatorCount(cfg), " indicators enabled");
+   Print("    EmaSig:  ", (cfg.Ind_EmaSig_Enabled ? "✓" : "✗"));
+   Print("    MACD:    ", (cfg.Ind_Macd_Enabled ? "✓" : "✗"), (cfg.Ind_Macd_Enabled ? " (" + EnumToString(cfg.MacdVoteMode) + ")" : ""));
+   Print("    CCI:     ", (cfg.Ind_Cci_Enabled ? "✓" : "✗"));
+   Print("    PSAR:    ", (cfg.Ind_Psar_Enabled ? "✓" : "✗"));
+   Print("    ATR:     ", (cfg.Ind_ATR_Enabled ? "✓" : "✗"));
+   Print("    ADX:     ", (cfg.Ind_Adx_Enabled ? "✓" : "✗"));
+   Print("    RSI:     ", (cfg.Ind_Rsi_Enabled ? "✓" : "✗"));
+   Print("    MFI:     ", (cfg.Ind_Mfi_Enabled ? "✓" : "✗"));
+   Print("    Stoch:   ", (cfg.Ind_Sto_Enabled ? "✓" : "✗"));
+   Print("    BB:      ", (cfg.Ind_Bb_Enabled ? "✓" : "✗"));
+   Print("    P123:    ", (cfg.Ind_P123_Enabled ? "✓" : "✗"));
+   Print("    Ross:    ", (cfg.Ind_Ross_Enabled ? "✓" : "✗"));
+   Print("");
+
+   Print("💰 RISK MANAGEMENT:");
+   Print("  RiskPercent:    ", cfg.RiskPercent, "%");
+   Print("  MaxOpenTrades:  ", (cfg.MaxOpenTrades > 0 ? IntegerToString(cfg.MaxOpenTrades) : "unlimited"));
+   Print("  MaxTotalRisk:   ", (cfg.MaxTotalRisk > 0.0 ? DoubleToString(cfg.MaxTotalRisk, 1) + "%" : "unlimited"));
+   Print("");
+
+   Print("🛡️  GATES (Policy A - User Controlled):");
+   Print("  MaxSpread:      ", cfg.MaxSpread, " pips");
+   Print("  Time Filter:    ", (cfg.UseTime ? ("✓ " + IntegerToString(cfg.StartHr) + "h-" + IntegerToString(cfg.EndHr) + "h") : "✗"));
+   Print("  News Filter:    ", (cfg.UseNews ? ("✓ ±" + IntegerToString(cfg.NewsPre) + "/" + IntegerToString(cfg.NewsPost) + "min") : "✗"));
+   Print("");
+
+   Print("🎯 EXIT PROFILE:");
+   Print("  Profile:        ", EnumToString(cfg.ExitProfile));
+   Print("  SL Mode:        ", EnumToString(cfg.SLMode), " (", cfg.SL_FixedPips, " pips)");
+   Print("  TP Mode:        ", EnumToString(cfg.TPMode), (cfg.TP_Enabled ? " ✓ ENABLED" : " ✗ DISABLED"));
+   Print("  Trail Mode:     ", EnumToString(cfg.TrailMode));
+   Print("  BE Mode:        ", EnumToString(cfg.BE_Mode));
+   Print("");
+
+   Print("🔧 SYMBOL CONTEXT:");
+   Print("  Symbol:         ", _Symbol);
+   Print("  Type:           ", DetectSymbolType(_Symbol));
+   Print("  Timeframe:      ", EnumToString(Period()));
+   Print("");
+
+   Print("═══════════════════════════════════════════════════════════");
+}
+
+//+------------------------------------------------------------------+
+//| ValidatePresetConfiguration(): Validate preset sanity            |
+//| Returns: true if valid, false if critical errors detected        |
+//+------------------------------------------------------------------+
+bool ValidatePresetConfiguration(const ST_Settings &cfg, const string preset_name)
+{
+   bool valid = true;
+   string errors = "";
+
+   // Check: At least one indicator enabled
+   if(GetActiveIndicatorCount(cfg) == 0)
+   {
+      errors += "  ❌ ERROR: No voting indicators enabled!\n";
+      valid = false;
+   }
+
+   // Check: EMA periods ascending
+   if(cfg.P_Ema1 >= cfg.P_Ema2 || cfg.P_Ema2 >= cfg.P_Ema3 || cfg.P_Ema3 >= cfg.P_Ema4)
+   {
+      errors += "  ❌ ERROR: EMA periods must be ascending (EMA1 < EMA2 < EMA3 < EMA4)!\n";
+      valid = false;
+   }
+
+   // Check: Risk percent valid
+   if(cfg.RiskPercent <= 0.0 || cfg.RiskPercent > 100.0)
+   {
+      errors += "  ❌ ERROR: RiskPercent must be > 0 and <= 100!\n";
+      valid = false;
+   }
+
+   // Check: VOTE_MODE_ALL recommended
+   if(cfg.VoteMode != VOTE_MODE_ALL)
+   {
+      errors += "  ⚠️  WARNING: VoteMode is not VOTE_MODE_ALL (recommended default)\n";
+   }
+
+   // Print results
+   if(!valid)
+   {
+      Print("═══════════════════════════════════════════════════════════");
+      Print("❌ PRESET VALIDATION FAILED: ", preset_name);
+      Print("═══════════════════════════════════════════════════════════");
+      Print(errors);
+      Print("═══════════════════════════════════════════════════════════");
+   }
+   else if(errors != "")
+   {
+      Print("═══════════════════════════════════════════════════════════");
+      Print("⚠️  PRESET VALIDATION WARNINGS: ", preset_name);
+      Print("═══════════════════════════════════════════════════════════");
+      Print(errors);
+      Print("═══════════════════════════════════════════════════════════");
+   }
+
+   return valid;
+}
+
 void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 {
    if(preset == PRESET_CUSTOM)
@@ -113,19 +290,23 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    //   - MaxSpread:  Cost control / broker protection (slippage, spreads)
    //   - Time:       User availability / preferred trading sessions
    //   - News:       Risk aversion / avoid high-impact news volatility
+   //   - Risk:       Personal risk tolerance (RiskPercent, MaxOpenTrades, MaxTotalRisk)
    //
    // Strategic filters (ATR, HTF) are preset-controlled.
    // Users who want full control: Use PRESET_CUSTOM
    // ================================================================
-   const double op_MaxSpread = cfg.MaxSpread;
+   const double op_MaxSpread     = cfg.MaxSpread;
 
-   const bool   op_UseTime   = cfg.UseTime;
-   const int    op_StartHr   = cfg.StartHr;
-   const int    op_EndHr     = cfg.EndHr;
+   const bool   op_UseTime       = cfg.UseTime;
+   const int    op_StartHr       = cfg.StartHr;
+   const int    op_EndHr         = cfg.EndHr;
 
-   const bool   op_UseNews   = cfg.UseNews;
-   const int    op_NewsPre   = cfg.NewsPre;
-   const int    op_NewsPost  = cfg.NewsPost;
+   const bool   op_UseNews       = cfg.UseNews;
+   const int    op_NewsPre       = cfg.NewsPre;
+   const int    op_NewsPost      = cfg.NewsPost;
+   const double op_RiskPercent   = cfg.RiskPercent;   // Policy A: user risk tolerance
+   const int    op_MaxOpenTrades = cfg.MaxOpenTrades;  // Policy A: user position limit
+   const double op_MaxTotalRisk  = cfg.MaxTotalRisk;   // Policy A: user portfolio risk cap
    
    if(preset == PRESET_MA)
    {
@@ -355,18 +536,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================
-      cfg.MaxSpread = op_MaxSpread;
-      cfg.UseTime   = op_UseTime;
-      cfg.StartHr   = op_StartHr;
-      cfg.EndHr     = op_EndHr;
-      cfg.UseNews   = op_UseNews;
-      cfg.NewsPre   = op_NewsPre;
-      cfg.NewsPost  = op_NewsPost;
-   
-      // ================================================================
-      // APPLY ADMIN OVERRIDES
-      // ================================================================
-      ApplyAdminOverrides(cfg);
+      cfg.MaxSpread     = op_MaxSpread;
+      cfg.UseTime       = op_UseTime;
+      cfg.StartHr       = op_StartHr;
+      cfg.EndHr         = op_EndHr;
+      cfg.UseNews       = op_UseNews;
+      cfg.NewsPre       = op_NewsPre;
+      cfg.NewsPost      = op_NewsPost;
+      cfg.RiskPercent   = op_RiskPercent;    // Policy A: restore user risk tolerance
+      cfg.MaxOpenTrades = op_MaxOpenTrades;  // Policy A: restore user position limit
+      cfg.MaxTotalRisk  = op_MaxTotalRisk;   // Policy A: restore user portfolio risk cap
+
       return;
    }
 
@@ -660,18 +840,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================
-      cfg.MaxSpread = op_MaxSpread;
-      cfg.UseTime   = op_UseTime;
-      cfg.StartHr   = op_StartHr;
-      cfg.EndHr     = op_EndHr;
-      cfg.UseNews   = op_UseNews;
-      cfg.NewsPre   = op_NewsPre;
-      cfg.NewsPost  = op_NewsPost;
-   
-      // ================================================================
-      // APPLY ADMIN OVERRIDES
-      // ================================================================
-      ApplyAdminOverrides(cfg);
+      cfg.MaxSpread     = op_MaxSpread;
+      cfg.UseTime       = op_UseTime;
+      cfg.StartHr       = op_StartHr;
+      cfg.EndHr         = op_EndHr;
+      cfg.UseNews       = op_UseNews;
+      cfg.NewsPre       = op_NewsPre;
+      cfg.NewsPost      = op_NewsPost;
+      cfg.RiskPercent   = op_RiskPercent;    // Policy A: restore user risk tolerance
+      cfg.MaxOpenTrades = op_MaxOpenTrades;  // Policy A: restore user position limit
+      cfg.MaxTotalRisk  = op_MaxTotalRisk;   // Policy A: restore user portfolio risk cap
+
       return;
    }
 
@@ -909,18 +1088,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================
-      cfg.MaxSpread = op_MaxSpread;
-      cfg.UseTime   = op_UseTime;
-      cfg.StartHr   = op_StartHr;
-      cfg.EndHr     = op_EndHr;
-      cfg.UseNews   = op_UseNews;
-      cfg.NewsPre   = op_NewsPre;
-      cfg.NewsPost  = op_NewsPost;
-   
-      // ================================================================
-      // APPLY ADMIN OVERRIDES
-      // ================================================================
-      ApplyAdminOverrides(cfg);
+      cfg.MaxSpread     = op_MaxSpread;
+      cfg.UseTime       = op_UseTime;
+      cfg.StartHr       = op_StartHr;
+      cfg.EndHr         = op_EndHr;
+      cfg.UseNews       = op_UseNews;
+      cfg.NewsPre       = op_NewsPre;
+      cfg.NewsPost      = op_NewsPost;
+      cfg.RiskPercent   = op_RiskPercent;    // Policy A: restore user risk tolerance
+      cfg.MaxOpenTrades = op_MaxOpenTrades;  // Policy A: restore user position limit
+      cfg.MaxTotalRisk  = op_MaxTotalRisk;   // Policy A: restore user portfolio risk cap
+
       return;
    }
 }
