@@ -132,10 +132,10 @@ string SEA_UI_FormatFilterStatus(bool is_allowed, bool filter_active, color &out
    }
 }
 
-// Returns " [adm]" when admin override is active for a preset (marks overridden fields)
+// Returns empty string (admin override removed)
 string SEA_UI_AdmMark()
 {
-   return ((Settings.AdminOverridePreset && InpPreset != PRESET_CUSTOM) ? " [adm]" : "");
+   return "";
 }
 
 int SEA_UI_PipFactor()
@@ -434,15 +434,6 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
    txt += StringFormat("SimpleEA v%s  [%s %s]\n", SEA_BUILD_STR, _Symbol, EnumToString(_Period));
    txt += StringFormat("Preset: %s\n", EnumToString(InpPreset));
 
-   // AdminOverride status
-   if(InpPreset != PRESET_CUSTOM)
-   {
-      if(Settings.AdminOverridePreset)
-         txt += "AdminOverride: ACTIVE [Admin Mode - Testing]\n";
-      else
-         txt += "AdminOverride: OFF [Normal User Mode]\n";
-   }
-
    txt += StringFormat("Mode: %s\n", (InpPreset == PRESET_CUSTOM
                                        ? "CUSTOM (inputs respected)"
                                        : "PRESET (overrides active)"));
@@ -527,10 +518,6 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
          trail_str += StringFormat("  CushionPips=%.1f  Delay=%d", Settings.PSAR_TrailPipsCushion, Settings.PSAR_TrailDelay);
    }
    txt += trail_str + "\n";
-
-   // Admin override notice
-   if(Settings.AdminOverridePreset && InpPreset != PRESET_CUSTOM)
-      txt += "** ADMIN OVERRIDES APPLIED [adm] **\n";
 
    if(txt == g_sea_ui_last_settings_txt)
       return;
@@ -679,8 +666,6 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
    {
       txt += "--- Preset Contract ---\n";
       txt += GetPresetContractWording(InpPreset) + "\n";
-      if(Settings.AdminOverridePreset)
-         txt += "** ADMIN OVERRIDES APPLIED **\n";
    }
 
    // TS/TE snapshots

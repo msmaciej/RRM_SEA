@@ -1957,8 +1957,8 @@ public:
       h_ema3 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema3, h_shift, method, PRICE_CLOSE);
       h_ema4 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema4, h_shift, method, PRICE_CLOSE);
 
-      // Only create ATR when NOT using strict no-ATR RRM mode
-      bool need_atr = (m_settings.ExitProfile != EXIT_PROFILE_RRM_STRICT_NO_ATR);
+      // Create ATR for pre-filter gate and ATR voting indicator
+      bool need_atr = (m_settings.MinATR > 0.0 || m_settings.MaxATR > 0.0 || m_settings.Ind_ATR_Enabled);
       h_atr  = (need_atr ? iATR(m_symbol, PERIOD_CURRENT, m_settings.P_Atr) : INVALID_HANDLE);
 
       // Optional indicators: create only when used by votes/filters/trailing (reduces Strategy Tester clutter)
@@ -1992,7 +1992,7 @@ public:
          return false;
       }
       if(need_atr && h_atr == INVALID_HANDLE) {
-         Print("CRITICAL ERROR: Failed to create ATR indicator.");
+         Print("CRITICAL ERROR: Failed to create ATR indicator (used for pre-filter and/or voting).");
          return false;
       }
       return true;
@@ -2839,7 +2839,7 @@ public:
             else if(bearish_cross)
                entry_signal = -1;
             // No fresh crossover - check for RRM continuation mode
-            else if(m_settings.ExitProfile == EXIT_PROFILE_RRM_STRICT_NO_ATR && market_bias != 0) {
+            else if(m_settings.ExitProfile == EXIT_PROFILE_RRM && market_bias != 0) {
                // Allow entries within established trend when bias is valid and EMA position matches
                bool ema_position_matches_bias = (market_bias == 1) ? (f_curr_cross > s_curr_cross) : (f_curr_cross < s_curr_cross);
                if(ema_position_matches_bias) {
@@ -2996,11 +2996,17 @@ public:
       #undef CAST_VOTE_STAT
       #undef CAST_VOTE
 
-      // Volatility regime vote (soft; ATR has no weight field — always weight 1.0)
-      if(m_settings.Use_ATRVote)
+      // Volatility regime vote (ATR as non-directional voting indicator)
+      // Uses dedicated ATR_MinPips/ATR_MaxPips thresholds (separate from the hard pre-filter gates)
+      if(m_settings.Ind_ATR_Enabled)
       {
-         if(m_diag_last_atr_ok) vote_weight += 1.0;
-         else                   all_pass     = false;
+         double atr_vote_pips = m_diag_last_atr_pips;
+         bool   atr_vote_ok   = true;
+         if(m_settings.ATR_MinPips > 0.0 && atr_vote_pips < m_settings.ATR_MinPips) atr_vote_ok = false;
+         if(m_settings.ATR_MaxPips > 0.0 && atr_vote_pips > m_settings.ATR_MaxPips) atr_vote_ok = false;
+
+         if(atr_vote_ok) vote_weight += 1.0;
+         else            all_pass     = false;
       }
 
       // Store integer-rounded weight for display (backward-compatible diagnostics)
@@ -3121,11 +3127,16 @@ public:
                PrintFormat("[IND] RossHook: → %s (w=%d)", _res_ross ? "PASS" : "FAIL", m_settings.Ind_Ross_Weight);
             } else Print("[IND] RossHook: DISABLED → SKIP");
 
-            // ATR Vote (soft)
-            if(m_settings.Use_ATRVote)
-               PrintFormat("[IND] ATR Vote: %.1f pips → %s (w=1)",
-                           atr_pips, m_diag_last_atr_ok ? "PASS" : "FAIL");
-            else
+            // ATR Vote (non-directional voting indicator)
+            if(m_settings.Ind_ATR_Enabled) {
+               double atr_v_pips = m_diag_last_atr_pips;
+               bool   atr_v_ok   = true;
+               if(m_settings.ATR_MinPips > 0.0 && atr_v_pips < m_settings.ATR_MinPips) atr_v_ok = false;
+               if(m_settings.ATR_MaxPips > 0.0 && atr_v_pips > m_settings.ATR_MaxPips) atr_v_ok = false;
+               PrintFormat("[IND] ATR Vote: %.1f pips (min=%.1f max=%.1f) → %s (w=1)",
+                           atr_v_pips, m_settings.ATR_MinPips, m_settings.ATR_MaxPips,
+                           atr_v_ok ? "PASS" : "FAIL");
+            } else
                Print("[IND] ATR Vote: DISABLED → SKIP");
          }
       }

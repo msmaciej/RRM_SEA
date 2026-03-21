@@ -112,7 +112,7 @@ The TS evaluation follows this exact order:
 ┌─────────────────────────────────────────────────────────────┐
 │ STEP 1: PRE-FILTERS (Hard Gates)                            │
 │   ✓ Spread < MaxSpreadPips                                  │
-│   ✓ MinATR < ATR < MaxATR                                   │
+│   ✓ MinATR < ATR < MaxATR  (ATR also votes at Step 8)      │
 │   ✓ Time within session window                              │
 │   ✓ No high-impact news events                              │
 │   → ANY fail → return 0 (unless Stats_FullEvaluation=true)  │
@@ -175,7 +175,8 @@ The TS evaluation follows this exact order:
                           ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ STEP 5: INDICATOR VOTING (Multiplicative)                   │
-│   For each enabled indicator (EmaSig, MACD, PSAR, CCI...): │
+│   For each enabled indicator (EmaSig, MACD, PSAR, CCI,     │
+│   ATR [non-directional], ...):                              │
 │   • Check vote against bias direction                       │
 │   • In VOTE_MODE_ALL: ALL must pass                         │
 │   • In VOTE_MODE_THRESHOLD: Sum weights ≥ threshold         │
@@ -660,7 +661,7 @@ flowchart TD
     S5["Step 5: HTF FILTER (Optional)\nHigher-TF EMA alignment check"]
     S6["Step 6: HARD GATES (Sequential)\nDynamic Pullback · Recovery · EMA Div · Candle Dir\n+ PHASE-BASED LAYER FILTER (RRM)"]
     S7["Step 7: VOTING BYPASS\nSkip if VoteThreshold ≤ 1"]
-    S8["Step 8: INDICATOR VOTING\nMACD · CCI · PSAR · RSI · ADX · etc."]
+    S8["Step 8: INDICATOR VOTING\nMACD · CCI · PSAR · RSI · ADX · ATR (non-directional) · etc."]
     S9["Step 9: FINAL DECISION\nVotes ≥ VoteThreshold → return signal"]
 
     S1 -->|pass| S2
@@ -1509,7 +1510,7 @@ flowchart TD
 
 ### RRM Continuation Mode (PR10)
 
-When `ExitProfile = EXIT_PROFILE_RRM_STRICT_NO_ATR` and `AutoStrat = STRAT_PAIR_CROSS`, the entry signal generator allows entries **within an established trend** even when no fresh EMA crossover has occurred on the current bar.
+When `ExitProfile = EXIT_PROFILE_RRM` and `AutoStrat = STRAT_PAIR_CROSS`, the entry signal generator allows entries **within an established trend** even when no fresh EMA crossover has occurred on the current bar.
 
 **Condition for continuation entry:**
 - Market bias is non-zero (trend is established).
@@ -1546,7 +1547,7 @@ Key settings (`PRESET_RRM` defaults):
 **SL Placement:**
 - Primary: Swing high/low (`SL_SWING_HIGHLOW`) with timeframe-based cushion
 - Backup: PSAR dot with timeframe-based cushion (used by `RRM_GetStrictSL` fallback)
-- ATR: **DISABLED** (`SL_Mult = 0.0`, `ExitProfile = EXIT_PROFILE_RRM_STRICT_NO_ATR`)
+- ATR: **DISABLED** (`SL_Mult = 0.0`, `ExitProfile = EXIT_PROFILE_RRM`)
 
 **Cushion Auto-Scaling (non-JPY / JPY):**
 
@@ -1569,10 +1570,7 @@ Key settings (`PRESET_RRM` defaults):
 meet the broker's minimum stop level (`SYMBOL_TRADE_STOPS_LEVEL`). If validation fails, the trade is
 aborted and an error is logged (prevents Error 10041 / TRADE_RETCODE_LOCKED).
 
-**PRESET_RRM_ATR** is the ATR-based hybrid variant (`SL_ATR`, `SL_Mult = 2.0`). Use `PRESET_RRM_ATR`
-when you prefer ATR-scaled stops (adapts to current volatility) and are comfortable with tighter
-SLs on low-volatility sessions. Use `PRESET_RRM` when you need swing-anchored stops that respect
-structure regardless of ATR size, and to avoid broker minimum-stop rejections on small ATR readings.
+Use `PRESET_RRM` for swing-anchored stops that respect structure regardless of ATR size, avoiding broker minimum-stop rejections on small ATR readings. Note that ATR still participates as a voting indicator (Step 8) even when ATR-based SL is disabled.
 
 ## PSAR/Swing Cushion System (Dual Cushion)
 
@@ -1586,6 +1584,22 @@ SimpleEA implements an auto-scaling cushion system for stop loss placement and t
 | H1        | 12 pips             | 60 pips          | 5 pips            | 25 pips        |
 | H4        | 20 pips             | 100 pips         | 8 pips            | 40 pips        |
 | D1        | 40 pips             | 200 pips         | 15 pips           | 80 pips        |
+
+### TF-Based Cushion Values
+
+Default breakeven/trail cushion values by timeframe:
+
+| Timeframe | Cushion (pips) |
+|-----------|----------------|
+| M1        | 3.0            |
+| M5        | 3.0            |
+| M15       | 5.0            |
+| M30       | 8.0            |
+| H1        | 10.0           |
+| H4        | 15.0           |
+| D1        | 25.0           |
+
+These are applied automatically by `GetTFBasedCushion()` in PRESET_RRM.
 
 
 ## Extensible Indicator System (PR16)
@@ -1660,7 +1674,6 @@ This project uses a strict, file-owned, multi-agent workflow coordinated by **SE
 | 🎯 ZONE 1 | `══ ZONE 1: PRESET SELECTION ══` | Magic number and strategy preset selection |
 | ✅ ZONE 2 | `══ ZONE 2: USER CONTROLS (Policy A — always editable) ══` | Operator gates and UI/diagnostic settings — always respected regardless of preset |
 | ℹ️ ZONE 3A | `══ ZONE 3A: PRESET INFO (presets override these when active) ══` | Reference defaults — effective in `PRESET_CUSTOM`; preset overrides these when any other preset is active |
-| 🔓 ZONE 3B | `══ ZONE 3B: ADMIN OVERRIDE (set true to activate §1-§5 below) ══` | Five numbered admin override sections for preset testing |
 
 ### Zone 2 — User Controls (Policy A gates)
 
@@ -1672,169 +1685,6 @@ Zone 2 groups the inputs that are **always editable** under any preset:
 - `--- ✅ Operator Gates: HTF Trend Filter ---` — `UseHTF`, `HtfPeriod`, `HtfEmaPeriod`
 - `--- ✅ UI: Status Panel ---`, `--- ✅ UI: Cockpit Panel ---`, `--- ✅ UI: Signal Markers ---`, `--- ✅ UI: Colors & Framing ---`
 - `--- ✅ Diagnostics ---`, `--- ✅ Reporting ---`
-
-### Zone 3B — Admin Override (§1–§5 sections)
-
-When `Inp_AdminOverridePreset = true`, the five numbered sections become active:
-
-| Section | Header | Contents |
-|---------|--------|----------|
-| §1 | `--- 🔓 §1 Admin Override: Strategy, EMAs & Votes ---` | AutoStrat, VoteThreshold, EMA1–4, all vote enables, RRM gates |
-| §2 | `--- 🔓 §2 Admin Override: Indicator Periods & Thresholds ---` | MACD, ADX, RSI, STO, PSAR, CCI, BB, MFI, ATR periods/thresholds |
-| §3 | `--- 🔓 §3 Admin Override: Risk & Entry ---` | RequirePriceCross, UseHTF, CloseOnReverse, RiskPercent, SL placement |
-| §4 | `--- 🔓 §4 Admin Override: Exits — TP, Breakeven & Trailing ---` | TP_Mult, BE settings, TrailMode, PSAR trail cushion |
-| §5 | `--- 🔓 §5 Admin Override: Phase Detection & Layer Filtering ---` | PhaseDetectionEnabled, EnableLayerDetection, BlockUnorderedPhase, MinPhaseConfirmBars, per-layer phase permissions |
-
-### Status Panel — Admin Override Change Markers
-
-When `Inp_AdminOverridePreset = true` and a preset is active, the Status Panel appends `[adm]` to all fields that are controlled by the admin override sections (§1–§5). This makes it immediately visible which effective-config values came from admin overrides rather than preset defaults.
-
-
-## AdminOverride System (Preset Testing)
-
-### Overview
-
-The AdminOverride system allows experienced users (admins) to test variations of preset configurations directly in the MT5 Strategy Tester without editing code. It also protects normal users from accidentally changing strategy-critical settings that presets own.
-
-### User Modes
-
-**Normal User Mode (default, `Inp_AdminOverridePreset = false`):**
-- Preset values are enforced (hardcoded from `SEA_Presets.mqh`)
-- User can only modify Policy A operator gates: `MaxSpreadPips`, `MinATRPips`, `MaxATRPips`, `UseTime`, `StartHr`, `EndHr`, `UseNews`, `NewsPre`, `NewsPost`, `UseHTF`, `HTF_Period`, `HTF_Timeframe`, and exit settings
-- Strategy-critical settings (MACD periods, AutoStrat, VoteThreshold, EMA roles, enabled votes, RRM gates) are preset-owned and cannot be changed by the user
-- The Status Panel shows: "AdminOverride: OFF [Normal User Mode]"
-- The Cockpit Panel shows the preset contract wording (what the preset controls vs. what the user controls)
-
-**Admin User Mode (testing, `Inp_AdminOverridePreset = true`):**
-- All preset-enforced parameters become editable via override input fields (prefixed `[Admin]` in MT5 Inputs)
-- Overrides apply on top of the selected preset after preset defaults are set
-- Admin can test variations directly in Strategy Tester without recompiling
-- The Status Panel shows: "AdminOverride: ACTIVE [Admin Mode - Testing]"
-- Tested configurations can be saved as `.set` files for sharing or future reference
-
-### Override Inputs Reference
-
-All override inputs are in **Zone 3B (§1–§5)** in MT5 Inputs (visible only when `Inp_AdminOverridePreset = true`).
-
-**Strategy parameters:**
-
-| Input | Type | Default | Description |
-|-------|------|---------|-------------|
-| `Inp_Override_AutoStrat` | EAutoStrategy | STRAT_PAIR_CROSS | Override AutoStrat (single slope / pair cross / price cross / position slope) |
-| `Inp_Override_VoteThreshold` | int | 4 | Override required vote count |
-| `Inp_Override_EMA1` | int | 5 | Override EMA1 period |
-| `Inp_Override_EMA2` | int | 13 | Override EMA2 period |
-| `Inp_Override_EMA3` | int | 34 | Override EMA3 period |
-| `Inp_Override_EMA4` | int | 89 | Override EMA4 period |
-| `Inp_Override_MACD_Fast` | int | 8 | Override MACD fast period |
-| `Inp_Override_MACD_Slow` | int | 13 | Override MACD slow period |
-| `Inp_Override_MACD_Signal` | int | 8 | Override MACD signal period |
-| `Inp_Override_Use_EmaSig` | bool | true | Override EMA signal vote enabled |
-| `Inp_Override_Use_Macd` | bool | true | Override MACD vote enabled |
-| `Inp_Override_Use_Psar` | bool | true | Override PSAR vote enabled |
-| `Inp_Override_Use_Cci` | bool | true | Override CCI vote enabled |
-| `Inp_Override_Use_Rsi` | bool | false | Override RSI vote enabled |
-| `Inp_Override_Use_Adx` | bool | false | Override ADX vote enabled |
-| `Inp_Override_Use_Mfi` | bool | false | Override MFI vote enabled |
-| `Inp_Override_Use_Sto` | bool | false | Override Stochastic vote enabled |
-| `Inp_Override_Use_Bb` | bool | false | Override Bollinger Bands vote enabled |
-| `Inp_Override_Use_P123` | bool | false | Override 1-2-3 pattern vote enabled |
-| `Inp_Override_Use_Ross` | bool | false | Override Ross hook vote enabled |
-| `Inp_Override_RRM_RequirePullbackReclaim` | bool | false | Override RRM pullback reclaim gate |
-| `Inp_Override_RRM_RequireEmaDiv` | bool | false | Override RRM EMA divergence gate |
-
-**Indicator parameters (threshold testing):**
-
-| Input | Type | Default | Description |
-|-------|------|---------|-------------|
-| `Inp_Override_ADX_Period` | int | 14 | Override ADX period |
-| `Inp_Override_ADX_Threshold` | int | 20 | Override ADX trend threshold |
-| `Inp_Override_RSI_Period` | int | 14 | Override RSI period |
-| `Inp_Override_RSI_OB` | double | 70.0 | Override RSI overbought level |
-| `Inp_Override_RSI_OS` | double | 30.0 | Override RSI oversold level |
-| `Inp_Override_STO_K` | int | 5 | Override Stochastic %K period |
-| `Inp_Override_STO_D` | int | 3 | Override Stochastic %D period |
-| `Inp_Override_STO_Slow` | int | 3 | Override Stochastic slowing period |
-| `Inp_Override_STO_OB` | double | 80.0 | Override Stochastic overbought level (zone filter mode) |
-| `Inp_Override_STO_OS` | double | 20.0 | Override Stochastic oversold level (zone filter mode) |
-| `Inp_Override_PSAR_Step` | double | 0.05 | Override PSAR acceleration step |
-| `Inp_Override_PSAR_Max` | double | 0.5 | Override PSAR maximum acceleration |
-| `Inp_Override_CCI_Period` | int | 14 | Override CCI period |
-| `Inp_Override_BB_Period` | int | 20 | Override Bollinger Bands period |
-| `Inp_Override_BB_Dev` | double | 2.0 | Override Bollinger Bands deviation |
-| `Inp_Override_MFI_Period` | int | 14 | Override MFI period |
-| `Inp_Override_MFI_OB` | double | 50.0 | Override MFI overbought threshold (buy if MFI > OB) |
-| `Inp_Override_MFI_OS` | double | 50.0 | Override MFI oversold threshold (sell if MFI < OS) |
-| `Inp_Override_ATR_Period` | int | 14 | Override ATR period |
-| `Inp_Override_ATR_MinPips` | double | 0.0 | Override ATR minimum pips gate (0 = disabled) |
-| `Inp_Override_ATR_MaxPips` | double | 0.0 | Override ATR maximum pips gate (0 = disabled) |
-| `Inp_Override_ATR_UseAsVote` | bool | false | Override ATR use-as-vote flag |
-
-**Entry/exit parameters:**
-
-| Input | Type | Default | Description |
-|-------|------|---------|-------------|
-| `Inp_Override_RequirePriceCross` | bool | false | Override RequirePriceCross entry filter |
-| `Inp_Override_UseHTF` | bool | false | Override HTF trend filter enabled |
-| `Inp_Override_CloseOnReverse` | bool | true | Override CloseOnReverse on opposite signal |
-| `Inp_Override_RiskPercent` | double | 2.0 | Override risk per trade (%) |
-| `Inp_Override_SL_PlacementMode` | ESlPlacementMode | SL_ATR | Override initial SL placement mode |
-| `Inp_Override_SL_Mult` | double | 1.5 | Override SL ATR multiplier |
-| `Inp_Override_SL_PsarPipsCushion` | double | 5.0 | Override SL PSAR cushion (pips) |
-| `Inp_Override_SL_SwingPipsCushion` | double | 10.0 | Override SL swing high/low cushion (pips) |
-| `Inp_Override_TP_Mult` | double | 3.0 | Override TP R-multiple |
-| `Inp_Override_Use_BE` | bool | false | Override breakeven enabled |
-| `Inp_Override_BE_Trig` | double | 1.0 | Override BE trigger (R-multiple) |
-| `Inp_Override_BE_Buff` | double | 0.1 | Override BE buffer (pips) |
-| `Inp_Override_TrailMode` | ETrailingMode | TRAIL_NONE | Override trailing stop mode |
-| `Inp_Override_Trail_Mult` | double | 1.5 | Override trail ATR multiplier |
-| `Inp_Override_PSAR_TrailCushionMode` | EPsarTrailCushionMode | PSAR_CUSHION_PIPS | Override PSAR trail cushion mode |
-| `Inp_Override_PSAR_TrailPipsCushion` | double | 5.0 | Override PSAR trail cushion (pips) |
-
-**Phase detection & layer filtering parameters (§5):**
-
-| Input | Type | Default | Description |
-|-------|------|---------|-------------|
-| `Inp_Override_PhaseDetectionEnabled` | bool | true | Override phase detection master switch |
-| `Inp_Override_EnableLayerDetection` | bool | true | Override layer filtering master switch |
-| `Inp_Override_BlockUnorderedPhase` | bool | true | Override block-all-trades in UNORDERED phase |
-| `Inp_Override_RequireMinPhaseConfirm` | bool | true | Override minimum phase confirmation bars required |
-| `Inp_Override_MinPhaseConfirmBars` | int | 3 | Override number of bars required to confirm phase stability |
-| `Inp_Override_Layer1_AllowTrending` | bool | true | Override Layer 1 (Weak): allow TRENDING phase entries |
-| `Inp_Override_Layer1_AllowEmerging` | bool | true | Override Layer 1 (Weak): allow EMERGING phase entries |
-| `Inp_Override_Layer2_AllowTrending` | bool | true | Override Layer 2 (Medium): allow TRENDING phase entries |
-| `Inp_Override_Layer2_AllowEmerging` | bool | true | Override Layer 2 (Medium): allow EMERGING phase entries |
-| `Inp_Override_Layer3_AllowTrending` | bool | true | Override Layer 3 (Strong): allow TRENDING phase entries |
-| `Inp_Override_Layer3_AllowEmerging` | bool | false | Override Layer 3 (Strong): allow EMERGING phase entries |
-
-### Workflow
-
-**Normal User Workflow:**
-1. Open MT5 Inputs window
-2. Select preset (e.g., `PRESET_RRM`)
-3. `Inp_AdminOverridePreset = false` (default)
-4. Adjust only operator gates (spread limits, time filters, etc.)
-5. See Status Panel showing: preset name, "AdminOverride: OFF", effective strategy config, and active votes
-
-**Admin User Workflow:**
-1. Open MT5 Inputs window
-2. Select preset (e.g., `PRESET_RRM`)
-3. Set `Inp_AdminOverridePreset = true`
-4. Override input fields become active — adjust as needed (e.g., change `Inp_Override_MACD_Fast = 10`)
-5. Test in Strategy Tester
-6. See Status Panel showing "AdminOverride: ACTIVE" and "** ADMIN OVERRIDES APPLIED **"
-7. Save tested configuration as `.set` file: click "Save" in MT5 Inputs → e.g., `RRM_Test_v2.set`
-8. If results are better, manually update `SEA_Presets.mqh` and commit to Git
-
-### Saving Tested Configurations
-
-After testing with AdminOverride active, configurations can be saved as MT5 `.set` files:
-- Click "Save" in the MT5 Expert Properties → Inputs dialog
-- The `.set` file captures all input values including `Inp_AdminOverridePreset=true` and all override values
-- Load the `.set` file later to reproduce the exact tested configuration
-- `.set` files can be shared with the team or used as the basis for a new preset definition
-
----
 
 ## STRAT_LAYER_DETECTION (PR #57)
 
@@ -1929,7 +1779,7 @@ Generates a **persistent bias** based on EMA position and slope alignment. Unlik
 [BIAS_POSITION_SLOPE][2026.02.14 12:00] Fast=1.03247 Slow=1.02833 | SlopeFast=0 SlopeSlow=1 → NEUTRAL (slopes not aligned or conflicting)
 ```
 
-### Configuration (PRESET_TEST_INDICATOR default)
+### Configuration (PRESET_TEST default)
 ```mql5
 cfg.BiasMode   = BIAS_AUTO;
 cfg.AutoStrat  = STRAT_POSITION_SLOPE;

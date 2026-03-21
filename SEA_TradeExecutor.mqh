@@ -712,7 +712,7 @@ private:
    double CalcEntrySL(bool isBuy, double price)
    {
       double sl = 0.0;
-      if(m_settings.ExitProfile == EXIT_PROFILE_RRM_STRICT_NO_ATR)
+      if(m_settings.ExitProfile == EXIT_PROFILE_RRM)
       {
          sl = RRM_GetStrictSL(isBuy, price);
       }
@@ -1266,7 +1266,7 @@ public:
       // =====================================================================
       sl = CalcEntrySL(isBuy, price);
 
-      if(m_settings.ExitProfile == EXIT_PROFILE_RRM_STRICT_NO_ATR)
+      if(m_settings.ExitProfile == EXIT_PROFILE_RRM)
       {
          // Strict non-ATR path: TP computed from actual SL distance
          tp = RRM_GetStrictTP(isBuy, price, sl);
@@ -1382,7 +1382,7 @@ public:
                " | TP: ", tp,
                " | [Shift: ", m_settings.ma_v_shift, "]");
          m_last_trade_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
-         if(m_settings.ExitProfile == EXIT_PROFILE_RRM_STRICT_NO_ATR)
+         if(m_settings.ExitProfile == EXIT_PROFILE_RRM)
          {
             m_rrm_initial_sl   = sl;
             m_rrm_be_reached   = false;
@@ -1563,7 +1563,7 @@ public:
       if(ticket == 0 || !PositionSelectByTicket(ticket)) return;
 
       // Dispatch to strict non-ATR path if configured
-      if(m_settings.ExitProfile == EXIT_PROFILE_RRM_STRICT_NO_ATR)
+      if(m_settings.ExitProfile == EXIT_PROFILE_RRM)
       {
          RRM_ManageStrictNoATR(ticket);
          return;

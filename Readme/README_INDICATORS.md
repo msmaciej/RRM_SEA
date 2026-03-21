@@ -82,7 +82,9 @@ TS = [Pre-Filters] × [Bias × Phase] × [Layer] × [Indicators]
 - **Why:** Too low = ranging market, too high = unpredictable moves
 - **If fails:** Reject signal (reason: "MIN_ATR" or "MAX_ATR")
 - **Example:** If ATR = 2 pips and min = 5 → NO TRADE
-- **Note:** Can be "hard gate" (blocks trade) or "soft vote" (just influences voting)
+- **Note:** ATR serves TWO roles:
+  1. **Pre-filter** (Step 1): Hard gate that blocks trades outside volatility range
+  2. **Voting Indicator** (Step 8): Non-directional vote that validates market conditions
 
 #### 1.3 Time/Session Filter (if enabled)
 - **Check:** Current time within allowed trading sessions
@@ -642,6 +644,16 @@ Indicators fall into two categories based on whether they need to know the trade
 **Ross Hook (Fractal)** - `Use_Ross`
 - **Check:** Fractal breakout confirmed
 - **Why:** Structure-based entry
+
+**ATR (Volatility Range)** - `Use_ATR` / `Inp_Ind_ATR_Enabled`
+- **Check:** `ATR_MinPips` < Current ATR < `ATR_MaxPips`
+- **Why:** Ensures volatility is within tradable range
+- **Note:** Direction-independent (non-directional indicator)
+- **Best for:** All strategies, prevents trading in dead zones or excessive volatility
+- **Parameters:**
+  - `P_Atr = 14` (ATR period)
+  - `ATR_MinPips = 5.0` (minimum volatility threshold)
+  - `ATR_MaxPips = 50.0` (maximum volatility threshold)
 
 #### 8.4 Count total votes
 
@@ -1486,6 +1498,30 @@ Details in implementation
 **Best for:** Joe Ross methodology followers
 
 **Note:** Advanced pattern - see code for exact logic
+
+---
+
+### 12. ATR (Volatility Range)
+
+**Setting:** `Use_ATR` / `Inp_Ind_ATR_Enabled`
+
+**What it checks:**
+```
+ATR_MinPips < Current ATR < ATR_MaxPips
+```
+
+**Purpose:** Ensures volatility is within tradable range
+
+**Note:** Direction-independent (non-directional indicator). ATR serves **two roles** in the pipeline:
+1. **Pre-filter (Step 1):** Hard gate via `Inp_MinATRPips`/`Inp_MaxATRPips` — blocks trades outside range
+2. **Voting Indicator (Step 8):** Non-directional vote that validates market conditions
+
+**Best for:** All strategies; prevents trading in dead zones or excessive volatility
+
+**Parameters:**
+- `P_Atr = 14` (ATR period)
+- `ATR_MinPips = 5.0` (minimum volatility threshold)
+- `ATR_MaxPips = 50.0` (maximum volatility threshold)
 
 ---
 
