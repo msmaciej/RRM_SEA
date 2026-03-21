@@ -1419,7 +1419,7 @@ public:
          return;
       }
 
-      // Compute ATR internally only if needed (breakeven with legacy ATR-based fields)
+      // Compute ATR internally only if needed (Use_BE uses ATR-based trigger)
       bool need_atr = m_settings.Use_BE;
       double atr = 0.0;
       if(need_atr) {

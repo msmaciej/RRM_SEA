@@ -1150,7 +1150,7 @@ double GetAdaptiveTrailCushion(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &ad
 }
 
 // Return adaptive PSAR cushion value in pips.
-double GetAdaptivePsarCushion(double current_atr, const ST_AdaptiveSettings &adaptive)
+double GetAdaptivePsarCushion(const ST_AdaptiveSettings &adaptive)
 {
    return adaptive.PsarCushion_Pips;
 }
