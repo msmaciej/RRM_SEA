@@ -597,7 +597,7 @@ input EStrategyPreset InpPreset                 = PRESET_TEST;   // Strategy pre
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📖 NAVIGATION GUIDE (Scroll to find your section)     ║"
 input group "╠════════════════════════════════════════════════════════╣"
-input group "║  ✅ ZONE 2A: OPERATOR GATES & UI (always editable)     ║"
+input group "║  ✅ ZONE 2A: OPERATOR GATES & UI (Policy A — always editable) ║"
 input group "║  ⚠️  ZONE 3A: Pipeline Config (Steps 1–9)              ║"
 input group "║     └─ ZONE 3A.9: EXIT MANAGEMENT ← START HERE        ║"
 input group "╚════════════════════════════════════════════════════════╝"
