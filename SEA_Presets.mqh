@@ -116,7 +116,7 @@ int GetActiveIndicatorCount(const ST_Settings &cfg)
    if(cfg.Ind_Sto_Enabled)    count++;
    if(cfg.Ind_Bb_Enabled)     count++;
    if(cfg.Ind_Psar_Enabled)   count++;
-   if(cfg.Ind_ATR_Enabled)    count++;
+   if(cfg.Ind_Atr_Enabled)    count++;
    if(cfg.Ind_P123_Enabled)   count++;
    if(cfg.Ind_Ross_Enabled)   count++;
    return count;
@@ -179,7 +179,7 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("    MACD:    ", (cfg.Ind_Macd_Enabled ? "✓" : "✗"), (cfg.Ind_Macd_Enabled ? " (" + EnumToString(cfg.MacdVoteMode) + ")" : ""));
    Print("    CCI:     ", (cfg.Ind_Cci_Enabled ? "✓" : "✗"));
    Print("    PSAR:    ", (cfg.Ind_Psar_Enabled ? "✓" : "✗"));
-   Print("    ATR:     ", (cfg.Ind_ATR_Enabled ? "✓" : "✗"));
+   Print("    ATR:     ", (cfg.Ind_Atr_Enabled ? "✓" : "✗"));
    Print("    ADX:     ", (cfg.Ind_Adx_Enabled ? "✓" : "✗"));
    Print("    RSI:     ", (cfg.Ind_Rsi_Enabled ? "✓" : "✗"));
    Print("    MFI:     ", (cfg.Ind_Mfi_Enabled ? "✓" : "✗"));
@@ -376,7 +376,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
       // ATR (Average True Range)
       cfg.P_Atr       = 14;
-      cfg.Use_ATRVote = false;
       cfg.MinATR      = 0.0;
       cfg.MaxATR      = 0.0;
    
@@ -685,7 +684,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
       // ATR (Average True Range)
       cfg.P_Atr       = 14;
-      cfg.Use_ATRVote = false;
       cfg.MinATR      = 0.0;
       cfg.MaxATR      = 0.0;
    
@@ -928,7 +926,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
       // ATR (Average True Range)
       cfg.P_Atr       = 14;
-      cfg.Use_ATRVote = false;
       cfg.MinATR      = 0.0;
       cfg.MaxATR      = 0.0;
    

@@ -1958,7 +1958,7 @@ public:
       h_ema4 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema4, h_shift, method, PRICE_CLOSE);
 
       // Create ATR for pre-filter gate and ATR voting indicator
-      bool need_atr = (m_settings.MinATR > 0.0 || m_settings.MaxATR > 0.0 || m_settings.Ind_ATR_Enabled);
+      bool need_atr = (m_settings.MinATR > 0.0 || m_settings.MaxATR > 0.0 || m_settings.Ind_Atr_Enabled);
       h_atr  = (need_atr ? iATR(m_symbol, PERIOD_CURRENT, m_settings.P_Atr) : INVALID_HANDLE);
 
       // Optional indicators: create only when used by votes/filters/trailing (reduces Strategy Tester clutter)
@@ -2997,13 +2997,13 @@ public:
       #undef CAST_VOTE
 
       // Volatility regime vote (ATR as non-directional voting indicator)
-      // Uses dedicated ATR_MinPips/ATR_MaxPips thresholds (separate from the hard pre-filter gates)
-      if(m_settings.Ind_ATR_Enabled)
+      // Uses dedicated ATR_VoteMinPips/ATR_VoteMaxPips thresholds (separate from the hard pre-filter gates)
+      if(m_settings.Ind_Atr_Enabled)
       {
          double atr_vote_pips = m_diag_last_atr_pips;
          bool   atr_vote_ok   = true;
-         if(m_settings.ATR_MinPips > 0.0 && atr_vote_pips < m_settings.ATR_MinPips) atr_vote_ok = false;
-         if(m_settings.ATR_MaxPips > 0.0 && atr_vote_pips > m_settings.ATR_MaxPips) atr_vote_ok = false;
+         if(m_settings.ATR_VoteMinPips > 0.0 && atr_vote_pips < m_settings.ATR_VoteMinPips) atr_vote_ok = false;
+         if(m_settings.ATR_VoteMaxPips > 0.0 && atr_vote_pips > m_settings.ATR_VoteMaxPips) atr_vote_ok = false;
 
          if(atr_vote_ok) vote_weight += 1.0;
          else            all_pass     = false;
@@ -3128,13 +3128,13 @@ public:
             } else Print("[IND] RossHook: DISABLED → SKIP");
 
             // ATR Vote (non-directional voting indicator)
-            if(m_settings.Ind_ATR_Enabled) {
+            if(m_settings.Ind_Atr_Enabled) {
                double atr_v_pips = m_diag_last_atr_pips;
                bool   atr_v_ok   = true;
-               if(m_settings.ATR_MinPips > 0.0 && atr_v_pips < m_settings.ATR_MinPips) atr_v_ok = false;
-               if(m_settings.ATR_MaxPips > 0.0 && atr_v_pips > m_settings.ATR_MaxPips) atr_v_ok = false;
+               if(m_settings.ATR_VoteMinPips > 0.0 && atr_v_pips < m_settings.ATR_VoteMinPips) atr_v_ok = false;
+               if(m_settings.ATR_VoteMaxPips > 0.0 && atr_v_pips > m_settings.ATR_VoteMaxPips) atr_v_ok = false;
                PrintFormat("[IND] ATR Vote: %.1f pips (min=%.1f max=%.1f) → %s (w=1)",
-                           atr_v_pips, m_settings.ATR_MinPips, m_settings.ATR_MaxPips,
+                           atr_v_pips, m_settings.ATR_VoteMinPips, m_settings.ATR_VoteMaxPips,
                            atr_v_ok ? "PASS" : "FAIL");
             } else
                Print("[IND] ATR Vote: DISABLED → SKIP");

@@ -348,10 +348,6 @@ struct ST_Settings
    double MinATR;
    double MaxATR;
    bool   ATR_HardGate;
-   bool   Ind_ATR_Enabled;   // ATR as voting indicator (Step 8)
-   double ATR_MinPips;        // ATR voting threshold: minimum pips (separate from pre-filter MinATR)
-   double ATR_MaxPips;        // ATR voting threshold: maximum pips (separate from pre-filter MaxATR)
-
    // MT5 Moving Average benchmark compatibility
    bool   UseMACompatSizer;
    double MA_MaximumRiskPct;
@@ -403,6 +399,7 @@ struct ST_Settings
    int Ind_Psar_Weight;
    int Ind_P123_Weight;
    int Ind_Ross_Weight;
+   int Ind_Atr_Weight;
 
    // Indicators (Periods)
    int    P_Ema1;
@@ -432,6 +429,8 @@ struct ST_Settings
    double P_PsarMax;
    double T_MfiOB;
    double T_MfiOS;
+   double ATR_VoteMinPips;    // ATR voting threshold: minimum pips (separate from pre-filter MinATR)
+   double ATR_VoteMaxPips;    // ATR voting threshold: maximum pips (separate from pre-filter MaxATR)
 
    // Modes
    EMacdVoteMode MacdVoteMode;           // MACD base vote mode
@@ -457,9 +456,7 @@ struct ST_Settings
    bool Ind_Psar_Enabled;
    bool Ind_P123_Enabled;
    bool Ind_Ross_Enabled;
-
-   // ATR voting (separate from pre-filter gate)
-   bool   Use_ATRVote;              // Enable ATR as voting indicator (distinct from MinATR/MaxATR gates)
+   bool Ind_Atr_Enabled;
 
    // MFI mode
    EMfiMode MfiMode;                // MFI vote mode (ZONE_FILTER or TREND_50)
@@ -913,11 +910,12 @@ input int            Inp_Vote_PsarFlipDelay     = 2;                   // [PSAR]
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: ATR (Volatility)                        ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool           Inp_Ind_ATR_Enabled       = true;                // [ATR] Enable ATR as voting indicator
-input int            Inp_Ind_ATR_Period         = 14;                  // [ATR] Period
-input double         Inp_Ind_ATR_MinPips        = 5.0;                 // [ATR] Minimum pips (gate filter)
-input double         Inp_Ind_ATR_MaxPips        = 50.0;                // [ATR] Maximum pips (gate filter)
-input string         Inp_Ind_ATR_Info           = "Non-directional: validates volatility range (pre-filter + voting)"; // [ATR] Description
+input bool           Inp_Ind_Atr_Enabled       = true;                // [ATR] Enable ATR vote
+input int            Inp_Ind_Atr_Weight        = 1;                   // [ATR] Vote weight
+input string         Inp_Ind_Atr_Info          = "Non-directional: validates volatility range (voting)"; // [ATR] Description
+input int            Inp_Ind_Atr_Period        = 14;                  // [ATR] Period
+input double         Inp_Ind_Atr_VoteMinPips   = 5.0;                 // [ATR] Voting min pips (separate from pre-filter gate)
+input double         Inp_Ind_Atr_VoteMaxPips   = 50.0;                // [ATR] Voting max pips (separate from pre-filter gate)
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: Pattern 1-2-3                           ║"
@@ -1237,10 +1235,8 @@ void InitializeConfig()
 
    // Defaults for gating/vote semantics
    Settings.ATR_HardGate         = false;
-   Settings.Ind_ATR_Enabled      = Inp_Ind_ATR_Enabled;
-   Settings.ATR_MinPips          = Inp_Ind_ATR_MinPips;
-   Settings.ATR_MaxPips          = Inp_Ind_ATR_MaxPips;
-   Settings.Use_ATRVote          = false;  // Default off; presets override
+   Settings.ATR_VoteMinPips      = Inp_Ind_Atr_VoteMinPips;
+   Settings.ATR_VoteMaxPips      = Inp_Ind_Atr_VoteMaxPips;
 
    // MA benchmark inputs (strategy fields; preset may use/override semantics later)
    Settings.UseMACompatSizer     = false;
@@ -1323,7 +1319,7 @@ void InitializeConfig()
    Settings.P_BbDev              = Inp_Ind_Bb_Dev;
    Settings.P_PsarStep           = Inp_Ind_Psar_Step;
    Settings.P_PsarMax            = Inp_Ind_Psar_Max;
-   Settings.P_Atr                = Inp_Ind_ATR_Period;
+   Settings.P_Atr                = Inp_Ind_Atr_Period;
 
    // Modes
    Settings.MacdVoteMode         = Inp_MacdVoteMode;
@@ -1350,6 +1346,7 @@ void InitializeConfig()
    Settings.Ind_Psar_Enabled     = Inp_Ind_Psar_Enabled;
    Settings.Ind_P123_Enabled     = Inp_Ind_P123_Enabled;
    Settings.Ind_Ross_Enabled     = Inp_Ind_Ross_Enabled;
+   Settings.Ind_Atr_Enabled      = Inp_Ind_Atr_Enabled;
 
    // Per-indicator vote weights (1 = standard; used in VOTE_MODE_THRESHOLD for weighted sum)
    // In VOTE_MODE_ALL (recommended), weights are ignored — all enabled indicators must simply agree.
@@ -1364,6 +1361,7 @@ void InitializeConfig()
    Settings.Ind_Psar_Weight      = Inp_Ind_Psar_Weight;
    Settings.Ind_P123_Weight      = Inp_Ind_P123_Weight;
    Settings.Ind_Ross_Weight      = Inp_Ind_Ross_Weight;
+   Settings.Ind_Atr_Weight       = Inp_Ind_Atr_Weight;
 
    // Exits
    Settings.SL_Mult              = 0.0;
