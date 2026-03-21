@@ -352,7 +352,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
       // ================================================================
       cfg.Ind_Adx_Enabled    = false;
-      cfg.Ind_Atr_Enabled    = false;
+      cfg.Ind_ATR_Enabled    = false;
       cfg.Ind_Bb_Enabled     = false;
       cfg.Ind_Cci_Enabled    = false;
       cfg.Ind_EmaSig_Enabled = false;
@@ -661,7 +661,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
       // ================================================================
       cfg.Ind_Adx_Enabled    = false;
-      cfg.Ind_Atr_Enabled    = false;
+      cfg.Ind_ATR_Enabled    = false;
       cfg.Ind_Bb_Enabled     = false;
       cfg.Ind_Cci_Enabled    = true;
       cfg.Ind_EmaSig_Enabled = true;
@@ -904,7 +904,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
       // ================================================================
       cfg.Ind_Adx_Enabled    = false;
-      cfg.Ind_Atr_Enabled    = false;
+      cfg.Ind_ATR_Enabled    = false;
       cfg.Ind_Bb_Enabled     = false;
       cfg.Ind_Cci_Enabled    = false;
       cfg.Ind_EmaSig_Enabled = false;
