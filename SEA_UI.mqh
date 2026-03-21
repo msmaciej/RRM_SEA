@@ -492,7 +492,7 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
 
    // --- Exits: SL / TP
    txt += "--- Exits: SL / TP ---\n";
-   txt += StringFormat("SL: %s%s  Mult=%.2f%s\n", EnumToString(Settings.SL_PlacementMode),
+   txt += StringFormat("SL: %s%s  Mult=%.2f%s\n", EnumToString(Settings.SLMode),
                        SEA_UI_AdmMark(), Settings.SL_Mult, SEA_UI_AdmMark());
    txt += StringFormat("TP_Mult=%.2f%s\n", Settings.TP_Mult, SEA_UI_AdmMark());
 
@@ -507,15 +507,9 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
    // --- Exits: Trailing
    txt += "--- Exits: Trailing ---\n";
    string trail_str = EnumToString(Settings.TrailMode) + SEA_UI_AdmMark();
-   if(Settings.TrailMode == TRAIL_ATR)
-      trail_str += StringFormat("  Mult=%.2f", Settings.Trail_Mult);
-   else if(Settings.TrailMode == TRAIL_PSAR)
+   if(Settings.TrailMode == TRAIL_PSAR)
    {
-      trail_str += StringFormat("  %s", EnumToString(Settings.PSAR_TrailCushionMode));
-      if(Settings.PSAR_TrailCushionMode == PSAR_CUSHION_ATR)
-         trail_str += StringFormat("  CushionATR=%.2f", Settings.P_PsarTrailCushionATR);
-      else
-         trail_str += StringFormat("  CushionPips=%.1f  Delay=%d", Settings.PSAR_TrailPipsCushion, Settings.PSAR_TrailDelay);
+      trail_str += StringFormat("  CushionPips=%.1f  Delay=%d", Settings.PSAR_TrailPipsCushion, Settings.PSAR_TrailDelay);
    }
    txt += trail_str + "\n";
 

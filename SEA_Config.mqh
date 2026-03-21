@@ -33,41 +33,7 @@ enum EMaMethod
    METHOD_SMA                 // Simple
 };
 
-//+------------------------------------------------------------------+
-//| Bias Mode (How to Determine Market Direction)                    |
-//|                                                                  |
-//| Three methods for calculating trend bias (market direction).     |
-//| Each method differs in how many EMAs it uses and how it         |
-//| determines the prevailing trend.                                 |
-//|                                                                  |
-//| BIAS_MANUAL:                                                     |
-//|   Uses: Operator-set fixed direction                             |
-//|   Logic: Always returns configured side (LONG, SHORT, or BOTH)  |
-//|   When to use: Override mode, backtesting a single direction     |
-//|   MarketPhase: NOT calculated (always = 1)                      |
-//|   EntryLayer: Can still be used (if enabled)                    |
-//|                                                                  |
-//| BIAS_AUTO (Traditional EMA method):                              |
-//|   Uses: Fast EMA vs Slow EMA comparison                         |
-//|   Logic:                                                         |
-//|     - EMA_Fast > EMA_Slow (both slopes up)   → Bias = 1 (LONG) |
-//|     - EMA_Fast < EMA_Slow (both slopes down) → Bias = -1 (SHORT)|
-//|     - EMAs crossing or flat                  → Bias = 0 (NEUTRAL)|
-//|   When to use: Standard trend-following strategies               |
-//|   MarketPhase: NOT calculated (always = 1)                      |
-//|   EntryLayer: Can still be used (if enabled)                    |
-//|                                                                  |
-//| BIAS_AUTO_PHASE (Market Phase method):                           |
-//|   Uses: 4 EMAs (EMA1, EMA2, EMA3, EMA4) structure analysis     |
-//|   Logic:                                                         |
-//|     1. Analyze EMA2, EMA3, EMA4 relative positions and slopes   |
-//|     2. Determine Market Phase (TRENDING/EMERGING/UNORDERED)     |
-//|     3. Extract Bias direction from phase structure              |
-//|   When to use: RRM strategy, advanced trend detection            |
-//|   MarketPhase: CALCULATED (TRENDING/EMERGING/UNORDERED)        |
-//|   EntryLayer: Can still be used (if enabled)                    |
-//|   Special: UNORDERED phase blocks all trades (TS = 0)          |
-//+------------------------------------------------------------------+
+// --- BIAS MODE: how market direction is determined ---
 enum EBiasMode
 {
    BIAS_MANUAL,       // Manual direction (LONG_ONLY, SHORT_ONLY, BOTH)
@@ -75,30 +41,7 @@ enum EBiasMode
    BIAS_AUTO_PHASE    // Auto: Market Phase bias (4-EMA structure → TRENDING/EMERGING/UNORDERED)
 };
 
-//+------------------------------------------------------------------+
-//| Market Phase (for 4-EMA Bias Mode)                               |
-//|                                                                  |
-//| Analyzes EMA slopes + ordering for instant market structure.     |
-//| Only used when BiasMode = BIAS_AUTO_PHASE.                       |
-//|                                                                  |
-//| PHASE_TRENDING_UP / PHASE_TRENDING_DN:                           |
-//|   - EMA3 and EMA4 slopes agree (both up or both down)           |
-//|   - EMAs properly ordered (EMA2>EMA3>EMA4 for UP)               |
-//|   - Strong, clear trend structure                               |
-//|   → Allow all layers (L1, L2, L3), Bias = 1 or -1              |
-//|                                                                  |
-//| PHASE_EMERGING_UP / PHASE_EMERGING_DN:                           |
-//|   - EMA3 and EMA4 slopes agree (both up or both down)           |
-//|   - EMA4 sandwiched between EMA2 and EMA3 (trend forming)       |
-//|   - Transitioning towards TRENDING phase                        |
-//|   → Allow L1/L2 only (block L3), Bias = 1 or -1                |
-//|                                                                  |
-//| PHASE_UNORDERED:                                                 |
-//|   - EMA3/EMA4 slopes conflict, or either is flat                |
-//|   - Any other EMA configuration not matching above              |
-//|   - Mixed or choppy market                                      |
-//|   → Block all trades (TS = 0), Bias = 0                        |
-//+------------------------------------------------------------------+
+// --- MARKET PHASE: used by BIAS_AUTO_PHASE (4-EMA structure analysis) ---
 enum EMarketPhase {
    PHASE_UNORDERED,      // No clear structure - block all trades (TS = 0)
    PHASE_EMERGING,       // Trend forming (EMA4 between EMA2/EMA3) - allow trades (legacy; use UP/DN variants)
@@ -109,48 +52,8 @@ enum EMarketPhase {
    PHASE_EMERGING_DN     // Emerging bearish: slopes down + EMA4 between EMA2 and EMA3
 };
 
-//+------------------------------------------------------------------+
-//| Entry Layer (Pullback-Recovery Detection)                        |
-//|                                                                  |
-//| Identifies which EMA pair price is pulling back to, based on    |
-//| a pullback-recovery pattern. Can be used with ANY bias mode     |
-//| (independent of Market Phase).                                   |
-//|                                                                  |
-//| With 4 active EMAs, we have 3 EMA pairs representing different  |
-//| trade aggressiveness levels:                                     |
-//|                                                                  |
-//| LAYER_1_WEAK (EMA1-EMA2) "Ribbon":                              |
-//|   - Shallow pullback to fast EMAs                               |
-//|   - Less aggressive entry, tighter stops                        |
-//|   - Lower risk, lower reward potential                          |
-//|   - Best for: Scalping, quick entries in strong trends          |
-//|                                                                  |
-//| LAYER_2_MEDIUM (EMA2-EMA3) "Ghost":                             |
-//|   - Medium pullback to mid EMAs                                 |
-//|   - Moderate entry, balanced stops                              |
-//|   - Balanced risk/reward                                        |
-//|   - Best for: Swing trading, standard trend setups              |
-//|                                                                  |
-//| LAYER_3_STRONG (EMA3-EMA4) "Shark":                             |
-//|   - Deep pullback to slow EMAs                                  |
-//|   - Aggressive entry, wider stops                               |
-//|   - Higher risk, higher reward potential                        |
-//|   - Best for: Position trading, major trend continuations       |
-//|                                                                  |
-//| Detection Logic (Pullback-Recovery Pattern):                    |
-//|   1. Pullback: EMA_fast slope moves toward EMA_slow (flattens) |
-//|   2. Flat:     EMA_fast slope becomes flat (consolidation)     |
-//|   3. Recovery: EMA_fast slope resumes trend direction           |
-//|   4. Confirm:  Price candle body closes beyond EMA_fast         |
-//|                (in bias direction)                              |
-//|                                                                  |
-//| Return Values from layer check:                                  |
-//|    1  = Pullback-recovery detected, matches bias (PASS)         |
-//|    0  = No pullback-recovery detected (FAIL)                    |
-//|   -1  = Pullback-recovery contradicts bias direction (FAIL)    |
-//+------------------------------------------------------------------+
-// 260308_PR: Bitfield enum — each layer is a power-of-2 flag so multiple layers
-// can be OR-combined into a single value (e.g. L1+L2 = 3, L2+L3 = 6, L1+L2+L3 = 7).
+// --- ENTRY LAYER: bitfield identifying EMA pullback zone (Layer 1/2/3) ---
+// Each layer is a power-of-2 flag (combinable via OR).
 enum EEntryLayer {
    LAYER_NONE          = 0,   // 0b0000 — No layer detected or detection disabled
    LAYER_1_WEAK        = 1,   // 0b0001 — Layer 1: EMA1-EMA2 "Ribbon" zone (shallow pullback)
@@ -259,10 +162,10 @@ enum EBbMode
    BB_MEAN_REVERSION      // Price at outer band = reversion to middle
 };
 
+// --- TRAILING STOP MODE ---
 enum ETrailingMode
 {
    TRAIL_NONE,            // No trailing stop
-   TRAIL_ATR,             // ATR-based dynamic trailing
    TRAIL_PSAR,            // PSAR dot trailing
    TRAIL_FRACTAL,         // Fractal-based trailing
    TRAIL_PSAR_FLIP_EXIT,  // Close position on PSAR flip
@@ -271,52 +174,33 @@ enum ETrailingMode
    TRAIL_PROFIT_PERCENT   // Trail after profit % threshold reached
 };
 
-//+------------------------------------------------------------------+
-//| ⚠️ DEPRECATED: Legacy SL Placement Mode (kept for compatibility)|
-//| Use ESLMode (Inp_SLMode) for new configurations.                 |
-//| This enum will be removed in a future version.                   |
-//+------------------------------------------------------------------+
-enum ESlPlacementMode
+// --- PSAR TRAIL CUSHION MODE ---
+enum EPsarTrailCushionMode
 {
-   SL_ATR,                // DEPRECATED: Use SL_MODE_ATR instead
-   SL_PSAR_ATR,           // DEPRECATED: Use SL_PSAR_DOT with adaptive PSAR cushion
-   SL_PSAR_PIPS,          // DEPRECATED: Use SL_PSAR_DOT with fixed pips cushion
-   SL_SWING_HIGHLOW,      // DEPRECATED: Use SL_MODE_SWING instead
-   SL_FIXED_PIPS          // DEPRECATED: Use SL_MODE_FIXED_PIPS instead
+   PSAR_CUSHION_PIPS      // Fixed pips cushion
 };
 
-//+------------------------------------------------------------------+
-//| Stop Loss Strategy Mode (new; ATR-optional, strategy-based)      |
-//| Defines how SL distance is calculated in GetStopLossPips()       |
-//+------------------------------------------------------------------+
+// --- STOP LOSS STRATEGY MODE ---
 enum ESLMode
 {
-   SL_MODE_FIXED_PIPS,    // Fixed pips (default, ATR-independent)
-   SL_MODE_ATR,           // ATR-based (optional, requires UseATRforSL=true)
+   SL_MODE_FIXED_PIPS,    // Fixed pips (default)
    SL_MODE_PERCENT,       // Percentage of entry price
-   SL_MODE_SWING,         // Based on recent swing high/low (SwingLookback bars)
-   SL_FRACTAL,            // NEW: Last fractal level (Bill Williams)
-   SL_PSAR_DOT            // NEW: PSAR dot position
+   SL_MODE_SWING,         // Recent swing high/low (SwingLookback bars)
+   SL_FRACTAL,            // Last fractal level (Bill Williams)
+   SL_PSAR_DOT            // PSAR dot position
 };
 
-//+------------------------------------------------------------------+
-//| Take Profit Strategy Mode (new; ATR-optional, strategy-based)    |
-//| Defines how TP distance is calculated in GetTakeProfitPips()     |
-//+------------------------------------------------------------------+
+// --- TAKE PROFIT STRATEGY MODE ---
 enum ETPMode
 {
    TP_MODE_FIXED_PIPS,    // Fixed pips (default)
    TP_MODE_RR,            // Risk:Reward ratio (TP = SL distance × RRRatio)
-   TP_MODE_ATR,           // ATR-based (optional, requires UseATRforTP=true)
-   TP_FRACTAL,            // NEW: Next fractal level as TP target
-   TP_PSAR_FLIP,          // NEW: Exit when PSAR flips (TP handled by TM)
-   TP_NONE                // NEW: No TP, rely on trailing stop only
+   TP_FRACTAL,            // Next fractal level as TP target
+   TP_PSAR_FLIP,          // Exit when PSAR flips (TP handled by TM)
+   TP_NONE                // No TP, rely on trailing stop only
 };
 
-//+------------------------------------------------------------------+
-//| Trailing Stop Trigger Condition (NEW: Phase 2.2)                 |
-//| Determines when trailing stop activation begins                   |
-//+------------------------------------------------------------------+
+// --- TRAILING STOP TRIGGER CONDITION ---
 enum ETrailTrigger
 {
    TRIGGER_IMMEDIATE,       // Trail from entry (default)
@@ -324,13 +208,6 @@ enum ETrailTrigger
    TRIGGER_PROFIT_PIPS,     // Trail after X pips profit (TrailDistancePips)
    TRIGGER_PROFIT_PERCENT,  // Trail after X% profit (TrailProfitPercent)
    TRIGGER_PSAR_ALIGN       // Trail when PSAR aligns with position direction
-};
-
-// TR - Trailing Stop: PSAR Trailing Cushion Mode
-enum EPsarTrailCushionMode
-{
-   PSAR_CUSHION_ATR,
-   PSAR_CUSHION_PIPS
 };
 
 // --- EXIT PROFILE SELECTOR ---
@@ -341,11 +218,10 @@ enum EExitProfile
 };
 
 // --- BREAKEVEN MODE SELECTOR ---
-// Controls how breakeven is triggered under the strict non-ATR RRM exit profile.
-// BE_MODE_OFF maps to existing behavior (executor uses legacy Use_BE/BE_Trig/BE_Buff untouched).
+// Controls how breakeven is triggered under the non-ATR RRM exit profile.
 enum EBeMode
 {
-   BE_MODE_OFF,                // Breakeven disabled (default; legacy ATR fields still in effect)
+   BE_MODE_OFF,                // Breakeven disabled (default)
    BE_MODE_TP_PROGRESS_PCT,    // BE triggers at % progress toward TP (used with TP enabled)
    BE_MODE_R_MULTIPLE          // BE triggers at k*R multiple (used when TP is disabled)
 };
@@ -376,13 +252,6 @@ enum EPairType
    PAIR_TYPE_CRYPTO          // BTC/USD (very wide spreads, extreme volatility)
 };
 
-// --- ADAPTIVE SETTINGS: TIMEFRAME SCALING MODE ---
-enum ETFScaling
-{
-   TF_SCALE_AUTO,            // Auto-detect from chart timeframe
-   TF_SCALE_MANUAL           // User provides base values directly (no auto-scale)
-};
-
 struct SGateConfig
 {
    EGateScaleMode mode;
@@ -410,8 +279,7 @@ struct ST_AdaptiveSettings
    double Spread_Gold;
    double Spread_Crypto;
 
-   // ATR limits scaling mode and base values (pips at M15 reference)
-   ETFScaling ATR_Mode;
+   // ATR gate base values (pips at M15 reference; scaled by TF multiplier)
    double ATR_Min_Base;
    double ATR_Max_Base;
 
@@ -425,10 +293,8 @@ struct ST_AdaptiveSettings
    double TrailCushion_Base;
    bool   UseTrailCushion;
 
-   // PSAR trail cushion (adaptive)
-   double PsarCushion_Pips;      // Fixed pips cushion (when PsarUseATR=false)
-   bool   PsarUseATR;            // Use ATR multiplier instead of fixed pips
-   double PsarATR_Multiplier;    // PSAR cushion as fraction of ATR (when PsarUseATR=true)
+   // PSAR trail cushion (fixed pips)
+   double PsarCushion_Pips;
 };
 
 // --- STRUCTURES ---
@@ -547,7 +413,6 @@ struct ST_Settings
    double P_BbDev;
    double P_PsarStep;
    double P_PsarMax;
-   double P_PsarTrailCushionATR;
    double T_MfiOB;
    double T_MfiOS;
 
@@ -577,18 +442,15 @@ struct ST_Settings
    bool Ind_Ross_Enabled;
 
    // SL - Initial SL Placement
-   ESlPlacementMode SL_PlacementMode;
    double           SL_Mult;
    double           SL_PsarPipsCushion;
    double           SL_SwingPipsCushion;
    double           SL_FixedPips;
 
-   // SL/TP Strategy Configuration (new; ATR-optional, strategy-based)
-   ESLMode  SLMode;           // How to calculate SL distance (new strategy enums)
-   ETPMode  TPMode;           // How to calculate TP distance (new strategy enums)
+   // SL/TP Strategy Configuration
+   ESLMode  SLMode;           // How to calculate SL distance
+   ETPMode  TPMode;           // How to calculate TP distance
    double   FixedTPPips;      // Fixed TP distance in pips (TP_MODE_FIXED_PIPS)
-   bool     UseATRforSL;      // Enable ATR-based SL (SL_MODE_ATR only)
-   bool     UseATRforTP;      // Enable ATR-based TP (TP_MODE_ATR only)
    double   SLPercent;        // SL as % of entry price (SL_MODE_PERCENT, e.g. 0.5 = 0.5%)
    double   RRRatio;          // Risk:Reward ratio (TP_MODE_RR, e.g. 2.0 = 1:2)
    int      SwingLookback;    // Bars to look back for swing high/low (SL_MODE_SWING)
@@ -601,10 +463,9 @@ struct ST_Settings
    double   PSARStep;             // PSAR step for SL/TP calculations (default: 0.02)
    double   PSARMax;              // PSAR max for SL/TP calculations (default: 0.2)
 
-   // === Advanced Trailing Settings (NEW: Phase 2.2) ===
+   // Advanced Trailing Settings
    ETrailTrigger TrailTrigger;       // When to begin trailing (default: TRIGGER_IMMEDIATE)
    double   TrailDistancePips;       // Fixed trail distance in pips (TRAIL_FIXED_PIPS / trigger threshold)
-   double   TrailATRMultiplier;      // ATR multiplier for trail distance (TRAIL_ATR mode)
    double   BEThresholdPips;         // Profit pips required before moving to breakeven
    double   TrailProfitPercent;      // Profit % threshold for TRIGGER_PROFIT_PERCENT
    double   TrailStepPips;           // Minimum pips movement before updating SL
@@ -621,15 +482,15 @@ struct ST_Settings
    double              PSAR_TrailPipsCushion;
    int                 PSAR_TrailDelay;         // PSAR trailing bar-shift delay (1-3)
 
-   // --- Strict non-ATR RRM exit contract (for future PRs; defaults preserve current behavior) ---
+   // RRM exit contract
    EExitProfile ExitProfile;            // Exit profile selector
-   bool         TP_Enabled;             // Whether TP is active; true preserves existing TP_Mult>0 semantics
-   EBeMode      BE_Mode;                // BE mode for strict non-ATR RRM; BE_MODE_OFF = legacy ATR BE untouched
+   bool         TP_Enabled;             // Whether TP is active
+   EBeMode      BE_Mode;                // BE mode for RRM
 
-   // Strict RRM parameters (reserved for future implementation; no executor reads these yet)
+   // RRM parameters
    double RRM_BE_ProgressPct;           // BE trigger: % progress toward TP (0..100); used with BE_MODE_TP_PROGRESS_PCT
    double RRM_BE_RMultiple;             // BE trigger: R-multiple threshold (e.g. 1.0); used with BE_MODE_R_MULTIPLE
-   double RRM_BE_BufferPips;            // BE buffer in pips for strict non-ATR mode
+   double RRM_BE_BufferPips;            // BE buffer in pips
    int    RRM_TrailPsarShiftDelay;      // PSAR trail bar-shift delay (1..3)
    bool   RRM_FreezeTrailOnFlip;        // Freeze trailing stop on PSAR flip signal
    bool   RRM_TrailStartsAfterBE;       // Delay trail activation until BE is triggered
@@ -672,36 +533,30 @@ struct ST_Settings
    double   RRM_MaxDailyDrawdownPct;
 
 
-   //==========================================================================
-   // 260304_PR1: PHASE DETECTION SETTINGS (Foundation - Not used yet)
-   //==========================================================================
-   bool     PhaseDetectionEnabled;         // Master switch for phase system (default: false)
+   // Phase detection settings
+   bool     PhaseDetectionEnabled;         // Master switch for phase system
    bool     BlockUnorderedPhase;           // Block trades during UNORDERED phase
    bool     RequireMinPhaseConfirm;        // Require N consecutive bars in same phase
-   int      MinPhaseConfirmBars;           // Minimum bars to confirm phase stability (e.g., 3)
+   int      MinPhaseConfirmBars;           // Minimum bars to confirm phase stability
    
-   // Phase-specific trade permissions (for future use in PRESET_RRM and PRESET_CUSTOM)
-   bool     Emerging_AllowWeakTrades;      // EMERGING phase: Allow EMA1/EMA2 entries (shallow pullbacks)
-   bool     Emerging_AllowMediumTrades;    // EMERGING phase: Allow EMA2/EMA3 entries (medium pullbacks)
-   bool     Emerging_AllowStrongTrades;    // EMERGING phase: Allow EMA3/EMA4 entries (deep pullbacks)
+   // Phase-specific trade permissions
+   bool     Emerging_AllowWeakTrades;      // EMERGING phase: Allow EMA1/EMA2 entries
+   bool     Emerging_AllowMediumTrades;    // EMERGING phase: Allow EMA2/EMA3 entries
+   bool     Emerging_AllowStrongTrades;    // EMERGING phase: Allow EMA3/EMA4 entries
    
    bool     Trending_AllowWeakTrades;      // TRENDING phase: Allow EMA1/EMA2 entries
    bool     Trending_AllowMediumTrades;    // TRENDING phase: Allow EMA2/EMA3 entries
    bool     Trending_AllowStrongTrades;    // TRENDING phase: Allow EMA3/EMA4 entries
 
-   //==========================================================================
-   // 260304_PR3: LAYER DETECTION SETTINGS
-   //==========================================================================
+   // Layer detection settings
    bool     EnableLayerDetection;          // Master switch for multi-layer pullback detection
-   double   LayerTouchTolerancePips;       // Pip tolerance for EMA touch detection (legacy)
+   double   LayerTouchTolerancePips;       // Pip tolerance for EMA touch detection
    double   LayerTouchTolerance;           // Percentage tolerance for EMA touch detection (e.g. 0.01 = 1%)
    bool     AllowLayer1_Entries;           // Allow Layer 1 (EMA1/EMA2 touch) entries
    bool     AllowLayer2_Entries;           // Allow Layer 2 (EMA2/EMA3 touch) entries
    bool     AllowLayer3_Entries;           // Allow Layer 3 (EMA3/EMA4 touch) entries
 
-   //==========================================================================
-   // DIAGNOSTICS: STATISTICS CONFIGURATION
-   //==========================================================================
+   // Diagnostics: statistics configuration
    bool Stats_TrackRejections;  // Track rejection counts per indicator
    bool Stats_TrackPasses;      // Track pass counts (positive stats)
    bool Stats_FullEvaluation;   // Evaluate ALL indicators per bar (no early exit)
@@ -1063,7 +918,7 @@ input string         Inp_ExitProfile_Info       = "RRM: Swing-based SL, PSAR tra
 input group "═══ 🛑 Stop Loss Configuration ═══"
 input ESLMode        Inp_SLMode                 = SL_MODE_FIXED_PIPS; // SL calculation method
 input string         Inp_SL_Help1               = "FIXED_PIPS: Simple pip distance  |  SWING: Recent structure high/low"; // [Info]
-input string         Inp_SL_Help2               = "ATR: Volatility-based  |  PSAR_DOT: PSAR level  |  PERCENT: % of price  |  FRACTAL: Bill Williams"; // [Info]
+input string         Inp_SL_Help2               = "PSAR_DOT: PSAR level  |  PERCENT: % of price  |  FRACTAL: Bill Williams"; // [Info]
 input double         Inp_SL_FixedPips           = 20.0;               // SL distance (pips; for SL_MODE_FIXED_PIPS)
 input string         Inp_SL_Fixed_Note          = "Overridden by Adaptive_SL when Adaptive_UseSL=true"; // [Info]
 input double         Inp_SL_PsarPipsCushion     = 5.0;                // PSAR cushion (pips; for SL_PSAR_DOT)
@@ -1078,10 +933,6 @@ input int            Inp_TPFractalOffset        = 1;                   // Fracta
 input double         Inp_PSARStep               = 0.02;                // PSAR step for SL/TP (SL_PSAR_DOT / TP_PSAR_FLIP)
 input double         Inp_PSARMax                = 0.2;                 // PSAR max for SL/TP
 
-input group "--- Legacy SL Compatibility (Deprecated) ---"
-input ESlPlacementMode Inp_SL_PlacementMode     = SL_SWING_HIGHLOW;   // ⚠️ DEPRECATED: Use Inp_SLMode instead
-input string         Inp_SL_Deprecated          = "Exists for backward compatibility only. Use SLMode above. Auto-migrates on load."; // [Info]
-
 // ── Take Profit Configuration ────────────────────────────────────────
 input group "═══ 🎯 Take Profit Configuration ═══"
 input bool           Inp_TP_Enabled             = true;                // Enable take profit
@@ -1095,7 +946,6 @@ input string         Inp_Ex1_Header             = "Example 1 - Simple Fixed SL: 
 input string         Inp_Ex2_Header             = "Example 2 - TF-Adaptive SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_Adaptive_UseSL=true, Inp_Adaptive_SL_Base=20"; // [Info]
 input string         Inp_Ex3_Header             = "Example 3 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20, Inp_SL_SwingPipsCushion=10"; // [Info]
 input string         Inp_Ex4_Header             = "Example 4 - Fractal SL:     Inp_SLMode=SL_FRACTAL, Inp_FractalPeriod=5, Inp_TPFractalOffset=1"; // [Info]
-input string         Inp_Ex5_Header             = "Example 5 - PSAR Dot SL:    Inp_SLMode=SL_PSAR_DOT, Inp_SL_PsarPipsCushion=5 (or Inp_Adaptive_PsarUseATR=true)"; // [Info]
 
 // ── Breakeven Configuration ──────────────────────────────────────────
 input group "═══ ⚖️ Breakeven Configuration ═══"
@@ -1124,8 +974,7 @@ input bool           Inp_TrailLockProfit        = true;                // Never 
 
 input group "--- PSAR Trailing (PSAR-specific) ---"
 input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR trail cushion mode
-input double         Inp_PSAR_TrailPipsCushion  = 5.0;                 // PSAR trail cushion (pips; PSAR_CUSHION_PIPS mode)
-input double         Inp_PSAR_TrailCushionATR   = 0.2;                 // PSAR trail cushion as ATR fraction
+input double         Inp_PSAR_TrailPipsCushion  = 5.0;                 // PSAR trail cushion (pips)
 input int            Inp_PSAR_TrailDelay        = 1;                   // PSAR trailing delay (1=tight, 3=loose)
 input bool           Inp_RRM_TrailStartsAfterBE = true;                // Start trailing only after BE is reached
 input int            Inp_RRM_TrailPsarShiftDelay = 1;                  // PSAR shift delay (1=tight, 3=loose)
@@ -1176,7 +1025,6 @@ input double         Inp_Adaptive_Spread_Crypto = 50.0;          // Max spread f
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔧 Adaptive: ATR Limits (by timeframe)                ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input ETFScaling     Inp_Adaptive_ATR_Mode      = TF_SCALE_AUTO; // ATR scaling mode (AUTO scales base values by TF multiplier)
 input double         Inp_Adaptive_ATR_Min_Base  = 5.0;           // Base min ATR for M15 (pips; 0=off)
 input double         Inp_Adaptive_ATR_Max_Base  = 20.0;          // Base max ATR for M15 (pips; 0=off)
 input string         Inp_Adaptive_ATR_Info      = "AUTO scales: M1×0.5, M5×0.67, M15×1.0, M30×1.5, H1×2, H4×4, D1×8, W1×24"; // Scaling reference
@@ -1196,11 +1044,9 @@ input double         Inp_Adaptive_TrailCushion_Base = 5.0;       // Base trail c
 input bool           Inp_Adaptive_UseTrailCushion   = false;     // Apply adaptive trail cushion (replaces manual PSAR pips cushion)
 
 input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔧 Adaptive: PSAR Trail Cushion (by volatility)       ║"
+input group "║  🔧 Adaptive: PSAR Trail Cushion (fixed pips)          ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input double         Inp_Adaptive_PsarCushion_Pips  = 3.0;       // PSAR trail cushion when not using ATR mode (pips)
-input bool           Inp_Adaptive_PsarUseATR         = false;    // Use ATR multiplier for PSAR cushion instead of fixed pips
-input double         Inp_Adaptive_PsarATR_Multiplier = 0.5;      // PSAR cushion as fraction of ATR (e.g. 0.5 = half ATR)
+input double         Inp_Adaptive_PsarCushion_Pips  = 3.0;       // PSAR trail cushion (pips)
 
 //+------------------------------------------------------------------+
 //| ADAPTIVE UTILITY FUNCTIONS                                       |
@@ -1273,14 +1119,12 @@ double GetAdaptiveSpreadLimit(EPairType pair_type, const ST_AdaptiveSettings &ad
 // Return adaptive min ATR gate (pips) scaled by timeframe.
 double GetAdaptiveATRMin(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &adaptive)
 {
-   if(adaptive.ATR_Mode == TF_SCALE_MANUAL) return adaptive.ATR_Min_Base;
    return adaptive.ATR_Min_Base * GetTimeframeMultiplier(tf);
 }
 
 // Return adaptive max ATR gate (pips) scaled by timeframe.
 double GetAdaptiveATRMax(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &adaptive)
 {
-   if(adaptive.ATR_Mode == TF_SCALE_MANUAL) return adaptive.ATR_Max_Base;
    return adaptive.ATR_Max_Base * GetTimeframeMultiplier(tf);
 }
 
@@ -1305,15 +1149,9 @@ double GetAdaptiveTrailCushion(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &ad
    return adaptive.TrailCushion_Base * GetTimeframeMultiplier(tf);
 }
 
-// Return adaptive PSAR cushion value.
-// IMPORTANT: Return units differ by mode:
-//   PsarUseATR=true  → returns a price-unit distance (current_atr × multiplier). Use directly as cushion.
-//   PsarUseATR=false → returns a value in pips. Caller must convert to price units
-//                      (e.g. pips * _Point * scale * (isJPY ? 100.0 : 10.0)).
+// Return adaptive PSAR cushion value in pips.
 double GetAdaptivePsarCushion(double current_atr, const ST_AdaptiveSettings &adaptive)
 {
-   if(adaptive.PsarUseATR)
-      return current_atr * adaptive.PsarATR_Multiplier;
    return adaptive.PsarCushion_Pips;
 }
 
@@ -1434,7 +1272,6 @@ void InitializeConfig()
    Settings.P_BbDev              = Inp_Ind_Bb_Dev;
    Settings.P_PsarStep           = Inp_Ind_Psar_Step;
    Settings.P_PsarMax            = Inp_Ind_Psar_Max;
-   Settings.P_PsarTrailCushionATR= Inp_PSAR_TrailCushionATR;
    Settings.P_Atr                = Inp_Ind_ATR_Period;
 
    // Modes
@@ -1477,81 +1314,46 @@ void InitializeConfig()
    Settings.Ind_Ross_Weight      = Inp_Ind_Ross_Weight;
 
    // Exits
-   Settings.SL_PlacementMode     = Inp_SL_PlacementMode;
-   Settings.SL_Mult              = 0.0;   // ATR-based SL multiplier removed; use SLMode=SL_MODE_SWING or SL_MODE_FIXED_PIPS
+   Settings.SL_Mult              = 0.0;
    Settings.SL_PsarPipsCushion   = Inp_SL_PsarPipsCushion;
    Settings.SL_SwingPipsCushion  = Inp_SL_SwingPipsCushion;
    Settings.SL_FixedPips         = Inp_SL_FixedPips;
 
-   // New strategy-based SL/TP configuration (ATR exits removed)
+   // SL/TP strategy configuration
    Settings.SLMode         = Inp_SLMode;
    Settings.TPMode         = Inp_TPMode;
    Settings.FixedTPPips    = Inp_FixedTPPips;
-   Settings.UseATRforSL    = false;   // ATR-based SL disabled; use SL_MODE_SWING or SL_MODE_FIXED_PIPS
-   Settings.UseATRforTP    = false;   // ATR-based TP disabled; use TP_MODE_RR or TP_MODE_FIXED_PIPS
    Settings.SLPercent      = Inp_SLPercent;
    Settings.RRRatio        = Inp_RRRatio;
    Settings.SwingLookback  = Inp_SwingLookback;
 
-   // DEPRECATED: Legacy SL_PlacementMode compatibility
-   // If the user loaded an old .set file with a non-default SL_PlacementMode, auto-migrate
-   // to the new ESLMode system. Migration only runs when Inp_SL_PlacementMode has been
-   // explicitly changed from its default value (SL_SWING_HIGHLOW).
-   if(Inp_SL_PlacementMode != SL_SWING_HIGHLOW)
-   {
-      switch(Inp_SL_PlacementMode)
-      {
-         case SL_ATR:
-            Settings.SLMode      = SL_MODE_ATR;
-            Settings.UseATRforSL = true;
-            if(Settings.PrintEffectiveConfig)
-               Print("⚠️ Migrated: SL_PlacementMode=SL_ATR → SLMode=SL_MODE_ATR");
-            break;
-
-         case SL_PSAR_PIPS:
-         case SL_PSAR_ATR:
-            Settings.SLMode = SL_PSAR_DOT;
-            if(Settings.PrintEffectiveConfig)
-               Print("⚠️ Migrated: SL_PlacementMode=SL_PSAR_* → SLMode=SL_PSAR_DOT");
-            break;
-
-         case SL_FIXED_PIPS:
-            Settings.SLMode = SL_MODE_FIXED_PIPS;
-            if(Settings.PrintEffectiveConfig)
-               Print("⚠️ Migrated: SL_PlacementMode=SL_FIXED_PIPS → SLMode=SL_MODE_FIXED_PIPS");
-            break;
-      }
-   }
-
-   // Phase 2.2: Fractal/PSAR SL/TP settings
+   // Fractal/PSAR SL/TP settings
    Settings.FractalPeriod      = Inp_FractalPeriod;
    Settings.TPFractalOffset    = Inp_TPFractalOffset;
    Settings.PSARStep           = Inp_PSARStep;
    Settings.PSARMax            = Inp_PSARMax;
 
-   // Phase 2.2: Advanced trailing trigger settings
+   // Advanced trailing trigger settings
    Settings.TrailTrigger       = Inp_TrailTrigger;
    Settings.TrailDistancePips  = Inp_TrailDistancePips;
-   Settings.TrailATRMultiplier = 0.0;   // ATR multiplier for trailing removed
    Settings.BEThresholdPips    = Inp_BEThresholdPips;
    Settings.TrailProfitPercent = Inp_TrailProfitPercent;
    Settings.TrailStepPips      = Inp_TrailStepPips;
    Settings.TrailLockProfit    = Inp_TrailLockProfit;
 
    Settings.TP_Mult              = Inp_TP_Mult;
-   Settings.TP_Enabled              = Inp_TP_Enabled;
-   // Legacy ATR-based BE (Use_BE, BE_Trig, BE_Buff) removed; use BE_Mode + RRM_BE_* for breakeven
+   Settings.TP_Enabled           = Inp_TP_Enabled;
    Settings.Use_BE               = false;
    Settings.BE_Trig              = 0.0;
    Settings.BE_Buff              = 0.0;
 
    Settings.TrailMode            = Inp_TrailMode;
-   Settings.Trail_Mult           = 0.0;   // ATR trail multiplier removed
+   Settings.Trail_Mult           = 0.0;
    Settings.PSAR_TrailCushionMode= Inp_PSAR_TrailCushionMode;
    Settings.PSAR_TrailPipsCushion= Inp_PSAR_TrailPipsCushion;
    Settings.PSAR_TrailDelay      = (Inp_PSAR_TrailDelay < 1) ? 1 : (Inp_PSAR_TrailDelay > 3) ? 3 : Inp_PSAR_TrailDelay;
 
-   // === Strict non-ATR RRM exit contract ===
+   // RRM exit contract
    Settings.ExitProfile             = Inp_ExitProfile;
    Settings.BE_Mode                 = Inp_BE_Mode;
    Settings.RRM_BE_ProgressPct      = Inp_RRM_BE_ProgressPct;
@@ -1603,12 +1405,6 @@ void InitializeConfig()
       Print("    Mapped: Settings.RRM_BE_BufferPips = ", Settings.RRM_BE_BufferPips);
       Print("");
 
-      Print("  Breakeven (LEGACY Mode):");
-      Print("    Mapped: Settings.Use_BE = ", Settings.Use_BE);
-      Print("    Mapped: Settings.BE_Trig = ", Settings.BE_Trig);
-      Print("    Mapped: Settings.BE_Buff = ", Settings.BE_Buff);
-      Print("");
-
       Print("  Trailing Stop:");
       Print("    Input:  Inp_TrailMode = ", EnumToString(Inp_TrailMode));
       Print("    Mapped: Settings.TrailMode = ", EnumToString(Settings.TrailMode));
@@ -1639,7 +1435,7 @@ void InitializeConfig()
    Settings.MaxOpenTrades     = 0;    // 0 = unlimited (backward compatible)
    Settings.CountBEasZeroRisk = true; // BE trades have 0 risk
 
-   // === Adaptive settings: map inputs and derive effective values ===
+   // Adaptive settings: map inputs and derive effective values
 
    // 1. Map raw adaptive inputs into the struct
    Settings.Adaptive.PairType          = Inp_Adaptive_PairType;
@@ -1649,7 +1445,6 @@ void InitializeConfig()
    Settings.Adaptive.Spread_Gold       = Inp_Adaptive_Spread_Gold;
    Settings.Adaptive.Spread_Crypto     = Inp_Adaptive_Spread_Crypto;
 
-   Settings.Adaptive.ATR_Mode          = Inp_Adaptive_ATR_Mode;
    Settings.Adaptive.ATR_Min_Base      = Inp_Adaptive_ATR_Min_Base;
    Settings.Adaptive.ATR_Max_Base      = Inp_Adaptive_ATR_Max_Base;
 
@@ -1662,8 +1457,6 @@ void InitializeConfig()
    Settings.Adaptive.UseTrailCushion   = Inp_Adaptive_UseTrailCushion;
 
    Settings.Adaptive.PsarCushion_Pips  = Inp_Adaptive_PsarCushion_Pips;
-   Settings.Adaptive.PsarUseATR        = Inp_Adaptive_PsarUseATR;
-   Settings.Adaptive.PsarATR_Multiplier= Inp_Adaptive_PsarATR_Multiplier;
 
    // 2. Auto-detect pair type when set to AUTO
    if(Settings.Adaptive.PairType == PAIR_TYPE_AUTO)
@@ -1689,14 +1482,12 @@ void InitializeConfig()
       if(adaptive_sl > 0.0) Settings.SL_FixedPips = adaptive_sl;
    }
 
-   // ═══════════════════════════════════════════════════════════════
-   // 260304_PR1: Initialize Phase Detection Settings (DISABLED by default)
-   // ═══════════════════════════════════════════════════════════════
-   Settings.PhaseDetectionEnabled        = false;  // Not used yet - will be enabled in future updates
-   Settings.BlockUnorderedPhase          = true;   // Block UNORDERED when enabled
-   Settings.RequireMinPhaseConfirm       = false;  // No stability requirement by default
-   Settings.MinPhaseConfirmBars          = 0;      // 0=instant EMA check (recommended)
-   
+   // Phase Detection defaults (disabled by default; presets enable)
+   Settings.PhaseDetectionEnabled        = false;
+   Settings.BlockUnorderedPhase          = true;
+   Settings.RequireMinPhaseConfirm       = false;
+   Settings.MinPhaseConfirmBars          = 0;
+
    // Phase-specific permissions (default: allow all)
    Settings.Emerging_AllowWeakTrades     = true;
    Settings.Emerging_AllowMediumTrades   = true;
@@ -1705,27 +1496,15 @@ void InitializeConfig()
    Settings.Trending_AllowMediumTrades   = true;
    Settings.Trending_AllowStrongTrades   = true;
 
-   // ═══════════════════════════════════════════════════════════════
-   // 260304_PR3: Initialize Layer Detection Settings (DISABLED by default)
-   // ═══════════════════════════════════════════════════════════════
+   // Layer Detection defaults (disabled by default; presets enable)
    Settings.EnableLayerDetection         = false;
    Settings.LayerTouchTolerancePips      = 2.0;
    Settings.LayerTouchTolerance          = 0.01;
-   // Note: AllowLayer*_Entries defaults to true; these take effect once EnableLayerDetection = true
    Settings.AllowLayer1_Entries          = true;
    Settings.AllowLayer2_Entries          = true;
    Settings.AllowLayer3_Entries          = true;
 
-   // 260304_PR5: Phase-based layer filtering
-   // When BOTH PhaseDetectionEnabled AND EnableLayerDetection are true,
-   // trades are filtered by phase rules:
-   // - UNORDERED: blocks ALL trades
-   // - EMERGING: blocks STRONG (Layer 3) trades
-   // - TRENDING: allows all layers
-
-   // ═══════════════════════════════════════════════════════════════
-   // RRM Drawdown Protection (§6) - DISABLED by default
-   // ═══════════════════════════════════════════════════════════════
+   // RRM Drawdown Protection (disabled by default)
    Settings.RRM_EnableDrawdownProtection = false;
    Settings.RRM_MaxConsecutiveLosses     = 5;
    Settings.RRM_MaxTradesPerDay          = 15;
