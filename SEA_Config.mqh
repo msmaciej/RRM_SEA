@@ -560,6 +560,14 @@ struct ST_Settings
    bool Stats_TrackRejections;  // Track rejection counts per indicator
    bool Stats_TrackPasses;      // Track pass counts (positive stats)
    bool Stats_FullEvaluation;   // Evaluate ALL indicators per bar (no early exit)
+
+   // Consecutive loss protection
+   bool   StopAfterConsecutiveLosses;   // Enable consecutive loss protection
+   int    MaxConsecutiveLosses;         // Max consecutive losses before pause
+   int    ConsecutiveLossCooldownHrs;   // Hours to wait after max losses hit
+
+   // Preset metadata
+   string PresetVersion;                // Preset version identifier
 };
 
 // Global Configuration Instance
@@ -1509,6 +1517,14 @@ void InitializeConfig()
    Settings.RRM_MaxConsecutiveLosses     = 5;
    Settings.RRM_MaxTradesPerDay          = 15;
    Settings.RRM_MaxDailyDrawdownPct      = 3.0;
+
+   // Consecutive loss protection (disabled by default; users set via inputs or Policy A)
+   Settings.StopAfterConsecutiveLosses   = false;
+   Settings.MaxConsecutiveLosses         = 0;
+   Settings.ConsecutiveLossCooldownHrs   = 0;
+
+   // Preset metadata (populated by ApplyPreset)
+   Settings.PresetVersion                = "";
 }
 
 //+------------------------------------------------------------------+
