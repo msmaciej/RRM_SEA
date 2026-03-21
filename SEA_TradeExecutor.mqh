@@ -556,7 +556,7 @@ private:
 
    //+------------------------------------------------------------------+
    //| HELPER: MT5 MovingAverage-style sizing (MaximumRisk/Decrease)    |
-   //| Implemented for PRESET_MA_BENCHMARK.                             |
+   //| Implemented for PRESET_MA.                             |
    //+------------------------------------------------------------------+
    int CountConsecutiveLosses() {
       datetime to = TimeCurrent();
@@ -982,7 +982,7 @@ public:
       double sl = CalcEntrySL(isBuy, price);
 
       // Position sizing precedence:
-      // 1) MA-compat sizer (PRESET_MA_BENCHMARK)
+      // 1) MA-compat sizer (PRESET_MA)
       // 2) RiskPercent sizing via SL distance
       // 3) Fallback to minimum volume
       double lot = NormalizeVolume(SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN));

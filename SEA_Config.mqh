@@ -12,7 +12,7 @@
 enum EStrategyPreset
 {
    PRESET_CUSTOM,          // Custom: User-defined settings
-   PRESET_MA_BENCHMARK,    // MA Benchmark: MT5 MA EA compatibility
+   PRESET_MA,              // MA Benchmark: MT5 MA EA compatibility
    PRESET_RRM,             // RRM: Phase-based layer detection system
    PRESET_TEST             // Test: Development/debugging preset
 };
@@ -988,10 +988,10 @@ input string         Inp_Step9_Ref1             = "Risk per trade applies to all
 input string         Inp_Step9_Ref2             = "To adjust exits under a strict preset: use PRESET_CUSTOM mode"; // [Reference]
 
 input group "--- MT5 Moving Average Benchmark ---"
-input double         Inp_MA_MaximumRiskPct      = 0.02;         // (PRESET_MA_BENCHMARK only) Max risk (%) for MA benchmark sizer
-input double         Inp_MA_DecreaseFactor      = 3.0;          // (PRESET_MA_BENCHMARK only) Lot decrease factor
-input int            Inp_MA_Period              = 12;           // (PRESET_MA_BENCHMARK only) MA period
-input int            Inp_MA_Shift               = 6;            // (PRESET_MA_BENCHMARK only) MA shift
+input double         Inp_MA_MaximumRiskPct      = 0.02;         // (PRESET_MA only) Max risk (%) for MA benchmark sizer
+input double         Inp_MA_DecreaseFactor      = 3.0;          // (PRESET_MA only) Lot decrease factor
+input int            Inp_MA_Period              = 12;           // (PRESET_MA only) MA period
+input int            Inp_MA_Shift               = 6;            // (PRESET_MA only) MA shift
 
 input group "══════════ ℹ️ END: ZONE 3A.9 EXIT MANAGEMENT ══════════"
 
