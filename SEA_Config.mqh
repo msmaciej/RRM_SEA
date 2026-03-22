@@ -333,11 +333,10 @@ struct ST_Settings
    double MaxATR;
    bool   UseATRGate;     // Enable ATR gate filter (false = ATR gate disabled)
 
-   // Candle Body Overextension Filter
-   bool   UseCandleBodyFilter;  // Enable candle body overextension filter
-   int    BodyAvgPeriod;        // Bars used to compute average body size
-   double BodyMaxMultiplier;    // Block if body > avg * multiplier
-   int    BodyCheckCandles;     // Number of recent closed candles to check
+   // Candle Body Overextension Indicator (voting)
+   int    CandleBody_AvgPeriod;   // Bars used to compute average body size
+   double CandleBody_MaxMult;     // Block if body > avg * multiplier
+   int    CandleBody_CheckBars;   // Number of recent closed candles to check
    
    // MT5 Moving Average benchmark compatibility
    bool   UseMACompatSizer;
@@ -391,6 +390,7 @@ struct ST_Settings
    int Ind_P123_Weight;
    int Ind_Ross_Weight;
    int Ind_Atr_Weight;
+   int Ind_CandleBody_Weight;
 
    // Indicators (Periods)
    int    P_Ema1;
@@ -448,6 +448,7 @@ struct ST_Settings
    bool Ind_P123_Enabled;
    bool Ind_Ross_Enabled;
    bool Ind_Atr_Enabled;
+   bool Ind_CandleBody_Enabled;
 
    // MFI mode
    EMfiMode MfiMode;                // MFI vote mode (ZONE_FILTER or TREND_50)
@@ -640,14 +641,6 @@ input double         Inp_MaxSpreadPips          = 3.0;      // Max spread (pips;
 input bool           Inp_UseATRGate             = false;    // Enable ATR gate filter
 input double         Inp_MinATRPips             = 0.0;      // Min ATR gate (pips; ignored if UseATRGate=false)
 input double         Inp_MaxATRPips             = 20.0;     // Max ATR gate (pips; ignored if UseATRGate=false)
-
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  📊 CANDLE BODY OVEREXTENSION FILTER                   ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input bool           Inp_UseCandleBodyFilter    = false;    // Enable candle body overextension filter
-input int            Inp_BodyAvgPeriod          = 10;       // Bars used to compute average body size
-input double         Inp_BodyMaxMultiplier      = 3.0;      // Block if body > avg * multiplier
-input int            Inp_BodyCheckCandles       = 1;        // Number of recent closed candles to check
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  ⏰ SESSION TIME FILTER                                 ║"
@@ -917,6 +910,16 @@ input double         Inp_Ind_Atr_VoteMinPips   = 5.0;                 // [ATR] V
 input double         Inp_Ind_Atr_VoteMaxPips   = 50.0;                // [ATR] Voting max pips (separate from pre-filter gate)
 
 input group "╔════════════════════════════════════════════════════════╗"
+input group "║  📊 Indicator: Candle Body Overextension               ║"
+input group "╚════════════════════════════════════════════════════════╝"
+input bool           Inp_Ind_CandleBody_Enabled   = false;          // [CandleBody] Enable voting indicator
+input int            Inp_Ind_CandleBody_Weight    = 1;              // [CandleBody] Vote weight
+input string         Inp_Ind_CandleBody_Info      = "Votes against overextended candles (news/spikes)"; // [CandleBody] Description
+input int            Inp_Ind_CandleBody_AvgPeriod = 10;             // [CandleBody] Average body period
+input double         Inp_Ind_CandleBody_MaxMult   = 3.0;            // [CandleBody] Max body multiplier
+input int            Inp_Ind_CandleBody_CheckBars = 1;              // [CandleBody] Bars to check
+
+input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: Pattern 1-2-3                           ║"
 input group "╚════════════════════════════════════════════════════════╝"
 input bool           Inp_Ind_P123_Enabled       = false;               // [P123] Enable 1-2-3 pattern vote
@@ -1153,11 +1156,10 @@ void InitializeConfig()
    Settings.ATR_VoteMinPips      = Inp_Ind_Atr_VoteMinPips;
    Settings.ATR_VoteMaxPips      = Inp_Ind_Atr_VoteMaxPips;
 
-   // Candle body overextension filter
-   Settings.UseCandleBodyFilter  = Inp_UseCandleBodyFilter;
-   Settings.BodyAvgPeriod        = MathMax(1, Inp_BodyAvgPeriod);
-   Settings.BodyMaxMultiplier    = Inp_BodyMaxMultiplier;
-   Settings.BodyCheckCandles     = MathMax(1, Inp_BodyCheckCandles);
+   // Candle body overextension indicator
+   Settings.CandleBody_AvgPeriod   = MathMax(1, Inp_Ind_CandleBody_AvgPeriod);
+   Settings.CandleBody_MaxMult     = Inp_Ind_CandleBody_MaxMult;
+   Settings.CandleBody_CheckBars   = MathMax(1, Inp_Ind_CandleBody_CheckBars);
 
    // MA benchmark inputs (strategy fields; preset may use/override semantics later)
    Settings.UseMACompatSizer     = false;
@@ -1268,6 +1270,7 @@ void InitializeConfig()
    Settings.Ind_P123_Enabled     = Inp_Ind_P123_Enabled;
    Settings.Ind_Ross_Enabled     = Inp_Ind_Ross_Enabled;
    Settings.Ind_Atr_Enabled      = Inp_Ind_Atr_Enabled;
+   Settings.Ind_CandleBody_Enabled = Inp_Ind_CandleBody_Enabled;
 
    // Per-indicator vote weights (1 = standard; used in VOTE_MODE_THRESHOLD for weighted sum)
    // In VOTE_MODE_ALL (recommended), weights are ignored — all enabled indicators must simply agree.
@@ -1283,6 +1286,7 @@ void InitializeConfig()
    Settings.Ind_P123_Weight      = Inp_Ind_P123_Weight;
    Settings.Ind_Ross_Weight      = Inp_Ind_Ross_Weight;
    Settings.Ind_Atr_Weight       = Inp_Ind_Atr_Weight;
+   Settings.Ind_CandleBody_Weight = Inp_Ind_CandleBody_Weight;
 
    // Exits
    Settings.SL_FixedPips         = Inp_SL_FixedPips;
