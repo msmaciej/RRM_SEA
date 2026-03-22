@@ -492,15 +492,13 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
 
    // --- Exits: SL / TP
    txt += "--- Exits: SL / TP ---\n";
-   txt += StringFormat("SL: %s%s  Mult=%.2f%s\n", EnumToString(Settings.SLMode),
-                       SEA_UI_AdmMark(), Settings.SL_Mult, SEA_UI_AdmMark());
-   txt += StringFormat("TP_Mult=%.2f%s\n", Settings.TP_Mult, SEA_UI_AdmMark());
+   txt += StringFormat("SL: %s%s\n", EnumToString(Settings.SLMode), SEA_UI_AdmMark());
+   txt += StringFormat("RR Ratio=%.2f%s\n", Settings.RRRatio, SEA_UI_AdmMark());
 
    // --- Exits: Breakeven
    txt += "--- Exits: Breakeven ---\n";
-   if(Settings.Use_BE)
-      txt += StringFormat("BE: ON%s  Trig=%.2fR  Buff=%.1f pips\n", SEA_UI_AdmMark(),
-                          Settings.BE_Trig, Settings.BE_Buff);
+   if(Settings.BE_Mode != BE_MODE_OFF)
+      txt += StringFormat("BE: ON%s  Mode=%s\n", SEA_UI_AdmMark(), EnumToString(Settings.BE_Mode));
    else
       txt += StringFormat("BE: OFF%s\n", SEA_UI_AdmMark());
 

@@ -490,18 +490,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // EXIT STRATEGY CONFIGURATION
       // ================================================================
       cfg.ExitProfile           = EXIT_PROFILE_NONE;
-      cfg.SL_Mult               = 0.0;
-      cfg.SL_SwingPipsCushion   = 0.0;
-      cfg.SL_PsarPipsCushion    = 0.0;
-      cfg.TP_Mult               = 0.0;
       cfg.TP_Enabled            = false;
       cfg.TrailMode             = TRAIL_NONE;
       cfg.PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;
       cfg.PSAR_TrailPipsCushion = 0.0;
-      cfg.Use_BE                = false;
       cfg.BE_Mode               = BE_MODE_OFF;
-      cfg.BE_Trig               = 0.0;
-      cfg.BE_Buff               = 0.0;
    
       // ================================================================
       // SL/TP STRATEGY MODES
@@ -800,18 +793,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // EXIT STRATEGY CONFIGURATION
       // ================================================================
       cfg.ExitProfile           = EXIT_PROFILE_RRM;
-      cfg.SL_Mult               = 0.0;
       cfg.SL_SwingPipsCushion   = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion    = GetRecommendedInitialSlCushionPips();
-      cfg.TP_Mult               = 3.0;
       cfg.TP_Enabled            = true;
       cfg.TrailMode             = TRAIL_PSAR;
       cfg.PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;
       cfg.PSAR_TrailPipsCushion = GetRecommendedTrailPsarCushionPips();
-      cfg.Use_BE                = false;
       cfg.BE_Mode               = BE_MODE_R_MULTIPLE;
-      cfg.BE_Trig               = 1.5;
-      cfg.BE_Buff               = 0.3;
    
       // ================================================================
       // SL/TP STRATEGY MODES
@@ -1051,18 +1039,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       {
          // User has not selected an exit profile: apply safe testing defaults
          cfg.ExitProfile            = EXIT_PROFILE_SIMPLE;
-         cfg.SL_Mult                = 0.0;
-         cfg.SL_SwingPipsCushion    = 10.0;
-         cfg.SL_PsarPipsCushion     = 5.0;
-         cfg.TP_Mult                = 3.0;
+         cfg.SL_SwingPipsCushion    = GetRecommendedInitialSlCushionPips();
+         cfg.SL_PsarPipsCushion     = GetRecommendedInitialSlCushionPips();
          cfg.TP_Enabled             = true;
          cfg.TrailMode              = TRAIL_PSAR;
          cfg.PSAR_TrailCushionMode  = PSAR_CUSHION_PIPS;
-         cfg.PSAR_TrailPipsCushion  = 0.0;
-         cfg.Use_BE                 = false;
+         cfg.PSAR_TrailPipsCushion  = GetRecommendedTrailPsarCushionPips();
          cfg.BE_Mode                = BE_MODE_TP_PROGRESS_PCT;
-         cfg.BE_Trig                = 0.0;
-         cfg.BE_Buff                = 0.0;
          cfg.SLMode                 = SL_MODE_PSAR_DOT;
          cfg.TPMode                 = TP_MODE_RR;
          cfg.FixedTPPips            = 40.0;
