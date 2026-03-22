@@ -970,7 +970,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_PsarStep         = 0.05;
       cfg.P_PsarMax          = 0.5;
       cfg.Vote_AllowPsarFlip = true;
-      cfg.Vote_PsarFlipDelay = 0;
+      cfg.Vote_PsarFlipDelay = -1;
    
       // RSI (Relative Strength Index)
       cfg.P_Rsi   = 14;
@@ -1006,21 +1006,21 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // PULLBACK DETECTION GATES
       // ================================================================
-      cfg.RequirePullback         = false;
-      cfg.PullbackLookback        = 0;
-      cfg.RequireRecoveryMomentum = false;
-      cfg.Gate_UseMultiLayer      = false;
-      cfg.LayerTouchTolerance     = 0.0;
+      cfg.RequirePullback           = false;
+      cfg.PullbackLookback          = 0;
+      cfg.RequireRecoveryMomentum   = false;
+      cfg.Gate_UseMultiLayer        = false;
+      cfg.LayerTouchTolerance       = 0.0;
    
       // Gate 2: Recovery momentum
-      cfg.Gate_Recovery.mode  = GATE_SCALE_FIXED;
-      cfg.Gate_Recovery.value = 0.0;
-      cfg.RRM_Lookback        = 0;
+      cfg.Gate_Recovery.mode        = GATE_SCALE_FIXED;
+      cfg.Gate_Recovery.value       = 0.0;
+      cfg.RRM_Lookback              = 0;
    
       // Gate 3: EMA divergence
-      cfg.Gate_EmaDiv.mode    = GATE_SCALE_FIXED;
-      cfg.Gate_EmaDiv.value   = 0.0;
-      cfg.RRM_MinDivPips      = 0.0;
+      cfg.Gate_EmaDiv.mode          = GATE_SCALE_FIXED;
+      cfg.Gate_EmaDiv.value         = 0.0;
+      cfg.RRM_MinDivPips            = 0.0;
    
       // Gate 4: Candle direction
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
@@ -1029,16 +1029,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // VOTE EVALUATION SETTINGS
       // ================================================================
-      cfg.Vote_EvalShift = 1;
+      cfg.Vote_EvalShift      = 1;
    
       // ================================================================
       // RISK MANAGEMENT (Portfolio-level)
       // ================================================================
-      cfg.RiskPercent       = 2.0;
-      cfg.FixedLotSize      = 0.0;
-      cfg.MaxTotalRisk      = 6.0;
-      cfg.MaxOpenTrades     = 3;
-      cfg.CountBEasZeroRisk = false;
+      cfg.RiskPercent         = 2.0;
+      cfg.FixedLotSize        = 0.0;
+      cfg.MaxTotalRisk        = 6.0;
+      cfg.MaxOpenTrades       = 3;
+      cfg.CountBEasZeroRisk   = false;
    
       // ================================================================
       // EXIT STRATEGY CONFIGURATION
@@ -1060,7 +1060,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.PSAR_TrailCushionMode  = PSAR_CUSHION_PIPS;
          cfg.PSAR_TrailPipsCushion  = 0.0;
          cfg.Use_BE                 = false;
-         cfg.BE_Mode                = BE_MODE_OFF;
+         cfg.BE_Mode                = BE_MODE_TP_PROGRESS_PCT;
          cfg.BE_Trig                = 0.0;
          cfg.BE_Buff                = 0.0;
          cfg.SLMode                 = SL_MODE_PSAR_DOT;
@@ -1078,7 +1078,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.BEThresholdPips        = 0.0;
          cfg.TrailProfitPercent     = 0.0;
          cfg.TrailStepPips          = 0.0;
-         cfg.TrailLockProfit        = false;
+         cfg.TrailLockProfit        = true;
       }
       // else: user's EXIT_PROFILE_SIMPLE (or EXIT_PROFILE_RRM) settings are
       // preserved from InitializeConfig — SLMode, TrailMode, BE_Mode, PSARStep,

@@ -706,20 +706,20 @@ input string           Inp_UI_CockpitFont          = "Arial";     // Cockpit pan
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🎨 UI: SIGNAL MARKERS & COLORS                        ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool           Inp_DrawEntryLines         = true;           // Draw entry marker lines
-input bool           Inp_DrawTradeLines         = true;           // Draw trade management lines
-input bool             Inp_UI_UseCustomColors   = true;           // Use custom panel colors (else follow chart theme)
-input color            Inp_UI_FontColor         = clrYellow;      // UI font color (when custom colors enabled)
-input int              Inp_UI_PanelBgAlpha      = 110;            // Panel background alpha (0..255)
-input EUIFrameMode     Inp_UI_FrameMode         = UI_FRAME_NONE;  // Panel frame mode (BG/NONE/TEXT_BOUNDS)
-input int              Inp_UI_FramePadPx        = 6;              // Panel padding (px)
+input bool           Inp_DrawEntryLines            = true;           // Draw entry marker lines
+input bool           Inp_DrawTradeLines            = true;           // Draw trade management lines
+input bool             Inp_UI_UseCustomColors      = true;           // Use custom panel colors (else follow chart theme)
+input color            Inp_UI_FontColor            = clrYellow;      // UI font color (when custom colors enabled)
+input int              Inp_UI_PanelBgAlpha         = 110;            // Panel background alpha (0..255)
+input EUIFrameMode     Inp_UI_FrameMode            = UI_FRAME_NONE;  // Panel frame mode (BG/NONE/TEXT_BOUNDS)
+input int              Inp_UI_FramePadPx           = 6;              // Panel padding (px)
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔍 DIAGNOSTICS                                        ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool           Inp_PrintEffectiveConfig   = true;           // Print effective config on init
-input bool           Inp_DebugFlow              = true;           // Print OnInit/OnTick/OnDeinit flow
-input EDebugLevel    Inp_DebugLevel             = DEBUG_SUMMARY;  // Debug verbosity (SILENT/SUMMARY/INDICATORS/FULL)
+input bool           Inp_PrintEffectiveConfig      = true;           // Print effective config on init
+input bool           Inp_DebugFlow                 = true;           // Print OnInit/OnTick/OnDeinit flow
+input EDebugLevel    Inp_DebugLevel                = DEBUG_SUMMARY;  // Debug verbosity (SILENT/SUMMARY/INDICATORS/FULL)
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔍 DIAGNOSTICS: STATISTICS                            ║"
@@ -733,8 +733,8 @@ input string Inp_Stats_Info2 = "FullEvaluation=true: evaluate all, identify true
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔍 REPORTING                                          ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool           Inp_ExportCSV              = false;        // Export CSV reporting
-input bool           Inp_ExportUseCommonFiles   = false;        // Use terminal Common Files folder for export
+input bool           Inp_ExportCSV                 = false;        // Export CSV reporting
+input bool           Inp_ExportUseCommonFiles      = false;        // Use terminal Common Files folder for export
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔧 RRM MODE & DRAWDOWN PROTECTION (Policy A)          ║"
@@ -771,7 +771,7 @@ input int            Inp_BiasFastID             = 2;                 // (CUSTOM;
 input int            Inp_BiasSlowID             = 3;                 // (CUSTOM; presets override) Bias Slow EMA (0=EMA1/5, 1=EMA2/13, 2=EMA3/34, 3=EMA4/89)
 input EManualSide    Inp_ManualSide             = SIDE_BOTH;         // (CUSTOM; presets override) Manual direction (BOTH/LONG/SHORT)
 input EMaMethod      Inp_MaType                 = METHOD_EMA;        // (CUSTOM; presets override) MA method (EMA/SMA)
-input int            Inp_MaHorShift             = 0;                 // (CUSTOM; presets override) MA horizontal shift (bars)
+input int            Inp_MaHorShift             = 1;                 // (CUSTOM; presets override) MA horizontal shift (bars)
 input int            Inp_MaVerShift             = 1;                 // (CUSTOM; presets override) MA vertical shift (pips)
 input int            InpEma1Period              = 5;                 // (CUSTOM; presets override) EMA1 period
 input int            InpEma2Period              = 13;                // (CUSTOM; presets override) EMA2 period
@@ -783,7 +783,7 @@ input group "╔═════════════════════�
 input group "║  🔧 STEP 2: Entry Signal                               ║"
 input group "╚════════════════════════════════════════════════════════╝"
 input string         Inp_Step2_Info             = "Configure entry timing strategy"; // Info
-input EAutoStrategy  Inp_AutoStrat              = STRAT_PAIR_CROSS;  // (CUSTOM; presets override) Entry strategy (price cross / pair cross)
+input EAutoStrategy  Inp_AutoStrat              = STRAT_POSITION_SLOPE;  // (CUSTOM; presets override) Entry strategy (price cross / pair cross)
 input double         Inp_LayerTolerance         = 0.01;             // (CUSTOM; presets override) Layer touch tolerance (%, e.g. 0.01=1%; used by STRAT_LAYER_DETECTION)
 input bool           Inp_RRM_EnableInCustom     = false;          // (CUSTOM only) Enable RRM logic while using PRESET_CUSTOM
 input bool           Inp_CloseOnReverse         = false;          // (CUSTOM; presets may override) Close on reverse signal
@@ -824,7 +824,7 @@ input int            Inp_Ind_Adx_Threshold      = 20;                  // [ADX] 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: MACD                                    ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool           Inp_Ind_Macd_Enabled       = true;                // [MACD] Enable MACD vote
+input bool           Inp_Ind_Macd_Enabled       = false;                // [MACD] Enable MACD vote
 input int            Inp_Ind_Macd_Weight        = 1;                   // [MACD] Vote weight
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  MACD: BASE MODE (Choose ONE)                          ║"
@@ -870,7 +870,7 @@ input double         Inp_Ind_Rsi_OS             = 30.0;                // [RSI] 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: CCI                                     ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool           Inp_Ind_Cci_Enabled        = true;                // [CCI] Enable CCI vote
+input bool           Inp_Ind_Cci_Enabled        = false;                // [CCI] Enable CCI vote
 input int            Inp_Ind_Cci_Weight         = 1;                   // [CCI] Vote weight
 input string         Inp_Ind_Cci_Info           = "Commodity Channel Index"; // [CCI] Description
 input ECciMode       Inp_Ind_Cci_Mode           = CCI_TREND_ZERO;      // [CCI] Mode
@@ -914,11 +914,11 @@ input int            Inp_Ind_Psar_Weight        = 1;                   // [PSAR]
 input string         Inp_Ind_Psar_Info          = "Parabolic SAR position"; // [PSAR] Description
 input double         Inp_Ind_Psar_Step          = 0.05;                // [PSAR] Step
 input double         Inp_Ind_Psar_Max           = 0.5;                 // [PSAR] Maximum
-input int            Inp_Vote_PsarFlipDelay     = 2;                   // [PSAR] Flip timer: -1=persistent, 0=flip bar, 1-10=countdown
+input int            Inp_Vote_PsarFlipDelay     = 10;                  // [PSAR] Flip timer: -1=persistent, 0=flip bar, 1-10=countdown
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: ATR (Volatility)                        ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool           Inp_Ind_Atr_Enabled       = true;                // [ATR] Enable ATR vote
+input bool           Inp_Ind_Atr_Enabled       = false;               // [ATR] Enable ATR vote
 input int            Inp_Ind_Atr_Weight        = 1;                   // [ATR] Vote weight
 input string         Inp_Ind_Atr_Info          = "Non-directional: validates volatility range (voting)"; // [ATR] Description
 input int            Inp_Ind_Atr_Period        = 14;                  // [ATR] Period
@@ -960,12 +960,12 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "═══ 🎯 Exit Profile (Strategy Contract) ═══"
 input string         Inp_Exit_Zone_Info1        = "Active for: PRESET_TEST & PRESET_CUSTOM (direct input control)"; // [Zone 3A.9]
 input string         Inp_Exit_Zone_Info2        = "Other presets override exits with strategy-optimized values";               // [Zone 3A.9]
-input EExitProfile   Inp_ExitProfile            = EXIT_PROFILE_RRM; // Exit profile selector
+input EExitProfile   Inp_ExitProfile            = EXIT_PROFILE_NONE; // Exit profile selector
 input string         Inp_ExitProfile_Info       = "RRM: Swing-based SL, PSAR trail, no ATR multipliers"; // [Info]
 
 // ── Stop Loss Configuration ──────────────────────────────────────────
 input group "═══ 🛑 Stop Loss Configuration ═══"
-input ESLMode        Inp_SLMode                 = SL_MODE_FIXED_PIPS; // SL calculation method
+input ESLMode        Inp_SLMode                 = SL_MODE_PERCENT; // SL calculation method
 input string         Inp_SL_Help1               = "FIXED_PIPS: Simple pip distance  |  SWING: Recent structure high/low"; // [Info]
 input string         Inp_SL_Help2               = "PSAR_DOT: PSAR level  |  PERCENT: % of price  |  FRACTAL: Bill Williams"; // [Info]
 input double         Inp_SL_FixedPips           = 20.0;               // SL distance (pips; for SL_MODE_FIXED_PIPS)
@@ -1002,10 +1002,10 @@ input string         Inp_BE_Legacy_Info         = "RRM BE uses % of TP distance 
 input string         Inp_RRM_Info1              = "RRM uses % of TP distance for BE — not absolute pips"; // [RRM Info]
 input string         Inp_RRM_Info2              = "Only active when ExitProfile = EXIT_PROFILE_RRM"; // [RRM Info]
 input string         Inp_RRM_Info3              = "Example: SL=10 pips, TP=30 pips (3:1 RR), BE@33% → triggers at +10 pips profit"; // [RRM Info]
-input EBeMode        Inp_BE_Mode                = BE_MODE_OFF;         // RRM BE mode: OFF / TP_PROGRESS_PCT / R_MULTIPLE
+input EBeMode        Inp_BE_Mode                = BE_MODE_TP_PROGRESS_PCT;         // RRM BE mode: OFF / TP_PROGRESS_PCT / R_MULTIPLE
 
 input group "--- RRM Breakeven (% Progress) ---"
-input double         Inp_RRM_BE_ProgressPct     = 33.0;                // BE at % to TP (33 = 33%; BE_MODE_TP_PROGRESS_PCT)
+input double         Inp_RRM_BE_ProgressPct     = 10.0;                // BE at % to TP (33 = 33%; BE_MODE_TP_PROGRESS_PCT)
 input double         Inp_RRM_BE_RMultiple       = 1.0;                 // BE at R-multiple (BE_MODE_R_MULTIPLE)
 input double         Inp_RRM_BE_BufferPips      = 5.0;                 // BE buffer: lock SL at entry + X pips
 input string         Inp_RRM_BE_Example         = "Example: SL=10, TP=30 (3:1), BE@33% → triggers at +10 pips; SL locks at entry+5pips"; // [Info]
@@ -1013,21 +1013,21 @@ input string         Inp_RRM_BE_Example         = "Example: SL=10, TP=30 (3:1), 
 
 // ── Trailing Stop Configuration ──────────────────────────────────────
 input group "═══ 📈 Trailing Stop Configuration ═══"
-input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR;          // Trailing method
-input ETrailTrigger  Inp_TrailTrigger           = TRIGGER_IMMEDIATE;   // When to start trailing
-input double         Inp_TrailDistancePips      = 15.0;                // Fixed trail distance / profit trigger (pips)
-input double         Inp_BEThresholdPips        = 10.0;                // Pips profit to trigger breakeven (TRIGGER_BREAKEVEN)
-input double         Inp_TrailProfitPercent     = 1.0;                 // Profit % to start trailing (TRIGGER_PROFIT_PERCENT)
-input double         Inp_TrailStepPips          = 5.0;                 // Minimum pips to move SL each step
-input bool           Inp_TrailLockProfit        = true;                // Never move SL backwards (lock in profit)
+input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR;        // Trailing method
+input ETrailTrigger  Inp_TrailTrigger           = TRIGGER_IMMEDIATE; // When to start trailing
+input double         Inp_TrailDistancePips      = 5.0;              // Fixed trail distance / profit trigger (pips)
+input double         Inp_BEThresholdPips        = 5.0;              // Pips profit to trigger breakeven (TRIGGER_BREAKEVEN)
+input double         Inp_TrailProfitPercent     = 10.0;               // Profit % to start trailing (TRIGGER_PROFIT_PERCENT)
+input double         Inp_TrailStepPips          = 5.0;               // Minimum pips to move SL each step
+input bool           Inp_TrailLockProfit        = true;              // Never move SL backwards (lock in profit)
 
 input group "--- PSAR Trailing (PSAR-specific) ---"
 input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR trail cushion mode
-input double         Inp_PSAR_TrailPipsCushion  = 5.0;                 // PSAR trail cushion (pips)
-input int            Inp_PSAR_TrailDelay        = 1;                   // PSAR trailing delay (1=tight, 3=loose)
-input bool           Inp_RRM_TrailStartsAfterBE = true;                // Start trailing only after BE is reached
-input int            Inp_RRM_TrailPsarShiftDelay = 1;                  // PSAR shift delay (1=tight, 3=loose)
-input bool           Inp_RRM_FreezeTrailOnFlip  = false;               // Freeze trail on PSAR flip
+input double         Inp_PSAR_TrailPipsCushion  = 5.0;               // PSAR trail cushion (pips)
+input int            Inp_PSAR_TrailDelay        = 1;                 // PSAR trailing delay (1=tight, 3=loose)
+input bool           Inp_RRM_TrailStartsAfterBE = false;             // Start trailing only after BE is reached
+input int            Inp_RRM_TrailPsarShiftDelay = 1;                // PSAR shift delay (1=tight, 3=loose)
+input bool           Inp_RRM_FreezeTrailOnFlip  = true;              // Freeze trail on PSAR flip
 input string         Inp_RRM_Trail_Info         = "RRM trailing: PSAR-based with bar shift delay for flip stability"; // [Info]
 
 // ── Risk Management ──────────────────────────────────────────────────
