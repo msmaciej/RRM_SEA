@@ -344,15 +344,15 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   //| HELPER (Strict): TP = |entry-SL|*TP_Mult; 0 when TP disabled     |
+   //| HELPER (Strict): TP = |entry-SL|*RRRatio; 0 when TP disabled    |
    //+------------------------------------------------------------------+
    double RRM_GetStrictTP(bool isBuy, double entry, double sl)
    {
-      if(!m_settings.TP_Enabled || m_settings.TP_Mult <= 0.0 || sl <= 0.0)
+      if(!m_settings.TP_Enabled || m_settings.RRRatio <= 0.0 || sl <= 0.0)
          return 0.0;
       double sl_dist = MathAbs(entry - sl);
       if(sl_dist <= 0.0) return 0.0;
-      double tp_dist = sl_dist * m_settings.TP_Mult;
+      double tp_dist = sl_dist * m_settings.RRRatio;
       return isBuy ? (entry + tp_dist) : (entry - tp_dist);
    }
 
@@ -997,7 +997,7 @@ public:
          } else if(m_settings.RiskPercent > 0.0) {
             datetime now = TimeCurrent();
             if(m_last_risk_warn == 0 || (now - m_last_risk_warn) >= 60) {
-               PrintFormat("Risk Sizing: cannot compute volume for %s (RiskPercent=%.2f). Ensure SL is enabled (SL_Mult > 0) and symbol tick data is available. Falling back to min volume.",
+               PrintFormat("Risk Sizing: cannot compute volume for %s (RiskPercent=%.2f). Ensure SL is set and symbol tick data is available. Falling back to min volume.",
                            _Symbol, m_settings.RiskPercent);
                m_last_risk_warn = now;
             }
@@ -1174,23 +1174,23 @@ public:
                           : (price - sl_dist * m_settings.RRRatio);
             }
          }
-         else if(m_settings.TP_Mult > 0) {
+         else if(m_settings.RRRatio > 0) {
             double dist = 0.0;
 
             // True R:R mode: TP = actual SL distance × R:R ratio
             if(sl > 0) {
                double sl_distance = MathAbs(price - sl);
                if(sl_distance > 0) {
-                  dist = sl_distance * m_settings.TP_Mult;
+                  dist = sl_distance * m_settings.RRRatio;
                } else {
                   // Fallback to fixed pips if SL distance is zero
                   bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
-                  dist = m_settings.SL_FixedPips * _Point * (isJPY ? 100.0 : 10.0) * m_settings.TP_Mult;
+                  dist = m_settings.SL_FixedPips * _Point * (isJPY ? 100.0 : 10.0) * m_settings.RRRatio;
                }
             } else {
                // Fallback to fixed pips if SL calculation failed
                bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
-               dist = m_settings.SL_FixedPips * _Point * (isJPY ? 100.0 : 10.0) * m_settings.TP_Mult;
+               dist = m_settings.SL_FixedPips * _Point * (isJPY ? 100.0 : 10.0) * m_settings.RRRatio;
             }
 
             tp = (direction == 1) ? price + dist : price - dist;
@@ -1440,42 +1440,7 @@ public:
          return;
       }
 
-      // Compute ATR internally only if needed (Use_BE uses ATR-based trigger)
-      bool need_atr = m_settings.Use_BE;
-      double atr = 0.0;
-      if(need_atr) {
-         int atr_period = m_settings.P_Atr > 0 ? m_settings.P_Atr : 14;
-         int h = iATR(_Symbol, PERIOD_CURRENT, atr_period);
-         if(h != INVALID_HANDLE) {
-            double buf[1];
-            if(CopyBuffer(h, 0, 1, 1, buf) > 0)
-               atr = buf[0];
-            IndicatorRelease(h);
-         }
-      }
-
-      // 1. Breakeven Logic
-      if(m_settings.Use_BE) {
-         ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
-         double open = PositionGetDouble(POSITION_PRICE_OPEN);
-         double curr = PositionGetDouble(POSITION_PRICE_CURRENT);
-         double sl   = PositionGetDouble(POSITION_SL);
-         double tp   = PositionGetDouble(POSITION_TP);
-         double trig = atr * m_settings.BE_Trig;
-         double buff = atr * m_settings.BE_Buff;
-         int digits  = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
-
-         if(type == POSITION_TYPE_BUY && curr >= open + trig) {
-            double t_sl = NormalizeDouble(open + buff, digits);
-            if(sl < t_sl) m_trade.PositionModify(ticket, t_sl, tp);
-         }
-         else if(type == POSITION_TYPE_SELL && curr <= open - trig) {
-            double t_sl = NormalizeDouble(open - buff, digits);
-            if(sl > t_sl || sl == 0) m_trade.PositionModify(ticket, t_sl, tp);
-         }
-      }
-
-      // 2. Trailing Stop Logic (Allows Profit to Run)
+      // 1. Trailing Stop Logic (Allows Profit to Run)
       if(m_settings.TrailMode == TRAIL_NONE) return;
 
       ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
@@ -1521,16 +1486,8 @@ public:
          if(psar > 0.0) {
             double cushion = 0.0;
 
-            // Calculate cushion based on mode
-            if(m_settings.Adaptive.UseTrailCushion) {
-               // Adaptive pips cushion with TF multiplier scaling
-               double scale = GetTimeframeMultiplier(_Period);
-               cushion = m_settings.Adaptive.PsarCushion_Pips * _Point * scale * (isJPY ? 100.0 : 10.0);
-            }
-            else {
-               // Fixed pips cushion
-               cushion = ScalePipsToPriceDistance(m_settings.PSAR_TrailPipsCushion);
-            }
+            // Calculate cushion (TF-based, already set in Settings.PSAR_TrailPipsCushion)
+            cushion = ScalePipsToPriceDistance(m_settings.PSAR_TrailPipsCushion);
 
             new_sl = (type == POSITION_TYPE_BUY) ? (psar - cushion) : (psar + cushion);
          }

@@ -274,7 +274,7 @@ void PrintEffectiveConfig()
    {
       Print("Effective: ExitProfile=", EnumToString(Settings.ExitProfile),
             " TP_Enabled=", (Settings.TP_Enabled ? "true" : "false"),
-            " TP_Mult=", DoubleToString(Settings.TP_Mult, 2),
+            " RRRatio=", DoubleToString(Settings.RRRatio, 2),
             " BE_Mode=", EnumToString(Settings.BE_Mode));
       Print("Effective: RRM_BE_ProgressPct=", DoubleToString(Settings.RRM_BE_ProgressPct, 1),
             " RRM_BE_BufferPips=", DoubleToString(Settings.RRM_BE_BufferPips, 1),
@@ -419,15 +419,14 @@ int OrchestrateInit()
       PrintFormat("  ✓ Match:  %s", (Settings.SLMode == Inp_SLMode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
       if(Inp_SLMode == SL_MODE_PSAR_DOT || Settings.SLMode == SL_MODE_PSAR_DOT)
       {
-         PrintFormat("  PSAR Cushion Input:    %.1f pips", Inp_SL_PsarPipsCushion);
-         PrintFormat("  PSAR Cushion Settings: %.1f pips", Settings.SL_PsarPipsCushion);
+         PrintFormat("  PSAR Cushion (TF-based): %.1f pips", Settings.SL_PsarPipsCushion);
       }
       Print("");
 
       Print("Take Profit Mode:");
-      PrintFormat("  Input:    %s (Mult: %.1f)", EnumToString(Inp_TPMode), Inp_TP_Mult);
-      PrintFormat("  Settings: %s (Mult: %.1f)", EnumToString(Settings.TPMode), Settings.TP_Mult);
-      PrintFormat("  ✓ Match:  %s", (Settings.TPMode == Inp_TPMode && Settings.TP_Mult == Inp_TP_Mult) ? "YES ✅" : "NO ❌ BUG DETECTED!");
+      PrintFormat("  Input:    %s (RRRatio: %.1f)", EnumToString(Inp_TPMode), Inp_RRRatio);
+      PrintFormat("  Settings: %s (RRRatio: %.1f)", EnumToString(Settings.TPMode), Settings.RRRatio);
+      PrintFormat("  ✓ Match:  %s", (Settings.TPMode == Inp_TPMode && Settings.RRRatio == Inp_RRRatio) ? "YES ✅" : "NO ❌ BUG DETECTED!");
       Print("");
 
       Print("Breakeven Mode:");
@@ -438,8 +437,7 @@ int OrchestrateInit()
       {
          PrintFormat("  Progress%% Input:    %.1f%%", Inp_RRM_BE_ProgressPct);
          PrintFormat("  Progress%% Settings: %.1f%%", Settings.RRM_BE_ProgressPct);
-         PrintFormat("  Buffer Input:        %.1f pips", Inp_RRM_BE_BufferPips);
-         PrintFormat("  Buffer Settings:     %.1f pips", Settings.RRM_BE_BufferPips);
+         PrintFormat("  Buffer (TF-based):   %.1f pips", Settings.RRM_BE_BufferPips);
       }
       Print("");
 
@@ -449,8 +447,7 @@ int OrchestrateInit()
       PrintFormat("  ✓ Match:  %s", (Settings.TrailMode == Inp_TrailMode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
       if(Inp_TrailMode == TRAIL_PSAR || Settings.TrailMode == TRAIL_PSAR)
       {
-         PrintFormat("  PSAR Cushion Input:    %.1f pips", Inp_PSAR_TrailPipsCushion);
-         PrintFormat("  PSAR Cushion Settings: %.1f pips", Settings.PSAR_TrailPipsCushion);
+         PrintFormat("  PSAR Cushion (TF-based): %.1f pips", Settings.PSAR_TrailPipsCushion);
          PrintFormat("  PSAR Delay Input:      %d bars", Inp_PSAR_TrailDelay);
          PrintFormat("  PSAR Delay Settings:   %d bars", Settings.PSAR_TrailDelay);
          PrintFormat("  RRM StartAfterBE Input:    %s", Inp_RRM_TrailStartsAfterBE ? "true" : "false");
@@ -481,16 +478,12 @@ int OrchestrateInit()
       Print("═══ ADAPTIVE CONFIGURATION ═══");
       Print("Pair type: ", EnumToString(det),
             " | Max spread: ", DoubleToString(GetAdaptiveSpreadLimit(det, Settings.Adaptive), 1), " pips");
-      Print("Timeframe: ", EnumToString(tf),
-            " | TF multiplier: ", DoubleToString(GetTimeframeMultiplier(tf), 2), "x");
+      Print("Timeframe: ", EnumToString(tf));
       Print("ATR gate: min=", DoubleToString(Settings.MinATR, 1),
             " max=", DoubleToString(Settings.MaxATR, 1), " pips");
-      if(Settings.Adaptive.UseSL)
-         Print("Adaptive SL: ", DoubleToString(GetAdaptiveSL(tf, Settings.Adaptive), 1), " pips");
-      if(Settings.Adaptive.UseTP)
-         Print("Adaptive TP: ", DoubleToString(GetAdaptiveTP(tf, Settings.Adaptive), 1), " pips");
-      if(Settings.Adaptive.UseTrailCushion)
-         Print("Adaptive trail cushion: ", DoubleToString(GetAdaptiveTrailCushion(tf, Settings.Adaptive), 1), " pips");
+      Print("SL cushion (TF-based): ", DoubleToString(Settings.SL_PsarPipsCushion, 1), " pips");
+      Print("Trail cushion (TF-based): ", DoubleToString(Settings.PSAR_TrailPipsCushion, 1), " pips");
+      Print("BE buffer (TF-based): ", DoubleToString(Settings.RRM_BE_BufferPips, 1), " pips");
       Print("═════════════════════════════");
    }
 

@@ -295,23 +295,6 @@ struct ST_AdaptiveSettings
    double Spread_Exotic;
    double Spread_Gold;
    double Spread_Crypto;
-
-   // ATR gate base values (pips at M15 reference; scaled by TF multiplier)
-   double ATR_Min_Base;
-   double ATR_Max_Base;
-
-   // Adaptive SL/TP base distances (pips at M15 reference)
-   double SL_Base;
-   double TP_Base;
-   bool   UseSL;
-   bool   UseTP;
-
-   // Adaptive trailing stop cushion base distance (pips at M15 reference)
-   double TrailCushion_Base;
-   bool   UseTrailCushion;
-
-   // PSAR trail cushion (fixed pips)
-   double PsarCushion_Pips;
 };
 
 // --- STRUCTURES ---
@@ -348,7 +331,6 @@ struct ST_Settings
    bool   UseSpread;      // Enable spread filter (false = bypass spread gate)
    double MinATR;
    double MaxATR;
-   bool   ATR_HardGate;
    bool   UseATRGate;     // Enable ATR gate filter (false = ATR gate disabled)
    // MT5 Moving Average benchmark compatibility
    bool   UseMACompatSizer;
@@ -472,7 +454,6 @@ struct ST_Settings
    double FixedLotSize;             // Fixed lot size (0 = risk-based; >0 = fixed)
 
    // SL - Initial SL Placement
-   double           SL_Mult;
    double           SL_PsarPipsCushion;
    double           SL_SwingPipsCushion;
    double           SL_FixedPips;
@@ -502,12 +483,7 @@ struct ST_Settings
    bool     TrailLockProfit;         // Lock in profit (never move SL backwards)
 
    // TS - Trailing SL / TP / BE
-   double              TP_Mult;
-   bool                Use_BE;
-   double              BE_Trig;
-   double              BE_Buff;
    ETrailingMode       TrailMode;
-   double              Trail_Mult;
    EPsarTrailCushionMode PSAR_TrailCushionMode;
    double              PSAR_TrailPipsCushion;
    int                 PSAR_TrailDelay;         // PSAR trailing bar-shift delay (1-3)
@@ -610,7 +586,7 @@ ST_Settings Settings;
 //   ✅ ZONE 2A  — Operator Gates & UI          : Policy A; always honored by all presets
 //   ℹ️ ZONE 3A  — Pipeline Config (Steps 1–9) : reference defaults; presets override when active
 //                 └─ ZONE 3A.9: EXIT MANAGEMENT (Stop Loss, Take Profit, Breakeven, Trailing)
-//   🔧 ZONE 3C  — Adaptive Settings           : auto-scale by pair type & timeframe
+//   🔧 ZONE 3C  — Pair-Specific Spread Limits     : auto-detect spread limits by symbol type
 //
 // Tags used in descriptions:
 //   (Global; allowed under presets)                 - always honored (Zone 2A)
@@ -969,9 +945,7 @@ input ESLMode        Inp_SLMode                 = SL_MODE_PERCENT; // SL calcula
 input string         Inp_SL_Help1               = "FIXED_PIPS: Simple pip distance  |  SWING: Recent structure high/low"; // [Info]
 input string         Inp_SL_Help2               = "PSAR_DOT: PSAR level  |  PERCENT: % of price  |  FRACTAL: Bill Williams"; // [Info]
 input double         Inp_SL_FixedPips           = 20.0;               // SL distance (pips; for SL_MODE_FIXED_PIPS)
-input string         Inp_SL_Fixed_Note          = "Overridden by Adaptive_SL when Adaptive_UseSL=true"; // [Info]
-input double         Inp_SL_PsarPipsCushion     = 5.0;                // PSAR cushion (pips; for SL_PSAR_DOT)
-input double         Inp_SL_SwingPipsCushion    = 10.0;               // Swing cushion (pips; for SL_MODE_SWING)
+input string         Inp_SL_TFCushion_Note      = "PSAR/Swing cushions auto-set by timeframe (M15=5, H1=10, H4=20 pips)"; // [Info]
 input int            Inp_SwingLookback          = 20;                 // Swing lookback (bars; for SL_MODE_SWING)
 input double         Inp_SLPercent              = 0.5;                // SL as % of entry (for SL_MODE_PERCENT; e.g. 0.5 = 0.5%)
 
@@ -986,19 +960,16 @@ input double         Inp_PSARMax                = 0.2;                 // PSAR m
 input group "═══ 🎯 Take Profit Configuration ═══"
 input bool           Inp_TP_Enabled             = true;                // Enable take profit
 input ETPMode        Inp_TPMode                 = TP_MODE_RR;         // TP calculation method
-input double         Inp_TP_Mult                = 3.0;                 // TP R-multiple (e.g. 3.0 = 3:1 RR)
 input double         Inp_RRRatio                = 2.0;                // Risk:Reward ratio (TP_MODE_RR only)
 input double         Inp_FixedTPPips            = 40.0;               // Fixed TP distance (pips; TP_MODE_FIXED_PIPS only)
 
 input group "--- SL Configuration Examples ---"
-input string         Inp_Ex1_Header             = "Example 1 - Simple Fixed SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_SL_FixedPips=20, Inp_Adaptive_UseSL=false"; // [Info]
-input string         Inp_Ex2_Header             = "Example 2 - TF-Adaptive SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_Adaptive_UseSL=true, Inp_Adaptive_SL_Base=20"; // [Info]
-input string         Inp_Ex3_Header             = "Example 3 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20, Inp_SL_SwingPipsCushion=10"; // [Info]
-input string         Inp_Ex4_Header             = "Example 4 - Fractal SL:     Inp_SLMode=SL_FRACTAL, Inp_FractalPeriod=5, Inp_TPFractalOffset=1"; // [Info]
+input string         Inp_Ex1_Header             = "Example 1 - Simple Fixed SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_SL_FixedPips=20"; // [Info]
+input string         Inp_Ex2_Header             = "Example 2 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20 (cushion auto-set by TF)"; // [Info]
+input string         Inp_Ex3_Header             = "Example 3 - Fractal SL:     Inp_SLMode=SL_MODE_FRACTAL, Inp_FractalPeriod=5, Inp_TPFractalOffset=1"; // [Info]
 
 // ── Breakeven Configuration ──────────────────────────────────────────
 input group "═══ ⚖️ Breakeven Configuration ═══"
-input string         Inp_BE_Legacy_Info         = "RRM BE uses % of TP distance — not absolute pips"; // [Info]
 input string         Inp_RRM_Info1              = "RRM uses % of TP distance for BE — not absolute pips"; // [RRM Info]
 input string         Inp_RRM_Info2              = "Only active when ExitProfile = EXIT_PROFILE_RRM"; // [RRM Info]
 input string         Inp_RRM_Info3              = "Example: SL=10 pips, TP=30 pips (3:1 RR), BE@33% → triggers at +10 pips profit"; // [RRM Info]
@@ -1007,8 +978,8 @@ input EBeMode        Inp_BE_Mode                = BE_MODE_TP_PROGRESS_PCT;      
 input group "--- RRM Breakeven (% Progress) ---"
 input double         Inp_RRM_BE_ProgressPct     = 10.0;                // BE at % to TP (33 = 33%; BE_MODE_TP_PROGRESS_PCT)
 input double         Inp_RRM_BE_RMultiple       = 1.0;                 // BE at R-multiple (BE_MODE_R_MULTIPLE)
-input double         Inp_RRM_BE_BufferPips      = 5.0;                 // BE buffer: lock SL at entry + X pips
-input string         Inp_RRM_BE_Example         = "Example: SL=10, TP=30 (3:1), BE@33% → triggers at +10 pips; SL locks at entry+5pips"; // [Info]
+input string         Inp_RRM_BE_Buffer_Note     = "BE buffer auto-set by timeframe (M15=5, H1=10, H4=20 pips)"; // [Info]
+input string         Inp_RRM_BE_Example         = "Example: SL=10, TP=30 (3:1), BE@33% → triggers at +10 pips; SL locks at entry + TF-cushion"; // [Info]
 
 
 // ── Trailing Stop Configuration ──────────────────────────────────────
@@ -1023,7 +994,7 @@ input bool           Inp_TrailLockProfit        = true;              // Never mo
 
 input group "--- PSAR Trailing (PSAR-specific) ---"
 input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR trail cushion mode
-input double         Inp_PSAR_TrailPipsCushion  = 5.0;               // PSAR trail cushion (pips)
+input string         Inp_PSAR_TrailCushion_Note = "PSAR trail cushion auto-set by timeframe (M15=3, H1=7, H4=10 pips)"; // [Info]
 input int            Inp_PSAR_TrailDelay        = 1;                 // PSAR trailing delay (1=tight, 3=loose)
 input bool           Inp_RRM_TrailStartsAfterBE = false;             // Start trailing only after BE is reached
 input int            Inp_RRM_TrailPsarShiftDelay = 1;                // PSAR shift delay (1=tight, 3=loose)
@@ -1045,26 +1016,23 @@ input int            Inp_MA_Shift               = 6;            // (PRESET_MA on
 input group "══════════ ℹ️ END: ZONE 3A.9 EXIT MANAGEMENT ══════════"
 
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-// 🔧 ZONE 3C — ADAPTIVE SETTINGS  (auto-scale by pair type & timeframe)
-// These settings let the EA adapt spread limits, ATR gates, SL/TP distances,
-// and trail cushions to the current pair and timeframe automatically.
-// When pair type is AUTO, it is detected from the symbol name at init.
-// When TF scaling is AUTO, all base values are multiplied by the TF factor.
+// 🔧 ZONE 3C — PAIR-SPECIFIC SPREAD LIMITS
+// Auto-detect spread limits based on symbol type.
+// Example: EURUSD (major) = 2 pips, XAUUSD (gold) = 5 pips, BTCUSD (crypto) = 50 pips
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
-input group "         🔧 ZONE 3C: ADAPTIVE SETTINGS"
-input group "            (Auto-scale by pair & timeframe)"
+input group "         🔧 ZONE 3C: PAIR-SPECIFIC SPREAD LIMITS"
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
 
 input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔧 Adaptive: Pair Type Detection                      ║"
+input group "║  🔧 Pair Type Detection                                ║"
 input group "╚════════════════════════════════════════════════════════╝"
 input EPairType      Inp_Adaptive_PairType      = PAIR_TYPE_AUTO; // Pair type (AUTO detects from symbol name)
 input string         Inp_Adaptive_PairInfo      = "AUTO: EURUSD/GBPUSD/USDJPY=MAJOR; XAUUSD/GOLD=GOLD; BTC/ETH=CRYPTO; TRY/ZAR/MXN=EXOTIC; others=MINOR"; // Pair detection reference
 
 input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔧 Adaptive: Spread Limits (by pair type)             ║"
+input group "║  🔧 Max Spread by Pair Type (pips)                     ║"
 input group "╚════════════════════════════════════════════════════════╝"
 input double         Inp_Adaptive_Spread_Major  = 2.0;           // Max spread for major pairs (pips)
 input double         Inp_Adaptive_Spread_Minor  = 4.0;           // Max spread for minor pairs (pips)
@@ -1072,31 +1040,8 @@ input double         Inp_Adaptive_Spread_Exotic = 10.0;          // Max spread f
 input double         Inp_Adaptive_Spread_Gold   = 5.0;           // Max spread for gold/XAU (pips)
 input double         Inp_Adaptive_Spread_Crypto = 50.0;          // Max spread for crypto (pips)
 
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔧 Adaptive: ATR Limits (by timeframe)                ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input double         Inp_Adaptive_ATR_Min_Base  = 5.0;           // Base min ATR for M15 (pips; 0=off)
-input double         Inp_Adaptive_ATR_Max_Base  = 20.0;          // Base max ATR for M15 (pips; 0=off)
-input string         Inp_Adaptive_ATR_Info      = "AUTO scales: M1×0.5, M5×0.67, M15×1.0, M30×1.5, H1×2, H4×4, D1×8, W1×24"; // Scaling reference
-
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔧 Adaptive: SL/TP Distance (by timeframe)            ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input double         Inp_Adaptive_SL_Base       = 20.0;          // Base SL distance for M15 (pips)
-input double         Inp_Adaptive_TP_Base       = 40.0;          // Base TP distance for M15 (pips)
-input bool           Inp_Adaptive_UseSL         = false;         // Apply adaptive SL (overrides SL_FixedPips when enabled)
-input bool           Inp_Adaptive_UseTP         = false;         // Apply adaptive TP (sets TP distance when enabled)
-
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔧 Adaptive: Trail Stop Cushion (by timeframe)        ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input double         Inp_Adaptive_TrailCushion_Base = 5.0;       // Base trail cushion for M15 (pips)
-input bool           Inp_Adaptive_UseTrailCushion   = false;     // Apply adaptive trail cushion (replaces manual PSAR pips cushion)
-
-input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🔧 Adaptive: PSAR Trail Cushion (fixed pips)          ║"
-input group "╚════════════════════════════════════════════════════════╝"
-input double         Inp_Adaptive_PsarCushion_Pips  = 3.0;       // PSAR trail cushion (pips)
+input string         Inp_Adaptive_Note1 = "📝 Note: SL/TP cushions auto-adjust by timeframe (no input needed)"; // [Info]
+input string         Inp_Adaptive_Note2 = "📝 M15=5 pips, H1=10 pips, H4=20 pips (see GetTFBasedCushion)"; // [Info]
 
 //+------------------------------------------------------------------+
 //| ADAPTIVE UTILITY FUNCTIONS                                       |
@@ -1134,24 +1079,6 @@ EPairType DetectPairType(const string symbol)
    return PAIR_TYPE_MINOR;
 }
 
-// Return a multiplier relative to M15 (base reference = 1.0).
-// Used to scale pip-based values (SL, TP, ATR limits, trail cushion) by timeframe.
-double GetTimeframeMultiplier(ENUM_TIMEFRAMES tf)
-{
-   switch(tf)
-   {
-      case PERIOD_M1:  return 0.5;
-      case PERIOD_M5:  return 0.67;
-      case PERIOD_M15: return 1.0;
-      case PERIOD_M30: return 1.5;
-      case PERIOD_H1:  return 2.0;
-      case PERIOD_H4:  return 4.0;
-      case PERIOD_D1:  return 8.0;
-      case PERIOD_W1:  return 24.0;
-      default:         return 1.0;
-   }
-}
-
 // Return the appropriate max spread limit (pips) for the detected pair type.
 double GetAdaptiveSpreadLimit(EPairType pair_type, const ST_AdaptiveSettings &adaptive)
 {
@@ -1164,45 +1091,6 @@ double GetAdaptiveSpreadLimit(EPairType pair_type, const ST_AdaptiveSettings &ad
       case PAIR_TYPE_CRYPTO: return adaptive.Spread_Crypto;
       default:               return adaptive.Spread_Minor;
    }
-}
-
-// Return adaptive min ATR gate (pips) scaled by timeframe.
-double GetAdaptiveATRMin(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &adaptive)
-{
-   return adaptive.ATR_Min_Base * GetTimeframeMultiplier(tf);
-}
-
-// Return adaptive max ATR gate (pips) scaled by timeframe.
-double GetAdaptiveATRMax(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &adaptive)
-{
-   return adaptive.ATR_Max_Base * GetTimeframeMultiplier(tf);
-}
-
-// Return adaptive SL distance (pips) scaled by timeframe.  Returns 0 if UseSL=false.
-double GetAdaptiveSL(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &adaptive)
-{
-   if(!adaptive.UseSL) return 0.0;
-   return adaptive.SL_Base * GetTimeframeMultiplier(tf);
-}
-
-// Return adaptive TP distance (pips) scaled by timeframe.  Returns 0 if UseTP=false.
-double GetAdaptiveTP(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &adaptive)
-{
-   if(!adaptive.UseTP) return 0.0;
-   return adaptive.TP_Base * GetTimeframeMultiplier(tf);
-}
-
-// Return adaptive trail cushion (pips) scaled by timeframe.  Returns 0 if UseTrailCushion=false.
-double GetAdaptiveTrailCushion(ENUM_TIMEFRAMES tf, const ST_AdaptiveSettings &adaptive)
-{
-   if(!adaptive.UseTrailCushion) return 0.0;
-   return adaptive.TrailCushion_Base * GetTimeframeMultiplier(tf);
-}
-
-// Return adaptive PSAR cushion value in pips.
-double GetAdaptivePsarCushion(const ST_AdaptiveSettings &adaptive)
-{
-   return adaptive.PsarCushion_Pips;
 }
 
 //+------------------------------------------------------------------+
@@ -1246,7 +1134,6 @@ void InitializeConfig()
    Settings.MaxATR               = Inp_MaxATRPips;
 
    // Defaults for gating/vote semantics
-   Settings.ATR_HardGate         = false;
    Settings.UseATRGate           = Inp_UseATRGate;
    Settings.ATR_VoteMinPips      = Inp_Ind_Atr_VoteMinPips;
    Settings.ATR_VoteMaxPips      = Inp_Ind_Atr_VoteMaxPips;
@@ -1377,9 +1264,6 @@ void InitializeConfig()
    Settings.Ind_Atr_Weight       = Inp_Ind_Atr_Weight;
 
    // Exits
-   Settings.SL_Mult              = 0.0;
-   Settings.SL_PsarPipsCushion   = Inp_SL_PsarPipsCushion;
-   Settings.SL_SwingPipsCushion  = Inp_SL_SwingPipsCushion;
    Settings.SL_FixedPips         = Inp_SL_FixedPips;
 
    // SL/TP strategy configuration
@@ -1404,16 +1288,10 @@ void InitializeConfig()
    Settings.TrailStepPips      = Inp_TrailStepPips;
    Settings.TrailLockProfit    = Inp_TrailLockProfit;
 
-   Settings.TP_Mult              = Inp_TP_Mult;
    Settings.TP_Enabled           = Inp_TP_Enabled;
-   Settings.Use_BE               = false;
-   Settings.BE_Trig              = 0.0;
-   Settings.BE_Buff              = 0.0;
 
    Settings.TrailMode            = Inp_TrailMode;
-   Settings.Trail_Mult           = 0.0;
    Settings.PSAR_TrailCushionMode= Inp_PSAR_TrailCushionMode;
-   Settings.PSAR_TrailPipsCushion= Inp_PSAR_TrailPipsCushion;
    Settings.PSAR_TrailDelay      = (Inp_PSAR_TrailDelay < 1) ? 1 : (Inp_PSAR_TrailDelay > 3) ? 3 : Inp_PSAR_TrailDelay;
 
    // RRM exit contract
@@ -1421,10 +1299,23 @@ void InitializeConfig()
    Settings.BE_Mode                 = Inp_BE_Mode;
    Settings.RRM_BE_ProgressPct      = Inp_RRM_BE_ProgressPct;
    Settings.RRM_BE_RMultiple        = Inp_RRM_BE_RMultiple;
-   Settings.RRM_BE_BufferPips       = Inp_RRM_BE_BufferPips;
    Settings.RRM_TrailPsarShiftDelay = (Inp_RRM_TrailPsarShiftDelay < 1) ? 1 : (Inp_RRM_TrailPsarShiftDelay > 3) ? 3 : Inp_RRM_TrailPsarShiftDelay;
    Settings.RRM_FreezeTrailOnFlip   = Inp_RRM_FreezeTrailOnFlip;
    Settings.RRM_TrailStartsAfterBE  = Inp_RRM_TrailStartsAfterBE;
+
+   // ═══════════════════════════════════════════════════════════════
+   // Auto-set cushions using TF-based functions (before preset application)
+   // Placed here so the diagnostic print below reflects the final values.
+   // ═══════════════════════════════════════════════════════════════
+   // SL cushions (PSAR and Swing modes)
+   Settings.SL_PsarPipsCushion    = GetRecommendedInitialSlCushionPips();
+   Settings.SL_SwingPipsCushion   = GetRecommendedInitialSlCushionPips();
+
+   // Trailing cushion (PSAR trailing mode)
+   Settings.PSAR_TrailPipsCushion = GetRecommendedTrailPsarCushionPips();
+
+   // Breakeven buffer (RRM BE modes) — auto from TF
+   Settings.RRM_BE_BufferPips     = GetTFBasedCushion(Period());
 
    // ═══════════════════════════════════════════════════════════════
    // 🔍 DIAGNOSTIC: Log exit management mapping
@@ -1446,16 +1337,15 @@ void InitializeConfig()
       Print("    Input:  Inp_SLMode = ", EnumToString(Inp_SLMode));
       Print("    Mapped: Settings.SLMode = ", EnumToString(Settings.SLMode));
       Print("    ✓ Match: ", (Settings.SLMode == Inp_SLMode ? "YES" : "❌ NO - BUG!"));
-      Print("    Input:  Inp_SL_PsarPipsCushion = ", Inp_SL_PsarPipsCushion);
-      Print("    Mapped: Settings.SL_PsarPipsCushion = ", Settings.SL_PsarPipsCushion);
+      Print("    Auto:   Settings.SL_PsarPipsCushion = ", Settings.SL_PsarPipsCushion, " (TF-based)");
       Print("");
 
       Print("  Take Profit:");
       Print("    Input:  Inp_TPMode = ", EnumToString(Inp_TPMode));
       Print("    Mapped: Settings.TPMode = ", EnumToString(Settings.TPMode));
       Print("    ✓ Match: ", (Settings.TPMode == Inp_TPMode ? "YES" : "❌ NO - BUG!"));
-      Print("    Input:  Inp_TP_Mult = ", Inp_TP_Mult);
-      Print("    Mapped: Settings.TP_Mult = ", Settings.TP_Mult);
+      Print("    Input:  Inp_RRRatio = ", Inp_RRRatio);
+      Print("    Mapped: Settings.RRRatio = ", Settings.RRRatio);
       Print("");
 
       Print("  Breakeven (RRM Mode):");
@@ -1464,16 +1354,14 @@ void InitializeConfig()
       Print("    ✓ Match: ", (Settings.BE_Mode == Inp_BE_Mode ? "YES" : "❌ NO - BUG!"));
       Print("    Input:  Inp_RRM_BE_ProgressPct = ", Inp_RRM_BE_ProgressPct);
       Print("    Mapped: Settings.RRM_BE_ProgressPct = ", Settings.RRM_BE_ProgressPct);
-      Print("    Input:  Inp_RRM_BE_BufferPips = ", Inp_RRM_BE_BufferPips);
-      Print("    Mapped: Settings.RRM_BE_BufferPips = ", Settings.RRM_BE_BufferPips);
+      Print("    Auto:   Settings.RRM_BE_BufferPips = ", Settings.RRM_BE_BufferPips, " (TF-based)");
       Print("");
 
       Print("  Trailing Stop:");
       Print("    Input:  Inp_TrailMode = ", EnumToString(Inp_TrailMode));
       Print("    Mapped: Settings.TrailMode = ", EnumToString(Settings.TrailMode));
       Print("    ✓ Match: ", (Settings.TrailMode == Inp_TrailMode ? "YES" : "❌ NO - BUG!"));
-      Print("    Input:  Inp_PSAR_TrailPipsCushion = ", Inp_PSAR_TrailPipsCushion);
-      Print("    Mapped: Settings.PSAR_TrailPipsCushion = ", Settings.PSAR_TrailPipsCushion);
+      Print("    Auto:   Settings.PSAR_TrailPipsCushion = ", Settings.PSAR_TrailPipsCushion, " (TF-based)");
       Print("    Input:  Inp_PSAR_TrailDelay = ", Inp_PSAR_TrailDelay);
       Print("    Mapped: Settings.PSAR_TrailDelay = ", Settings.PSAR_TrailDelay);
       Print("    Input:  Inp_RRM_TrailStartsAfterBE = ", Inp_RRM_TrailStartsAfterBE);
@@ -1510,19 +1398,6 @@ void InitializeConfig()
    Settings.Adaptive.Spread_Gold       = Inp_Adaptive_Spread_Gold;
    Settings.Adaptive.Spread_Crypto     = Inp_Adaptive_Spread_Crypto;
 
-   Settings.Adaptive.ATR_Min_Base      = Inp_Adaptive_ATR_Min_Base;
-   Settings.Adaptive.ATR_Max_Base      = Inp_Adaptive_ATR_Max_Base;
-
-   Settings.Adaptive.SL_Base           = Inp_Adaptive_SL_Base;
-   Settings.Adaptive.TP_Base           = Inp_Adaptive_TP_Base;
-   Settings.Adaptive.UseSL             = Inp_Adaptive_UseSL;
-   Settings.Adaptive.UseTP             = Inp_Adaptive_UseTP;
-
-   Settings.Adaptive.TrailCushion_Base = Inp_Adaptive_TrailCushion_Base;
-   Settings.Adaptive.UseTrailCushion   = Inp_Adaptive_UseTrailCushion;
-
-   Settings.Adaptive.PsarCushion_Pips  = Inp_Adaptive_PsarCushion_Pips;
-
    // 2. Auto-detect pair type when set to AUTO
    if(Settings.Adaptive.PairType == PAIR_TYPE_AUTO)
       Settings.Adaptive.PairType = DetectPairType(_Symbol);
@@ -1530,22 +1405,6 @@ void InitializeConfig()
    // 3. Apply adaptive spread limit (overrides the operator-gate MaxSpread from Inp_MaxSpreadPips)
    //    The ZONE 2 input remains as a fallback but the adaptive value takes precedence.
    Settings.MaxSpread = GetAdaptiveSpreadLimit(Settings.Adaptive.PairType, Settings.Adaptive);
-
-   // 4. Apply adaptive ATR limits (override Inp_MinATRPips / Inp_MaxATRPips)
-   double atf_min = GetAdaptiveATRMin(Period(), Settings.Adaptive);
-   double atf_max = GetAdaptiveATRMax(Period(), Settings.Adaptive);
-   if(atf_min > 0.0) Settings.MinATR = atf_min;
-   if(atf_max > 0.0) Settings.MaxATR = atf_max;
-
-   // 5. Apply adaptive SL to SL_FixedPips when enabled.
-   //    SL_FixedPips is the fixed-pip SL used by the executor in SL_FIXED_PIPS mode.
-   //    Note: there is no equivalent TP_FixedPips field; adaptive TP distance is stored
-   //    in Settings.Adaptive.TP_Base and accessible via GetAdaptiveTP() for callers.
-   if(Inp_Adaptive_UseSL)
-   {
-      double adaptive_sl = GetAdaptiveSL(Period(), Settings.Adaptive);
-      if(adaptive_sl > 0.0) Settings.SL_FixedPips = adaptive_sl;
-   }
 
    // Phase Detection defaults (disabled by default; presets enable)
    Settings.PhaseDetectionEnabled        = false;

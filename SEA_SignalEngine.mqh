@@ -2273,10 +2273,7 @@ public:
       m_diag_last_atr_pips = atr_pips;
       m_diag_last_atr_ok   = atr_ok;
 
-      // Expert guidance:
-      // - HARD ATR gating is useful as an execution safeguard, but it can starve signals on low TFs.
-      // - When ATR_HardGate=false, ATR is treated as a soft regime preference (vote/management), not a blocker.
-      if(m_settings.UseATRGate && m_settings.ATR_HardGate && !atr_ok)
+      if(m_settings.UseATRGate && !atr_ok)
       {
          m_diag_last_reason = (atr_pips < m_settings.MinATR ? "MIN_ATR" : "MAX_ATR");
          return false;
@@ -2483,11 +2480,10 @@ public:
             if(atr_min_pass) m_stats.passed_atr_min++;
             else m_stats.rejected_atr_min++;
             if(m_settings.DebugFlow)
-               PrintFormat("[GATE] ATR Min: %.1f pips / min=%.1f → %s%s",
+               PrintFormat("[GATE] ATR Min: %.1f pips / min=%.1f → %s",
                            atr_pips, m_settings.MinATR,
-                           atr_min_pass ? "PASS" : "FAIL",
-                           (!atr_min_pass && !m_settings.ATR_HardGate) ? " (soft)" : "");
-            if(!atr_min_pass && m_settings.ATR_HardGate) {
+                           atr_min_pass ? "PASS" : "FAIL");
+            if(!atr_min_pass) {
                if(first_failure == "") first_failure = "MIN_ATR";
                any_failure = true;
                if(!m_settings.Stats_FullEvaluation) {
@@ -2503,11 +2499,10 @@ public:
             if(atr_max_pass) m_stats.passed_atr_max++;
             else m_stats.rejected_atr_max++;
             if(m_settings.DebugFlow)
-               PrintFormat("[GATE] ATR Max: %.1f pips / max=%.1f → %s%s",
+               PrintFormat("[GATE] ATR Max: %.1f pips / max=%.1f → %s",
                            atr_pips, m_settings.MaxATR,
-                           atr_max_pass ? "PASS" : "FAIL",
-                           (!atr_max_pass && !m_settings.ATR_HardGate) ? " (soft)" : "");
-            if(!atr_max_pass && m_settings.ATR_HardGate) {
+                           atr_max_pass ? "PASS" : "FAIL");
+            if(!atr_max_pass) {
                if(first_failure == "") first_failure = "MAX_ATR";
                any_failure = true;
                if(!m_settings.Stats_FullEvaluation) {

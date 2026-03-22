@@ -9,9 +9,24 @@ All current docs live in `Readme/`:
 - `Readme/README_SYSTEM.md` — system architecture & full documentation
 - `Readme/README_INDICATORS.md` — indicator and voting pipeline reference
 - `Readme/README_EXTENDING.md` — developer guide: how to add custom indicators
+- `Readme/README_EXIT_MANAGEMENT.md` — exit system (SL/TP/BE/Trail + TF-based cushions)
+- `Readme/README_CONFIG_ZONES.md` — input zone organization & preset policy
+- `Readme/README_ADAPTIVE_SETTINGS.md` — pair-specific spread limits
 - `Readme/README_SEA_RULES.md` — agent ownership, constraints, preset policy
 - `Readme/README_SEA_BOOTSTRAP.md` — how to start a new chat and run tasks with SEA agents
 - `Readme/README_SEA_AI-AGENTS.md` — SEA Agents v.03 prompts (roles/guardrails/output)
+
+### Intelligent Adaptive System
+- ✅ **Pair-specific spread limits** — Auto-adjust for majors (2 pips), gold (5 pips), crypto (50 pips)
+- ✅ **TF-based cushions** — Auto-scale PSAR/Swing/BE cushions (M15=5, H1=10, H4=15 pips)
+- ✅ **No manual adjustment needed** — Works across all symbols and timeframes
+
+### Exit Management
+- ✅ **Multiple SL modes** — Fixed/PSAR/Swing/Fractal/Percent
+- ✅ **Multiple TP modes** — Fixed/RR/Fractal/PSAR-flip/None
+- ✅ **RRM Breakeven** — % progress or R-multiple based
+- ✅ **PSAR Trailing** — With TF-appropriate cushioning
+- ✅ **All cushions auto-adjust by timeframe** — No inputs required
 
 ## Legacy / archive
 Historical/obsolete documentation is stored in `Legacy/`.  
