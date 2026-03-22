@@ -965,8 +965,8 @@ input double         Inp_FixedTPPips            = 40.0;               // Fixed T
 
 input group "--- SL Configuration Examples ---"
 input string         Inp_Ex1_Header             = "Example 1 - Simple Fixed SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_SL_FixedPips=20"; // [Info]
-input string         Inp_Ex3_Header             = "Example 2 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20 (cushion auto-set by TF)"; // [Info]
-input string         Inp_Ex4_Header             = "Example 3 - Fractal SL:     Inp_SLMode=SL_FRACTAL, Inp_FractalPeriod=5, Inp_TPFractalOffset=1"; // [Info]
+input string         Inp_Ex2_Header             = "Example 2 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20 (cushion auto-set by TF)"; // [Info]
+input string         Inp_Ex3_Header             = "Example 3 - Fractal SL:     Inp_SLMode=SL_MODE_FRACTAL, Inp_FractalPeriod=5, Inp_TPFractalOffset=1"; // [Info]
 
 // ── Breakeven Configuration ──────────────────────────────────────────
 input group "═══ ⚖️ Breakeven Configuration ═══"
@@ -1304,6 +1304,20 @@ void InitializeConfig()
    Settings.RRM_TrailStartsAfterBE  = Inp_RRM_TrailStartsAfterBE;
 
    // ═══════════════════════════════════════════════════════════════
+   // Auto-set cushions using TF-based functions (before preset application)
+   // Placed here so the diagnostic print below reflects the final values.
+   // ═══════════════════════════════════════════════════════════════
+   // SL cushions (PSAR and Swing modes)
+   Settings.SL_PsarPipsCushion    = GetRecommendedInitialSlCushionPips();
+   Settings.SL_SwingPipsCushion   = GetRecommendedInitialSlCushionPips();
+
+   // Trailing cushion (PSAR trailing mode)
+   Settings.PSAR_TrailPipsCushion = GetRecommendedTrailPsarCushionPips();
+
+   // Breakeven buffer (RRM BE modes) — auto from TF
+   Settings.RRM_BE_BufferPips     = GetTFBasedCushion(Period());
+
+   // ═══════════════════════════════════════════════════════════════
    // 🔍 DIAGNOSTIC: Log exit management mapping
    // ═══════════════════════════════════════════════════════════════
    if(Settings.DebugLevel >= DEBUG_SUMMARY || Settings.PrintEffectiveConfig)
@@ -1373,19 +1387,6 @@ void InitializeConfig()
    Settings.MaxTotalRisk      = 0.0;  // 0 = no portfolio limit (backward compatible)
    Settings.MaxOpenTrades     = 0;    // 0 = unlimited (backward compatible)
    Settings.CountBEasZeroRisk = true; // BE trades have 0 risk
-
-   // ═══════════════════════════════════════════════════════════════
-   // Auto-set cushions using TF-based functions (before preset application)
-   // ═══════════════════════════════════════════════════════════════
-   // SL cushions (PSAR and Swing modes)
-   Settings.SL_PsarPipsCushion    = GetRecommendedInitialSlCushionPips();
-   Settings.SL_SwingPipsCushion   = GetRecommendedInitialSlCushionPips();
-
-   // Trailing cushion (PSAR trailing mode)
-   Settings.PSAR_TrailPipsCushion = GetRecommendedTrailPsarCushionPips();
-
-   // Breakeven buffer (RRM BE modes) — auto from TF
-   Settings.RRM_BE_BufferPips     = GetTFBasedCushion(Period());
 
    // Adaptive settings: map inputs and derive effective values
 
