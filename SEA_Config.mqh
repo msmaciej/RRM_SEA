@@ -332,6 +332,12 @@ struct ST_Settings
    double MinATR;
    double MaxATR;
    bool   UseATRGate;     // Enable ATR gate filter (false = ATR gate disabled)
+
+   // Candle Body Overextension Filter
+   bool   UseCandleBodyFilter;  // Enable candle body overextension filter
+   int    BodyAvgPeriod;        // Bars used to compute average body size
+   double BodyMaxMultiplier;    // Block if body > avg * multiplier
+   int    BodyCheckCandles;     // Number of recent closed candles to check
    
    // MT5 Moving Average benchmark compatibility
    bool   UseMACompatSizer;
@@ -634,6 +640,14 @@ input double         Inp_MaxSpreadPips          = 3.0;      // Max spread (pips;
 input bool           Inp_UseATRGate             = false;    // Enable ATR gate filter
 input double         Inp_MinATRPips             = 0.0;      // Min ATR gate (pips; ignored if UseATRGate=false)
 input double         Inp_MaxATRPips             = 20.0;     // Max ATR gate (pips; ignored if UseATRGate=false)
+
+input group "╔════════════════════════════════════════════════════════╗"
+input group "║  📊 CANDLE BODY OVEREXTENSION FILTER                   ║"
+input group "╚════════════════════════════════════════════════════════╝"
+input bool           Inp_UseCandleBodyFilter    = false;    // Enable candle body overextension filter
+input int            Inp_BodyAvgPeriod          = 10;       // Bars used to compute average body size
+input double         Inp_BodyMaxMultiplier      = 3.0;      // Block if body > avg * multiplier
+input int            Inp_BodyCheckCandles       = 1;        // Number of recent closed candles to check
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  ⏰ SESSION TIME FILTER                                 ║"
@@ -1138,6 +1152,12 @@ void InitializeConfig()
    Settings.UseATRGate           = Inp_UseATRGate;
    Settings.ATR_VoteMinPips      = Inp_Ind_Atr_VoteMinPips;
    Settings.ATR_VoteMaxPips      = Inp_Ind_Atr_VoteMaxPips;
+
+   // Candle body overextension filter
+   Settings.UseCandleBodyFilter  = Inp_UseCandleBodyFilter;
+   Settings.BodyAvgPeriod        = MathMax(1, Inp_BodyAvgPeriod);
+   Settings.BodyMaxMultiplier    = Inp_BodyMaxMultiplier;
+   Settings.BodyCheckCandles     = MathMax(1, Inp_BodyCheckCandles);
 
    // MA benchmark inputs (strategy fields; preset may use/override semantics later)
    Settings.UseMACompatSizer     = false;

@@ -59,6 +59,7 @@ struct SRejectionStats {
    int passed_atr_max,      rejected_atr_max;
    int passed_time,         rejected_time;
    int passed_news,         rejected_news;
+   int passed_body_filter,  rejected_body_filter;
 
    // Bias & Layer (passed + rejected)
    int passed_bias,         rejected_bias;
@@ -1479,7 +1480,7 @@ public:
 
       // Build sortable array of reason/count pairs
       struct SReason { string name; int count; double pct; };
-      SReason reasons[20];
+      SReason reasons[21];
       int idx = 0;
 
       reasons[idx].name = "Phase=UNORDERED";
@@ -1541,6 +1542,10 @@ public:
       reasons[idx].name = "News filter";
       reasons[idx].count = m_stats.rejected_news;
       reasons[idx++].pct = m_stats.rejected_news * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "CandleBody";
+      reasons[idx].count = m_stats.rejected_body_filter;
+      reasons[idx++].pct = m_stats.rejected_body_filter * 100.0 / m_stats.total_bars;
 
       reasons[idx].name = "MFI";
       reasons[idx].count = m_stats.rejected_mfi;
@@ -1616,8 +1621,9 @@ public:
       PrintGateStat("ATR Max",    (m_settings.UseATRGate && m_settings.MaxATR > 0), m_stats.passed_atr_max,       m_stats.rejected_atr_max,      StringFormat("<=%.1f pips",   m_settings.MaxATR));
       PrintGateStat("Time Window", m_settings.UseTime,     m_stats.passed_time,          m_stats.rejected_time,         m_settings.UseTime ? StringFormat("%02d:00-%02d:00", m_settings.StartHr, m_settings.EndHr) : "(disabled)");
       PrintGateStat("News Filter", m_settings.UseNews,     m_stats.passed_news,          m_stats.rejected_news,         m_settings.UseNews  ? StringFormat("%dm pre/post", m_settings.NewsPre) : "(disabled)");
+      PrintGateStat("CandleBody",  m_settings.UseCandleBodyFilter, m_stats.passed_body_filter, m_stats.rejected_body_filter, m_settings.UseCandleBodyFilter ? StringFormat("x%.1f avg(%d)", m_settings.BodyMaxMultiplier, m_settings.BodyAvgPeriod) : "(disabled)");
       Print("----------------------------------------------------------------");
-      PrintFormat("Gates blocked: %d bars", m_stats.rejected_spread + m_stats.rejected_atr_min + m_stats.rejected_atr_max + m_stats.rejected_time + m_stats.rejected_news);
+      PrintFormat("Gates blocked: %d bars", m_stats.rejected_spread + m_stats.rejected_atr_min + m_stats.rejected_atr_max + m_stats.rejected_time + m_stats.rejected_news + m_stats.rejected_body_filter);
       Print("");
       Print("================================================================");
       Print("2. BIAS & LAYER DETECTION");
@@ -2199,7 +2205,36 @@ public:
       FileClose(handle);
       Print("News: Loaded ", m_news_count, " events from ", filename);
    }
-   
+
+   // --- 9b. CANDLE BODY OVEREXTENSION FILTER ---
+   bool CheckCandleBodyFilter() {
+      if(!m_settings.UseCandleBodyFilter) return true;
+
+      // Calculate average body over past N bars (starting at shift 2 to exclude current bar)
+      double sum_body = 0.0;
+      int    period   = m_settings.BodyAvgPeriod;
+      for(int i = 2; i < period + 2; i++)
+      {
+         double o = iOpen(m_symbol, PERIOD_CURRENT, i);
+         double c = iClose(m_symbol, PERIOD_CURRENT, i);
+         sum_body += MathAbs(c - o);
+      }
+      double avg_body = sum_body / period;
+
+      // Check the most recent closed candles for overextension
+      for(int i = 1; i <= m_settings.BodyCheckCandles; i++)
+      {
+         double o    = iOpen(m_symbol, PERIOD_CURRENT, i);
+         double c    = iClose(m_symbol, PERIOD_CURRENT, i);
+         double body = MathAbs(c - o);
+         if(body > avg_body * m_settings.BodyMaxMultiplier)
+         {
+            return false;
+         }
+      }
+      return true;
+   }
+
    // --- 9. GLOBAL FILTERS ---
    bool CheckFilters() {
       // A. Time Scheduler
@@ -2278,6 +2313,9 @@ public:
          m_diag_last_reason = (atr_pips < m_settings.MinATR ? "MIN_ATR" : "MAX_ATR");
          return false;
       }
+
+      // E. Candle Body Overextension Check
+      if(!CheckCandleBodyFilter()) { m_diag_last_reason="BODY_OVEREXT"; return false; }
 
       return true;
    }
@@ -2515,6 +2553,29 @@ public:
       }
       else if(m_settings.DebugFlow)
          Print("[GATE] ATR: DISABLED (UseATRGate=false) → SKIP");
+
+      // --- Candle Body Overextension Filter ---
+      bool body_pass = CheckCandleBodyFilter();
+      if(body_pass) m_stats.passed_body_filter++;
+      else m_stats.rejected_body_filter++;
+      if(m_settings.DebugFlow) {
+         if(!m_settings.UseCandleBodyFilter)
+            Print("[GATE] CandleBody: DISABLED → SKIP");
+         else
+            PrintFormat("[GATE] CandleBody: %s (period=%d, x%.1f, check=%d)",
+                        body_pass ? "PASS" : "FAIL",
+                        m_settings.BodyAvgPeriod,
+                        m_settings.BodyMaxMultiplier,
+                        m_settings.BodyCheckCandles);
+      }
+      if(!body_pass) {
+         if(first_failure == "") first_failure = "BODY_OVEREXT";
+         any_failure = true;
+         if(!m_settings.Stats_FullEvaluation) {
+            m_diag_last_reason = "BODY_OVEREXT"; m_reject_filter++; return 0;
+         }
+      }
+
       // In full-eval mode, track filter rejection if any filter failed (waterfall would have exited above)
       if(any_failure && m_settings.Stats_FullEvaluation) m_reject_filter++;
 
