@@ -726,7 +726,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_PsarStep         = 0.05;
       cfg.P_PsarMax          = 0.5;
       cfg.Vote_AllowPsarFlip = true;
-      cfg.Vote_PsarFlipDelay = 2;
+      cfg.Vote_PsarFlipDelay = -1;  // Persistent mode: dot on correct side = pass (no flip timer)
    
       // RSI (Relative Strength Index)
       cfg.P_Rsi   = 14;

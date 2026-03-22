@@ -725,6 +725,14 @@ private:
                      bias, shift, m_settings.DebugFlow ? "TRUE" : "FALSE");
       }
 
+      // Fast-path: persistent mode (-1) — check dot position only, no flip tracking
+      if(m_settings.Vote_PsarFlipDelay == -1) {
+         bool result = Check_PSAR(bias, shift);
+         if(m_settings.DebugFlow)
+            PrintFormat("[PSAR_FLIP_CHECK] PERSISTENT mode: dot check only → %s", result ? "PASS" : "FAIL");
+         return result;
+      }
+
       // START DEBUG LOGGING BANNER
       if(m_settings.DebugFlow) {
          datetime eval_bar_time = iTime(m_symbol, PERIOD_CURRENT, shift);
@@ -3113,12 +3121,16 @@ public:
                double cl_p   = iClose(m_symbol, PERIOD_CURRENT, v_shift);
                string flip_info = "";
                if(m_settings.Vote_AllowPsarFlip) {
-                  int bars_since_flip = GetBarsSinceLastFlip(bias, v_shift);
-                  if(bars_since_flip == INT_MAX)
-                     flip_info = " flip=none";
-                  else
-                     flip_info = StringFormat(" flip=%d bars ago (N=%d)", bars_since_flip,
-                                              MathMax(0, m_settings.Vote_PsarFlipDelay - bars_since_flip));
+                  if(m_settings.Vote_PsarFlipDelay == -1) {
+                     flip_info = " [PERSISTENT]";
+                  } else {
+                     int bars_since_flip = GetBarsSinceLastFlip(bias, v_shift);
+                     if(bars_since_flip == INT_MAX)
+                        flip_info = " flip=none";
+                     else
+                        flip_info = StringFormat(" flip=%d bars ago (N=%d)", bars_since_flip,
+                                                 MathMax(0, m_settings.Vote_PsarFlipDelay - bars_since_flip));
+                  }
                }
                PrintFormat("[IND] PSAR: dot=%.5f close=%.5f%s → %s (w=%d)",
                            psar_v, cl_p, flip_info, _res_psar ? "PASS" : "FAIL", m_settings.Ind_Psar_Weight);
@@ -3315,9 +3327,16 @@ public:
          } else Print("  ⏭️  Bollinger Bands: disabled");
 
          if(m_settings.Ind_Psar_Enabled) {
+            string psar_mode;
+            if(!m_settings.Vote_AllowPsarFlip)
+               psar_mode = "DOT";
+            else if(m_settings.Vote_PsarFlipDelay == -1)
+               psar_mode = "PERSISTENT";
+            else
+               psar_mode = "FLIP";
             PrintFormat("  %s PSAR (%s mode)",
                         _res_psar ? "✅" : "❌",
-                        m_settings.Vote_AllowPsarFlip ? "FLIP" : "DOT");
+                        psar_mode);
             if(_res_psar) s_passed++;
          } else Print("  ⏭️  PSAR: disabled");
 

@@ -533,7 +533,10 @@ struct ST_Settings
    int         Vote_EvalShift;          // Shift for vote evaluation
    bool        Vote_AllowPsarFlip;      // Allow PSAR flip signal in votes
    // PSAR flip validation parameters (when Vote_AllowPsarFlip=true)
-   int         Vote_PsarFlipDelay;      // Bars countdown after flip (0-10)
+   int         Vote_PsarFlipDelay;      // Flip timer mode:
+                                        //   -1 = PERSISTENT: check dot position only (no flip tracking)
+                                        //    0 = FLIP_BAR:   signal valid on flip bar only
+                                        //  1-10 = COUNTDOWN: signal valid for N bars after flip
 
    // Reporting
    bool ExportCSV;
@@ -911,7 +914,7 @@ input int            Inp_Ind_Psar_Weight        = 1;                   // [PSAR]
 input string         Inp_Ind_Psar_Info          = "Parabolic SAR position"; // [PSAR] Description
 input double         Inp_Ind_Psar_Step          = 0.05;                // [PSAR] Step
 input double         Inp_Ind_Psar_Max           = 0.5;                 // [PSAR] Maximum
-input int            Inp_Vote_PsarFlipDelay     = 2;                   // [PSAR] Bars flip remains valid (0-10; FLIP mode only)
+input int            Inp_Vote_PsarFlipDelay     = 2;                   // [PSAR] Flip timer: -1=persistent, 0=flip bar, 1-10=countdown
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: ATR (Volatility)                        ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -1488,7 +1491,9 @@ void InitializeConfig()
    Settings.Vote_EvalShift           = 1;
    Settings.Vote_AllowPsarFlip       = false;
    // PSAR flip defaults
-   Settings.Vote_PsarFlipDelay       = Inp_Vote_PsarFlipDelay;  // Countdown: bars after flip
+   Settings.Vote_PsarFlipDelay       = (Inp_Vote_PsarFlipDelay < -1) ? -1 :
+                                        (Inp_Vote_PsarFlipDelay > 10) ? 10 :
+                                        Inp_Vote_PsarFlipDelay;  // Clamp to [-1, 10]
 
    // Risk management defaults
    Settings.MaxTotalRisk      = 0.0;  // 0 = no portfolio limit (backward compatible)
