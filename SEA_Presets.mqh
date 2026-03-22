@@ -359,7 +359,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
       // ================================================================
       cfg.Ind_Adx_Enabled    = false;
-      cfg.Ind_ATR_Enabled    = false;
+      cfg.Ind_Atr_Enabled    = false;
       cfg.Ind_Bb_Enabled     = false;
       cfg.Ind_Cci_Enabled    = false;
       cfg.Ind_EmaSig_Enabled = false;
@@ -669,7 +669,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
       // ================================================================
       cfg.Ind_Adx_Enabled    = false;
-      cfg.Ind_ATR_Enabled    = false;
+      cfg.Ind_Atr_Enabled    = false;
       cfg.Ind_Bb_Enabled     = false;
       cfg.Ind_Cci_Enabled    = true;
       cfg.Ind_EmaSig_Enabled = true;
@@ -913,14 +913,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
       // ================================================================
       cfg.Ind_Adx_Enabled    = false;
-      cfg.Ind_ATR_Enabled    = false;
+      cfg.Ind_Atr_Enabled    = false;
       cfg.Ind_Bb_Enabled     = false;
       cfg.Ind_Cci_Enabled    = false;
       cfg.Ind_EmaSig_Enabled = false;
       cfg.Ind_Macd_Enabled   = false;
       cfg.Ind_Mfi_Enabled    = false;
       cfg.Ind_P123_Enabled   = false;
-      cfg.Ind_Psar_Enabled   = false;
+      cfg.Ind_Psar_Enabled   = true;
       cfg.Ind_Ross_Enabled   = false;
       cfg.Ind_Rsi_Enabled    = false;
       cfg.Ind_Sto_Enabled    = false;
@@ -967,9 +967,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MfiMode = MFI_ZONE_FILTER;
    
       // PSAR (Parabolic SAR)
-      cfg.P_PsarStep         = 0.02;
-      cfg.P_PsarMax          = 0.2;
-      cfg.Vote_AllowPsarFlip = false;
+      cfg.P_PsarStep         = 0.05;
+      cfg.P_PsarMax          = 0.5;
+      cfg.Vote_AllowPsarFlip = true;
       cfg.Vote_PsarFlipDelay = 0;
    
       // RSI (Relative Strength Index)
@@ -1034,10 +1034,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // RISK MANAGEMENT (Portfolio-level)
       // ================================================================
-      cfg.RiskPercent       = 1.0;
+      cfg.RiskPercent       = 2.0;
       cfg.FixedLotSize      = 0.0;
-      cfg.MaxTotalRisk      = 10.0;
-      cfg.MaxOpenTrades     = 5;
+      cfg.MaxTotalRisk      = 6.0;
+      cfg.MaxOpenTrades     = 3;
       cfg.CountBEasZeroRisk = false;
    
       // ================================================================
@@ -1050,35 +1050,35 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       if(op_ExitProfile == EXIT_PROFILE_NONE)
       {
          // User has not selected an exit profile: apply safe testing defaults
-         cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
-         cfg.SL_Mult               = 0.0;
-         cfg.SL_SwingPipsCushion   = 10.0;
-         cfg.SL_PsarPipsCushion    = 5.0;
-         cfg.TP_Mult               = 3.0;
-         cfg.TP_Enabled            = true;
-         cfg.TrailMode             = TRAIL_NONE;
-         cfg.PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;
-         cfg.PSAR_TrailPipsCushion = 0.0;
-         cfg.Use_BE                = false;
-         cfg.BE_Mode               = BE_MODE_OFF;
-         cfg.BE_Trig               = 0.0;
-         cfg.BE_Buff               = 0.0;
-         cfg.SLMode        = SL_MODE_SWING;
-         cfg.TPMode        = TP_MODE_RR;
-         cfg.FixedTPPips   = 40.0;
-         cfg.SLPercent     = 0.5;
-         cfg.RRRatio       = 3.0;
-         cfg.SwingLookback = 20;
-         cfg.FractalPeriod   = 5;
-         cfg.TPFractalOffset = 1;
-         cfg.PSARStep        = 0.02;
-         cfg.PSARMax         = 0.2;
-         cfg.TrailTrigger       = TRIGGER_IMMEDIATE;
-         cfg.TrailDistancePips  = 0.0;
-         cfg.BEThresholdPips    = 0.0;
-         cfg.TrailProfitPercent = 0.0;
-         cfg.TrailStepPips      = 0.0;
-         cfg.TrailLockProfit    = false;
+         cfg.ExitProfile            = EXIT_PROFILE_SIMPLE;
+         cfg.SL_Mult                = 0.0;
+         cfg.SL_SwingPipsCushion    = 10.0;
+         cfg.SL_PsarPipsCushion     = 5.0;
+         cfg.TP_Mult                = 3.0;
+         cfg.TP_Enabled             = true;
+         cfg.TrailMode              = TRAIL_PSAR;
+         cfg.PSAR_TrailCushionMode  = PSAR_CUSHION_PIPS;
+         cfg.PSAR_TrailPipsCushion  = 0.0;
+         cfg.Use_BE                 = false;
+         cfg.BE_Mode                = BE_MODE_OFF;
+         cfg.BE_Trig                = 0.0;
+         cfg.BE_Buff                = 0.0;
+         cfg.SLMode                 = SL_MODE_PSAR_DOT;
+         cfg.TPMode                 = TP_MODE_RR;
+         cfg.FixedTPPips            = 40.0;
+         cfg.SLPercent              = 0.5;
+         cfg.RRRatio                = 2.0;
+         cfg.SwingLookback          = 20;
+         cfg.FractalPeriod          = 5;
+         cfg.TPFractalOffset        = 1;
+         cfg.PSARStep               = 0.02;
+         cfg.PSARMax                = 0.2;
+         cfg.TrailTrigger           = TRIGGER_IMMEDIATE;
+         cfg.TrailDistancePips      = 0.0;
+         cfg.BEThresholdPips        = 0.0;
+         cfg.TrailProfitPercent     = 0.0;
+         cfg.TrailStepPips          = 0.0;
+         cfg.TrailLockProfit        = false;
       }
       // else: user's EXIT_PROFILE_SIMPLE (or EXIT_PROFILE_RRM) settings are
       // preserved from InitializeConfig — SLMode, TrailMode, BE_Mode, PSARStep,

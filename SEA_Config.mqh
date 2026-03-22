@@ -615,27 +615,32 @@ ST_Settings Settings;
 //   (CUSTOM/TEST: editable; presets override)       - used by PRESET_CUSTOM & PRESET_TEST (Zone 3A / Zone 3A.9)
 //   (CUSTOM; most presets override; strict sets 0)  - ATR gates forced off under strict RRM (Zone 3A)
 
+
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 // 🎯 ZONE 1 — PRESET SELECTION
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
 input group "         🎯 ZONE 1: PRESET SELECTION"
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
+
 input ulong           Inp_MagicNum              = 12345;       // Magic number (trade identifier)
 input EStrategyPreset InpPreset                 = PRESET_TEST;   // Strategy preset
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📖 NAVIGATION GUIDE (Scroll to find your section)     ║"
 input group "╠════════════════════════════════════════════════════════╣"
-input group "║  ✅ ZONE 2A: OPERATOR GATES & UI (always editable)     ║"
+input group "║  ✅ ZONE 2A: OPERATOR GATES & UI (always editable)      ║"
 input group "║  ⚠️  ZONE 3A: Pipeline Config (Steps 1–9)              ║"
-input group "║     └─ ZONE 3A.9: EXIT MANAGEMENT ← START HERE        ║"
+input group "║     └─ ZONE 3A.9: EXIT MANAGEMENT ← START HERE         ║"
 input group "╚════════════════════════════════════════════════════════╝"
+
 
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 // ✅ ZONE 2A — OPERATOR GATES & UI  (Policy A — always editable)
 // These inputs are ALWAYS respected by all presets.
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
 input group "         ✅ ZONE 2A: OPERATOR GATES & UI"
 input group "            (Works in ALL presets)"
@@ -644,74 +649,74 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🚫 SPREAD & ATR LIMITS                                ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool           Inp_UseSpread              = true;   // Enable spread filter
-input double         Inp_MaxSpreadPips          = 3.0;    // Max spread (pips; ignored if UseSpread=false)
-input bool           Inp_UseATRGate             = false;  // Enable ATR gate filter
-input double         Inp_MinATRPips             = 0.0;    // Min ATR gate (pips; ignored if UseATRGate=false)
-input double         Inp_MaxATRPips             = 20.0;   // Max ATR gate (pips; ignored if UseATRGate=false)
+input bool           Inp_UseSpread              = false;    // Enable spread filter
+input double         Inp_MaxSpreadPips          = 3.0;      // Max spread (pips; ignored if UseSpread=false)
+input bool           Inp_UseATRGate             = false;    // Enable ATR gate filter
+input double         Inp_MinATRPips             = 0.0;      // Min ATR gate (pips; ignored if UseATRGate=false)
+input double         Inp_MaxATRPips             = 20.0;     // Max ATR gate (pips; ignored if UseATRGate=false)
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  ⏰ SESSION TIME FILTER                                 ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool            Inp_UseTime                = false;              // Enable session/time filter
-input int             Inp_StartHour              = 8;                  // Session start hour (broker time)
-input int             Inp_EndHour                = 20;                 // Session end hour (broker time)
+input bool            Inp_UseTime               = false;          // Enable session/time filter
+input int             Inp_StartHour             = 8;              // Session start hour (broker time)
+input int             Inp_EndHour               = 20;             // Session end hour (broker time)
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📰 NEWS FILTER                                        ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool            Inp_UseNews                = false;              // Enable news filter (CSV calendar)
-input string          Inp_NewsFile               = "calendar_statement.csv"; // News CSV filename
-input int             Inp_NewsPre                = 60;                 // Minutes before news to block entries
-input int             Inp_NewsPost               = 60;                 // Minutes after news to block entries
+input bool            Inp_UseNews               = false;          // Enable news filter (CSV calendar)
+input string          Inp_NewsFile              = "calendar_statement.csv"; // News CSV filename
+input int             Inp_NewsPre               = 60;             // Minutes before news to block entries
+input int             Inp_NewsPost              = 60;             // Minutes after news to block entries
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📈 HTF TREND FILTER                                   ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool            Inp_UseHTF                 = false;              // Enable HTF trend filter
-input ENUM_TIMEFRAMES Inp_HtfPeriod              = PERIOD_H4;          // HTF timeframe
-input int             Inp_HtfEmaPeriod           = 89;                 // HTF EMA period
+input bool            Inp_UseHTF                = false;          // Enable HTF trend filter
+input ENUM_TIMEFRAMES Inp_HtfPeriod             = PERIOD_H4;      // HTF timeframe
+input int             Inp_HtfEmaPeriod          = 89;             // HTF EMA period
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🎨 UI: STATUS PANEL                                   ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool             Inp_UI_ShowStatusPanel     = false;      // Show status panel
-input bool             Inp_UI_ManageChartIndicators = false;    // Auto-add/remove chart indicators
-input ENUM_BASE_CORNER Inp_UI_PanelCorner       = CORNER_LEFT_UPPER; // Status panel corner
-input int              Inp_UI_PanelX            = 30;           // Status panel X (px)
-input int              Inp_UI_PanelY            = 30;           // Status panel Y (px)
-input int              Inp_UI_PanelFontSize     = 10;           // Status panel font size
-input int              Inp_UI_LineSpacingPx     = 28;           // Status panel line spacing (px)
-input string           Inp_UI_PanelFont         = "Arial";      // Status panel font
+input bool             Inp_UI_ShowStatusPanel      = false;       // Show status panel
+input bool             Inp_UI_ManageChartIndicators = false;      // Auto-add/remove chart indicators
+input ENUM_BASE_CORNER Inp_UI_PanelCorner          = CORNER_LEFT_UPPER; // Status panel corner
+input int              Inp_UI_PanelX               = 30;          // Status panel X (px)
+input int              Inp_UI_PanelY               = 30;          // Status panel Y (px)
+input int              Inp_UI_PanelFontSize        = 10;          // Status panel font size
+input int              Inp_UI_LineSpacingPx        = 28;          // Status panel line spacing (px)
+input string           Inp_UI_PanelFont            = "Arial";     // Status panel font
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🎨 UI: COCKPIT PANEL                                  ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool             Inp_UI_ShowCockpitPanel    = true;       // Show cockpit panel
-input ENUM_BASE_CORNER Inp_UI_CockpitCorner     = CORNER_LEFT_UPPER; // Cockpit panel corner
-input int              Inp_UI_CockpitX          = 30;           // Cockpit panel X (px)
-input int              Inp_UI_CockpitY          = 30;           // Cockpit panel Y (px)
-input int              Inp_UI_CockpitFontSize   = 10;           // Cockpit panel font size
-input int              Inp_UI_CockpitLineSpacingPx = 28;        // Cockpit panel line spacing (px)
-input string           Inp_UI_CockpitFont       = "Arial";      // Cockpit panel font
+input bool             Inp_UI_ShowCockpitPanel     = true;        // Show cockpit panel
+input ENUM_BASE_CORNER Inp_UI_CockpitCorner        = CORNER_LEFT_UPPER; // Cockpit panel corner
+input int              Inp_UI_CockpitX             = 30;          // Cockpit panel X (px)
+input int              Inp_UI_CockpitY             = 30;          // Cockpit panel Y (px)
+input int              Inp_UI_CockpitFontSize      = 10;          // Cockpit panel font size
+input int              Inp_UI_CockpitLineSpacingPx = 28;          // Cockpit panel line spacing (px)
+input string           Inp_UI_CockpitFont          = "Arial";     // Cockpit panel font
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🎨 UI: SIGNAL MARKERS & COLORS                        ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool           Inp_DrawEntryLines         = true;         // Draw entry marker lines
-input bool           Inp_DrawTradeLines         = true;         // Draw trade management lines
-input bool             Inp_UI_UseCustomColors   = true;         // Use custom panel colors (else follow chart theme)
-input color            Inp_UI_FontColor         = clrYellow;    // UI font color (when custom colors enabled)
-input int              Inp_UI_PanelBgAlpha      = 110;          // Panel background alpha (0..255)
-input EUIFrameMode     Inp_UI_FrameMode          = UI_FRAME_NONE; // Panel frame mode (BG/NONE/TEXT_BOUNDS)
-input int              Inp_UI_FramePadPx         = 6;           // Panel padding (px)
+input bool           Inp_DrawEntryLines         = true;           // Draw entry marker lines
+input bool           Inp_DrawTradeLines         = true;           // Draw trade management lines
+input bool             Inp_UI_UseCustomColors   = true;           // Use custom panel colors (else follow chart theme)
+input color            Inp_UI_FontColor         = clrYellow;      // UI font color (when custom colors enabled)
+input int              Inp_UI_PanelBgAlpha      = 110;            // Panel background alpha (0..255)
+input EUIFrameMode     Inp_UI_FrameMode         = UI_FRAME_NONE;  // Panel frame mode (BG/NONE/TEXT_BOUNDS)
+input int              Inp_UI_FramePadPx        = 6;              // Panel padding (px)
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔍 DIAGNOSTICS                                        ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool           Inp_PrintEffectiveConfig   = true;         // Print effective config on init
-input bool           Inp_DebugFlow              = true;         // Print OnInit/OnTick/OnDeinit flow
-input EDebugLevel    Inp_DebugLevel             = DEBUG_SUMMARY; // Debug verbosity (SILENT/SUMMARY/INDICATORS/FULL)
+input bool           Inp_PrintEffectiveConfig   = true;           // Print effective config on init
+input bool           Inp_DebugFlow              = true;           // Print OnInit/OnTick/OnDeinit flow
+input EDebugLevel    Inp_DebugLevel             = DEBUG_SUMMARY;  // Debug verbosity (SILENT/SUMMARY/INDICATORS/FULL)
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔍 DIAGNOSTICS: STATISTICS                            ║"
@@ -746,6 +751,7 @@ input double         Inp_RRM_MaxDailyDrawdownPct        = 3.0;            // Max
 // Steps 4 (HTF) and 8 (Operator Gates) are in Zone 2A.
 // Step 9 (Exit Management) is in ZONE 3A.9 below.
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
 input group "         ⚠️  ZONE 3A: PIPELINE CONFIG"
 input group "            (Steps 1-6 + ZONE 3A.9 Exit Mgmt; presets override)"
@@ -784,9 +790,9 @@ input group "╔═════════════════════�
 input group "║  🔧 STEP 5: Structure Gate (Pullback)                  ║"
 input group "╚════════════════════════════════════════════════════════╝"
 input string         Inp_Step5_Info             = "Configure pullback-recovery detection"; // Info
-input bool           Inp_Gate_UseMultiLayer         = false;      // (CUSTOM; presets override) Enable multi-layer cascading EMA pullback detection
-input bool           Inp_Gate_RequirePullback        = false;      // (CUSTOM; presets override) Enable pullback gate
-input int            Inp_Gate_PullbackLookback       = 15;         // (CUSTOM; presets override) Pullback search bars
+input bool           Inp_Gate_UseMultiLayer     = false;      // (CUSTOM; presets override) Enable multi-layer cascading EMA pullback detection
+input bool           Inp_Gate_RequirePullback   = false;      // (CUSTOM; presets override) Enable pullback gate
+input int            Inp_Gate_PullbackLookback  = 15;         // (CUSTOM; presets override) Pullback search bars
 input bool           Inp_Gate_RequireRecoveryMomentum = false;     // (CUSTOM; presets override) Require bullish/bearish candle (recovery momentum)
 input int            Inp_RRM_Lookback           = 5;              // (CUSTOM; presets override) Pullback lookback bars
 input double         Inp_RRM_MinDivPips         = 0.5;            // (CUSTOM; presets override) Min EMA divergence (pips)
@@ -804,7 +810,6 @@ input group "╚═════════════════════�
 input bool           Inp_Ind_EmaSig_Enabled     = true;                // [EmaSig] Enable EMA signal vote
 input int            Inp_Ind_EmaSig_Weight      = 1;                   // [EmaSig] Vote weight
 input string         Inp_Ind_EmaSig_Info        = "Price position vs EMA1"; // [EmaSig] Description
-
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: ADX                                     ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -813,13 +818,11 @@ input int            Inp_Ind_Adx_Weight         = 1;                   // [ADX] 
 input string         Inp_Ind_Adx_Info           = "Trend strength filter"; // [ADX] Description
 input int            Inp_Ind_Adx_Period         = 14;                  // [ADX] Period
 input int            Inp_Ind_Adx_Threshold      = 20;                  // [ADX] Threshold
-
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: MACD                                    ║"
 input group "╚════════════════════════════════════════════════════════╝"
 input bool           Inp_Ind_Macd_Enabled       = true;                // [MACD] Enable MACD vote
 input int            Inp_Ind_Macd_Weight        = 1;                   // [MACD] Vote weight
-
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  MACD: BASE MODE (Choose ONE)                          ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -900,7 +903,6 @@ input string         Inp_Ind_Bb_Info            = "Bollinger Bands channel"; // 
 input EBbMode        Inp_Ind_Bb_Mode            = BB_TREND_FOLLOW;     // [BB] Mode
 input int            Inp_Ind_Bb_Period          = 20;                  // [BB] Period
 input double         Inp_Ind_Bb_Dev             = 2.0;                 // [BB] Deviation
-
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: PSAR                                    ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -910,7 +912,6 @@ input string         Inp_Ind_Psar_Info          = "Parabolic SAR position"; // [
 input double         Inp_Ind_Psar_Step          = 0.05;                // [PSAR] Step
 input double         Inp_Ind_Psar_Max           = 0.5;                 // [PSAR] Maximum
 input int            Inp_Vote_PsarFlipDelay     = 2;                   // [PSAR] Bars flip remains valid (0-10; FLIP mode only)
-
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: ATR (Volatility)                        ║"
 input group "╚════════════════════════════════════════════════════════╝"
@@ -948,7 +949,9 @@ input string         Inp_Ind_Template_Info      = "Copy a section above to add c
 // When a preset is active these may be overridden.
 // In PRESET_CUSTOM mode all inputs below are fully respected.
 // ════════════════════════════════════════════════════════════════════
-input group "══════════ ℹ️ ZONE 3A.9: EXIT MANAGEMENT ══════════"
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
+input group "         ℹ️ ZONE 3A.9: EXIT MANAGEMENT"
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
 
 // ── Exit Profile (Contract Selector) ─────────────────────────────────
 input group "═══ 🎯 Exit Profile (Strategy Contract) ═══"
@@ -1045,6 +1048,7 @@ input group "══════════ ℹ️ END: ZONE 3A.9 EXIT MANAGEMEN
 // When pair type is AUTO, it is detected from the symbol name at init.
 // When TF scaling is AUTO, all base values are multiplied by the TF factor.
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
 input group "         🔧 ZONE 3C: ADAPTIVE SETTINGS"
 input group "            (Auto-scale by pair & timeframe)"
