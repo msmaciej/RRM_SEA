@@ -1095,11 +1095,15 @@ public:
       if(direction == 1 && buy_count > 0 && sell_count == 0) {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
          m_last_te_result = "BLOCKED"; m_last_te_reason = "already in position";
+         if(m_settings.DebugLevel >= DEBUG_SUMMARY)
+            Print("[TE] ❌ BLOCKED: already have LONG position");
          return;
       }
       if(direction == -1 && sell_count > 0 && buy_count == 0) {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
          m_last_te_result = "BLOCKED"; m_last_te_reason = "already in position";
+         if(m_settings.DebugLevel >= DEBUG_SUMMARY)
+            Print("[TE] ❌ BLOCKED: already have SHORT position");
          return;
       }
    
@@ -1220,6 +1224,9 @@ public:
       {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
          m_last_te_result = "BLOCKED"; m_last_te_reason = "stop level validation failed";
+         if(m_settings.DebugLevel >= DEBUG_SUMMARY)
+            PrintFormat("[TE] ❌ BLOCKED: stop levels invalid (SLMode=%s, Entry=%.5f, SL=%.5f, TP=%.5f)",
+                        EnumToString(m_settings.SLMode), price, sl, tp);
          return;
       }
 
@@ -1246,8 +1253,10 @@ public:
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
          m_last_te_result = "BLOCKED";
          m_last_te_reason = StringFormat("order rejected (%d)", (int)m_trade.ResultRetcode());
-         if(m_settings.DebugFlow)
-            PrintFormat("TE: BLOCKED order rejected retcode=%d %s", (int)m_trade.ResultRetcode(), m_trade.ResultComment());
+         if(m_settings.DebugLevel >= DEBUG_SUMMARY)
+            PrintFormat("[TE] ❌ OrderSend FAILED: retcode=%d (%s) | %s | Entry=%.5f SL=%.5f TP=%.5f",
+                        (int)m_trade.ResultRetcode(), m_trade.ResultComment(),
+                        type == ORDER_TYPE_BUY ? "BUY" : "SELL", price, sl, tp);
       }
    }
 
@@ -1281,7 +1290,7 @@ public:
       // ═══════════════════════════════════════════════════════
 
       // Check spread
-      if(m_settings.MaxSpread > 0) {
+      if(m_settings.UseSpread && m_settings.MaxSpread > 0) {
          bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
          double pipSize = _Point * (isJPY ? 100.0 : 10.0);
          te_spread_pips = (SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) * _Point) / pipSize;
@@ -1366,7 +1375,7 @@ public:
          Print("");
 
          Print("GATES:");
-         if(m_settings.MaxSpread > 0) {
+         if(m_settings.UseSpread && m_settings.MaxSpread > 0) {
             PrintFormat("  %s Spread: %.1f / %.1f pips max",
                         te_spread_pass ? "✅" : "❌", te_spread_pips, m_settings.MaxSpread);
          } else {
@@ -1401,6 +1410,18 @@ public:
          Print("");
       }
       // ===== TE PIPELINE SUMMARY: END =====
+
+      // DEBUG_SUMMARY: compact 1-line result shown only when DebugFlow (DEBUG_FULL) is off,
+      // since DEBUG_FULL already prints the full TE_PIPELINE_SUMMARY above.
+      if(m_settings.DebugLevel >= DEBUG_SUMMARY && !m_settings.DebugFlow)
+      {
+         if(result == 1)
+            PrintFormat("[TE] ✅ Trade entered: %s %.2f lots",
+                        ts_direction > 0 ? "LONG" : "SHORT", te_lots);
+         else
+            PrintFormat("[TE] ❌ Trade rejected: %s (direction=%s)",
+                        te_reject_reason, ts_direction > 0 ? "LONG" : "SHORT");
+      }
 
       return result;
    }

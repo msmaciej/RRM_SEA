@@ -296,6 +296,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    // Users who want full control: Use PRESET_CUSTOM
    // ================================================================
    const double op_MaxSpread     = cfg.MaxSpread;
+   const bool   op_UseSpread     = cfg.UseSpread;
 
    const bool   op_UseTime       = cfg.UseTime;
    const int    op_StartHr       = cfg.StartHr;
@@ -312,7 +313,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    const int    op_MaxOpenTrades = cfg.MaxOpenTrades;  
    
    // Policy A: user portfolio risk cap
-   const double op_MaxTotalRisk  = cfg.MaxTotalRisk;   
+   const double op_MaxTotalRisk  = cfg.MaxTotalRisk;
+
+   // Policy A: user ATR gate toggle (ZONE 2A operator gate)
+   const bool   op_UseATRGate    = cfg.UseATRGate;
+
+   // Saved for PRESET_TEST exit-profile logic
+   const EExitProfile op_ExitProfile = cfg.ExitProfile;
    
    if(preset == PRESET_MA)
    {
@@ -542,6 +549,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================
       cfg.MaxSpread     = op_MaxSpread;
+      cfg.UseSpread     = op_UseSpread;
+      cfg.UseATRGate    = op_UseATRGate;
       cfg.UseTime       = op_UseTime;
       cfg.StartHr       = op_StartHr;
       cfg.EndHr         = op_EndHr;
@@ -845,6 +854,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================
       cfg.MaxSpread     = op_MaxSpread;
+      cfg.UseSpread     = op_UseSpread;
+      cfg.UseATRGate    = op_UseATRGate;
       cfg.UseTime       = op_UseTime;
       cfg.StartHr       = op_StartHr;
       cfg.EndHr         = op_EndHr;
@@ -1031,48 +1042,47 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
       // ================================================================
       // EXIT STRATEGY CONFIGURATION
+      // Policy: PRESET controls strategy (indicators, gates).
+      //         EXIT_PROFILE controls exits (SL/TP/BE/Trail).
+      //         Respect user exit selection: only apply TEST defaults
+      //         when user has not set an explicit exit profile.
       // ================================================================
-      cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
-      cfg.SL_Mult               = 0.0;
-      cfg.SL_SwingPipsCushion   = 10.0;
-      cfg.SL_PsarPipsCushion    = 5.0;
-      cfg.TP_Mult               = 3.0;
-      cfg.TP_Enabled            = true;
-      cfg.TrailMode             = TRAIL_NONE;
-      cfg.PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;
-      cfg.PSAR_TrailPipsCushion = 0.0;
-      cfg.Use_BE                = false;
-      cfg.BE_Mode               = BE_MODE_OFF;
-      cfg.BE_Trig               = 0.0;
-      cfg.BE_Buff               = 0.0;
-   
-      // ================================================================
-      // SL/TP STRATEGY MODES
-      // ================================================================
-      cfg.SLMode        = SL_MODE_SWING;
-      cfg.TPMode        = TP_MODE_RR;
-      cfg.FixedTPPips   = 40.0;
-      cfg.SLPercent     = 0.5;
-      cfg.RRRatio       = 3.0;
-      cfg.SwingLookback = 20;
-   
-      // ================================================================
-      // FRACTAL/PSAR SL/TP DEFAULTS
-      // ================================================================
-      cfg.FractalPeriod   = 5;
-      cfg.TPFractalOffset = 1;
-      cfg.PSARStep        = 0.02;
-      cfg.PSARMax         = 0.2;
-   
-      // ================================================================
-      // ADVANCED TRAILING TRIGGER DEFAULTS
-      // ================================================================
-      cfg.TrailTrigger       = TRIGGER_IMMEDIATE;
-      cfg.TrailDistancePips  = 0.0;
-      cfg.BEThresholdPips    = 0.0;
-      cfg.TrailProfitPercent = 0.0;
-      cfg.TrailStepPips      = 0.0;
-      cfg.TrailLockProfit    = false;
+      if(op_ExitProfile == EXIT_PROFILE_NONE)
+      {
+         // User has not selected an exit profile: apply safe testing defaults
+         cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
+         cfg.SL_Mult               = 0.0;
+         cfg.SL_SwingPipsCushion   = 10.0;
+         cfg.SL_PsarPipsCushion    = 5.0;
+         cfg.TP_Mult               = 3.0;
+         cfg.TP_Enabled            = true;
+         cfg.TrailMode             = TRAIL_NONE;
+         cfg.PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;
+         cfg.PSAR_TrailPipsCushion = 0.0;
+         cfg.Use_BE                = false;
+         cfg.BE_Mode               = BE_MODE_OFF;
+         cfg.BE_Trig               = 0.0;
+         cfg.BE_Buff               = 0.0;
+         cfg.SLMode        = SL_MODE_SWING;
+         cfg.TPMode        = TP_MODE_RR;
+         cfg.FixedTPPips   = 40.0;
+         cfg.SLPercent     = 0.5;
+         cfg.RRRatio       = 3.0;
+         cfg.SwingLookback = 20;
+         cfg.FractalPeriod   = 5;
+         cfg.TPFractalOffset = 1;
+         cfg.PSARStep        = 0.02;
+         cfg.PSARMax         = 0.2;
+         cfg.TrailTrigger       = TRIGGER_IMMEDIATE;
+         cfg.TrailDistancePips  = 0.0;
+         cfg.BEThresholdPips    = 0.0;
+         cfg.TrailProfitPercent = 0.0;
+         cfg.TrailStepPips      = 0.0;
+         cfg.TrailLockProfit    = false;
+      }
+      // else: user's EXIT_PROFILE_SIMPLE (or EXIT_PROFILE_RRM) settings are
+      // preserved from InitializeConfig — SLMode, TrailMode, BE_Mode, PSARStep,
+      // TrailTrigger etc. are already mapped from their respective input parameters.
    
       // ================================================================
       // MA-SPECIFIC SETTINGS
@@ -1092,6 +1102,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================
       cfg.MaxSpread     = op_MaxSpread;
+      cfg.UseSpread     = op_UseSpread;
+      cfg.UseATRGate    = op_UseATRGate;
       cfg.UseTime       = op_UseTime;
       cfg.StartHr       = op_StartHr;
       cfg.EndHr         = op_EndHr;
