@@ -1039,29 +1039,35 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       {
          // User has not selected an exit profile: apply safe testing defaults
          cfg.ExitProfile            = EXIT_PROFILE_SIMPLE;
-         cfg.SL_SwingPipsCushion    = GetRecommendedInitialSlCushionPips();
-         cfg.SL_PsarPipsCushion     = GetRecommendedInitialSlCushionPips();
-         cfg.TP_Enabled             = true;
-         cfg.TrailMode              = TRAIL_PSAR;
-         cfg.PSAR_TrailCushionMode  = PSAR_CUSHION_PIPS;
-         cfg.PSAR_TrailPipsCushion  = GetRecommendedTrailPsarCushionPips();
-         cfg.BE_Mode                = BE_MODE_TP_PROGRESS_PCT;
-         cfg.SLMode                 = SL_MODE_PSAR_DOT;
-         cfg.TPMode                 = TP_MODE_RR;
-         cfg.FixedTPPips            = 40.0;
-         cfg.SLPercent              = 0.5;
+
          cfg.RRRatio                = 2.0;
          cfg.SwingLookback          = 20;
-         cfg.FractalPeriod          = 5;
+
+         cfg.TP_Enabled             = true;
+         cfg.TPMode                 = TP_MODE_RR;
+         cfg.FixedTPPips            = 40.0;
          cfg.TPFractalOffset        = 1;
-         cfg.PSARStep               = 0.02;
-         cfg.PSARMax                = 0.2;
+         cfg.FractalPeriod          = 5;
+
+         cfg.BE_Mode                = BE_MODE_TP_PROGRESS_PCT;
+         cfg.BEThresholdPips        = 0.0;
+
+         cfg.TrailMode              = TRAIL_PSAR;
          cfg.TrailTrigger           = TRIGGER_IMMEDIATE;
          cfg.TrailDistancePips      = 0.0;
-         cfg.BEThresholdPips        = 0.0;
          cfg.TrailProfitPercent     = 0.0;
          cfg.TrailStepPips          = 0.0;
          cfg.TrailLockProfit        = true;
+
+         cfg.SLMode                 = SL_MODE_PSAR_DOT;
+         cfg.SL_SwingPipsCushion    = GetRecommendedInitialSlCushionPips();
+         cfg.SL_PsarPipsCushion     = GetRecommendedInitialSlCushionPips();
+         cfg.SLPercent              = 0.5;
+
+         cfg.PSAR_TrailCushionMode  = PSAR_CUSHION_PIPS;
+         cfg.PSAR_TrailPipsCushion  = GetRecommendedTrailPsarCushionPips();
+         cfg.PSARStep               = 0.02;
+         cfg.PSARMax                = 0.2;
       }
       // else: user's EXIT_PROFILE_SIMPLE (or EXIT_PROFILE_RRM) settings are
       // preserved from InitializeConfig — SLMode, TrailMode, BE_Mode, PSARStep,

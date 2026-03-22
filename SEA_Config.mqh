@@ -11,89 +11,89 @@
 // --- STRATEGY PRESETS ---
 enum EStrategyPreset
 {
-   PRESET_CUSTOM,          // Custom: User-defined settings
-   PRESET_MA,              // MA Benchmark: MT5 MA EA compatibility
-   PRESET_RRM,             // RRM: Phase-based layer detection system
-   PRESET_TEST             // Test: Development/debugging preset
+   PRESET_CUSTOM,          // PRESET_CUSTOM: user-defined settings
+   PRESET_MA,              // PRESET_MA: benchmark: MT5 MA EA compatibility
+   PRESET_RRM,             // PRESET_RRM: phase-based layer detection system
+   PRESET_TEST             // PRESET_TEST: development/debugging preset
 };
 
 // --- SIMPLE EMA SELECTOR ---
 enum EEmaStrategy
 {
-   EMA_STRAT_1_PRICE_CROSS,   // EMA_STRAT_1 EMA: Buy if Price > EMA1 (Benchmark)
-   EMA_STRAT_2_CROSS_1_2,     // EMA_STRAT_2 EMAs: Buy if EMA1 > EMA2 (Golden Cross)
-   EMA_STRAT_2_CROSS_3_4,     // EMA_STRAT_2 EMAs: Buy if EMA3 > EMA4 (Slow Trend)
-   EMA_STRAT_CUSTOM           // EMA_STRAT_CUSTOM Manual: Use "Advanced Bias" inputs below
+   EMA_STRAT_1_PRICE_CROSS,   // EMA_STRAT_1: Buy if Price > EMA1 (Benchmark)
+   EMA_STRAT_2_CROSS_1_2,     // EMA_STRAT_2: Buy if EMA1 > EMA2 (Golden Cross)
+   EMA_STRAT_2_CROSS_3_4,     // EMA_STRAT_2: Buy if EMA3 > EMA4 (Slow Trend)
+   EMA_STRAT_CUSTOM           // EMA_STRAT_CUSTOM: manual: use "Advanced Bias" inputs below
 };
 
 // --- MA METHOD SELECTOR ---
 enum EMaMethod
 {
-   METHOD_EMA,                // Exponential
-   METHOD_SMA                 // Simple
+   METHOD_EMA,       // METHOD_EMA: exponential
+   METHOD_SMA        // METHOD_SMA: simple
 };
 
 // --- BIAS MODE: how market direction is determined ---
 enum EBiasMode
 {
-   BIAS_MANUAL,       // Manual direction (LONG_ONLY, SHORT_ONLY, BOTH)
-   BIAS_AUTO,         // Auto: Traditional EMA-based bias (single or dual EMA)
-   BIAS_AUTO_PHASE    // Auto: Market Phase bias (4-EMA structure → TRENDING/EMERGING/UNORDERED)
+   BIAS_MANUAL,      // BIAS_MANUAL: direction (LONG_ONLY, SHORT_ONLY, BOTH)
+   BIAS_AUTO,        // BIAS_AUTO: direction and slope (single or dual EMA)
+   BIAS_AUTO_PHASE   // BIAS_AUTO_PHASE: market phase bias (4-EMA structure → TRENDING/EMERGING/UNORDERED)
 };
 
 // --- MARKET PHASE: used by BIAS_AUTO_PHASE (4-EMA structure analysis) ---
 enum EMarketPhase {
-   PHASE_UNORDERED,      // No clear structure - block all trades (TS = 0)
-   PHASE_EMERGING,       // Trend forming (EMA4 between EMA2/EMA3) - allow trades (legacy; use UP/DN variants)
-   PHASE_TRENDING,       // EMAs fully stacked, strong established trend (legacy; use UP/DN variants)
-   PHASE_TRENDING_UP,    // Trending bullish: slopes up + EMA2>EMA3>EMA4
-   PHASE_TRENDING_DN,    // Trending bearish: slopes down + EMA2<EMA3<EMA4
-   PHASE_EMERGING_UP,    // Emerging bullish: slopes up + EMA4 between EMA2 and EMA3
-   PHASE_EMERGING_DN     // Emerging bearish: slopes down + EMA4 between EMA2 and EMA3
+   PHASE_UNORDERED,     // PHASE_UNO: block all trades (TS = 0)
+   PHASE_EMERGING,      // PHASE_EM: Trend forming (EMA4 between EMA2/EMA3)
+   PHASE_TRENDING,      // PHASE_MT: strong established trend
+   PHASE_TRENDING_UP,   // PHASE_MT_UP: trending bullish: slopes up + EMA2>EMA3>EMA4
+   PHASE_TRENDING_DN,   // PHASE_MT_DN: trending bearish: slopes down + EMA2<EMA3<EMA4
+   PHASE_EMERGING_UP,   // PHASE_EM_UP: emerging bullish: slopes up + EMA4 between EMA2 and EMA3
+   PHASE_EMERGING_DN    // PHASE_EM_DN: emerging bearish: slopes down + EMA4 between EMA2 and EMA3
 };
 
 // --- ENTRY LAYER: bitfield identifying EMA pullback zone (Layer 1/2/3) ---
 // Each layer is a power-of-2 flag (combinable via OR).
 enum EEntryLayer {
-   LAYER_NONE          = 0,   // 0b0000 — No layer detected or detection disabled
-   LAYER_1_WEAK        = 1,   // 0b0001 — Layer 1: EMA1-EMA2 "Ribbon" zone (shallow pullback)
-   LAYER_2_MEDIUM      = 2,   // 0b0010 — Layer 2: EMA2-EMA3 "Ghost" zone (medium pullback)
-   LAYER_3_STRONG      = 4,   // 0b0100 — Layer 3: EMA3-EMA4 "Shark" zone (deep pullback)
-   LAYER_1_2           = 3,   // 0b0011 — L1 + L2 active simultaneously
-   LAYER_2_3           = 6,   // 0b0110 — L2 + L3 active simultaneously
-   LAYER_1_2_3         = 7    // 0b0111 — All three layers active simultaneously
+   LAYER_NONE        = 0,  // LAYER_NONE: 0b0000 — No layer detected or detection disabled
+   LAYER_1_WEAK      = 1,  // LAYER_WEAK: 0b0001 — Layer 1: EMA1-EMA2 "Ribbon" zone (shallow pullback)
+   LAYER_2_MEDIUM    = 2,  // LAYER_MEDIUM: 0b0010 — Layer 2: EMA2-EMA3 "Ghost" zone (medium pullback)
+   LAYER_3_STRONG    = 4,  // LAYER_STRONG: 0b0100 — Layer 3: EMA3-EMA4 "Shark" zone (deep pullback)
+   LAYER_1_2         = 3,  // LAYER_1-2: 0b0011 — L1 + L2 active simultaneously
+   LAYER_2_3         = 6,  // LAYER_2-3: 0b0110 — L2 + L3 active simultaneously
+   LAYER_1_2_3       = 7   // LAYER_1-2-3: 0b0111 — All three layers active simultaneously
 };
 
 enum EManualSide
 {
-   SIDE_BOTH,     // Allow both long and short trades
-   SIDE_LONG,     // Long trades only
-   SIDE_SHORT     // Short trades only
+   SIDE_BOTH,     // SIDE_L-S: Allow both long and short trades
+   SIDE_LONG,     // SIDE_L: Long trades only
+   SIDE_SHORT     // SIDE_S: Short trades only
 };
 
 enum EAutoStrategy
 {
-   STRAT_SINGLE_SLOPE,      // Single EMA slope direction
-   STRAT_PAIR_CROSS,        // Two-EMA cross (one-bar signal at cross point)
-   STRAT_PRICE_CROSS,       // Price crosses EMA (one-bar signal at cross point)
-   STRAT_POSITION_SLOPE,    // EMA position + slope confirmation (persistent bias)
-   STRAT_LAYER_DETECTION    // Layer-based pullback detection (Strong/Medium/Weak layers)
+   STRAT_SINGLE_SLOPE,      // STRAT_SINGLE_SLOPE: 1EMA slope direction
+   STRAT_PAIR_CROSS,        // STRAT_PAIR_CROSS: 2EMAs cross (one-bar signal at cross point)
+   STRAT_PRICE_CROSS,       // STRAT_PRICE_CROSS: Price crosses EMA (one-bar signal at cross point)
+   STRAT_POSITION_SLOPE,    // STRAT_POSITION_SLOPE: EMA position + slope confirmation (persistent bias)
+   STRAT_LAYER_DETECTION    // STRAT_LAYER_DETECTION: Layer-based pullback detection (Strong/Medium/Weak layers)
 };
 
 enum EDebugLevel
 {
-   DEBUG_SILENT,      // No per-bar output (statistics only at end)
-   DEBUG_SUMMARY,     // Per-bar: signal result + rejection reason (1-2 lines)
-   DEBUG_INDICATORS,  // Per-bar: indicator pass/fail + summary (20-30 lines)
-   DEBUG_FULL         // Everything: all internal steps + diagnostics (50+ lines)
+   DEBUG_SILENT,      // DEBUG_SILENT: No per-bar output (statistics only at end)
+   DEBUG_SUMMARY,     // DEBUG_SUMMARY: Per-bar: signal result + rejection reason (1-2 lines)
+   DEBUG_INDICATORS,  // DEBUG_INDICATORS: Per-bar: indicator pass/fail + summary (20-30 lines)
+   DEBUG_FULL         // DEBUG_FULL: Everything: all internal steps + diagnostics (50+ lines)
 };
 
 enum EEmaRole
 {
-   ROLE_EMA1,     // Fast EMA (5-period default) - L1_WEAK layer
-   ROLE_EMA2,     // Medium-fast EMA (13-period default) - L2_MEDIUM layer
-   ROLE_EMA3,     // Medium-slow EMA (34-period default) - L3_STRONG layer
-   ROLE_EMA4      // Slow EMA (144-period default) - Trend filter
+   ROLE_EMA1,     // ROLE_EMA1: Fast EMA (5-period default) - L1_WEAK layer
+   ROLE_EMA2,     // ROLE_EMA2: Medium-fast EMA (13-period default) - L2_MEDIUM layer
+   ROLE_EMA3,     // ROLE_EMA3: Medium-slow EMA (34-period default) - L3_STRONG layer
+   ROLE_EMA4      // ROLE_EMA4: Slow EMA (144-period default) - Trend filter
 };
 
 // Indicator Modes
@@ -102,18 +102,18 @@ enum EEmaRole
 enum EMacdVoteMode
 {
    // === SINGLE CHECKS (persistent) ===
-   MACD_ZERO_LINE,        // Main > 0 (bullish momentum zone)
-   MACD_HISTOGRAM,        // Histogram > 0 (acceleration)
-   MACD_CROSSOVER,        // Main > Signal (momentum shift)
+   MACD_ZERO_LINE,      // MACD_ZERO_LINE: Main > 0 (bullish momentum zone)
+   MACD_HISTOGRAM,      // MACD_HISTOGRAM: Histogram > 0 (acceleration)
+   MACD_CROSSOVER,      // MACD_CROSSOVER: Main > Signal (momentum shift)
 
    // === COMBINATION CHECKS (persistent, strict) ===
-   MACD_ZERO_AND_CROSS,   // Zero + Crossover (RRM default, industry "traditional")
-   MACD_ZERO_AND_HIST,    // Zero + Histogram (strict momentum)
-   MACD_TRIPLE,           // Zero + Cross + Hist (ultra-strict)
+   MACD_ZERO_AND_CROSS, // MACD_Zero+Crossover (RRM default, industry "traditional")
+   MACD_ZERO_AND_HIST,  // MACD_Zero+Histogram (strict momentum)
+   MACD_TRIPLE,         // MACD_Zero+Cross+Histogram (ultra-strict)
 
    // === TIME-LIMITED (fresh signals only) ===
-   MACD_CROSSOVER_N,      // Fresh crossover (within N bars)
-   MACD_ZERO_CROSS_N      // Fresh zero cross (within N bars)
+   MACD_CROSSOVER_N,    // MACD_CROSS_N: Fresh crossover (within N bars)
+   MACD_ZERO_CROSS_N    // MACD_ZERO_CROSS_N: Fresh zero cross (within N bars)
 };
 
 // Returns human-readable description of active MACD configuration
@@ -158,20 +158,20 @@ enum EStochMode
 
 enum EBbMode
 {
-   BB_TREND_FOLLOW,       // Price near outer band = trend continuation
-   BB_MEAN_REVERSION      // Price at outer band = reversion to middle
+   BB_TREND_FOLLOW,       // BE_TREND_FOLLOW: Price near outer band = trend continuation
+   BB_MEAN_REVERSION      // BE_MEAN_REVERSION: Price at outer band = reversion to middle
 };
 
 // --- TRAILING STOP MODE ---
 enum ETrailingMode
 {
-   TRAIL_NONE,            // No trailing stop
-   TRAIL_PSAR,            // PSAR dot trailing
-   TRAIL_FRACTAL,         // Fractal-based trailing
-   TRAIL_PSAR_FLIP_EXIT,  // Close position on PSAR flip
-   TRAIL_FIXED_PIPS,      // Fixed pip distance trailing
-   TRAIL_BREAKEVEN,       // Move to breakeven then trail fixed pips
-   TRAIL_PROFIT_PERCENT   // Trail after profit % threshold reached
+   TRAIL_BREAKEVEN,       // TRAIL_BREAKEVEN: move to breakeven then trail fixed pips
+   TRAIL_FIXED_PIPS,      // TRAIL_FIXED_PIPS: fixed pip distance trailing
+   TRAIL_FRACTAL,         // TRAIL_FRACTAL: fractal-based trailing
+   TRAIL_NONE,            // TRAIL_NONE: no trailing stop
+   TRAIL_PROFIT_PERCENT,  // TRAIL_PROFIT_PERCENT: trail after profit % threshold reached
+   TRAIL_PSAR,            // TRAIL_PSAR: dot trailing
+   TRAIL_PSAR_FLIP_EXIT   // TRAIL_PSAR_FLIP_EXIT: close position on PSAR flip
 };
 
 // --- PSAR TRAIL CUSHION MODE ---
@@ -183,40 +183,40 @@ enum EPsarTrailCushionMode
 // --- STOP LOSS STRATEGY MODE ---
 enum ESLMode
 {
-   SL_MODE_FIXED_PIPS,    // Fixed pips (default)
-   SL_MODE_PERCENT,       // Percentage of entry price
-   SL_MODE_SWING,         // Recent swing high/low (SwingLookback bars)
-   SL_MODE_FRACTAL,            // Last fractal level (Bill Williams)
-   SL_MODE_PSAR_DOT            // PSAR dot position
+   SL_MODE_FIXED_PIPS,  // SL_MODE_FIXED_PIPS: Fixed pips (default)
+   SL_MODE_FRACTAL,     // SL_MODE_FRACTAL: Last fractal level (Bill Williams)
+   SL_MODE_PERCENT,     // SL_MODE_PERCENT: Percentage of entry price
+   SL_MODE_SWING,       // SL_MODE_SWING: Recent swing high/low (SwingLookback bars)
+   SL_MODE_PSAR_DOT     // SL_MODE_PSAR_DOT: PSAR dot position
 };
 
 // --- TAKE PROFIT STRATEGY MODE ---
 enum ETPMode
 {
-   TP_MODE_FIXED_PIPS,    // Fixed pips (default)
-   TP_MODE_RR,            // Risk:Reward ratio (TP = SL distance × RRRatio)
-   TP_MODE_FRACTAL,            // Next fractal level as TP target
-   TP_MODE_PSAR_FLIP,          // Exit when PSAR flips (TP handled by TM)
-   TP_MODE_NONE                // No TP, rely on trailing stop only
+   TP_MODE_FIXED_PIPS,  // TP_MODE_FIXED_PIPS: (default)
+   TP_MODE_RR,          // TP_MODE_RR: (TP = SL distance × RRRatio)
+   TP_MODE_FRACTAL,     // TP_MODE_FRACTAL: Next fractal level as TP target
+   TP_MODE_PSAR_FLIP,   // TP_MODE_PSAR_FLIP: Exit when PSAR flips (TP handled by TM)
+   TP_MODE_NONE         // TP_MODE_NONE: No TP, rely on trailing stop only
 };
 
 // --- TRAILING STOP TRIGGER CONDITION ---
 enum ETrailTrigger
 {
-   TRIGGER_IMMEDIATE,       // Trail from entry (default)
-   TRIGGER_BREAKEVEN,       // Trail after breakeven threshold reached
-   TRIGGER_PROFIT_PIPS,     // Trail after X pips profit (TrailDistancePips)
-   TRIGGER_PROFIT_PERCENT,  // Trail after X% profit (TrailProfitPercent)
-   TRIGGER_PSAR_ALIGN       // Trail when PSAR aligns with position direction
+   TRIGGER_IMMEDIATE,       // TRIGGER_IMMEDIATE: Tr from entry (default)
+   TRIGGER_BREAKEVEN,       // TRIGGER_BREAKEVEN: Tr after breakeven threshold reached
+   TRIGGER_PROFIT_PIPS,     // TRIGGER_PROFIT_PIPS: Tr after X pips profit (TrailDistancePips)
+   TRIGGER_PROFIT_PERCENT,  // TRIGGER_PROFIT_PERCENT: Tr after X% profit (TrailProfitPercent)
+   TRIGGER_PSAR_ALIGN       // TRIGGER_PSAR_ALIGN: Tr when PSAR aligns with position direction
 };
 
 // --- EXIT PROFILE SELECTOR ---
 // Selects the exit contract for a trade.
 enum EExitProfile
 {
-   EXIT_PROFILE_NONE,      // No exit profile (manual management)
-   EXIT_PROFILE_SIMPLE,    // Simple: Fixed SL/TP, basic trailing
-   EXIT_PROFILE_RRM        // RRM: Swing-based SL, PSAR trail, no ATR multipliers
+   EXIT_PROFILE_NONE,      // EXIT_PROFILE_NONE: No exit profile (manual management)
+   EXIT_PROFILE_SIMPLE,    // EXIT_PROFILE_SIMPLE: Simple: Fixed SL/TP, basic trailing
+   EXIT_PROFILE_RRM        // EXIT_PROFILE_RRM: RRM: Swing-based SL, PSAR trail, no ATR multipliers
 };
 
 // --- MFI MODE SELECTOR ---
@@ -229,44 +229,44 @@ enum EMfiMode
 // --- RRM MODE SELECTOR (for PRESET_RRM adaptive configuration) ---
 enum ERRMMode
 {
-   RRM_AUTO_BY_TF,        // Auto-select scalp/swing based on timeframe (M1-M15=scalp, M30+=swing)
-   RRM_SCALP,             // Scalp: Tight SL/TP, Layer 1 entries, fast exits
-   RRM_SWING              // Swing: Wide SL/TP, Layer 2-3 entries, patient exits
+   RRM_AUTO_BY_TF,        // RRM_AUTO_BY_TF: Auto-select scalp/swing based on timeframe (M1-M15=scalp, M30+=swing)
+   RRM_SCALP,             // RRM_SCALP: Scalp: Tight SL/TP, Layer 1 entries, fast exits
+   RRM_SWING              // RRM_SWING: Swing: Wide SL/TP, Layer 2-3 entries, patient exits
 };
 
 // --- BREAKEVEN MODE SELECTOR ---
 // Controls how breakeven is triggered under the non-ATR RRM exit profile.
 enum EBeMode
 {
-   BE_MODE_OFF,                // Breakeven disabled (default)
-   BE_MODE_TP_PROGRESS_PCT,    // BE triggers at % progress toward TP (used with TP enabled)
-   BE_MODE_R_MULTIPLE          // BE triggers at k*R multiple (used when TP is disabled)
+   BE_MODE_OFF,                // BE_MODE_OFF: Breakeven disabled (default)
+   BE_MODE_TP_PROGRESS_PCT,    // BE_MODE_TP_PROGRESS_PCT: BE triggers at % progress toward TP (used with TP enabled)
+   BE_MODE_R_MULTIPLE          // BE_MODE_R_MULTIPLE: BE triggers at k*R multiple (used when TP is disabled)
 };
 
 // --- GATE SCALING MODES ---
 enum EGateScaleMode
 {
-   GATE_SCALE_OFF,        // Gate disabled
-   GATE_SCALE_FIXED,      // Use fixed pip value
-   GATE_SCALE_AUTO_TF     // Auto-scale by timeframe/pair
+   GATE_SCALE_OFF,        // GATE_OFF: Gate disabled
+   GATE_SCALE_FIXED,      // GATE_FIXED: Use fixed pip value
+   GATE_SCALE_AUTO_TF     // GATE_AUTO: Auto-scale by timeframe/pair
 };
 
 // --- VOTE MODE SELECTOR ---
 enum EVoteMode
 {
-   VOTE_MODE_THRESHOLD,   // THRESHOLD: minimum weighted votes required (default)
-   VOTE_MODE_ALL          // ALL: every enabled indicator must agree
+   VOTE_MODE_THRESHOLD,   // VOTE_THRESHOLD: minimum weighted votes required (default)
+   VOTE_MODE_ALL          // VOTE_ALL: every enabled indicator must agree
 };
 
 // --- ADAPTIVE SETTINGS: PAIR TYPE ---
 enum EPairType
 {
-   PAIR_TYPE_AUTO,           // Auto-detect from symbol name
-   PAIR_TYPE_MAJOR,          // EUR/USD, GBP/USD, etc (tight spreads 1-2 pips)
-   PAIR_TYPE_MINOR,          // EUR/GBP, EUR/AUD, etc (medium spreads 2-4 pips)
-   PAIR_TYPE_EXOTIC,         // USD/TRY, USD/ZAR, etc (wide spreads 5-15 pips)
-   PAIR_TYPE_GOLD,           // XAU/USD (medium spreads 3-5 pips, high volatility)
-   PAIR_TYPE_CRYPTO          // BTC/USD (very wide spreads, extreme volatility)
+   PAIR_TYPE_AUTO,         // Auto-detect from symbol name
+   PAIR_TYPE_MAJOR,        // EUR/USD, GBP/USD, etc (tight spreads 1-2 pips)
+   PAIR_TYPE_MINOR,        // EUR/GBP, EUR/AUD, etc (medium spreads 2-4 pips)
+   PAIR_TYPE_EXOTIC,       // USD/TRY, USD/ZAR, etc (wide spreads 5-15 pips)
+   PAIR_TYPE_GOLD,         // XAU/USD (medium spreads 3-5 pips, high volatility)
+   PAIR_TYPE_CRYPTO        // BTC/USD (very wide spreads, extreme volatility)
 };
 
 struct SGateConfig
@@ -332,6 +332,7 @@ struct ST_Settings
    double MinATR;
    double MaxATR;
    bool   UseATRGate;     // Enable ATR gate filter (false = ATR gate disabled)
+   
    // MT5 Moving Average benchmark compatibility
    bool   UseMACompatSizer;
    double MA_MaximumRiskPct;
@@ -467,17 +468,17 @@ struct ST_Settings
    int      SwingLookback;    // Bars to look back for swing high/low (SL_MODE_SWING)
 
    // === Fractal Settings (NEW: Phase 2.2) ===
-   int      FractalPeriod;        // Fractal indicator period (default: 5)
-   int      TPFractalOffset;      // How many fractals ahead for TP (default: 1)
+   int      FractalPeriod;    // Fractal indicator period (default: 5)
+   int      TPFractalOffset;  // How many fractals ahead for TP (default: 1)
 
    // === PSAR SL/TP Settings (NEW: Phase 2.2) ===
-   double   PSARStep;             // PSAR step for SL/TP calculations (default: 0.02)
-   double   PSARMax;              // PSAR max for SL/TP calculations (default: 0.2)
+   double   PSARStep;         // PSAR step for SL/TP calculations (default: 0.02)
+   double   PSARMax;          // PSAR max for SL/TP calculations (default: 0.2)
 
    // Advanced Trailing Settings
    ETrailTrigger TrailTrigger;       // When to begin trailing (default: TRIGGER_IMMEDIATE)
-   double   TrailDistancePips;       // Fixed trail distance in pips (TRAIL_FIXED_PIPS / trigger threshold)
    double   BEThresholdPips;         // Profit pips required before moving to breakeven
+   double   TrailDistancePips;       // Fixed trail distance in pips (TRAIL_FIXED_PIPS / trigger threshold)
    double   TrailProfitPercent;      // Profit % threshold for TRIGGER_PROFIT_PERCENT
    double   TrailStepPips;           // Minimum pips movement before updating SL
    bool     TrailLockProfit;         // Lock in profit (never move SL backwards)
@@ -489,38 +490,38 @@ struct ST_Settings
    int                 PSAR_TrailDelay;         // PSAR trailing bar-shift delay (1-3)
 
    // RRM exit contract
-   EExitProfile ExitProfile;            // Exit profile selector
-   bool         TP_Enabled;             // Whether TP is active
-   EBeMode      BE_Mode;                // BE mode for RRM
+   EExitProfile ExitProfile;           // Exit profile selector
+   bool         TP_Enabled;            // Whether TP is active
+   EBeMode      BE_Mode;               // BE mode for RRM
 
    // RRM parameters
-   double RRM_BE_ProgressPct;           // BE trigger: % progress toward TP (0..100); used with BE_MODE_TP_PROGRESS_PCT
-   double RRM_BE_RMultiple;             // BE trigger: R-multiple threshold (e.g. 1.0); used with BE_MODE_R_MULTIPLE
-   double RRM_BE_BufferPips;            // BE buffer in pips
-   int    RRM_TrailPsarShiftDelay;      // PSAR trail bar-shift delay (1..3)
-   bool   RRM_FreezeTrailOnFlip;        // Freeze trailing stop on PSAR flip signal
-   bool   RRM_TrailStartsAfterBE;       // Delay trail activation until BE is triggered
+   double RRM_BE_ProgressPct;          // RRM_BE trigger: % progress toward TP (0..100); used with BE_MODE_TP_PROGRESS_PCT
+   double RRM_BE_RMultiple;            // RRM_BE trigger: R-multiple threshold (e.g. 1.0); used with BE_MODE_R_MULTIPLE
+   double RRM_BE_BufferPips;           // RRM_BE buffer in pips
+   int    RRM_TrailPsarShiftDelay;     // RRM_PSAR trail bar-shift delay (1..3)
+   bool   RRM_FreezeTrailOnFlip;       // RRM_Freeze trailing stop on PSAR flip signal
+   bool   RRM_TrailStartsAfterBE;      // RRM_Delay trail activation until BE is triggered
 
    // Gate system (reusable hard gates for any preset)
-   bool        RequirePullback;          // Dynamic structure pullback gate (replaces pip-based Gate_Pullback)
-   int         PullbackLookback;         // Bars to look back for pullback structure
-   bool        RequireRecoveryMomentum;  // Require recovery bar to close in trend direction
-   bool        Gate_UseMultiLayer;       // Enable multi-layer cascading EMA pullback detection (RRM standard)
-   int         Vote_EvalShift;          // Shift for vote evaluation
-   bool        Vote_AllowPsarFlip;      // Allow PSAR flip signal in votes
+   bool        RequirePullback;        // Dynamic structure pullback gate (replaces pip-based Gate_Pullback)
+   int         PullbackLookback;       // Bars to look back for pullback structure
+   bool        RequireRecoveryMomentum;// Require recovery bar to close in trend direction
+   bool        Gate_UseMultiLayer;     // Enable multi-layer cascading EMA pullback detection (RRM standard)
+   int         Vote_EvalShift;         // Shift for vote evaluation
+   bool        Vote_AllowPsarFlip;     // Allow PSAR flip signal in votes
    // PSAR flip validation parameters (when Vote_AllowPsarFlip=true)
-   int         Vote_PsarFlipDelay;      // Flip timer mode:
-                                        //   -1 = PERSISTENT: check dot position only (no flip tracking)
-                                        //    0 = FLIP_BAR:   signal valid on flip bar only
-                                        //  1-10 = COUNTDOWN: signal valid for N bars after flip
+   int         Vote_PsarFlipDelay;     // Flip timer mode:
+                                       //   -1 = PERSISTENT: check dot position only (no flip tracking)
+                                       //    0 = FLIP_BAR:   signal valid on flip bar only
+                                       //  1-10 = COUNTDOWN: signal valid for N bars after flip
 
    // Reporting
    bool ExportCSV;
 
    // --- Global toggles allowed under presets ---
    bool         PrintEffectiveConfig;
-   bool         DebugFlow;           // Master on/off switch (true = DEBUG_FULL verbosity)
-   EDebugLevel  DebugLevel;          // Debug verbosity level
+   bool         DebugFlow;             // Master on/off switch (true = DEBUG_FULL verbosity)
+   EDebugLevel  DebugLevel;            // Debug verbosity level
 
    // UI
    bool UI_ShowStatusPanel;
@@ -682,13 +683,13 @@ input string           Inp_UI_CockpitFont          = "Arial";     // Cockpit pan
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🎨 UI: SIGNAL MARKERS & COLORS                        ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool           Inp_DrawEntryLines            = true;           // Draw entry marker lines
-input bool           Inp_DrawTradeLines            = true;           // Draw trade management lines
-input bool             Inp_UI_UseCustomColors      = true;           // Use custom panel colors (else follow chart theme)
-input color            Inp_UI_FontColor            = clrYellow;      // UI font color (when custom colors enabled)
-input int              Inp_UI_PanelBgAlpha         = 110;            // Panel background alpha (0..255)
-input EUIFrameMode     Inp_UI_FrameMode            = UI_FRAME_NONE;  // Panel frame mode (BG/NONE/TEXT_BOUNDS)
-input int              Inp_UI_FramePadPx           = 6;              // Panel padding (px)
+input bool           Inp_DrawEntryLines            = true;        // Draw entry marker lines
+input bool           Inp_DrawTradeLines            = true;        // Draw trade management lines
+input bool           Inp_UI_UseCustomColors        = true;        // Use custom panel colors (else follow chart theme)
+input color          Inp_UI_FontColor              = clrYellow;   // UI font color (when custom colors enabled)
+input int            Inp_UI_PanelBgAlpha           = 110;         // Panel background alpha (0..255)
+input EUIFrameMode   Inp_UI_FrameMode              = UI_FRAME_NONE;  // Panel frame mode (BG/NONE/TEXT_BOUNDS)
+input int            Inp_UI_FramePadPx             = 6;           // Panel padding (px)
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔍 DIAGNOSTICS                                        ║"
@@ -700,11 +701,11 @@ input EDebugLevel    Inp_DebugLevel                = DEBUG_SUMMARY;  // Debug ve
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔍 DIAGNOSTICS: STATISTICS                            ║"
 input group "╚════════════════════════════════════════════════════════╝"
-input bool Inp_Stats_TrackRejections = true;   // Track rejection counts
-input bool Inp_Stats_TrackPasses = true;       // Track pass counts (positive stats)
-input bool Inp_Stats_FullEvaluation = true;    // Evaluate ALL indicators per bar (no early exit)
-input string Inp_Stats_Info1 = "FullEvaluation=false: waterfall (stop at first fail)"; // Info
-input string Inp_Stats_Info2 = "FullEvaluation=true: evaluate all, identify true bottlenecks"; // Info
+input bool     Inp_Stats_TrackRejections = true;   // Track rejection counts
+input bool     Inp_Stats_TrackPasses = true;       // Track pass counts (positive stats)
+input bool     Inp_Stats_FullEvaluation = true;    // Evaluate ALL indicators per bar (no early exit)
+input string   Inp_Stats_Info1 = "FullEvaluation=false: waterfall (stop at first fail)"; // Info
+input string   Inp_Stats_Info2 = "FullEvaluation=true: evaluate all, identify true bottlenecks"; // Info
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  🔍 REPORTING                                          ║"
