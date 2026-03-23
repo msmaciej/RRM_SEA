@@ -59,7 +59,7 @@ struct SRejectionStats {
    int passed_atr_max,      rejected_atr_max;
    int passed_time,         rejected_time;
    int passed_news,         rejected_news;
-   int passed_body_filter,  rejected_body_filter;
+   int passed_candle_body,  rejected_candle_body;
 
    // Bias & Layer (passed + rejected)
    int passed_bias,         rejected_bias;
@@ -1544,8 +1544,8 @@ public:
       reasons[idx++].pct = m_stats.rejected_news * 100.0 / m_stats.total_bars;
 
       reasons[idx].name = "CandleBody";
-      reasons[idx].count = m_stats.rejected_body_filter;
-      reasons[idx++].pct = m_stats.rejected_body_filter * 100.0 / m_stats.total_bars;
+      reasons[idx].count = m_stats.rejected_candle_body;
+      reasons[idx++].pct = m_stats.rejected_candle_body * 100.0 / m_stats.total_bars;
 
       reasons[idx].name = "MFI";
       reasons[idx].count = m_stats.rejected_mfi;
@@ -1621,9 +1621,8 @@ public:
       PrintGateStat("ATR Max",    (m_settings.UseATRGate && m_settings.MaxATR > 0), m_stats.passed_atr_max,       m_stats.rejected_atr_max,      StringFormat("<=%.1f pips",   m_settings.MaxATR));
       PrintGateStat("Time Window", m_settings.UseTime,     m_stats.passed_time,          m_stats.rejected_time,         m_settings.UseTime ? StringFormat("%02d:00-%02d:00", m_settings.StartHr, m_settings.EndHr) : "(disabled)");
       PrintGateStat("News Filter", m_settings.UseNews,     m_stats.passed_news,          m_stats.rejected_news,         m_settings.UseNews  ? StringFormat("%dm pre/post", m_settings.NewsPre) : "(disabled)");
-      PrintGateStat("CandleBody",  m_settings.UseCandleBodyFilter, m_stats.passed_body_filter, m_stats.rejected_body_filter, m_settings.UseCandleBodyFilter ? StringFormat("x%.1f avg(%d)", m_settings.BodyMaxMultiplier, m_settings.BodyAvgPeriod) : "(disabled)");
       Print("----------------------------------------------------------------");
-      PrintFormat("Gates blocked: %d bars", m_stats.rejected_spread + m_stats.rejected_atr_min + m_stats.rejected_atr_max + m_stats.rejected_time + m_stats.rejected_news + m_stats.rejected_body_filter);
+      PrintFormat("Gates blocked: %d bars", m_stats.rejected_spread + m_stats.rejected_atr_min + m_stats.rejected_atr_max + m_stats.rejected_time + m_stats.rejected_news);
       Print("");
       Print("================================================================");
       Print("2. BIAS & LAYER DETECTION");
@@ -1653,6 +1652,7 @@ public:
       PrintIndicatorStat("BB",         m_settings.Ind_Bb_Enabled,     m_stats.passed_bb,     m_stats.rejected_bb);
       PrintIndicatorStat("P123",       m_settings.Ind_P123_Enabled,   m_stats.passed_p123,   m_stats.rejected_p123);
       PrintIndicatorStat("Ross Hook",  m_settings.Ind_Ross_Enabled,   m_stats.passed_ross,   m_stats.rejected_ross);
+      PrintIndicatorStat("CandleBody", m_settings.Ind_CandleBody_Enabled, m_stats.passed_candle_body, m_stats.rejected_candle_body);
       Print("----------------------------------------------------------------");
       int enabled_count = 0;
       if(m_settings.Ind_EmaSig_Enabled) enabled_count++;
@@ -1666,6 +1666,7 @@ public:
       if(m_settings.Ind_Bb_Enabled)     enabled_count++;
       if(m_settings.Ind_P123_Enabled)   enabled_count++;
       if(m_settings.Ind_Ross_Enabled)   enabled_count++;
+      if(m_settings.Ind_CandleBody_Enabled) enabled_count++;
       PrintFormat("Indicators: %d enabled (ALL must pass)", enabled_count);
       Print("");
       Print("================================================================");
@@ -1719,7 +1720,7 @@ public:
    {
       if(m_stats.total_bars == 0) return;
       struct SBottleneck { string name; int rejected; double pct; };
-      SBottleneck bn[20];
+      SBottleneck bn[25]; // Gates(5) + Bias/Phase/Layer(4) + Indicators(12 + CandleBody) = up to 22 entries
       int idx = 0;
       if(m_stats.rejected_spread > 0)         { bn[idx].name="Spread";         bn[idx].rejected=m_stats.rejected_spread;        bn[idx++].pct=m_stats.rejected_spread*100.0/m_stats.total_bars; }
       if(m_stats.rejected_atr_min > 0)        { bn[idx].name="ATR Min";        bn[idx].rejected=m_stats.rejected_atr_min;       bn[idx++].pct=m_stats.rejected_atr_min*100.0/m_stats.total_bars; }
@@ -1741,6 +1742,7 @@ public:
       if(m_settings.Ind_Bb_Enabled     && m_stats.rejected_bb     > 0) { bn[idx].name="BB";        bn[idx].rejected=m_stats.rejected_bb;     bn[idx++].pct=m_stats.rejected_bb*100.0/m_stats.total_bars; }
       if(m_settings.Ind_P123_Enabled   && m_stats.rejected_p123   > 0) { bn[idx].name="P123";      bn[idx].rejected=m_stats.rejected_p123;   bn[idx++].pct=m_stats.rejected_p123*100.0/m_stats.total_bars; }
       if(m_settings.Ind_Ross_Enabled   && m_stats.rejected_ross   > 0) { bn[idx].name="Ross Hook"; bn[idx].rejected=m_stats.rejected_ross;   bn[idx++].pct=m_stats.rejected_ross*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_CandleBody_Enabled && m_stats.rejected_candle_body > 0) { bn[idx].name="CandleBody"; bn[idx].rejected=m_stats.rejected_candle_body; bn[idx++].pct=m_stats.rejected_candle_body*100.0/m_stats.total_bars; }
       if(idx == 0) { Print("  (no rejections recorded)"); return; }
       for(int i = 0; i < idx-1; i++)
          for(int j = i+1; j < idx; j++)
@@ -1782,6 +1784,7 @@ public:
       if(m_settings.Ind_Bb_Enabled     && m_stats.rejected_bb     > worst_cnt) { worst_cnt=m_stats.rejected_bb;     worst_ind="BB"; }
       if(m_settings.Ind_P123_Enabled   && m_stats.rejected_p123   > worst_cnt) { worst_cnt=m_stats.rejected_p123;   worst_ind="P123"; }
       if(m_settings.Ind_Ross_Enabled   && m_stats.rejected_ross   > worst_cnt) { worst_cnt=m_stats.rejected_ross;   worst_ind="Ross Hook"; }
+      if(m_settings.Ind_CandleBody_Enabled && m_stats.rejected_candle_body > worst_cnt) { worst_cnt=m_stats.rejected_candle_body; worst_ind="CandleBody"; }
       if(worst_ind != "" && m_stats.total_bars > 0 && worst_cnt * 100.0 / m_stats.total_bars > 30) {
          any_rec = true;
          PrintFormat("Priority 3: %s is the top indicator bottleneck (%.1f%% blocked).", worst_ind, worst_cnt * 100.0 / m_stats.total_bars);
@@ -2206,13 +2209,13 @@ public:
       Print("News: Loaded ", m_news_count, " events from ", filename);
    }
 
-   // --- 9b. CANDLE BODY OVEREXTENSION FILTER ---
-   bool CheckCandleBodyFilter() {
-      if(!m_settings.UseCandleBodyFilter) return true;
+   // --- 9b. CANDLE BODY OVEREXTENSION INDICATOR (voting) ---
+   bool CheckCandleBodyIndicator() {
+      if(!m_settings.Ind_CandleBody_Enabled) return true;
 
       // Calculate average body over past N bars (starting at shift 2 to exclude current bar)
       double sum_body = 0.0;
-      int    period   = m_settings.BodyAvgPeriod;
+      int    period   = m_settings.CandleBody_AvgPeriod;
       for(int i = 2; i < period + 2; i++)
       {
          double o = iOpen(m_symbol, PERIOD_CURRENT, i);
@@ -2222,12 +2225,12 @@ public:
       double avg_body = sum_body / period;
 
       // Check the most recent closed candles for overextension
-      for(int i = 1; i <= m_settings.BodyCheckCandles; i++)
+      for(int i = 1; i <= m_settings.CandleBody_CheckBars; i++)
       {
          double o    = iOpen(m_symbol, PERIOD_CURRENT, i);
          double c    = iClose(m_symbol, PERIOD_CURRENT, i);
          double body = MathAbs(c - o);
-         if(body > avg_body * m_settings.BodyMaxMultiplier)
+         if(body > avg_body * m_settings.CandleBody_MaxMult)
          {
             return false;
          }
@@ -2313,9 +2316,6 @@ public:
          m_diag_last_reason = (atr_pips < m_settings.MinATR ? "MIN_ATR" : "MAX_ATR");
          return false;
       }
-
-      // E. Candle Body Overextension Check
-      if(!CheckCandleBodyFilter()) { m_diag_last_reason="BODY_OVEREXT"; return false; }
 
       return true;
    }
@@ -2553,28 +2553,6 @@ public:
       }
       else if(m_settings.DebugFlow)
          Print("[GATE] ATR: DISABLED (UseATRGate=false) → SKIP");
-
-      // --- Candle Body Overextension Filter ---
-      bool body_pass = CheckCandleBodyFilter();
-      if(body_pass) m_stats.passed_body_filter++;
-      else m_stats.rejected_body_filter++;
-      if(m_settings.DebugFlow) {
-         if(!m_settings.UseCandleBodyFilter)
-            Print("[GATE] CandleBody: DISABLED → SKIP");
-         else
-            PrintFormat("[GATE] CandleBody: %s (period=%d, x%.1f, check=%d)",
-                        body_pass ? "PASS" : "FAIL",
-                        m_settings.BodyAvgPeriod,
-                        m_settings.BodyMaxMultiplier,
-                        m_settings.BodyCheckCandles);
-      }
-      if(!body_pass) {
-         if(first_failure == "") first_failure = "BODY_OVEREXT";
-         any_failure = true;
-         if(!m_settings.Stats_FullEvaluation) {
-            m_diag_last_reason = "BODY_OVEREXT"; m_reject_filter++; return 0;
-         }
-      }
 
       // In full-eval mode, track filter rejection if any filter failed (waterfall would have exited above)
       if(any_failure && m_settings.Stats_FullEvaluation) m_reject_filter++;
@@ -3080,6 +3058,14 @@ public:
          else            all_pass     = false;
       }
 
+      // Candle Body Overextension (non-directional voting indicator)
+      if(m_settings.Ind_CandleBody_Enabled)
+      {
+         bool candle_ok = CheckCandleBodyIndicator();
+         if(candle_ok) { vote_weight += m_settings.Ind_CandleBody_Weight; m_stats.passed_candle_body++; }
+         else          { all_pass = false; m_stats.rejected_candle_body++; }
+      }
+
       // Store integer-rounded weight for display (backward-compatible diagnostics)
       m_diag_last_votes = (int)MathRound(vote_weight);
 
@@ -3213,6 +3199,16 @@ public:
                            atr_v_ok ? "PASS" : "FAIL");
             } else
                Print("[IND] ATR Vote: DISABLED → SKIP");
+
+            // CandleBody Vote (non-directional voting indicator)
+            if(m_settings.Ind_CandleBody_Enabled) {
+               bool cb_ok = CheckCandleBodyIndicator();
+               PrintFormat("[IND] CandleBody: avg period=%d max=x%.1f check=%d → %s (w=%d)",
+                           m_settings.CandleBody_AvgPeriod, m_settings.CandleBody_MaxMult,
+                           m_settings.CandleBody_CheckBars, cb_ok ? "PASS" : "FAIL",
+                           m_settings.Ind_CandleBody_Weight);
+            } else
+               Print("[IND] CandleBody: DISABLED → SKIP");
          }
       }
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: END =====

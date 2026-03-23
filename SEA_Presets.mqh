@@ -119,6 +119,7 @@ int GetActiveIndicatorCount(const ST_Settings &cfg)
    if(cfg.Ind_Atr_Enabled)    count++;
    if(cfg.Ind_P123_Enabled)   count++;
    if(cfg.Ind_Ross_Enabled)   count++;
+   if(cfg.Ind_CandleBody_Enabled) count++;
    return count;
 }
 
@@ -187,6 +188,7 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("    BB:      ", (cfg.Ind_Bb_Enabled ? "✓" : "✗"));
    Print("    P123:    ", (cfg.Ind_P123_Enabled ? "✓" : "✗"));
    Print("    Ross:    ", (cfg.Ind_Ross_Enabled ? "✓" : "✗"));
+   Print("    CandleBody: ", (cfg.Ind_CandleBody_Enabled ? "✓" : "✗"));
    Print("");
 
    Print("💰 RISK MANAGEMENT:");
@@ -358,18 +360,23 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
       // ================================================================
-      cfg.Ind_Adx_Enabled    = false;
-      cfg.Ind_Atr_Enabled    = false;
-      cfg.Ind_Bb_Enabled     = false;
-      cfg.Ind_Cci_Enabled    = false;
-      cfg.Ind_EmaSig_Enabled = false;
-      cfg.Ind_Macd_Enabled   = false;
-      cfg.Ind_Mfi_Enabled    = false;
-      cfg.Ind_P123_Enabled   = false;
-      cfg.Ind_Psar_Enabled   = false;
-      cfg.Ind_Ross_Enabled   = false;
-      cfg.Ind_Rsi_Enabled    = false;
-      cfg.Ind_Sto_Enabled    = false;
+      cfg.Ind_Adx_Enabled          = false;
+      cfg.Ind_Atr_Enabled          = false;
+      cfg.Ind_Bb_Enabled           = false;
+      cfg.Ind_CandleBody_Enabled   = false;
+      cfg.CandleBody_AvgPeriod     = 10;
+      cfg.CandleBody_MaxMult       = 3.0;
+      cfg.CandleBody_CheckBars     = 1;
+      cfg.Ind_CandleBody_Weight    = 1;
+      cfg.Ind_Cci_Enabled          = false;
+      cfg.Ind_EmaSig_Enabled       = false;
+      cfg.Ind_Macd_Enabled         = false;
+      cfg.Ind_Mfi_Enabled          = false;
+      cfg.Ind_P123_Enabled         = false;
+      cfg.Ind_Psar_Enabled         = false;
+      cfg.Ind_Ross_Enabled         = false;
+      cfg.Ind_Rsi_Enabled          = false;
+      cfg.Ind_Sto_Enabled          = false;
    
       cfg.VoteMode = VOTE_MODE_ALL;
    
@@ -661,18 +668,23 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
       // ================================================================
-      cfg.Ind_Adx_Enabled    = false;
-      cfg.Ind_Atr_Enabled    = false;
-      cfg.Ind_Bb_Enabled     = false;
-      cfg.Ind_Cci_Enabled    = true;
-      cfg.Ind_EmaSig_Enabled = true;
-      cfg.Ind_Macd_Enabled   = true;
-      cfg.Ind_Mfi_Enabled    = false;
-      cfg.Ind_P123_Enabled   = false;
-      cfg.Ind_Psar_Enabled   = true;
-      cfg.Ind_Ross_Enabled   = false;
-      cfg.Ind_Rsi_Enabled    = false;
-      cfg.Ind_Sto_Enabled    = false;
+      cfg.Ind_Adx_Enabled          = false;
+      cfg.Ind_Atr_Enabled          = false;
+      cfg.Ind_Bb_Enabled           = false;
+      cfg.Ind_CandleBody_Enabled   = true;
+      cfg.CandleBody_AvgPeriod     = 15;
+      cfg.CandleBody_MaxMult       = 3.5;
+      cfg.CandleBody_CheckBars     = 2;
+      cfg.Ind_CandleBody_Weight    = 1;
+      cfg.Ind_Cci_Enabled          = true;
+      cfg.Ind_EmaSig_Enabled       = true;
+      cfg.Ind_Macd_Enabled         = true;
+      cfg.Ind_Mfi_Enabled          = false;
+      cfg.Ind_P123_Enabled         = false;
+      cfg.Ind_Psar_Enabled         = true;
+      cfg.Ind_Ross_Enabled         = false;
+      cfg.Ind_Rsi_Enabled          = false;
+      cfg.Ind_Sto_Enabled          = false;
    
       cfg.VoteMode = VOTE_MODE_ALL;
    
@@ -900,18 +912,23 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
       // ================================================================
-      cfg.Ind_Adx_Enabled    = false;
-      cfg.Ind_Atr_Enabled    = false;
-      cfg.Ind_Bb_Enabled     = false;
-      cfg.Ind_Cci_Enabled    = false;
-      cfg.Ind_EmaSig_Enabled = false;
-      cfg.Ind_Macd_Enabled   = false;
-      cfg.Ind_Mfi_Enabled    = false;
-      cfg.Ind_P123_Enabled   = false;
-      cfg.Ind_Psar_Enabled   = true;
-      cfg.Ind_Ross_Enabled   = false;
-      cfg.Ind_Rsi_Enabled    = false;
-      cfg.Ind_Sto_Enabled    = false;
+      cfg.Ind_Adx_Enabled          = false;
+      cfg.Ind_Atr_Enabled          = false;
+      cfg.Ind_Bb_Enabled           = false;
+      cfg.Ind_CandleBody_Enabled   = false;
+      cfg.CandleBody_AvgPeriod     = 10;
+      cfg.CandleBody_MaxMult       = 3.0;
+      cfg.CandleBody_CheckBars     = 1;
+      cfg.Ind_CandleBody_Weight    = 1;
+      cfg.Ind_Cci_Enabled          = false;
+      cfg.Ind_EmaSig_Enabled       = false;
+      cfg.Ind_Macd_Enabled         = false;
+      cfg.Ind_Mfi_Enabled          = false;
+      cfg.Ind_P123_Enabled         = false;
+      cfg.Ind_Psar_Enabled         = true;
+      cfg.Ind_Ross_Enabled         = false;
+      cfg.Ind_Rsi_Enabled          = false;
+      cfg.Ind_Sto_Enabled          = false;
    
       cfg.VoteMode = VOTE_MODE_ALL;
    
