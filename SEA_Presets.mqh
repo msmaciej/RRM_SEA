@@ -217,6 +217,19 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("  Timeframe:      ", EnumToString(Period()));
    Print("");
 
+   Print("📐 SLOPE CALCULATION:");
+   Print("  Lookback:      ", cfg.SlopeLookbackBars, " bar(s)");
+   Print("  Threshold:     ", cfg.UseSlopeThreshold ? "ENABLED" : "DISABLED");
+   if(cfg.UseSlopeThreshold) {
+      if(cfg.SlopeThresholdAdaptive) {
+         Print("  Mode:          ADAPTIVE (TF + Pair)");
+      } else {
+         Print("  Mode:          FIXED (", cfg.SlopeThresholdPips, " pips)");
+      }
+      Print("  Measure:       ", EnumToString(cfg.SlopeMeasureMode));
+   }
+   Print("");
+
    Print("═══════════════════════════════════════════════════════════");
 }
 
@@ -541,7 +554,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_MaxConsecutiveLosses     = 0;
       cfg.RRM_MaxTradesPerDay          = 0;
       cfg.RRM_MaxDailyDrawdownPct      = 0.0;
-   
+
+      // ================================================================
+      // SLOPE CALCULATION SETTINGS (Benchmark Mode - No Filtering)
+      // ================================================================
+      cfg.SlopeLookbackBars      = 1;                     // MT5 standard (single bar)
+      cfg.UseSlopeThreshold      = false;                 // No filtering (match MT5)
+      cfg.SlopeThresholdPips     = 0.0;
+      cfg.SlopeThresholdAdaptive = false;
+      cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
+
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================
@@ -839,7 +861,22 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_MaxConsecutiveLosses     = Inp_RRM_MaxConsecutiveLosses;
       cfg.RRM_MaxTradesPerDay          = Inp_RRM_MaxTradesPerDay;
       cfg.RRM_MaxDailyDrawdownPct      = Inp_RRM_MaxDailyDrawdownPct;
-   
+
+      // ================================================================
+      // SLOPE CALCULATION SETTINGS (Adaptive by Timeframe)
+      // ================================================================
+
+      // Determine lookback based on timeframe branch
+      int slope_lookback = 1;
+      if(tf >= PERIOD_H1)
+         slope_lookback = 2;  // Smoother for swing trading (H1+)
+
+      cfg.SlopeLookbackBars      = slope_lookback;
+      cfg.UseSlopeThreshold      = true;
+      cfg.SlopeThresholdPips     = 0.0;                   // Use adaptive calculation
+      cfg.SlopeThresholdAdaptive = true;                  // Auto: M5=0.4p, H1=1.2p, H4=2.0p
+      cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
+
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================
@@ -1093,7 +1130,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_MaxConsecutiveLosses     = 0;
       cfg.RRM_MaxTradesPerDay          = 0;
       cfg.RRM_MaxDailyDrawdownPct      = 0.0;
-   
+
+      // ================================================================
+      // SLOPE CALCULATION SETTINGS (Minimal - Testing Mode)
+      // ================================================================
+      cfg.SlopeLookbackBars      = 1;                     // Single bar (fast)
+      cfg.UseSlopeThreshold      = false;                 // No filtering
+      cfg.SlopeThresholdPips     = 0.0;
+      cfg.SlopeThresholdAdaptive = false;
+      cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
+
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================

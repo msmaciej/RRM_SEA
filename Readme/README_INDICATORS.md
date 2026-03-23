@@ -94,6 +94,45 @@ TS = [Pre-Filters] × [Bias × Phase] × [Layer] × [Indicators]
 
 ---
 
+### Slope Threshold System
+
+**Purpose:** Filter noise and false slope signals, especially on lower timeframes.
+
+**How it works:**
+1. **Calculate slope:** Compare EMA at current bar to N bars ago (configurable lookback)
+2. **Apply threshold:** EMA must move at least X pips to count as rising/falling
+3. **Adaptive scaling:** Threshold auto-adjusts based on:
+   - **Timeframe:** M5 uses 0.5 pips, H4 uses 2.5 pips
+   - **Pair volatility:** EURUSD uses 0.5 pips, EURJPY uses 0.8 pips, Gold uses 2.0 pips
+   - **Preset:** RRM reduces threshold by 20% for stricter filtering
+
+**Configuration:**
+- `SlopeLookbackBars`: 1-5 bars (1=responsive, 3=smooth)
+- `UseSlopeThreshold`: Enable/disable filtering
+- `SlopeThresholdPips`: Fixed threshold (0=use adaptive)
+- `SlopeThresholdAdaptive`: Auto-scale by TF/pair
+- `SlopeMeasureMode`: PIPS (forex) or PERCENT (multi-asset)
+
+**Example (EURUSD M15):**
+```
+Adaptive threshold = 0.5 (base) × 0.8 (M15 multiplier) = 0.4 pips
+
+EMA34 current = 1.08500
+EMA34 previous = 1.08497
+Change = 0.00003 (0.3 pips)
+
+Result: 0.3 < 0.4 → Slope = 0 (FLAT, within noise)
+```
+
+**Best Practices:**
+- ✅ Use adaptive mode for most trading (auto-scales correctly)
+- ✅ Use 1-bar lookback for M5-M30 (responsive)
+- ✅ Use 2-bar lookback for H1-H4 (smoother, less noise)
+- ✅ Use PIPS measurement for forex (intuitive)
+- ⚠️ Use PERCENT only for multi-asset strategies (stocks, crypto, indices)
+
+---
+
 ### Step 2: Market Bias Determination
 
 **Purpose:** Determine the PRIMARY trend direction (the **Bias** component of the TS formula)
@@ -107,12 +146,13 @@ This step produces `bias ∈ {-1, 0, 1}`. If the result is 0 (NEUTRAL), the pipe
 #### 2.1 Compare EMAs
 - Get Fast EMA value (e.g., EMA 13)
 - Get Slow EMA value (e.g., EMA 34)
-- Get previous values for both (shift+1)
+- Get previous values for both (shift+N, where N = `SlopeLookbackBars`)
 - Compare positions
 
 #### 2.2 Calculate Slopes
-- **Fast slope:** current > previous? (rising = 1, falling = -1, flat = 0)
-- **Slow slope:** current > previous? (rising = 1, falling = -1, flat = 0)
+- **Fast slope:** current vs N-bars-ago? (rising = 1, falling = -1, flat = 0)
+- **Slow slope:** current vs N-bars-ago? (rising = 1, falling = -1, flat = 0)
+- **Threshold applied:** Movement must exceed `GetMinSlopeThreshold()` to count as a slope
 
 #### 2.3 Apply Bias Logic
 

@@ -283,6 +283,15 @@ enum EUIFrameMode
    UI_FRAME_TEXT_BOUNDS      // Text bounds markers (BEGIN/END), no rectangle
 };
 
+//+------------------------------------------------------------------+
+//| ENUM: Slope Measurement Mode                                     |
+//+------------------------------------------------------------------+
+enum ESlopeMeasure
+{
+   SLOPE_MEASURE_PIPS,       // Absolute pips movement
+   SLOPE_MEASURE_PERCENT     // Percentage change relative to EMA value
+};
+
 // --- ADAPTIVE SETTINGS STRUCT ---
 struct ST_AdaptiveSettings
 {
@@ -574,6 +583,24 @@ struct ST_Settings
    bool Stats_TrackRejections;  // Track rejection counts per indicator
    bool Stats_TrackPasses;      // Track pass counts (positive stats)
    bool Stats_FullEvaluation;   // Evaluate ALL indicators per bar (no early exit)
+
+   // ================================================================
+   // SLOPE CALCULATION CONFIGURATION
+   // ================================================================
+
+   // Lookback period for slope calculation (1-5 bars)
+   // 1 = Compare current bar to previous bar (responsive, noisy)
+   // 2 = Compare current bar to 2 bars ago (smoother)
+   // 3 = Compare current bar to 3 bars ago (very smooth)
+   int    SlopeLookbackBars;
+
+   // Minimum slope threshold (flat zone definition)
+   bool   UseSlopeThreshold;        // Enable minimum slope filtering
+   double SlopeThresholdPips;       // Min movement to consider as slope (pips; 0=adaptive)
+   bool   SlopeThresholdAdaptive;   // Auto-adjust by TF and pair
+
+   // Slope measurement method
+   ESlopeMeasure SlopeMeasureMode;  // Pips or Percentage
 };
 
 // Global Configuration Instance
@@ -901,6 +928,16 @@ input string         Inp_Ind_Atr_Info          = "Non-directional: validates vol
 input int            Inp_Ind_Atr_Period        = 14;                  // [ATR] Period
 input double         Inp_Ind_Atr_VoteMinPips   = 5.0;                 // [ATR] Voting min pips
 input double         Inp_Ind_Atr_VoteMaxPips   = 50.0;                // [ATR] Voting max pips
+
+input group "╔════════════════════════════════════════════════════════╗"
+input group "║  📐 Slope Calculation Settings                         ║"
+input group "╚════════════════════════════════════════════════════════╝"
+input int            Inp_SlopeLookbackBars       = 1;                      // [Slope] Bars lookback (1=single bar, 2-3=smoother)
+input bool           Inp_UseSlopeThreshold       = true;                   // [Slope] Enable minimum threshold
+input double         Inp_SlopeThresholdPips      = 0.0;                    // [Slope] Min movement (pips; 0=adaptive)
+input bool           Inp_SlopeThresholdAdaptive  = true;                   // [Slope] Auto-adjust by TF/pair
+input ESlopeMeasure  Inp_SlopeMeasureMode        = SLOPE_MEASURE_PIPS;     // [Slope] Measure: pips or %
+input string         Inp_SlopeInfo               = "Adaptive: M5=0.5p, H1=1.5p, H4=2.5p (scaled by pair)"; // [Slope] Info
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: Candle Body Overextension               ║"
@@ -1448,6 +1485,17 @@ void InitializeConfig()
    Settings.RRM_MaxConsecutiveLosses     = Inp_RRM_MaxConsecutiveLosses;
    Settings.RRM_MaxTradesPerDay          = Inp_RRM_MaxTradesPerDay;
    Settings.RRM_MaxDailyDrawdownPct      = Inp_RRM_MaxDailyDrawdownPct;
+
+   // Slope calculation settings
+   Settings.SlopeLookbackBars      = Inp_SlopeLookbackBars;
+   Settings.UseSlopeThreshold      = Inp_UseSlopeThreshold;
+   Settings.SlopeThresholdPips     = Inp_SlopeThresholdPips;
+   Settings.SlopeThresholdAdaptive = Inp_SlopeThresholdAdaptive;
+   Settings.SlopeMeasureMode       = Inp_SlopeMeasureMode;
+
+   // Validate lookback range
+   if(Settings.SlopeLookbackBars < 1) Settings.SlopeLookbackBars = 1;
+   if(Settings.SlopeLookbackBars > 5) Settings.SlopeLookbackBars = 5;
 }
 
 //+------------------------------------------------------------------+
