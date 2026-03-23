@@ -311,6 +311,58 @@ string SEA_UI_BiasEmaLabel(const ST_Settings &cfg)
                                                cfg.BiasSlowID+1, slow_period);
 }
 
+// Returns a compact comma-separated list of active indicators with key parameters.
+// Indicators are listed in alphabetical order (maintained by the ordering of checks below).
+// Returns "None" if no indicators are enabled.
+string SEA_UI_GetActiveIndicatorsCompact(const ST_Settings &cfg)
+{
+   string list = "";
+   // ADX
+   if(cfg.Ind_Adx_Enabled)
+      list += StringFormat("ADX(%d), ", cfg.P_Adx);
+   // ATR
+   if(cfg.Ind_Atr_Enabled)
+      list += StringFormat("ATR(%d), ", cfg.P_Atr);
+   // BB
+   if(cfg.Ind_Bb_Enabled)
+      list += StringFormat("BB(%d,%.1f), ", cfg.P_Bb, cfg.P_BbDev);
+   // CandleBody
+   if(cfg.Ind_CandleBody_Enabled)
+      list += StringFormat("CBody(%d), ", cfg.CandleBody_AvgPeriod);
+   // CCI
+   if(cfg.Ind_Cci_Enabled)
+      list += StringFormat("CCI(%d), ", cfg.P_Cci);
+   // EmaSig
+   if(cfg.Ind_EmaSig_Enabled)
+      list += StringFormat("EmaSig(%d), ", cfg.P_Ema1);
+   // MACD
+   if(cfg.Ind_Macd_Enabled)
+      list += StringFormat("MACD(%d,%d,%d), ", cfg.P_MacdFast, cfg.P_MacdSlow, cfg.P_MacdSig);
+   // MFI
+   if(cfg.Ind_Mfi_Enabled)
+      list += StringFormat("MFI(%d), ", cfg.P_Mfi);
+   // P123
+   if(cfg.Ind_P123_Enabled)
+      list += "P123, ";
+   // PSAR
+   if(cfg.Ind_Psar_Enabled)
+      list += StringFormat("PSAR(%.2f,%.2f), ", cfg.P_PsarStep, cfg.P_PsarMax);
+   // Ross
+   if(cfg.Ind_Ross_Enabled)
+      list += "Ross, ";
+   // RSI
+   if(cfg.Ind_Rsi_Enabled)
+      list += StringFormat("RSI(%d), ", cfg.P_Rsi);
+   // Stoch
+   if(cfg.Ind_Sto_Enabled)
+      list += StringFormat("Stoch(%d,%d,%d), ", cfg.P_StoK, cfg.P_StoD, cfg.P_StoSlow);
+
+   if(list == "")
+      return "None";
+   // Strip trailing ", "
+   return StringSubstr(list, 0, StringLen(list) - 2);
+}
+
 string SEA_UI_BuildActiveVotesList(const ST_Settings &cfg)
 {
    string output = "";
@@ -616,6 +668,10 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
    txt += risk_line     + "\n";
    txt += pipeline_line + "\n";
    txt += sig_line      + "\n";
+
+   // Active indicators display
+   string indicators = SEA_UI_GetActiveIndicatorsCompact(Settings);
+   txt += StringFormat("Indicators: %s\n", indicators);
 
    // 260308_PR: Phase & Layer section (only shown when phase+layer filtering is active)
    if(filter_active)
