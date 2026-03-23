@@ -107,19 +107,19 @@ string GetPresetContractWording(EStrategyPreset preset)
 int GetActiveIndicatorCount(const ST_Settings &cfg)
 {
    int count = 0;
-   if(cfg.Ind_EmaSig_Enabled) count++;
    if(cfg.Ind_Adx_Enabled)    count++;
-   if(cfg.Ind_Macd_Enabled)   count++;
-   if(cfg.Ind_Rsi_Enabled)    count++;
-   if(cfg.Ind_Cci_Enabled)    count++;
-   if(cfg.Ind_Mfi_Enabled)    count++;
-   if(cfg.Ind_Sto_Enabled)    count++;
-   if(cfg.Ind_Bb_Enabled)     count++;
-   if(cfg.Ind_Psar_Enabled)   count++;
    if(cfg.Ind_Atr_Enabled)    count++;
-   if(cfg.Ind_P123_Enabled)   count++;
-   if(cfg.Ind_Ross_Enabled)   count++;
+   if(cfg.Ind_Bb_Enabled)     count++;
    if(cfg.Ind_CandleBody_Enabled) count++;
+   if(cfg.Ind_Cci_Enabled)    count++;
+   if(cfg.Ind_EmaSig_Enabled) count++;
+   if(cfg.Ind_Macd_Enabled)   count++;
+   if(cfg.Ind_Mfi_Enabled)    count++;
+   if(cfg.Ind_P123_Enabled)   count++;
+   if(cfg.Ind_Psar_Enabled)   count++;
+   if(cfg.Ind_Ross_Enabled)   count++;
+   if(cfg.Ind_Rsi_Enabled)    count++;
+   if(cfg.Ind_Sto_Enabled)    count++;
    return count;
 }
 
@@ -176,19 +176,19 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("🗳️  VOTING:");
    Print("  Mode:           ", EnumToString(cfg.VoteMode));
    Print("  Active Votes:   ", GetActiveIndicatorCount(cfg), " indicators enabled");
+   Print("    ADX:     ", (cfg.Ind_Adx_Enabled ? "✓" : "✗"));
+   Print("    ATR:     ", (cfg.Ind_Atr_Enabled ? "✓" : "✗"));
+   Print("    BB:      ", (cfg.Ind_Bb_Enabled ? "✓" : "✗"));
+   Print("    CandleBody: ", (cfg.Ind_CandleBody_Enabled ? "✓" : "✗"));
+   Print("    CCI:     ", (cfg.Ind_Cci_Enabled ? "✓" : "✗"));
    Print("    EmaSig:  ", (cfg.Ind_EmaSig_Enabled ? "✓" : "✗"));
    Print("    MACD:    ", (cfg.Ind_Macd_Enabled ? "✓" : "✗"), (cfg.Ind_Macd_Enabled ? " (" + EnumToString(cfg.MacdVoteMode) + ")" : ""));
-   Print("    CCI:     ", (cfg.Ind_Cci_Enabled ? "✓" : "✗"));
-   Print("    PSAR:    ", (cfg.Ind_Psar_Enabled ? "✓" : "✗"));
-   Print("    ATR:     ", (cfg.Ind_Atr_Enabled ? "✓" : "✗"));
-   Print("    ADX:     ", (cfg.Ind_Adx_Enabled ? "✓" : "✗"));
-   Print("    RSI:     ", (cfg.Ind_Rsi_Enabled ? "✓" : "✗"));
    Print("    MFI:     ", (cfg.Ind_Mfi_Enabled ? "✓" : "✗"));
-   Print("    Stoch:   ", (cfg.Ind_Sto_Enabled ? "✓" : "✗"));
-   Print("    BB:      ", (cfg.Ind_Bb_Enabled ? "✓" : "✗"));
    Print("    P123:    ", (cfg.Ind_P123_Enabled ? "✓" : "✗"));
+   Print("    PSAR:    ", (cfg.Ind_Psar_Enabled ? "✓" : "✗"));
    Print("    Ross:    ", (cfg.Ind_Ross_Enabled ? "✓" : "✗"));
-   Print("    CandleBody: ", (cfg.Ind_CandleBody_Enabled ? "✓" : "✗"));
+   Print("    RSI:     ", (cfg.Ind_Rsi_Enabled ? "✓" : "✗"));
+   Print("    Stoch:   ", (cfg.Ind_Sto_Enabled ? "✓" : "✗"));
    Print("");
 
    Print("💰 RISK MANAGEMENT:");
@@ -347,24 +347,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.UseMACompatSizer  = true;
    
       // ================================================================
-      // EMA PERIODS
-      // ================================================================
-      cfg.P_Ema1 = Inp_MA_Period;  // Primary MA (user-controlled via input)
-      cfg.P_Ema2 = 13;
-      cfg.P_Ema3 = 34;
-      cfg.P_Ema4 = 89;
-   
-      // ================================================================
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
       // ================================================================
       cfg.Ind_Adx_Enabled          = false;
       cfg.Ind_Atr_Enabled          = false;
       cfg.Ind_Bb_Enabled           = false;
       cfg.Ind_CandleBody_Enabled   = false;
-      cfg.CandleBody_AvgPeriod     = 10;
-      cfg.CandleBody_MaxMult       = 3.0;
-      cfg.CandleBody_CheckBars     = 1;
-      cfg.Ind_CandleBody_Weight    = 1;
       cfg.Ind_Cci_Enabled          = false;
       cfg.Ind_EmaSig_Enabled       = false;
       cfg.Ind_Macd_Enabled         = false;
@@ -395,10 +383,22 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_BbDev = 2.0;
       cfg.BbMode  = BB_TREND_FOLLOW;
    
+      // Candle Body
+      cfg.CandleBody_AvgPeriod     = 10;
+      cfg.CandleBody_MaxMult       = 3.0;
+      cfg.CandleBody_CheckBars     = 1;
+      cfg.Ind_CandleBody_Weight    = 1;
+
       // CCI (Commodity Channel Index)
       cfg.P_Cci   = 14;
       cfg.CciMode = CCI_TREND_ZERO;
-   
+
+      // EMA (Periods)
+      cfg.P_Ema1 = Inp_MA_Period;  // Primary MA (user-controlled via input)
+      cfg.P_Ema2 = 13;
+      cfg.P_Ema3 = 34;
+      cfg.P_Ema4 = 89;
+
       // MACD (Moving Average Convergence Divergence)
       cfg.P_MacdFast            = 12;
       cfg.P_MacdSlow            = 26;
@@ -668,10 +668,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Atr_Enabled          = false;
       cfg.Ind_Bb_Enabled           = false;
       cfg.Ind_CandleBody_Enabled   = true;
-      cfg.CandleBody_AvgPeriod     = 15;
-      cfg.CandleBody_MaxMult       = 3.5;
-      cfg.CandleBody_CheckBars     = 2;
-      cfg.Ind_CandleBody_Weight    = 1;
       cfg.Ind_Cci_Enabled          = true;
       cfg.Ind_EmaSig_Enabled       = true;
       cfg.Ind_Macd_Enabled         = true;
@@ -700,6 +696,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Bollinger Bands
       cfg.P_Bb    = 20;
       cfg.P_BbDev = 2.0;
+
+      // Candle Body
+      cfg.CandleBody_AvgPeriod     = 15;
+      cfg.CandleBody_MaxMult       = 3.5;
+      cfg.CandleBody_CheckBars     = 2;
+      cfg.Ind_CandleBody_Weight    = 1;
+
+      // MACD
       cfg.MacdVoteMode          = MACD_ZERO_AND_CROSS;
       cfg.MacdRequireSlope      = false;
       cfg.MacdRequireDivergence = false;
@@ -886,13 +890,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MABenchmarkStrict = false;
       cfg.UseMACompatSizer  = false;
    
-      // ================================================================
-      // EMA PERIODS
-      // ================================================================
-      cfg.P_Ema1 = 5;
-      cfg.P_Ema2 = 13;
-      cfg.P_Ema3 = 34;
-      cfg.P_Ema4 = 89;
    
       // ================================================================
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
@@ -901,10 +898,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Atr_Enabled          = false;
       cfg.Ind_Bb_Enabled           = false;
       cfg.Ind_CandleBody_Enabled   = false;
-      cfg.CandleBody_AvgPeriod     = 10;
-      cfg.CandleBody_MaxMult       = 3.0;
-      cfg.CandleBody_CheckBars     = 1;
-      cfg.Ind_CandleBody_Weight    = 1;
       cfg.Ind_Cci_Enabled          = false;
       cfg.Ind_EmaSig_Enabled       = false;
       cfg.Ind_Macd_Enabled         = false;
@@ -934,11 +927,23 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Bb    = 20;
       cfg.P_BbDev = 2.0;
       cfg.BbMode  = BB_TREND_FOLLOW;
+
+      // Candle Body
+      cfg.CandleBody_AvgPeriod     = 10;
+      cfg.CandleBody_MaxMult       = 3.0;
+      cfg.CandleBody_CheckBars     = 1;
+      cfg.Ind_CandleBody_Weight    = 1;
    
       // CCI (Commodity Channel Index)
       cfg.P_Cci   = 14;
       cfg.CciMode = CCI_TREND_ZERO;
-   
+
+      // EMA (Periods)
+      cfg.P_Ema1 = 5;
+      cfg.P_Ema2 = 13;
+      cfg.P_Ema3 = 34;
+      cfg.P_Ema4 = 89;
+
       // MACD (Moving Average Convergence Divergence)
       cfg.P_MacdFast            = 12;
       cfg.P_MacdSlow            = 26;
