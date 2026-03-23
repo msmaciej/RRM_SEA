@@ -723,7 +723,7 @@ input group "║  🔍 DIAGNOSTICS                                        ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool           Inp_PrintEffectiveConfig      = true;           // Print effective config on init
 input bool           Inp_DebugFlow                 = true;           // Print OnInit/OnTick/OnDeinit flow
-input EDebugLevel    Inp_DebugLevel                = DEBUG_SUMMARY;  // Debug verbosity (SILENT/SUMMARY/INDICATORS/FULL)
+input EDebugLevel    Inp_DebugLevel                = DEBUG_SILENT;  // Debug verbosity (SILENT/SUMMARY/INDICATORS/FULL)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🔍 DIAGNOSTICS: STATISTICS                            ║";
@@ -1026,11 +1026,11 @@ input group "═══ ⚖️ Breakeven Configuration ═══";
 input string         Inp_RRM_Info1              = "RRM uses % of TP distance for BE — not absolute pips"; // [RRM Info]
 input string         Inp_RRM_Info2              = "Only active when ExitProfile = EXIT_PROFILE_RRM"; // [RRM Info]
 input string         Inp_RRM_Info3              = "Example: SL=10 pips, TP=30 pips (3:1 RR), BE@33% → triggers at +10 pips profit"; // [RRM Info]
-input EBeMode        Inp_BE_Mode                = BE_MODE_TP_PROGRESS_PCT;         // RRM BE mode: OFF / TP_PROGRESS_PCT / R_MULTIPLE
+input EBeMode        Inp_BE_Mode                = BE_MODE_TP_PROGRESS_PCT;  // RRM BE mode: OFF / TP_PROGRESS_PCT / R_MULTIPLE
 
 input group "--- RRM Breakeven (% Progress) ---";
-input double         Inp_RRM_BE_ProgressPct     = 10.0;                // BE at % to TP (33 = 33%; BE_MODE_TP_PROGRESS_PCT)
-input double         Inp_RRM_BE_RMultiple       = 1.0;                 // BE at R-multiple (BE_MODE_R_MULTIPLE)
+input double         Inp_RRM_BE_ProgressPct     = 10.0; // BE at % to TP (33 = 33%; BE_MODE_TP_PROGRESS_PCT)
+input double         Inp_RRM_BE_RMultiple       = 1.0;  // BE at R-multiple (BE_MODE_R_MULTIPLE)
 input string         Inp_RRM_BE_Buffer_Note     = "BE buffer auto-set by timeframe (M15=5, H1=10, H4=20 pips)"; // [Info]
 input string         Inp_RRM_BE_Example         = "Example: SL=10, TP=30 (3:1), BE@33% → triggers at +10 pips; SL locks at entry + TF-cushion"; // [Info]
 
