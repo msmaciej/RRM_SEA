@@ -349,19 +349,8 @@ void ValidateConfiguration()
       has_warnings = true;
    }
 
-   // Count enabled indicators
-   int enabled = 0;
-   if(Settings.Ind_EmaSig_Enabled) enabled++;
-   if(Settings.Ind_Macd_Enabled)   enabled++;
-   if(Settings.Ind_Psar_Enabled)   enabled++;
-   if(Settings.Ind_Cci_Enabled)    enabled++;
-   if(Settings.Ind_Rsi_Enabled)    enabled++;
-   if(Settings.Ind_Adx_Enabled)    enabled++;
-   if(Settings.Ind_Mfi_Enabled)    enabled++;
-   if(Settings.Ind_Sto_Enabled)    enabled++;
-   if(Settings.Ind_Bb_Enabled)     enabled++;
-   if(Settings.Ind_P123_Enabled)   enabled++;
-   if(Settings.Ind_Ross_Enabled)   enabled++;
+   // Count enabled indicators using central helper (all 13 indicators)
+   int enabled = GetEnabledIndicatorCount(Settings);
 
    if(enabled == 0) {
       Print("WARNING: NO indicators enabled!");
@@ -392,6 +381,9 @@ int OrchestrateInit()
 
    FlowLog("Step B: ApplyPreset() (preset overrides -> Settings)");
    ApplyPreset(InpPreset, Settings);
+
+   FlowLog("Step B1: InitializeIndicatorRegistry() (populate central indicator registry)");
+   InitializeIndicatorRegistry(Settings);
 
    // ═══════════════════════════════════════════════════════════════
    // 🔍 DIAGNOSTIC: Verify exit settings after preset application

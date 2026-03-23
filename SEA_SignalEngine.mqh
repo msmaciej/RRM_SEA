@@ -1380,6 +1380,7 @@ public:
       m_diag_last_bias   = 0;
       m_diag_last_votes  = 0;
       m_diag_last_reason = "";
+      m_diag_last_atr_pips = 0.0;
 
       // 260304_PR1: Initialize phase diagnostics
       m_diag_last_phase = PHASE_UNORDERED;
@@ -1501,19 +1502,7 @@ public:
    // Returns the number of currently enabled indicator votes.
    int CountEnabledIndicators() const
    {
-      int count = 0;
-      if(m_settings.Ind_EmaSig_Enabled) count++;
-      if(m_settings.Ind_Adx_Enabled)    count++;
-      if(m_settings.Ind_Macd_Enabled)   count++;
-      if(m_settings.Ind_Rsi_Enabled)    count++;
-      if(m_settings.Ind_Cci_Enabled)    count++;
-      if(m_settings.Ind_Mfi_Enabled)    count++;
-      if(m_settings.Ind_Sto_Enabled)    count++;
-      if(m_settings.Ind_Bb_Enabled)     count++;
-      if(m_settings.Ind_Psar_Enabled)   count++;
-      if(m_settings.Ind_P123_Enabled)   count++;
-      if(m_settings.Ind_Ross_Enabled)   count++;
-      return count;
+      return GetEnabledIndicatorCount(m_settings);
    }
 
    // Returns a formatted multi-line diagnostics string for cockpit/UI display.
@@ -1752,20 +1741,7 @@ public:
       PrintIndicatorStat("Ross Hook",  m_settings.Ind_Ross_Enabled,   m_stats.passed_ross,   m_stats.rejected_ross);
       PrintIndicatorStat("CandleBody", m_settings.Ind_CandleBody_Enabled, m_stats.passed_candle_body, m_stats.rejected_candle_body);
       Print("----------------------------------------------------------------");
-      int enabled_count = 0;
-      if(m_settings.Ind_EmaSig_Enabled) enabled_count++;
-      if(m_settings.Ind_Macd_Enabled)   enabled_count++;
-      if(m_settings.Ind_Psar_Enabled)   enabled_count++;
-      if(m_settings.Ind_Cci_Enabled)    enabled_count++;
-      if(m_settings.Ind_Rsi_Enabled)    enabled_count++;
-      if(m_settings.Ind_Adx_Enabled)    enabled_count++;
-      if(m_settings.Ind_Mfi_Enabled)    enabled_count++;
-      if(m_settings.Ind_Sto_Enabled)    enabled_count++;
-      if(m_settings.Ind_Bb_Enabled)     enabled_count++;
-      if(m_settings.Ind_P123_Enabled)   enabled_count++;
-      if(m_settings.Ind_Ross_Enabled)   enabled_count++;
-      if(m_settings.Ind_CandleBody_Enabled) enabled_count++;
-      PrintFormat("Indicators: %d enabled (ALL must pass)", enabled_count);
+      PrintFormat("Indicators: %d enabled (ALL must pass)", GetEnabledIndicatorCount(m_settings));
       Print("");
       Print("================================================================");
       Print("4. BOTTLENECK ANALYSIS (Ranked by impact)");
@@ -1897,7 +1873,7 @@ public:
    {
       int shift = m_settings.ma_v_shift;
       count = 0;
-      ArrayResize(out, 12);
+      ArrayResize(out, 14); // 13 possible indicators + 1 spare
 
       if(m_settings.Ind_EmaSig_Enabled && h_ema1 != INVALID_HANDLE)
       {
@@ -2049,6 +2025,33 @@ public:
          else if(s) { out[count].state = "SELL"; out[count].reason = "(hook+trend)"; }
          else       { out[count].state = "FLAT"; out[count].reason = "(no hook)"; }
          out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
+         count++;
+      }
+
+      // ATR (volatility regime – non-directional vote)
+      if(m_settings.Ind_Atr_Enabled && h_atr != INVALID_HANDLE)
+      {
+         double atr_pips = m_diag_last_atr_pips;
+         bool   pass     = true;
+         if(m_settings.ATR_VoteMinPips > 0.0 && atr_pips < m_settings.ATR_VoteMinPips) pass = false;
+         if(m_settings.ATR_VoteMaxPips > 0.0 && atr_pips > m_settings.ATR_VoteMaxPips) pass = false;
+         out[count].name    = "ATR";
+         out[count].enabled = true;
+         if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = StringFormat("(ATR=%.1fpips ok)", atr_pips); }
+         else     { out[count].state = "FLAT"; out[count].reason = StringFormat("(ATR=%.1fpips out-of-range)", atr_pips); }
+         out[count].vote_result = pass ? 1 : -1;
+         count++;
+      }
+
+      // CandleBody (overextension filter – non-directional vote)
+      if(m_settings.Ind_CandleBody_Enabled)
+      {
+         bool pass = CheckCandleBodyIndicator();
+         out[count].name    = "CBody";
+         out[count].enabled = true;
+         if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = "(body ok)"; }
+         else     { out[count].state = "FLAT"; out[count].reason = "(overextended)"; }
+         out[count].vote_result = pass ? 1 : -1;
          count++;
       }
 
@@ -2481,6 +2484,7 @@ public:
       m_diag_last_bias   = 0;
       m_diag_last_votes  = 0;
       m_diag_last_reason = "";
+      // Note: m_diag_last_atr_pips intentionally NOT reset here (set by CheckFilters, retained across bars)
 
       m_bars_evaluated++;
       m_stats.total_bars++;

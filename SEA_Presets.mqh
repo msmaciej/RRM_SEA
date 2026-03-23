@@ -102,25 +102,12 @@ string GetPresetContractWording(EStrategyPreset preset)
 }
 
 //+------------------------------------------------------------------+
-//| GetActiveIndicatorCount(): Count enabled voting indicators       |
+//| GetActiveIndicatorCount(): Wrapper → use GetEnabledIndicatorCount|
+//| Kept for backward compatibility; delegates to central function.  |
 //+------------------------------------------------------------------+
 int GetActiveIndicatorCount(const ST_Settings &cfg)
 {
-   int count = 0;
-   if(cfg.Ind_Adx_Enabled)    count++;
-   if(cfg.Ind_Atr_Enabled)    count++;
-   if(cfg.Ind_Bb_Enabled)     count++;
-   if(cfg.Ind_CandleBody_Enabled) count++;
-   if(cfg.Ind_Cci_Enabled)    count++;
-   if(cfg.Ind_EmaSig_Enabled) count++;
-   if(cfg.Ind_Macd_Enabled)   count++;
-   if(cfg.Ind_Mfi_Enabled)    count++;
-   if(cfg.Ind_P123_Enabled)   count++;
-   if(cfg.Ind_Psar_Enabled)   count++;
-   if(cfg.Ind_Ross_Enabled)   count++;
-   if(cfg.Ind_Rsi_Enabled)    count++;
-   if(cfg.Ind_Sto_Enabled)    count++;
-   return count;
+   return GetEnabledIndicatorCount(cfg);
 }
 
 //+------------------------------------------------------------------+
