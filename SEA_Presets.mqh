@@ -941,13 +941,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ADX (Average Directional Index)
       cfg.P_Adx = 14;
       cfg.T_Adx = 20.0;
-   
+
       // ATR (Average True Range) - Voting Indicator Only
       cfg.P_Atr            = 14;
       cfg.ATR_VoteMinPips  = 5.0;
       cfg.ATR_VoteMaxPips  = 50.0;
-   
+
       // Bollinger Bands
+      // - BbMode options:
+      //  - BB_TREND_FOLLOW (trade with breakouts)
+      //  - BB_MEAN_REVERT (trade bounces)
+      //  - BB_SQUEEZE_BREAKOUT (detect low volatility consolidation)
       cfg.P_Bb    = 20;
       cfg.P_BbDev = 2.0;
       cfg.BbMode  = BB_TREND_FOLLOW;
