@@ -57,7 +57,7 @@ TS = [Pre-Filters] × [Bias × Phase] × [Layer] × [Indicators]
       Hard gates       Direction         Timing    Confirmation
 ```
 
-1. **Pre-Filters** (Step 1): Block unsafe conditions (spread, ATR, time, news)
+1. **Pre-Filters** (Step 1): Block unsafe conditions (spread, time, news)
 2. **Diagnostics** (Step 2): Passive — populate `m_diag_last_phase` and `m_diag_last_entry_layer`
 3. **Bias** (Step 3): Determine LONG/SHORT/NONE using phase detection (3-layer voting when `BIAS_AUTO_PHASE`)
 4. **Phase-Layer Filter** (Step 4): Validate pullback depth vs phase structure (blocks L3 in EMERGING, all in UNORDERED)
@@ -77,22 +77,13 @@ TS = [Pre-Filters] × [Bias × Phase] × [Layer] × [Indicators]
 - **If fails:** Reject signal (reason: "SPREAD")
 - **Example:** If spread = 5 pips and max = 3 → NO TRADE
 
-#### 1.2 ATR Volatility Filter
-- **Check:** MinATR < Current ATR < MaxATR
-- **Why:** Too low = ranging market, too high = unpredictable moves
-- **If fails:** Reject signal (reason: "MIN_ATR" or "MAX_ATR")
-- **Example:** If ATR = 2 pips and min = 5 → NO TRADE
-- **Note:** ATR serves TWO roles:
-  1. **Pre-filter** (Step 1): Hard gate that blocks trades outside volatility range
-  2. **Voting Indicator** (Step 8): Non-directional vote that validates market conditions
-
-#### 1.3 Time/Session Filter (if enabled)
+#### 1.2 Time/Session Filter (if enabled)
 - **Check:** Current time within allowed trading sessions
 - **Why:** Some sessions have better price action
 - **If fails:** Reject signal (reason: "TIME")
 - **Configuration:** `UseTime`, `StartHr`, `EndHr`
 
-#### 1.4 News Filter (if enabled)
+#### 1.3 News Filter (if enabled)
 - **Check:** No high-impact news within X minutes
 - **Why:** News causes unpredictable volatility
 - **If fails:** Reject signal (logs news event details)
@@ -645,15 +636,15 @@ Indicators fall into two categories based on whether they need to know the trade
 - **Check:** Fractal breakout confirmed
 - **Why:** Structure-based entry
 
-**ATR (Volatility Range)** - `Use_ATR` / `Inp_Ind_ATR_Enabled`
-- **Check:** `ATR_MinPips` < Current ATR < `ATR_MaxPips`
+**ATR (Volatility Range)** - `Inp_Ind_ATR_Enabled`
+- **Check:** `ATR_VoteMinPips` < Current ATR < `ATR_VoteMaxPips`
 - **Why:** Ensures volatility is within tradable range
-- **Note:** Direction-independent (non-directional indicator)
+- **Note:** Direction-independent (non-directional voting indicator only — not a hard gate)
 - **Best for:** All strategies, prevents trading in dead zones or excessive volatility
 - **Parameters:**
   - `P_Atr = 14` (ATR period)
-  - `ATR_MinPips = 5.0` (minimum volatility threshold)
-  - `ATR_MaxPips = 50.0` (maximum volatility threshold)
+  - `ATR_VoteMinPips = 5.0` (minimum volatility threshold)
+  - `ATR_VoteMaxPips = 50.0` (maximum volatility threshold)
 
 #### 8.4 Count total votes
 
@@ -1503,25 +1494,23 @@ Details in implementation
 
 ### 12. ATR (Volatility Range)
 
-**Setting:** `Use_ATR` / `Inp_Ind_ATR_Enabled`
+**Setting:** `Inp_Ind_ATR_Enabled`
 
 **What it checks:**
 ```
-ATR_MinPips < Current ATR < ATR_MaxPips
+ATR_VoteMinPips < Current ATR < ATR_VoteMaxPips
 ```
 
-**Purpose:** Ensures volatility is within tradable range
+**Purpose:** Validates volatility is within acceptable trading range (voting indicator only — not a hard gate)
 
-**Note:** Direction-independent (non-directional indicator). ATR serves **two roles** in the pipeline:
-1. **Pre-filter (Step 1):** Hard gate via `Inp_MinATRPips`/`Inp_MaxATRPips` — blocks trades outside range
-2. **Voting Indicator (Step 8):** Non-directional vote that validates market conditions
+**Note:** Direction-independent (non-directional voting indicator). ATR participates in voting like other indicators (MACD, RSI, etc.) and does NOT block trades directly.
 
 **Best for:** All strategies; prevents trading in dead zones or excessive volatility
 
 **Parameters:**
 - `P_Atr = 14` (ATR period)
-- `ATR_MinPips = 5.0` (minimum volatility threshold)
-- `ATR_MaxPips = 50.0` (maximum volatility threshold)
+- `ATR_VoteMinPips = 5.0` (minimum volatility threshold)
+- `ATR_VoteMaxPips = 50.0` (maximum volatility threshold)
 
 ---
 

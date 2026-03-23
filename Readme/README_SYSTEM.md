@@ -112,10 +112,12 @@ The TS evaluation follows this exact order:
 ┌─────────────────────────────────────────────────────────────┐
 │ STEP 1: PRE-FILTERS (Hard Gates)                            │
 │   ✓ Spread < MaxSpreadPips                                  │
-│   ✓ MinATR < ATR < MaxATR  (ATR also votes at Step 8)      │
 │   ✓ Time within session window                              │
 │   ✓ No high-impact news events                              │
 │   → ANY fail → return 0 (unless Stats_FullEvaluation=true)  │
+│                                                             │
+│ NOTE: ATR is NOT a pre-filter.                              │
+│       It validates volatility via voting (Step 5)           │
 └─────────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -652,7 +654,7 @@ All evaluation happens on the CLOSED candle (shift=1) to prevent repainting.
 
 ```mermaid
 flowchart TD
-    S1["Step 1: PRE-FILTERS\nSpread · ATR · Time/Session · News"]
+    S1["Step 1: PRE-FILTERS\nSpread · Time/Session · News"]
     S2["Step 2: MARKET BIAS\nEMA Slopes & Position → LONG/SHORT/NEUTRAL\n+ BIAS_AUTO_PHASE: Returns 0 in UNORDERED"]
     S2A["Step 2A: PHASE DETECTION (if enabled)\nEMA3/EMA4 alignment + slope stability\n→ UNORDERED / EMERGING / TRENDING"]
     S3["Step 3: AUTOSTRAT ENTRY SIGNAL\nSingle Slope · Price Cross · EMA Pair Cross\n+ RRM Continuation Mode"]
@@ -781,7 +783,7 @@ SimpleEA implements a two-phase signal evaluation system that separates **Trade 
 **9-Step Pipeline**:
 ```
 Bar N closes (shift=1)
-  ├─ Step 1: Pre-filters (spread, ATR, time, news)
+  ├─ Step 1: Pre-filters (spread, time, news)
   ├─ Step 2: Market bias (EMA structure)
   ├─ Step 3: AutoStrat signal generation
   ├─ Step 4: Signal validation
@@ -812,8 +814,7 @@ Bar N+1 opens (shift=0) - if g_ts_active == true
        └─ CheckFilters() at shift=0
             ├─ Spread check (live spread vs MaxSpread)
             ├─ Time filter (current hour vs session window)
-            ├─ News filter (imminent high-impact events)
-            └─ ATR filter (if MinATR/MaxATR enabled)
+            └─ News filter (imminent high-impact events)
        └─ Result: TE=1 (execute) or TE=0 (reject)
 ```
 
@@ -1540,7 +1541,7 @@ Key settings (`PRESET_RRM` defaults):
 | `PullbackLookback` | 15 / 10 | Bars to search for the pullback touch |
 | `RequireRecoveryMomentum` | `false` | Optional: require bullish/bearish close |
 
-## PRESET_RRM: Strict No-ATR Trend Pullback
+## PRESET_RRM: Strict Trend Pullback Strategy
 
 `PRESET_RRM` enforces the following SL/TP contract. These are **not user-configurable** under this preset:
 
@@ -1570,7 +1571,7 @@ Key settings (`PRESET_RRM` defaults):
 meet the broker's minimum stop level (`SYMBOL_TRADE_STOPS_LEVEL`). If validation fails, the trade is
 aborted and an error is logged (prevents Error 10041 / TRADE_RETCODE_LOCKED).
 
-Use `PRESET_RRM` for swing-anchored stops that respect structure regardless of ATR size, avoiding broker minimum-stop rejections on small ATR readings. Note that ATR still participates as a voting indicator (Step 8) even when ATR-based SL is disabled.
+Use `PRESET_RRM` for swing-anchored stops that respect structure regardless of ATR size, avoiding broker minimum-stop rejections on small ATR readings.
 
 ## PSAR/Swing Cushion System (Dual Cushion)
 
@@ -1679,7 +1680,7 @@ This project uses a strict, file-owned, multi-agent workflow coordinated by **SE
 
 Zone 2 groups the inputs that are **always editable** under any preset:
 
-- `--- ✅ Operator Gates: Spread & ATR Limits ---` — `MaxSpreadPips`, `MinATRPips`, `MaxATRPips`
+- `--- ✅ Operator Gates: Spread Limits ---` — `MaxSpreadPips`
 - `--- ✅ Operator Gates: Session Time Filter ---` — `UseTime`, `StartHour`, `EndHour`
 - `--- ✅ Operator Gates: News Filter ---` — `UseNews`, `NewsFile`, `NewsPre`, `NewsPost`
 - `--- ✅ Operator Gates: HTF Trend Filter ---` — `UseHTF`, `HtfPeriod`, `HtfEmaPeriod`
