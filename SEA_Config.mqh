@@ -397,6 +397,11 @@ struct ST_Settings
    int Ind_Ross_Weight;
    int Ind_Atr_Weight;
    int Ind_CandleBody_Weight;
+   int Ind_CI_Weight;
+
+   // Choppiness Index
+   int    CI_Period;
+   double CI_RangingThreshold;
 
    // Indicators (Periods)
    int    P_Ema1;
@@ -455,6 +460,7 @@ struct ST_Settings
    bool Ind_Ross_Enabled;
    bool Ind_Atr_Enabled;
    bool Ind_CandleBody_Enabled;
+   bool Ind_CI_Enabled;
 
    // MFI mode
    EMfiMode MfiMode;                // MFI vote mode (ZONE_FILTER or TREND_50)
@@ -955,6 +961,15 @@ input double         Inp_Ind_CandleBody_MaxMult   = 3.0;            // [CandleBo
 input int            Inp_Ind_CandleBody_CheckBars = 1;              // [CandleBody] Bars to check
 
 input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📊 Indicator: Choppiness Index (CI)                   ║";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool   Inp_Ind_CI_Enabled        = false;           // [CI] Enable ranging market filter
+input int    Inp_Ind_CI_Weight         = 1;               // [CI] Vote weight
+input string Inp_Ind_CI_Info           = "Blocks trades when market is ranging/choppy (CI > threshold)"; // [CI] Description
+input int    Inp_CI_Period             = 14;              // [CI] Calculation period
+input double Inp_CI_RangingThreshold   = 61.8;            // [CI] Ranging threshold (>= this value = reject)
+
+input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 Indicator: Pattern 1-2-3                           ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool           Inp_Ind_P123_Enabled       = false;               // [P123] Enable 1-2-3 pattern vote
@@ -1303,6 +1318,7 @@ void InitializeConfig()
    Settings.Ind_Ross_Enabled     = Inp_Ind_Ross_Enabled;
    Settings.Ind_Atr_Enabled      = Inp_Ind_Atr_Enabled;
    Settings.Ind_CandleBody_Enabled = Inp_Ind_CandleBody_Enabled;
+   Settings.Ind_CI_Enabled        = Inp_Ind_CI_Enabled;
 
    // Per-indicator vote weights (1 = standard; used in VOTE_MODE_THRESHOLD for weighted sum)
    // In VOTE_MODE_ALL (recommended), weights are ignored — all enabled indicators must simply agree.
@@ -1319,6 +1335,11 @@ void InitializeConfig()
    Settings.Ind_Ross_Weight      = Inp_Ind_Ross_Weight;
    Settings.Ind_Atr_Weight       = Inp_Ind_Atr_Weight;
    Settings.Ind_CandleBody_Weight = Inp_Ind_CandleBody_Weight;
+   Settings.Ind_CI_Weight         = Inp_Ind_CI_Weight;
+
+   // Choppiness Index
+   Settings.CI_Period             = MathMax(5, Inp_CI_Period);
+   Settings.CI_RangingThreshold   = MathMax(0.0, Inp_CI_RangingThreshold);
 
    // Exits
    Settings.SL_FixedPips         = Inp_SL_FixedPips;
@@ -1528,8 +1549,8 @@ struct SIndicatorMeta {
 };
 
 // Global registry – initialized once in OnInit() via InitializeIndicatorRegistry().
-// Size 13: ADX, ATR, BB, CandleBody, CCI, EmaSig, MACD, MFI, P123, PSAR, Ross, RSI, Stochastic
-SIndicatorMeta g_indicator_registry[13];
+// Size 14: ADX, ATR, BB, CandleBody, ChoppinessIndex, CCI, EmaSig, MACD, MFI, P123, PSAR, Ross, RSI, Stochastic
+SIndicatorMeta g_indicator_registry[14];
 
 //+------------------------------------------------------------------+
 //| InitializeIndicatorRegistry(): Populate registry from settings  |
@@ -1562,6 +1583,12 @@ void InitializeIndicatorRegistry(const ST_Settings &cfg)
    g_indicator_registry[i].short_name = "CBody";
    g_indicator_registry[i].is_enabled = cfg.Ind_CandleBody_Enabled;
    g_indicator_registry[i].weight     = cfg.Ind_CandleBody_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "ChoppinessIndex";
+   g_indicator_registry[i].short_name = "CI";
+   g_indicator_registry[i].is_enabled = cfg.Ind_CI_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_CI_Weight;
    i++;
 
    g_indicator_registry[i].name       = "CCI";
@@ -1630,6 +1657,7 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
    if(cfg.Ind_Atr_Enabled)        count++;
    if(cfg.Ind_Bb_Enabled)         count++;
    if(cfg.Ind_CandleBody_Enabled) count++;
+   if(cfg.Ind_CI_Enabled)         count++;
    if(cfg.Ind_Cci_Enabled)        count++;
    if(cfg.Ind_EmaSig_Enabled)     count++;
    if(cfg.Ind_Macd_Enabled)       count++;

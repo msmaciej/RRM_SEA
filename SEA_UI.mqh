@@ -329,6 +329,9 @@ string SEA_UI_GetActiveIndicatorsCompact(const ST_Settings &cfg)
    // CandleBody
    if(cfg.Ind_CandleBody_Enabled)
       list += StringFormat("CBody(%d), ", cfg.CandleBody_AvgPeriod);
+   // CI
+   if(cfg.Ind_CI_Enabled)
+      list += StringFormat("CI(%d), ", cfg.CI_Period);
    // CCI
    if(cfg.Ind_Cci_Enabled)
       list += StringFormat("CCI(%d), ", cfg.P_Cci);
@@ -380,6 +383,7 @@ string SEA_UI_BuildActiveVotesList(const ST_Settings &cfg)
    if(cfg.Ind_Ross_Enabled)       { output += StringFormat("  + Ross     (Ross hook)       w=%d\n", cfg.Ind_Ross_Weight);      count++; }
    if(cfg.Ind_Atr_Enabled)        { output += StringFormat("  + ATR      (volatility rng)  w=%d\n", cfg.Ind_Atr_Weight);       count++; }
    if(cfg.Ind_CandleBody_Enabled) { output += StringFormat("  + CBody    (body filter)     w=%d\n", cfg.Ind_CandleBody_Weight); count++; }
+   if(cfg.Ind_CI_Enabled)         { output += StringFormat("  + CI       (ranging filter)  w=%d\n", cfg.Ind_CI_Weight);         count++; }
    string mode_str = (cfg.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
    return StringFormat("Step 6 · Votes (%d enabled, mode=%s):\n%s", count, mode_str, output);
 }
@@ -400,6 +404,7 @@ string SEA_UI_BuildDisabledVotesList(const ST_Settings &cfg)
    if(!cfg.Ind_Ross_Enabled)       list += "Ross, ";
    if(!cfg.Ind_Atr_Enabled)        list += "ATR, ";
    if(!cfg.Ind_CandleBody_Enabled) list += "CBody, ";
+   if(!cfg.Ind_CI_Enabled)         list += "CI, ";
    if(StringLen(list) > 2)
       list = StringSubstr(list, 0, StringLen(list) - 2);
    if(list == "") return "Disabled Votes: (none)\n";

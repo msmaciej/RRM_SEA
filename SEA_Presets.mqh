@@ -167,6 +167,7 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("    ATR:     ", (cfg.Ind_Atr_Enabled ? "✓" : "✗"));
    Print("    BB:      ", (cfg.Ind_Bb_Enabled ? "✓" : "✗"));
    Print("    CandleBody: ", (cfg.Ind_CandleBody_Enabled ? "✓" : "✗"));
+   Print("    CI:      ", (cfg.Ind_CI_Enabled ? "✓" : "✗"));
    Print("    CCI:     ", (cfg.Ind_Cci_Enabled ? "✓" : "✗"));
    Print("    EmaSig:  ", (cfg.Ind_EmaSig_Enabled ? "✓" : "✗"));
    Print("    MACD:    ", (cfg.Ind_Macd_Enabled ? "✓" : "✗"), (cfg.Ind_Macd_Enabled ? " (" + EnumToString(cfg.MacdVoteMode) + ")" : ""));
@@ -353,6 +354,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Atr_Enabled          = false;
       cfg.Ind_Bb_Enabled           = false;
       cfg.Ind_CandleBody_Enabled   = false;
+      cfg.Ind_CI_Enabled           = false;
       cfg.Ind_Cci_Enabled          = false;
       cfg.Ind_EmaSig_Enabled       = false;
       cfg.Ind_Macd_Enabled         = false;
@@ -388,6 +390,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_MaxMult       = 3.0;
       cfg.CandleBody_CheckBars     = 1;
       cfg.Ind_CandleBody_Weight    = 1;
+
+      // Choppiness Index
+      cfg.CI_Period           = 14;
+      cfg.CI_RangingThreshold = 61.8;
+      cfg.Ind_CI_Weight       = 1;
 
       // CCI (Commodity Channel Index)
       cfg.P_Cci   = 14;
@@ -677,6 +684,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Atr_Enabled          = false;
       cfg.Ind_Bb_Enabled           = false;
       cfg.Ind_CandleBody_Enabled   = true;
+      cfg.Ind_CI_Enabled           = true;  // Enable ranging market protection
       cfg.Ind_Cci_Enabled          = true;
       cfg.Ind_EmaSig_Enabled       = true;
       cfg.Ind_Macd_Enabled         = true;
@@ -711,6 +719,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_MaxMult       = 3.5;
       cfg.CandleBody_CheckBars     = 2;
       cfg.Ind_CandleBody_Weight    = 1;
+
+      // Choppiness Index (ranging market protection)
+      cfg.CI_Period           = 14;
+      cfg.CI_RangingThreshold = 61.8;   // Standard threshold
+      cfg.Ind_CI_Weight       = 1;
 
       // MACD
       cfg.MacdVoteMode          = MACD_ZERO_AND_CROSS;
@@ -922,6 +935,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Atr_Enabled          = false;
       cfg.Ind_Bb_Enabled           = false;
       cfg.Ind_CandleBody_Enabled   = true;
+      cfg.Ind_CI_Enabled           = false;
       cfg.Ind_Cci_Enabled          = true;
       cfg.Ind_EmaSig_Enabled       = true;
       cfg.Ind_Macd_Enabled         = true;
@@ -961,6 +975,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_MaxMult       = 3.0; // ORG: 3.0
       cfg.CandleBody_CheckBars     = 3;   // ORG: 1
       cfg.Ind_CandleBody_Weight    = 1;   // ORG: 1
+
+      // Choppiness Index
+      cfg.CI_Period           = 14;
+      cfg.CI_RangingThreshold = 61.8;
+      cfg.Ind_CI_Weight       = 1;
    
       // CCI (Commodity Channel Index)
       cfg.P_Cci   = 13;                   // ORG: 14
@@ -1333,6 +1352,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Atr_Enabled          = false;
       cfg.Ind_Bb_Enabled           = false;
       cfg.Ind_CandleBody_Enabled   = true;
+      cfg.Ind_CI_Enabled           = false;
       cfg.Ind_Cci_Enabled          = true;
       cfg.Ind_EmaSig_Enabled       = true;
       cfg.Ind_Macd_Enabled         = true;
@@ -1368,6 +1388,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_MaxMult       = 3.0; // 3.0
       cfg.CandleBody_CheckBars     = 3;   // 3
       cfg.Ind_CandleBody_Weight    = 1;   // 1
+
+      // Choppiness Index
+      cfg.CI_Period           = 14;
+      cfg.CI_RangingThreshold = 61.8;
+      cfg.Ind_CI_Weight       = 1;
    
       // CCI (Commodity Channel Index)
       cfg.P_Cci   = 13;

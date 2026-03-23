@@ -57,6 +57,7 @@ struct SRejectionStats {
    int passed_time,         rejected_time;
    int passed_news,         rejected_news;
    int passed_candle_body,  rejected_candle_body;
+   int passed_ci,           rejected_ci;
 
    // Bias & Layer (passed + rejected)
    int passed_bias,         rejected_bias;
@@ -1577,7 +1578,7 @@ public:
 
       // Build sortable array of reason/count pairs
       struct SReason { string name; int count; double pct; };
-      SReason reasons[21];
+      SReason reasons[22];
       int idx = 0;
 
       reasons[idx].name = "Phase=UNORDERED";
@@ -1635,6 +1636,10 @@ public:
       reasons[idx].name = "CandleBody";
       reasons[idx].count = m_stats.rejected_candle_body;
       reasons[idx++].pct = m_stats.rejected_candle_body * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "ChoppinessIdx";
+      reasons[idx].count = m_stats.rejected_ci;
+      reasons[idx++].pct = m_stats.rejected_ci * 100.0 / m_stats.total_bars;
 
       reasons[idx].name = "MFI";
       reasons[idx].count = m_stats.rejected_mfi;
@@ -1740,6 +1745,7 @@ public:
       PrintIndicatorStat("P123",       m_settings.Ind_P123_Enabled,   m_stats.passed_p123,   m_stats.rejected_p123);
       PrintIndicatorStat("Ross Hook",  m_settings.Ind_Ross_Enabled,   m_stats.passed_ross,   m_stats.rejected_ross);
       PrintIndicatorStat("CandleBody", m_settings.Ind_CandleBody_Enabled, m_stats.passed_candle_body, m_stats.rejected_candle_body);
+      PrintIndicatorStat("ChoppinessIdx", m_settings.Ind_CI_Enabled, m_stats.passed_ci, m_stats.rejected_ci);
       Print("----------------------------------------------------------------");
       PrintFormat("Indicators: %d enabled (ALL must pass)", GetEnabledIndicatorCount(m_settings));
       Print("");
@@ -1794,7 +1800,7 @@ public:
    {
       if(m_stats.total_bars == 0) return;
       struct SBottleneck { string name; int rejected; double pct; };
-      SBottleneck bn[23]; // Gates(3) + Bias/Phase/Layer(4) + Indicators(12 + CandleBody) = up to 20 entries
+      SBottleneck bn[24]; // Gates(3) + Bias/Phase/Layer(4) + Indicators(13 + CandleBody + CI) = up to 21 entries
       int idx = 0;
       if(m_stats.rejected_spread > 0)         { bn[idx].name="Spread";         bn[idx].rejected=m_stats.rejected_spread;        bn[idx++].pct=m_stats.rejected_spread*100.0/m_stats.total_bars; }
       if(m_stats.rejected_time > 0)           { bn[idx].name="Time Window";    bn[idx].rejected=m_stats.rejected_time;          bn[idx++].pct=m_stats.rejected_time*100.0/m_stats.total_bars; }
@@ -1815,6 +1821,7 @@ public:
       if(m_settings.Ind_P123_Enabled   && m_stats.rejected_p123   > 0) { bn[idx].name="P123";      bn[idx].rejected=m_stats.rejected_p123;   bn[idx++].pct=m_stats.rejected_p123*100.0/m_stats.total_bars; }
       if(m_settings.Ind_Ross_Enabled   && m_stats.rejected_ross   > 0) { bn[idx].name="Ross Hook"; bn[idx].rejected=m_stats.rejected_ross;   bn[idx++].pct=m_stats.rejected_ross*100.0/m_stats.total_bars; }
       if(m_settings.Ind_CandleBody_Enabled && m_stats.rejected_candle_body > 0) { bn[idx].name="CandleBody"; bn[idx].rejected=m_stats.rejected_candle_body; bn[idx++].pct=m_stats.rejected_candle_body*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_CI_Enabled     && m_stats.rejected_ci     > 0) { bn[idx].name="ChoppinessIdx"; bn[idx].rejected=m_stats.rejected_ci; bn[idx++].pct=m_stats.rejected_ci*100.0/m_stats.total_bars; }
       if(idx == 0) { Print("  (no rejections recorded)"); return; }
       for(int i = 0; i < idx-1; i++)
          for(int j = i+1; j < idx; j++)
@@ -1857,6 +1864,7 @@ public:
       if(m_settings.Ind_P123_Enabled   && m_stats.rejected_p123   > worst_cnt) { worst_cnt=m_stats.rejected_p123;   worst_ind="P123"; }
       if(m_settings.Ind_Ross_Enabled   && m_stats.rejected_ross   > worst_cnt) { worst_cnt=m_stats.rejected_ross;   worst_ind="Ross Hook"; }
       if(m_settings.Ind_CandleBody_Enabled && m_stats.rejected_candle_body > worst_cnt) { worst_cnt=m_stats.rejected_candle_body; worst_ind="CandleBody"; }
+      if(m_settings.Ind_CI_Enabled         && m_stats.rejected_ci         > worst_cnt) { worst_cnt=m_stats.rejected_ci;         worst_ind="ChoppinessIdx"; }
       if(worst_ind != "" && m_stats.total_bars > 0 && worst_cnt * 100.0 / m_stats.total_bars > 30) {
          any_rec = true;
          PrintFormat("Priority 3: %s is the top indicator bottleneck (%.1f%% blocked).", worst_ind, worst_cnt * 100.0 / m_stats.total_bars);
@@ -1873,7 +1881,7 @@ public:
    {
       int shift = m_settings.ma_v_shift;
       count = 0;
-      ArrayResize(out, 14); // 13 possible indicators + 1 spare
+      ArrayResize(out, 15); // 14 possible indicators + 1 spare
 
       if(m_settings.Ind_EmaSig_Enabled && h_ema1 != INVALID_HANDLE)
       {
@@ -2051,6 +2059,25 @@ public:
          out[count].enabled = true;
          if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = "(body ok)"; }
          else     { out[count].state = "FLAT"; out[count].reason = "(overextended)"; }
+         out[count].vote_result = pass ? 1 : -1;
+         count++;
+      }
+
+      // Choppiness Index (ranging market filter – non-directional vote)
+      if(m_settings.Ind_CI_Enabled)
+      {
+         double ci_val = CalculateCI(shift);
+         bool pass = (ci_val < m_settings.CI_RangingThreshold);
+         out[count].name    = "CI";
+         out[count].enabled = true;
+         if(pass) { 
+            out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); 
+            out[count].reason = StringFormat("(CI=%.1f trending)", ci_val); 
+         }
+         else { 
+            out[count].state = "FLAT"; 
+            out[count].reason = StringFormat("(CI=%.1f ranging)", ci_val); 
+         }
          out[count].vote_result = pass ? 1 : -1;
          count++;
       }
@@ -2335,6 +2362,59 @@ public:
          }
       }
       return true;
+   }
+
+   //+------------------------------------------------------------------+
+   //| CalculateCI(): Calculate Choppiness Index for given shift       |
+   //| Formula: 100 * log10(Σ TR) / log10(Highest High - Lowest Low)   |
+   //| Returns: CI value (0-100), where >61.8 indicates ranging market  |
+   //+------------------------------------------------------------------+
+   double CalculateCI(int shift)
+   {
+      int period = m_settings.CI_Period;
+
+      // Sum of True Ranges over period
+      double sum_tr = 0.0;
+      for(int i = shift; i < shift + period; i++)
+      {
+         double h = iHigh(m_symbol, PERIOD_CURRENT, i);
+         double l = iLow(m_symbol, PERIOD_CURRENT, i);
+         double c_prev = iClose(m_symbol, PERIOD_CURRENT, i + 1);
+
+         // True Range = max(H-L, |H-C_prev|, |L-C_prev|)
+         double tr = MathMax(h - l, MathMax(MathAbs(h - c_prev), MathAbs(l - c_prev)));
+         sum_tr += tr;
+      }
+
+      // Highest high and lowest low over period
+      int highest_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, period, shift);
+      int lowest_idx  = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, period, shift);
+      double highest  = iHigh(m_symbol, PERIOD_CURRENT, highest_idx);
+      double lowest   = iLow(m_symbol, PERIOD_CURRENT, lowest_idx);
+      double range    = highest - lowest;
+
+      // Avoid division by zero (flat market = max choppiness)
+      if(range < 0.00001) return 100.0;
+
+      // Calculate CI
+      double ci = 100.0 * MathLog10(sum_tr) / MathLog10(range);
+
+      return ci;
+   }
+
+   //+------------------------------------------------------------------+
+   //| Check_CI(): Choppiness Index vote (non-directional)             |
+   //| Returns: true if market is NOT ranging (CI < threshold)         |
+   //+------------------------------------------------------------------+
+   bool Check_CI(int bias, int shift)
+   {
+      double ci = CalculateCI(shift);
+
+      // Reject if CI indicates ranging market
+      if(ci >= m_settings.CI_RangingThreshold)
+         return false;  // Ranging/choppy market
+
+      return true;  // Trending market (acceptable)
    }
 
    // --- 9. GLOBAL FILTERS ---
@@ -3112,6 +3192,14 @@ public:
          else          { all_pass = false; m_stats.rejected_candle_body++; }
       }
 
+      // Choppiness Index (non-directional ranging market filter)
+      if(m_settings.Ind_CI_Enabled)
+      {
+         bool ci_ok = Check_CI(bias, v_shift);
+         if(ci_ok) { vote_weight += m_settings.Ind_CI_Weight; m_stats.passed_ci++; }
+         else      { all_pass = false; m_stats.rejected_ci++; }
+      }
+
       // Store integer-rounded weight for display (backward-compatible diagnostics)
       m_diag_last_votes = (int)MathRound(vote_weight);
 
@@ -3255,6 +3343,17 @@ public:
                            m_settings.Ind_CandleBody_Weight);
             } else
                Print("[IND] CandleBody: DISABLED → SKIP");
+
+            // Choppiness Index
+            if(m_settings.Ind_CI_Enabled) {
+               double ci_val = CalculateCI(v_shift);
+               bool ci_ok = Check_CI(bias, v_shift);
+               string ci_status = (ci_val >= m_settings.CI_RangingThreshold ? "RANGING" : "TRENDING");
+               PrintFormat("[IND] ChoppinessIndex: CI=%.1f threshold=%.1f status=%s → %s (w=%d)",
+                           ci_val, m_settings.CI_RangingThreshold, ci_status,
+                           ci_ok ? "PASS" : "FAIL", m_settings.Ind_CI_Weight);
+            } else
+               Print("[IND] ChoppinessIndex: DISABLED → SKIP");
          }
       }
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: END =====

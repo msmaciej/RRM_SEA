@@ -686,6 +686,19 @@ Indicators fall into two categories based on whether they need to know the trade
   - `ATR_VoteMinPips = 5.0` (minimum volatility threshold)
   - `ATR_VoteMaxPips = 50.0` (maximum volatility threshold)
 
+**Choppiness Index (CI)** - `Ind_CI_Enabled`
+- **Check:** CI < threshold (e.g., < 61.8)
+- **Why:** Detects ranging/choppy markets
+- **Note:** Direction-independent (quality filter like CandleBody)
+- **CI Values:**
+  - 0-38.2: Strong directional trend (very low choppiness)
+  - 38.2-61.8: Normal trending / transition zone
+  - 61.8-100: Ranging / choppy market (high choppiness)
+- **Best for:** All strategies, prevents trading in consolidation zones
+- **Parameters:**
+  - `CI_Period = 14` (calculation period)
+  - `CI_RangingThreshold = 61.8` (reject if CI >= this value)
+
 #### 8.4 Count total votes
 
 **Example:**
