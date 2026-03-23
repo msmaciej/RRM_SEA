@@ -17,7 +17,7 @@
   - [Step 5: OnInit() — Handle Creation (SEA_SignalEngine.mqh)](#step-5-oninit--handle-creation-sea_signalenginemqh)
   - [Step 6: OnDeinit() — Handle Release (SEA_SignalEngine.mqh)](#step-6-ondeinit--handle-release-sea_signalenginemqh)
   - [Step 7: Vote Function (SEA_SignalEngine.mqh)](#step-7-vote-function-sea_signalenginemqh)
-  - [Step 8: CountEnabledIndicators (SEA_SignalEngine.mqh)](#step-8-countenabledindicators-sea_signalenginemqh)
+  - [Step 8: Indicator Registry (SEA_Config.mqh)](#step-8-indicator-registry-sea_configmqh)
   - [Step 9: Voting Loop Integration (SEA_SignalEngine.mqh)](#step-9-voting-loop-integration-sea_signalenginemqh)
   - [Step 10: Cockpit Display (SEA_SignalEngine.mqh — optional)](#step-10-cockpit-display-sea_signalenginemqh--optional)
 - [Testing Guide](#testing-guide)
@@ -261,11 +261,37 @@ bool Check_Ichi(int bias, int shift)
 
 ---
 
-### Step 8: CountEnabledIndicators (SEA_SignalEngine.mqh)
+### Step 8: Indicator Registry (SEA_Config.mqh)
 
-If the codebase uses a helper that counts enabled indicators for display or threshold logic, add the Ichimoku flag there. Search for references to `Use_Ross` (the last built-in indicator) and add Ichimoku alongside it.
+The codebase maintains a **centralized indicator registry** (`g_indicator_registry[13]`) initialized in `OnInit()` via `InitializeIndicatorRegistry()`. This registry drives all indicator count displays and list outputs across the UI.
 
-As of the current architecture, no separate count function exists — the CAST_VOTE macro in the main loop handles counting automatically. Skip this step unless a future refactor adds an explicit counter.
+**Add your new indicator to `InitializeIndicatorRegistry()` in `SEA_Config.mqh`:**
+
+```mql5
+// Inside InitializeIndicatorRegistry() — add one entry for your new indicator:
+g_indicator_registry[i].name       = "Ichimoku";      // Full name for status panel
+g_indicator_registry[i].short_name = "Ichi";          // Short code for cockpit compact list
+g_indicator_registry[i].is_enabled = cfg.Use_Ichi;
+g_indicator_registry[i].weight     = cfg.W_Ichi;
+i++;
+// IMPORTANT: also update the array declaration size from 13 to 14 (or higher)
+```
+
+**Also update the array declaration size:**
+
+```mql5
+// In SEA_Config.mqh — change the registry array size:
+SIndicatorMeta g_indicator_registry[14];  // was 13; +1 for Ichimoku
+```
+
+**Also update `GetEnabledIndicatorCount()` in `SEA_Config.mqh` to include the new flag:**
+
+```mql5
+// Add inside GetEnabledIndicatorCount():
+if(cfg.Use_Ichi) count++;
+```
+
+These three additions ensure your indicator appears in all counts, lists, status panels, and the cockpit display automatically — with **no changes required** to `SEA_Presets.mqh`, `SEA_UI.mqh`, or `SimpleEA_v1-03.mq5`.
 
 ---
 
@@ -315,7 +341,7 @@ if(m_settings.Use_Ichi && h_ichi != INVALID_HANDLE)
 }
 ```
 
-Also expand the `ArrayResize(out, 12)` call at the top of `CaptureVoteSnapshots()` to accommodate the additional entry (e.g., change `12` to `13`).
+Also expand the `ArrayResize(out, 14)` call at the top of `CaptureVoteSnapshots()` to accommodate the new Ichimoku entry (e.g., change `14` to `15`).
 
 ---
 
@@ -541,12 +567,15 @@ Add a comment block above the vote function describing:
 | `SEA_Config.mqh` | ZONE 3A input declarations | Add `input` variables for enable flag, weight, and parameters |
 | `SEA_Config.mqh` | `ST_Settings` struct | Add `bool Use_XYZ`, `double W_XYZ`, `int P_XYZ*` fields |
 | `SEA_Config.mqh` | `InitializeConfig()` | Map new inputs to struct fields |
+| `SEA_Config.mqh` | `InitializeIndicatorRegistry()` | Add entry to the centralized indicator registry |
+| `SEA_Config.mqh` | `GetEnabledIndicatorCount()` | Add `cfg.Use_XYZ` flag to the count |
+| `SEA_Config.mqh` | `g_indicator_registry[N]` | Increment array declaration size by 1 |
 | `SEA_SignalEngine.mqh` | `// --- 1. INDICATOR HANDLES ---` | Declare `int h_xyz` private member |
 | `SEA_SignalEngine.mqh` | `CSignalEngine()` constructor | Initialise `h_xyz = INVALID_HANDLE` |
 | `SEA_SignalEngine.mqh` | `Init()` | Create handle with `iXXX(...)` guarded by `Use_XYZ` |
 | `SEA_SignalEngine.mqh` | `Release()` | Release handle: `IndicatorRelease(h_xyz)` |
 | `SEA_SignalEngine.mqh` | `// --- 5. SIGNAL CHECKS ---` | Add `Check_XYZ(int bias, int shift)` vote function |
 | `SEA_SignalEngine.mqh` | `GetDirection()` voting block | Add `CAST_VOTE(Use_XYZ, W_XYZ, Check_XYZ(...))` |
-| `SEA_SignalEngine.mqh` | `CaptureVoteSnapshots()` (optional) | Add snapshot block for Cockpit display |
+| `SEA_SignalEngine.mqh` | `CaptureVoteSnapshots()` (optional) | Add snapshot block for Cockpit display; expand `ArrayResize` by 1 |
 
 No changes required in `SimpleEA_v1-03.mq5`, `SEA_Presets.mqh`, `SEA_TradeExecutor.mqh`, `SEA_UI.mqh`, or `SEA_Reporting.mqh`.

@@ -1504,5 +1504,188 @@ void InitializeConfig()
 }
 
 //+------------------------------------------------------------------+
+//| INDICATOR REGISTRY SYSTEM                                        |
+//|                                                                  |
+//| Single source of truth for all 13 voting indicators.            |
+//| Eliminates manual enumeration scattered across 15+ locations.   |
+//|                                                                  |
+//| Usage:                                                           |
+//|   1. Call InitializeIndicatorRegistry(Settings) in OnInit()     |
+//|      after ApplyPreset() so enabled flags are final.            |
+//|   2. Use GetEnabledIndicatorCount(cfg) anywhere a count is      |
+//|      needed – it accepts a cfg reference so no global state     |
+//|      is required for validation / preset functions.             |
+//|   3. Use GetEnabledIndicatorList(cfg, compact) for display.     |
+//|   4. Use PrintIndicatorRegistry() for debug inspection.         |
+//+------------------------------------------------------------------+
+
+// Metadata for a single voting indicator (used by registry array).
+struct SIndicatorMeta {
+   string name;         // Full display name (e.g. "CandleBody")
+   string short_name;   // Compact code for UI (e.g. "CBody")
+   bool   is_enabled;   // Cached enabled state (set at init time)
+   int    weight;       // Vote weight (1 for most indicators)
+};
+
+// Global registry – initialized once in OnInit() via InitializeIndicatorRegistry().
+// Size 13: ADX, ATR, BB, CandleBody, CCI, EmaSig, MACD, MFI, P123, PSAR, Ross, RSI, Stochastic
+SIndicatorMeta g_indicator_registry[13];
+
+//+------------------------------------------------------------------+
+//| InitializeIndicatorRegistry(): Populate registry from settings  |
+//| Call once in OnInit() after InitializeConfig() + ApplyPreset()  |
+//+------------------------------------------------------------------+
+void InitializeIndicatorRegistry(const ST_Settings &cfg)
+{
+   int i = 0;
+
+   // Alphabetical order – matches ordering used elsewhere in the codebase
+   g_indicator_registry[i].name       = "ADX";
+   g_indicator_registry[i].short_name = "ADX";
+   g_indicator_registry[i].is_enabled = cfg.Ind_Adx_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_Adx_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "ATR";
+   g_indicator_registry[i].short_name = "ATR";
+   g_indicator_registry[i].is_enabled = cfg.Ind_Atr_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_Atr_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "BB";
+   g_indicator_registry[i].short_name = "BB";
+   g_indicator_registry[i].is_enabled = cfg.Ind_Bb_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_Bb_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "CandleBody";
+   g_indicator_registry[i].short_name = "CBody";
+   g_indicator_registry[i].is_enabled = cfg.Ind_CandleBody_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_CandleBody_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "CCI";
+   g_indicator_registry[i].short_name = "CCI";
+   g_indicator_registry[i].is_enabled = cfg.Ind_Cci_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_Cci_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "EmaSig";
+   g_indicator_registry[i].short_name = "EmaSig";
+   g_indicator_registry[i].is_enabled = cfg.Ind_EmaSig_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_EmaSig_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "MACD";
+   g_indicator_registry[i].short_name = "MACD";
+   g_indicator_registry[i].is_enabled = cfg.Ind_Macd_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_Macd_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "MFI";
+   g_indicator_registry[i].short_name = "MFI";
+   g_indicator_registry[i].is_enabled = cfg.Ind_Mfi_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_Mfi_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "P123";
+   g_indicator_registry[i].short_name = "P123";
+   g_indicator_registry[i].is_enabled = cfg.Ind_P123_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_P123_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "PSAR";
+   g_indicator_registry[i].short_name = "PSAR";
+   g_indicator_registry[i].is_enabled = cfg.Ind_Psar_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_Psar_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "Ross";
+   g_indicator_registry[i].short_name = "Ross";
+   g_indicator_registry[i].is_enabled = cfg.Ind_Ross_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_Ross_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "RSI";
+   g_indicator_registry[i].short_name = "RSI";
+   g_indicator_registry[i].is_enabled = cfg.Ind_Rsi_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_Rsi_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "Stochastic";
+   g_indicator_registry[i].short_name = "Stoch";
+   g_indicator_registry[i].is_enabled = cfg.Ind_Sto_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_Sto_Weight;
+   // i++; // last entry – omitted intentionally
+}
+
+//+------------------------------------------------------------------+
+//| GetEnabledIndicatorCount(): Count enabled voting indicators      |
+//| Accepts cfg directly – works before InitializeIndicatorRegistry  |
+//+------------------------------------------------------------------+
+int GetEnabledIndicatorCount(const ST_Settings &cfg)
+{
+   int count = 0;
+   if(cfg.Ind_Adx_Enabled)        count++;
+   if(cfg.Ind_Atr_Enabled)        count++;
+   if(cfg.Ind_Bb_Enabled)         count++;
+   if(cfg.Ind_CandleBody_Enabled) count++;
+   if(cfg.Ind_Cci_Enabled)        count++;
+   if(cfg.Ind_EmaSig_Enabled)     count++;
+   if(cfg.Ind_Macd_Enabled)       count++;
+   if(cfg.Ind_Mfi_Enabled)        count++;
+   if(cfg.Ind_P123_Enabled)       count++;
+   if(cfg.Ind_Psar_Enabled)       count++;
+   if(cfg.Ind_Ross_Enabled)       count++;
+   if(cfg.Ind_Rsi_Enabled)        count++;
+   if(cfg.Ind_Sto_Enabled)        count++;
+   return count;
+}
+
+//+------------------------------------------------------------------+
+//| GetEnabledIndicatorList(): Comma-separated list of active names  |
+//| Uses cfg directly (same as GetEnabledIndicatorCount).            |
+//| compact=true  → short name (e.g. "CBody")                        |
+//| compact=false → full name  (e.g. "CandleBody")                   |
+//+------------------------------------------------------------------+
+string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
+{
+   // Table of all 13 indicators: {full name, short name, enabled flag}
+   string names[]  = {"ADX",      "ATR",  "BB",  "CandleBody", "CCI",  "EmaSig", "MACD",
+                       "MFI",      "P123", "PSAR","Ross",       "RSI",  "Stochastic"};
+   string shorts[] = {"ADX",      "ATR",  "BB",  "CBody",      "CCI",  "EmaSig", "MACD",
+                       "MFI",      "P123", "PSAR","Ross",       "RSI",  "Stoch"};
+   bool enabled[]  = {cfg.Ind_Adx_Enabled, cfg.Ind_Atr_Enabled, cfg.Ind_Bb_Enabled,
+                       cfg.Ind_CandleBody_Enabled, cfg.Ind_Cci_Enabled, cfg.Ind_EmaSig_Enabled,
+                       cfg.Ind_Macd_Enabled, cfg.Ind_Mfi_Enabled, cfg.Ind_P123_Enabled,
+                       cfg.Ind_Psar_Enabled, cfg.Ind_Ross_Enabled, cfg.Ind_Rsi_Enabled,
+                       cfg.Ind_Sto_Enabled};
+   string list = "";
+   for(int i = 0; i < 13; i++)
+   {
+      if(!enabled[i]) continue;
+      if(list != "") list += compact ? ", " : "\n  + ";
+      list += compact ? shorts[i] : names[i];
+   }
+   return (list == "" ? "None" : list);
+}
+
+//+------------------------------------------------------------------+
+//| PrintIndicatorRegistry(): Debug dump of full registry state      |
+//+------------------------------------------------------------------+
+void PrintIndicatorRegistry()
+{
+   Print("--- Indicator Registry (13 entries) ---");
+   for(int i = 0; i < 13; i++)
+   {
+      PrintFormat("  [%2d] %-12s  enabled=%-5s  weight=%d",
+                  i,
+                  g_indicator_registry[i].name,
+                  (g_indicator_registry[i].is_enabled ? "true" : "false"),
+                  g_indicator_registry[i].weight);
+   }
+}
+
+//+------------------------------------------------------------------+
 //| END OF FILE                                                      |
 //+------------------------------------------------------------------+
