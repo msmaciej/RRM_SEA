@@ -2070,14 +2070,8 @@ public:
          bool pass = (ci_val < m_settings.CI_RangingThreshold);
          out[count].name    = "CI";
          out[count].enabled = true;
-         if(pass) { 
-            out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); 
-            out[count].reason = StringFormat("(CI=%.1f trending)", ci_val); 
-         }
-         else { 
-            out[count].state = "FLAT"; 
-            out[count].reason = StringFormat("(CI=%.1f ranging)", ci_val); 
-         }
+         if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = StringFormat("(CI=%.1f trending)", ci_val); }
+         else     { out[count].state = "FLAT"; out[count].reason = StringFormat("(CI=%.1f ranging)", ci_val); }
          out[count].vote_result = pass ? 1 : -1;
          count++;
       }
@@ -2394,6 +2388,7 @@ public:
       double range    = highest - lowest;
 
       // Avoid division by zero (flat market = max choppiness)
+      // 0.00001 is sub-pip level: any real price range will exceed this
       if(range < 0.00001) return 100.0;
 
       // Calculate CI
