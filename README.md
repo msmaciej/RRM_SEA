@@ -62,6 +62,31 @@ Each preset configures ATR voting thresholds appropriate for its strategy:
 - **PRESET_RRM:** ATR voting disabled (uses EMA/MACD/CCI/PSAR votes only)
 - **PRESET_CUSTOM:** User controls via `Inp_Ind_ATR_Enabled` and threshold inputs
 
+### Slope Calculation Enhancement
+
+The bias calculation uses **adaptive slope thresholds** to filter noise and false signals:
+
+**Features:**
+- **Configurable lookback:** Compare current bar to 1-5 bars ago (default=1, swing=2)
+- **Adaptive thresholds:** Auto-scale by timeframe and pair volatility
+- **Pips or percentage:** Measure slope in absolute pips or % change
+
+**Adaptive Threshold Examples:**
+| Pair | Timeframe | Threshold | Notes |
+|------|-----------|-----------|-------|
+| EURUSD | M5 | 0.25 pips | Fast response, tight filtering |
+| EURUSD | M15 | 0.40 pips | Moderate filtering |
+| EURUSD | H1 | 0.75 pips | Stronger filtering |
+| EURUSD | H4 | 1.25 pips | Strong filtering |
+| GBPUSD | M5 | 0.25 pips | Same as EURUSD (major pair) |
+| EURJPY | M5 | 0.40 pips | Cross pair (wider spreads) |
+| XAUUSD | H1 | 3.0 pips | Gold (higher pip values) |
+
+**Preset Configurations:**
+- **PRESET_MA:** No threshold (MT5 benchmark compatibility)
+- **PRESET_RRM:** Adaptive thresholds, 2-bar lookback for H1+ (smoother)
+- **PRESET_CUSTOM:** User-controlled via inputs
+
 ## Python EA vs SimpleEA MQL5 Comparison
 
 ### Phase 2 Implementation Status (PR #12)

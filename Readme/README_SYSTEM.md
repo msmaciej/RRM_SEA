@@ -74,9 +74,25 @@ The Bias determines the primary trend direction. Three modes are available:
 ```
 Uses: Fast EMA vs Slow EMA comparison (NOT just price position)
 Logic:
-├─ EMA_Fast > EMA_Slow AND both slopes up    → Bias = 1 (LONG)
-├─ EMA_Fast < EMA_Slow AND both slopes down  → Bias = -1 (SHORT)
-└─ EMAs crossing or slopes conflicting       → Bias = 0 (no trade)
+├─ Compare Fast EMA vs Slow EMA (configurable via BiasFastID/BiasSlowID)
+├─ Check BOTH position AND slopes (with noise filtering)
+├─ Slope Calculation:
+│  ├─ Lookback: Compare current bar to N bars ago (default=1, configurable 1-5)
+│  ├─ Threshold: Minimum movement to count as slope (adaptive or fixed)
+│  └─ Adaptive: Auto-scales by timeframe (M5=0.5p, H4=2.5p) and pair
+│
+├─ EMA_Fast > EMA_Slow AND both slopes up (> threshold)   → Bias = 1 (LONG)
+├─ EMA_Fast < EMA_Slow AND both slopes down (> threshold) → Bias = -1 (SHORT)
+└─ Slopes below threshold OR conflicting                  → Bias = 0 (no trade)
+
+Threshold Examples (EURUSD):
+  M5:  0.25 pips  (fast, tight filtering)
+  M15: 0.40 pips  (moderate)
+  H1:  0.75 pips  (stronger filtering)
+  H4:  1.25 pips  (very strong filtering)
+
+Use case: Standard trend-following with noise reduction
+Function: GetBias_2EMA() with GetAdaptiveThresholdPips()
 ```
 
 **Option 2: `BIAS_AUTO_PHASE` (Market Phase method)**
