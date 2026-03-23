@@ -263,7 +263,7 @@ bool Check_Ichi(int bias, int shift)
 
 ### Step 8: Indicator Registry (SEA_Config.mqh)
 
-The codebase maintains a **centralized indicator registry** (`g_indicator_registry[13]`) initialized in `OnInit()` via `InitializeIndicatorRegistry()`. This registry drives all indicator count displays and list outputs across the UI.
+The codebase maintains a **centralized indicator registry** (`g_indicator_registry[14]`) initialized in `OnInit()` via `InitializeIndicatorRegistry()`. This registry drives all indicator count displays and list outputs across the UI.
 
 **Add your new indicator to `InitializeIndicatorRegistry()` in `SEA_Config.mqh`:**
 
@@ -274,14 +274,14 @@ g_indicator_registry[i].short_name = "Ichi";          // Short code for cockpit 
 g_indicator_registry[i].is_enabled = cfg.Use_Ichi;
 g_indicator_registry[i].weight     = cfg.W_Ichi;
 i++;
-// IMPORTANT: also update the array declaration size from 13 to 14 (or higher)
+// IMPORTANT: also update the array declaration size from 14 to 15 (or higher)
 ```
 
 **Also update the array declaration size:**
 
 ```mql5
 // In SEA_Config.mqh — change the registry array size:
-SIndicatorMeta g_indicator_registry[14];  // was 13; +1 for Ichimoku
+SIndicatorMeta g_indicator_registry[15];  // was 14; +1 for Ichimoku
 ```
 
 **Also update `GetEnabledIndicatorCount()` in `SEA_Config.mqh` to include the new flag:**
@@ -341,7 +341,7 @@ if(m_settings.Use_Ichi && h_ichi != INVALID_HANDLE)
 }
 ```
 
-Also expand the `ArrayResize(out, 14)` call at the top of `CaptureVoteSnapshots()` to accommodate the new Ichimoku entry (e.g., change `14` to `15`).
+Also expand the `ArrayResize(out, 15)` call at the top of `CaptureVoteSnapshots()` to accommodate the new Ichimoku entry (e.g., change `15` to `16`).
 
 ---
 
