@@ -692,7 +692,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Adx = 14;
       cfg.T_Adx = 20.0;
    
-      // ATR (Average True Range) - Voting Indicator Only - Voting Indicator Only
+      // ATR (Average True Range) - Voting Indicator Only
       cfg.P_Atr             = 14;
       cfg.ATR_VoteMinPips   = 5.0;
       cfg.ATR_VoteMaxPips   = 50.0;
