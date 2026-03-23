@@ -4,7 +4,6 @@
 //|                                                                  |
 //| Purpose: Signal Logic, Indicator Management, Voting & Filters    |
 //| Status:  PRODUCTION READY (Revision M: Full Dual Shift Support)  |
-//| TASK1 OPT: Added MaxATR upper volatility bound                   |
 //+------------------------------------------------------------------+
 // SAVE AS UTF-16 LE WITH BOM
 //+------------------------------------------------------------------+
@@ -12,7 +11,7 @@
 // Core signal processing engine implementing 9-step pipeline for trade signals
 //
 // SIGNAL PROCESSING PIPELINE:
-// Step 1: PRE-FILTERS - Check spread, ATR, time filters
+// Step 1: PRE-FILTERS - Check spread, time filters
 // Step 2: MARKET BIAS - Determine trend direction (LONG/SHORT/NEUTRAL)
 // Step 3: AUTOSTRAT SIGNAL - Generate entry timing signal
 // Step 4: SIGNAL VALIDATION - Verify signal matches bias
@@ -55,8 +54,6 @@ struct SRejectionStats {
 
    // Non-directional gates (passed + rejected)
    int passed_spread,       rejected_spread;
-   int passed_atr_min,      rejected_atr_min;
-   int passed_atr_max,      rejected_atr_max;
    int passed_time,         rejected_time;
    int passed_news,         rejected_news;
    int passed_candle_body,  rejected_candle_body;
@@ -109,7 +106,6 @@ private:
    int         m_diag_last_votes;
    string      m_diag_last_reason;
    double      m_diag_last_atr_pips;
-   bool        m_diag_last_atr_ok;
 
    // 260304_PR1: Phase Detection Diagnostics
    EMarketPhase m_diag_last_phase;       // Last detected market phase
@@ -133,7 +129,7 @@ private:
    // --- 2d. REJECTION STATISTICS ---
    int         m_bars_evaluated;     // Total bars evaluated by EvaluateTS()
    int         m_signals_generated;  // Signals returned (TS != 0)
-   int         m_reject_filter;      // Rejections at pre-filter step (spread, ATR, time, news)
+   int         m_reject_filter;      // Rejections at pre-filter step (spread, time, news)
    int         m_reject_bias;        // Rejections at bias step (no trend, signal mismatch)
    int         m_reject_gate;        // Rejections at gate step (HTF, RRM, structure gates)
    int         m_reject_votes;       // Rejections at vote step
@@ -1527,14 +1523,6 @@ public:
       reasons[idx].count = m_stats.rejected_spread;
       reasons[idx++].pct = m_stats.rejected_spread * 100.0 / m_stats.total_bars;
 
-      reasons[idx].name = "ATR Min";
-      reasons[idx].count = m_stats.rejected_atr_min;
-      reasons[idx++].pct = m_stats.rejected_atr_min * 100.0 / m_stats.total_bars;
-
-      reasons[idx].name = "ATR Max";
-      reasons[idx].count = m_stats.rejected_atr_max;
-      reasons[idx++].pct = m_stats.rejected_atr_max * 100.0 / m_stats.total_bars;
-
       reasons[idx].name = "Time filter";
       reasons[idx].count = m_stats.rejected_time;
       reasons[idx++].pct = m_stats.rejected_time * 100.0 / m_stats.total_bars;
@@ -1617,12 +1605,10 @@ public:
       PrintFormat("%-18s %-8s %7s %7s %7s   %s", "Gate", "Status", "Passed", "Failed", "Pass%", "Impact");
       Print("----------------------------------------------------------------");
       PrintGateStat("Spread",      m_settings.UseSpread,                          m_stats.passed_spread,        m_stats.rejected_spread,       StringFormat("%.1f pips max", m_settings.MaxSpread));
-      PrintGateStat("ATR Min",    (m_settings.UseATRGate && m_settings.MinATR > 0), m_stats.passed_atr_min,       m_stats.rejected_atr_min,      StringFormat(">=%.1f pips",   m_settings.MinATR));
-      PrintGateStat("ATR Max",    (m_settings.UseATRGate && m_settings.MaxATR > 0), m_stats.passed_atr_max,       m_stats.rejected_atr_max,      StringFormat("<=%.1f pips",   m_settings.MaxATR));
       PrintGateStat("Time Window", m_settings.UseTime,     m_stats.passed_time,          m_stats.rejected_time,         m_settings.UseTime ? StringFormat("%02d:00-%02d:00", m_settings.StartHr, m_settings.EndHr) : "(disabled)");
       PrintGateStat("News Filter", m_settings.UseNews,     m_stats.passed_news,          m_stats.rejected_news,         m_settings.UseNews  ? StringFormat("%dm pre/post", m_settings.NewsPre) : "(disabled)");
       Print("----------------------------------------------------------------");
-      PrintFormat("Gates blocked: %d bars", m_stats.rejected_spread + m_stats.rejected_atr_min + m_stats.rejected_atr_max + m_stats.rejected_time + m_stats.rejected_news);
+      PrintFormat("Gates blocked: %d bars", m_stats.rejected_spread + m_stats.rejected_time + m_stats.rejected_news);
       Print("");
       Print("================================================================");
       Print("2. BIAS & LAYER DETECTION");
@@ -1720,11 +1706,9 @@ public:
    {
       if(m_stats.total_bars == 0) return;
       struct SBottleneck { string name; int rejected; double pct; };
-      SBottleneck bn[25]; // Gates(5) + Bias/Phase/Layer(4) + Indicators(12 + CandleBody) = up to 22 entries
+      SBottleneck bn[23]; // Gates(3) + Bias/Phase/Layer(4) + Indicators(12 + CandleBody) = up to 20 entries
       int idx = 0;
       if(m_stats.rejected_spread > 0)         { bn[idx].name="Spread";         bn[idx].rejected=m_stats.rejected_spread;        bn[idx++].pct=m_stats.rejected_spread*100.0/m_stats.total_bars; }
-      if(m_stats.rejected_atr_min > 0)        { bn[idx].name="ATR Min";        bn[idx].rejected=m_stats.rejected_atr_min;       bn[idx++].pct=m_stats.rejected_atr_min*100.0/m_stats.total_bars; }
-      if(m_stats.rejected_atr_max > 0)        { bn[idx].name="ATR Max";        bn[idx].rejected=m_stats.rejected_atr_max;       bn[idx++].pct=m_stats.rejected_atr_max*100.0/m_stats.total_bars; }
       if(m_stats.rejected_time > 0)           { bn[idx].name="Time Window";    bn[idx].rejected=m_stats.rejected_time;          bn[idx++].pct=m_stats.rejected_time*100.0/m_stats.total_bars; }
       if(m_stats.rejected_news > 0)           { bn[idx].name="News Filter";    bn[idx].rejected=m_stats.rejected_news;          bn[idx++].pct=m_stats.rejected_news*100.0/m_stats.total_bars; }
       if(m_stats.rejected_bias > 0)           { bn[idx].name="Bias=0";         bn[idx].rejected=m_stats.rejected_bias;          bn[idx++].pct=m_stats.rejected_bias*100.0/m_stats.total_bars; }
@@ -1974,8 +1958,8 @@ public:
       h_ema3 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema3, h_shift, method, PRICE_CLOSE);
       h_ema4 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema4, h_shift, method, PRICE_CLOSE);
 
-      // Create ATR for pre-filter gate and ATR voting indicator
-      bool need_atr = (m_settings.MinATR > 0.0 || m_settings.MaxATR > 0.0 || m_settings.Ind_Atr_Enabled);
+      // Create ATR for ATR voting indicator
+      bool need_atr = m_settings.Ind_Atr_Enabled;
       h_atr  = (need_atr ? iATR(m_symbol, PERIOD_CURRENT, m_settings.P_Atr) : INVALID_HANDLE);
 
       // Optional indicators: create only when used by votes/filters/trailing (reduces Strategy Tester clutter)
@@ -2009,7 +1993,7 @@ public:
          return false;
       }
       if(need_atr && h_atr == INVALID_HANDLE) {
-         Print("CRITICAL ERROR: Failed to create ATR indicator (used for pre-filter and/or voting).");
+         Print("CRITICAL ERROR: Failed to create ATR indicator (used for voting).");
          return false;
       }
       return true;
@@ -2129,7 +2113,7 @@ public:
    // Define a "pip" as:
    //  - 10 points for 5-digit/3-digit symbols (e.g. EURUSD 1.12345, USDJPY 145.123)
    //  - 1 point for 4-digit/2-digit and most CFDs/metals
-   // This keeps user-facing inputs (MaxSpreadPips, MinATRPips) meaningful across instruments.
+   // This keeps user-facing inputs (MaxSpreadPips) meaningful across instruments.
    double PipSize() const
    {
       double point  = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
@@ -2298,24 +2282,8 @@ public:
       double spread_pips = SpreadPips();
       if(m_settings.UseSpread && m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread) { m_diag_last_reason="SPREAD"; return false; }
       
-      // D. Volatility regime (ATR in pips)
-      double atr_pips = AtrPips();
-      bool atr_ok = true;
-      if(m_settings.UseATRGate)
-      {
-         if(m_settings.MinATR > 0.0 && atr_pips < m_settings.MinATR) atr_ok = false;
-         if(m_settings.MaxATR > 0.0 && atr_pips > m_settings.MaxATR) atr_ok = false;
-      }
-
-      // Cache for diagnostics and (optional) ATR-as-vote
-      m_diag_last_atr_pips = atr_pips;
-      m_diag_last_atr_ok   = atr_ok;
-
-      if(m_settings.UseATRGate && !atr_ok)
-      {
-         m_diag_last_reason = (atr_pips < m_settings.MinATR ? "MIN_ATR" : "MAX_ATR");
-         return false;
-      }
+      // Cache ATR for diagnostics and voting section
+      m_diag_last_atr_pips = AtrPips();
 
       return true;
    }
@@ -2352,7 +2320,7 @@ public:
    // If any step fails, the function returns 0 (no trade).
    //
    // PROCESS FLOW:
-   // 1. PRE-FILTERS: Spread, ATR, time checks
+   // 1. PRE-FILTERS: Spread, time checks
    // 2. MARKET BIAS: Check EMA position and slopes
    //    - SINGLE_SLOPE: EMA rising/falling (when BiasFastID == BiasSlowID)
    //    - PAIR: Fast > Slow AND both rising (LONG) or Fast < Slow AND both falling (SHORT)
@@ -2507,52 +2475,8 @@ public:
          }
       }
 
-      // --- ATR (volatility regime) ---
-      double atr_pips = AtrPips();
-      m_diag_last_atr_pips = atr_pips;
-      m_diag_last_atr_ok   = true;
-      if(m_settings.UseATRGate) {
-         if(m_settings.MinATR > 0.0) {
-            bool atr_min_pass = (atr_pips >= m_settings.MinATR);
-            if(!atr_min_pass) m_diag_last_atr_ok = false;
-            if(atr_min_pass) m_stats.passed_atr_min++;
-            else m_stats.rejected_atr_min++;
-            if(m_settings.DebugFlow)
-               PrintFormat("[GATE] ATR Min: %.1f pips / min=%.1f → %s",
-                           atr_pips, m_settings.MinATR,
-                           atr_min_pass ? "PASS" : "FAIL");
-            if(!atr_min_pass) {
-               if(first_failure == "") first_failure = "MIN_ATR";
-               any_failure = true;
-               if(!m_settings.Stats_FullEvaluation) {
-                  m_diag_last_reason = "MIN_ATR"; m_reject_filter++; return 0;
-               }
-            }
-         }
-         else if(m_settings.DebugFlow)
-            Print("[GATE] ATR Min: DISABLED → SKIP");
-         if(m_settings.MaxATR > 0.0) {
-            bool atr_max_pass = (atr_pips <= m_settings.MaxATR);
-            if(!atr_max_pass) m_diag_last_atr_ok = false;
-            if(atr_max_pass) m_stats.passed_atr_max++;
-            else m_stats.rejected_atr_max++;
-            if(m_settings.DebugFlow)
-               PrintFormat("[GATE] ATR Max: %.1f pips / max=%.1f → %s",
-                           atr_pips, m_settings.MaxATR,
-                           atr_max_pass ? "PASS" : "FAIL");
-            if(!atr_max_pass) {
-               if(first_failure == "") first_failure = "MAX_ATR";
-               any_failure = true;
-               if(!m_settings.Stats_FullEvaluation) {
-                  m_diag_last_reason = "MAX_ATR"; m_reject_filter++; return 0;
-               }
-            }
-         }
-         else if(m_settings.DebugFlow)
-            Print("[GATE] ATR Max: DISABLED → SKIP");
-      }
-      else if(m_settings.DebugFlow)
-         Print("[GATE] ATR: DISABLED (UseATRGate=false) → SKIP");
+      // --- ATR: cache for voting section (set in CheckFilters, but also update here for EvaluateTS path) ---
+      // m_diag_last_atr_pips is already set in CheckFilters()
 
       // In full-eval mode, track filter rejection if any filter failed (waterfall would have exited above)
       if(any_failure && m_settings.Stats_FullEvaluation) m_reject_filter++;
@@ -3046,7 +2970,6 @@ public:
       #undef CAST_VOTE
 
       // Volatility regime vote (ATR as non-directional voting indicator)
-      // Uses dedicated ATR_VoteMinPips/ATR_VoteMaxPips thresholds (separate from the hard pre-filter gates)
       if(m_settings.Ind_Atr_Enabled)
       {
          double atr_vote_pips = m_diag_last_atr_pips;
@@ -3274,24 +3197,6 @@ public:
                         spread_pass ? "✅" : "❌", spread_pips, m_settings.MaxSpread);
          } else {
             Print("  ⏭️  Spread: disabled");
-         }
-         if(m_settings.UseATRGate) {
-            if(m_settings.MinATR > 0.0) {
-               bool atr_min_ok = (atr_pips >= m_settings.MinATR);
-               PrintFormat("  %s ATR Min: %.1f / %.1f pips",
-                           atr_min_ok ? "✅" : "❌", atr_pips, m_settings.MinATR);
-            } else {
-               Print("  ⏭️  ATR Min: disabled");
-            }
-            if(m_settings.MaxATR > 0.0) {
-               bool atr_max_ok = (atr_pips <= m_settings.MaxATR);
-               PrintFormat("  %s ATR Max: %.1f / %.1f pips",
-                           atr_max_ok ? "✅" : "❌", atr_pips, m_settings.MaxATR);
-            } else {
-               Print("  ⏭️  ATR Max: disabled");
-            }
-         } else {
-            Print("  ⏭️  ATR gates: disabled (UseATRGate=false)");
          }
          Print("  ⏭️  Time window: " + (m_settings.UseTime ? "active" : "disabled"));
          Print("  ⏭️  News filter: " + (m_settings.UseNews ? "active" : "disabled"));

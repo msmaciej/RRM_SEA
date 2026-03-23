@@ -245,8 +245,7 @@ void PrintEffectiveConfig()
 
    Print("Effective: CloseOnReverse=", (Settings.CloseOnReverse ? "true" : "false"),
          " Risk%=", DoubleToString(Settings.RiskPercent, 2),
-         " MaxSpreadPips=", DoubleToString(Settings.MaxSpread, 2),
-         " ATR[min,max]=[", DoubleToString(Settings.MinATR, 2), ",", DoubleToString(Settings.MaxATR, 2), "]");
+         " MaxSpreadPips=", DoubleToString(Settings.MaxSpread, 2));
 
    Print("Effective: BiasEnabled=", (Settings.BiasEnabled ? "true" : "false"),
          " BiasMode=", EnumToString(Settings.BiasMode),
@@ -479,8 +478,6 @@ int OrchestrateInit()
       Print("Pair type: ", EnumToString(det),
             " | Max spread: ", DoubleToString(GetAdaptiveSpreadLimit(det, Settings.Adaptive), 1), " pips");
       Print("Timeframe: ", EnumToString(tf));
-      Print("ATR gate: min=", DoubleToString(Settings.MinATR, 1),
-            " max=", DoubleToString(Settings.MaxATR, 1), " pips");
       Print("SL cushion (TF-based): ", DoubleToString(Settings.SL_PsarPipsCushion, 1), " pips");
       Print("Trail cushion (TF-based): ", DoubleToString(Settings.PSAR_TrailPipsCushion, 1), " pips");
       Print("BE buffer (TF-based): ", DoubleToString(Settings.RRM_BE_BufferPips, 1), " pips");

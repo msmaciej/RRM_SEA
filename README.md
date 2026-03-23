@@ -47,15 +47,20 @@ SimpleEA now provides 4 focused presets:
 |--------|-------------|
 | `PRESET_CUSTOM` | All inputs respected; full user control |
 | `PRESET_MA` | Replicates the MT5 Moving Average EA (no voting indicators) |
-| `PRESET_RRM` | Phase-based layer detection system with ATR voting |
+| `PRESET_RRM` | Phase-based layer detection system |
 | `PRESET_TEST` | Minimal config for development/debugging |
 
-### ATR's Dual Role
-ATR serves **two distinct roles** in the pipeline:
-1. **Pre-filter (Step 1):** `Inp_MinATRPips`/`Inp_MaxATRPips` — hard gate that blocks trades outside volatility range
-2. **Voting Indicator (Step 8):** `Inp_Ind_ATR_Enabled` — non-directional vote that validates market conditions
+### ATR as Voting Indicator
+ATR serves as a **voting indicator only** (not a hard gate):
+- **Voting Indicator:** `Inp_Ind_ATR_Enabled` — non-directional vote that validates market volatility is within acceptable range
+- **Configuration:** Set `ATR_VoteMinPips` (e.g., 5.0) and `ATR_VoteMaxPips` (e.g., 50.0) per preset
+- **Behavior:** ATR votes PASS if current ATR is within the configured range, REJECT otherwise
+- **Not a blocker:** ATR participates in voting like other indicators (MACD, RSI, etc.) and does NOT block trades directly
 
-In `PRESET_RRM`, ATR participates as a voting indicator (Step 8) rather than a hard gate.
+Each preset configures ATR voting thresholds appropriate for its strategy:
+- **PRESET_MA:** ATR voting disabled (no indicators used)
+- **PRESET_RRM:** ATR voting disabled (uses EMA/MACD/CCI/PSAR votes only)
+- **PRESET_CUSTOM:** User controls via `Inp_Ind_ATR_Enabled` and threshold inputs
 
 ## Python EA vs SimpleEA MQL5 Comparison
 

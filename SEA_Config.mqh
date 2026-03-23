@@ -329,9 +329,6 @@ struct ST_Settings
    bool   CountBEasZeroRisk;     // If true, trades at breakeven don't count toward risk
    double MaxSpread;
    bool   UseSpread;      // Enable spread filter (false = bypass spread gate)
-   double MinATR;
-   double MaxATR;
-   bool   UseATRGate;     // Enable ATR gate filter (false = ATR gate disabled)
 
    // Candle Body Overextension Indicator (voting)
    int    CandleBody_AvgPeriod;   // Bars used to compute average body size
@@ -420,8 +417,8 @@ struct ST_Settings
    double P_PsarMax;
    double T_MfiOB;
    double T_MfiOS;
-   double ATR_VoteMinPips;    // ATR voting threshold: minimum pips (separate from pre-filter MinATR)
-   double ATR_VoteMaxPips;    // ATR voting threshold: maximum pips (separate from pre-filter MaxATR)
+   double ATR_VoteMinPips;    // ATR voting threshold: minimum pips
+   double ATR_VoteMaxPips;    // ATR voting threshold: maximum pips
 
    // Modes
    EMacdVoteMode MacdVoteMode;           // MACD base vote mode
@@ -600,7 +597,6 @@ ST_Settings Settings;
 //   (Global; allowed under presets)                 - always honored (Zone 2A)
 //   (Operator gate; preserved under presets)        - Policy A: user-controlled even under presets (Zone 2A)
 //   (CUSTOM/TEST: editable; presets override)       - used by PRESET_CUSTOM & PRESET_TEST (Zone 3A / Zone 3A.9)
-//   (CUSTOM; most presets override; strict sets 0)  - ATR gates forced off under strict RRM (Zone 3A)
 
 
 // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
@@ -634,13 +630,10 @@ input group "            (Works in ALL presets)"
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓"
 
 input group "╔════════════════════════════════════════════════════════╗"
-input group "║  🚫 SPREAD & ATR LIMITS                                ║"
+input group "║  🚫 SPREAD LIMITS                                      ║"
 input group "╚════════════════════════════════════════════════════════╝"
 input bool           Inp_UseSpread              = false;    // Enable spread filter
 input double         Inp_MaxSpreadPips          = 3.0;      // Max spread (pips; ignored if UseSpread=false)
-input bool           Inp_UseATRGate             = false;    // Enable ATR gate filter
-input double         Inp_MinATRPips             = 0.0;      // Min ATR gate (pips; ignored if UseATRGate=false)
-input double         Inp_MaxATRPips             = 20.0;     // Max ATR gate (pips; ignored if UseATRGate=false)
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  ⏰ SESSION TIME FILTER                                 ║"
@@ -906,8 +899,8 @@ input bool           Inp_Ind_Atr_Enabled       = false;               // [ATR] E
 input int            Inp_Ind_Atr_Weight        = 1;                   // [ATR] Vote weight
 input string         Inp_Ind_Atr_Info          = "Non-directional: validates volatility range (voting)"; // [ATR] Description
 input int            Inp_Ind_Atr_Period        = 14;                  // [ATR] Period
-input double         Inp_Ind_Atr_VoteMinPips   = 5.0;                 // [ATR] Voting min pips (separate from pre-filter gate)
-input double         Inp_Ind_Atr_VoteMaxPips   = 50.0;                // [ATR] Voting max pips (separate from pre-filter gate)
+input double         Inp_Ind_Atr_VoteMinPips   = 5.0;                 // [ATR] Voting min pips
+input double         Inp_Ind_Atr_VoteMaxPips   = 50.0;                // [ATR] Voting max pips
 
 input group "╔════════════════════════════════════════════════════════╗"
 input group "║  📊 Indicator: Candle Body Overextension               ║"
@@ -1148,11 +1141,8 @@ void InitializeConfig()
    Settings.FixedLotSize         = 0.0;  // 0 = risk-based sizing (default)
    Settings.MaxSpread            = Inp_MaxSpreadPips;
    Settings.UseSpread            = Inp_UseSpread;
-   Settings.MinATR               = Inp_MinATRPips;
-   Settings.MaxATR               = Inp_MaxATRPips;
 
    // Defaults for gating/vote semantics
-   Settings.UseATRGate           = Inp_UseATRGate;
    Settings.ATR_VoteMinPips      = Inp_Ind_Atr_VoteMinPips;
    Settings.ATR_VoteMaxPips      = Inp_Ind_Atr_VoteMaxPips;
 

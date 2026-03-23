@@ -294,7 +294,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    //   - News:       Risk aversion / avoid high-impact news volatility
    //   - Risk:       Personal risk tolerance (RiskPercent, MaxOpenTrades, MaxTotalRisk)
    //
-   // Strategic filters (ATR, HTF) are preset-controlled.
+   // Strategic filters (ATR voting, HTF) are preset-controlled.
    // Users who want full control: Use PRESET_CUSTOM
    // ================================================================
    const double op_MaxSpread     = cfg.MaxSpread;
@@ -316,9 +316,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
    // Policy A: user portfolio risk cap
    const double op_MaxTotalRisk  = cfg.MaxTotalRisk;
-
-   // Policy A: user ATR gate toggle (ZONE 2A operator gate)
-   const bool   op_UseATRGate    = cfg.UseATRGate;
 
    // Saved for PRESET_TEST exit-profile logic
    const EExitProfile op_ExitProfile = cfg.ExitProfile;
@@ -388,10 +385,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Adx = 14;
       cfg.T_Adx = 20.0;
    
-      // ATR (Average True Range)
+      // ATR (Average True Range) - Voting Indicator Only
       cfg.P_Atr       = 14;
-      cfg.MinATR      = 0.0;
-      cfg.MaxATR      = 0.0;
+      cfg.ATR_VoteMinPips   = 5.0;
+      cfg.ATR_VoteMaxPips   = 50.0;
    
       // Bollinger Bands
       cfg.P_Bb    = 20;
@@ -550,7 +547,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       cfg.MaxSpread     = op_MaxSpread;
       cfg.UseSpread     = op_UseSpread;
-      cfg.UseATRGate    = op_UseATRGate;
       cfg.UseTime       = op_UseTime;
       cfg.StartHr       = op_StartHr;
       cfg.EndHr         = op_EndHr;
@@ -567,11 +563,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    if(preset == PRESET_RRM)
    {
       // ================================================================
-      // PRESET_RRM: Strict No-ATR Trend Pullback Strategy
+      // PRESET_RRM: Strict Trend Pullback Strategy
       // - Bias: User-selectable (BIAS_AUTO or BIAS_AUTO_PHASE via Inp_BiasMode)
       // - Entry: Layer detection (pullback-recovery on EMA zones)
       // - Votes: EMA ribbon + MACD + CCI + PSAR (4 votes, ALL must agree)
-      // - ATR: Not used for voting or pre-filtering
+      // - ATR: Disabled for voting (Ind_Atr_Enabled = false)
       // - Exits: User-controlled via inputs (SL/TP/BE/Trailing preserved)
       // - Phase filtering: Enabled (blocks UNORDERED, restricts L3 in EMERGING)
       // ================================================================
@@ -696,24 +692,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Adx = 14;
       cfg.T_Adx = 20.0;
    
-      // ATR (Average True Range)
-      cfg.P_Atr       = 14;
-      cfg.MinATR      = 0.0;
-      cfg.MaxATR      = 0.0;
+      // ATR (Average True Range) - Voting Indicator Only - Voting Indicator Only
+      cfg.P_Atr             = 14;
+      cfg.ATR_VoteMinPips   = 5.0;
+      cfg.ATR_VoteMaxPips   = 50.0;
    
       // Bollinger Bands
       cfg.P_Bb    = 20;
       cfg.P_BbDev = 2.0;
-      cfg.BbMode  = BB_TREND_FOLLOW;
-   
-      // CCI (Commodity Channel Index)
-      cfg.P_Cci   = 14;
-      cfg.CciMode = CCI_TREND_ZERO;
-   
-      // MACD (Moving Average Convergence Divergence)
-      cfg.P_MacdFast            = 8;
-      cfg.P_MacdSlow            = 13;
-      cfg.P_MacdSig             = 8;
       cfg.MacdVoteMode          = MACD_ZERO_AND_CROSS;
       cfg.MacdRequireSlope      = false;
       cfg.MacdRequireDivergence = false;
@@ -855,7 +841,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       cfg.MaxSpread     = op_MaxSpread;
       cfg.UseSpread     = op_UseSpread;
-      cfg.UseATRGate    = op_UseATRGate;
       cfg.UseTime       = op_UseTime;
       cfg.StartHr       = op_StartHr;
       cfg.EndHr         = op_EndHr;
@@ -880,7 +865,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // - Phase/layer detection OFF
       // - All RRM gates OFF
       // - Basic exits enabled for testing
-      // - High spread/ATR tolerance for testing
+      // - High spread tolerance for testing
       // ================================================================
    
       Print("═══════════════════════════════════════════════════════════");
@@ -940,10 +925,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Adx = 14;
       cfg.T_Adx = 20.0;
    
-      // ATR (Average True Range)
+      // ATR (Average True Range) - Voting Indicator Only
       cfg.P_Atr       = 14;
-      cfg.MinATR      = 0.0;
-      cfg.MaxATR      = 0.0;
+      cfg.ATR_VoteMinPips   = 5.0;
+      cfg.ATR_VoteMaxPips   = 50.0;
    
       // Bollinger Bands
       cfg.P_Bb    = 20;
@@ -1109,7 +1094,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       cfg.MaxSpread     = op_MaxSpread;
       cfg.UseSpread     = op_UseSpread;
-      cfg.UseATRGate    = op_UseATRGate;
       cfg.UseTime       = op_UseTime;
       cfg.StartHr       = op_StartHr;
       cfg.EndHr         = op_EndHr;
