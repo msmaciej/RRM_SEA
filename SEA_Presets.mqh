@@ -956,9 +956,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.T_Adx = 20.0;
    
       // ATR (Average True Range) - Voting Indicator Only
-      cfg.P_Atr       = 14;
-      cfg.ATR_VoteMinPips   = 5.0;
-      cfg.ATR_VoteMaxPips   = 50.0;
+      cfg.P_Atr            = 14;
+      cfg.ATR_VoteMinPips  = 5.0;
+      cfg.ATR_VoteMaxPips  = 50.0;
    
       // Bollinger Bands
       cfg.P_Bb    = 20;
@@ -982,14 +982,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Ema4 = 89;
 
       // MACD (Moving Average Convergence Divergence)
-      cfg.P_MacdFast            = 12;
-      cfg.P_MacdSlow            = 26;
-      cfg.P_MacdSig             = 9;
+      cfg.P_MacdFast            = 8;   // ORG: 12
+      cfg.P_MacdSlow            = 13;  // ORG: 26
+      cfg.P_MacdSig             = 8;   // ORG: 9
       cfg.MacdVoteMode          = MACD_HISTOGRAM;
       cfg.MacdRequireSlope      = false;
       cfg.MacdRequireDivergence = false;
       cfg.MacdRequireHook       = false;
-      cfg.MacdFreshBars         = 3;
+      cfg.MacdFreshBars         = 3;   // ORG: 3
       cfg.MacdSlopeMin          = 0.00001;
    
       // MFI (Money Flow Index)
@@ -999,10 +999,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MfiMode = MFI_ZONE_FILTER;
    
       // PSAR (Parabolic SAR)
-      cfg.P_PsarStep         = 0.05;
-      cfg.P_PsarMax          = 0.5;
+      cfg.P_PsarStep         = 0.05;   // ORG: 0.02
+      cfg.P_PsarMax          = 0.5;    // ORG: 0.2
       cfg.Vote_AllowPsarFlip = true;
-      cfg.Vote_PsarFlipDelay = -1;
+      cfg.Vote_PsarFlipDelay = -1;     // -1=FliP+Dot, 0=Flip only 1,2,..=Flip+N only
    
       // RSI (Relative Strength Index)
       cfg.P_Rsi   = 14;
@@ -1110,8 +1110,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
          cfg.PSAR_TrailCushionMode  = PSAR_CUSHION_PIPS;
          cfg.PSAR_TrailPipsCushion  = GetRecommendedTrailPsarCushionPips();
-         cfg.PSARStep               = 0.02;
-         cfg.PSARMax                = 0.2;
+         // cfg.PSARStep               = 0.02;
+         // cfg.PSARMax                = 0.2;
       }
       // else: user's EXIT_PROFILE_SIMPLE (or EXIT_PROFILE_RRM) settings are
       // preserved from InitializeConfig — SLMode, TrailMode, BE_Mode, PSARStep,
