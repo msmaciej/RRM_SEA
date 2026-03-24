@@ -2657,8 +2657,8 @@ public:
       // Get current ATR value from indicator (use closed bar, shift=1)
       double atr = GetVal(h_atr, 1, 0);
       if(atr <= 0.0) {
-         if(m_settings.DebugFlow) Print("VRC: Invalid ATR value, defaulting to LOW");
-         return VOLATILITY_LOW; // Guard against invalid data
+         if(m_settings.DebugFlow) PrintFormat("[VRC] Invalid ATR (%.5f), bypassing filter (insufficient data – handle=%d)", atr, h_atr);
+         return VOLATILITY_NORMAL; // Fail-safe: don't filter when data unavailable
       }
 
       // Update rolling history with current ATR
