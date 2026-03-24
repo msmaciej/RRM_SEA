@@ -7,7 +7,7 @@ RRM_Simple EA — macOS + Wine + MT5 + **MQL5 ONLY**
 All current docs live in `Readme/`:
 
 - `Readme/README_SYSTEM.md` — system architecture & full documentation
-- `Readme/README_INDICATORS.md` — indicator and voting pipeline reference (**Phase 1 & 2 complete: CI + ADX Dynamic modes**)
+- `Readme/README_INDICATORS.md` — indicator and voting pipeline reference (**Phase 1, 2 & 3 complete: CI + ADX Dynamic modes + VRC**)
 - `Readme/README_EXTENDING.md` — developer guide: how to add custom indicators (**centralized registry architecture**)
 - `Readme/README_EXIT_MANAGEMENT.md` — exit system (SL/TP/BE/Trail + TF-based cushions)
 - `Readme/README_CONFIG_ZONES.md` — input zone organization & preset policy
@@ -117,6 +117,14 @@ The bias calculation uses **adaptive slope thresholds** to filter noise and fals
 - ✅ Rolling history buffer for percentile calculation
 - ✅ Template for future dynamic indicators (RSI, MACD, etc.)
 - ⚠️ Each indicator has unique calculation method (not generic one-size-fits-all)
+
+**Phase 3: VRC (Volatility Regime Classifier):**
+- ✅ Non-directional voting indicator (follows CI pattern)
+- ✅ ATR percentile ranking (33rd percentile default threshold)
+- ✅ Rolling history buffer (100 bars default lookback)
+- ✅ Cached threshold (updated every 4 hours)
+- ✅ Statistics tracking (rejected_vrc, passed_vrc)
+- ✅ Cockpit display integration
 
 ### Layer Detection Equivalence
 SimpleEA's STRAT_LAYER_DETECTION replicates Python EA's TrSet pattern logic:

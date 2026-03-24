@@ -168,6 +168,7 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("    BB:      ", (cfg.Ind_Bb_Enabled ? "✓" : "✗"));
    Print("    CandleBody: ", (cfg.Ind_CandleBody_Enabled ? "✓" : "✗"));
    Print("    CI:      ", (cfg.Ind_CI_Enabled ? "✓" : "✗"));
+   Print("    VRC:     ", (cfg.Ind_VRC_Enabled ? "✓" : "✗"));
    Print("    CCI:     ", (cfg.Ind_Cci_Enabled ? "✓" : "✗"));
    Print("    EmaSig:  ", (cfg.Ind_EmaSig_Enabled ? "✓" : "✗"));
    Print("    MACD:    ", (cfg.Ind_Macd_Enabled ? "✓" : "✗"), (cfg.Ind_Macd_Enabled ? " (" + EnumToString(cfg.MacdVoteMode) + ")" : ""));
@@ -355,6 +356,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Bb_Enabled           = false;
       cfg.Ind_CandleBody_Enabled   = false;
       cfg.Ind_CI_Enabled           = false;
+      cfg.Ind_VRC_Enabled          = false;
       cfg.Ind_Cci_Enabled          = false;
       cfg.Ind_EmaSig_Enabled       = false;
       cfg.Ind_Macd_Enabled         = false;
@@ -366,8 +368,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Sto_Enabled          = false;
    
       cfg.VoteMode = VOTE_MODE_ALL;
-   
-      // ================================================================
       // INDICATOR PERIODS & THRESHOLDS (Alphabetical)
       // ================================================================
       
@@ -401,6 +401,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CI_Period           = 14;
       cfg.CI_RangingThreshold = 61.8;
       cfg.Ind_CI_Weight       = 1;
+
+      // VRC (Volatility Regime Classifier)
+      cfg.VRC_ATR_Period      = 14;
+      cfg.VRC_Lookback        = 100;
+      cfg.VRC_LowThreshold    = 33.0;
+      cfg.Ind_VRC_Weight      = 1;
 
       // CCI (Commodity Channel Index)
       cfg.P_Cci   = 14;
@@ -691,6 +697,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Bb_Enabled           = false;
       cfg.Ind_CandleBody_Enabled   = true;
       cfg.Ind_CI_Enabled           = true;  // Enable ranging market protection
+      cfg.Ind_VRC_Enabled          = false;
       cfg.Ind_Cci_Enabled          = true;
       cfg.Ind_EmaSig_Enabled       = true;
       cfg.Ind_Macd_Enabled         = true;
@@ -736,6 +743,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CI_Period           = 14;
       cfg.CI_RangingThreshold = 61.8;   // Standard threshold
       cfg.Ind_CI_Weight       = 1;
+
+      // VRC (Volatility Regime Classifier)
+      cfg.VRC_ATR_Period      = 14;
+      cfg.VRC_Lookback        = 100;
+      cfg.VRC_LowThreshold    = 33.0;
+      cfg.Ind_VRC_Weight      = 1;
 
       // MACD
       cfg.MacdVoteMode          = MACD_ZERO_AND_CROSS;
@@ -948,6 +961,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Bb_Enabled           = false;
       cfg.Ind_CandleBody_Enabled   = true;
       cfg.Ind_CI_Enabled           = false;
+      cfg.Ind_VRC_Enabled          = false;
       cfg.Ind_Cci_Enabled          = true;
       cfg.Ind_EmaSig_Enabled       = true;
       cfg.Ind_Macd_Enabled         = true;
@@ -998,6 +1012,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CI_Period           = 14;
       cfg.CI_RangingThreshold = 61.8;
       cfg.Ind_CI_Weight       = 1;
+
+      // VRC (Volatility Regime Classifier)
+      cfg.VRC_ATR_Period      = 14;
+      cfg.VRC_Lookback        = 100;
+      cfg.VRC_LowThreshold    = 33.0;
+      cfg.Ind_VRC_Weight      = 1;
    
       // CCI (Commodity Channel Index)
       cfg.P_Cci   = 13;                   // ORG: 14
@@ -1371,6 +1391,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Bb_Enabled           = false;
       cfg.Ind_CandleBody_Enabled   = true;
       cfg.Ind_CI_Enabled           = false;
+      cfg.Ind_VRC_Enabled          = false;
       cfg.Ind_Cci_Enabled          = true;
       cfg.Ind_EmaSig_Enabled       = true;
       cfg.Ind_Macd_Enabled         = true;
@@ -1417,7 +1438,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CI_Period           = 14;
       cfg.CI_RangingThreshold = 61.8;
       cfg.Ind_CI_Weight       = 1;
-   
+
+      // VRC (Volatility Regime Classifier)
+      cfg.VRC_ATR_Period      = 14;
+      cfg.VRC_Lookback        = 100;
+      cfg.VRC_LowThreshold    = 33.0;
+      cfg.Ind_VRC_Weight      = 1;
+
       // CCI (Commodity Channel Index)
       cfg.P_Cci   = 13;
       cfg.CciMode = CCI_TREND_ZERO;

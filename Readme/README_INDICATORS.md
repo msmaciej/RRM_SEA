@@ -699,6 +699,22 @@ Indicators fall into two categories based on whether they need to know the trade
   - `CI_Period = 14` (calculation period)
   - `CI_RangingThreshold = 61.8` (reject if CI >= this value)
 
+**VRC (Volatility Regime Classifier)** - `Ind_VRC_Enabled` — Phase 3 Enhancement
+- **Check:** Current ATR >= 33rd percentile of recent ATR history
+- **Why:** Filters out trades during low volatility (quiet/choppy markets with no momentum)
+- **Note:** Direction-independent (non-directional vote like CI and CandleBody)
+- **Volatility Regimes:**
+  - VOLATILITY_LOW: ATR below 33rd percentile → **REJECT** (market too quiet)
+  - VOLATILITY_NORMAL: ATR at/above 33rd percentile → **ALLOW** (acceptable conditions)
+  - VOLATILITY_HIGH: Reserved for future enhancements (adaptive position sizing)
+- **Best for:** Trend-following and breakout strategies (prevents trading in dead markets)
+- **Parameters:**
+  - `VRC_ATR_Period = 14` (ATR calculation period)
+  - `VRC_Lookback = 100` (bars for percentile history)
+  - `VRC_LowThreshold = 33.0` (percentile boundary for LOW/NORMAL regime)
+- **Implementation:** Uses rolling ATR buffer + linear-interpolated percentile (same pattern as ADX dynamic mode)
+- **Performance:** Threshold cached every 4 hours; requires minimum 10 bars of history for statistical validity
+
 #### 8.4 Count total votes
 
 **Example:**
@@ -1279,6 +1295,75 @@ ADX supports three validation modes for adaptive trend strength filtering:
 2. **Percentile Sensitivity:** Test 30th, 50th, 70th percentiles in DYNAMIC mode
 3. **Phase Thresholds:** Optimize phase-aware thresholds for your strategy
 4. **Market Conditions:** Dynamic modes perform best in volatile/changing markets
+
+---
+
+### VRC (Volatility Regime Classifier) — Phase 3 Enhancement
+
+**Purpose:** Filters out trades during low volatility regimes when markets are too quiet and likely choppy/ranging.
+
+**Type:** Non-directional voting indicator (like Choppiness Index and CandleBody)
+
+**Setting:** `Ind_VRC_Enabled`
+
+#### How It Works
+
+1. **ATR History Buffer:** Tracks last N bars of ATR values (default: 100 bars)
+2. **Percentile Calculation:** Ranks current ATR against historical distribution using linear interpolation
+3. **Regime Classification:**
+   - **VOLATILITY_LOW:** ATR below 33rd percentile (too quiet → REJECT trade)
+   - **VOLATILITY_NORMAL:** ATR at/above 33rd percentile (acceptable → ALLOW trade)
+   - **VOLATILITY_HIGH:** Reserved for future enhancements (adaptive thresholds)
+4. **Cache Update:** Threshold recalculated every 4 hours for performance
+
+#### Vote Logic
+
+```
+IF current_ATR < ATR_33rd_percentile THEN
+   VOTE = FAIL (volatility too low)
+ELSE
+   VOTE = PASS (volatility acceptable)
+END
+```
+
+**Non-directional:** Vote result is independent of trade direction (LONG or SHORT).
+
+#### Configuration
+
+```mql5
+Inp_Ind_VRC_Enabled = true;        // Enable VRC filter
+Inp_Ind_VRC_Weight = 1;            // Vote weight (THRESHOLD mode)
+Inp_Ind_VRC_ATR_Period = 14;       // ATR calculation period
+Inp_Ind_VRC_Lookback = 100;        // Bars for percentile calculation
+Inp_Ind_VRC_LowThreshold = 33.0;   // Low/Normal boundary (percentile)
+```
+
+#### Example Scenarios
+
+| ATR Value | Historical Percentile | VRC Vote | Reason |
+|-----------|----------------------|----------|--------|
+| 0.0015 | 25th percentile | **FAIL** | Below 33% threshold (too quiet) |
+| 0.0025 | 50th percentile | **PASS** | Above 33% threshold (normal) |
+| 0.0045 | 80th percentile | **PASS** | Above 33% threshold (high volatility) |
+
+#### Use Cases
+
+- **Trend Following:** Avoid trades when ATR is too low (no momentum)
+- **Breakout Strategies:** Ensure sufficient volatility for meaningful price moves
+- **RRM Strategy:** Combine with Choppiness Index for double-filter (CI rejects ranging markets, VRC rejects quiet markets)
+
+#### Implementation Notes
+
+- Requires minimum 10 bars of history for statistical validity (returns NORMAL on startup)
+- Uses linear interpolation for accurate percentile calculation (same as ADX dynamic mode)
+- ATR handle (`h_atr`) reused from existing ATR voting indicator
+- Cache updated every 4 hours (14400 seconds) to balance accuracy and performance
+
+#### Testing Recommendations
+1. **Backtest Comparison:** Run with/without VRC to measure impact on trade count and profitability
+2. **Threshold Optimization:** Test 25%, 33%, 40% thresholds to find optimal filtering level
+3. **Combine with CI:** Enable both CI and VRC for robust ranging/quiet market filtering
+4. **Market Session Analysis:** Verify LOW regime appears during Asian session (quiet hours)
 
 ---
 
