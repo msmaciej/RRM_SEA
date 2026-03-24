@@ -1141,8 +1141,8 @@ private:
       double threshold = pair_base * tf_multiplier;
 
       // RRM preset is stricter - reduce threshold by 20%
-      if(m_settings.Preset == PRESET_RRM)
-         threshold *= 0.8;
+      //if(m_settings.Preset == PRESET_RRM)
+      //   threshold *= 0.8;
 
       return threshold;
    }
