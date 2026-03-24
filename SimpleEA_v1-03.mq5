@@ -1053,9 +1053,9 @@ void PrintSignalEfficiency()
    Print("  └─ When bias ≠ 0:");
 
    // Build a list of enabled indicators with their pass counts
-   // Array size = total supported indicator slots (11: EmaSig,MACD,PSAR,CCI,RSI,ADX,MFI,Sto,BB,P123,Ross)
+   // Array size = total supported indicator slots (15: EmaSig,MACD,PSAR,CCI,RSI,ADX,MFI,Sto,BB,P123,Ross,CandleBody,CI,VRC,ATR)
    struct SIndEntry { string name; int passed; };
-   SIndEntry inds[11];
+   SIndEntry inds[15];
    int ind_count = 0;
 
    if(Settings.Ind_EmaSig_Enabled)
@@ -1080,6 +1080,14 @@ void PrintSignalEfficiency()
       { inds[ind_count].name = "P123";       inds[ind_count++].passed = st.passed_p123; }
    if(Settings.Ind_Ross_Enabled)
       { inds[ind_count].name = "Ross Hook";  inds[ind_count++].passed = st.passed_ross; }
+   if(Settings.Ind_CandleBody_Enabled)
+      { inds[ind_count].name = "CandleBody"; inds[ind_count++].passed = st.passed_candle_body; }
+   if(Settings.Ind_CI_Enabled)
+      { inds[ind_count].name = "CI";         inds[ind_count++].passed = st.passed_ci; }
+   if(Settings.Ind_VRC_Enabled)
+      { inds[ind_count].name = "VRC";        inds[ind_count++].passed = st.passed_vrc; }
+   if(Settings.Ind_Atr_Enabled)
+      { inds[ind_count].name = "ATR";        inds[ind_count++].passed = st.passed_atr; }
 
    if(ind_count == 0)
       Print("      └─ (no indicators enabled)");

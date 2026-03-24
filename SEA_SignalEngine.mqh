@@ -59,6 +59,7 @@ struct SRejectionStats {
    int passed_candle_body,  rejected_candle_body;
    int passed_ci,           rejected_ci;
    int passed_vrc,          rejected_vrc;           // VRC (low volatility)
+   int passed_atr,          rejected_atr;           // ATR (volatility range)
 
    // Bias & Layer (passed + rejected)
    int passed_bias,         rejected_bias;
@@ -1639,7 +1640,7 @@ public:
 
       // Build sortable array of reason/count pairs
       struct SReason { string name; int count; double pct; };
-      SReason reasons[23];
+      SReason reasons[24];
       int idx = 0;
 
       reasons[idx].name = "Phase=UNORDERED";
@@ -1705,6 +1706,10 @@ public:
       reasons[idx].name = "VRC";
       reasons[idx].count = m_stats.rejected_vrc;
       reasons[idx++].pct = m_stats.rejected_vrc * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "ATR";
+      reasons[idx].count = m_stats.rejected_atr;
+      reasons[idx++].pct = m_stats.rejected_atr * 100.0 / m_stats.total_bars;
 
       reasons[idx].name = "MFI";
       reasons[idx].count = m_stats.rejected_mfi;
@@ -1812,6 +1817,7 @@ public:
       PrintIndicatorStat("CandleBody", m_settings.Ind_CandleBody_Enabled, m_stats.passed_candle_body, m_stats.rejected_candle_body);
       PrintIndicatorStat("ChoppinessIdx", m_settings.Ind_CI_Enabled, m_stats.passed_ci, m_stats.rejected_ci);
       PrintIndicatorStat("VRC",          m_settings.Ind_VRC_Enabled, m_stats.passed_vrc, m_stats.rejected_vrc);
+      PrintIndicatorStat("ATR",          m_settings.Ind_Atr_Enabled, m_stats.passed_atr, m_stats.rejected_atr);
       Print("----------------------------------------------------------------");
       PrintFormat("Indicators: %d enabled (ALL must pass)", GetEnabledIndicatorCount(m_settings));
       Print("");
@@ -1866,7 +1872,7 @@ public:
    {
       if(m_stats.total_bars == 0) return;
       struct SBottleneck { string name; int rejected; double pct; };
-      SBottleneck bn[25]; // Gates(3) + Bias/Phase/Layer(4) + Indicators(13 + CandleBody + CI + VRC) = up to 22 entries
+      SBottleneck bn[25]; // Gates(3) + Bias/Phase/Layer(4) + Indicators(13 + CandleBody + CI + VRC + ATR) = up to 23 entries
       int idx = 0;
       if(m_stats.rejected_spread > 0)         { bn[idx].name="Spread";         bn[idx].rejected=m_stats.rejected_spread;        bn[idx++].pct=m_stats.rejected_spread*100.0/m_stats.total_bars; }
       if(m_stats.rejected_time > 0)           { bn[idx].name="Time Window";    bn[idx].rejected=m_stats.rejected_time;          bn[idx++].pct=m_stats.rejected_time*100.0/m_stats.total_bars; }
@@ -1889,6 +1895,7 @@ public:
       if(m_settings.Ind_CandleBody_Enabled && m_stats.rejected_candle_body > 0) { bn[idx].name="CandleBody"; bn[idx].rejected=m_stats.rejected_candle_body; bn[idx++].pct=m_stats.rejected_candle_body*100.0/m_stats.total_bars; }
       if(m_settings.Ind_CI_Enabled     && m_stats.rejected_ci     > 0) { bn[idx].name="ChoppinessIdx"; bn[idx].rejected=m_stats.rejected_ci; bn[idx++].pct=m_stats.rejected_ci*100.0/m_stats.total_bars; }
       if(m_settings.Ind_VRC_Enabled    && m_stats.rejected_vrc    > 0) { bn[idx].name="VRC";           bn[idx].rejected=m_stats.rejected_vrc; bn[idx++].pct=m_stats.rejected_vrc*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_Atr_Enabled    && m_stats.rejected_atr    > 0) { bn[idx].name="ATR";           bn[idx].rejected=m_stats.rejected_atr; bn[idx++].pct=m_stats.rejected_atr*100.0/m_stats.total_bars; }
       if(idx == 0) { Print("  (no rejections recorded)"); return; }
       for(int i = 0; i < idx-1; i++)
          for(int j = i+1; j < idx; j++)
@@ -1933,6 +1940,7 @@ public:
       if(m_settings.Ind_CandleBody_Enabled && m_stats.rejected_candle_body > worst_cnt) { worst_cnt=m_stats.rejected_candle_body; worst_ind="CandleBody"; }
       if(m_settings.Ind_CI_Enabled         && m_stats.rejected_ci         > worst_cnt) { worst_cnt=m_stats.rejected_ci;         worst_ind="ChoppinessIdx"; }
       if(m_settings.Ind_VRC_Enabled        && m_stats.rejected_vrc        > worst_cnt) { worst_cnt=m_stats.rejected_vrc;        worst_ind="VRC"; }
+      if(m_settings.Ind_Atr_Enabled        && m_stats.rejected_atr        > worst_cnt) { worst_cnt=m_stats.rejected_atr;        worst_ind="ATR"; }
       if(worst_ind != "" && m_stats.total_bars > 0 && worst_cnt * 100.0 / m_stats.total_bars > 30) {
          any_rec = true;
          PrintFormat("Priority 3: %s is the top indicator bottleneck (%.1f%% blocked).", worst_ind, worst_cnt * 100.0 / m_stats.total_bars);
@@ -3468,8 +3476,8 @@ public:
          if(m_settings.ATR_VoteMinPips > 0.0 && atr_vote_pips < m_settings.ATR_VoteMinPips) atr_vote_ok = false;
          if(m_settings.ATR_VoteMaxPips > 0.0 && atr_vote_pips > m_settings.ATR_VoteMaxPips) atr_vote_ok = false;
 
-         if(atr_vote_ok) vote_weight += 1.0;
-         else            all_pass     = false;
+         if(atr_vote_ok) { vote_weight += m_settings.Ind_Atr_Weight; m_stats.passed_atr++; }
+         else            { all_pass = false; m_stats.rejected_atr++; }
       }
 
       // Candle Body Overextension (non-directional voting indicator)
