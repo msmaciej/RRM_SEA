@@ -47,6 +47,7 @@ private:
    bool        m_rrm_trail_frozen;
    bool        m_rrm_be_reached;
    double      m_rrm_initial_sl;
+   datetime    m_rrm_freeze_time;   // Timestamp when trail was last frozen
    datetime    m_last_te_time;
    string      m_last_te_result;
    string      m_last_te_reason;
@@ -414,6 +415,7 @@ private:
       {
          m_rrm_last_ticket  = ticket;
          m_rrm_trail_frozen = false;
+         m_rrm_freeze_time  = 0;
          m_rrm_be_reached   = false;
          if(m_rrm_initial_sl <= 0.0)
             m_rrm_initial_sl = PositionGetDouble(POSITION_SL);
@@ -465,7 +467,6 @@ private:
       // ---- TRAILING STOP (PSAR only) ----
       if(m_settings.TrailMode != TRAIL_PSAR) return;
       if(m_settings.RRM_TrailStartsAfterBE && !m_rrm_be_reached) return;
-      if(m_rrm_trail_frozen) return;
 
       int shift = m_settings.RRM_TrailPsarShiftDelay;
       if(shift < 1) shift = 1;
@@ -474,15 +475,46 @@ private:
       if(psar <= 0.0) return;
 
       bool psar_flipped = isBuy ? (psar > cur_price) : (psar < cur_price);
+
       if(psar_flipped)
       {
-         if(m_settings.RRM_FreezeTrailOnFlip)
+         // PSAR on wrong side: freeze trailing to protect against whipsaw
+         if(m_settings.RRM_FreezeTrailOnFlip && !m_rrm_trail_frozen)
          {
             m_rrm_trail_frozen = true;
-            PrintFormat("RRM Strict trail frozen (PSAR flip): %s", _Symbol);
+            m_rrm_freeze_time  = TimeCurrent();
+            PrintFormat("RRM Strict trail frozen (PSAR flip): %s | PSAR=%.5f Price=%.5f",
+                        _Symbol, psar, cur_price);
          }
          return;
       }
+      else if(m_rrm_trail_frozen)
+      {
+         // PSAR back on correct side: unfreeze after minimum freeze duration
+         int min_freeze_bars = 2;
+         int bars_frozen     = (m_rrm_freeze_time > 0)
+                               ? Bars(_Symbol, PERIOD_CURRENT, m_rrm_freeze_time, TimeCurrent())
+                               : 0;  // Unknown freeze time — keep frozen until min duration met
+         if(bars_frozen >= min_freeze_bars)
+         {
+            m_rrm_trail_frozen = false;
+            PrintFormat("RRM Strict trail UNFROZEN (PSAR corrected): %s | PSAR=%.5f Price=%.5f | Frozen for %d bars",
+                        _Symbol, psar, cur_price, bars_frozen);
+         }
+         else
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[RRM_TRAIL] Still frozen (min bars not met): %d/%d bars | Ticket=%I64u",
+                           bars_frozen, min_freeze_bars, ticket);
+            return;
+         }
+      }
+
+      if(m_settings.DebugFlow)
+         PrintFormat("[RRM_TRAIL] Ticket=%I64u | Price=%.5f | PSAR=%.5f | Shift=%d | Flipped=%s | Frozen=%s",
+                     ticket, cur_price, psar, shift,
+                     psar_flipped ? "YES" : "NO",
+                     m_rrm_trail_frozen ? "YES" : "NO");
 
       double cushion = RRM_ScalePips(m_settings.PSAR_TrailPipsCushion);
       double new_sl  = isBuy ? NormalizeDouble(psar - cushion, digits)
@@ -860,7 +892,7 @@ public:
    CTradeExecutor() : m_last_trade_bar(0), m_last_risk_warn(0),
                       m_rrm_last_ticket(0), m_rrm_trail_frozen(false),
                       m_rrm_be_reached(false), m_rrm_initial_sl(0.0),
-                      m_last_te_time(0), m_last_te_result(""), m_last_te_reason("")
+                      m_rrm_freeze_time(0), m_last_te_time(0), m_last_te_result(""), m_last_te_reason("")
    {
       m_excursion.ticket       = 0;
       m_excursion.entry_time   = 0;
@@ -1484,6 +1516,7 @@ public:
             m_rrm_initial_sl   = sl;
             m_rrm_be_reached   = false;
             m_rrm_trail_frozen = false;
+            m_rrm_freeze_time  = 0;
             m_rrm_last_ticket  = 0; // will sync on next EvaluateTM call
          }
          // Visualization: executed trade marker
