@@ -58,6 +58,7 @@ struct SRejectionStats {
    int passed_news,         rejected_news;
    int passed_candle_body,  rejected_candle_body;
    int passed_ci,           rejected_ci;
+   int passed_vrc,          rejected_vrc;           // VRC (low volatility)
 
    // Bias & Layer (passed + rejected)
    int passed_bias,         rejected_bias;
@@ -148,6 +149,12 @@ private:
    int      m_adxHistoryMaxSize;         // Maximum buffer size (from ADX_Lookback)
    double   m_cachedADXThreshold;        // Last calculated dynamic threshold
    datetime m_lastADXCalculation;        // Time of last threshold recalculation
+
+   // --- 2h. VRC (Volatility Regime Classifier) STATE ---
+   double   m_atrHistory[100];           // Rolling ATR buffer for percentile calculation
+   int      m_atrHistorySize;            // Current history size
+   datetime m_lastVRCCalculation;        // Last cache update timestamp
+   double   m_cachedVRCLowThreshold;     // Cached ATR value at low percentile
 
    // Simplified buffer access for cleaner logic code
 
@@ -1467,6 +1474,11 @@ public:
       m_adxHistoryMaxSize   = 100;
       m_cachedADXThreshold  = 20.0;
       m_lastADXCalculation  = 0;
+
+      // Initialize VRC history tracking
+      m_atrHistorySize         = 0;
+      m_lastVRCCalculation     = 0;
+      m_cachedVRCLowThreshold  = 0.0;
    }
 
    // --- DIAGNOSTIC GETTERS (for Cockpit/UI) ---
@@ -1627,7 +1639,7 @@ public:
 
       // Build sortable array of reason/count pairs
       struct SReason { string name; int count; double pct; };
-      SReason reasons[22];
+      SReason reasons[23];
       int idx = 0;
 
       reasons[idx].name = "Phase=UNORDERED";
@@ -1689,6 +1701,10 @@ public:
       reasons[idx].name = "ChoppinessIdx";
       reasons[idx].count = m_stats.rejected_ci;
       reasons[idx++].pct = m_stats.rejected_ci * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "VRC";
+      reasons[idx].count = m_stats.rejected_vrc;
+      reasons[idx++].pct = m_stats.rejected_vrc * 100.0 / m_stats.total_bars;
 
       reasons[idx].name = "MFI";
       reasons[idx].count = m_stats.rejected_mfi;
@@ -1795,6 +1811,7 @@ public:
       PrintIndicatorStat("Ross Hook",  m_settings.Ind_Ross_Enabled,   m_stats.passed_ross,   m_stats.rejected_ross);
       PrintIndicatorStat("CandleBody", m_settings.Ind_CandleBody_Enabled, m_stats.passed_candle_body, m_stats.rejected_candle_body);
       PrintIndicatorStat("ChoppinessIdx", m_settings.Ind_CI_Enabled, m_stats.passed_ci, m_stats.rejected_ci);
+      PrintIndicatorStat("VRC",          m_settings.Ind_VRC_Enabled, m_stats.passed_vrc, m_stats.rejected_vrc);
       Print("----------------------------------------------------------------");
       PrintFormat("Indicators: %d enabled (ALL must pass)", GetEnabledIndicatorCount(m_settings));
       Print("");
@@ -1849,7 +1866,7 @@ public:
    {
       if(m_stats.total_bars == 0) return;
       struct SBottleneck { string name; int rejected; double pct; };
-      SBottleneck bn[24]; // Gates(3) + Bias/Phase/Layer(4) + Indicators(13 + CandleBody + CI) = up to 21 entries
+      SBottleneck bn[25]; // Gates(3) + Bias/Phase/Layer(4) + Indicators(13 + CandleBody + CI + VRC) = up to 22 entries
       int idx = 0;
       if(m_stats.rejected_spread > 0)         { bn[idx].name="Spread";         bn[idx].rejected=m_stats.rejected_spread;        bn[idx++].pct=m_stats.rejected_spread*100.0/m_stats.total_bars; }
       if(m_stats.rejected_time > 0)           { bn[idx].name="Time Window";    bn[idx].rejected=m_stats.rejected_time;          bn[idx++].pct=m_stats.rejected_time*100.0/m_stats.total_bars; }
@@ -1871,6 +1888,7 @@ public:
       if(m_settings.Ind_Ross_Enabled   && m_stats.rejected_ross   > 0) { bn[idx].name="Ross Hook"; bn[idx].rejected=m_stats.rejected_ross;   bn[idx++].pct=m_stats.rejected_ross*100.0/m_stats.total_bars; }
       if(m_settings.Ind_CandleBody_Enabled && m_stats.rejected_candle_body > 0) { bn[idx].name="CandleBody"; bn[idx].rejected=m_stats.rejected_candle_body; bn[idx++].pct=m_stats.rejected_candle_body*100.0/m_stats.total_bars; }
       if(m_settings.Ind_CI_Enabled     && m_stats.rejected_ci     > 0) { bn[idx].name="ChoppinessIdx"; bn[idx].rejected=m_stats.rejected_ci; bn[idx++].pct=m_stats.rejected_ci*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_VRC_Enabled    && m_stats.rejected_vrc    > 0) { bn[idx].name="VRC";           bn[idx].rejected=m_stats.rejected_vrc; bn[idx++].pct=m_stats.rejected_vrc*100.0/m_stats.total_bars; }
       if(idx == 0) { Print("  (no rejections recorded)"); return; }
       for(int i = 0; i < idx-1; i++)
          for(int j = i+1; j < idx; j++)
@@ -1914,6 +1932,7 @@ public:
       if(m_settings.Ind_Ross_Enabled   && m_stats.rejected_ross   > worst_cnt) { worst_cnt=m_stats.rejected_ross;   worst_ind="Ross Hook"; }
       if(m_settings.Ind_CandleBody_Enabled && m_stats.rejected_candle_body > worst_cnt) { worst_cnt=m_stats.rejected_candle_body; worst_ind="CandleBody"; }
       if(m_settings.Ind_CI_Enabled         && m_stats.rejected_ci         > worst_cnt) { worst_cnt=m_stats.rejected_ci;         worst_ind="ChoppinessIdx"; }
+      if(m_settings.Ind_VRC_Enabled        && m_stats.rejected_vrc        > worst_cnt) { worst_cnt=m_stats.rejected_vrc;        worst_ind="VRC"; }
       if(worst_ind != "" && m_stats.total_bars > 0 && worst_cnt * 100.0 / m_stats.total_bars > 30) {
          any_rec = true;
          PrintFormat("Priority 3: %s is the top indicator bottleneck (%.1f%% blocked).", worst_ind, worst_cnt * 100.0 / m_stats.total_bars);
@@ -1930,7 +1949,7 @@ public:
    {
       int shift = m_settings.ma_v_shift;
       count = 0;
-      ArrayResize(out, 15); // 14 possible indicators + 1 spare
+      ArrayResize(out, 16); // 15 possible indicators + 1 spare
 
       if(m_settings.Ind_EmaSig_Enabled && h_ema1 != INVALID_HANDLE)
       {
@@ -2122,6 +2141,27 @@ public:
          if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = StringFormat("(CI=%.1f trending)", ci_val); }
          else     { out[count].state = "FLAT"; out[count].reason = StringFormat("(CI=%.1f ranging)", ci_val); }
          out[count].vote_result = pass ? 1 : -1;
+         count++;
+      }
+
+      // VRC (low volatility filter – non-directional vote)
+      if(m_settings.Ind_VRC_Enabled && h_atr != INVALID_HANDLE)
+      {
+         EVolatilityRegime regime = GetVolatilityRegime();
+         double atr = GetVal(h_atr, shift, 0);
+
+         out[count].name    = "VRC";
+         out[count].enabled = true;
+
+         if(regime == VOLATILITY_LOW) {
+            out[count].state  = "FLAT";
+            out[count].reason = StringFormat("(LOW volatility ATR=%.5f)", atr);
+         } else {
+            out[count].state  = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT"));
+            out[count].reason = StringFormat("(NORMAL volatility ATR=%.5f)", atr);
+         }
+
+         out[count].vote_result = (regime == VOLATILITY_LOW) ? -1 : 1;
          count++;
       }
 
@@ -2532,6 +2572,139 @@ public:
          return false;  // Ranging/choppy market
 
       return true;  // Trending market (acceptable)
+   }
+
+   //+------------------------------------------------------------------+
+   //| UpdateATRHistory(): Update rolling ATR buffer                    |
+   //| Called every time GetVolatilityRegime() is invoked              |
+   //+------------------------------------------------------------------+
+   void UpdateATRHistory(double currentATR)
+   {
+      if(m_settings.VRC_Lookback <= 0) return;
+
+      // Cap at fixed buffer size
+      int maxSize = MathMin(m_settings.VRC_Lookback, 100);
+
+      // Shift existing values right (oldest value falls off at end)
+      for(int i = maxSize - 1; i > 0; i--) {
+         m_atrHistory[i] = m_atrHistory[i - 1];
+      }
+
+      // Insert new value at front
+      m_atrHistory[0] = currentATR;
+
+      // Track current size (up to max lookback)
+      if(m_atrHistorySize < maxSize) {
+         m_atrHistorySize++;
+      }
+   }
+
+   //+------------------------------------------------------------------+
+   //| CalculateATRPercentile(): ATR percentile with linear interp      |
+   //| Returns: ATR value at specified percentile (0-100 scale)         |
+   //+------------------------------------------------------------------+
+   double CalculateATRPercentile(double percentile)
+   {
+      // Need minimum history for statistical validity
+      if(m_atrHistorySize < 10) {
+         if(m_settings.DebugFlow) Print("VRC: Insufficient history (", m_atrHistorySize, " bars)");
+         return 0.0;
+      }
+
+      // Copy to temp array for sorting
+      double sorted[];
+      ArrayResize(sorted, m_atrHistorySize);
+      ArrayCopy(sorted, m_atrHistory, 0, 0, m_atrHistorySize);
+      ArraySort(sorted);
+
+      // Calculate percentile position (0-100 scale)
+      double position   = (percentile / 100.0) * (m_atrHistorySize - 1);
+      int    lowerIndex = (int)MathFloor(position);
+      int    upperIndex = (int)MathCeil(position);
+
+      // Linear interpolation between two nearest values
+      if(lowerIndex == upperIndex) {
+         return sorted[lowerIndex];
+      }
+
+      double fraction = position - lowerIndex;
+      return sorted[lowerIndex] + fraction * (sorted[upperIndex] - sorted[lowerIndex]);
+   }
+
+   //+------------------------------------------------------------------+
+   //| GetVolatilityRegime(): Classify current volatility regime        |
+   //| Updates cache every 4 hours for performance                      |
+   //| Returns: VOLATILITY_LOW if below threshold, else NORMAL          |
+   //+------------------------------------------------------------------+
+   EVolatilityRegime GetVolatilityRegime()
+   {
+      // Get current ATR value from indicator (use closed bar, shift=1)
+      double atr = GetVal(h_atr, 1, 0);
+      if(atr <= 0.0) {
+         if(m_settings.DebugFlow) Print("VRC: Invalid ATR value, defaulting to LOW");
+         return VOLATILITY_LOW; // Guard against invalid data
+      }
+
+      // Update rolling history with current ATR
+      UpdateATRHistory(atr);
+
+      // Update cache every 4 hours (14400 seconds) or on first call
+      datetime now = TimeCurrent();
+      if(now - m_lastVRCCalculation > 14400 || m_cachedVRCLowThreshold == 0.0) {
+         m_cachedVRCLowThreshold = CalculateATRPercentile(m_settings.VRC_LowThreshold);
+         m_lastVRCCalculation    = now;
+
+         if(m_settings.DebugFlow) {
+            Print("VRC: Cache updated. Low threshold (", m_settings.VRC_LowThreshold,
+                  "th percentile) = ", DoubleToString(m_cachedVRCLowThreshold, 5));
+         }
+      }
+
+      // Insufficient history: allow trade (don't filter on startup)
+      if(m_cachedVRCLowThreshold == 0.0)
+         return VOLATILITY_NORMAL;
+
+      // Classify regime based on cached threshold
+      if(atr < m_cachedVRCLowThreshold) {
+         if(m_settings.DebugFlow) {
+            Print("VRC: LOW regime (ATR=", DoubleToString(atr, 5),
+                  " < threshold=", DoubleToString(m_cachedVRCLowThreshold, 5), ")");
+         }
+         return VOLATILITY_LOW;
+      }
+
+      if(m_settings.DebugFlow) {
+         Print("VRC: NORMAL regime (ATR=", DoubleToString(atr, 5),
+               " >= threshold=", DoubleToString(m_cachedVRCLowThreshold, 5), ")");
+      }
+      return VOLATILITY_NORMAL;
+   }
+
+   //+------------------------------------------------------------------+
+   //| Check_VRC(): Volatility Regime Classifier vote (non-directional) |
+   //| Returns: true if volatility is acceptable, false if too low      |
+   //| Pattern: Same as Check_CI() – independent of trade direction     |
+   //+------------------------------------------------------------------+
+   bool Check_VRC(int bias, int shift)
+   {
+      // ATR handle must be valid (h_atr created in Init())
+      if(h_atr == INVALID_HANDLE) {
+         if(m_settings.DebugFlow) Print("VRC: ATR handle invalid");
+         return false;
+      }
+
+      // Get current volatility regime
+      EVolatilityRegime regime = GetVolatilityRegime();
+
+      // FAIL if volatility is too low (market too quiet, likely choppy/ranging)
+      if(regime == VOLATILITY_LOW) {
+         if(m_settings.DebugFlow) Print("VRC: FAIL (volatility too low for reliable trend)");
+         return false;
+      }
+
+      // PASS if volatility is acceptable (NORMAL or HIGH)
+      if(m_settings.DebugFlow) Print("VRC: PASS (volatility acceptable)");
+      return true;
    }
 
    // --- 9. GLOBAL FILTERS ---
@@ -3315,6 +3488,14 @@ public:
          bool ci_ok = Check_CI(bias, v_shift);
          if(ci_ok) { vote_weight += m_settings.Ind_CI_Weight; m_stats.passed_ci++; }
          else      { all_pass = false; m_stats.rejected_ci++; }
+      }
+
+      // Volatility Regime Classifier (non-directional volatility filter)
+      if(m_settings.Ind_VRC_Enabled)
+      {
+         bool vrc_ok = Check_VRC(bias, v_shift);
+         if(vrc_ok) { vote_weight += m_settings.Ind_VRC_Weight; m_stats.passed_vrc++; }
+         else       { all_pass = false; m_stats.rejected_vrc++; }
       }
 
       // Store integer-rounded weight for display (backward-compatible diagnostics)

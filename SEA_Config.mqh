@@ -265,6 +265,13 @@ enum EADXMode {
    ADX_MODE_PHASE_AWARE           // Phase-specific thresholds
 };
 
+// --- VOLATILITY REGIME CLASSIFICATION ---
+enum EVolatilityRegime {
+   VOLATILITY_LOW = 0,    // Below low threshold (too quiet, likely choppy)
+   VOLATILITY_NORMAL,     // Between thresholds (acceptable trading conditions)
+   VOLATILITY_HIGH        // Above high threshold (explosive) - reserved for future use
+};
+
 // --- ADAPTIVE SETTINGS: PAIR TYPE ---
 enum EPairType
 {
@@ -405,10 +412,17 @@ struct ST_Settings
    int Ind_Atr_Weight;
    int Ind_CandleBody_Weight;
    int Ind_CI_Weight;
+   int Ind_VRC_Weight;
 
    // Choppiness Index
    int    CI_Period;
    double CI_RangingThreshold;
+
+   // VRC (Volatility Regime Classifier)
+   bool   Ind_VRC_Enabled;
+   int    VRC_ATR_Period;
+   int    VRC_Lookback;
+   double VRC_LowThreshold;  // Below this percentile = LOW regime (reject trade)
 
    // Indicators (Periods)
    int    P_Ema1;
@@ -990,6 +1004,17 @@ input int    Inp_CI_Period             = 14;              // [CI] Calculation pe
 input double Inp_CI_RangingThreshold   = 61.8;            // [CI] Ranging threshold (>= this value = reject)
 
 input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📊 VRC: Volatility Regime Classifier                  ║";
+input group "╚════════════════════════════════════════════════════════╝";
+
+input bool   Inp_Ind_VRC_Enabled        = false;                 // [VRC] Enable volatility regime filter
+input int    Inp_Ind_VRC_Weight         = 1;                     // [VRC] Vote weight
+input int    Inp_Ind_VRC_ATR_Period     = 14;                    // [VRC] ATR period
+input int    Inp_Ind_VRC_Lookback       = 100;                   // [VRC] Lookback bars for percentile
+input double Inp_Ind_VRC_LowThreshold   = 33.0;                  // [VRC] Low volatility threshold (percentile)
+input string Inp_Ind_VRC_Info           = "Rejects trades in low volatility (quiet/choppy markets)"; // [VRC] Description
+
+input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 Indicator: Pattern 1-2-3                           ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool           Inp_Ind_P123_Enabled       = false;               // [P123] Enable 1-2-3 pattern vote
@@ -1345,6 +1370,7 @@ void InitializeConfig()
    Settings.Ind_Atr_Enabled      = Inp_Ind_Atr_Enabled;
    Settings.Ind_CandleBody_Enabled = Inp_Ind_CandleBody_Enabled;
    Settings.Ind_CI_Enabled        = Inp_Ind_CI_Enabled;
+   Settings.Ind_VRC_Enabled       = Inp_Ind_VRC_Enabled;
 
    // Per-indicator vote weights (1 = standard; used in VOTE_MODE_THRESHOLD for weighted sum)
    // In VOTE_MODE_ALL (recommended), weights are ignored — all enabled indicators must simply agree.
@@ -1362,10 +1388,16 @@ void InitializeConfig()
    Settings.Ind_Atr_Weight       = Inp_Ind_Atr_Weight;
    Settings.Ind_CandleBody_Weight = Inp_Ind_CandleBody_Weight;
    Settings.Ind_CI_Weight         = Inp_Ind_CI_Weight;
+   Settings.Ind_VRC_Weight        = Inp_Ind_VRC_Weight;
 
    // Choppiness Index
    Settings.CI_Period             = MathMax(5, Inp_CI_Period);
    Settings.CI_RangingThreshold   = MathMax(0.0, Inp_CI_RangingThreshold);
+
+   // VRC
+   Settings.VRC_ATR_Period        = MathMax(1, Inp_Ind_VRC_ATR_Period);
+   Settings.VRC_Lookback          = MathMax(10, Inp_Ind_VRC_Lookback);
+   Settings.VRC_LowThreshold      = MathMax(0.0, MathMin(100.0, Inp_Ind_VRC_LowThreshold));
 
    // Exits
    Settings.SL_FixedPips         = Inp_SL_FixedPips;
@@ -1575,8 +1607,8 @@ struct SIndicatorMeta {
 };
 
 // Global registry – initialized once in OnInit() via InitializeIndicatorRegistry().
-// Size 14: ADX, ATR, BB, CandleBody, ChoppinessIndex, CCI, EmaSig, MACD, MFI, P123, PSAR, Ross, RSI, Stochastic
-SIndicatorMeta g_indicator_registry[14];
+// Size 15: ADX, ATR, BB, CandleBody, ChoppinessIndex, CCI, EmaSig, MACD, MFI, P123, PSAR, Ross, RSI, Stochastic, VRC
+SIndicatorMeta g_indicator_registry[15];
 
 //+------------------------------------------------------------------+
 //| InitializeIndicatorRegistry(): Populate registry from settings  |
@@ -1669,6 +1701,12 @@ void InitializeIndicatorRegistry(const ST_Settings &cfg)
    g_indicator_registry[i].short_name = "Stoch";
    g_indicator_registry[i].is_enabled = cfg.Ind_Sto_Enabled;
    g_indicator_registry[i].weight     = cfg.Ind_Sto_Weight;
+   i++;
+
+   g_indicator_registry[i].name       = "VRC";
+   g_indicator_registry[i].short_name = "VRC";
+   g_indicator_registry[i].is_enabled = cfg.Ind_VRC_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_VRC_Weight;
    // i++; // last entry – omitted intentionally
 }
 
@@ -1693,6 +1731,7 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
    if(cfg.Ind_Ross_Enabled)       count++;
    if(cfg.Ind_Rsi_Enabled)        count++;
    if(cfg.Ind_Sto_Enabled)        count++;
+   if(cfg.Ind_VRC_Enabled)        count++;
    return count;
 }
 
@@ -1704,18 +1743,18 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
 //+------------------------------------------------------------------+
 string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 {
-   // Table of all 13 indicators: {full name, short name, enabled flag}
-   string names[]  = {"ADX",      "ATR",  "BB",  "CandleBody", "CCI",  "EmaSig", "MACD",
-                       "MFI",      "P123", "PSAR","Ross",       "RSI",  "Stochastic"};
-   string shorts[] = {"ADX",      "ATR",  "BB",  "CBody",      "CCI",  "EmaSig", "MACD",
-                       "MFI",      "P123", "PSAR","Ross",       "RSI",  "Stoch"};
+   // Table of all 15 indicators: {full name, short name, enabled flag}
+   string names[]  = {"ADX",      "ATR",  "BB",  "CandleBody", "CI",  "CCI",  "EmaSig", "MACD",
+                       "MFI",      "P123", "PSAR","Ross",       "RSI",  "Stochastic", "VRC"};
+   string shorts[] = {"ADX",      "ATR",  "BB",  "CBody",      "CI",  "CCI",  "EmaSig", "MACD",
+                       "MFI",      "P123", "PSAR","Ross",       "RSI",  "Stoch",       "VRC"};
    bool enabled[]  = {cfg.Ind_Adx_Enabled, cfg.Ind_Atr_Enabled, cfg.Ind_Bb_Enabled,
-                       cfg.Ind_CandleBody_Enabled, cfg.Ind_Cci_Enabled, cfg.Ind_EmaSig_Enabled,
-                       cfg.Ind_Macd_Enabled, cfg.Ind_Mfi_Enabled, cfg.Ind_P123_Enabled,
-                       cfg.Ind_Psar_Enabled, cfg.Ind_Ross_Enabled, cfg.Ind_Rsi_Enabled,
-                       cfg.Ind_Sto_Enabled};
+                       cfg.Ind_CandleBody_Enabled, cfg.Ind_CI_Enabled, cfg.Ind_Cci_Enabled,
+                       cfg.Ind_EmaSig_Enabled, cfg.Ind_Macd_Enabled, cfg.Ind_Mfi_Enabled,
+                       cfg.Ind_P123_Enabled, cfg.Ind_Psar_Enabled, cfg.Ind_Ross_Enabled,
+                       cfg.Ind_Rsi_Enabled, cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled};
    string list = "";
-   for(int i = 0; i < 13; i++)
+   for(int i = 0; i < 15; i++)
    {
       if(!enabled[i]) continue;
       if(list != "") list += compact ? ", " : "\n  + ";
@@ -1729,8 +1768,8 @@ string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 //+------------------------------------------------------------------+
 void PrintIndicatorRegistry()
 {
-   Print("--- Indicator Registry (13 entries) ---");
-   for(int i = 0; i < 13; i++)
+   Print("--- Indicator Registry (15 entries) ---");
+   for(int i = 0; i < 15; i++)
    {
       PrintFormat("  [%2d] %-12s  enabled=%-5s  weight=%d",
                   i,
