@@ -1263,9 +1263,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          // Why after BE: Prevents premature stop-out
          //               (price might dip below entry before rally)
          // ────────────────────────────────────────────────────────────
-         cfg.TrailMode              = TRAIL_FIXED_PIPS;
+         cfg.TrailMode              = TRAIL_PSAR;
          cfg.TrailTrigger           = TRIGGER_IMMEDIATE;  // Start checking immediately
-         cfg.RRM_TrailStartsAfterBE = true;               // ✅ Only trail after BE hit (safer!)
+         cfg.RRM_TrailStartsAfterBE = false;               // ✅ Only trail after BE hit (safer!)
          cfg.TrailDistancePips      = 0.0;                // Not used (PSAR mode = dynamic)
          cfg.TrailProfitPercent     = 0.0;                // Not used (PSAR mode)
          cfg.TrailStepPips          = 0.0;                // Not used (PSAR mode)
