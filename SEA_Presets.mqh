@@ -534,9 +534,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       cfg.FractalPeriod   = 5;
       cfg.TPFractalOffset = 1;
-      cfg.PSARStep        = 0.02;
-      cfg.PSARMax         = 0.2;
-   
+
       // ================================================================
       // ADVANCED TRAILING TRIGGER DEFAULTS
       // ================================================================
@@ -765,8 +763,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MfiMode = MFI_ZONE_FILTER;
    
       // PSAR (Parabolic SAR)
-      cfg.P_PsarStep         = 0.05;
-      cfg.P_PsarMax          = 0.5;
+      cfg.P_PsarStep         = 0.02;
+      cfg.P_PsarMax          = 0.2;
       cfg.Vote_AllowPsarFlip = true;
       cfg.Vote_PsarFlipDelay = -1;  // Persistent mode: dot on correct side = pass (no flip timer)
    
@@ -865,9 +863,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       cfg.FractalPeriod   = 5;
       cfg.TPFractalOffset = 1;
-      cfg.PSARStep        = 0.02;
-      cfg.PSARMax         = 0.2;
-   
+
       // ================================================================
       // ADVANCED TRAILING TRIGGER DEFAULTS
       // ================================================================
@@ -1047,8 +1043,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MfiMode                   = MFI_ZONE_FILTER;
    
       // PSAR (Parabolic SAR)
-      cfg.P_PsarStep                = 0.05;
-      cfg.P_PsarMax                 = 0.5;
+      cfg.P_PsarStep                = 0.02;
+      cfg.P_PsarMax                 = 0.2;
       cfg.Vote_AllowPsarFlip        = true;
       cfg.Vote_PsarFlipDelay        = -1;     // -1=Flip+Dot, 0=Flip only, 1,2,..=Flip+N only
    
@@ -1309,7 +1305,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.PSAR_TrailPipsCushion = trail_cushion;  // TF+JPY adaptive (M1=1p, H4=5p, D1=15p)
       }
       // else: user's EXIT_PROFILE_SIMPLE (or EXIT_PROFILE_RRM) settings are
-      // preserved from InitializeConfig — SLMode, TrailMode, BE_Mode, PSARStep,
+      // preserved from InitializeConfig — SLMode, TrailMode, BE_Mode,
       // TrailTrigger etc. are already mapped from their respective input parameters.
 
       // ================================================================

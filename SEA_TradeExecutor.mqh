@@ -18,6 +18,23 @@ enum { __SEA_BUILD_TOKEN_MISSING_TRADEEXEC_103001 = SEA_BUILD_TOKEN_103001 };
 #include <RRMS\SEA_Config.mqh>
 #include <Trade\Trade.mqh>
 
+//+------------------------------------------------------------------+
+//| PSAR SYSTEM ARCHITECTURE                                         |
+//|                                                                  |
+//| This EA uses a UNIFIED PSAR indicator system:                    |
+//| - Parameters: P_PsarStep / P_PsarMax (from ST_Settings)         |
+//| - Usage: Indicator voting, Initial SL, Trailing Stop            |
+//|                                                                  |
+//| Functions:                                                       |
+//| - GetPsarForTrail(shift): Reads P_PsarStep/P_PsarMax            |
+//| - GetPSARValue(shift):    Reads P_PsarStep/P_PsarMax (same!)    |
+//|                                                                  |
+//| Both functions calculate THE SAME PSAR indicator.               |
+//| Presets control behavior by setting P_PsarStep/P_PsarMax:       |
+//| - Conservative (0.02/0.2): Tight stops, stable exits (RRM)      |
+//| - Aggressive (0.05/0.5):   Loose stops, early signals (testing) |
+//+------------------------------------------------------------------+
+
 
 class CTradeExecutor {
 private:
@@ -140,13 +157,13 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   //| HELPER (Phase 2.2): Get PSAR value using strategy PSAR settings |
-   //| Uses PSARStep/PSARMax fields (separate from trading PSAR params) |
+   //| HELPER (Phase 2.2): Get PSAR value using unified PSAR settings  |
+   //| Uses P_PsarStep/P_PsarMax — same parameters as voting PSAR      |
    //+------------------------------------------------------------------+
    double GetPSARValue(const int shift=1)
    {
-      double step = (m_settings.PSARStep > 0.0) ? m_settings.PSARStep : 0.02;
-      double maxv = (m_settings.PSARMax  > 0.0) ? m_settings.PSARMax  : 0.2;
+      double step = m_settings.P_PsarStep;
+      double maxv = m_settings.P_PsarMax;
       double r[1];
       int h = iSAR(_Symbol, PERIOD_CURRENT, step, maxv);
       if(h == INVALID_HANDLE) return 0.0;
@@ -341,11 +358,18 @@ private:
       {
          case SL_MODE_SWING:
          {
-            double swing = isBuy ? GetFractalForTrail(1) : GetFractalForTrail(0);
-            if(swing > 0.0)
+            int lb = (m_settings.SwingLookback > 0) ? m_settings.SwingLookback : 20;
+            double swing_level = 0.0;
+            if(isBuy)
+               swing_level = iLow(_Symbol, PERIOD_CURRENT,
+                                  iLowest(_Symbol, PERIOD_CURRENT, MODE_LOW, lb, 1));
+            else
+               swing_level = iHigh(_Symbol, PERIOD_CURRENT,
+                                   iHighest(_Symbol, PERIOD_CURRENT, MODE_HIGH, lb, 1));
+            if(swing_level > 0.0)
             {
                double cushion = RRM_ScalePips(m_settings.SL_SwingPipsCushion);
-               return isBuy ? (swing - cushion) : (swing + cushion);
+               return isBuy ? (swing_level - cushion) : (swing_level + cushion);
             }
             return isBuy ? (entry - fixed_dist) : (entry + fixed_dist);
          }

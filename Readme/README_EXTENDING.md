@@ -730,3 +730,52 @@ Add a comment block above the vote function describing:
 | `SEA_SignalEngine.mqh` | `CaptureVoteSnapshots()` (optional) | Add snapshot block for Cockpit display; expand `ArrayResize` by 1 |
 
 No changes required in `SimpleEA_v1-03.mq5`, `SEA_Presets.mqh`, `SEA_TradeExecutor.mqh`, `SEA_UI.mqh`, or `SEA_Reporting.mqh`.
+
+
+---
+
+## PSAR and Swing Stop Loss Architecture
+
+### PSAR System
+
+The EA uses **one unified PSAR indicator** controlled by:
+- `P_PsarStep` (default: 0.02)
+- `P_PsarMax` (default: 0.2)
+
+This single set of parameters is used for:
+1. Indicator voting (`Check_PSAR` / PSAR vote logic)
+2. Initial stop loss placement (`SL_MODE_PSAR_DOT`)
+3. Trailing stop management (`TRAIL_PSAR`)
+
+**Why unified**: Ensures voting signals align with exit management — no conflicting indicators with different sensitivities.
+
+**Implementation functions** (both read `P_PsarStep`/`P_PsarMax`):
+- `GetPsarForTrail(shift)` — used by trailing stop logic
+- `GetPSARValue(shift)` — used by SL/TP calculations
+
+**Preset customization** (in `SEA_Presets.mqh`):
+```mql5
+// Conservative (RRM default — dots close to price, stable exits):
+cfg.P_PsarStep = 0.02;
+cfg.P_PsarMax  = 0.2;
+
+// Aggressive (looser — dots further from price, earlier signals):
+cfg.P_PsarStep = 0.05;
+cfg.P_PsarMax  = 0.5;
+```
+
+### Swing SL vs Fractal SL
+
+**SWING SL** (`SL_MODE_SWING`):
+- Finds the highest high or lowest low in the last N bars (`SwingLookback`)
+- Simple support/resistance concept — always produces a level
+- Uses `iLowest()` / `iHighest()` functions
+- Controlled by `SwingLookback` setting
+
+**FRACTAL SL** (`SL_MODE_FRACTAL`):
+- Finds specific 5-bar fractal patterns (Bill Williams Fractals)
+- Middle bar must be the highest/lowest of the surrounding 5 bars
+- A rarer formation — may not exist within a given lookback window
+- Uses `iFractals()` indicator
+
+**Do not confuse**: `SL_MODE_SWING` must use `iLowest`/`iHighest` (not fractals). `GetFractalForTrail()` is only for explicit fractal-based trailing logic.
