@@ -374,6 +374,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ADX (Average Directional Index)
       cfg.P_Adx = 14;
       cfg.T_Adx = 20.0;
+      cfg.ADX_Mode                   = ADX_MODE_STATIC;
+      cfg.ADX_Percentile             = 50.0;
+      cfg.ADX_Lookback               = 100;
+      cfg.ADX_Threshold_Accumulation = 12.0;
+      cfg.ADX_Threshold_Trending     = 25.0;
+      cfg.ADX_Threshold_Distribution = 18.0;
    
       // ATR (Average True Range) - Voting Indicator Only
       cfg.P_Atr       = 14;
@@ -704,6 +710,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ADX (Average Directional Index)
       cfg.P_Adx = 14;
       cfg.T_Adx = 20.0;
+      cfg.ADX_Mode                   = ADX_MODE_PHASE_AWARE;
+      cfg.ADX_Percentile             = 50.0;
+      cfg.ADX_Lookback               = 100;
+      cfg.ADX_Threshold_Accumulation = 12.0;
+      cfg.ADX_Threshold_Trending     = 25.0;
+      cfg.ADX_Threshold_Distribution = 18.0;
    
       // ATR (Average True Range) - Voting Indicator Only
       cfg.P_Atr             = 14;
@@ -955,6 +967,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ADX (Average Directional Index)
       cfg.P_Adx = 14;
       cfg.T_Adx = 20.0;
+      cfg.ADX_Mode                   = ADX_MODE_STATIC;
+      cfg.ADX_Percentile             = 50.0;
+      cfg.ADX_Lookback               = 100;
+      cfg.ADX_Threshold_Accumulation = 12.0;
+      cfg.ADX_Threshold_Trending     = 25.0;
+      cfg.ADX_Threshold_Distribution = 18.0;
 
       // ATR (Average True Range) - Voting Indicator Only
       cfg.P_Atr            = 14;
@@ -1372,6 +1390,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ADX (Average Directional Index)
       cfg.P_Adx = 14;
       cfg.T_Adx = 20.0;
+      cfg.ADX_Mode                   = ADX_MODE_STATIC;
+      cfg.ADX_Percentile             = 50.0;
+      cfg.ADX_Lookback               = 100;
+      cfg.ADX_Threshold_Accumulation = 12.0;
+      cfg.ADX_Threshold_Trending     = 25.0;
+      cfg.ADX_Threshold_Distribution = 18.0;
    
       // ATR (Average True Range) - Voting Indicator Only
       cfg.P_Atr            = 14;

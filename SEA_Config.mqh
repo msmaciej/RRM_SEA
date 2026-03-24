@@ -258,6 +258,13 @@ enum EVoteMode
    VOTE_MODE_ALL          // VOTE_ALL: every enabled indicator must agree
 };
 
+// --- ADX VALIDATION MODES ---
+enum EADXMode {
+   ADX_MODE_STATIC = 0,           // Fixed threshold (current behavior)
+   ADX_MODE_DYNAMIC_PERCENTILE,   // Adaptive threshold based on historical percentile
+   ADX_MODE_PHASE_AWARE           // Phase-specific thresholds
+};
+
 // --- ADAPTIVE SETTINGS: PAIR TYPE ---
 enum EPairType
 {
@@ -410,6 +417,13 @@ struct ST_Settings
    int    P_Ema4;
    int    P_Adx;
    int    T_Adx;
+   // ADX mode configuration (EADXMode)
+   EADXMode ADX_Mode;                       // Which ADX validation mode to use
+   double   ADX_Percentile;                 // Percentile for DYNAMIC_PERCENTILE mode (default 50.0)
+   int      ADX_Lookback;                   // Bars to analyse for DYNAMIC_PERCENTILE mode (default 100)
+   double   ADX_Threshold_Accumulation;     // PHASE_AWARE: lower threshold for unordered/emerging phases
+   double   ADX_Threshold_Trending;         // PHASE_AWARE: higher threshold for strong trending phases
+   double   ADX_Threshold_Distribution;     // PHASE_AWARE: medium threshold for transitional phases
    int    P_MacdFast;
    int    P_MacdSlow;
    int    P_MacdSig;
@@ -831,7 +845,13 @@ input bool           Inp_Ind_Adx_Enabled        = false;               // [ADX] 
 input int            Inp_Ind_Adx_Weight         = 1;                   // [ADX] Vote weight
 input string         Inp_Ind_Adx_Info           = "Trend strength filter"; // [ADX] Description
 input int            Inp_Ind_Adx_Period         = 14;                  // [ADX] Period
-input int            Inp_Ind_Adx_Threshold      = 20;                  // [ADX] Threshold
+input int            Inp_Ind_Adx_Threshold      = 20;                  // [ADX] Threshold (Static mode)
+input EADXMode       Inp_Ind_Adx_Mode           = ADX_MODE_STATIC;    // [ADX] Mode (Static/Dynamic/PhaseAware)
+input double         Inp_Ind_Adx_Percentile     = 50.0;               // [ADX] Percentile for Dynamic mode
+input int            Inp_Ind_Adx_Lookback       = 100;                // [ADX] Lookback bars for Dynamic mode
+input double         Inp_Ind_Adx_Thr_Accum      = 12.0;              // [ADX] Phase-Aware: Accumulation/Unordered threshold
+input double         Inp_Ind_Adx_Thr_Trending   = 25.0;              // [ADX] Phase-Aware: Trending threshold
+input double         Inp_Ind_Adx_Thr_Distrib    = 18.0;              // [ADX] Phase-Aware: Distribution/Emerging threshold
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 Indicator: MACD                                    ║";
@@ -1269,6 +1289,12 @@ void InitializeConfig()
    Settings.P_Ema4               = InpEma4Period;
    Settings.P_Adx                = Inp_Ind_Adx_Period;
    Settings.T_Adx                = Inp_Ind_Adx_Threshold;
+   Settings.ADX_Mode                  = Inp_Ind_Adx_Mode;
+   Settings.ADX_Percentile            = Inp_Ind_Adx_Percentile;
+   Settings.ADX_Lookback              = Inp_Ind_Adx_Lookback;
+   Settings.ADX_Threshold_Accumulation= Inp_Ind_Adx_Thr_Accum;
+   Settings.ADX_Threshold_Trending    = Inp_Ind_Adx_Thr_Trending;
+   Settings.ADX_Threshold_Distribution= Inp_Ind_Adx_Thr_Distrib;
    Settings.P_MacdFast           = Inp_P_MacdFast;
    Settings.P_MacdSlow           = Inp_P_MacdSlow;
    Settings.P_MacdSig            = Inp_P_MacdSig;

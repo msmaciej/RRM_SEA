@@ -142,7 +142,13 @@ private:
    datetime m_psar_last_flip_time_bull;  // Timestamp of last bullish flip (0 = none recorded)
    datetime m_psar_last_flip_time_bear;  // Timestamp of last bearish flip (0 = none recorded)
 
-   // --- 3. DATA HELPERS ---
+   // --- 2g. ADX HISTORY TRACKING (for DYNAMIC_PERCENTILE and PHASE_AWARE modes) ---
+   double   m_adxHistory[];              // Rolling buffer of ADX values
+   int      m_adxHistorySize;            // Current number of entries in buffer
+   int      m_adxHistoryMaxSize;         // Maximum buffer size (from ADX_Lookback)
+   double   m_cachedADXThreshold;        // Last calculated dynamic threshold
+   datetime m_lastADXCalculation;        // Time of last threshold recalculation
+
    // Simplified buffer access for cleaner logic code
 
    // Version 1: No validity checking (backward compatible)
@@ -252,19 +258,55 @@ private:
    }
    
    // Vote 2: ADX Strength (Trend Strength)
-   bool Check_ADX(int shift) { 
+   // Supports three modes: STATIC (fixed threshold), DYNAMIC_PERCENTILE (percentile-based adaptive),
+   // and PHASE_AWARE (different thresholds per market phase).
+   bool Check_ADX(int shift) {
       double adx = GetVal(h_adx, shift);
-      bool result = adx > m_settings.T_Adx;
+
+      // Update rolling history for dynamic modes (skip for static — no history needed)
+      if(m_settings.ADX_Mode != ADX_MODE_STATIC)
+         UpdateADXHistory(adx);
+
+      double threshold = 0.0;
+      string modeStr   = "";
+
+      switch(m_settings.ADX_Mode) {
+         case ADX_MODE_STATIC:
+         default:
+            threshold = (double)m_settings.T_Adx;
+            modeStr   = "STATIC";
+            break;
+
+         case ADX_MODE_DYNAMIC_PERCENTILE:
+            // Recalculate every 4 hours or when buffer has just filled
+            if(m_adxHistorySize >= m_adxHistoryMaxSize ||
+               TimeCurrent() - m_lastADXCalculation >= 14400) {
+               m_cachedADXThreshold = CalculateADXPercentile(m_settings.ADX_Percentile);
+               m_lastADXCalculation = TimeCurrent();
+            }
+            threshold = m_cachedADXThreshold;
+            modeStr   = StringFormat("DYNAMIC_P%.0f", m_settings.ADX_Percentile);
+            break;
+
+         case ADX_MODE_PHASE_AWARE:
+            threshold = GetPhaseAwareThreshold(m_diag_last_phase);
+            modeStr   = StringFormat("PHASE_%s", EnumToString(m_diag_last_phase));
+            break;
+      }
+
+      bool result = adx >= threshold;
+      // Cache the effective threshold for diagnostic display (GetVoteSnapshot, debug logs)
+      m_cachedADXThreshold = threshold;
       if(m_settings.DebugFlow) {
          if(m_settings.Ind_Adx_Enabled)
-            PrintFormat("[IND_ADX] ENABLED | Value=%.2f | Threshold=%.2f | Result: %s",
-                        adx, m_settings.T_Adx, result ? "PASS" : "FAIL");
+            PrintFormat("[IND_ADX] ENABLED | Value=%.2f | Threshold=%.2f | Mode=%s | Result: %s",
+                        adx, threshold, modeStr, result ? "PASS" : "FAIL");
          else
             Print("[IND_ADX] DISABLED - skipped");
       }
       return result;
    }
-   
+
    // Vote 3: MACD — two-tier architecture (base mode + optional filters)
    //
    // MACD Indicator buffer outputs:
@@ -1418,6 +1460,13 @@ public:
       // Initialize PSAR flip tracking
       m_psar_last_flip_time_bull = 0;
       m_psar_last_flip_time_bear = 0;
+
+      // Initialize ADX history tracking
+      ArrayResize(m_adxHistory, 0);
+      m_adxHistorySize      = 0;
+      m_adxHistoryMaxSize   = 100;
+      m_cachedADXThreshold  = 20.0;
+      m_lastADXCalculation  = 0;
    }
 
    // --- DIAGNOSTIC GETTERS (for Cockpit/UI) ---
@@ -1899,12 +1948,12 @@ public:
       if(m_settings.Ind_Adx_Enabled && h_adx != INVALID_HANDLE)
       {
          double adx = GetVal(h_adx, shift);
-         bool pass = (adx > m_settings.T_Adx);
+         bool pass = (adx >= m_cachedADXThreshold);
          out[count].name    = "ADX";
          out[count].enabled = true;
-         if(pass && m_diag_last_bias ==  1) { out[count].state = "BUY";  out[count].reason = StringFormat("(ADX=%.0f>%d)", adx, m_settings.T_Adx); }
-         else if(pass && m_diag_last_bias == -1) { out[count].state = "SELL"; out[count].reason = StringFormat("(ADX=%.0f>%d)", adx, m_settings.T_Adx); }
-         else                               { out[count].state = "FLAT"; out[count].reason = StringFormat("(ADX=%.0f%s%d)", adx, pass?">=":"<=", m_settings.T_Adx); }
+         if(pass && m_diag_last_bias ==  1) { out[count].state = "BUY";  out[count].reason = StringFormat("(ADX=%.0f>=%.0f)", adx, m_cachedADXThreshold); }
+         else if(pass && m_diag_last_bias == -1) { out[count].state = "SELL"; out[count].reason = StringFormat("(ADX=%.0f>=%.0f)", adx, m_cachedADXThreshold); }
+         else                               { out[count].state = "FLAT"; out[count].reason = StringFormat("(ADX=%.0f%s%.0f)", adx, pass?">=":"<", m_cachedADXThreshold); }
          out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
@@ -2083,8 +2132,14 @@ public:
    bool Init(ST_Settings &sets, string symbol) {
       m_settings = sets;
       m_symbol   = symbol;
-      
-      // CONVERT ENUM TO MT5 CONSTANT
+
+      // Initialize ADX history tracking from settings
+      m_adxHistoryMaxSize  = (m_settings.ADX_Lookback > 0 ? m_settings.ADX_Lookback : 100);
+      ArrayResize(m_adxHistory, 0);
+      m_adxHistorySize     = 0;
+      m_cachedADXThreshold = (double)m_settings.T_Adx;
+      m_lastADXCalculation = 0;
+
       ENUM_MA_METHOD method = (m_settings.MaType == METHOD_SMA) ? MODE_SMA : MODE_EMA;
       int h_shift = m_settings.ma_h_shift; // Horizontal Shift support
       
@@ -2356,6 +2411,73 @@ public:
          }
       }
       return true;
+   }
+
+   //+------------------------------------------------------------------+
+   //| UpdateADXHistory(): append ADX value to rolling history buffer  |
+   //+------------------------------------------------------------------+
+   void UpdateADXHistory(double currentADX) {
+      if(m_adxHistorySize < m_adxHistoryMaxSize) {
+         // Buffer not yet full — just append
+         ArrayResize(m_adxHistory, m_adxHistorySize + 1);
+         m_adxHistory[m_adxHistorySize] = currentADX;
+         m_adxHistorySize++;
+      } else {
+         // Buffer full — shift left (remove oldest) and append newest
+         for(int i = 0; i < m_adxHistoryMaxSize - 1; i++)
+            m_adxHistory[i] = m_adxHistory[i + 1];
+         m_adxHistory[m_adxHistoryMaxSize - 1] = currentADX;
+      }
+   }
+
+   //+------------------------------------------------------------------+
+   //| CalculateADXPercentile(): percentile of current ADX history      |
+   //| Returns static threshold when history is too short (<10 bars)    |
+   //+------------------------------------------------------------------+
+   double CalculateADXPercentile(double percentile) {
+      if(m_adxHistorySize < 10)
+         return (double)m_settings.T_Adx;
+
+      // Sort a copy of the history
+      double sorted[];
+      ArrayResize(sorted, m_adxHistorySize);
+      ArrayCopy(sorted, m_adxHistory, 0, 0, m_adxHistorySize);
+      ArraySort(sorted);
+
+      // Interpolate the requested percentile
+      double index      = (percentile / 100.0) * (m_adxHistorySize - 1);
+      int    lowerIndex = (int)MathFloor(index);
+      int    upperIndex = (int)MathCeil(index);
+
+      if(lowerIndex == upperIndex)
+         return sorted[lowerIndex];
+
+      double fraction = index - lowerIndex;
+      return sorted[lowerIndex] + (sorted[upperIndex] - sorted[lowerIndex]) * fraction;
+   }
+
+   //+------------------------------------------------------------------+
+   //| GetPhaseAwareThreshold(): ADX threshold based on market phase    |
+   //+------------------------------------------------------------------+
+   double GetPhaseAwareThreshold(EMarketPhase phase) {
+      switch(phase) {
+         case PHASE_TRENDING:
+         case PHASE_TRENDING_UP:
+         case PHASE_TRENDING_DN:
+            // Strong trend confirmed — require higher ADX
+            return m_settings.ADX_Threshold_Trending;
+
+         case PHASE_EMERGING:
+         case PHASE_EMERGING_UP:
+         case PHASE_EMERGING_DN:
+            // Trend forming (emerging/transitional) — use distribution threshold as medium filter
+            return m_settings.ADX_Threshold_Distribution;
+
+         case PHASE_UNORDERED:
+         default:
+            // Unordered/unknown — use accumulation (lowest) threshold
+            return m_settings.ADX_Threshold_Accumulation;
+      }
    }
 
    //+------------------------------------------------------------------+
@@ -3238,7 +3360,7 @@ public:
             if(m_settings.Ind_Adx_Enabled) {
                double adx = GetVal(h_adx, v_shift);
                PrintFormat("[IND] ADX: %.2f / threshold=%.2f → %s (w=%d)",
-                           adx, m_settings.T_Adx, _res_adx ? "PASS" : "FAIL", m_settings.Ind_Adx_Weight);
+                           adx, m_cachedADXThreshold, _res_adx ? "PASS" : "FAIL", m_settings.Ind_Adx_Weight);
             } else Print("[IND] ADX: DISABLED → SKIP");
 
             // MACD
