@@ -7,8 +7,8 @@ RRM_Simple EA — macOS + Wine + MT5 + **MQL5 ONLY**
 All current docs live in `Readme/`:
 
 - `Readme/README_SYSTEM.md` — system architecture & full documentation
-- `Readme/README_INDICATORS.md` — indicator and voting pipeline reference
-- `Readme/README_EXTENDING.md` — developer guide: how to add custom indicators
+- `Readme/README_INDICATORS.md` — indicator and voting pipeline reference (**Phase 1 & 2 complete: CI + ADX Dynamic modes**)
+- `Readme/README_EXTENDING.md` — developer guide: how to add custom indicators (**centralized registry architecture**)
 - `Readme/README_EXIT_MANAGEMENT.md` — exit system (SL/TP/BE/Trail + TF-based cushions)
 - `Readme/README_CONFIG_ZONES.md` — input zone organization & preset policy
 - `Readme/README_ADAPTIVE_SETTINGS.md` — pair-specific spread limits
@@ -102,6 +102,21 @@ The bias calculation uses **adaptive slope thresholds** to filter noise and fals
 - Win Rate: 50-55% (approaching Python EA's 55-60%)
 - Trade Quality: Reduced false signals in choppy markets
 - Configurability: `MinPhaseConfirmBars` tunable per symbol/timeframe
+
+### Implementation Architecture Improvements
+
+**Centralized Indicator Registry (PR #16):**
+- ✅ All indicator metadata in one location (`g_indicator_registry[]`)
+- ✅ Automatic counting via `GetEnabledIndicatorCount()`
+- ✅ Automatic list generation via `GetEnabledIndicatorList()`
+- ✅ No scattered enum/settings across multiple files
+- ✅ Adding new indicators: 2-3 functions in `SEA_Config.mqh` only
+
+**Dynamic Indicator System (Phase 2):**
+- ✅ ADX supports 3 modes (STATIC / DYNAMIC_PERCENTILE / PHASE_AWARE)
+- ✅ Rolling history buffer for percentile calculation
+- ✅ Template for future dynamic indicators (RSI, MACD, etc.)
+- ⚠️ Each indicator has unique calculation method (not generic one-size-fits-all)
 
 ### Layer Detection Equivalence
 SimpleEA's STRAT_LAYER_DETECTION replicates Python EA's TrSet pattern logic:

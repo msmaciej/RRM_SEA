@@ -107,6 +107,157 @@ SEA_Config.mqh                    SEA_SignalEngine.mqh
 
 ---
 
+## Centralized Indicator Registry (Architectural Improvement)
+
+### Problem Solved
+
+**Before (scattered implementation):**
+When adding a new indicator, you had to update 6-8 different locations across multiple files:
+- `SEA_Config.mqh` (inputs, struct fields, initialization)
+- `SEA_SignalEngine.mqh` (handle, init, release, vote function, voting loop)
+- `SEA_UI.mqh` (display formatting)
+- `SEA_Presets.mqh` (each preset configuration)
+- Manual counting and list management
+
+**After (centralized registry):**
+All indicator metadata is now stored in a **single centralized registry** (`g_indicator_registry[]`) that automatically handles:
+- ✅ Indicator counting (`GetEnabledIndicatorCount()`)
+- ✅ List generation (`GetEnabledIndicatorList()`)
+- ✅ Cockpit display
+- ✅ Status panel updates
+- ✅ UI formatting
+
+### How It Works
+
+#### 1. Registry Declaration (SEA_Config.mqh)
+
+```mql5
+// Metadata for a single voting indicator
+struct SIndicatorMeta {
+   string name;         // Full display name (e.g. "ChoppinessIndex")
+   string short_name;   // Compact code for UI (e.g. "CI")
+   bool   is_enabled;   // Cached enabled state
+   int    weight;       // Vote weight
+};
+
+// Global registry - currently 14 indicators
+SIndicatorMeta g_indicator_registry[14];
+```
+
+#### 2. Registry Initialization (SEA_Config.mqh)
+
+Called once in `OnInit()` after `InitializeConfig()` and `ApplyPreset()`:
+
+```mql5
+void InitializeIndicatorRegistry(const ST_Settings &cfg)
+{
+   int i = 0;
+
+   // Alphabetical order for consistency
+   g_indicator_registry[i].name       = "ADX";
+   g_indicator_registry[i].short_name = "ADX";
+   g_indicator_registry[i].is_enabled = cfg.Ind_Adx_Enabled;
+   g_indicator_registry[i].weight     = cfg.Ind_Adx_Weight;
+   i++;
+
+   // ... repeat for all 14 indicators ...
+}
+```
+
+#### 3. Automatic List Generation
+
+```mql5
+// Get comma-separated list of enabled indicators
+string list = GetEnabledIndicatorList(Settings, false); // Full names
+// → "ADX, MACD, PSAR, CCI"
+
+string compact = GetEnabledIndicatorList(Settings, true); // Short names
+// → "ADX, MACD, PSAR, CCI"
+```
+
+#### 4. Automatic Counting
+
+```mql5
+int count = GetEnabledIndicatorCount(Settings);
+// Returns number of enabled indicators (used for validation warnings)
+```
+
+### Adding a New Indicator (Updated Process)
+
+When adding a new indicator to the registry (Step 8 in the main example):
+
+```mql5
+// Step 8.1: Add to InitializeIndicatorRegistry() in SEA_Config.mqh
+g_indicator_registry[i].name       = "Ichimoku";
+g_indicator_registry[i].short_name = "Ichi";
+g_indicator_registry[i].is_enabled = cfg.Use_Ichi;
+g_indicator_registry[i].weight     = cfg.W_Ichi;
+i++;
+
+// Step 8.2: Update array size (was 14, now 15)
+SIndicatorMeta g_indicator_registry[15];
+
+// Step 8.3: Update GetEnabledIndicatorCount() to include the new flag
+int GetEnabledIndicatorCount(const ST_Settings &cfg)
+{
+   int count = 0;
+   if(cfg.Ind_EmaSig_Enabled)    count++;
+   // ... existing indicators ...
+   if(cfg.Use_Ichi)              count++; // ADD THIS LINE
+   return count;
+}
+```
+
+**That's it!** No changes needed to:
+- ❌ `SEA_UI.mqh` — list generation is automatic
+- ❌ `SimpleEA_v1-03.mq5` — main file unchanged
+- ❌ `SEA_Presets.mqh` — only if you want preset-specific config
+
+### Benefits
+
+| Before | After |
+|--------|-------|
+| Update 6-8 files | Update 2-3 functions in 1 file |
+| Manual list formatting | Automatic from registry |
+| Manual counting logic | Automatic from registry |
+| Easy to miss a location | Compile-time array bounds checking |
+| Preset files scattered | Registry initialized once per preset |
+
+### Example: Registry in Action
+
+```mql5
+// SimpleEA_v1-03.mq5 OnInit()
+InitializeConfig();                    // Step 1: Load inputs
+ApplyPreset(InpPreset, Settings);      // Step 2: Apply preset
+InitializeIndicatorRegistry(Settings); // Step 3: Populate registry
+
+// Now all UI functions automatically know which indicators are enabled:
+int enabled = GetEnabledIndicatorCount(Settings);
+// → Returns 5 (for example)
+
+string list = GetEnabledIndicatorList(Settings, false);
+// → "ADX, ChoppinessIndex, MACD, PSAR, CCI"
+
+// Cockpit display automatically iterates g_indicator_registry[]
+// Status panel automatically formats enabled indicator names
+// No manual updates required!
+```
+
+### Migration Notes
+
+**If you have old custom indicators:**
+1. Add them to `InitializeIndicatorRegistry()`
+2. Increment array size
+3. Add flag to `GetEnabledIndicatorCount()`
+4. Remove old manual list/count code (optional cleanup)
+
+**Backward Compatibility:**
+- Existing code continues to work
+- Registry is additive (doesn't break existing logic)
+- Old manual list functions still available but deprecated
+
+---
+
 ## Complete Example: Adding Ichimoku Cloud
 
 The following walkthrough adds **Ichimoku Cloud** as an optional voting indicator. The vote passes when:

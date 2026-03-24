@@ -1221,6 +1221,65 @@ bool Check_ADX(const int v_shift) {
 
 **Recommendation:** Essential for trend-following systems
 
+#### ADX Dynamic Modes (Phase 2 Enhancement)
+
+ADX supports three validation modes for adaptive trend strength filtering:
+
+##### 1. ADX_MODE_STATIC (Default)
+- **Behavior:** Fixed threshold (e.g., 20.0)
+- **Best for:** Stable market conditions, backtesting comparison
+- **Configuration:**
+  ```mql5
+  Inp_Ind_Adx_Mode = ADX_MODE_STATIC;
+  Inp_Ind_Adx_Threshold = 20.0;
+  ```
+- **Example:** ADX must be above 20.0 to pass (constant value)
+
+##### 2. ADX_MODE_DYNAMIC_PERCENTILE
+- **Behavior:** Adaptive threshold based on recent ADX history
+- **Recalculation:** Every 4 hours to balance responsiveness and stability
+- **Best for:** Volatile markets, automated trading, adaptive strategies
+- **Configuration:**
+  ```mql5
+  Inp_Ind_Adx_Mode = ADX_MODE_DYNAMIC_PERCENTILE;
+  Inp_Ind_Adx_Percentile = 50.0;  // 50th percentile = median
+  Inp_Ind_Adx_Lookback = 100;     // bars to analyze
+  ```
+- **Example:** If the 50th percentile of last 100 ADX values = 18.5, then ADX must be > 18.5 to pass
+- **Use Cases:**
+  - 30th percentile: More aggressive (accepts weaker trends)
+  - 50th percentile: Balanced (median strength required)
+  - 70th percentile: Conservative (only strong trends pass)
+
+##### 3. ADX_MODE_PHASE_AWARE
+- **Behavior:** Different thresholds per market phase
+- **Best for:** RRM strategy with phase detection (PRESET_RRM)
+- **Configuration:**
+  ```mql5
+  Inp_Ind_Adx_Mode = ADX_MODE_PHASE_AWARE;
+  Inp_Ind_Adx_Thr_Accum = 12.0;      // Accumulation/Unordered phase
+  Inp_Ind_Adx_Thr_Trending = 25.0;   // Strong trending phase
+  Inp_Ind_Adx_Thr_Distrib = 18.0;    // Distribution/transition phase
+  ```
+- **Threshold Selection:**
+  - **PHASE_ACCUMULATION / PHASE_UNORDERED:** 12.0 (low threshold, accept weaker trends during accumulation)
+  - **PHASE_TRENDING:** 25.0 (high threshold, require strong trend confirmation)
+  - **PHASE_DISTRIBUTION:** 18.0 (medium threshold, transitional phase)
+- **Rationale:** During accumulation, we want to catch emerging trends early (lower bar). During strong trends, we demand confirmation (higher bar).
+
+##### Implementation Notes
+- Rolling history buffer tracks ADX values for percentile calculation
+- Cached threshold updated every 4 hours (14400 seconds) to avoid excessive recalculation
+- History buffer size = `ADX_Lookback` parameter (default 100 bars)
+- Percentile calculation uses linear interpolation between sorted values
+- Static mode is used as fallback when history size < 10 bars
+
+##### Testing Recommendations
+1. **Compare Modes:** Run backtest with all three modes on same data (H1 EURUSD 2024)
+2. **Percentile Sensitivity:** Test 30th, 50th, 70th percentiles in DYNAMIC mode
+3. **Phase Thresholds:** Optimize phase-aware thresholds for your strategy
+4. **Market Conditions:** Dynamic modes perform best in volatile/changing markets
+
 ---
 
 ### 3. MACD (Momentum)
