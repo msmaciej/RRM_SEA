@@ -733,9 +733,13 @@ void OrchestrateTick()
    // Build pipeline diagnostics string (EMA values, structure gate, statistics)
    string diag_snap = Signal.GetDiagnosticsString();
 
+   // Get comprehensive position snapshot for cockpit display
+   string pos_snap = Executor.GetPositionSnapshot();
+
    SEA_UI_UpdateCockpitPanel(Signal.GetATR(), (drawdown_blocked ? 0 : g_ts_dir),
                              snap_bias, snap_votes, snap_reason,
-                             ts_snap, te_snap, vote_snaps, vote_snap_count, diag_snap);
+                             ts_snap, te_snap, vote_snaps, vote_snap_count, diag_snap,
+                             PHASE_UNORDERED, LAYER_NONE, false, false, pos_snap);
    FlowLog("Bar pipeline complete");
 }
 
