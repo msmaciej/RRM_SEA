@@ -518,10 +518,6 @@ struct ST_Settings
    int      FractalPeriod;    // Fractal indicator period (default: 5)
    int      TPFractalOffset;  // How many fractals ahead for TP (default: 1)
 
-   // === PSAR SL/TP Settings (NEW: Phase 2.2) ===
-   double   PSARStep;         // PSAR step for SL/TP calculations (default: 0.02)
-   double   PSARMax;          // PSAR max for SL/TP calculations (default: 0.2)
-
    // Advanced Trailing Settings
    ETrailTrigger TrailTrigger;       // When to begin trailing (default: TRIGGER_IMMEDIATE)
    double   BEThresholdPips;         // Profit pips required before moving to breakeven
@@ -1066,8 +1062,6 @@ input group "--- PSAR & Fractal SL/TP Settings ---";
 input string         Inp_SL_FractalPsar_Note    = "Settings used by SL_FRACTAL and SL_PSAR_DOT modes"; // [Info]
 input int            Inp_FractalPeriod          = 5;                   // Fractal period for SL/TP (SL_FRACTAL / TP_FRACTAL)
 input int            Inp_TPFractalOffset        = 1;                   // Fractal offset for TP (1=nearest fractal)
-input double         Inp_PSARStep               = 0.02;                // PSAR step for SL/TP (SL_PSAR_DOT / TP_PSAR_FLIP)
-input double         Inp_PSARMax                = 0.2;                 // PSAR max for SL/TP
 
 // ── Take Profit Configuration ────────────────────────────────────────
 input group "═══ 🎯 Take Profit Configuration ═══";
@@ -1413,8 +1407,6 @@ void InitializeConfig()
    // Fractal/PSAR SL/TP settings
    Settings.FractalPeriod      = Inp_FractalPeriod;
    Settings.TPFractalOffset    = Inp_TPFractalOffset;
-   Settings.PSARStep           = Inp_PSARStep;
-   Settings.PSARMax            = Inp_PSARMax;
 
    // Advanced trailing trigger settings
    Settings.TrailTrigger       = Inp_TrailTrigger;
