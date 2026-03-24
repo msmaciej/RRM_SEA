@@ -2557,12 +2557,16 @@ public:
       double lowest   = iLow(m_symbol, PERIOD_CURRENT, lowest_idx);
       double range    = highest - lowest;
 
-      // Avoid division by zero (flat market = max choppiness)
+      // Avoid division by zero or log of zero (flat / zero-range market = max choppiness)
       // 0.00001 is sub-pip level: any real price range will exceed this
-      if(range < 0.00001) return 100.0;
+      if(range < 0.00001 || sum_tr <= 0.0) return 100.0;
 
-      // Calculate CI
-      double ci = 100.0 * MathLog10(sum_tr) / MathLog10(range);
+      // Calculate CI using the standard Choppiness Index formula:
+      //   CI = 100 * log10(sum_TR / range) / log10(n)
+      // where n = period, range = highest_high - lowest_low
+      // CI range: 0 (perfect trend) to 100 (maximum choppiness)
+      // Threshold 61.8 = ranging; below 38.2 = strongly trending
+      double ci = 100.0 * MathLog10(sum_tr / range) / MathLog10(period);
 
       return ci;
    }
@@ -2576,10 +2580,16 @@ public:
       double ci = CalculateCI(shift);
 
       // Reject if CI indicates ranging market
-      if(ci >= m_settings.CI_RangingThreshold)
-         return false;  // Ranging/choppy market
+      bool is_trending = (ci < m_settings.CI_RangingThreshold);
 
-      return true;  // Trending market (acceptable)
+      if(m_settings.DebugFlow) {
+         PrintFormat("[IND_CI] CI=%.2f | Threshold=%.2f | %s | Result: %s",
+                     ci, m_settings.CI_RangingThreshold,
+                     is_trending ? "TRENDING" : "RANGING",
+                     is_trending ? "PASS" : "FAIL");
+      }
+
+      return is_trending;
    }
 
    //+------------------------------------------------------------------+
