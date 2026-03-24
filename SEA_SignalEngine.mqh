@@ -2586,9 +2586,7 @@ public:
       int maxSize = MathMin(m_settings.VRC_Lookback, 100);
 
       // Shift existing values right (oldest value falls off at end)
-      for(int i = maxSize - 1; i > 0; i--) {
-         m_atrHistory[i] = m_atrHistory[i - 1];
-      }
+      ArrayCopy(m_atrHistory, m_atrHistory, 1, 0, maxSize - 1);
 
       // Insert new value at front
       m_atrHistory[0] = currentATR;

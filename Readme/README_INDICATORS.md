@@ -1365,6 +1365,10 @@ Inp_Ind_VRC_LowThreshold = 33.0;   // Low/Normal boundary (percentile)
 3. **Combine with CI:** Enable both CI and VRC for robust ranging/quiet market filtering
 4. **Market Session Analysis:** Verify LOW regime appears during Asian session (quiet hours)
 
+---
+
+### 3. MACD (Momentum)
+
 **Setting:** `Use_Macd`
 
 **What it checks:**
