@@ -34,6 +34,21 @@ private:
    string      m_last_te_result;
    string      m_last_te_reason;
 
+   // Position excursion tracking
+   struct SPositionExcursion {
+      ulong    ticket;        // Ticket being tracked
+      datetime entry_time;   // When position opened
+      double   entry_price;  // Entry price
+      double   mae_pips;     // Max Adverse Excursion in pips (worst drawdown)
+      double   mfe_pips;     // Max Favorable Excursion in pips (best profit)
+      double   current_pips; // Current P&L in pips
+      bool     be_reached;   // Has breakeven been triggered?
+      bool     trail_active; // Is trailing stop active?
+      string   trail_type;   // Trail type: "PSAR", "FRACTAL", "FIXED", etc.
+   };
+
+   SPositionExcursion m_excursion; // Current position tracking
+
    //+------------------------------------------------------------------+
    //| HELPER: Identify Position belonging to this specific EA Instance |
    //+------------------------------------------------------------------+
@@ -79,6 +94,13 @@ private:
          if((ulong)PositionGetInteger(POSITION_MAGIC) != m_magic) continue;
          m_trade.PositionClose(ticket);
       }
+   }
+
+   //+------------------------------------------------------------------+
+   //| HELPER: Return pip size for the current symbol (JPY-aware)       |
+   //+------------------------------------------------------------------+
+   double GetPipSize() const {
+      return _Point * (StringFind(_Symbol, "JPY") >= 0 ? 100.0 : 10.0);
    }
 
 
@@ -725,11 +747,107 @@ private:
       return sl;
    }
 
+   //+------------------------------------------------------------------+
+   //| Update MAE/MFE for active position                               |
+   //| Call from EvaluateTM() every tick/bar                            |
+   //+------------------------------------------------------------------+
+   void UpdatePositionExcursion(ulong ticket)
+   {
+      if(!PositionSelectByTicket(ticket)) {
+         // Position closed — reset tracking
+         m_excursion.ticket       = 0;
+         m_excursion.mae_pips     = 0.0;
+         m_excursion.mfe_pips     = 0.0;
+         m_excursion.current_pips = 0.0;
+         return;
+      }
+
+      // Initialize tracking for new position
+      if(m_excursion.ticket != ticket) {
+         m_excursion.ticket       = ticket;
+         m_excursion.entry_time   = (datetime)PositionGetInteger(POSITION_TIME);
+         m_excursion.entry_price  = PositionGetDouble(POSITION_PRICE_OPEN);
+         m_excursion.mae_pips     = 0.0;
+         m_excursion.mfe_pips     = 0.0;
+         m_excursion.current_pips = 0.0;
+         m_excursion.be_reached   = false;
+         m_excursion.trail_active = false;
+         m_excursion.trail_type   = "OFF";
+      }
+
+      // Calculate current P&L in pips
+      ENUM_POSITION_TYPE type  = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+      double current_price     = PositionGetDouble(POSITION_PRICE_CURRENT);
+      double pipSize           = GetPipSize();
+
+      double pnl_pips = (type == POSITION_TYPE_BUY)
+                        ? (current_price - m_excursion.entry_price) / pipSize
+                        : (m_excursion.entry_price - current_price) / pipSize;
+
+      m_excursion.current_pips = pnl_pips;
+
+      // Update MAE (most negative value)
+      if(pnl_pips < m_excursion.mae_pips)
+         m_excursion.mae_pips = pnl_pips;
+
+      // Update MFE (most positive value)
+      if(pnl_pips > m_excursion.mfe_pips)
+         m_excursion.mfe_pips = pnl_pips;
+
+      // Update BE status (check if SL is at or near entry)
+      double current_sl = PositionGetDouble(POSITION_SL);
+      if(current_sl > 0.0) {
+         double sl_dist_from_entry = MathAbs(current_sl - m_excursion.entry_price);
+         double tolerance          = 5.0 * _Point;
+         m_excursion.be_reached    = (sl_dist_from_entry <= tolerance);
+      }
+
+      // Update Trail status based on current trail mode
+      switch(m_settings.TrailMode) {
+         case TRAIL_PSAR:
+         case TRAIL_PSAR_FLIP_EXIT:
+            m_excursion.trail_active = true;
+            m_excursion.trail_type   = "PSAR";
+            break;
+         case TRAIL_FRACTAL:
+            m_excursion.trail_active = true;
+            m_excursion.trail_type   = "FRACTAL";
+            break;
+         case TRAIL_FIXED_PIPS:
+            m_excursion.trail_active = true;
+            m_excursion.trail_type   = "FIXED";
+            break;
+         case TRAIL_BREAKEVEN:
+            m_excursion.trail_active = true;
+            m_excursion.trail_type   = "BE";
+            break;
+         case TRAIL_PROFIT_PERCENT:
+            m_excursion.trail_active = true;
+            m_excursion.trail_type   = "PROFIT%";
+            break;
+         default:
+            m_excursion.trail_active = false;
+            m_excursion.trail_type   = "OFF";
+            break;
+      }
+   }
+
 public:
    CTradeExecutor() : m_last_trade_bar(0), m_last_risk_warn(0),
                       m_rrm_last_ticket(0), m_rrm_trail_frozen(false),
                       m_rrm_be_reached(false), m_rrm_initial_sl(0.0),
-                      m_last_te_time(0), m_last_te_result(""), m_last_te_reason("") {}
+                      m_last_te_time(0), m_last_te_result(""), m_last_te_reason("")
+   {
+      m_excursion.ticket       = 0;
+      m_excursion.entry_time   = 0;
+      m_excursion.entry_price  = 0.0;
+      m_excursion.mae_pips     = 0.0;
+      m_excursion.mfe_pips     = 0.0;
+      m_excursion.current_pips = 0.0;
+      m_excursion.be_reached   = false;
+      m_excursion.trail_active = false;
+      m_excursion.trail_type   = "OFF";
+   }
 
    //+------------------------------------------------------------------+
    //| INITIALIZATION                                                   |
@@ -752,8 +870,106 @@ public:
       m_settings = sets; 
    }
 
+   //+------------------------------------------------------------------+
+   //| Get comprehensive position snapshot for Cockpit display          |
+   //| Groups: Core Info | P&L | Risk | Excursion | Account | Costs     |
+   //+------------------------------------------------------------------+
+   string GetPositionSnapshot()
+   {
+      for(int i = PositionsTotal() - 1; i >= 0; i--)
+      {
+         ulong ticket = PositionGetTicket(i);
+         if(ticket == 0) continue;
+         if(PositionGetInteger(POSITION_MAGIC) != (long)m_magic) continue;
+         if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
 
-   //==========================================================================
+         // --- Extract Position Data ---
+         ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+         double entry    = PositionGetDouble(POSITION_PRICE_OPEN);
+         double current  = PositionGetDouble(POSITION_PRICE_CURRENT);
+         double sl       = PositionGetDouble(POSITION_SL);
+         double tp       = PositionGetDouble(POSITION_TP);
+         double lots     = PositionGetDouble(POSITION_VOLUME);
+         double profit   = PositionGetDouble(POSITION_PROFIT);
+         double swap     = PositionGetDouble(POSITION_SWAP);
+
+         double pipSize  = GetPipSize();
+
+         // --- Group 1: Core metrics ---
+         double sl_pips  = (sl > 0.0) ? MathAbs(entry - sl) / pipSize : 0.0;
+         double tp_pips  = (tp > 0.0) ? MathAbs(tp - entry) / pipSize : 0.0;
+         double rr_ratio = (sl_pips > 0.0 && tp_pips > 0.0) ? (tp_pips / sl_pips) : 0.0;
+
+         // --- Group 2: Risk metrics ---
+         double risk_amount = 0.0;
+         if(sl > 0.0) {
+            double stop_dist  = MathAbs(entry - sl);
+            double tick_size  = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+            double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+            if(tick_value <= 0.0)
+               tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+            if(tick_size > 0.0 && tick_value > 0.0)
+               risk_amount = (stop_dist / tick_size) * tick_value * lots;
+         }
+
+         // --- Group 4: Account context ---
+         double equity      = AccountInfoDouble(ACCOUNT_EQUITY);
+         double free_margin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+         double margin_used = AccountInfoDouble(ACCOUNT_MARGIN);
+         double margin_pct  = (equity > 0.0 && margin_used > 0.0)
+                               ? (margin_used / equity * 100.0) : 0.0;
+
+         // --- P&L metrics ---
+         double risk_pct   = (equity > 0.0 && risk_amount > 0.0)
+                              ? (risk_amount / equity * 100.0) : 0.0;
+         double pnl_pct    = (equity > 0.0) ? (profit / equity * 100.0) : 0.0;
+         double pnl_pips   = (type == POSITION_TYPE_BUY)
+                              ? (current - entry) / pipSize
+                              : (entry - current) / pipSize;
+         double r_multiple = (risk_amount > 0.0) ? (profit / risk_amount) : 0.0;
+         double net_pnl    = profit + swap;
+
+         // --- Time in trade ---
+         datetime entry_time = (datetime)PositionGetInteger(POSITION_TIME);
+         int seconds  = (int)(TimeCurrent() - entry_time);
+         int hours    = seconds / 3600;
+         int minutes  = (seconds % 3600) / 60;
+         string duration = StringFormat("%dh %dm", hours, minutes);
+
+         // --- MAE/MFE from tracking struct ---
+         string dir_str = (type == POSITION_TYPE_BUY) ? "BUY" : "SELL";
+         string ccy     = AccountInfoString(ACCOUNT_CURRENCY);
+
+         // Line 1: Type, Lots, Entry, Current
+         string snap = StringFormat("%s  %.2f lots  Entry=%.5f  Now=%.5f\n",
+                                    dir_str, lots, entry, current);
+         // Line 2: SL/TP with distances and RR
+         snap += StringFormat("SL=%.5f (%.1f pips)  TP=%.5f (%.1f pips)  RR=%.2f\n",
+                              sl, sl_pips, tp, tp_pips, rr_ratio);
+         // Line 3: P&L (account currency, %, pips, R-multiples)
+         snap += StringFormat("P&L: %s%.2f (%.2f%%)  %.1f pips  %.2fR\n",
+                              ccy, profit, pnl_pct, pnl_pips, r_multiple);
+         // Line 4: Risk metrics, BE status, Trail status
+         snap += StringFormat("Risk: %s%.2f (%.2f%%)  BE=%s  Trail=%s\n",
+                              ccy, risk_amount, risk_pct,
+                              m_excursion.be_reached ? "YES" : "NO",
+                              m_excursion.trail_active ? m_excursion.trail_type : "OFF");
+         // Line 5: Excursion tracking
+         snap += StringFormat("MAE=%.1f pips  MFE=%.1f pips  Duration=%s\n",
+                              m_excursion.mae_pips, m_excursion.mfe_pips, duration);
+         // Line 6: Account context
+         snap += StringFormat("Equity=%s%.2f  Free=%s%.2f  Margin=%.1f%%\n",
+                              ccy, equity, ccy, free_margin, margin_pct);
+         // Line 7: Costs (only if non-zero)
+         if(swap != 0.0)
+            snap += StringFormat("Swap=%s%.2f  Net=%s%.2f", ccy, swap, ccy, net_pnl);
+
+         return snap;
+      }
+
+      return "Position: FLAT";
+   }
+
    // Risk Management: Portfolio-Level Gates
    //==========================================================================
 
@@ -1432,6 +1648,9 @@ public:
    void EvaluateTM() {
       ulong ticket = GetMyPosition();
       if(ticket == 0 || !PositionSelectByTicket(ticket)) return;
+
+      // Update MAE/MFE excursion tracking
+      UpdatePositionExcursion(ticket);
 
       // Dispatch to strict non-ATR path if configured
       if(m_settings.ExitProfile == EXIT_PROFILE_RRM)

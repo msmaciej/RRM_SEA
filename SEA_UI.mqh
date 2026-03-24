@@ -602,7 +602,8 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
                                 EMarketPhase current_phase = PHASE_UNORDERED,
                                 EEntryLayer  entry_layer   = LAYER_NONE,
                                 bool         filter_active = false,
-                                bool         layer_allowed = false)
+                                bool         layer_allowed = false,
+                                const string pos_snap = "")
 {
    if(!Inp_UI_ShowCockpitPanel)
    {
@@ -621,27 +622,6 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
    double atr_pips = 0.0;
    if(atr > 0.0)
       atr_pips = (atr / _Point) / (pip_fac > 0 ? pip_fac : 1);
-
-   // Position snapshot (single position per symbol+magic expected; scan robustly)
-   bool   has_pos   = false;
-   long   pos_type  = -1;
-   double pos_vol=0.0, pos_open=0.0, pos_sl=0.0, pos_tp=0.0, pos_profit=0.0;
-
-   for(int i=PositionsTotal()-1; i>=0; i--)
-   {
-      ulong ticket = PositionGetTicket(i);
-      if(ticket == 0) continue;
-      if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
-      if((ulong)PositionGetInteger(POSITION_MAGIC) != g_sea_ui_magic) continue;
-      has_pos    = true;
-      pos_type   = PositionGetInteger(POSITION_TYPE);
-      pos_vol    = PositionGetDouble(POSITION_VOLUME);
-      pos_open   = PositionGetDouble(POSITION_PRICE_OPEN);
-      pos_sl     = PositionGetDouble(POSITION_SL);
-      pos_tp     = PositionGetDouble(POSITION_TP);
-      pos_profit = PositionGetDouble(POSITION_PROFIT);
-      break;
-   }
 
    string sig_line = StringFormat("Signal=%s  Bias=%s", SEA_UI_SignalLabel(last_signal_dir), SEA_UI_BiasLabel(last_bias));
    if(Settings.VoteMode == VOTE_MODE_ALL)
@@ -707,15 +687,14 @@ void SEA_UI_UpdateCockpitPanel(const double atr,
    if(vote_snap_count > 0)
       txt += SEA_UI_BuildVoteBreakdown(vote_snaps, vote_snap_count);
 
-   if(has_pos)
+   if(pos_snap != "" && pos_snap != "Position: FLAT")
    {
-      string side = (pos_type == POSITION_TYPE_BUY ? "BUY" : "SELL");
-      txt += StringFormat("%s %.2f @ %.5f  PnL=%.2f\n", side, pos_vol, pos_open, pos_profit);
-      txt += StringFormat("SL=%.5f  TP=%.5f\n", pos_sl, pos_tp);
+      txt += "--- Position ---\n";
+      txt += pos_snap + "\n";
    }
    else
    {
-      txt += "Position: Flat\n";
+      txt += "--- Position: FLAT ---\n";
    }
 
    // Preset contract wording
