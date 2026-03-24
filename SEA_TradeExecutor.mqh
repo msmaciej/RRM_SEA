@@ -375,7 +375,7 @@ private:
          }
          case SL_MODE_PSAR_DOT:
          {
-            double psar = GetPsarForTrail(1);
+            double psar = GetPSARValue(1);
             if(psar > 0.0)
             {
                double cushion = RRM_ScalePips(m_settings.SL_PsarPipsCushion);
