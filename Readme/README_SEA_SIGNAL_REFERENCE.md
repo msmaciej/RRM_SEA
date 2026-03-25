@@ -173,6 +173,7 @@ Filters out trades during low volatility regimes. Evaluates as a non-directional
 
 ## Part 3: Extending the System (Plugin Architecture)
 
+```mermaid
 sequenceDiagram
     autonumber
     participant Cfg as SEA_Config.mqh
@@ -190,7 +191,7 @@ sequenceDiagram
     
     Eng->>Pipe: Inject CAST_VOTE macro into Step 8
     Pipe-->>Eng: Returns Multiplicative Result (0 or 1)
-
+```
 
 SimpleEA uses a centralized indicator registry. To add a custom indicator (e.g., Ichimoku), you only modify `SEA_Config.mqh` and `SEA_SignalEngine.mqh`. No UI or preset files need changing.
 
