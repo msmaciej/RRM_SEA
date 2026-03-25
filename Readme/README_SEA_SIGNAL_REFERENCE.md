@@ -20,6 +20,7 @@ Where each factor returns 1 (pass), 0 (fail), or -1 (contradicts). Any 0 or -1 s
 
 ## Part 1: The 9-Step Signal Pipeline
 
+```mermaid
 flowchart TD
     Start([Bar Close: shift=1]) --> S1{Step 1: Pre-Filters}
     
@@ -53,6 +54,7 @@ flowchart TD
     classDef accept fill:#ccffcc,stroke:#009900,stroke-width:2px,color:#006600;
     class Reject reject;
     class End accept;
+```
 
 ### Step 1: Pre-Filters (Safety Checks)
 **Purpose:** Ensure market conditions are safe for trading.
@@ -106,6 +108,7 @@ If votes >= `VoteThreshold`, return bias (1 or -1). Signal is stored in `g_ts_ac
 
 ### 1.2 Bias & Phase Logic
 
+```mermaid
 flowchart TD
     Start([Evaluate 4-EMA Stack: 5, 13, 34, 89]) --> Alignment{Check Position & Slope Agreement}
     
@@ -133,6 +136,7 @@ flowchart TD
     classDef accept fill:#ccffcc,stroke:#009900,stroke-width:2px,color:#006600;
     class AllowedU,Reject reject;
     class Pass accept;
+```
 
 ---
 

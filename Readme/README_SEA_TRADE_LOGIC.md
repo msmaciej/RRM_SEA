@@ -64,6 +64,7 @@ Used as the padding space when moving stops to breakeven (e.g., locking in +5 pi
 
 ## 2.1 The Trade Lifecycle
 
+```mermaid
 flowchart TD
     Start([Tick Open: shift=0]) --> CheckTS{Check g_ts_active}
     
@@ -93,11 +94,13 @@ flowchart TD
     classDef terminal fill:#eeeeee,stroke:#666666,stroke-width:2px;
     class Exec active;
     class Close terminal;
+```
 
 ---
 
 ## 3. Exit Management Modes
 
+```mermaid
 flowchart TD
     Live([Trade Executed]) --> SLMode{Stop Loss Mode Selection}
     
@@ -128,6 +131,7 @@ flowchart TD
     classDef terminal fill:#eeeeee,stroke:#666666,stroke-width:2px;
     class Active active;
     class Close terminal;
+```
 
 ### Stop Loss Modes (`ESLMode`)
 * `SL_MODE_FIXED_PIPS`: Uses strict user-defined `Inp_SL_FixedPips`.
