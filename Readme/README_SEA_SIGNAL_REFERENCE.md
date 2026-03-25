@@ -20,6 +20,40 @@ Where each factor returns 1 (pass), 0 (fail), or -1 (contradicts). Any 0 or -1 s
 
 ## Part 1: The 9-Step Signal Pipeline
 
+flowchart TD
+    Start([Bar Close: shift=1]) --> S1{Step 1: Pre-Filters}
+    
+    S1 -- Fails Spread/Time/News --> Reject([Return 0: NO TRADE])
+    S1 -- Passes --> S2[Step 2: Market Bias Detection]
+    
+    S2 --> |BIAS_AUTO_PHASE| Phase[Evaluate 4-EMA Structure]
+    Phase --> S3[Step 3: Entry Signal & Layer Detection]
+    
+    S3 --> |L1 Ribbon / L2 Ghost / L3 Shark| S4{Step 4: Validate Bias == Entry}
+    S4 -- Mismatch --> Reject
+    
+    S4 -- Matches --> S5{Step 5: HTF Filter}
+    S5 -- Veto --> Reject
+    
+    S5 -- Passes --> S6{Step 6: Hard Gates}
+    S6 -- Fails Dynamic/Phase Gates --> Reject
+    
+    S6 -- Passes --> S7{Step 7: Voting Bypass?}
+    S7 -- Threshold <= 1 --> S9[Step 9: Final Decision - Accept]
+    
+    S7 -- Threshold > 1 --> S8[Step 8: Indicator Voting]
+    S8 --> |ADX × VRC × MACD × PSAR...| Math{"Π Ind_i >= VoteThreshold"}
+    
+    Math -- Fails --> Reject
+    Math -- Passes --> S9
+    
+    S9 --> End([Store Signal in g_ts_active])
+    
+    classDef reject fill:#ffcccc,stroke:#cc0000,stroke-width:2px,color:#990000;
+    classDef accept fill:#ccffcc,stroke:#009900,stroke-width:2px,color:#006600;
+    class Reject reject;
+    class End accept;
+
 ### Step 1: Pre-Filters (Safety Checks)
 **Purpose:** Ensure market conditions are safe for trading.
 * **Spread Filter:** Current spread < `MaxSpreadPips`. (If fails: reason "SPREAD").
@@ -69,6 +103,37 @@ Each ENABLED indicator calls its `Check_XXX(bias, shift)` function. All presets 
 ### Step 9: Final Decision
 If votes >= `VoteThreshold`, return bias (1 or -1). Signal is stored in `g_ts_active` for next bar's TE execution.
 
+
+### 1.2 Bias & Phase Logic
+
+flowchart TD
+    Start([Evaluate 4-EMA Stack: 5, 13, 34, 89]) --> Alignment{Check Position & Slope Agreement}
+    
+    Alignment -- "3 of 3 Layers Agree" --> PhaseT[Phase: TRENDING\nBias = ±1]
+    Alignment -- "2 of 3 Layers Agree" --> PhaseE[Phase: EMERGING\nBias = ±1]
+    Alignment -- "< 2 Layers Agree" --> PhaseU[Phase: UNORDERED\nBias = 0]
+    
+    PhaseT --> AllowedT[Allow L1 Ribbon\nAllow L2 Ghost\nAllow L3 Shark]
+    PhaseE --> AllowedE[Allow L1 Ribbon\nAllow L2 Ghost\n❌ BLOCK L3 Shark]
+    PhaseU --> AllowedU[❌ BLOCK ALL TRADES]
+    
+    AllowedT --> Pullback{Detect Pullback Layer (1% Tolerance)}
+    AllowedE --> Pullback
+    
+    Pullback -- "Touches EMA1/EMA2" --> L1[L1 Ribbon (Shallow)]
+    Pullback -- "Touches EMA2/EMA3" --> L2[L2 Ghost (Medium)]
+    Pullback -- "Touches EMA3/EMA4" --> L3[L3 Shark (Deep)]
+    
+    L1 --> Pass([Pass to Hard Gates])
+    L2 --> Pass
+    L3 --> Pass
+    AllowedU --> Reject([Veto Signal: Return 0])
+    
+    classDef reject fill:#ffcccc,stroke:#cc0000,stroke-width:2px,color:#990000;
+    classDef accept fill:#ccffcc,stroke:#009900,stroke-width:2px,color:#006600;
+    class AllowedU,Reject reject;
+    class Pass accept;
+
 ---
 
 ## Part 2: Indicator Voting Logic
@@ -103,6 +168,25 @@ Filters out trades during low volatility regimes. Evaluates as a non-directional
 ---
 
 ## Part 3: Extending the System (Plugin Architecture)
+
+sequenceDiagram
+    autonumber
+    participant Cfg as SEA_Config.mqh
+    participant Eng as SEA_SignalEngine.mqh
+    participant Pipe as 9-Step Pipeline
+
+    Note over Cfg: Add inputs (e.g., Inp_Use_Ichi)
+    Note over Cfg: Map to EA_Settings struct
+    Note over Cfg: Add to g_indicator_registry[]
+    Cfg->>Eng: Passes GlobalSettings Struct via InitializeConfig()
+    
+    Note over Eng: Declare handle (h_ichi)
+    Note over Eng: Init() -> Create iIchimoku handle
+    Note over Eng: Write Check_Ichi(bias, shift) function
+    
+    Eng->>Pipe: Inject CAST_VOTE macro into Step 8
+    Pipe-->>Eng: Returns Multiplicative Result (0 or 1)
+
 
 SimpleEA uses a centralized indicator registry. To add a custom indicator (e.g., Ichimoku), you only modify `SEA_Config.mqh` and `SEA_SignalEngine.mqh`. No UI or preset files need changing.
 

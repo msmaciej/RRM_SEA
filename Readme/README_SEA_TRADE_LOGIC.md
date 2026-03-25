@@ -62,9 +62,72 @@ Used as the padding space when moving stops to breakeven (e.g., locking in +5 pi
 * **H1:** 10 pips
 * **H4:** 15 pips
 
+## 2.1 The Trade Lifecycle
+
+flowchart TD
+    Start([Tick Open: shift=0]) --> CheckTS{Check g_ts_active}
+    
+    CheckTS -- No Setup --> Wait([Wait for next tick])
+    CheckTS -- Setup Ready --> LiveCheck{Live Execution Gates}
+    
+    LiveCheck -- Real-time Spread > Limit --> Abort([Abort / Wait])
+    LiveCheck -- Passes --> Calc[Calculate TF-Based Cushions]
+    
+    Calc --> |GetRecommendedInitialSlCushionPips| Exec[Execute Trade via CTrade]
+    Exec --> Mgt([Active Trade Management Loop])
+    
+    Mgt --> BE{Breakeven Triggered?}
+    BE -- Yes --> MoveBE[Move SL to Entry + GetTFBasedCushion]
+    BE -- No --> Trail{Trailing Triggered?}
+    
+    Trail -- Yes --> MoveTrail[Trail SL + GetRecommendedTrailPsarCushionPips]
+    Trail -- No --> ExitCheck{Exit Condition Met?}
+    
+    MoveBE --> ExitCheck
+    MoveTrail --> ExitCheck
+    
+    ExitCheck -- Hit SL / TP / PSAR Flip --> Close([Close Position & Reset g_ts_active])
+    ExitCheck -- No --> Mgt
+
+    classDef active fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
+    classDef terminal fill:#eeeeee,stroke:#666666,stroke-width:2px;
+    class Exec active;
+    class Close terminal;
+
 ---
 
 ## 3. Exit Management Modes
+
+flowchart TD
+    Live([Trade Executed]) --> SLMode{Stop Loss Mode Selection}
+    
+    SLMode -- SL_MODE_SWING --> CalcSwing[Find Swing High/Low\n+ Initial SlCushionPips]
+    SLMode -- SL_MODE_PSAR_DOT --> CalcPSAR[Find PSAR Dot\n+ Initial SlCushionPips]
+    SLMode -- SL_MODE_FRACTAL --> CalcFractal[Find Fractal Base\n+ Initial SlCushionPips]
+    
+    CalcSwing --> Active[Position Live]
+    CalcPSAR --> Active
+    CalcFractal --> Active
+    
+    Active --> BECheck{Breakeven Trigger Met?}
+    BECheck -- Yes --> MoveBE[Move SL to:\nEntry + BE Buffer Cushion]
+    BECheck -- No --> TrailCheck
+    MoveBE --> TrailCheck
+    
+    TrailCheck{Trailing Logic Mode}
+    TrailCheck -- TRAIL_PSAR --> MoveTrailP[Trail SL behind PSAR\n+ TrailPsarCushionPips]
+    TrailCheck -- TRAIL_FRACTAL --> MoveTrailF[Trail SL behind Fractal\n+ TrailPsarCushionPips]
+    TrailCheck -- TRAIL_PSAR_FLIP_EXIT --> FlipCheck{PSAR Flipped?}
+    
+    FlipCheck -- Yes --> Close([Force Close Trade])
+    FlipCheck -- No --> Wait([Wait Next Tick])
+    MoveTrailP --> Wait
+    MoveTrailF --> Wait
+    
+    classDef active fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
+    classDef terminal fill:#eeeeee,stroke:#666666,stroke-width:2px;
+    class Active active;
+    class Close terminal;
 
 ### Stop Loss Modes (`ESLMode`)
 * `SL_MODE_FIXED_PIPS`: Uses strict user-defined `Inp_SL_FixedPips`.
