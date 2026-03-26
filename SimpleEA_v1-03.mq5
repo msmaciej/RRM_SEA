@@ -17,15 +17,12 @@
 //+------------------------------------------------------------------+
 //| FORWARD DECLARATIONS                                             |
 //+------------------------------------------------------------------+
-
 void SEA_DrawEntrySignalLine(datetime bar_time, int direction, const string label);
 void SEA_DrawTradeExecLine(datetime event_time, int direction, double price, const string label);
-void SEA_UI_ManageChartIndicators();
 
 //+------------------------------------------------------------------+
 //| MODULE INCLUDES                                                  |
 //+------------------------------------------------------------------+
-
 #include <RRMS\SEA_Config.mqh>
 #include <RRMS\SEA_Presets.mqh>
 #include <RRMS\SEA_SignalEngine.mqh>
@@ -91,22 +88,32 @@ double g_max_drawdown_abs = 0.0;   // Maximum absolute equity drawdown (peak - t
 double g_trade_returns[];          // Array of % returns per trade (relative to starting balance)
 int    g_trade_return_count = 0;   // Number of trades tracked
 
+
 //+------------------------------------------------------------------+
 //| EXPERT LIFECYCLE                                                 |
 //+------------------------------------------------------------------+
 
+//+------------------------------------------------------------------+
+//| ONINIT
+//+------------------------------------------------------------------+
 int OnInit() { return OrchestrateInit(); }
 
+//+------------------------------------------------------------------+
+//| ONTICK
+//+------------------------------------------------------------------+
 void OnTick()
 {
    if(Inp_UI_ManageChartIndicators && !g_chart_indicators_managed)
    {
-      SEA_UI_ManageChartIndicators();
+      SEA_UI_ManageChartIndicators(Signal);
       g_chart_indicators_managed = true;
    }
    OrchestrateTick();
 }
 
+//+------------------------------------------------------------------+
+//| ONDEINIT
+//+------------------------------------------------------------------+
 void OnDeinit(const int reason) { OrchestrateDeinit(reason); }
 
 // ✅ ADD THIS NEW HANDLER HERE (after OnDeinit, before helpers section)
@@ -168,7 +175,6 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
 //+------------------------------------------------------------------+
 //| HELPERS                                                          |
 //+------------------------------------------------------------------+
-
 void FlowLog(const string msg)
 {
    if(Inp_DebugFlow && Inp_DebugLevel >= DEBUG_FULL) Print("FLOW: ", msg);
@@ -214,9 +220,6 @@ void BuildUiReportingState()
    }
 }
 
-//+------------------------------------------------------------------+
-//| PrintEffectiveConfig(): single init snapshot                      |
-//+------------------------------------------------------------------+
 void PrintEffectiveConfig()
 {
    Print("------------------------------------------");
@@ -268,7 +271,6 @@ void PrintEffectiveConfig()
    Print("MACD Mode: ", GetMACDModeDescription(Settings.MacdVoteMode, Settings.MacdRequireSlope,
                                                Settings.MacdRequireDivergence, Settings.MacdRequireHook));
 
-
    if(Settings.ExitProfile == EXIT_PROFILE_RRM || InpPreset == PRESET_RRM)
    {
       Print("Effective: ExitProfile=", EnumToString(Settings.ExitProfile),
@@ -281,13 +283,9 @@ void PrintEffectiveConfig()
             " FreezeTrailOnFlip=", (Settings.RRM_FreezeTrailOnFlip ? "true" : "false"),
             " TrailStartsAfterBE=", (Settings.RRM_TrailStartsAfterBE ? "true" : "false"));
    }
-
    Print("------------------------------------------");
 }
 
-//+------------------------------------------------------------------+
-//| ValidateEffectiveSettings(): minimal safety checks (post-preset)  |
-//+------------------------------------------------------------------+
 bool ValidateEffectiveSettings()
 {
    if((int)Settings.MaType < (int)METHOD_EMA || (int)Settings.MaType > (int)METHOD_SMA)
@@ -295,13 +293,11 @@ bool ValidateEffectiveSettings()
       Print("ERROR: Settings.MaType is out of range: ", (int)Settings.MaType);
       return false;
    }
-
    if(Settings.BiasFastID < 0 || Settings.BiasFastID > 3 || Settings.BiasSlowID < 0 || Settings.BiasSlowID > 3)
    {
       Print("ERROR: Bias EMA role IDs out of range. FastID=", Settings.BiasFastID, " SlowID=", Settings.BiasSlowID);
       return false;
    }
-
    return true;
 }
 
@@ -318,13 +314,10 @@ void UpdateRRMDrawdownTracking(bool was_profitable)
       g_consecutive_losses++;    // Increment on loss
 }
 
-// Call this from your OnTrade() handler when a position closes:
-// UpdateRRMDrawdownTracking(profit > 0);
 
 //+------------------------------------------------------------------+
-//| INIT                                                             |
+//| VALIDATE CONFIGURATION
 //+------------------------------------------------------------------+
-
 void ValidateConfiguration()
 {
    Print("════════════════════════════════════════════════");
@@ -371,6 +364,9 @@ void ValidateConfiguration()
    Print("════════════════════════════════════════════════");
 }
 
+//+------------------------------------------------------------------+
+//| ORCHESTRATE INIT
+//+------------------------------------------------------------------+
 int OrchestrateInit()
 {
    FlowLog("EA start -> OnInit()");
@@ -520,7 +516,7 @@ int OrchestrateInit()
    }
 
    if(Inp_UI_ManageChartIndicators)
-      SEA_UI_ManageChartIndicators();
+      SEA_UI_ManageChartIndicators(Signal);
    else
    {
       if(Settings.MABenchmarkStrict)
@@ -550,7 +546,26 @@ int OrchestrateInit()
    {
       SVoteSnapshot init_snaps[];
       int init_snap_count = 0;
-      SEA_UI_UpdateCockpitPanel(Signal.GetATR(), 0, Signal.LastBias(), Signal.LastVotes(), Signal.LastReason(), "", "", init_snaps, init_snap_count);
+      int total_active = GetEnabledIndicatorCount(Settings);
+      
+      SEA_UI_UpdateCockpitPanel(
+         Signal.GetATR(),        // 1. atr
+         0,                      // 2. last_signal_dir
+         Signal.LastBias(),      // 3. last_bias
+         Signal.LastVotes(),     // 4. last_votes
+         total_active,           // 5. total_enabled (The new 'fractional' denominator)
+         Signal.LastReason(),    // 6. last_reason
+         "",                     // 7. ts_snap
+         "",                     // 8. te_snap
+         init_snaps,             // 9. vote_snaps[]
+         init_snap_count,        // 10. vote_snap_count
+         "",                     // 11. diag_snap
+         PHASE_UNORDERED,        // 12. current_phase
+         LAYER_NONE,             // 13. entry_layer
+         false,                  // 14. filter_active
+         false,                  // 15. layer_allowed
+         ""                      // 16. pos_snap
+      );
    }
 
    FlowLog("OnInit complete -> INIT_SUCCEEDED");
@@ -564,45 +579,35 @@ int OrchestrateInit()
 }
 
 //+------------------------------------------------------------------+
-//| TICK                                                             |
+//| ORCHESTRATE TICK
 //+------------------------------------------------------------------+
-
 void OrchestrateTick()
 {
+   // 1. Time & Bar Detection
    datetime current_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
    bool     is_new_bar  = (current_bar != g_last_bar_time);
 
-   // ═══════════════════════════════════════════════════════════════
-   // Track peak equity and maximum drawdown (every tick, for report)
-   // ═══════════════════════════════════════════════════════════════
+   // 2. Track peak equity and maximum drawdown (every tick)
    double current_equity = AccountInfoDouble(ACCOUNT_EQUITY);
    if(current_equity > g_peak_equity) g_peak_equity = current_equity;
    double current_dd = g_peak_equity - current_equity;
    if(current_dd > g_max_drawdown_abs) g_max_drawdown_abs = current_dd;
 
-   // ═══════════════════════════════════════════════════════════════
-   // TM: Trade Management (every tick)
-   // ═══════════════════════════════════════════════════════════════
+   // 3. TM: Trade Management (runs every tick)
    Executor.EvaluateTM();
 
-   // ═══════════════════════════════════════════════════════════════
-   // New-bar pipeline: runs only once per bar
-   // ═══════════════════════════════════════════════════════════════
-   if(!is_new_bar)
-      return;
+   // 4. New-bar pipeline: runs only once per bar
+   if(!is_new_bar) return;
 
    g_last_bar_time = current_bar;
    FlowLog("OnTick -> NewBar detected -> begin bar pipeline");
 
-   // ═══════════════════════════════════════════════════════════════
-   // RRM Drawdown Protection Filter (§6)
-   // ═══════════════════════════════════════════════════════════════
+   // 5. RRM Drawdown Protection Filter
    bool drawdown_blocked = false;
    if(Settings.RRM_EnableDrawdownProtection)
    {
-      // Reset daily counters on new trading day
       datetime today = TimeCurrent();
-      datetime today_date = today - (today % 86400);  // Strip time component
+      datetime today_date = today - (today % 86400); 
       
       if(today_date != g_last_trade_date)
       {
@@ -611,144 +616,114 @@ void OrchestrateTick()
          g_daily_starting_balance = AccountInfoDouble(ACCOUNT_BALANCE);
       }
       
-      // Check 1: Max consecutive losses
-      if(Settings.RRM_MaxConsecutiveLosses > 0 && 
-         g_consecutive_losses >= Settings.RRM_MaxConsecutiveLosses)
+      if(Settings.RRM_MaxConsecutiveLosses > 0 && g_consecutive_losses >= Settings.RRM_MaxConsecutiveLosses)
       {
-         if(Settings.DebugFlow)
-            PrintFormat("[RRM_DD_PROTECT] Trading PAUSED: %d consecutive losses (max=%d)",
-                        g_consecutive_losses, Settings.RRM_MaxConsecutiveLosses);
+         if(Settings.DebugFlow) PrintFormat("[RRM_DD_PROTECT] Trading PAUSED: %d consecutive losses", g_consecutive_losses);
          drawdown_blocked = true;
       }
       
-      // Check 2: Max trades per day
-      if(!drawdown_blocked && Settings.RRM_MaxTradesPerDay > 0 && 
-         g_trades_today >= Settings.RRM_MaxTradesPerDay)
+      if(!drawdown_blocked && Settings.RRM_MaxTradesPerDay > 0 && g_trades_today >= Settings.RRM_MaxTradesPerDay)
       {
-         if(Settings.DebugFlow)
-            PrintFormat("[RRM_DD_PROTECT] Trading PAUSED: Daily trade limit reached (%d/%d)",
-                        g_trades_today, Settings.RRM_MaxTradesPerDay);
+         if(Settings.DebugFlow) PrintFormat("[RRM_DD_PROTECT] Trading PAUSED: Daily limit reached (%d/%d)", g_trades_today, Settings.RRM_MaxTradesPerDay);
          drawdown_blocked = true;
       }
       
-      // Check 3: Daily drawdown protection
       if(!drawdown_blocked && Settings.RRM_MaxDailyDrawdownPct > 0.0)
       {
          double current_balance = AccountInfoDouble(ACCOUNT_BALANCE);
          double daily_dd_pct = ((g_daily_starting_balance - current_balance) / g_daily_starting_balance) * 100.0;
-         
          if(daily_dd_pct > Settings.RRM_MaxDailyDrawdownPct)
          {
-            if(Settings.DebugFlow)
-               PrintFormat("[RRM_DD_PROTECT] Trading PAUSED: Daily DD %.2f%% exceeds limit %.2f%%",
-                           daily_dd_pct, Settings.RRM_MaxDailyDrawdownPct);
-            drawdown_blocked = true;
+             if(Settings.DebugFlow) PrintFormat("[RRM_DD_PROTECT] Trading PAUSED: Daily DD %.2f%% exceeds limit", daily_dd_pct);
+             drawdown_blocked = true;
          }
       }
    }
 
-   // ═══════════════════════════════════════════════════════════════
-   // TS: Trade Setup evaluation on bar close (shift=1)
-   // TE: Trade Entry evaluation immediately on the same new bar
-   //
-   // EvaluateTS() evaluates ALL pipeline steps (bias, filters, voting)
-   // on the CLOSED bar (shift=1 via Vote_EvalShift=1) and returns a
-   // direction if a valid TS is found.  EvaluateTE() then checks live
-   // conditions (spread, time, risk) and executes if all pass.
-   // ═══════════════════════════════════════════════════════════════
+   // --- LOCAL DATA HOLDERS ---
+   int snap_bias = 0;
+   int snap_votes = 0;
+   string snap_reason = "";
+   SVoteSnapshot vote_snaps[];
+   int vote_snap_count = 0;
+
+   // 6. TS: Trade Setup evaluation on bar close (shift=1)
    if(!drawdown_blocked)
    {
       FlowLog("Step B: Compute direction signal (TS evaluation at shift=1)");
-      if(Settings.DebugFlow)
-         Print("[DEBUG_TEST] About to call Signal.EvaluateTS()");
-      int ts = Signal.EvaluateTS();
-      if(Settings.DebugFlow)
-         PrintFormat("[DEBUG_TEST] Signal.EvaluateTS() returned: %d", ts);
+      int ts = Signal.EvaluateTS(); 
 
-      // Capture TS display snapshot
+      // --- CRITICAL DATA SYNC ---
+      // We capture these values while Signal Engine holds the state of shift=1
+      snap_bias   = Signal.LastBias();
+      snap_votes  = Signal.LastVotes();
+      snap_reason = Signal.LastReason();
+      Signal.CaptureVoteSnapshots(vote_snaps, vote_snap_count, snap_bias);
+
       if(ts != 0)
       {
          g_ts_time   = iTime(_Symbol, PERIOD_CURRENT, 1);
          g_ts_dir    = ts;
-         g_ts_bias   = Signal.LastBias();
-         g_ts_votes  = Signal.LastVotes();
-         g_ts_reason = Signal.LastReason();
-
-         if(Settings.DebugFlow)
-            PrintFormat("[PIPELINE] TS=%d confirmed at %s | %s | Evaluating entry...",
-                        ts, TimeToString(g_ts_time, TIME_DATE|TIME_MINUTES),
-                        (ts > 0 ? "BUY" : "SELL"));
+         g_ts_bias   = snap_bias;
+         g_ts_votes  = snap_votes;
+         g_ts_reason = snap_reason;
 
          if(Settings.DrawEntryLines)
-            SEA_DrawEntrySignalLine(g_ts_time, ts, Signal.LastReason());
+            SEA_DrawEntrySignalLine(g_ts_time, ts, snap_reason);
 
-         // TE: Evaluate Trade Entry
-         int te = Executor.EvaluateTE(ts);
-
-         if(Settings.DebugFlow)
-         {
-            if(te == 1) Print("[PIPELINE] ✅ Trade entered");
-            else        Print("[PIPELINE] ❌ Entry rejected");
-         }
+         // 7. TE: Evaluate Trade Entry (shift=0)
+         int te = Executor.EvaluateTE(ts); 
       }
-      else
+      else 
       {
-         if(Settings.DebugFlow)
-            Print("[PIPELINE] TS=0, no setup. Reason: ", Signal.LastReason(),
-                  " | Bias: ", Signal.LastBias(),
-                  " | Votes: ", Signal.LastVotes());
+         // Persist reason for 0/5 display
+         g_ts_reason = snap_reason;
+         g_ts_votes  = snap_votes;
+         g_ts_bias   = snap_bias;
       }
-
-      FlowLog(StringFormat("Step B done: TS=%d", ts));
    }
 
-   // Build TS/TE snapshot strings for cockpit display
-   string ts_snap = "";
-   if(g_ts_time > 0)
-   {
-      string dir_str = (g_ts_dir > 0 ? "BUY" : "SELL");
-      ts_snap = StringFormat("TS@%s dir=%s votes=%d reason=%s",
-         TimeToString(g_ts_time, TIME_DATE|TIME_MINUTES), dir_str, g_ts_votes, g_ts_reason);
-   }
-   string te_snap = "";
-   if(Executor.LastTETime() > 0)
-   {
-      string te_reason = Executor.LastTEReason();
-      te_snap = StringFormat("TE@%s %s%s",
-         TimeToString(Executor.LastTETime(), TIME_DATE|TIME_MINUTES),
-         Executor.LastTEResult(),
-         (te_reason != "" ? ": " + te_reason : ""));
-      if(Settings.DebugFlow)
-         Print("TE: ", te_snap);
-   }
+   // 8. Build Display Snapshots 
+   string ts_snap = (g_ts_time > 0) ? StringFormat("TS@%s dir=%s votes=%d reason=%s", 
+                     TimeToString(g_ts_time, TIME_DATE|TIME_MINUTES), (g_ts_dir > 0 ? "BUY" : "SELL"), g_ts_votes, g_ts_reason) : "";
+   
+   string te_snap = (Executor.LastTETime() > 0) ? StringFormat("TE@%s %s%s", 
+                     TimeToString(Executor.LastTETime(), TIME_DATE|TIME_MINUTES), Executor.LastTEResult(), 
+                     (Executor.LastTEReason() != "" ? ": " + Executor.LastTEReason() : "")) : "";
 
-   // Capture current vote states for cockpit display
-   int   snap_bias   = Signal.LastBias();
-   int   snap_votes  = Signal.LastVotes();
-   string snap_reason = Signal.LastReason();
-   SVoteSnapshot vote_snaps[];
-   int vote_snap_count = 0;
-   Signal.CaptureVoteSnapshots(vote_snaps, vote_snap_count, snap_bias);
+   // 9. Update Cockpit Panel with Synchronized Data
+   int total_active = GetEnabledIndicatorCount(Settings);
+   
+   SEA_UI_UpdateCockpitPanel(
+      Signal.GetATR(),
+      (drawdown_blocked ? 0 : g_ts_dir),
+      snap_bias,
+      snap_votes,
+      total_active,
+      snap_reason,
+      ts_snap,
+      te_snap,
+      vote_snaps,
+      vote_snap_count,
+      Signal.GetDiagnosticsString(),
+      PHASE_UNORDERED, 
+      LAYER_NONE, 
+      false, 
+      false, 
+      Executor.GetPositionSnapshot()
+   );
 
-   // Build pipeline diagnostics string (EMA values, structure gate, statistics)
-   string diag_snap = Signal.GetDiagnosticsString();
-
-   // Get comprehensive position snapshot for cockpit display
-   string pos_snap = Executor.GetPositionSnapshot();
-
-   SEA_UI_UpdateCockpitPanel(Signal.GetATR(), (drawdown_blocked ? 0 : g_ts_dir),
-                             snap_bias, snap_votes, snap_reason,
-                             ts_snap, te_snap, vote_snaps, vote_snap_count, diag_snap,
-                             PHASE_UNORDERED, LAYER_NONE, false, false, pos_snap);
    FlowLog("Bar pipeline complete");
 }
+
 
 //+------------------------------------------------------------------+
 //| SYSTEM ANALYSIS REPORT                                           |
 //+------------------------------------------------------------------+
 
-// Prints Trade Performance section: totals, win rate, profit factor,
-// average trade, best/worst, consecutive streaks.
+//+------------------------------------------------------------------+
+//| PRINT TRADE PERFORMANCE
+//+------------------------------------------------------------------+
 void PrintTradePerformance()
 {
    Print("================================================================");
@@ -866,7 +841,9 @@ void PrintTradePerformance()
    Print("================================================================");
 }
 
-// Calculates the Sharpe Ratio from an array of per-trade % returns.
+//+------------------------------------------------------------------+
+//| CALCULATE SHARPE RATIO
+//+------------------------------------------------------------------+
 // Uses sample standard deviation and a risk-free rate of 0% (standard for backtesting).
 // Returns 0.0 when fewer than 2 trades or zero standard deviation.
 double CalculateSharpeRatio(const double& returns[], int count, double risk_free_rate = 0.0)
@@ -896,8 +873,9 @@ double CalculateSharpeRatio(const double& returns[], int count, double risk_free
    return (mean_return - risk_free_rate) / std_dev;
 }
 
-// Prints Risk Analysis section: starting/ending balance, net profit,
-// max drawdown, recovery factor, and risk-reward ratio.
+//+------------------------------------------------------------------+
+//| PRINT RISK ANALYSIS
+//+------------------------------------------------------------------+
 void PrintRiskAnalysis()
 {
    Print("================================================================");
@@ -985,9 +963,9 @@ void PrintRiskAnalysis()
    Print("================================================================");
 }
 
-// Prints Signal Efficiency section: signal generation rate,
-// signal-to-trade conversion, and per-indicator component efficiency.
-// Component Efficiency is DYNAMIC — only enabled indicators are listed.
+//+------------------------------------------------------------------+
+//| PRINT SIGNAL EFFICIENCY - dynamic
+//+------------------------------------------------------------------+
 void PrintSignalEfficiency()
 {
    Print("================================================================");
@@ -1101,14 +1079,14 @@ void PrintSignalEfficiency()
                      inds[i].name, rate, inds[i].passed, bias_passed);
       }
    }
-
    Print("");
    PrintFormat("Combined Efficiency          : %.1f%% (signals / total bars)", signal_rate);
    Print("================================================================");
 }
 
-// Wrapper: prints the full System Analysis Report (Trade Performance +
-// Risk Analysis + Signal Efficiency) at end of test.
+//+------------------------------------------------------------------+
+//| PRINT SYSTEM ANALYSIS - wrapper
+//+------------------------------------------------------------------+
 void PrintSystemAnalysisReport()
 {
    PrintTradePerformance();
@@ -1119,9 +1097,8 @@ void PrintSystemAnalysisReport()
 }
 
 //+------------------------------------------------------------------+
-//| DEINIT                                                           |
+//| ORCHESTRATE DEINIT
 //+------------------------------------------------------------------+
-
 void OrchestrateDeinit(const int reason)
 {
    Signal.PrintRejectionStatistics();
@@ -1140,343 +1117,9 @@ void OrchestrateDeinit(const int reason)
    FlowLog("OnDeinit complete");
 }
 
-void SEA_UI_ManageChartIndicators()
-{
-   // =====================================================================
-   // UNIVERSAL CHART INDICATOR MANAGER
-   // Shows ALL indicators involved in Trade Signal (TS) evaluation
-   //
-   // ARCHITECTURE:
-   // 1. Bias determination (EMAs)
-   // 2. TS evaluation on shift=1: ALL enabled indicators must pass
-   // 3. TE execution on shift=0: if TS=1 confirmed
-   // =====================================================================
-
-   // 1) Clear all existing indicators from all windows
-   int win_total = (int)ChartGetInteger(0, CHART_WINDOWS_TOTAL);
-   for(int w=win_total-1; w>=0; w--)
-   {
-      int total = ChartIndicatorsTotal(0, w);
-      while(total > 0)
-      {
-         string nm = ChartIndicatorName(0, w, 0);
-         if(nm == "") break;
-         ChartIndicatorDelete(0, w, nm);
-         total = ChartIndicatorsTotal(0, w);
-      }
-   }
-
-   Print("═══════════════════════════════════════════════════════════");
-   Print("UI: Chart Indicator Manager - Rebuilding from Settings...");
-   Print("  → Vote Mode: ", (Settings.VoteMode == VOTE_MODE_ALL ? "ALL (all enabled must pass)" : "THRESHOLD"));
-   Print("═══════════════════════════════════════════════════════════");
-
-   // ========================
-   // 2) MAIN CHART OVERLAYS
-   // ========================
-
-   int overlays_added = 0;
-   int ts_components_visible = 0; // TS voting components on chart
-
-   // --- Benchmark MA (PRESET_MA mode)
-   if(Settings.MABenchmarkStrict)
-   {
-      int h = Signal.GetPrimaryMAHandle();
-      if(h != INVALID_HANDLE)
-      {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-         Print("  ✓ Benchmark MA (bias determination)");
-      }
-   }
-
-   // --- EMAs (bias determination + optional TS component)
-   bool need_ema[4];
-   need_ema[0] = (Settings.BiasFastID == 0 || Settings.BiasSlowID == 0 || Settings.Ind_EmaSig_Enabled);
-   need_ema[1] = (Settings.BiasFastID == 1 || Settings.BiasSlowID == 1);
-   need_ema[2] = (Settings.BiasFastID == 2 || Settings.BiasSlowID == 2);
-   need_ema[3] = (Settings.BiasFastID == 3 || Settings.BiasSlowID == 3);
-
-   for(int i=0; i<4; i++)
-   {
-      if(need_ema[i])
-      {
-         int h = Signal.GetEmaHandle(i);
-         if(h != INVALID_HANDLE)
-         {
-            ChartIndicatorAdd(0, 0, h);
-            overlays_added++;
-
-            string role = "bias";
-            if(i == 0 && Settings.Ind_EmaSig_Enabled)
-            {
-               role = "bias + TS component";
-               ts_components_visible++;
-            }
-
-            Print("  ✓ EMA", (i+1), " (", Settings.P_Ema1 + i*8, ") [", role, "]");
-         }
-      }
-   }
-
-   // --- PSAR (TS component + optional trailing)
-   if(Settings.Ind_Psar_Enabled ||
-      Settings.TrailMode == TRAIL_PSAR)
-   {
-      int h = Signal.GetPsarHandle();
-      if(h != INVALID_HANDLE)
-      {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-
-         string role = "";
-         if(Settings.Ind_Psar_Enabled)
-         {
-            role = "TS component";
-            ts_components_visible++;
-         }
-         if(Settings.TrailMode == TRAIL_PSAR)
-         {
-            if(role != "") role += " + ";
-            role += "trailing";
-         }
-
-         Print("  ✓ PSAR [", role, "]");
-      }
-      else
-      {
-         Print("  ⚠ PSAR enabled but handle not available");
-      }
-   }
-
-   // --- Bollinger Bands (TS component)
-   if(Settings.Ind_Bb_Enabled)
-   {
-      int h = Signal.GetBbHandle();
-      if(h != INVALID_HANDLE)
-      {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-         ts_components_visible++;
-         Print("  ✓ Bollinger Bands [TS component]");
-      }
-      else
-      {
-         Print("  ⚠ Bollinger Bands enabled but GetBbHandle() not available");
-      }
-   }
-
-   // --- HTF EMA (filter/gate - NOT a TS component)
-   if(Settings.UseHTF)
-   {
-      int h = Signal.GetHtfEmaHandle();
-      if(h != INVALID_HANDLE)
-      {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-         Print("  ✓ HTF EMA (", EnumToString(Settings.HtfPeriod), "/", Settings.P_HtfEma, ") [filter gate]");
-      }
-      else
-      {
-         Print("  ⚠ HTF filter enabled but GetHtfEmaHandle() not available");
-      }
-   }
-
-   // --- Fractals (structure + optional trailing)
-   if(Settings.TrailMode == TRAIL_FRACTAL)
-   {
-      int h = Signal.GetFractalHandle();
-      if(h != INVALID_HANDLE)
-      {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-         Print("  ✓ Fractals [trailing]");
-      }
-      else
-      {
-         Print("  ⚠ Fractals needed but GetFractalHandle() not available");
-      }
-   }
-
-   // --- Pattern 123 (TS component)
-   if(Settings.Ind_P123_Enabled)
-   {
-      int h = Signal.GetP123Handle();
-      if(h != INVALID_HANDLE)
-      {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-         ts_components_visible++;
-         Print("  ✓ Pattern 123 [TS component]");
-      }
-      else
-      {
-         Print("  ⚠ Pattern 123 enabled but GetP123Handle() not available");
-      }
-   }
-
-   // --- Ross Hook (TS component)
-   if(Settings.Ind_Ross_Enabled)
-   {
-      int h = Signal.GetRossHandle();
-      if(h != INVALID_HANDLE)
-      {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-         ts_components_visible++;
-         Print("  ✓ Ross Hook [TS component]");
-      }
-      else
-      {
-         Print("  ⚠ Ross Hook enabled but GetRossHandle() not available");
-      }
-   }
-
-   // ========================
-   // 3) SUBWINDOW INDICATORS
-   // (ALL are TS components)
-   // ========================
-
-   int subwindow = 1;
-   int subwindows_added = 0;
-
-   // --- MACD (TS component)
-   if(Settings.Ind_Macd_Enabled)
-   {
-      int h = Signal.GetMacdHandle();
-      if(h != INVALID_HANDLE)
-      {
-         if(ChartIndicatorAdd(0, subwindow, h))
-         {
-            Print("  ✓ MACD (", Settings.P_MacdFast, "/", Settings.P_MacdSlow, "/", Settings.P_MacdSig, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++;
-            subwindows_added++;
-            ts_components_visible++;
-         }
-      }
-      else
-      {
-         Print("  ⚠ MACD enabled but handle not available");
-      }
-   }
-
-   // --- RSI (TS component)
-   if(Settings.Ind_Rsi_Enabled)
-   {
-      int h = Signal.GetRsiHandle();
-      if(h != INVALID_HANDLE)
-      {
-         if(ChartIndicatorAdd(0, subwindow, h))
-         {
-            Print("  ✓ RSI (", Settings.P_Rsi, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++;
-            subwindows_added++;
-            ts_components_visible++;
-         }
-      }
-      else
-      {
-         Print("  ⚠ RSI enabled but GetRsiHandle() not available");
-      }
-   }
-
-   // --- CCI (TS component)
-   if(Settings.Ind_Cci_Enabled)
-   {
-      int h = Signal.GetCciHandle();
-      if(h != INVALID_HANDLE)
-      {
-         if(ChartIndicatorAdd(0, subwindow, h))
-         {
-            Print("  ✓ CCI (", Settings.P_Cci, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++;
-            subwindows_added++;
-            ts_components_visible++;
-         }
-      }
-      else
-      {
-         Print("  ⚠ CCI enabled but GetCciHandle() not available");
-      }
-   }
-
-   // --- MFI (TS component)
-   if(Settings.Ind_Mfi_Enabled)
-   {
-      int h = Signal.GetMfiHandle();
-      if(h != INVALID_HANDLE)
-      {
-         if(ChartIndicatorAdd(0, subwindow, h))
-         {
-            Print("  ✓ MFI (", Settings.P_Mfi, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++;
-            subwindows_added++;
-            ts_components_visible++;
-         }
-      }
-      else
-      {
-         Print("  ⚠ MFI enabled but GetMfiHandle() not available");
-      }
-   }
-
-   // --- Stochastic (TS component)
-   if(Settings.Ind_Sto_Enabled)
-   {
-      int h = Signal.GetStoHandle();
-      if(h != INVALID_HANDLE)
-      {
-         if(ChartIndicatorAdd(0, subwindow, h))
-         {
-            Print("  ✓ Stochastic (K:", Settings.P_StoK, " D:", Settings.P_StoD, " Slow:", Settings.P_StoSlow, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++;
-            subwindows_added++;
-            ts_components_visible++;
-         }
-      }
-      else
-      {
-         Print("  ⚠ Stochastic enabled but GetStoHandle() not available");
-      }
-   }
-
-   // --- ADX (TS component)
-   if(Settings.Ind_Adx_Enabled)
-   {
-      int h = Signal.GetAdxHandle();
-      if(h != INVALID_HANDLE)
-      {
-         if(ChartIndicatorAdd(0, subwindow, h))
-         {
-            Print("  ✓ ADX (", Settings.P_Adx, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++;
-            subwindows_added++;
-            ts_components_visible++;
-         }
-      }
-      else
-      {
-         Print("  ⚠ ADX enabled but GetAdxHandle() not available");
-      }
-   }
-
-   // ========================
-   // 4) SUMMARY
-   // ========================
-
-   Print("───────────────────────────────────────────────────────────");
-   Print("UI: Chart indicator management complete");
-   Print("  → ", overlays_added, " overlays on main chart");
-   Print("  → ", subwindows_added, " indicators in subwindows");
-   Print("  → ", ts_components_visible, " TS components visible");
-   Print("  → Vote Mode: ", (Settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD"), " (", ts_components_visible, " indicators visible)");
-   Print("═══════════════════════════════════════════════════════════");
-}
-
 //+------------------------------------------------------------------+
-//| UI: SIGNAL MARKERS                                               |
+//| UI: SIGNAL MARKERS
 //+------------------------------------------------------------------+
-
 void SEA_DrawEntrySignalLine(datetime bar_time, int direction, const string label)
 {
    string name = StringFormat("SEA_ELIG_%I64d_%s", (long)bar_time, (direction > 0 ? "BUY" : "SELL"));
@@ -1487,7 +1130,6 @@ void SEA_DrawEntrySignalLine(datetime bar_time, int direction, const string labe
    ObjectSetInteger(0, name, OBJPROP_WIDTH, 1);
    ObjectSetString(0, name, OBJPROP_TOOLTIP, StringFormat("ELIGIBLE %s | %s", (direction > 0 ? "BUY" : "SELL"), label));
 }
-
 void SEA_DrawTradeExecLine(datetime event_time, int direction, double price, const string label)
 {
    string name = StringFormat("SEA_TRADE_%I64d_%s", (long)event_time, (direction > 0 ? "BUY" : "SELL"));

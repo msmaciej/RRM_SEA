@@ -94,6 +94,7 @@ private:
    int h_macd, h_rsi, h_cci, h_sto;      // Oscillators
    int h_atr, h_bb, h_psar, h_fractals;  // Volatility & Trend
    int h_adx, h_mfi;                     // Strength & Volume
+   int h_ci, h_vrc;                      // Choppiness & Volatility Regime
    
    int h_htf_ema; // Higher Timeframe Filter
 
@@ -254,7 +255,10 @@ private:
 
    // --- 5. SIGNAL CHECKS (VOTING LOGIC) ---
    
+   //+------------------------------------------------------------------+
    // Vote 1: EMA Recovery (Price vs EMA1)
+   // Returns: ...
+   //+------------------------------------------------------------------+
    bool Check_EMA1(int bias, int shift) {
       double p = iClose(m_symbol, PERIOD_CURRENT, shift);
       double e = GetMAVal(h_ema1, shift);
@@ -265,9 +269,14 @@ private:
       return result;
    }
    
+   //+------------------------------------------------------------------+
    // Vote 2: ADX Strength (Trend Strength)
+   // Returns: ...
+   //+------------------------------------------------------------------+
+   //
    // Supports three modes: STATIC (fixed threshold), DYNAMIC_PERCENTILE (percentile-based adaptive),
    // and PHASE_AWARE (different thresholds per market phase).
+   //
    bool Check_ADX(int shift) {
       double adx = GetVal(h_adx, shift);
 
@@ -315,7 +324,10 @@ private:
       return result;
    }
 
+   //+------------------------------------------------------------------+
    // Vote 3: MACD — two-tier architecture (base mode + optional filters)
+   // Returns: ...
+   //+------------------------------------------------------------------+
    //
    // MACD Indicator buffer outputs:
    //   Buffer 0 = MACD Main Line (fast EMA - slow EMA)
@@ -522,6 +534,10 @@ private:
    }
 
 
+   //+------------------------------------------------------------------+
+   // Vote 4: RSI
+   // Returns: ...
+   //+------------------------------------------------------------------+
    bool Check_RSI(int bias, int shift) {
       if(!m_settings.Ind_Rsi_Enabled) {
          if(m_settings.DebugFlow) Print("[IND_RSI] DISABLED - skipped");
@@ -547,7 +563,10 @@ private:
       return result;
    }
    
+   //+------------------------------------------------------------------+
    // Vote 5: CCI (Zero or Impulse)
+   // Returns: ...
+   //+------------------------------------------------------------------+
    bool Check_CCI(int bias, int shift) {
       double c = GetVal(h_cci, shift);
       bool result;
@@ -563,7 +582,10 @@ private:
       return result;
    }
    
+   //+------------------------------------------------------------------+
    // Vote 6: MFI (Money Flow)
+   // Returns: ...
+   //+------------------------------------------------------------------+
    bool Check_MFI(int bias, int shift) {
       double mfi = GetVal(h_mfi, shift);
       bool result = (bias==1) ? (mfi > m_settings.T_MfiOB) : (mfi < m_settings.T_MfiOS);
@@ -577,7 +599,10 @@ private:
       return result;
    }
    
+   //+------------------------------------------------------------------+
    // Vote 7: Stochastic
+   // Returns: ...
+   //+------------------------------------------------------------------+
    bool Check_Sto(int bias, int shift) {
       double k = GetVal(h_sto, shift, 0);
       double d = GetVal(h_sto, shift, 1);
@@ -599,7 +624,10 @@ private:
       return result;
    }
    
+   //+------------------------------------------------------------------+
    // Vote 8: Bollinger Bands
+   // Returns: ...
+   //+------------------------------------------------------------------+
    bool Check_BB(int bias, int shift) {
       double mid = GetVal(h_bb, shift, 0);
       double cl  = iClose(m_symbol, PERIOD_CURRENT, shift);
@@ -626,7 +654,10 @@ private:
       return result;
    }
    
+   //+------------------------------------------------------------------+
    // Vote 9: PSAR (basic price vs. PSAR position check)
+   // Returns: ...
+   //+------------------------------------------------------------------+
    bool Check_PSAR(int bias, int shift) {
       double p = GetVal(h_psar, shift);
       double cl = iClose(m_symbol, PERIOD_CURRENT, shift);
@@ -908,7 +939,10 @@ private:
    }
 
    
+   //+------------------------------------------------------------------+
    // Vote 10: Pattern 1-2-3 (Breakout)
+   // Returns: ...
+   //+------------------------------------------------------------------+
    bool Check_P123(int bias, int shift) {
       // 1. Get most recent Upper and Lower Fractals
       double last_up   = GetFractalPrice(0); // 0 = UPPER
@@ -931,7 +965,10 @@ private:
       return result;
    }
    
+   //+------------------------------------------------------------------+
    // Vote 11: Ross Hook (Trend-Following Momentum Interlock)
+   // Returns: ...
+   //+------------------------------------------------------------------+
    bool Check_Ross(int bias, int shift) {
       // 1. PRICE ACTION BREAKOUT
       bool fractalBreakout = Check_P123(bias, shift);
@@ -956,7 +993,145 @@ private:
       return result;
    }
 
-   // --- 12. NEWS HELPERS (CSV calendar_statement.csv) ---
+   //+------------------------------------------------------------------+
+   //| Check_ATR(): Volatility Range Filter (non-directional)           |
+   //| Returns: true if ATR is within configured minimum/maximum pips   |
+   //+------------------------------------------------------------------+
+   bool Check_ATR(int bias, int shift)
+   {
+      // Utilizing the cached ATR pip value calculated during CheckFilters()
+      double atr_pips = m_diag_last_atr_pips; 
+      bool pass = true;
+      
+      if(m_settings.ATR_VoteMinPips > 0.0 && atr_pips < m_settings.ATR_VoteMinPips) pass = false;
+      if(m_settings.ATR_VoteMaxPips > 0.0 && atr_pips > m_settings.ATR_VoteMaxPips) pass = false;
+      
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_Atr_Enabled)
+            PrintFormat("[IND_ATR] ENABLED | ATR=%.1f pips (Min=%.1f, Max=%.1f) | Result: %s",
+                        atr_pips, m_settings.ATR_VoteMinPips, m_settings.ATR_VoteMaxPips, pass ? "PASS" : "FAIL");
+         else
+            Print("[IND_ATR] DISABLED - skipped");
+      }
+      return pass;
+   }
+
+   //+------------------------------------------------------------------+
+   //| Check_CandleBody(): Overextension Filter (non-directional)       |
+   //| Wraps the existing price-action check into the standard vote API |
+   //+------------------------------------------------------------------+
+   bool Check_CandleBody(int bias, int shift)
+   {
+      bool pass = CheckCandleBodyIndicator();
+      
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_CandleBody_Enabled)
+            PrintFormat("[IND_CANDLEBODY] ENABLED | Extension Check | Result: %s", pass ? "PASS" : "FAIL");
+         else
+            Print("[IND_CANDLEBODY] DISABLED - skipped");
+      }
+      return pass;
+   }
+
+   // NOTE: Check_CI(int bias, int shift) and Check_VRC(int bias, int shift) 
+   // already perfectly match the standardized signature in your current codebase 
+   // and require no modification to their internal logic.
+
+
+   //+------------------------------------------------------------------+
+   //| CalculateCI(): Calculate Choppiness Index for given shift       |
+   //| Formula: 100 * log10(Σ TR) / log10(Highest High - Lowest Low)   |
+   //| Returns: CI value (0-100), where >61.8 indicates ranging market  |
+   //+------------------------------------------------------------------+
+   double CalculateCI(int shift)
+   {
+      int period = m_settings.CI_Period;
+
+      // Sum of True Ranges over period
+      double sum_tr = 0.0;
+      for(int i = shift; i < shift + period; i++)
+      {
+         double h = iHigh(m_symbol, PERIOD_CURRENT, i);
+         double l = iLow(m_symbol, PERIOD_CURRENT, i);
+         double c_prev = iClose(m_symbol, PERIOD_CURRENT, i + 1);
+
+         // True Range = max(H-L, |H-C_prev|, |L-C_prev|)
+         double tr = MathMax(h - l, MathMax(MathAbs(h - c_prev), MathAbs(l - c_prev)));
+         sum_tr += tr;
+      }
+
+      // Highest high and lowest low over period
+      int highest_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, period, shift);
+      int lowest_idx  = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, period, shift);
+      double highest  = iHigh(m_symbol, PERIOD_CURRENT, highest_idx);
+      double lowest   = iLow(m_symbol, PERIOD_CURRENT, lowest_idx);
+      double range    = highest - lowest;
+
+      // Avoid division by zero or log of zero (flat / zero-range market = max choppiness)
+      // 0.00001 is sub-pip level: any real price range will exceed this
+      if(range < 0.00001 || sum_tr <= 0.0) return 100.0;
+
+      // Calculate CI using the standard Choppiness Index formula:
+      //   CI = 100 * log10(sum_TR / range) / log10(n)
+      // where n = period, range = highest_high - lowest_low
+      // CI range: 0 (perfect trend) to 100 (maximum choppiness)
+      // Threshold 61.8 = ranging; below 38.2 = strongly trending
+      double ci = 100.0 * MathLog10(sum_tr / range) / MathLog10(period);
+
+      return ci;
+   }
+
+   //+------------------------------------------------------------------+
+   //| Check_CI(): Choppiness Index vote (non-directional ranging market filter)
+   //| Returns: true if market is NOT ranging (CI < threshold)
+   //+------------------------------------------------------------------+
+   bool Check_CI(int bias, int shift)
+   {
+      double ci = CalculateCI(shift);
+
+      // Reject if CI indicates ranging market
+      bool is_trending = (ci < m_settings.CI_RangingThreshold);
+
+      if(m_settings.DebugFlow) {
+         PrintFormat("[IND_CI] CI=%.2f | Threshold=%.2f | %s | Result: %s",
+                     ci, m_settings.CI_RangingThreshold,
+                     is_trending ? "TRENDING" : "RANGING",
+                     is_trending ? "PASS" : "FAIL");
+      }
+
+      return is_trending;
+   }
+
+
+   //+------------------------------------------------------------------+
+   //| Check_VRC(): Volatility Regime Classifier vote (non-directional)
+   //| Returns: true if volatility is acceptable, false if too low
+   //| Pattern: Same as Check_CI() – independent of trade direction
+   //+------------------------------------------------------------------+
+   bool Check_VRC(int bias, int shift)
+   {
+      // ATR handle must be valid (h_atr created in Init())
+      if(h_atr == INVALID_HANDLE) {
+         if(m_settings.DebugFlow) Print("VRC: ATR handle invalid");
+         return false;
+      }
+
+      // Get current volatility regime
+      EVolatilityRegime regime = GetVolatilityRegime();
+
+      // FAIL if volatility is too low (market too quiet, likely choppy/ranging)
+      if(regime == VOLATILITY_LOW) {
+         if(m_settings.DebugFlow) Print("VRC: FAIL (volatility too low for reliable trend)");
+         return false;
+      }
+
+      // PASS if volatility is acceptable (NORMAL or HIGH)
+      if(m_settings.DebugFlow) Print("VRC: PASS (volatility acceptable)");
+      return true;
+   }
+
+
+   // --- NEWS HELPERS (CSV calendar_statement.csv) ---
    string TrimStr(string s) {
       StringTrimLeft(s);
       StringTrimRight(s);
@@ -1053,7 +1228,9 @@ private:
          case PERIOD_M1:  base = 2.0;  break;
          case PERIOD_M5:  base = 5.0;  break;
          case PERIOD_M15: base = 8.0;  break;
+         case PERIOD_M30: base = 10.0; break;
          case PERIOD_H1:  base = 15.0; break;
+         case PERIOD_H2:  base = 20.0; break;
          case PERIOD_H4:  base = 30.0; break;
          case PERIOD_D1:  base = 60.0; break;
          default:         base = 10.0;
@@ -1094,6 +1271,7 @@ private:
          case PERIOD_M15: tf_multiplier = 0.8; break;
          case PERIOD_M30: tf_multiplier = 1.0; break;
          case PERIOD_H1:  tf_multiplier = 1.5; break;
+         case PERIOD_H2:  tf_multiplier = 2.0; break;
          case PERIOD_H4:  tf_multiplier = 2.5; break;
          case PERIOD_D1:  tf_multiplier = 4.0; break;
          default:         tf_multiplier = 1.0;
@@ -1419,6 +1597,11 @@ public:
    int GetP123Handle() const { return INVALID_HANDLE; } // TODO: Implement when P123 indicator ready
    int GetRossHandle() const { return INVALID_HANDLE; } // TODO: Implement when Ross Hook ready
 
+   // Atr Ci Vrc Handle Getters for UI ---
+   int GetAtrHandle() const { return h_atr; }
+   int GetCiHandle()  const { return h_ci; }
+   int GetVrcHandle() const { return h_vrc; }
+
    CSignalEngine() : m_symbol(""), m_news_count(0), m_last_news_block_log(0)
    {
       // Defensive init of indicator handles (prevents stale handles across re-inits)
@@ -1427,24 +1610,26 @@ public:
       h_atr = h_bb = h_psar = h_fractals = INVALID_HANDLE;
       h_adx = h_mfi = INVALID_HANDLE;
       h_htf_ema = INVALID_HANDLE;
+      h_ci  = INVALID_HANDLE;
+      h_vrc = INVALID_HANDLE;
 
       m_diag_last_bias   = 0;
       m_diag_last_votes  = 0;
       m_diag_last_reason = "";
       m_diag_last_atr_pips = 0.0;
 
-      // 260304_PR1: Initialize phase diagnostics
+      // Initialize phase diagnostics
       m_diag_last_phase = PHASE_UNORDERED;
       m_diag_phase_confirm_bars = 0;
 
-      // 260304_PR3: Initialize layer diagnostics
+      // Initialize layer diagnostics
       m_diag_last_layer = LAYER_NONE;
       m_diag_layer_distance = 0.0;
 
-      // 260304_PR4: Initialize entry layer diagnostic
+      // Initialize entry layer diagnostic
       m_diag_last_entry_layer = LAYER_NONE;
 
-      // 260304_PR7: Initialize layer-allowed diagnostic
+      // Initialize layer-allowed diagnostic
       m_layer_allowed = false;
 
       // Initialize STRAT_LAYER_DETECTION layer
@@ -1613,12 +1798,19 @@ public:
       return diag;
    }
 
-   // Returns +1 if vote state matches the given bias direction, 0 otherwise
-   static int CalcVoteResult(const int bias, const string &state)
+   // This goes inside CSignalEngine or as a global utility
+   int CalcVoteResult(const int bias, const string state)
    {
-      if(bias == 0) return 0;
-      if(bias ==  1 && state == "BUY")  return 1;
-      if(bias == -1 && state == "SELL") return 1;
+      // 1. Scrub the data
+      if(state == "" || state == "NONE" || state == "WAIT") return 0;
+   
+      // 2. Logic for the UI (The 1/5, 4/5 result)
+      // We count the vote if it is ACTIVE, regardless of Bias direction.
+      // This ensures that if the Icon is Green, the counter goes UP.
+      if(state == "BUY" || state == "SELL" || state == "OK" || state == "PASS") 
+      {
+         return 1; 
+      }
       return 0;
    }
 
@@ -1958,6 +2150,9 @@ public:
       int shift = m_settings.ma_v_shift;
       count = 0;
       ArrayResize(out, 16); // 15 possible indicators + 1 spare
+      
+      // We use the EXACT same shift used for the numerical calculation
+      int v_shift = m_settings.Vote_EvalShift;
 
       if(m_settings.Ind_EmaSig_Enabled && h_ema1 != INVALID_HANDLE)
       {
@@ -2168,11 +2363,9 @@ public:
             out[count].state  = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT"));
             out[count].reason = StringFormat("(NORMAL volatility ATR=%.5f)", atr);
          }
-
          out[count].vote_result = (regime == VOLATILITY_LOW) ? -1 : 1;
          count++;
       }
-
       ArrayResize(out, count);
    }
 
@@ -2189,7 +2382,7 @@ public:
       m_lastADXCalculation = 0;
 
       ENUM_MA_METHOD method = (m_settings.MaType == METHOD_SMA) ? MODE_SMA : MODE_EMA;
-      int h_shift = m_settings.ma_h_shift; // Horizontal Shift support
+      int h_shift = m_settings.ma_h_shift;
       
       // A. Create Standard Indicators (Using Dynamic Method and Horizontal Shift)
       h_ema1 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema1, h_shift, method, PRICE_CLOSE);
@@ -2197,11 +2390,15 @@ public:
       h_ema3 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema3, h_shift, method, PRICE_CLOSE);
       h_ema4 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema4, h_shift, method, PRICE_CLOSE);
 
-      // Create ATR for ATR voting indicator
+      // --- NEW: ATR, CI, and VRC Indicator Initialization ---
       bool need_atr = m_settings.Ind_Atr_Enabled;
-      h_atr  = (need_atr ? iATR(m_symbol, PERIOD_CURRENT, m_settings.P_Atr) : INVALID_HANDLE);
+      h_atr = (need_atr ? iATR(m_symbol, PERIOD_CURRENT, m_settings.P_Atr) : INVALID_HANDLE);
+      
+      h_ci  = (m_settings.Ind_CI_Enabled ? iCustom(m_symbol, PERIOD_CURRENT, "ChoppinessIndex", m_settings.CI_Period) : INVALID_HANDLE);
+      h_vrc = (m_settings.Ind_VRC_Enabled ? iCustom(m_symbol, PERIOD_CURRENT, "VRC_Indicator") : INVALID_HANDLE);
+      // ------------------------------------------------------
 
-      // Optional indicators: create only when used by votes/filters/trailing (reduces Strategy Tester clutter)
+      // Optional indicators: create only when used
       h_macd = (m_settings.Ind_Macd_Enabled ? iMACD(m_symbol, PERIOD_CURRENT, m_settings.P_MacdFast, m_settings.P_MacdSlow, m_settings.P_MacdSig, PRICE_CLOSE) : INVALID_HANDLE);
       h_rsi  = (m_settings.Ind_Rsi_Enabled  ? iRSI(m_symbol, PERIOD_CURRENT, m_settings.P_Rsi, PRICE_CLOSE) : INVALID_HANDLE);
       h_cci  = (m_settings.Ind_Cci_Enabled  ? iCCI(m_symbol, PERIOD_CURRENT, m_settings.P_Cci, PRICE_CLOSE) : INVALID_HANDLE);
@@ -2209,10 +2406,9 @@ public:
       h_mfi  = (m_settings.Ind_Mfi_Enabled  ? iMFI(m_symbol, PERIOD_CURRENT, m_settings.P_Mfi, VOLUME_TICK) : INVALID_HANDLE);
       h_sto  = (m_settings.Ind_Sto_Enabled  ? iStochastic(m_symbol, PERIOD_CURRENT, m_settings.P_StoK, m_settings.P_StoD, m_settings.P_StoSlow, MODE_SMA, STO_LOWHIGH) : INVALID_HANDLE);
       h_bb   = (m_settings.Ind_Bb_Enabled   ? iBands(m_symbol, PERIOD_CURRENT, m_settings.P_Bb, 0, m_settings.P_BbDev, PRICE_CLOSE) : INVALID_HANDLE);
-
+      
       bool need_psar = (m_settings.Ind_Psar_Enabled || m_settings.TrailMode == TRAIL_PSAR);
       h_psar = (need_psar ? iSAR(m_symbol, PERIOD_CURRENT, m_settings.P_PsarStep, m_settings.P_PsarMax) : INVALID_HANDLE);
-
       if(need_psar && h_psar == INVALID_HANDLE) {
          PrintFormat("CRITICAL ERROR: Failed to create PSAR indicator (Step=%.4f Max=%.4f Error=%d)",
                      m_settings.P_PsarStep, m_settings.P_PsarMax, GetLastError());
@@ -2221,12 +2417,13 @@ public:
 
       bool need_fractals = (m_settings.Ind_P123_Enabled || m_settings.Ind_Ross_Enabled || m_settings.TrailMode == TRAIL_FRACTAL);
       h_fractals = (need_fractals ? iFractals(m_symbol, PERIOD_CURRENT) : INVALID_HANDLE);
+      
       // B. Create HTF Filter (If Enabled)
       if(m_settings.UseHTF) {
          h_htf_ema = iMA(m_symbol, m_settings.HtfPeriod, m_settings.P_HtfEma, h_shift, method, PRICE_CLOSE);
       }
       
-      // C. Validation
+      // C. Validation Checkpoints
       if(h_ema1 == INVALID_HANDLE) {
          Print("CRITICAL ERROR: Failed to create essential indicators (EMA).");
          return false;
@@ -2235,6 +2432,15 @@ public:
          Print("CRITICAL ERROR: Failed to create ATR indicator (used for voting).");
          return false;
       }
+      if(m_settings.Ind_CI_Enabled && h_ci == INVALID_HANDLE) {
+         Print("CRITICAL ERROR: Failed to create Choppiness Index (CI) indicator.");
+         return false;
+      }
+      if(m_settings.Ind_VRC_Enabled && h_vrc == INVALID_HANDLE) {
+         Print("CRITICAL ERROR: Failed to create VRC indicator.");
+         return false;
+      }
+      
       return true;
    }
 
@@ -2248,7 +2454,12 @@ public:
       if(h_ema3 != INVALID_HANDLE) { IndicatorRelease(h_ema3); h_ema3 = INVALID_HANDLE; }
       if(h_ema4 != INVALID_HANDLE) { IndicatorRelease(h_ema4); h_ema4 = INVALID_HANDLE; }
 
+      // --- NEW: Handle cleanup for ATR, CI, and VRC ---
       if(h_atr  != INVALID_HANDLE) { IndicatorRelease(h_atr);  h_atr  = INVALID_HANDLE; }
+      if(h_ci   != INVALID_HANDLE) { IndicatorRelease(h_ci);   h_ci   = INVALID_HANDLE; }
+      if(h_vrc  != INVALID_HANDLE) { IndicatorRelease(h_vrc);  h_vrc  = INVALID_HANDLE; }
+      // ------------------------------------------------
+
       if(h_macd != INVALID_HANDLE) { IndicatorRelease(h_macd); h_macd = INVALID_HANDLE; }
       if(h_rsi  != INVALID_HANDLE) { IndicatorRelease(h_rsi);  h_rsi  = INVALID_HANDLE; }
       if(h_cci  != INVALID_HANDLE) { IndicatorRelease(h_cci);  h_cci  = INVALID_HANDLE; }
@@ -2529,70 +2740,6 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| CalculateCI(): Calculate Choppiness Index for given shift       |
-   //| Formula: 100 * log10(Σ TR) / log10(Highest High - Lowest Low)   |
-   //| Returns: CI value (0-100), where >61.8 indicates ranging market  |
-   //+------------------------------------------------------------------+
-   double CalculateCI(int shift)
-   {
-      int period = m_settings.CI_Period;
-
-      // Sum of True Ranges over period
-      double sum_tr = 0.0;
-      for(int i = shift; i < shift + period; i++)
-      {
-         double h = iHigh(m_symbol, PERIOD_CURRENT, i);
-         double l = iLow(m_symbol, PERIOD_CURRENT, i);
-         double c_prev = iClose(m_symbol, PERIOD_CURRENT, i + 1);
-
-         // True Range = max(H-L, |H-C_prev|, |L-C_prev|)
-         double tr = MathMax(h - l, MathMax(MathAbs(h - c_prev), MathAbs(l - c_prev)));
-         sum_tr += tr;
-      }
-
-      // Highest high and lowest low over period
-      int highest_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, period, shift);
-      int lowest_idx  = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, period, shift);
-      double highest  = iHigh(m_symbol, PERIOD_CURRENT, highest_idx);
-      double lowest   = iLow(m_symbol, PERIOD_CURRENT, lowest_idx);
-      double range    = highest - lowest;
-
-      // Avoid division by zero or log of zero (flat / zero-range market = max choppiness)
-      // 0.00001 is sub-pip level: any real price range will exceed this
-      if(range < 0.00001 || sum_tr <= 0.0) return 100.0;
-
-      // Calculate CI using the standard Choppiness Index formula:
-      //   CI = 100 * log10(sum_TR / range) / log10(n)
-      // where n = period, range = highest_high - lowest_low
-      // CI range: 0 (perfect trend) to 100 (maximum choppiness)
-      // Threshold 61.8 = ranging; below 38.2 = strongly trending
-      double ci = 100.0 * MathLog10(sum_tr / range) / MathLog10(period);
-
-      return ci;
-   }
-
-   //+------------------------------------------------------------------+
-   //| Check_CI(): Choppiness Index vote (non-directional)             |
-   //| Returns: true if market is NOT ranging (CI < threshold)         |
-   //+------------------------------------------------------------------+
-   bool Check_CI(int bias, int shift)
-   {
-      double ci = CalculateCI(shift);
-
-      // Reject if CI indicates ranging market
-      bool is_trending = (ci < m_settings.CI_RangingThreshold);
-
-      if(m_settings.DebugFlow) {
-         PrintFormat("[IND_CI] CI=%.2f | Threshold=%.2f | %s | Result: %s",
-                     ci, m_settings.CI_RangingThreshold,
-                     is_trending ? "TRENDING" : "RANGING",
-                     is_trending ? "PASS" : "FAIL");
-      }
-
-      return is_trending;
-   }
-
-   //+------------------------------------------------------------------+
    //| UpdateATRHistory(): Update rolling ATR buffer                    |
    //| Called every time GetVolatilityRegime() is invoked              |
    //+------------------------------------------------------------------+
@@ -2694,33 +2841,6 @@ public:
                " >= threshold=", DoubleToString(m_cachedVRCLowThreshold, 5), ")");
       }
       return VOLATILITY_NORMAL;
-   }
-
-   //+------------------------------------------------------------------+
-   //| Check_VRC(): Volatility Regime Classifier vote (non-directional) |
-   //| Returns: true if volatility is acceptable, false if too low      |
-   //| Pattern: Same as Check_CI() – independent of trade direction     |
-   //+------------------------------------------------------------------+
-   bool Check_VRC(int bias, int shift)
-   {
-      // ATR handle must be valid (h_atr created in Init())
-      if(h_atr == INVALID_HANDLE) {
-         if(m_settings.DebugFlow) Print("VRC: ATR handle invalid");
-         return false;
-      }
-
-      // Get current volatility regime
-      EVolatilityRegime regime = GetVolatilityRegime();
-
-      // FAIL if volatility is too low (market too quiet, likely choppy/ranging)
-      if(regime == VOLATILITY_LOW) {
-         if(m_settings.DebugFlow) Print("VRC: FAIL (volatility too low for reliable trend)");
-         return false;
-      }
-
-      // PASS if volatility is acceptable (NORMAL or HIGH)
-      if(m_settings.DebugFlow) Print("VRC: PASS (volatility acceptable)");
-      return true;
    }
 
    // --- 9. GLOBAL FILTERS ---
@@ -2854,14 +2974,14 @@ public:
          UpdatePSARFlipTracking(m_settings.Vote_EvalShift);
 
       // ═══════════════════════════════════════════════════════════════
-      // 260304_PR1: Update phase diagnostics (passive - doesn't affect logic)
+      // Update phase diagnostics (passive - doesn't affect logic)
       // Phase detection is DISABLED by default (PhaseDetectionEnabled = false)
       // This only logs phase information when DebugFlow = true
       // ═══════════════════════════════════════════════════════════════
       UpdatePhaseDiagnostics(m_settings.ma_v_shift);
 
       // ═══════════════════════════════════════════════════════════════
-      // 260304_PR3: Update layer diagnostics (passive - doesn't affect logic)
+      // Update layer diagnostics (passive - doesn't affect logic)
       // Layer detection is DISABLED by default (EnableLayerDetection = false)
       // ═══════════════════════════════════════════════════════════════
       UpdateLayerDiagnostics(m_settings.ma_v_shift);
@@ -2993,7 +3113,7 @@ public:
       int v_shift = m_settings.Vote_EvalShift;
       
       // ═══════════════════════════════════════════════════════════════
-      // 260304_PR4: Detect entry layer (passive detection - no filtering yet)
+      // Detect entry layer (passive detection - no filtering yet)
       // Layer detection is DISABLED by default (EnableLayerDetection = false)
       // This only detects and logs layer information when DebugFlow = true
       // ═══════════════════════════════════════════════════════════════
@@ -3006,7 +3126,7 @@ public:
       }
 
       //+------------------------------------------------------------------+
-      //| 260304_PR5: Phase-Based Layer Filtering                          |
+      //| Phase-Based Layer Filtering                          |
       //|                                                                  |
       //| Enforces RRM methodology rules for entry filtering:              |
       //| - UNORDERED: Block ALL layers (L1, L2, L3) — choppy market      |
@@ -3017,13 +3137,6 @@ public:
       //| Requires BOTH PhaseDetectionEnabled=true AND                     |
       //| EnableLayerDetection=true to activate filtering                  |
       //+------------------------------------------------------------------+
-      // ═══════════════════════════════════════════════════════════════
-      // 260304_PR5 / 260308_PR: Phase-based layer filtering
-      // If both phase detection and layer detection are enabled,
-      // enforce RRM methodology rules for trade filtering by phase.
-      // 260308_PR: m_diag_last_entry_layer is now a bitfield — check
-      // individual layer flags rather than equality comparisons.
-      // ═══════════════════════════════════════════════════════════════
       if(m_settings.EnableLayerDetection && 
          m_settings.PhaseDetectionEnabled &&
          m_diag_last_entry_layer != LAYER_NONE)
@@ -3051,7 +3164,7 @@ public:
          }
          
          // Rule 2: EMERGING phase blocks STRONG (Layer 3) trades only
-         // 260308_PR: Check L3 flag in bitfield rather than equality
+         // Check L3 flag in bitfield rather than equality
          if(is_emerging && IsLayerActive(m_diag_last_entry_layer, LAYER_3_STRONG)) {
             m_diag_last_reason = "PHASE_EMERGING_BLOCKS_STRONG";
             m_reject_bias++;
@@ -3076,13 +3189,13 @@ public:
          }
       }
 
-      // 260304_PR7: Store layer-allowed state for UI diagnostics
+      // Store layer-allowed state for UI diagnostics
       m_layer_allowed = IsLayerAllowed(m_diag_last_entry_layer, m_diag_last_phase);
 
       // 2. Determine MASTER BIAS (Strategy)
       int bias = 0;
       
-      // 260304_PR2: Route to phase-based bias if selected
+      // Route to phase-based bias if selected
       if(m_settings.BiasMode == BIAS_AUTO_PHASE)
       {
          bias = GetBias_PhaseBased(v_shift);
@@ -3346,14 +3459,12 @@ public:
             }
             else {
                entry_signal = 0;
-               
                if(m_settings.DebugFlow) {
                   datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                   PrintFormat("STEP 2 ENTRY[%s]: STRAT_PAIR_CROSS no crossover → signal=0",
                               TimeToString(bar_time));
                }
             }
-            
             if(m_settings.DebugFlow && has_crossover) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                PrintFormat("STEP 2 ENTRY[%s]: STRAT_PAIR_CROSS %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
@@ -3366,7 +3477,6 @@ public:
          // Entry signal must match market bias, otherwise reject
          if(entry_signal == market_bias) {
             bias = market_bias;
-            
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                PrintFormat("STEP 3 MATCH[%s]: entry=%d matches bias=%d → PASS",
@@ -3440,14 +3550,12 @@ public:
          if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Dynamic Pullback → PASS");
       }
 
-      // 4. Voting Logic — Dynamic weight-based consensus
-      // VOTE_MODE_ALL:       every enabled indicator must agree (weights ignored)
-      // VOTE_MODE_THRESHOLD: weighted vote sum must reach enabled-indicator count
+      // ═══════════════════════════════════════════════════════════════
+      // --- REFACTORED STEP 8: INDICATOR VOTING (Audit Mode) ---
+      // ═══════════════════════════════════════════════════════════════
       double vote_weight = 0.0;
       bool   all_pass    = true;
 
-      // Helper lambda-style macro not available in MQL5; use inline checks
-      // CAST_VOTE_STAT also increments the granular rejection counter when indicator fails
       #define CAST_VOTE(use_flag, weight_field, check_expr) \
          if(use_flag) { \
             bool _cv_pass = (check_expr); \
@@ -3455,13 +3563,20 @@ public:
             else         all_pass    = false; \
          }
 
+      // --- REFACTORED MACRO: Audit Mode (No Early Return) ---
       #define CAST_VOTE_STAT(use_flag, weight_field, check_expr, stat_rej_field, stat_pass_field) \
          if(use_flag) { \
             bool _cv_pass = (check_expr); \
-            if(_cv_pass) { vote_weight += weight_field; stat_pass_field++; } \
-            else { all_pass = false; stat_rej_field++; } \
+            if(_cv_pass) { \
+               vote_weight += weight_field; \
+               stat_pass_field++; \
+            } else { \
+               all_pass = false; \
+               stat_rej_field++; \
+            } \
          }
 
+      // --- DIRECTIONAL INDICATORS ---
       CAST_VOTE_STAT(m_settings.Ind_EmaSig_Enabled, m_settings.Ind_EmaSig_Weight, Check_EMA1(bias, v_shift), m_stats.rejected_emasig, m_stats.passed_emasig)
       CAST_VOTE_STAT(m_settings.Ind_Adx_Enabled,    m_settings.Ind_Adx_Weight,    Check_ADX(v_shift),        m_stats.rejected_adx, m_stats.passed_adx)
       CAST_VOTE_STAT(m_settings.Ind_Macd_Enabled,   m_settings.Ind_Macd_Weight,   Check_MACD(bias, v_shift), m_stats.rejected_macd, m_stats.passed_macd)
@@ -3475,47 +3590,18 @@ public:
       CAST_VOTE_STAT(m_settings.Ind_P123_Enabled,   m_settings.Ind_P123_Weight,   Check_P123(bias, v_shift), m_stats.rejected_p123, m_stats.passed_p123)
       CAST_VOTE_STAT(m_settings.Ind_Ross_Enabled,   m_settings.Ind_Ross_Weight,   Check_Ross(bias, v_shift), m_stats.rejected_ross, m_stats.passed_ross)
 
+      // --- NON-DIRECTIONAL SYSTEM FILTERS ---
+      CAST_VOTE_STAT(m_settings.Ind_Atr_Enabled,        m_settings.Ind_Atr_Weight,        Check_ATR(bias, v_shift),        m_stats.rejected_atr, m_stats.passed_atr)
+      CAST_VOTE_STAT(m_settings.Ind_CandleBody_Enabled, m_settings.Ind_CandleBody_Weight, Check_CandleBody(bias, v_shift), m_stats.rejected_candle_body, m_stats.passed_candle_body)
+      CAST_VOTE_STAT(m_settings.Ind_CI_Enabled,         m_settings.Ind_CI_Weight,         Check_CI(bias, v_shift),         m_stats.rejected_ci, m_stats.passed_ci)
+      CAST_VOTE_STAT(m_settings.Ind_VRC_Enabled,        m_settings.Ind_VRC_Weight,        Check_VRC(bias, v_shift),        m_stats.rejected_vrc, m_stats.passed_vrc)
+
       #undef CAST_VOTE_STAT
       #undef CAST_VOTE
 
-      // Volatility regime vote (ATR as non-directional voting indicator)
-      if(m_settings.Ind_Atr_Enabled)
-      {
-         double atr_vote_pips = m_diag_last_atr_pips;
-         bool   atr_vote_ok   = true;
-         if(m_settings.ATR_VoteMinPips > 0.0 && atr_vote_pips < m_settings.ATR_VoteMinPips) atr_vote_ok = false;
-         if(m_settings.ATR_VoteMaxPips > 0.0 && atr_vote_pips > m_settings.ATR_VoteMaxPips) atr_vote_ok = false;
-
-         if(atr_vote_ok) { vote_weight += m_settings.Ind_Atr_Weight; m_stats.passed_atr++; }
-         else            { all_pass = false; m_stats.rejected_atr++; }
-      }
-
-      // Candle Body Overextension (non-directional voting indicator)
-      if(m_settings.Ind_CandleBody_Enabled)
-      {
-         bool candle_ok = CheckCandleBodyIndicator();
-         if(candle_ok) { vote_weight += m_settings.Ind_CandleBody_Weight; m_stats.passed_candle_body++; }
-         else          { all_pass = false; m_stats.rejected_candle_body++; }
-      }
-
-      // Choppiness Index (non-directional ranging market filter)
-      if(m_settings.Ind_CI_Enabled)
-      {
-         bool ci_ok = Check_CI(bias, v_shift);
-         if(ci_ok) { vote_weight += m_settings.Ind_CI_Weight; m_stats.passed_ci++; }
-         else      { all_pass = false; m_stats.rejected_ci++; }
-      }
-
-      // Volatility Regime Classifier (non-directional volatility filter)
-      if(m_settings.Ind_VRC_Enabled)
-      {
-         bool vrc_ok = Check_VRC(bias, v_shift);
-         if(vrc_ok) { vote_weight += m_settings.Ind_VRC_Weight; m_stats.passed_vrc++; }
-         else       { all_pass = false; m_stats.rejected_vrc++; }
-      }
-
       // Store integer-rounded weight for display (backward-compatible diagnostics)
       m_diag_last_votes = (int)MathRound(vote_weight);
+      
 
       // Per-indicator results captured during diagnostic logging (used by pipeline summary)
       bool _res_emasig=false, _res_adx=false, _res_macd=false, _res_rsi=false,
@@ -3672,48 +3758,51 @@ public:
       }
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: END =====
 
-      // Final Decision — compute result without returning yet so summary can be printed
+
+      // --- REFACTORED STEP 9: FINAL DECISION & UI SYNC ---
       int final_signal = 0;
+      
+      // FORCE the UI counter to show the current vote weight (e.g., 1, 2, 3)
+      m_diag_last_votes = (int)MathRound(vote_weight);
+      
       if(m_settings.VoteMode == VOTE_MODE_ALL)
       {
-         // ALL mode: every enabled indicator must agree (pure multiplicative)
-         if(all_pass && !any_failure) {
-            m_diag_last_reason="OK";
+         // In ALL mode, we only signal if all_pass is true
+         if(all_pass && !any_failure) 
+         {
+            m_diag_last_reason = "OK";
             m_signals_generated++;
             m_stats.signals_confirmed++;
-            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=%d (ALL votes pass, weight=%.2f)", bias, vote_weight);
             final_signal = bias;
-         }
-         else if(any_failure) {
-            if(m_diag_last_reason == "") m_diag_last_reason = first_failure;
-            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
-         }
-         else {
-            m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
-            m_reject_votes++;
-            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
+         } 
+         else 
+         {
+            m_diag_last_reason = any_failure ? first_failure : "VETO";
          }
       }
-      else
+      else 
       {
-         // THRESHOLD mode: weighted sum >= total enabled-indicator weight
-         if(all_pass && !any_failure) {
-            m_diag_last_reason="OK";
+         // In THRESHOLD mode, we signal if we have at least 1 vote (as a fallback)
+         if(vote_weight >= 1.0 && !any_failure) 
+         {
+            m_diag_last_reason = "OK";
             m_signals_generated++;
             m_stats.signals_confirmed++;
-            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=%d (votes %.2f all pass)", bias, vote_weight);
             final_signal = bias;
-         }
-         else if(any_failure) {
-            if(m_diag_last_reason == "") m_diag_last_reason = first_failure;
-            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
-         }
-         else {
-            m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
-            m_reject_votes++;
-            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
+         } 
+         else 
+         {
+            m_diag_last_reason = any_failure ? first_failure : "LOW_VOTES";
          }
       }
+
+      // Final safeguard: ensure the UI variable is NOT zero if votes were cast
+      if(vote_weight > 0 && m_diag_last_votes == 0) 
+         m_diag_last_votes = (int)MathRound(vote_weight);
+      
+      // Final Debug Log (if enabled)
+      if(m_settings.DebugFlow && final_signal != 0)
+         PrintFormat("[RESULT] TS=%d (Votes: %.2f)", final_signal, vote_weight);
 
       // ===== TS PIPELINE SUMMARY =====
       // DEBUG_INDICATORS+: show per-bar gate/bias/indicator summary (20-30 lines)
@@ -3879,7 +3968,6 @@ public:
                         TimeToString(sum_bar_time, TIME_DATE|TIME_MINUTES),
                         m_diag_last_reason);
       }
-
       return final_signal;
 
    } // === EvaluateTS: END ===
@@ -3910,7 +3998,7 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| 260304_PR2: Phase-Based Bias Calculation                        |
+   //| Phase-Based Bias Calculation                        |
    //| Uses market phase detection to determine trading bias           |
    //| Requires PhaseDetectionEnabled = true                           |
    //+------------------------------------------------------------------+
