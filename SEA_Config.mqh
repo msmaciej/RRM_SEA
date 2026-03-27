@@ -5,10 +5,15 @@
 #property strict
 
 //+------------------------------------------------------------------+
-//| TYPES (ENUMS / STRUCTS)                                          |
+//| ENUMS
 //+------------------------------------------------------------------+
-
-// --- STRATEGY PRESETS ---
+enum EDebugLevel
+{
+   DEBUG_SILENT,      // DEBUG_SILENT: No per-bar output (statistics only at end)
+   DEBUG_SUMMARY,     // DEBUG_SUMMARY: Per-bar: signal result + rejection reason (1-2 lines)
+   DEBUG_INDICATORS,  // DEBUG_INDICATORS: Per-bar: indicator pass/fail + summary (20-30 lines)
+   DEBUG_FULL         // DEBUG_FULL: Everything: all internal steps + diagnostics (50+ lines)
+};
 enum EStrategyPreset
 {
    PRESET_CUSTOM,          // PRESET_CUSTOM: user-defined settings
@@ -16,7 +21,6 @@ enum EStrategyPreset
    PRESET_RRM,             // PRESET_RRM: phase-based layer detection system
    PRESET_TEST             // PRESET_TEST: development/debugging preset
 };
-// --- SIMPLE EMA SELECTOR ---
 enum EEmaStrategy
 {
    EMA_STRAT_1_PRICE_CROSS,   // EMA_STRAT_1: Buy if Price > EMA1 (Benchmark)
@@ -24,21 +28,18 @@ enum EEmaStrategy
    EMA_STRAT_2_CROSS_3_4,     // EMA_STRAT_2: Buy if EMA3 > EMA4 (Slow Trend)
    EMA_STRAT_CUSTOM           // EMA_STRAT_CUSTOM: manual: use "Advanced Bias" inputs below
 };
-// --- MA METHOD SELECTOR ---
 enum EMaMethod
 {
-   METHOD_EMA,       // METHOD_EMA: exponential
-   METHOD_SMA        // METHOD_SMA: simple
+   METHOD_EMA,    // METHOD_EMA: exponential
+   METHOD_SMA     // METHOD_SMA: simple
 };
-// --- BIAS MODE: how market direction is determined ---
 enum EBiasMode
 {
-   BIAS_MANUAL,   // User sets fixed direction (Long/Short/Both)
-   BIAS_1EMA,     // Single EMA: slope direction only
-   BIAS_2EMA,     // Two EMAs: crossover or position+slope
-   BIAS_4EMA      // Four EMAs: phase detection (TRENDING/EMERGING/UNORDERED)
+   BIAS_MANUAL,   // BIAS: User sets fixed direction (Long/Short/Both)
+   BIAS_1EMA,     // BIAS: 1EMA: slope direction only
+   BIAS_2EMA,     // BIAS: 2EMAs: crossover or position+slope
+   BIAS_4EMA      // BIAS: 4EMAs: phase detection (TRENDING/EMERGING/UNORDERED)
 };
-// --- MARKET PHASE: used by BIAS_4EMA (4-EMA structure analysis) ---
 enum EMarketPhase {
    PHASE_UNORDERED,     // PHASE_UNO: block all trades (TS = 0)
    PHASE_EMERGING,      // PHASE_EM: Trend forming (EMA4 between EMA2/EMA3)
@@ -67,45 +68,11 @@ enum EManualSide
 };
 enum EAutoStrategy
 {
-   STRAT_1EMA_SLOPE,    // ONLY for BIAS_1EMA: single EMA slope direction
-   STRAT_2EMA_CROSS,    // ONLY for BIAS_2EMA: two EMAs crossover (one-bar signal)
-   STRAT_PRICE_CROSS,   // ONLY for BIAS_2EMA: price crosses EMA (one-bar signal at cross point)
-   STRAT_2EMA_POSITION, // ONLY for BIAS_2EMA: EMA position + slope confirmation (persistent bias)
-   STRAT_4EMA_LAYER     // ONLY for BIAS_4EMA: four EMAs with LayerW/M/S pullback detection
-};
-//+------------------------------------------------------------------+
-//| Validate BiasMode and AutoStrat compatibility                    |
-//| Returns: true if combination is valid, false otherwise           |
-//+------------------------------------------------------------------+
-bool ValidateBiasStratCombo(EBiasMode bias, EAutoStrategy strat)
-{
-   switch(bias)
-   {
-      case BIAS_MANUAL:
-         return true; // Manual mode doesn't use AutoStrat
-
-      case BIAS_1EMA:
-         return (strat == STRAT_1EMA_SLOPE);
-
-      case BIAS_2EMA:
-         return (strat == STRAT_2EMA_CROSS ||
-                 strat == STRAT_PRICE_CROSS ||
-                 strat == STRAT_2EMA_POSITION);
-
-      case BIAS_4EMA:
-         return (strat == STRAT_4EMA_LAYER);
-
-      default:
-         Print("[ERROR] Unknown BiasMode: ", EnumToString(bias));
-         return false;
-   }
-}
-enum EDebugLevel
-{
-   DEBUG_SILENT,      // DEBUG_SILENT: No per-bar output (statistics only at end)
-   DEBUG_SUMMARY,     // DEBUG_SUMMARY: Per-bar: signal result + rejection reason (1-2 lines)
-   DEBUG_INDICATORS,  // DEBUG_INDICATORS: Per-bar: indicator pass/fail + summary (20-30 lines)
-   DEBUG_FULL         // DEBUG_FULL: Everything: all internal steps + diagnostics (50+ lines)
+   STRAT_1EMA_SLOPE,       // ONLY for BIAS_1EMA: single EMA slope direction
+   STRAT_2EMA_CROSS_EMA,   // ONLY for BIAS_2EMA: two EMAs crossover (one-bar signal)
+   STRAT_2EMA_CROSS_PRICE, // ONLY for BIAS_2EMA: price crosses EMA (one-bar signal at cross point)
+   STRAT_2EMA_POSITION,    // ONLY for BIAS_2EMA: EMA position + slope confirmation (persistent bias)
+   STRAT_4EMA_LAYER        // ONLY for BIAS_4EMA: four EMAs with LayerW/M/S pullback detection
 };
 enum EEmaRole
 {
@@ -114,9 +81,25 @@ enum EEmaRole
    ROLE_EMA3,     // ROLE_EMA3: Medium-slow EMA (34-period default) - L3_STRONG layer
    ROLE_EMA4      // ROLE_EMA4: Slow EMA (144-period default) - Trend filter
 };
-// Indicator Modes
 
-// MACD Vote Mode: two-tier architecture (base mode + optional filters)
+//+------------------------------------------------------------------+
+//| Indicator Modes
+//+------------------------------------------------------------------+
+enum EADXMode {
+   ADX_MODE_STATIC = 0,           // ADX: Fixed threshold (current behavior)
+   ADX_MODE_DYNAMIC_PERCENTILE,   // ADX: Adaptive threshold based on historical percentile
+   ADX_MODE_PHASE_AWARE           // ADX: Phase-specific thresholds
+};
+enum EBbMode
+{
+   BB_TREND_FOLLOW,     // BE: TREND_FOLLOW: Price near outer band = trend continuation
+   BB_MEAN_REVERSION    // BE: MEAN_REVERSION: Price at outer band = reversion to middle
+};
+enum ECciMode
+{
+   CCI_TREND_ZERO,      // CCI: Trend based on zero line (>0 bull, <0 bear)
+   CCI_IMPULSE_100      // CCI: Strong impulse (>100 or <-100)
+};
 enum EMacdVoteMode
 {
    // === SINGLE CHECKS (persistent) ===
@@ -133,49 +116,43 @@ enum EMacdVoteMode
    MACD_CROSSOVER_N,    // MACD_CROSS_N: Fresh crossover (within N bars)
    MACD_ZERO_CROSS_N    // MACD_ZERO_CROSS_N: Fresh zero cross (within N bars)
 };
-// Returns human-readable description of active MACD configuration
-string GetMACDModeDescription(EMacdVoteMode mode, bool has_slope, bool has_div, bool has_hook)
+enum EMfiMode
 {
-   string base = "";
-   switch(mode) {
-      case MACD_ZERO_LINE:      base = "Main>0 (momentum zone)"; break;
-      case MACD_HISTOGRAM:      base = "Histogram>0 (acceleration)"; break;
-      case MACD_CROSSOVER:      base = "Main>Signal (shift)"; break;
-      case MACD_ZERO_AND_CROSS: base = "Main>0 AND Main>Signal (traditional)"; break;
-      case MACD_ZERO_AND_HIST:  base = "Main>0 AND Histogram>0 (strict)"; break;
-      case MACD_TRIPLE:         base = "Zero+Cross+Hist (ultra-strict)"; break;
-      case MACD_CROSSOVER_N:    base = "Fresh crossover (within N bars)"; break;
-      case MACD_ZERO_CROSS_N:   base = "Fresh zero cross (within N bars)"; break;
-   }
-   string filters = "";
-   if(has_slope) filters += " +SLOPE";
-   if(has_div)   filters += " +DIVERGENCE";
-   if(has_hook)  filters += " +HOOK";
-   return base + filters;
-}
-
+   MFI_ZONE_FILTER,    // MFI: Zone-based filtering (>80 overbought, <20 oversold)
+   MFI_TREND_50        // MFI: Trend following (>50 bullish, <50 bearish)
+};
 enum ERsiMode
 {
-   RSI_FILTER_EXTREME,    // Extreme zones only (>70 overbought, <30 oversold)
-   RSI_TREND_ABOVE_50,    // Trend following (>50 bullish, <50 bearish)
-   RSI_CROSS_LEVEL        // Cross 50-level signal
-};
-enum ECciMode
-{
-   CCI_TREND_ZERO,        // Trend based on zero line (>0 bull, <0 bear)
-   CCI_IMPULSE_100        // Strong impulse (>100 or <-100)
+   RSI_FILTER_EXTREME,  // RSI: Extreme zones only (>70 overbought, <30 oversold)
+   RSI_TREND_ABOVE_50,  // RSI: Trend following (>50 bullish, <50 bearish)
+   RSI_CROSS_LEVEL      // RSI: Cross 50-level signal
 };
 enum EStochMode
 {
-   STO_CROSS_SIGNAL,      // %K crosses %D signal line
-   STO_ZONE_FILTER        // Overbought/oversold zones (>80 / <20)
+   STO_CROSS_SIGNAL,    // STO: %K crosses %D signal line
+   STO_ZONE_FILTER      // STO: Overbought/oversold zones (>80 / <20)
 };
-enum EBbMode
+enum EVolatilityRegime {
+   VOLATILITY_LOW = 0,    // Below low threshold (too quiet, likely choppy)
+   VOLATILITY_NORMAL,     // Between thresholds (acceptable trading conditions)
+   VOLATILITY_HIGH        // Above high threshold (explosive) - reserved for future use
+};
+
+//+------------------------------------------------------------------+
+//| CUSHION | TRAIL | SL | TP | BE | EXIT
+//+------------------------------------------------------------------+
+enum EPsarTrailCushionMode
 {
-   BB_TREND_FOLLOW,       // BE_TREND_FOLLOW: Price near outer band = trend continuation
-   BB_MEAN_REVERSION      // BE_MEAN_REVERSION: Price at outer band = reversion to middle
+   PSAR_CUSHION_PIPS    // PSAR: Fixed pips cushion
 };
-// --- TRAILING STOP MODE ---
+enum ETrailTrigger
+{
+   TRIGGER_IMMEDIATE,       // TRIGGER_IMMEDIATE: Tr from entry (default)
+   TRIGGER_BREAKEVEN,       // TRIGGER_BREAKEVEN: Tr after breakeven threshold reached
+   TRIGGER_PROFIT_PIPS,     // TRIGGER_PROFIT_PIPS: Tr after X pips profit (TrailDistancePips)
+   TRIGGER_PROFIT_PERCENT,  // TRIGGER_PROFIT_PERCENT: Tr after X% profit (TrailProfitPercent)
+   TRIGGER_PSAR_ALIGN       // TRIGGER_PSAR_ALIGN: Tr when PSAR aligns with position direction
+};
 enum ETrailingMode
 {
    TRAIL_BREAKEVEN,       // TRAIL_BREAKEVEN: move to breakeven then trail fixed pips
@@ -186,12 +163,6 @@ enum ETrailingMode
    TRAIL_PSAR,            // TRAIL_PSAR: dot trailing
    TRAIL_PSAR_FLIP_EXIT   // TRAIL_PSAR_FLIP_EXIT: close position on PSAR flip
 };
-// --- PSAR TRAIL CUSHION MODE ---
-enum EPsarTrailCushionMode
-{
-   PSAR_CUSHION_PIPS      // Fixed pips cushion
-};
-// --- STOP LOSS STRATEGY MODE ---
 enum ESLMode
 {
    SL_MODE_FIXED_PIPS,  // SL_MODE_FIXED_PIPS: Fixed pips (default)
@@ -200,7 +171,6 @@ enum ESLMode
    SL_MODE_SWING,       // SL_MODE_SWING: Recent swing high/low (SwingLookback bars)
    SL_MODE_PSAR_DOT     // SL_MODE_PSAR_DOT: PSAR dot position
 };
-// --- TAKE PROFIT STRATEGY MODE ---
 enum ETPMode
 {
    TP_MODE_FIXED_PIPS,  // TP_MODE_FIXED_PIPS: (default)
@@ -209,70 +179,39 @@ enum ETPMode
    TP_MODE_PSAR_FLIP,   // TP_MODE_PSAR_FLIP: Exit when PSAR flips (TP handled by TM)
    TP_MODE_NONE         // TP_MODE_NONE: No TP, rely on trailing stop only
 };
-// --- TRAILING STOP TRIGGER CONDITION ---
-enum ETrailTrigger
-{
-   TRIGGER_IMMEDIATE,       // TRIGGER_IMMEDIATE: Tr from entry (default)
-   TRIGGER_BREAKEVEN,       // TRIGGER_BREAKEVEN: Tr after breakeven threshold reached
-   TRIGGER_PROFIT_PIPS,     // TRIGGER_PROFIT_PIPS: Tr after X pips profit (TrailDistancePips)
-   TRIGGER_PROFIT_PERCENT,  // TRIGGER_PROFIT_PERCENT: Tr after X% profit (TrailProfitPercent)
-   TRIGGER_PSAR_ALIGN       // TRIGGER_PSAR_ALIGN: Tr when PSAR aligns with position direction
-};
-// --- EXIT PROFILE SELECTOR ---
-// Selects the exit contract for a trade.
-enum EExitProfile
-{
-   EXIT_PROFILE_NONE,      // EXIT_PROFILE_NONE: No exit profile (manual management)
-   EXIT_PROFILE_SIMPLE,    // EXIT_PROFILE_SIMPLE: Simple: Fixed SL/TP, basic trailing
-   EXIT_PROFILE_RRM        // EXIT_PROFILE_RRM: RRM: Swing-based SL, PSAR trail, no ATR multipliers
-};
-// --- MFI MODE SELECTOR ---
-enum EMfiMode
-{
-   MFI_ZONE_FILTER,       // Zone-based filtering (>80 overbought, <20 oversold)
-   MFI_TREND_50           // Trend following (>50 bullish, <50 bearish)
-};
-// --- RRM MODE SELECTOR (for PRESET_RRM adaptive configuration) ---
-enum ERRMMode
-{
-   RRM_AUTO_BY_TF,        // RRM_AUTO_BY_TF: Auto-select scalp/swing based on timeframe (M1-M15=scalp, M30+=swing)
-   RRM_SCALP,             // RRM_SCALP: Scalp: Tight SL/TP, Layer 1 entries, fast exits
-   RRM_SWING              // RRM_SWING: Swing: Wide SL/TP, Layer 2-3 entries, patient exits
-};
-// --- BREAKEVEN MODE SELECTOR ---
-// Controls how breakeven is triggered under the non-ATR RRM exit profile.
 enum EBeMode
 {
    BE_MODE_OFF,                // BE_MODE_OFF: Breakeven disabled (default)
    BE_MODE_TP_PROGRESS_PCT,    // BE_MODE_TP_PROGRESS_PCT: BE triggers at % progress toward TP (used with TP enabled)
    BE_MODE_R_MULTIPLE          // BE_MODE_R_MULTIPLE: BE triggers at k*R multiple (used when TP is disabled)
 };
-// --- GATE SCALING MODES ---
+enum EExitProfile
+{
+   EXIT_PROFILE_NONE,   // EXIT_PROFILE_NONE: No exit profile (manual management)
+   EXIT_PROFILE_SIMPLE, // EXIT_PROFILE_SIMPLE: Simple: Fixed SL/TP, basic trailing
+   EXIT_PROFILE_RRM     // EXIT_PROFILE_RRM: RRM: Swing-based SL, PSAR trail, no ATR multipliers
+};
+
+
+// --- PRESET_RRM adaptive configuration ---
+enum ERRMMode
+{
+   RRM_AUTO_BY_TF,     // RRM_AUTO_BY_TF: Auto-select scalp/swing based on timeframe (M1-M15=scalp, M30+=swing)
+   RRM_SCALP,          // RRM_SCALP: Scalp: Tight SL/TP, Layer 1 entries, fast exits
+   RRM_SWING           // RRM_SWING: Swing: Wide SL/TP, Layer 2-3 entries, patient exits
+};
+
 enum EGateScaleMode
 {
    GATE_SCALE_OFF,        // GATE_OFF: Gate disabled
    GATE_SCALE_FIXED,      // GATE_FIXED: Use fixed pip value
    GATE_SCALE_AUTO_TF     // GATE_AUTO: Auto-scale by timeframe/pair
 };
-// --- VOTE MODE SELECTOR ---
 enum EVoteMode
 {
    VOTE_MODE_THRESHOLD,   // VOTE_THRESHOLD: minimum weighted votes required (default)
    VOTE_MODE_ALL          // VOTE_ALL: every enabled indicator must agree
 };
-// --- ADX VALIDATION MODES ---
-enum EADXMode {
-   ADX_MODE_STATIC = 0,           // Fixed threshold (current behavior)
-   ADX_MODE_DYNAMIC_PERCENTILE,   // Adaptive threshold based on historical percentile
-   ADX_MODE_PHASE_AWARE           // Phase-specific thresholds
-};
-// --- VOLATILITY REGIME CLASSIFICATION ---
-enum EVolatilityRegime {
-   VOLATILITY_LOW = 0,    // Below low threshold (too quiet, likely choppy)
-   VOLATILITY_NORMAL,     // Between thresholds (acceptable trading conditions)
-   VOLATILITY_HIGH        // Above high threshold (explosive) - reserved for future use
-};
-// --- ADAPTIVE SETTINGS: PAIR TYPE ---
 enum EPairType
 {
    PAIR_TYPE_AUTO,         // Auto-detect from symbol name
@@ -282,28 +221,22 @@ enum EPairType
    PAIR_TYPE_GOLD,         // XAU/USD (medium spreads 3-5 pips, high volatility)
    PAIR_TYPE_CRYPTO        // BTC/USD (very wide spreads, extreme volatility)
 };
-
-struct SGateConfig
-{
-   EGateScaleMode mode;
-   double         value;  // Fixed pips or TF scaling factor
-};
-// --- UI FRAME MODE (Panels) ---
 enum EUIFrameMode
 {
-   UI_FRAME_BG,              // Rectangle background (default)
-   UI_FRAME_NONE,            // Text only (no rectangle)
-   UI_FRAME_TEXT_BOUNDS      // Text bounds markers (BEGIN/END), no rectangle
+   UI_FRAME_BG,              // UI: Rectangle background (default)
+   UI_FRAME_NONE,            // UI: Text only (no rectangle)
+   UI_FRAME_TEXT_BOUNDS      // UI: Text bounds markers (BEGIN/END), no rectangle
 };
-//+------------------------------------------------------------------+
-//| ENUM: Slope Measurement Mode                                     |
-//+------------------------------------------------------------------+
 enum ESlopeMeasure
 {
-   SLOPE_MEASURE_PIPS,       // Absolute pips movement
-   SLOPE_MEASURE_PERCENT     // Percentage change relative to EMA value
+   SLOPE_MEASURE_PIPS,       // SLOPE: Absolute pips movement
+   SLOPE_MEASURE_PERCENT     // SLOPE: Percentage change relative to EMA value
 };
-// --- ADAPTIVE SETTINGS STRUCT ---
+
+
+//+------------------------------------------------------------------+
+//| STRUCTURES
+//+------------------------------------------------------------------+
 struct ST_AdaptiveSettings
 {
    // Pair type detection
@@ -315,14 +248,17 @@ struct ST_AdaptiveSettings
    double Spread_Gold;
    double Spread_Crypto;
 };
-// --- STRUCTURES ---
+struct SGateConfig
+{
+   EGateScaleMode mode;
+   double         value;  // Fixed pips or TF scaling factor
+};
 struct SNewsEvent
 {
    datetime time;
    string   currency;
    string   impact;
 };
-// Vote state snapshot for runtime display
 struct SVoteSnapshot
 {
    string name;        // "MACD", "PSAR", etc.
@@ -627,6 +563,57 @@ struct ST_Settings
 
 // Global Configuration Instance
 ST_Settings Settings;
+
+
+//+------------------------------------------------------------------+
+//| Validate BiasMode and AutoStrat compatibility                    |
+//| Returns: true if combination is valid, false otherwise           |
+//+------------------------------------------------------------------+
+bool ValidateBiasStratCombo(EBiasMode bias, EAutoStrategy strat)
+{
+   switch(bias)
+   {
+      case BIAS_MANUAL:
+         return true; // Manual mode doesn't use AutoStrat
+
+      case BIAS_1EMA:
+         return (strat == STRAT_1EMA_SLOPE);
+
+      case BIAS_2EMA:
+         return (strat == STRAT_2EMA_CROSS_EMA ||
+                 strat == STRAT_2EMA_CROSS_PRICE ||
+                 strat == STRAT_2EMA_POSITION);
+
+      case BIAS_4EMA:
+         return (strat == STRAT_4EMA_LAYER);
+
+      default:
+         Print("[ERROR] Unknown BiasMode: ", EnumToString(bias));
+         return false;
+   }
+}
+
+
+// Returns human-readable description of active MACD configuration
+string GetMACDModeDescription(EMacdVoteMode mode, bool has_slope, bool has_div, bool has_hook)
+{
+   string base = "";
+   switch(mode) {
+      case MACD_ZERO_LINE:      base = "Main>0 (momentum zone)"; break;
+      case MACD_HISTOGRAM:      base = "Histogram>0 (acceleration)"; break;
+      case MACD_CROSSOVER:      base = "Main>Signal (shift)"; break;
+      case MACD_ZERO_AND_CROSS: base = "Main>0 AND Main>Signal (traditional)"; break;
+      case MACD_ZERO_AND_HIST:  base = "Main>0 AND Histogram>0 (strict)"; break;
+      case MACD_TRIPLE:         base = "Zero+Cross+Hist (ultra-strict)"; break;
+      case MACD_CROSSOVER_N:    base = "Fresh crossover (within N bars)"; break;
+      case MACD_ZERO_CROSS_N:   base = "Fresh zero cross (within N bars)"; break;
+   }
+   string filters = "";
+   if(has_slope) filters += " +SLOPE";
+   if(has_div)   filters += " +DIVERGENCE";
+   if(has_hook)  filters += " +HOOK";
+   return base + filters;
+}
 
 //+------------------------------------------------------------------+
 //| INPUT PARAMETERS                                                 |
@@ -1411,7 +1398,7 @@ void InitializeConfig()
          "BiasMode=%s requires different AutoStrat than %s\n"
          "Valid combinations:\n"
          "  BIAS_1EMA    → STRAT_1EMA_SLOPE\n"
-         "  BIAS_2EMA    → STRAT_2EMA_CROSS, STRAT_PRICE_CROSS, or STRAT_2EMA_POSITION\n"
+         "  BIAS_2EMA    → STRAT_2EMA_CROSS_EMA, STRAT_2EMA_CROSS_PRICE, or STRAT_2EMA_POSITION\n"
          "  BIAS_4EMA    → STRAT_4EMA_LAYER\n"
          "EA will use BIAS_MANUAL to prevent undefined behavior.",
          EnumToString(Settings.BiasMode),
