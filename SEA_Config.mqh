@@ -74,13 +74,6 @@ enum EAutoStrategy
    STRAT_2EMA_POSITION,    // ONLY for BIAS_2EMA: EMA position + slope confirmation (persistent bias)
    STRAT_4EMA_LAYER        // ONLY for BIAS_4EMA: four EMAs with LayerW/M/S pullback detection
 };
-enum EDebugLevel
-{
-   DEBUG_SILENT,      // DEBUG_SILENT: No per-bar output (statistics only at end)
-   DEBUG_SUMMARY,     // DEBUG_SUMMARY: Per-bar: signal result + rejection reason (1-2 lines)
-   DEBUG_INDICATORS,  // DEBUG_INDICATORS: Per-bar: indicator pass/fail + summary (20-30 lines)
-   DEBUG_FULL         // DEBUG_FULL: Everything: all internal steps + diagnostics (50+ lines)
-};
 enum EEmaRole
 {
    ROLE_EMA1,     // ROLE_EMA1: Fast EMA (5-period default) - L1_WEAK layer
@@ -148,7 +141,6 @@ enum EVolatilityRegime {
 //+------------------------------------------------------------------+
 //| CUSHION | TRAIL | SL | TP | BE | EXIT
 //+------------------------------------------------------------------+
-
 enum EPsarTrailCushionMode
 {
    PSAR_CUSHION_PIPS    // PSAR: Fixed pips cushion
@@ -624,56 +616,6 @@ string GetMACDModeDescription(EMacdVoteMode mode, bool has_slope, bool has_div, 
 }
 
 //+------------------------------------------------------------------+
-//| Validate BiasMode and AutoStrat compatibility                    |
-//| Returns: true if combination is valid, false otherwise           |
-//+------------------------------------------------------------------+
-bool ValidateBiasStratCombo(EBiasMode bias, EAutoStrategy strat)
-{
-   switch(bias)
-   {
-      case BIAS_MANUAL:
-         return true; // Manual mode doesn't use AutoStrat
-
-      case BIAS_1EMA:
-         return (strat == STRAT_1EMA_SLOPE);
-
-      case BIAS_2EMA:
-         return (strat == STRAT_2EMA_CROSS_EMA ||
-                 strat == STRAT_2EMA_CROSS_PRICE ||
-                 strat == STRAT_2EMA_POSITION);
-
-      case BIAS_4EMA:
-         return (strat == STRAT_4EMA_LAYER);
-
-      default:
-         Print("[ERROR] Unknown BiasMode: ", EnumToString(bias));
-         return false;
-   }
-}
-
-
-// Returns human-readable description of active MACD configuration
-string GetMACDModeDescription(EMacdVoteMode mode, bool has_slope, bool has_div, bool has_hook)
-{
-   string base = "";
-   switch(mode) {
-      case MACD_ZERO_LINE:      base = "Main>0 (momentum zone)"; break;
-      case MACD_HISTOGRAM:      base = "Histogram>0 (acceleration)"; break;
-      case MACD_CROSSOVER:      base = "Main>Signal (shift)"; break;
-      case MACD_ZERO_AND_CROSS: base = "Main>0 AND Main>Signal (traditional)"; break;
-      case MACD_ZERO_AND_HIST:  base = "Main>0 AND Histogram>0 (strict)"; break;
-      case MACD_TRIPLE:         base = "Zero+Cross+Hist (ultra-strict)"; break;
-      case MACD_CROSSOVER_N:    base = "Fresh crossover (within N bars)"; break;
-      case MACD_ZERO_CROSS_N:   base = "Fresh zero cross (within N bars)"; break;
-   }
-   string filters = "";
-   if(has_slope) filters += " +SLOPE";
-   if(has_div)   filters += " +DIVERGENCE";
-   if(has_hook)  filters += " +HOOK";
-   return base + filters;
-}
-
-//+------------------------------------------------------------------+
 //| INPUT PARAMETERS                                                 |
 //+------------------------------------------------------------------+
 
@@ -706,24 +648,24 @@ input double         Inp_MaxSpreadPips          = 3.0;   // Max spread (pips; ig
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  ⏰ FILTER: SESSION TIME                                ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool            Inp_UseTime               = false; // Enable session/time filter
-input int             Inp_StartHour             = 8;     // Session start hour (broker time)
-input int             Inp_EndHour               = 20;    // Session end hour (broker time)
+input bool           Inp_UseTime                = false; // Enable session/time filter
+input int            Inp_StartHour              = 8;     // Session start hour (broker time)
+input int            Inp_EndHour                = 20;    // Session end hour (broker time)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📰 FILTER: NEWS                                       ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool            Inp_UseNews               = false; // Enable news filter (CSV calendar)
-input string          Inp_NewsFile              = "calendar_statement.csv"; // News CSV filename
-input int             Inp_NewsPre               = 60;    // Minutes before news to block entries
-input int             Inp_NewsPost              = 60;    // Minutes after news to block entries
+input bool           Inp_UseNews                = false; // Enable news filter (CSV calendar)
+input string         Inp_NewsFile               = "calendar_statement.csv"; // News CSV filename
+input int            Inp_NewsPre                = 60;    // Minutes before news to block entries
+input int            Inp_NewsPost               = 60;    // Minutes after news to block entries
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📈 FILTER: HTF                                        ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool            Inp_UseHTF                = false; // Enable HTF trend filter
+input bool           Inp_UseHTF                 = false; // Enable HTF trend filter
 input ENUM_TIMEFRAMES Inp_HtfPeriod             = PERIOD_H4; // HTF timeframe
-input int             Inp_HtfEmaPeriod          = 89;    // HTF EMA period
+input int            Inp_HtfEmaPeriod           = 89;    // HTF EMA period
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🎨 UI: STATUS PANEL                                   ║";
@@ -923,7 +865,7 @@ input double         Inp_Ind_Mfi_Level          = 50.0; // [MFI] Threshold/level
 input EMfiMode       Inp_Ind_Mfi_Mode           = MFI_ZONE_FILTER; // [MFI] Mode
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 Indicator: Stochastic                              ║";
+input group "║  📊 STO: Stochastic                                    ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_Sto_Info           = "STO - Stochastic oscillator"; // [Stoch] Description
 input bool           Inp_Ind_Sto_Enabled        = false; // [Stoch] Enable Stochastic vote
@@ -934,7 +876,7 @@ input int            Inp_Ind_Sto_D              = 3; // [Stoch] %D period
 input int            Inp_Ind_Sto_Slow           = 3; // [Stoch] Slowing
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 Indicator: Bollinger Bands                         ║";
+input group "║  📊 BB: Bollinger Bands                                ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_Bb_Info            = "BB - Bollinger Bands channel"; // [BB] Description
 input bool           Inp_Ind_Bb_Enabled         = false; // [BB] Enable Bollinger Bands vote
@@ -944,7 +886,7 @@ input int            Inp_Ind_Bb_Period          = 20; // [BB] Period
 input double         Inp_Ind_Bb_Dev             = 2.0; // [BB] Deviation
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 Indicator: PSAR                                    ║";
+input group "║  📊 PSAR                                               ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_Psar_Info          = "PSAR - Parabolic SAR position"; // [PSAR] Description
 input bool           Inp_Ind_Psar_Enabled       = true; // [PSAR] Enable PSAR vote
@@ -954,27 +896,27 @@ input double         Inp_Ind_Psar_Max           = 0.5; // [PSAR] Maximum
 input int            Inp_Vote_PsarFlipDelay     = 10; // [PSAR] Flip timer: -1=persistent, 0=flip bar, 1-10=countdown
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 Indicator: ATR (Volatility)                        ║";
+input group "║  📊 ATR (Volatility)                                   ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input string         Inp_Ind_Atr_Info          = "ATR - Non-directional: validates volatility range (voting)"; // [ATR] Description
-input bool           Inp_Ind_Atr_Enabled       = false; // [ATR] Enable ATR vote
-input int            Inp_Ind_Atr_Weight        = 1; // [ATR] Vote weight
-input int            Inp_Ind_Atr_Period        = 14; // [ATR] Period
-input double         Inp_Ind_Atr_VoteMinPips   = 5.0; // [ATR] Voting min pips
-input double         Inp_Ind_Atr_VoteMaxPips   = 50.0; // [ATR] Voting max pips
+input string         Inp_Ind_Atr_Info           = "ATR - Non-directional: validates volatility range (voting)"; // [ATR] Description
+input bool           Inp_Ind_Atr_Enabled        = false; // [ATR] Enable ATR vote
+input int            Inp_Ind_Atr_Weight         = 1; // [ATR] Vote weight
+input int            Inp_Ind_Atr_Period         = 14; // [ATR] Period
+input double         Inp_Ind_Atr_VoteMinPips    = 5.0; // [ATR] Voting min pips
+input double         Inp_Ind_Atr_VoteMaxPips    = 50.0; // [ATR] Voting max pips
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📐 Slope Calculation Settings                         ║";
+input group "║  📐 Slope Settings                                     ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input string         Inp_SlopeInfo               = "SLOPE - Adaptive: M5=0.5p, H1=1.5p, H4=2.5p (scaled by pair)"; // [Slope] Info
-input bool           Inp_UseSlopeThreshold       = true; // [Slope] Enable minimum threshold
-input int            Inp_SlopeLookbackBars       = 1; // [Slope] Bars lookback
-input ESlopeMeasure  Inp_SlopeMeasureMode        = SLOPE_MEASURE_PIPS; // [Slope] Measure: pips or %
-input double         Inp_SlopeThresholdPips      = 0.0; // [Slope] Min movement (pips)
-input bool           Inp_SlopeThresholdAdaptive  = true; // [Slope] Auto-adjust by TF/pair
+input string         Inp_SlopeInfo              = "SLOPE - Adaptive: M5=0.5p, H1=1.5p, H4=2.5p (scaled by pair)"; // [Slope] Info
+input bool           Inp_UseSlopeThreshold      = true; // [Slope] Enable minimum threshold
+input int            Inp_SlopeLookbackBars      = 1; // [Slope] Bars lookback
+input ESlopeMeasure  Inp_SlopeMeasureMode       = SLOPE_MEASURE_PIPS; // [Slope] Measure: pips or %
+input double         Inp_SlopeThresholdPips     = 0.0; // [Slope] Min movement (pips)
+input bool           Inp_SlopeThresholdAdaptive = true; // [Slope] Auto-adjust by TF/pair
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 Indicator: Candle Body Overextension               ║";
+input group "║  📊 CBody: Candle Body Overextension                   ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_CandleBody_Info      = "CBody - Votes against overextended candles (news/spikes)"; // [CandleBody] Description
 input bool           Inp_Ind_CandleBody_Enabled   = false; // [CandleBody] Enable voting indicator
@@ -984,23 +926,23 @@ input double         Inp_Ind_CandleBody_MaxMult   = 3.0; // [CandleBody] Max bod
 input int            Inp_Ind_CandleBody_CheckBars = 1; // [CandleBody] Bars to check
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 CI: Choppiness Index (CI)                          ║";
+input group "║  📊 CI: Choppiness Index                               ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input string Inp_Ind_CI_Info           = "CI - Blocks trades when market is ranging/choppy (CI > threshold)"; // [CI] Description
-input bool   Inp_Ind_CI_Enabled        = false; // [CI] Enable ranging market filter
-input int    Inp_Ind_CI_Weight         = 1; // [CI] Vote weight
-input int    Inp_CI_Period             = 14; // [CI] Calculation period
-input double Inp_CI_RangingThreshold   = 61.8; // [CI] Ranging threshold (>= this value = reject)
+input string         Inp_Ind_CI_Info            = "CI - Blocks trades when market is ranging/choppy (CI > threshold)"; // [CI] Description
+input bool           Inp_Ind_CI_Enabled         = false; // [CI] Enable ranging market filter
+input int            Inp_Ind_CI_Weight          = 1; // [CI] Vote weight
+input int            Inp_CI_Period              = 14; // [CI] Calculation period
+input double         Inp_CI_RangingThreshold    = 61.8; // [CI] Ranging threshold (>= this value = reject)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 VRC: Volatility Regime Classifier                  ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input string Inp_Ind_VRC_Info           = "VRC - Rejects trades in low volatility (quiet/choppy markets)"; // [VRC] Description
-input bool   Inp_Ind_VRC_Enabled        = false; // [VRC] Enable volatility regime filter
-input int    Inp_Ind_VRC_Weight         = 1; // [VRC] Vote weight
-input int    Inp_Ind_VRC_ATR_Period     = 14; // [VRC] ATR period
-input int    Inp_Ind_VRC_Lookback       = 100; // [VRC] Lookback bars for percentile
-input double Inp_Ind_VRC_LowThreshold   = 33.0; // [VRC] Low volatility threshold (percentile)
+input string         Inp_Ind_VRC_Info           = "VRC - Rejects trades in low volatility (quiet/choppy markets)"; // [VRC] Description
+input bool           Inp_Ind_VRC_Enabled        = false; // [VRC] Enable volatility regime filter
+input int            Inp_Ind_VRC_Weight         = 1; // [VRC] Vote weight
+input int            Inp_Ind_VRC_ATR_Period     = 14; // [VRC] ATR period
+input int            Inp_Ind_VRC_Lookback       = 100; // [VRC] Lookback bars for percentile
+input double         Inp_Ind_VRC_LowThreshold   = 33.0; // [VRC] Low volatility threshold (percentile)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 Pattern 1-2-3                                      ║";
@@ -1093,9 +1035,6 @@ input double         Inp_MA_DecreaseFactor      = 3.0; // (PRESET_MA only) Lot d
 input int            Inp_MA_Period              = 12; // (PRESET_MA only) MA period
 input int            Inp_MA_Shift               = 6; // (PRESET_MA only) MA shift
 
-// ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-// 🔧 ZONE 3C — PAIR-SPECIFIC SPREAD LIMITS
-// ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "  🔧 ZONE 3C: PAIR-SPECIFIC SPREAD LIMITS";
@@ -1118,6 +1057,7 @@ input double         Inp_Adaptive_Spread_Crypto = 50.0; // Max spread for crypto
 
 input string         Inp_Adaptive_Note1 = "📝 Note: SL/TP cushions auto-adjust by timeframe (no input needed)";
 input string         Inp_Adaptive_Note2 = "📝 M15=5 pips, H1=10 pips, H4=20 pips (see GetTFBasedCushion)";
+
 
 //+------------------------------------------------------------------+
 //| ADAPTIVE UTILITY FUNCTIONS                                       |
