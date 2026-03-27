@@ -3474,6 +3474,7 @@ public:
       if(layer_w == 1 && emasig_w == 1)       active_setup = "LayerW (Weak/Ribbon) - Shallow pullback EMA1/2";
       else if(layer_m == 1 && emasig_m == 1)  active_setup = "LayerM (Medium/Ghost) - Medium pullback EMA2/3";
       else if(layer_s == 1 && emasig_s == 1)  active_setup = "LayerS (Strong/Shark) - Deep pullback EMA3/4";
+      else                                     active_setup = "None (no active layer confirmed)";
 
       // Store KISS layer/emasig results for diagnostics
       m_diag_layer_w  = layer_w;

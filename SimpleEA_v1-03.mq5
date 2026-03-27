@@ -328,9 +328,9 @@ void ValidateConfiguration()
 
    // (Admin override section removed)
 
-   // Warn if phase detection enabled but BiasMode is not AUTO_PHASE
+   // Warn if phase detection enabled but BiasMode is not BIAS_4EMA
    if(Settings.PhaseDetectionEnabled && Settings.BiasMode != BIAS_4EMA) {
-      Print("WARNING: PhaseDetection=true but BiasMode != AUTO_PHASE");
+      Print("WARNING: PhaseDetection=true but BiasMode != BIAS_4EMA");
       Print("   Phase detection only works with BIAS_4EMA");
       has_warnings = true;
    }
