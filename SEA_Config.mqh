@@ -642,104 +642,104 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🚫 FILTER: SPREAD                                     ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool           Inp_UseSpread              = false; // Enable spread filter
-input double         Inp_MaxSpreadPips          = 3.0;   // Max spread (pips; ignored if UseSpread=false)
+input bool           Inp_UseSpread              = false; // Spread: Enablefilter
+input double         Inp_MaxSpreadPips          = 3.0;   // Spread: Max (pips; ignored if UseSpread=false)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  ⏰ FILTER: SESSION TIME                                ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool           Inp_UseTime                = false; // Enable session/time filter
-input int            Inp_StartHour              = 8;     // Session start hour (broker time)
-input int            Inp_EndHour                = 20;    // Session end hour (broker time)
+input bool           Inp_UseTime                = false; // Session: Enable time filter
+input int            Inp_StartHour              = 8;     // Session: Start hour (broker time)
+input int            Inp_EndHour                = 20;    // Session: End hour (broker time)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📰 FILTER: NEWS                                       ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool           Inp_UseNews                = false; // Enable news filter (CSV calendar)
-input string         Inp_NewsFile               = "calendar_statement.csv"; // News CSV filename
-input int            Inp_NewsPre                = 60;    // Minutes before news to block entries
-input int            Inp_NewsPost               = 60;    // Minutes after news to block entries
+input bool           Inp_UseNews                = false; // News: Enable news filter (CSV calendar)
+input string         Inp_NewsFile               = "calendar_statement.csv"; // News: CSV filename
+input int            Inp_NewsPre                = 60;    // News: Minutes before news to block entries
+input int            Inp_NewsPost               = 60;    // NEws: Minutes after news to block entries
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📈 FILTER: HTF                                        ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool           Inp_UseHTF                 = false; // Enable HTF trend filter
-input ENUM_TIMEFRAMES Inp_HtfPeriod             = PERIOD_H4; // HTF timeframe
-input int            Inp_HtfEmaPeriod           = 89;    // HTF EMA period
+input bool           Inp_UseHTF                 = false; // HTF: Enable HTF trend filter
+input ENUM_TIMEFRAMES Inp_HtfPeriod             = PERIOD_H4; // HTF: timeframe
+input int            Inp_HtfEmaPeriod           = 89;    // HTF: EMA period
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  🎨 UI: STATUS PANEL                                   ║";
+input group "║  🎨 UI: STATUS PANEL - SETTINGS                        ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool           Inp_UI_ShowStatusPanel     = false; // STATUS PANEL
-input bool           Inp_UI_ManageChartIndicators = false; // Auto-add/remove chart indicators
-input ENUM_BASE_CORNER Inp_UI_PanelCorner       = CORNER_LEFT_UPPER; // Status panel corner
-input int            Inp_UI_PanelX              = 30;    // Status panel X (px)
-input int            Inp_UI_PanelY              = 30;    // Status panel Y (px)
-input int            Inp_UI_PanelFontSize       = 10;    // Status panel font size
-input int            Inp_UI_LineSpacingPx       = 28;    // Status panel line spacing (px)
-input string         Inp_UI_PanelFont           = "Arial"; // Status panel font
+input bool           Inp_UI_ShowStatusPanel     = false; // UI SP: STATUS PANEL
+input bool           Inp_UI_ManageChartIndicators = false; // UI SP: Auto-add/remove chart indicators
+input ENUM_BASE_CORNER Inp_UI_PanelCorner       = CORNER_LEFT_UPPER; // UI SP: Status panel corner
+input int            Inp_UI_PanelX              = 30;    // UI SP: Status panel X (px)
+input int            Inp_UI_PanelY              = 30;    // UI SP: Status panel Y (px)
+input int            Inp_UI_PanelFontSize       = 10;    // UI SP: Status panel font size
+input int            Inp_UI_LineSpacingPx       = 28;    // UI SP: Status panel line spacing (px)
+input string         Inp_UI_PanelFont           = "Arial"; // UI SP: Status panel font
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  🎨 UI: COCKPIT PANEL                                  ║";
+input group "║  🎨 UI: COCKPIT PANEL - SETTINGS                       ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input color          Inp_UI_clr_Header          = clrGold;       // Header Text Color [cite: 225]
-input color          Inp_UI_clr_Value           = clrWhite;      // Market Data Color [cite: 225]
-input color          Inp_UI_clr_Pass            = clrLimeGreen;  // Logic PASS Color [cite: 225]
-input color          Inp_UI_clr_Fail            = clrOrangeRed;  // Logic FAIL Color [cite: 225]
-input color          Inp_UI_clr_Disabled        = clrGray;       // Logic DISABLED Color [cite: 225]
+input bool           Inp_UI_ShowCockpitPanel    = true;  // UI CP: COCKPIT PANEL
+input ENUM_BASE_CORNER  Inp_UI_CockpitCorner    = CORNER_LEFT_UPPER; // UI CP: corner
+input int            Inp_UI_CockpitX            = 30;    // UI CP: Cockpit panel X (px)
+input int            Inp_UI_CockpitY            = 30;    // UI CP: Cockpit panel Y (px)
+input int            Inp_UI_CockpitFontSize     = 10;    // UI CP: Cockpit panel font size
+input int            Inp_UI_CockpitLineSpacingPx = 28;   // UI CP: Cockpit panel line spacing (px)
+input string         Inp_UI_CockpitFont         = "Arial";// UI CP: Cockpit panel font
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  🎨 UI: COCKPIT PANEL                                  ║";
+input group "║  🎨 UI: COCKPIT PANEL - COLOR                          ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool           Inp_UI_ShowCockpitPanel    = true; // CÔCKPIT PANEL
-input ENUM_BASE_CORNER  Inp_UI_CockpitCorner    = CORNER_LEFT_UPPER; // Cockpit panel corner
-input int            Inp_UI_CockpitX            = 30;   // Cockpit panel X (px)
-input int            Inp_UI_CockpitY            = 30;   // Cockpit panel Y (px)
-input int            Inp_UI_CockpitFontSize     = 10;   // Cockpit panel font size
-input int            Inp_UI_CockpitLineSpacingPx = 28;   // Cockpit panel line spacing (px)
-input string         Inp_UI_CockpitFont         = "Arial";// Cockpit panel font
+input color          Inp_UI_clr_Header          = clrGold;       // UI CP: Header Text Color
+input color          Inp_UI_clr_Value           = clrWhite;      // UI CP: Market Data Color
+input color          Inp_UI_clr_Pass            = clrLimeGreen;  // UI CP: Logic PASS Color
+input color          Inp_UI_clr_Fail            = clrOrangeRed;  // UI CP: Logic FAIL Color
+input color          Inp_UI_clr_Disabled        = clrGray;       // UI CP: Logic DISABLED Color
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🎨 UI: SIGNAL MARKERS & COLORS                        ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input EUIFrameMode   Inp_UI_FrameMode           = UI_FRAME_NONE; // Panel frame mode
-input bool           Inp_DrawEntryLines         = true; // Draw entry marker lines
-input bool           Inp_DrawTradeLines         = true; // Draw trade management lines
-input bool           Inp_UI_UseCustomColors     = true; // Use custom panel colors
-input color          Inp_UI_FontColor           = clrYellow; // UI font color
-input int            Inp_UI_PanelBgAlpha        = 110;  // Panel background alpha (0..255)
-input int            Inp_UI_FramePadPx          = 6;    // Panel padding (px)
+input EUIFrameMode   Inp_UI_FrameMode           = UI_FRAME_NONE; // UI: Panel frame mode
+input bool           Inp_DrawEntryLines         = true; // UI: Draw entry marker lines
+input bool           Inp_DrawTradeLines         = true; // UI: Draw trade management lines
+input bool           Inp_UI_UseCustomColors     = true; // UI: Use custom panel colors
+input color          Inp_UI_FontColor           = clrYellow; // UI: font color
+input int            Inp_UI_PanelBgAlpha        = 110;  // UI: Panel background alpha (0..255)
+input int            Inp_UI_FramePadPx          = 6;    // UI: Panel padding (px)
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  🔍 DIAGNOSTICS                                        ║";
+input group "║  🔍 DEBUG: DIAGNOSTICS                                 ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input EDebugLevel    Inp_DebugLevel             = DEBUG_SILENT; // Debug verbosity
-input bool           Inp_PrintEffectiveConfig   = true; // Print effective config on init
-input bool           Inp_DebugFlow              = true; // Print OnInit/OnTick/OnDeinit flow
+input EDebugLevel    Inp_DebugLevel             = DEBUG_SILENT; // Debug: Level
+input bool           Inp_PrintEffectiveConfig   = true; // Debug: Print effective config on init
+input bool           Inp_DebugFlow              = true; // Debug: Print OnInit/OnTick/OnDeinit flow
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  🔍 DIAGNOSTICS: STATISTICS                            ║";
+input group "║  🔍 DEBUG: DIAGNOSTICS: STATISTICS                     ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool           Inp_Stats_TrackRejections  = true;  // Track rejection counts
-input bool           Inp_Stats_TrackPasses      = true;  // Track pass counts
-input bool           Inp_Stats_FullEvaluation   = true;  // Evaluate ALL indicators per bar
+input bool           Inp_Stats_TrackRejections  = true;  // Stats: Track rejection counts
+input bool           Inp_Stats_TrackPasses      = true;  // Stats: Track pass counts
+input bool           Inp_Stats_FullEvaluation   = true;  // Stats: Evaluate ALL indicators per bar
 input string         Inp_Stats_Info1            = "FullEvaluation=false: waterfall (stop at first fail)";
 input string         Inp_Stats_Info2            = "FullEvaluation=true: evaluate all, identify true bottlenecks";
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  🔍 REPORTING                                          ║";
+input group "║  🔍 DEBUG: REPORTING                                   ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool           Inp_ExportCSV              = false; // Export CSV reporting
-input bool           Inp_ExportUseCommonFiles   = false; // Use terminal Common Files folder
+input bool           Inp_ExportCSV              = false; // Report: Export CSV reporting
+input bool           Inp_ExportUseCommonFiles   = false; // Report: Use terminal Common Files folder
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🔧 RRM MODE & DRAWDOWN PROTECTION (Policy A)          ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input ERRMMode       Inp_RRM_Mode                       = RRM_AUTO_BY_TF; // RRM mode
-input bool           Inp_RRM_EnableDrawdownProtection   = false;          // Enable RRM drawdown protection
-input int            Inp_RRM_MaxConsecutiveLosses       = 5;              // Max consecutive losses before pause
-input int            Inp_RRM_MaxTradesPerDay            = 15;             // Max trades per day
-input double         Inp_RRM_MaxDailyDrawdownPct        = 3.0;            // Max daily drawdown %
+input ERRMMode       Inp_RRM_Mode                       = RRM_AUTO_BY_TF; // RRM: mode
+input bool           Inp_RRM_EnableDrawdownProtection   = false;          // RRM: Enable drawdown protection
+input int            Inp_RRM_MaxConsecutiveLosses       = 5;              // RRM: Max consecutive losses before pause
+input int            Inp_RRM_MaxTradesPerDay            = 15;             // RRM: Max trades per day
+input double         Inp_RRM_MaxDailyDrawdownPct        = 3.0;            // RRM: Max daily drawdown %
 
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -748,62 +748,65 @@ input group "      (Steps 1-6 + ZONE 3A.9 Exit Mgmt; presets override)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  🔧 STEP 1: Bias Calculation                           ║";
+input group "║  🔧 STEP 1: Bias                                       ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input string         Inp_Step1_Info             = "Configure major trend detection"; // Info
-input bool           Inp_BiasEnabled            = true; // (CUSTOM; presets override)
-input EBiasMode      Inp_BiasMode               = BIAS_4EMA; // Bias: Manual, 2-EMA, or 4-EMA (CUSTOM; presets override)
-input int            Inp_BiasFastID             = 2; // (CUSTOM; presets override)
-input int            Inp_BiasSlowID             = 3; // (CUSTOM; presets override)
-input EManualSide    Inp_ManualSide             = SIDE_BOTH; // (CUSTOM; presets override)
+input string         Inp_Step1_Info             = "Bias - Configure major trend detection"; // Info
+input bool           Inp_BiasEnabled            = true; // Bias Enabled (CUSTOM; presets override)
+input EBiasMode      Inp_BiasMode               = BIAS_4EMA; // Bias: Mode: Manual, 2-EMA, or 4-EMA (CUSTOM; presets override)
+input int            Inp_BiasFastID             = 2; // Bias Fast ID (CUSTOM; presets override)
+input int            Inp_BiasSlowID             = 3; // Bias Slow ID (CUSTOM; presets override)
+input EManualSide    Inp_ManualSide             = SIDE_BOTH; // Bias Side (CUSTOM; presets override)
 
-input EMaMethod      Inp_MaType                 = METHOD_EMA; // (CUSTOM; presets override)
-input int            Inp_MaHorShift             = 1; // (CUSTOM; presets override)
-input int            Inp_MaVerShift             = 1; // (CUSTOM; presets override)
-input int            InpEma1Period              = 5; // (CUSTOM; presets override)
-input int            InpEma2Period              = 13; // (CUSTOM; presets override)
-input int            InpEma3Period              = 34; // (CUSTOM; presets override)
-input int            InpEma4Period              = 89; // (CUSTOM; presets override)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  🔧 STEP 1.1: MA | EMA                                 ║";
+input group "╚════════════════════════════════════════════════════════╝";
+input EMaMethod      Inp_MaType                 = METHOD_EMA; // MA (CUSTOM; presets override)
+input int            Inp_MaHorShift             = 1; // MA Hor Shift (CUSTOM; presets override)
+input int            Inp_MaVerShift             = 1; // MA Ver Shift (CUSTOM; presets override)
+input int            InpEma1Period              = 5; // EMA1 Period (CUSTOM; presets override)
+input int            InpEma2Period              = 13; // EMA2 Period (CUSTOM; presets override)
+input int            InpEma3Period              = 34; // EMA3 Period (CUSTOM; presets override)
+input int            InpEma4Period              = 89; // Ema4 Period (CUSTOM; presets override)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🔧 STEP 2: Entry Signal                               ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input string         Inp_Step2_Info             = "Configure entry timing strategy"; // Info
-input EAutoStrategy  Inp_AutoStrat              = STRAT_2EMA_POSITION; // (CUSTOM; presets override)
-input double         Inp_LayerTolerance         = 0.01; // (DEPRECATED v1.04+: KISS refactor removed wick-touch tolerance; see EvaluateLayerX/EvaluateEmaSigX)
-input bool           Inp_RRM_EnableInCustom     = false; // (CUSTOM only)
-input bool           Inp_CloseOnReverse         = false; // (CUSTOM; presets may override)
+input string         Inp_Step2_Info             = "Entry - Configure entry timing strategy"; // Info
+input EAutoStrategy  Inp_AutoStrat              = STRAT_2EMA_POSITION; // Entry AutoStrat (CUSTOM; presets override)
+input double         Inp_LayerTolerance         = 0.01; // Entry Layer Tolerance (DEPRECATED v1.04+: KISS refactor removed wick-touch tolerance; see EvaluateLayerX/EvaluateEmaSigX)
+input bool           Inp_RRM_EnableInCustom     = false; // Entry RRM Enable In Custom (CUSTOM only)
+input bool           Inp_CloseOnReverse         = false; // Entry Close On REverse (CUSTOM; presets may override)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🔧 STEP 5: Structure Gate (Pullback)                  ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Step5_Info             = "KISS pipeline (v1.04+): LayerX (position+slope) + EmaSigX (price close) replaced pullback detection"; // Info
-input bool           Inp_Gate_RequireRecoveryMomentum = false; // (CUSTOM; presets override)
-input int            Inp_RRM_Lookback           = 5; // (CUSTOM; presets override)
-input double         Inp_RRM_MinDivPips         = 0.5; // (CUSTOM; presets override)
+input bool           Inp_Gate_RequireRecoveryMomentum = false; // RRM Gate (CUSTOM; presets override)
+input int            Inp_RRM_Lookback           = 5; // RRM Lookback (CUSTOM; presets override)
+input double         Inp_RRM_MinDivPips         = 0.5; // RRM MinDivPips (CUSTOM; presets override)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🔧 STEP 6: Voting Configuration                       ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input string         Inp_Step6_Info             = "Configure multi-indicator consensus (ALL enabled must pass)"; // Info
-input bool           Inp_VoteMode_All           = true; // (CUSTOM; presets override)
+input string         Inp_Step6_Info             = "Voting - Configure multi-indicator consensus (ALL enabled must pass)"; // Info
+input bool           Inp_VoteMode_All           = true; // VOTE All (CUSTOM; presets override)
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 Indicator: EmaSig                                  ║";
+input group "║  📊 EmaSig (Price vs EMA position)                     ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_EmaSig_Info        = "EmaSig - Price position vs EMA1"; // [EmaSig] Description
 input bool           Inp_Ind_EmaSig_Enabled     = true; // [EmaSig] Enable EMA signal vote
 input int            Inp_Ind_EmaSig_Weight      = 1; // [EmaSig] Vote weight
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 Indicator: ADX                                     ║";
+input group "║  📊 ADX (Trend Strength Filter)                        ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_Adx_Info           = "ADX - Trend strength filter"; // [ADX] Description
 input bool           Inp_Ind_Adx_Enabled        = false; // [ADX] Enable ADX vote
 input int            Inp_Ind_Adx_Weight         = 1; // [ADX] Vote weight
+input EADXMode       Inp_Ind_Adx_Mode           = ADX_MODE_STATIC; // [ADX] Mode
 input int            Inp_Ind_Adx_Period         = 14; // [ADX] Period
 input int            Inp_Ind_Adx_Threshold      = 20; // [ADX] Threshold (Static mode)
-input EADXMode       Inp_Ind_Adx_Mode           = ADX_MODE_STATIC; // [ADX] Mode
 input double         Inp_Ind_Adx_Percentile     = 50.0; // [ADX] Percentile
 input int            Inp_Ind_Adx_Lookback       = 100; // [ADX] Lookback bars
 input double         Inp_Ind_Adx_Thr_Accum      = 12.0; // [ADX] Accumulation
@@ -811,31 +814,27 @@ input double         Inp_Ind_Adx_Thr_Trending   = 25.0; // [ADX] Trending
 input double         Inp_Ind_Adx_Thr_Distrib    = 18.0; // [ADX] Distribution
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 Indicator: MACD                                    ║";
+input group "║  📊 MACD                                               ║";
 input group "╚════════════════════════════════════════════════════════╝";
+input string         Inp_MacdFilterInfo         = "MACD - Enable filters below to add requirements to base mode"; // [Info]
 input bool           Inp_Ind_Macd_Enabled       = false; // [MACD] Enable MACD vote
-input EMacdVoteMode  Inp_MacdVoteMode           = MACD_ZERO_AND_CROSS; // MACD base mode
+input EMacdVoteMode  Inp_MacdVoteMode           = MACD_ZERO_AND_CROSS; // [MACD] base mode
 input int            Inp_Ind_Macd_Weight        = 1; // [MACD] Vote weight
-
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║  MACD: ADVANCED FILTERS (Optional Add-Ons)             ║";
-input group "╚════════════════════════════════════════════════════════╝";
-input string         Inp_MacdFilterInfo         = "Enable filters below to add requirements to base mode"; // [Info]
-input bool           Inp_MacdRequireSlope       = false; // Require MACD rising/falling
-input bool           Inp_MacdRequireDivergence  = false; // Require price/MACD divergence
-input bool           Inp_MacdRequireHook        = false; // Require histogram flip
+input bool           Inp_MacdRequireSlope       = false; // [MACD] Require MACD rising/falling
+input bool           Inp_MacdRequireDivergence  = false; // [MACD] Require price/MACD divergence
+input bool           Inp_MacdRequireHook        = false; // [MACD] Require histogram flip
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  MACD: PARAMETERS                                      ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input int            Inp_P_MacdFast             = 5; // MACD Fast EMA period
-input int            Inp_P_MacdSlow             = 8; // MACD Slow EMA period
-input int            Inp_P_MacdSig              = 5; // MACD Signal SMA period
-input int            Inp_MacdFreshBars          = 3; // Fresh signal validity
-input double         Inp_MacdSlopeMin           = 0.00001; // Min slope change per bar
+input int            Inp_P_MacdFast             = 5; // [MACD] Fast EMA period
+input int            Inp_P_MacdSlow             = 8; // [MACD] Slow EMA period
+input int            Inp_P_MacdSig              = 5; // [MACD] Signal SMA period
+input int            Inp_MacdFreshBars          = 3; // [MACD] Fresh signal validity
+input double         Inp_MacdSlopeMin           = 0.00001; // [MACD] Min slope change per bar
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 Indicator: RSI                                     ║";
+input group "║  📊 RSI (Relative Strength Index)                      ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_Rsi_Info           = "RSI - Relative Strength Index"; // [RSI] Description
 input bool           Inp_Ind_Rsi_Enabled        = false; // [RSI] Enable RSI vote
@@ -846,7 +845,7 @@ input double         Inp_Ind_Rsi_OB             = 70.0; // [RSI] Overbought leve
 input double         Inp_Ind_Rsi_OS             = 30.0; // [RSI] Oversold level
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 Indicator: CCI                                     ║";
+input group "║  📊 CCI (Commodity Channel Index)                      ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_Cci_Info           = "CCI - Commodity Channel Index"; // [CCI] Description
 input bool           Inp_Ind_Cci_Enabled        = false; // [CCI] Enable CCI vote
@@ -855,7 +854,7 @@ input ECciMode       Inp_Ind_Cci_Mode           = CCI_TREND_ZERO; // [CCI] Mode
 input int            Inp_Ind_Cci_Period         = 14; // [CCI] Period
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 Indicator: MFI                                     ║";
+input group "║  📊 MFI (Money Flow Index)                             ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_Mfi_Info           = "MFI - Money Flow Index"; // [MFI] Description
 input bool           Inp_Ind_Mfi_Enabled        = false; // [MFI] Enable MFI vote
@@ -864,19 +863,19 @@ input int            Inp_Ind_Mfi_Period         = 14; // [MFI] Period
 input double         Inp_Ind_Mfi_Level          = 50.0; // [MFI] Threshold/level
 input EMfiMode       Inp_Ind_Mfi_Mode           = MFI_ZONE_FILTER; // [MFI] Mode
 
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 STO: Stochastic                                    ║";
+input group "╔════════════════════════════=═══════════════════════════╗";
+input group "║  📊 STO (Stochastic Oscillator)                        ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_Sto_Info           = "STO - Stochastic oscillator"; // [Stoch] Description
-input bool           Inp_Ind_Sto_Enabled        = false; // [Stoch] Enable Stochastic vote
-input int            Inp_Ind_Sto_Weight         = 1; // [Stoch] Vote weight
-input EStochMode     Inp_Ind_Sto_Mode           = STO_ZONE_FILTER; // [Stoch] Mode
-input int            Inp_Ind_Sto_K              = 5; // [Stoch] %K period
-input int            Inp_Ind_Sto_D              = 3; // [Stoch] %D period
-input int            Inp_Ind_Sto_Slow           = 3; // [Stoch] Slowing
+input bool           Inp_Ind_Sto_Enabled        = false; // [Sto] Enable Stochastic vote
+input int            Inp_Ind_Sto_Weight         = 1; // [Sto] Vote weight
+input EStochMode     Inp_Ind_Sto_Mode           = STO_ZONE_FILTER; // [Sto] Mode
+input int            Inp_Ind_Sto_K              = 5; // [Sto] %K period
+input int            Inp_Ind_Sto_D              = 3; // [Sto] %D period
+input int            Inp_Ind_Sto_Slow           = 3; // [Sto] Slowing
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 BB: Bollinger Bands                                ║";
+input group "║  📊 BB (Bollinger Bands)                               ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_Bb_Info            = "BB - Bollinger Bands channel"; // [BB] Description
 input bool           Inp_Ind_Bb_Enabled         = false; // [BB] Enable Bollinger Bands vote
@@ -926,7 +925,7 @@ input double         Inp_Ind_CandleBody_MaxMult   = 3.0; // [CandleBody] Max bod
 input int            Inp_Ind_CandleBody_CheckBars = 1; // [CandleBody] Bars to check
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 CI: Choppiness Index                               ║";
+input group "║  📊 CI (Choppiness Index)                              ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_CI_Info            = "CI - Blocks trades when market is ranging/choppy (CI > threshold)"; // [CI] Description
 input bool           Inp_Ind_CI_Enabled         = false; // [CI] Enable ranging market filter
@@ -935,7 +934,7 @@ input int            Inp_CI_Period              = 14; // [CI] Calculation period
 input double         Inp_CI_RangingThreshold    = 61.8; // [CI] Ranging threshold (>= this value = reject)
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 VRC: Volatility Regime Classifier                  ║";
+input group "║  📊 VRC (Volatility Regime Classifier)                 ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_VRC_Info           = "VRC - Rejects trades in low volatility (quiet/choppy markets)"; // [VRC] Description
 input bool           Inp_Ind_VRC_Enabled        = false; // [VRC] Enable volatility regime filter
@@ -945,7 +944,7 @@ input int            Inp_Ind_VRC_Lookback       = 100; // [VRC] Lookback bars fo
 input double         Inp_Ind_VRC_LowThreshold   = 33.0; // [VRC] Low volatility threshold (percentile)
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 Pattern 1-2-3                                      ║";
+input group "║  📊 P123: Pattern 1-2-3                                ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Ind_P123_Info          = "1-2-3 fractal breakout pattern"; // [P123] Description
 input bool           Inp_Ind_P123_Enabled       = false; // [P123] Enable 1-2-3 pattern vote
@@ -964,9 +963,9 @@ input group "  ℹ️ ZONE 3A.9: EXIT MANAGEMENT";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 
 input group "═══ 🎯 Exit Profile (Strategy Contract) ═══";
+input EExitProfile   Inp_ExitProfile            = EXIT_PROFILE_NONE; // Exit profile selector
 input string         Inp_Exit_Zone_Info1        = "Active for: PRESET_TEST & PRESET_CUSTOM (direct input control)";
 input string         Inp_Exit_Zone_Info2        = "Other presets override exits with strategy-optimized values";
-input EExitProfile   Inp_ExitProfile            = EXIT_PROFILE_NONE; // Exit profile selector
 input string         Inp_ExitProfile_Info       = "RRM: Swing-based SL, PSAR trail, no ATR multipliers";
 
 input group "═══ 🛑 Stop Loss Configuration ═══";
@@ -995,10 +994,10 @@ input string         Inp_Ex2_Header             = "Example 2 - Swing Structure: 
 input string         Inp_Ex3_Header             = "Example 3 - Fractal SL:     Inp_SLMode=SL_MODE_FRACTAL, Inp_FractalPeriod=5, Inp_TPFractalOffset=1";
 
 input group "═══ ⚖️ Breakeven Configuration ═══";
+input EBeMode        Inp_BE_Mode                = BE_MODE_TP_PROGRESS_PCT; // RRM BE mode
 input string         Inp_RRM_Info1              = "RRM uses % of TP distance for BE — not absolute pips";
 input string         Inp_RRM_Info2              = "Only active when ExitProfile = EXIT_PROFILE_RRM";
 input string         Inp_RRM_Info3              = "Example: SL=10 pips, TP=30 pips (3:1 RR), BE@33% → triggers at +10 pips profit";
-input EBeMode        Inp_BE_Mode                = BE_MODE_TP_PROGRESS_PCT; // RRM BE mode
 
 input group "--- RRM Breakeven (% Progress) ---";
 input double         Inp_RRM_BE_ProgressPct     = 10.0; // BE at % to TP
@@ -1007,13 +1006,13 @@ input string         Inp_RRM_BE_Buffer_Note     = "BE buffer auto-set by timefra
 input string         Inp_RRM_BE_Example         = "Example: SL=10, TP=30 (3:1), BE@33% → triggers at +10 pips; SL locks at entry + TF-cushion";
 
 input group "═══ 📈 Trailing Stop Configuration ═══";
+input bool           Inp_TrailLockProfit        = true; // Never move SL backwards
 input ETrailingMode  Inp_TrailMode              = TRAIL_PSAR; // Trailing method
 input ETrailTrigger  Inp_TrailTrigger           = TRIGGER_IMMEDIATE; // When to start trailing
 input double         Inp_TrailDistancePips      = 5.0; // Fixed trail distance
 input double         Inp_BEThresholdPips        = 5.0; // Pips profit to trigger breakeven
 input double         Inp_TrailProfitPercent     = 10.0; // Profit % to start trailing
 input double         Inp_TrailStepPips          = 5.0; // Minimum pips to move SL each step
-input bool           Inp_TrailLockProfit        = true; // Never move SL backwards
 
 input group "--- PSAR Trailing (PSAR-specific) ---";
 input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR trail cushion mode
@@ -1055,8 +1054,8 @@ input double         Inp_Adaptive_Spread_Exotic = 10.0; // Max spread for exotic
 input double         Inp_Adaptive_Spread_Gold   = 5.0; // Max spread for gold/XAU (pips)
 input double         Inp_Adaptive_Spread_Crypto = 50.0; // Max spread for crypto (pips)
 
-input string         Inp_Adaptive_Note1 = "📝 Note: SL/TP cushions auto-adjust by timeframe (no input needed)";
-input string         Inp_Adaptive_Note2 = "📝 M15=5 pips, H1=10 pips, H4=20 pips (see GetTFBasedCushion)";
+input string         Inp_Adaptive_Note1         = "📝 Note: SL/TP cushions auto-adjust by timeframe (no input needed)";
+input string         Inp_Adaptive_Note2         = "📝 M15=5 pips, H1=10 pips, H4=20 pips (see GetTFBasedCushion)";
 
 
 //+------------------------------------------------------------------+
@@ -1290,21 +1289,21 @@ void InitializeConfig()
 
    // Exits
    Settings.SL_FixedPips         = Inp_SL_FixedPips;
-   Settings.SLMode         = Inp_SLMode;
-   Settings.TPMode         = Inp_TPMode;
-   Settings.FixedTPPips    = Inp_FixedTPPips;
-   Settings.SLPercent      = Inp_SLPercent;
-   Settings.RRRatio        = Inp_RRRatio;
-   Settings.SwingLookback  = Inp_SwingLookback;
-   Settings.FractalPeriod      = Inp_FractalPeriod;
-   Settings.TPFractalOffset    = Inp_TPFractalOffset;
+   Settings.SLMode               = Inp_SLMode;
+   Settings.TPMode               = Inp_TPMode;
+   Settings.FixedTPPips          = Inp_FixedTPPips;
+   Settings.SLPercent            = Inp_SLPercent;
+   Settings.RRRatio              = Inp_RRRatio;
+   Settings.SwingLookback        = Inp_SwingLookback;
+   Settings.FractalPeriod        = Inp_FractalPeriod;
+   Settings.TPFractalOffset      = Inp_TPFractalOffset;
 
-   Settings.TrailTrigger       = Inp_TrailTrigger;
-   Settings.TrailDistancePips  = Inp_TrailDistancePips;
-   Settings.BEThresholdPips    = Inp_BEThresholdPips;
-   Settings.TrailProfitPercent = Inp_TrailProfitPercent;
-   Settings.TrailStepPips      = Inp_TrailStepPips;
-   Settings.TrailLockProfit    = Inp_TrailLockProfit;
+   Settings.TrailTrigger         = Inp_TrailTrigger;
+   Settings.TrailDistancePips    = Inp_TrailDistancePips;
+   Settings.BEThresholdPips      = Inp_BEThresholdPips;
+   Settings.TrailProfitPercent   = Inp_TrailProfitPercent;
+   Settings.TrailStepPips        = Inp_TrailStepPips;
+   Settings.TrailLockProfit      = Inp_TrailLockProfit;
    Settings.TP_Enabled           = Inp_TP_Enabled;
    Settings.TrailMode            = Inp_TrailMode;
    Settings.PSAR_TrailCushionMode= Inp_PSAR_TrailCushionMode;
@@ -1318,13 +1317,13 @@ void InitializeConfig()
    Settings.RRM_FreezeTrailOnFlip   = Inp_RRM_FreezeTrailOnFlip;
    Settings.RRM_TrailStartsAfterBE  = Inp_RRM_TrailStartsAfterBE;
 
-   Settings.Vote_EvalShift           = 1;
-   Settings.Vote_AllowPsarFlip       = false;
-   Settings.Vote_PsarFlipDelay       = (Inp_Vote_PsarFlipDelay < -1) ? -1 : (Inp_Vote_PsarFlipDelay > 10) ? 10 : Inp_Vote_PsarFlipDelay;
+   Settings.Vote_EvalShift       = 1;
+   Settings.Vote_AllowPsarFlip   = false;
+   Settings.Vote_PsarFlipDelay   = (Inp_Vote_PsarFlipDelay < -1) ? -1 : (Inp_Vote_PsarFlipDelay > 10) ? 10 : Inp_Vote_PsarFlipDelay;
 
-   Settings.MaxTotalRisk      = 0.0;
-   Settings.MaxOpenTrades     = 0;
-   Settings.CountBEasZeroRisk = true;
+   Settings.MaxTotalRisk         = 0.0;
+   Settings.MaxOpenTrades        = 0;
+   Settings.CountBEasZeroRisk    = true;
 
    Settings.Adaptive.PairType          = Inp_Adaptive_PairType;
    Settings.Adaptive.Spread_Major      = Inp_Adaptive_Spread_Major;

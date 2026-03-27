@@ -38,8 +38,7 @@ double GetRecommendedTrailPsarCushionPips()
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
 
    if      (tf <= PERIOD_M5)  return isJPY ?  2.0 :  1.0;    // Covers M1 through M5
-   else if (tf <= PERIOD_M15) return isJPY ?  3.0 :  2.0;    // Covers M6 through M15
-   else if (tf <= PERIOD_M30) return isJPY ?  5.0 :  3.0;    // Covers M16 through M30
+   else if (tf <= PERIOD_M30) return isJPY ?  3.0 :  2.0;    // Covers M16 through M30
    else if (tf <= PERIOD_H1)  return isJPY ?  7.0 :  5.0;    // Covers H1
    else if (tf <= PERIOD_H4)  return isJPY ? 10.0 :  5.0;    // Covers H2 through H4
    else                       return isJPY ? 25.0 : 15.0;    // Covers H6, D1, W1, MN1
@@ -77,15 +76,15 @@ string GetPresetContractWording(EStrategyPreset preset)
    switch(preset)
    {
       case PRESET_CUSTOM:
-         return "All inputs respected; you control strategy, indicators, and operator gates.";
+         return "PRESET CUSTOM: All inputs respected; you control strategy, indicators, and operator gates.";
       case PRESET_MA:
-         return "MA benchmark mode: replicates MT5 Moving Average EA; all voting disabled.";
+         return "PRESET MA: benchmark mode: replicates MT5 Moving Average EA; all voting disabled.";
       case PRESET_RRM:
-         return "RRM phase-based system fixed (AutoStrat, EMA/MACD config, vote threshold); only Policy A gates and exits user-controlled.";
+         return "PRESET RRM: phase-based system fixed (AutoStrat, EMA/MACD config, vote threshold); only Policy A gates and exits user-controlled.";
       case PRESET_TEST:
-         return "Minimal testing mode: bypass voting (threshold=1), fixed SL/TP, no trailing.";
+         return "PRESET TEST: Minimal testing mode: bypass voting (threshold=1), fixed SL/TP, no trailing.";
       default:
-         return "Preset active; strategy-critical settings fixed by preset.";
+         return "PRESET: Preset active; strategy-critical settings fixed by preset.";
    }
 }
 
@@ -252,7 +251,7 @@ bool ValidatePresetConfiguration(const ST_Settings &cfg, const string preset_nam
       Print("❌ PRESET VALIDATION FAILED: ", preset_name);
       Print("═══════════════════════════════════════════════════════════");
       Print(errors);
-      Print("═══════════════════════════════════════════════════════════");
+      Print("---");
    }
    else if(errors != "")
    {
@@ -260,7 +259,7 @@ bool ValidatePresetConfiguration(const ST_Settings &cfg, const string preset_nam
       Print("⚠️  PRESET VALIDATION WARNINGS: ", preset_name);
       Print("═══════════════════════════════════════════════════════════");
       Print(errors);
-      Print("═══════════════════════════════════════════════════════════");
+      Print("---");
    }
 
    return valid;
@@ -933,7 +932,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Adx_Enabled           = false;
       cfg.Ind_Atr_Enabled           = false;
       cfg.Ind_Bb_Enabled            = false;
-      cfg.Ind_CandleBody_Enabled    = false;
+      cfg.Ind_CandleBody_Enabled    = true;
       cfg.Ind_CI_Enabled            = false;
       cfg.Ind_VRC_Enabled           = false;
       cfg.Ind_Cci_Enabled           = true;
@@ -1118,6 +1117,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          
          if      (tf <= PERIOD_M1)  swing_lookback = 10;
          else if (tf <= PERIOD_M5)  swing_lookback = 15;
+         else if (tf <= PERIOD_M30) swing_lookback = 15;
          else if (tf <= PERIOD_H1)  swing_lookback = 20;
          else if (tf <= PERIOD_H4)  swing_lookback = 20;
          else                       swing_lookback = 30; // D1, W1, MN1
@@ -1130,8 +1130,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          
          if      (tf <= PERIOD_M1)  fixed_tp_pips = isJPY ? 15.0 : 10.0;
          else if (tf <= PERIOD_M5)  fixed_tp_pips = isJPY ? 20.0 : 15.0;
-         else if (tf <= PERIOD_M15) fixed_tp_pips = isJPY ? 30.0 : 20.0;
-         else if (tf <= PERIOD_M30) fixed_tp_pips = isJPY ? 35.0 : 25.0;
+         else if (tf <= PERIOD_M30) fixed_tp_pips = isJPY ? 30.0 : 20.0;
          else if (tf <= PERIOD_H1)  fixed_tp_pips = isJPY ? 45.0 : 30.0;
          else if (tf <= PERIOD_H4)  fixed_tp_pips = isJPY ? 60.0 : 40.0;
          else                       fixed_tp_pips = isJPY ? 120.0: 80.0; // D1+
