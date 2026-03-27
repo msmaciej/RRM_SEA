@@ -188,3 +188,46 @@ The Signal Engine generates the `active_indicators` string at the end of each ba
 
 ### Visual Layout
 The UI renders these as a vertical audit list within the Cockpit panel, providing the operator with instant feedback on why a signal was accepted or rejected.
+
+---
+
+## KISS Refactor Notes (v1.04+)
+
+The signal evaluation pipeline has been simplified to remove indicator lag and complexity.
+
+**What was removed:**
+- 1% wick touch tolerance calculations
+- Historical bar scanning for pullback extremes (`Check_Gate_DynamicPullback`)
+- Complex recovery detection state machines
+- `RequirePullback` / `PullbackLookback` configuration flags (deprecated)
+
+**What replaced it:**
+- **LayerX** (`EvaluateLayerX`): Pure structural alignment check (position + slope)
+- **EmaSigX** (`EvaluateEmaSigX`): Simple price close confirmation
+- **Result**: Faster execution, clearer logic, easier to understand
+
+The formula is now purely multiplicative:
+```
+TS = Bias × LayerX × EmaSigX × IndicatorX × FilterX
+```
+Any factor returning 0 immediately stops the pipeline.
+
+### Step 3 Detail: EvaluateLayerX
+Each layer checks two conditions for the selected EMA pair:
+1. **Position**: Fast EMA must be on the correct side of Slow EMA (above for LONG, below for SHORT).
+2. **Slope**: Both EMAs must be sloping in the direction of the Bias (rising for LONG, falling for SHORT).
+
+Returns 1 if both conditions pass, 0 otherwise. At least ONE of the three layers (LayerW, LayerM, LayerS) must return 1 to proceed.
+
+### Step 4 Detail: EvaluateEmaSigX
+For each **active** layer (LayerX == 1), checks if the closed candle has momentum confirmation:
+- **LONG Setup**: `Close > Fast EMA` of the active layer
+- **SHORT Setup**: `Close < Fast EMA` of the active layer
+
+**Example (Short LayerW):**
+- Bias = -1 (SHORT)
+- LayerW = 1 (EMA1 < EMA2, both falling)
+- EmaSigW = 1 when Close < EMA1
+
+At least ONE active layer must have its EmaSig confirmed to proceed.
+

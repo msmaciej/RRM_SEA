@@ -1586,6 +1586,80 @@ private:
       return true;
    }
 
+   //==========================================================================
+   // KISS: EvaluateLayerX — Structural alignment check (position + slope)
+   // Returns 1 if the EMA pair is aligned with bias, 0 otherwise.
+   // layer_type: 1=LayerW (EMA1/EMA2), 2=LayerM (EMA2/EMA3), 3=LayerS (EMA3/EMA4)
+   //==========================================================================
+   int EvaluateLayerX(int bias, int layer_type)
+   {
+      int h_fast = INVALID_HANDLE, h_slow = INVALID_HANDLE;
+
+      switch(layer_type)
+      {
+         case 1: h_fast = h_ema1; h_slow = h_ema2; break;
+         case 2: h_fast = h_ema2; h_slow = h_ema3; break;
+         case 3: h_fast = h_ema3; h_slow = h_ema4; break;
+         default: return 0;
+      }
+
+      double ema_fast = GetMAVal(h_fast, 1);
+      double ema_slow = GetMAVal(h_slow, 1);
+
+      // Check position alignment
+      bool position_aligned = false;
+      if(bias == 1)  position_aligned = (ema_fast > ema_slow);
+      else if(bias == -1) position_aligned = (ema_fast < ema_slow);
+
+      if(!position_aligned) return 0;
+
+      // Check slope alignment
+      double ema_fast_prev = GetMAVal(h_fast, 2);
+      double ema_slow_prev = GetMAVal(h_slow, 2);
+
+      bool slope_fast_aligned = false;
+      bool slope_slow_aligned = false;
+
+      if(bias == 1)
+      {
+         slope_fast_aligned = (ema_fast > ema_fast_prev);
+         slope_slow_aligned = (ema_slow > ema_slow_prev);
+      }
+      else if(bias == -1)
+      {
+         slope_fast_aligned = (ema_fast < ema_fast_prev);
+         slope_slow_aligned = (ema_slow < ema_slow_prev);
+      }
+
+      return (position_aligned && slope_fast_aligned && slope_slow_aligned) ? 1 : 0;
+   }
+
+   //==========================================================================
+   // KISS: EvaluateEmaSigX — Price close confirmation (momentum resumption)
+   // Returns 1 if the closed candle closes beyond the fast EMA of the layer.
+   // layer_type: 1=LayerW (EMA1), 2=LayerM (EMA2), 3=LayerS (EMA3)
+   //==========================================================================
+   int EvaluateEmaSigX(int bias, int layer_type)
+   {
+      int h_fast = INVALID_HANDLE;
+
+      switch(layer_type)
+      {
+         case 1: h_fast = h_ema1; break;
+         case 2: h_fast = h_ema2; break;
+         case 3: h_fast = h_ema3; break;
+         default: return 0;
+      }
+
+      double ema_fast = GetMAVal(h_fast, 1);
+      double close    = iClose(m_symbol, PERIOD_CURRENT, 1);
+
+      if(bias == 1  && close > ema_fast) return 1;
+      else if(bias == -1 && close < ema_fast) return 1;
+
+      return 0;
+   }
+
 public:
    // Public Accessors for the UI/Cockpit
    string            GetTSStatusString() const { return m_ts_status_str; }
@@ -3540,15 +3614,55 @@ public:
          }
       }
 
-      // 3c. Sequential hard gates (any fail = reject)
-      if(m_settings.RequirePullback) {
-         if(!Check_Gate_DynamicPullback(bias)) {
-            if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Dynamic Pullback → REJECT (", m_diag_last_reason, ")");
-            m_reject_gate++;
-            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
-            return 0;
-         }
-         if(m_settings.DebugFlow) Print("STEP 5 STRUCTURE: Dynamic Pullback → PASS");
+      // ═══════════════════════════════════════════════════════════════
+      // KISS: Step 3 — Evaluate LayerX (structural alignment per EMA pair)
+      // ═══════════════════════════════════════════════════════════════
+      int layer_w = EvaluateLayerX(bias, 1);
+      int layer_m = EvaluateLayerX(bias, 2);
+      int layer_s = EvaluateLayerX(bias, 3);
+
+      if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
+         PrintFormat("[KISS] Step3 LayerW=%d LayerM=%d LayerS=%d (bias=%d)", layer_w, layer_m, layer_s, bias);
+      }
+
+      if(layer_w == 0 && layer_m == 0 && layer_s == 0) {
+         m_diag_last_reason = "LAYER_NONE_ALIGNED";
+         m_reject_gate++;
+         if(m_settings.DebugFlow) Print("STEP 3 LAYER: No layer aligned → REJECT");
+         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+         return 0;
+      }
+      if(m_settings.DebugFlow) Print("STEP 3 LAYER: At least one layer aligned → PASS");
+
+      // ═══════════════════════════════════════════════════════════════
+      // KISS: Step 4 — Evaluate EmaSigX (price close confirmation)
+      // Only evaluate EmaSig for active layers; inactive layers default to pass (1)
+      // ═══════════════════════════════════════════════════════════════
+      int emasig_w = (layer_w == 1) ? EvaluateEmaSigX(bias, 1) : 1;
+      int emasig_m = (layer_m == 1) ? EvaluateEmaSigX(bias, 2) : 1;
+      int emasig_s = (layer_s == 1) ? EvaluateEmaSigX(bias, 3) : 1;
+
+      if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
+         PrintFormat("[KISS] Step4 EmaSigW=%d EmaSigM=%d EmaSigS=%d (bias=%d)", emasig_w, emasig_m, emasig_s, bias);
+      }
+
+      // At least one active layer must have its EmaSig confirmed
+      bool emasig_any = ((layer_w == 1 && emasig_w == 1) ||
+                         (layer_m == 1 && emasig_m == 1) ||
+                         (layer_s == 1 && emasig_s == 1));
+
+      if(!emasig_any) {
+         m_diag_last_reason = "EMASIG_NOT_CONFIRMED";
+         m_reject_gate++;
+         if(m_settings.DebugFlow) Print("STEP 4 EMASIG: No active layer confirmed → REJECT");
+         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+         return 0;
+      }
+      if(m_settings.DebugFlow) Print("STEP 4 EMASIG: Active layer confirmed → PASS");
+
+      if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
+         PrintFormat("[KISS] Bias=%d | LayerW=%d LayerM=%d LayerS=%d | EmaSigW=%d EmaSigM=%d EmaSigS=%d",
+                     bias, layer_w, layer_m, layer_s, emasig_w, emasig_m, emasig_s);
       }
 
       // ═══════════════════════════════════════════════════════════════

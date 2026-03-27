@@ -769,7 +769,7 @@ input group "║  🔧 STEP 2: Entry Signal                               ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Step2_Info             = "Configure entry timing strategy"; // Info
 input EAutoStrategy  Inp_AutoStrat              = STRAT_POSITION_SLOPE; // (CUSTOM; presets override)
-input double         Inp_LayerTolerance         = 0.01; // (CUSTOM; presets override)
+input double         Inp_LayerTolerance         = 0.01; // (DEPRECATED v1.04+: KISS refactor removed wick-touch tolerance; see EvaluateLayerX/EvaluateEmaSigX)
 input bool           Inp_RRM_EnableInCustom     = false; // (CUSTOM only)
 input bool           Inp_CloseOnReverse         = false; // (CUSTOM; presets may override)
 
@@ -777,10 +777,12 @@ input bool           Inp_CloseOnReverse         = false; // (CUSTOM; presets may
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🔧 STEP 5: Structure Gate (Pullback)                  ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input string         Inp_Step5_Info             = "Configure pullback-recovery detection"; // Info
-input bool           Inp_Gate_UseMultiLayer     = false; // (CUSTOM; presets override)
-input bool           Inp_Gate_RequirePullback   = false; // (CUSTOM; presets override)
-input int            Inp_Gate_PullbackLookback  = 15; // (CUSTOM; presets override)
+input string         Inp_Step5_Info             = "KISS pipeline (v1.04+): LayerX (position+slope) + EmaSigX (price close) replaced pullback detection"; // Info
+input bool           Inp_Gate_UseMultiLayer     = false; // (DEPRECATED v1.04+; presets override)
+// Inp_Gate_RequirePullback and Inp_Gate_PullbackLookback are deprecated (KISS refactor v1.04+)
+// The KISS pipeline (EvaluateLayerX + EvaluateEmaSigX) replaces dynamic pullback detection.
+input bool           Inp_Gate_RequirePullback   = false; // (DEPRECATED v1.04+; no longer used)
+input int            Inp_Gate_PullbackLookback  = 15; // (DEPRECATED v1.04+; no longer used)
 input bool           Inp_Gate_RequireRecoveryMomentum = false; // (CUSTOM; presets override)
 input int            Inp_RRM_Lookback           = 5; // (CUSTOM; presets override)
 input double         Inp_RRM_MinDivPips         = 0.5; // (CUSTOM; presets override)
