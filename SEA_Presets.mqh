@@ -321,7 +321,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CloseOnReverse    = true;
       cfg.BiasEnabled       = true;
       cfg.BiasMode          = BIAS_2EMA;
-      cfg.AutoStrat         = STRAT_PRICE_CROSS;
+      cfg.AutoStrat         = STRAT_2EMA_CROSS_PRICE;
       cfg.BiasFastID        = (int)ROLE_EMA1;
       cfg.BiasSlowID        = (int)ROLE_EMA1;
       cfg.MaType            = METHOD_SMA;
@@ -632,7 +632,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
             // ························································
             // SUB-BRANCH 2A: RRM_SCALP (M1/M5/M15 timeframes)
             // Bias: EMA34 vs EMA89 (slower pair for stable bias)
-            // Entry: STRAT_2EMA_CROSS (crossover-based entries)
+            // Entry: STRAT_2EMA_CROSS_EMA (crossover-based entries)
             // ························································
             cfg.AutoStrat  = STRAT_2EMA_POSITION;
             cfg.BiasFastID = (int)ROLE_EMA1;
@@ -649,7 +649,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
             // ························································
             // SUB-BRANCH 2B: RRM_SWING (H1+ timeframes)
             // Bias: EMA34 vs EMA89 (stable trend direction)
-            // Entry: STRAT_2EMA_CROSS (crossover-based entries)
+            // Entry: STRAT_2EMA_CROSS_EMA (crossover-based entries)
             // Full 4-EMA structure: EMA5/13/34/89 for layer detection
             // ························································
             cfg.AutoStrat  = STRAT_2EMA_POSITION;
