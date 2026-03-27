@@ -1,9 +1,3 @@
-***
-
-### File 2: `SEA_TRADE_LOGIC.md`
-*(Consolidates `README_EXIT_MANAGEMENT.md` and `README_ADAPTIVE_SETTINGS.md`. Save as `README_SEA_TRADE_LOGIC.md`)*
-
-```markdown
 # SEA Execution, Risk & Trade Logic
 
 ## Overview
@@ -13,7 +7,21 @@ SimpleEA handles execution dynamically. All cushion and buffer values auto-adjus
 
 ---
 
-## 1. Adaptive Spread Limits (Zone 3C)
+## 1. Signal Reception & The Handshake
+
+The Signal Engine evaluates the core KISS equation on the **CLOSED candle (shift=1)** to eliminate lag and false triggers. The entry logic is decoupled into structural alignment and price action triggers:
+
+$$TS = Bias \times Layer_{X} \times EmaSig_{X} \times \prod_{i=1}^{n} Ind_{i} \times \prod_{j=1}^{m} Filter_{j}$$
+
+* **Bias:** The master directional permission (1 = Long, -1 = Short, 0 = Neutral).
+* **LayerX ($Layer_W, Layer_M, Layer_S$):** Validates the structural alignment. Evaluates to 1 ONLY if the specific EMA pair's position and slope agree with the Bias.
+* **EmaSigX ($EmaSig_W, EmaSig_M, EmaSig_S$):** The precise price action trigger. Evaluates to 1 ONLY if the closed candle body successfully crosses or closes beyond the fast EMA of that active layer.
+
+If a setup passes this strict multiplicative consensus, it is stored in the global queue (`g_ts_active = 1` or `-1`) precisely at `shift=1`. The Trade Executor then handles the *physical* execution with the broker strictly on `shift=0` (the open tick).
+
+---
+
+## 2. Adaptive Spread Limits (Zone 3C)
 Different instruments have inherently different liquidity and spread profiles. SimpleEA auto-detects the pair type and applies strict maximum spread limits at the exact moment of execution (shift=0).
 
 | Pair Type | Example | Default Max Spread |
@@ -28,7 +36,7 @@ Different instruments have inherently different liquidity and spread profiles. S
 
 ---
 
-## 2. TF-Based Cushions
+## 3. TF-Based Cushions
 Cushions automatically scale with the timeframe to provide appropriate noise protection for stops and trailing features. JPY pairs are automatically detected and scaled appropriately (×100 vs standard ×10).
 
 ### SL Cushion (`GetRecommendedInitialSlCushionPips`)
@@ -62,7 +70,9 @@ Used as the padding space when moving stops to breakeven (e.g., locking in +5 pi
 * **H1:** 10 pips
 * **H4:** 15 pips
 
-## 2.1 The Trade Lifecycle
+## 3.1 The Trade Lifecycle
+
+
 
 ```mermaid
 flowchart TD
@@ -98,7 +108,7 @@ flowchart TD
 
 ---
 
-## 3. Exit Management Modes
+## 4. Exit Management Modes
 
 ```mermaid
 flowchart TD
@@ -160,7 +170,7 @@ flowchart TD
 
 ---
 
-## 4. Legacy Settings Removed (v1.03)
+## 5. Legacy Settings Removed (v1.03)
 To enforce automation and prevent over-optimization, the following manual parameters were permanently removed and replaced by the systemic TF-based functions:
 * ❌ `Inp_SL_PsarPipsCushion`, `Inp_SL_SwingPipsCushion` (Replaced by `GetRecommendedInitialSlCushionPips()`)
 * ❌ `Inp_PSAR_TrailPipsCushion` (Replaced by `GetRecommendedTrailPsarCushionPips()`)

@@ -292,28 +292,6 @@ void SEA_UI_GetTradeMetrics(string &out_risk_p, string &out_rew_p, string &out_r
 }
 
 // -----------------------------------
-// Performance Patch: ManageChartIndicators
-// -----------------------------------
-void SEA_UI_ManageChartIndicators(const ST_Settings &cfg, int handle, string label)
-{
-   bool allow_log = (cfg.DebugLevel > 0);
-   if(handle == INVALID_HANDLE)
-   {
-      if(allow_log) PrintFormat("UI: Cannot add indicator [%s] - Invalid handle.", label);
-      return;
-   }
-
-   if(ChartIndicatorAdd(0, 0, handle))
-   {
-      if(allow_log) PrintFormat("UI: Indicator [%s] added to chart successfully.", label);
-   }
-   else
-   {
-      if(allow_log) PrintFormat("UI: Failed to add indicator [%s]. Error: %d", label, GetLastError());
-   }
-}
-
-// -----------------------------------
 // Vote & Config Display Helpers
 // -----------------------------------
 string SEA_UI_BiasEmaLabel(const ST_Settings &cfg)
@@ -479,12 +457,17 @@ void SEA_UI_DestroyAll()
 {
    SEA_UI_DestroyPanel(g_sea_ui_settings_name);
    SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
+   
+   // Clean up dedicated Master Telemetry Objects
+   ObjectDelete(0, "SEA_UI_TS_MASTER");
+   ObjectDelete(0, "SEA_UI_TE_MASTER");
+   
    g_sea_ui_last_settings_txt = "";
    g_sea_ui_last_cockpit_txt  = "";
 }
 
 //+------------------------------------------------------------------+
-//| SETTINGS PANEL
+//| SETTINGS PANEL (Refactored for Institutional Vertical Grid)      |
 //+------------------------------------------------------------------+
 void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
 {
@@ -496,35 +479,41 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
 
    string lines[]; color line_clrs[];
    ArrayResize(lines, 0); ArrayResize(line_clrs, 0);
-   
+
    // Use the resolved master color for standard values and Gold for headers
-   color v_clr = SEA_UI_ForeColor();   
+   color v_clr = SEA_UI_ForeColor();
    color h_clr = Settings.clr_Header;  
 
    // --- ZONE 1: SYSTEM ARCHITECTURE ---
    AddLine("--- SYSTEM ARCHITECTURE ---", h_clr, lines, line_clrs);
-   AddLine(StringFormat("Ver: %s | Symbol: %s %s", SEA_BUILD_STR, _Symbol, EnumToString(_Period)), v_clr, lines, line_clrs);
-   AddLine(StringFormat("Preset: %-15s Mode: %s", EnumToString(InpPreset), (InpPreset == PRESET_CUSTOM ? "CUSTOM" : "LOCKED")), v_clr, lines, line_clrs);
-   
+   AddLine(StringFormat("VER:      %s", SEA_BUILD_STR), v_clr, lines, line_clrs);
+   AddLine(StringFormat("SYMBOL:   %s %s", _Symbol, EnumToString(_Period)), v_clr, lines, line_clrs);
+   AddLine(StringFormat("PRESET:   %s", EnumToString(InpPreset)), v_clr, lines, line_clrs);
+   AddLine(StringFormat("MODE:     %s", (InpPreset == PRESET_CUSTOM ? "CUSTOM" : "LOCKED")), v_clr, lines, line_clrs);
+   AddLine("", (color)0, lines, line_clrs); // Spacer
+
    // --- ZONE 2: BIAS & STRUCTURE ---
-   AddLine(" ", v_clr, lines, line_clrs); 
    AddLine("--- BIAS & STRUCTURE ---", h_clr, lines, line_clrs);
-   AddLine(StringFormat("Strategy: %-15s Bias: %s", EnumToString(Settings.AutoStrat), EnumToString(Settings.BiasMode)), v_clr, lines, line_clrs);
-   AddLine(StringFormat("EMAs: %-19s Ribbon: %d/%d/%d/%d", SEA_UI_BiasEmaLabel(Settings), Settings.P_Ema1, Settings.P_Ema2, Settings.P_Ema3, Settings.P_Ema4), v_clr, lines, line_clrs);
-   AddLine(StringFormat("Gates: PB=%s | MultiLayer=%s", SEA_UI_OnOff(Settings.RequirePullback), SEA_UI_OnOff(Settings.Gate_UseMultiLayer)), v_clr, lines, line_clrs);
+   AddLine(StringFormat("STRATEGY: %s", EnumToString(Settings.AutoStrat)), v_clr, lines, line_clrs);
+   AddLine(StringFormat("BIAS:     %s", EnumToString(Settings.BiasMode)), v_clr, lines, line_clrs);
+   AddLine(StringFormat("EMAS:     %s", SEA_UI_BiasEmaLabel(Settings)), v_clr, lines, line_clrs);
+   AddLine(StringFormat("RIBBON:   %d/%d/%d/%d", Settings.P_Ema1, Settings.P_Ema2, Settings.P_Ema3, Settings.P_Ema4), v_clr, lines, line_clrs);
+   AddLine(StringFormat("PULLBACK: %s", SEA_UI_OnOff(Settings.RequirePullback)), v_clr, lines, line_clrs);
+   AddLine(StringFormat("M-LAYER:  %s", SEA_UI_OnOff(Settings.Gate_UseMultiLayer)), v_clr, lines, line_clrs);
+   AddLine("", (color)0, lines, line_clrs); // Spacer
    
    // --- ZONE 3: ENVIRONMENT AUDIT ---
-   AddLine(" ", v_clr, lines, line_clrs); 
    AddLine("--- ENVIRONMENT AUDIT ---", h_clr, lines, line_clrs);
    color phase_color;
-   string phase_label = SEA_UI_FormatPhase(current_phase, phase_color); 
-   AddLine(StringFormat("Phase: %-18s Allowed: %s", phase_label, SEA_UI_FormatAllowedLayers(current_phase, Settings.PhaseDetectionEnabled)), phase_color, lines, line_clrs);
-   AddLine(StringFormat("Filter: Phase=%s | Layer=%s", (Settings.PhaseDetectionEnabled ? "ON" : "OFF"), (Settings.EnableLayerDetection ? "ON" : "OFF")), v_clr, lines, line_clrs);
-   
+   string phase_label = SEA_UI_FormatPhase(current_phase, phase_color);
+   AddLine(StringFormat("PHASE:    %s", phase_label), phase_color, lines, line_clrs);
+   AddLine(StringFormat("ALLOWED:  %s", SEA_UI_FormatAllowedLayers(current_phase, Settings.PhaseDetectionEnabled)), phase_color, lines, line_clrs);
+   AddLine(StringFormat("F-PHASE:  %s", (Settings.PhaseDetectionEnabled ? "ON" : "OFF")), v_clr, lines, line_clrs);
+   AddLine(StringFormat("F-LAYER:  %s", (Settings.EnableLayerDetection ? "ON" : "OFF")), v_clr, lines, line_clrs);
+   AddLine("", (color)0, lines, line_clrs); // Spacer
+
    // --- ZONE 4: VOTE CONFIGURATION ---
-   AddLine(" ", v_clr, lines, line_clrs);
    AddLine("--- VOTE CONFIGURATION ---", h_clr, lines, line_clrs);
-   
    string vote_list = SEA_UI_BuildActiveVotesList(Settings); 
    string vote_lines[];
    int v_total = StringSplit(vote_list, '\n', vote_lines);
@@ -532,12 +521,15 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
       if(vote_lines[i] != "" && StringLen(vote_lines[i]) > 1) 
          AddLine(vote_lines[i], v_clr, lines, line_clrs);
    }
+   AddLine("", (color)0, lines, line_clrs); // Spacer
    
    // --- ZONE 5: RISK & PROTECTION ---
-   AddLine(" ", v_clr, lines, line_clrs);
    AddLine("--- RISK & PROTECTION ---", h_clr, lines, line_clrs);
-   AddLine(StringFormat("Sizer: %-18s SL Mode: %s", (Settings.UseMACompatSizer ? "MA_COMPAT" : "RISK_PCT"), EnumToString(Settings.SLMode)), v_clr, lines, line_clrs);
-   AddLine(StringFormat("Risk: %.2f%% | RR: %.2f | BE: %s", Settings.RiskPercent, Settings.RRRatio, (Settings.BE_Mode != BE_MODE_OFF ? "ENABLED" : "OFF")), v_clr, lines, line_clrs);
+   AddLine(StringFormat("SIZER:    %s", (Settings.UseMACompatSizer ? "MA_COMPAT" : "RISK_PCT")), v_clr, lines, line_clrs);
+   AddLine(StringFormat("SL MODE:  %s", EnumToString(Settings.SLMode)), v_clr, lines, line_clrs);
+   AddLine(StringFormat("RISK:     %.2f%%", Settings.RiskPercent), v_clr, lines, line_clrs);
+   AddLine(StringFormat("RR:       %.2f", Settings.RRRatio), v_clr, lines, line_clrs);
+   AddLine(StringFormat("BE:       %s", (Settings.BE_Mode != BE_MODE_OFF ? "ENABLED" : "OFF")), v_clr, lines, line_clrs);
 
    // Construct full text to check for changes
    string full_txt = "";
@@ -549,7 +541,7 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
 
    if(full_txt == g_sea_ui_last_settings_txt) return;
    g_sea_ui_last_settings_txt = full_txt;
-   
+
    // Call the render engine with all 9 parameters
    SEA_UI_RenderPanel(
       g_sea_ui_settings_name, 
@@ -565,118 +557,187 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
 }
 
 //+------------------------------------------------------------------+
-//| COCKPIT PANEL
+//| COCKPIT PANEL - Full Institutional Grid & Logic Audit Restoration|
 //+------------------------------------------------------------------+
-void SEA_UI_UpdateCockpitPanel(
-   const double atr, const int last_signal_dir, const int last_bias,
-   const int last_votes, const int total_enabled, const string last_reason, const string ts_snap,
-   const string te_snap, const SVoteSnapshot &vote_snaps[], const int vote_snap_count,
-   const string diag_snap = "", EMarketPhase current_phase = PHASE_UNORDERED,
-   EEntryLayer entry_layer = LAYER_NONE, bool filter_active = false,
-   bool layer_allowed = false, const string pos_snap = ""
+void SEA_UI_UpdateCockpit(
+   const ST_SignalTelemetry &ts_telemetry, 
+   double active_lots, 
+   double active_risk_money, 
+   double active_reward_money, 
+   double active_sl_pips, 
+   double active_tp_pips, 
+   double current_rr, 
+   double config_risk_pct, 
+   string config_trail_method
 ) {
    if(!Inp_UI_ShowCockpitPanel) { 
       SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
       return; 
    }
 
-   string lines[]; color line_clrs[];
-   ArrayResize(lines, 0); ArrayResize(line_clrs, 0);
-   color v_clr = SEA_UI_ForeColor();   
+   string lines[]; 
+   color line_clrs[];
+   ArrayResize(lines, 0); 
+   ArrayResize(line_clrs, 0);
 
-   // --- ZONE 1: MARKET CONTEXT ---
-   AddLine("--- MARKET CONTEXT ---", Settings.clr_Header, lines, line_clrs);
-   AddLine(StringFormat("%-12s: %s (%s)", "Instrument", _Symbol, EnumToString(_Period)), Settings.clr_Value, lines, line_clrs);
+   // --- COLOR RESOLUTION (Respecting Dashboard Theme) ---
+   color h_clr = Settings.clr_Header;
+   color v_clr = (Settings.clr_Value != 0) ? Settings.clr_Value : clrWhite;
+
+   // --- MARKET CONTEXT (Extended Information) ---
+   AddLine("--- MARKET CONTEXT ---", h_clr, lines, line_clrs);
    
-   double spread = (SymbolInfoDouble(_Symbol, SYMBOL_ASK)-SymbolInfoDouble(_Symbol, SYMBOL_BID))/(_Point*SEA_UI_PipFactor());
-   AddLine(StringFormat("%-12s: %.1f Pips", "Spread", spread), Settings.clr_Value, lines, line_clrs);
+   double ask_val = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   double bid_val = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double spread_val = (ask_val - bid_val) / _Point;
+   long stop_lvl = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL);
+   
+   AddLine(StringFormat("SPREAD:    %.1f Pips", spread_val), v_clr, lines, line_clrs);
+   AddLine(StringFormat("STOPLEVEL: %d Pips", (int)stop_lvl), v_clr, lines, line_clrs);
+   
+   bool is_valid = (ts_telemetry.rejection_reason == "Valid Signal" || ts_telemetry.rejection_reason == "OK");
+   string sig_str = is_valid ? ((ts_telemetry.bias == 1) ? "BUY" : "SELL") : "FLAT";
+   AddLine(StringFormat("STATUS:    %s", ts_telemetry.rejection_reason), (is_valid ? Settings.clr_Pass : Settings.clr_Fail), lines, line_clrs);
+   AddLine(StringFormat("SIGNAL:    %s", sig_str), v_clr, lines, line_clrs);
 
-   // --- ZONE 2: STRATEGY LOGIC ---
-   AddLine(" ", v_clr, lines, line_clrs); 
-   AddLine("--- STRATEGY LOGIC ---", Settings.clr_Header, lines, line_clrs);
+   AddLine("", (color)0, lines, line_clrs); 
+   
+   // --- STRATEGY LOGIC (The Institutional Grid) ---
+   AddLine("--- STRATEGY LOGIC ---", h_clr, lines, line_clrs);
+   
+   // 1. Standardized Equation: TS = B * P * L * I * F
+   string b_eq = (ts_telemetry.bias > 0) ? "+" : ((ts_telemetry.bias < 0) ? "-" : ".");
+   string p_eq = (ts_telemetry.phase > 0) ? "+" : ((ts_telemetry.phase < 0) ? "-" : ".");
+   string l_eq = (ts_telemetry.layer > 0) ? "+" : ((ts_telemetry.layer < 0) ? "-" : ".");
+   string i_eq = (ts_telemetry.votes_for > 0) ? "+" : ".";
+   string f_eq = (StringFind(ts_telemetry.rejection_reason, "HTF") >= 0 || StringFind(ts_telemetry.rejection_reason, "Filter") >= 0) ? "-" : ".";
 
-   // 1. Calculate how many indicators are currently GREEN [+] 
-   // Using your specific parameter names: vote_snaps and vote_snap_count
-   int active_votes = 0;
-   for(int i = 0; i < vote_snap_count; i++)
-   {
-      // Check if the result is 1 (Pass/Green)
-      if(vote_snaps[i].vote_result == 1) 
-         active_votes++;
-   }
+   AddLine(StringFormat("TS EQ: TS = B[%s] * P[%s] * L[%s] * I[%s] * F[%s]", b_eq, p_eq, l_eq, i_eq, f_eq), v_clr, lines, line_clrs);
+   AddLine(StringFormat("VOTE:  %d / %d", ts_telemetry.votes_for, ts_telemetry.votes_total), v_clr, lines, line_clrs);
 
-   // 2. Format the string using your total_enabled parameter
-   // This shows "1/5" based on the logic above
-   string vote_str = StringFormat("%d/%d", active_votes, total_enabled);
+   // 2. Component Detail Audit
+   AddLine(StringFormat("  BIAS:  %s [.]", SEA_UI_BiasLabel(ts_telemetry.bias)), v_clr, lines, line_clrs);
+   
+   color dummy_p;
+   AddLine(StringFormat("  PHASE: %s [.]", SEA_UI_FormatPhase((EMarketPhase)ts_telemetry.phase, dummy_p)), v_clr, lines, line_clrs);
 
-   // 3. Print the Strategy Logic line
-   AddLine(StringFormat("Signal: %-6s Bias: %-6s Votes: %s", 
-           SEA_UI_SignalLabel(last_signal_dir), 
-           SEA_UI_BiasLabel(last_bias), 
-           vote_str), 
-           Settings.clr_Value, lines, line_clrs);
-        
-   // Fixed Vote Grid Loop
-   for(int i=0; i<vote_snap_count; i+=3) {
-      string row = "  ";
-      bool has_pass = false; bool has_fail = false;
-      for(int j=0; j<3; j++) {
-         if(i+j < vote_snap_count) {
-            string icon = (vote_snaps[i+j].vote_result == 1 ? "[+]" : (vote_snaps[i+j].vote_result == -1 ? "[-]" : "[.]"));
-            row += StringFormat("%s %-10s ", icon, vote_snaps[i+j].name);
-            if(vote_snaps[i+j].vote_result == 1) has_pass = true;
-            else if(vote_snaps[i+j].vote_result == -1) has_fail = true;
-         }
+   // 3. INDICATOR AUDIT (Detailed MACD, CCI, PSAR restoration)
+   string ind_parts[];
+   int ind_count = StringSplit(ts_telemetry.active_indicators, '\n', ind_parts);
+   
+   for(int i = 0; i < ind_count; i++) {
+      string item = ind_parts[i];
+      StringTrimLeft(item); 
+      StringTrimRight(item);
+      if(item == "") continue;
+
+      string clean_name = item;
+      string eval_sym   = "(.)";
+      color  line_clr   = Settings.clr_Disabled;
+
+      // Reformat brackets [+] to institutional parenthesis (+) for the grid
+      if(StringFind(item, "[+]") >= 0) { 
+         StringReplace(clean_name, "[+]", ""); 
+         eval_sym = "(+)"; 
+         line_clr = Settings.clr_Pass;
       }
-      color row_clr = has_fail ? Settings.clr_Fail : (has_pass ? Settings.clr_Pass : Settings.clr_Disabled);
-      AddLine(row, row_clr, lines, line_clrs);
+      else if(StringFind(item, "[-]") >= 0) { 
+         StringReplace(clean_name, "[-]", ""); 
+         eval_sym = "(-)"; 
+         line_clr = Settings.clr_Fail;
+      }
+      else if(StringFind(item, "[.]") >= 0) { 
+         StringReplace(clean_name, "[.]", ""); 
+         eval_sym = "(.)"; 
+         line_clr = Settings.clr_Disabled; 
+      }
+
+      StringTrimLeft(clean_name);
+      AddLine(StringFormat("  %s %s", clean_name, eval_sym), line_clr, lines, line_clrs);
    }
 
-   // --- ZONE 3: DIAGNOSTICS & SNAPSHOTS ---
-   if(ts_snap != "") AddLine("TS: " + ts_snap, Settings.clr_Value, lines, line_clrs);
-   if(te_snap != "") AddLine("TE: " + te_snap, Settings.clr_Value, lines, line_clrs);
+   AddLine("", (color)0, lines, line_clrs); 
+   
+   // --- EXECUTION GATE ---
+   AddLine("--- EXECUTION GATE ---", h_clr, lines, line_clrs);
+   string gate_status = (active_lots > 0) ? "ACTIVE" : "WAITING";
+   AddLine(StringFormat("STATE:  %s", gate_status), (active_lots > 0 ? Settings.clr_Pass : v_clr), lines, line_clrs);
 
-   // --- ZONE 4: TRADE METRICS ---
-   AddLine(" ", v_clr, lines, line_clrs); 
-   AddLine("--- TRADE METRICS ---", Settings.clr_Header, lines, line_clrs);
-   string r_p, rew_p, ratio, be; 
-   SEA_UI_GetTradeMetrics(r_p, rew_p, ratio, be);
-   AddLine(StringFormat("%-12s: %-8s Ratio: %s", "Risk(Pips)", r_p, ratio), Settings.clr_Value, lines, line_clrs);
-   AddLine(StringFormat("%-12s: %-8s", "BE Trigger", be), Settings.clr_Value, lines, line_clrs);
-   if(pos_snap != "") AddLine("POS: " + pos_snap, Settings.clr_Value, lines, line_clrs);
+   AddLine("", (color)0, lines, line_clrs);
 
-   // CRITICAL CLEANUP: Ensure we don't leave "Label" text
-   string full_txt = "";
-   for(int i=0; i<ArraySize(lines); i++) {
-      if(lines[i] == "") lines[i] = " "; // Space prevents default "Label" text
-      full_txt += lines[i] + "\n";
+   // --- RISK & PROTECTION ---
+   AddLine("--- RISK & PROTECTION ---", h_clr, lines, line_clrs);
+   if(active_lots == 0) {
+      AddLine(StringFormat("RISK:   %.2f%%", config_risk_pct), v_clr, lines, line_clrs);
+      AddLine(StringFormat("TRAIL:  %s", config_trail_method), v_clr, lines, line_clrs);
+   } 
+   else {
+      AddLine(StringFormat("RISK:   %.2f%% ($%.2f)", config_risk_pct, active_risk_money), v_clr, lines, line_clrs);
+      AddLine(StringFormat("SL:     %.1f pips", active_sl_pips), v_clr, lines, line_clrs);
+      AddLine(StringFormat("TP:     %.1f pips ($%.2f)", active_tp_pips, active_reward_money), v_clr, lines, line_clrs);
+      AddLine(StringFormat("RR:     %.2f", current_rr), v_clr, lines, line_clrs);
    }
 
-   if(full_txt != g_sea_ui_last_cockpit_txt) {
-      g_sea_ui_last_cockpit_txt = full_txt;
-      SEA_UI_RenderPanel(g_sea_ui_cockpit_name, full_txt, Inp_UI_CockpitCorner, Inp_UI_CockpitX, Inp_UI_CockpitY, 
-                         Inp_UI_CockpitFontSize, Inp_UI_CockpitLineSpacingPx, Inp_UI_CockpitFont, line_clrs);
+   // --- FINAL RENDER ---
+   string cockpit_txt = "";
+   for(int k = 0; k < ArraySize(lines); k++) cockpit_txt += lines[k] + "\n";
+
+   if(cockpit_txt != g_sea_ui_last_cockpit_txt) {
+      g_sea_ui_last_cockpit_txt = cockpit_txt;
+      SEA_UI_RenderPanel(
+         g_sea_ui_cockpit_name, cockpit_txt, Inp_UI_CockpitCorner, 
+         Inp_UI_CockpitX, Inp_UI_CockpitY, Inp_UI_CockpitFontSize, 
+         Inp_UI_CockpitLineSpacingPx, Inp_UI_CockpitFont, line_clrs
+      );
    }
 }
 
 //+------------------------------------------------------------------+
-//| THEME HELPER - Adds a line and its color to the tracking arrays  |
+//| Helper to append lines to the render arrays                      |
 //+------------------------------------------------------------------+
-void AddLine(string text, color clr, string &lines[], color &clrs[]) {
-   int n = ArraySize(lines);
-   ArrayResize(lines, n + 1);
-   ArrayResize(clrs, n + 1);
-   lines[n] = text;
-   clrs[n] = clr;
+void AddLine(string text, color clr, string &lines_arr[], color &clrs_arr[]) 
+{
+   int sz = ArraySize(lines_arr);
+   if(ArrayResize(lines_arr, sz + 1) != sz + 1) return;
+   if(ArrayResize(clrs_arr, sz + 1) != sz + 1) return;
+   lines_arr[sz] = text;
+   clrs_arr[sz] = clr;
 }
 
 //+------------------------------------------------------------------+
-//| CHART INDICATOR MANAGEMENT                                       |
+//| INTERNAL HELPER: Safe Indicator Attachment & Audit Logging      |
 //+------------------------------------------------------------------+
+// This replaces the "Performance Patch" standalone function.
+void _SEA_UI_AddIndicator(int subwindow, int handle, string label, int &added_counter)
+{
+   bool allow_log = (Settings.DebugLevel > 0);
+   
+   if(handle == INVALID_HANDLE)
+   {
+      if(allow_log) PrintFormat("UI: Cannot add indicator [%s] - Invalid handle.", label);
+      return;
+   }
+
+   if(ChartIndicatorAdd(0, subwindow, handle))
+   {
+      added_counter++;
+      if(allow_log) PrintFormat("  ✓ %s added to window %d", label, subwindow);
+   }
+   else
+   {
+      if(allow_log) PrintFormat("  ⚠ Failed to add [%s]. Error: %d", label, GetLastError());
+   }
+}
+
+//+------------------------------------------------------------------+
+//| PUBLIC API: Flexible Chart Indicator Management                 |
+//+------------------------------------------------------------------+
+// This is the master function that rebuilds the chart from settings.
 void SEA_UI_ManageChartIndicators(CSignalEngine &engine)
 {
+   // 1. Wipe the Chart Slate to prevent duplicate overlays
    int win_total = (int)ChartGetInteger(0, CHART_WINDOWS_TOTAL);
-   for(int w=win_total-1; w>=0; w--)
+   for(int w = win_total - 1; w >= 0; w--)
    {
       int total = ChartIndicatorsTotal(0, w);
       while(total > 0)
@@ -689,217 +750,104 @@ void SEA_UI_ManageChartIndicators(CSignalEngine &engine)
    }
 
    Print("═══════════════════════════════════════════════════════════");
-   Print("UI: Chart Indicator Manager - Rebuilding from Settings...");
-   Print("  → Vote Mode: ", (Settings.VoteMode == VOTE_MODE_ALL ? "ALL (all enabled must pass)" : "THRESHOLD"));
+   Print("UI: Institutional Indicator Sync - Rebuilding from Settings");
    Print("═══════════════════════════════════════════════════════════");
 
-   int overlays_added = 0;
-   int ts_components_visible = 0;
+   int overlays = 0;
+   int sub_added = 0;
+   int ts_active = 0;
 
-   if(Settings.MABenchmarkStrict) {
-      int h = Signal.GetPrimaryMAHandle();
-      if(h != INVALID_HANDLE) {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-         Print("  ✓ Benchmark MA (bias determination)");
-      }
-   }
+   // --- ZONE 1: MAIN CHART OVERLAYS (Subwindow 0) ---
+   
+   if(Settings.MABenchmarkStrict) 
+      _SEA_UI_AddIndicator(0, engine.GetPrimaryMAHandle(), "Benchmark MA", overlays);
 
+   // EMA Ribbon Logic
    bool need_ema[4];
    need_ema[0] = (Settings.BiasFastID == 0 || Settings.BiasSlowID == 0 || Settings.Ind_EmaSig_Enabled);
    need_ema[1] = (Settings.BiasFastID == 1 || Settings.BiasSlowID == 1);
    need_ema[2] = (Settings.BiasFastID == 2 || Settings.BiasSlowID == 2);
    need_ema[3] = (Settings.BiasFastID == 3 || Settings.BiasSlowID == 3);
-   for(int i=0; i<4; i++) {
+
+   for(int i = 0; i < 4; i++) {
       if(need_ema[i]) {
-         int h = Signal.GetEmaHandle(i);
-         if(h != INVALID_HANDLE) {
-            ChartIndicatorAdd(0, 0, h);
-            overlays_added++;
-            string role = "bias";
-            if(i == 0 && Settings.Ind_EmaSig_Enabled) {
-               role = "bias + TS component";
-               ts_components_visible++;
-            }
-            Print("  ✓ EMA", (i+1), " (", Settings.P_Ema1 + i*8, ") [", role, "]");
-         }
+         string label = StringFormat("EMA%d (%d)", i+1, Settings.P_Ema1 + (i*8));
+         _SEA_UI_AddIndicator(0, engine.GetEmaHandle(i), label, overlays);
+         if(i == 0 && Settings.Ind_EmaSig_Enabled) ts_active++;
       }
    }
 
    if(Settings.Ind_Psar_Enabled || Settings.TrailMode == TRAIL_PSAR) {
-      int h = Signal.GetPsarHandle();
-      if(h != INVALID_HANDLE) {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-         string role = "";
-         if(Settings.Ind_Psar_Enabled) { role = "TS component"; ts_components_visible++; }
-         if(Settings.TrailMode == TRAIL_PSAR) { if(role != "") role += " + ";
-         role += "trailing"; }
-         Print("  ✓ PSAR [", role, "]");
-      } else {
-         Print("  ⚠ PSAR enabled but handle not available");
-      }
+      _SEA_UI_AddIndicator(0, engine.GetPsarHandle(), "PSAR", overlays);
+      if(Settings.Ind_Psar_Enabled) ts_active++;
    }
 
    if(Settings.Ind_Bb_Enabled) {
-      int h = Signal.GetBbHandle();
-      if(h != INVALID_HANDLE) {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-         ts_components_visible++;
-         Print("  ✓ Bollinger Bands (", Settings.P_Bb, ", ", Settings.P_BbDev, ") [TS component]");
-      } else {
-         Print("  ⚠ BB enabled but handle not available");
-      }
+      _SEA_UI_AddIndicator(0, engine.GetBbHandle(), "Bollinger Bands", overlays);
+      ts_active++;
    }
 
-   if(Settings.UseHTF) {
-      int h = Signal.GetHtfEmaHandle();
-      if(h != INVALID_HANDLE) {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-         Print("  ✓ HTF EMA (", EnumToString(Settings.HtfPeriod), "/", Settings.P_HtfEma, ") [filter gate]");
-      } else {
-         Print("  ⚠ HTF filter enabled but handle not available");
-      }
+   if(Settings.UseHTF) 
+      _SEA_UI_AddIndicator(0, engine.GetHtfEmaHandle(), "HTF Filter", overlays);
+
+   if(Settings.TrailMode == TRAIL_FRACTAL) 
+      _SEA_UI_AddIndicator(0, engine.GetFractalHandle(), "Fractals (Trail)", overlays);
+
+   if(Settings.Ind_P123_Enabled) { _SEA_UI_AddIndicator(0, engine.GetP123Handle(), "123 Pattern", overlays); ts_active++; }
+   if(Settings.Ind_Ross_Enabled) { _SEA_UI_AddIndicator(0, engine.GetRossHandle(), "Ross Hook", overlays); ts_active++; }
+
+   // --- ZONE 2: SUBWINDOW OSCILLATORS (Dynamic Window Incrementing) ---
+   
+   int sw = 1; // Current subwindow counter
+   int sw_count = 0;
+
+   if(Settings.Ind_Macd_Enabled) { 
+      int prev = sw_count;
+      _SEA_UI_AddIndicator(sw, engine.GetMacdHandle(), "MACD", sw_count); 
+      if(sw_count > prev) { sw++; ts_active++; } 
+   }
+   if(Settings.Ind_Rsi_Enabled) { 
+      int prev = sw_count;
+      _SEA_UI_AddIndicator(sw, engine.GetRsiHandle(), "RSI", sw_count); 
+      if(sw_count > prev) { sw++; ts_active++; } 
+   }
+   if(Settings.Ind_Cci_Enabled) { 
+      int prev = sw_count;
+      _SEA_UI_AddIndicator(sw, engine.GetCciHandle(), "CCI", sw_count); 
+      if(sw_count > prev) { sw++; ts_active++; } 
+   }
+   if(Settings.Ind_Mfi_Enabled) { 
+      int prev = sw_count;
+      _SEA_UI_AddIndicator(sw, engine.GetMfiHandle(), "MFI", sw_count); 
+      if(sw_count > prev) { sw++; ts_active++; } 
+   }
+   if(Settings.Ind_Sto_Enabled) { 
+      int prev = sw_count;
+      _SEA_UI_AddIndicator(sw, engine.GetStoHandle(), "Stoch", sw_count); 
+      if(sw_count > prev) { sw++; ts_active++; } 
+   }
+   if(Settings.Ind_Adx_Enabled) { 
+      int prev = sw_count;
+      _SEA_UI_AddIndicator(sw, engine.GetAdxHandle(), "ADX", sw_count); 
+      if(sw_count > prev) { sw++; ts_active++; } 
+   }
+   if(Settings.Ind_Atr_Enabled) { 
+      int prev = sw_count;
+      _SEA_UI_AddIndicator(sw, engine.GetAtrHandle(), "ATR", sw_count); 
+      if(sw_count > prev) { sw++; ts_active++; } 
+   }
+   if(Settings.Ind_CI_Enabled) { 
+      int prev = sw_count;
+      _SEA_UI_AddIndicator(sw, engine.GetCiHandle(), "CI", sw_count); 
+      if(sw_count > prev) { sw++; ts_active++; } 
    }
 
-   if(Settings.TrailMode == TRAIL_FRACTAL) {
-      int h = Signal.GetFractalHandle();
-      if(h != INVALID_HANDLE) {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-         Print("  ✓ Fractals [trailing]");
-      } else {
-         Print("  ⚠ Fractals needed but handle not available");
-      }
-   }
-
-   if(Settings.Ind_P123_Enabled) {
-      int h = Signal.GetP123Handle();
-      if(h != INVALID_HANDLE) {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-         ts_components_visible++;
-         Print("  ✓ Pattern 123 [TS component]");
-      } else {
-         Print("  ⚠ Pattern 123 enabled but handle not available");
-      }
-   }
-
-   if(Settings.Ind_Ross_Enabled) {
-      int h = Signal.GetRossHandle();
-      if(h != INVALID_HANDLE) {
-         ChartIndicatorAdd(0, 0, h);
-         overlays_added++;
-         ts_components_visible++;
-         Print("  ✓ Ross Hook [TS component]");
-      } else {
-         Print("  ⚠ Ross Hook enabled but handle not available");
-      }
-   }
-
-   int subwindow = 1;
-   int subwindows_added = 0;
-
-   if(Settings.Ind_Macd_Enabled) {
-      int h = Signal.GetMacdHandle();
-      if(h != INVALID_HANDLE) {
-         if(ChartIndicatorAdd(0, subwindow, h)) {
-            Print("  ✓ MACD (", Settings.P_MacdFast, "/", Settings.P_MacdSlow, "/", Settings.P_MacdSig, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++; subwindows_added++; ts_components_visible++;
-         }
-      }
-   }
-
-   if(Settings.Ind_Rsi_Enabled) {
-      int h = Signal.GetRsiHandle();
-      if(h != INVALID_HANDLE) {
-         if(ChartIndicatorAdd(0, subwindow, h)) {
-            Print("  ✓ RSI (", Settings.P_Rsi, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++; subwindows_added++; ts_components_visible++;
-         }
-      }
-   }
-
-   if(Settings.Ind_Cci_Enabled) {
-      int h = Signal.GetCciHandle();
-      if(h != INVALID_HANDLE) {
-         if(ChartIndicatorAdd(0, subwindow, h)) {
-            Print("  ✓ CCI (", Settings.P_Cci, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++; subwindows_added++; ts_components_visible++;
-         }
-      }
-   }
-
-   if(Settings.Ind_Mfi_Enabled) {
-      int h = Signal.GetMfiHandle();
-      if(h != INVALID_HANDLE) {
-         if(ChartIndicatorAdd(0, subwindow, h)) {
-            Print("  ✓ MFI (", Settings.P_Mfi, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++; subwindows_added++; ts_components_visible++;
-         }
-      }
-   }
-
-   if(Settings.Ind_Sto_Enabled) {
-      int h = Signal.GetStoHandle();
-      if(h != INVALID_HANDLE) {
-         if(ChartIndicatorAdd(0, subwindow, h)) {
-            Print("  ✓ Stochastic (K:", Settings.P_StoK, " D:", Settings.P_StoD, " Slow:", Settings.P_StoSlow, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++; subwindows_added++; ts_components_visible++;
-         }
-      }
-   }
-
-   if(Settings.Ind_Adx_Enabled) {
-      int h = Signal.GetAdxHandle();
-      if(h != INVALID_HANDLE) {
-         if(ChartIndicatorAdd(0, subwindow, h)) {
-            Print("  ✓ ADX (", Settings.P_Adx, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++; subwindows_added++; ts_components_visible++;
-         }
-      }
-   }
-
-   if(Settings.Ind_Atr_Enabled) {
-      int h = Signal.GetAtrHandle();
-      if(h != INVALID_HANDLE) {
-         if(ChartIndicatorAdd(0, subwindow, h)) {
-            Print("  ✓ ATR (", Settings.P_Atr, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++; subwindows_added++; ts_components_visible++;
-         }
-      } else {
-         Print("  ⚠ ATR enabled but handle not available");
-      }
-   }
-
-   if(Settings.Ind_CI_Enabled) {
-      int h = Signal.GetCiHandle();
-      if(h != INVALID_HANDLE) {
-         if(ChartIndicatorAdd(0, subwindow, h)) {
-            Print("  ✓ CI (", Settings.CI_Period, ") [TS component, subwindow ", subwindow, "]");
-            subwindow++; subwindows_added++; ts_components_visible++;
-         }
-      } else {
-         Print("  ⚠ CI enabled but handle not available");
-      }
-   }
-
-   if(Settings.Ind_VRC_Enabled) {
-       Print("  ✓ VRC (Volatility Regime Classifier) [TS component, internal buffer only]");
-       ts_components_visible++;
-   }
-   if(Settings.Ind_CandleBody_Enabled) {
-       Print("  ✓ CandleBody (", Settings.CandleBody_AvgPeriod, ") [TS component, price-action only]");
-       ts_components_visible++;
-   }
+   // Internal-only components
+   if(Settings.Ind_VRC_Enabled) ts_active++;
+   if(Settings.Ind_CandleBody_Enabled) ts_active++;
 
    Print("───────────────────────────────────────────────────────────");
-   Print("UI: Chart indicator management complete");
-   Print("  → ", overlays_added, " overlays on main chart");
-   Print("  → ", subwindows_added, " indicators in subwindows");
-   Print("  → ", ts_components_visible, " TS components active");
-   Print("  → Vote Mode: ", (Settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD"), " (", ts_components_visible, " indicators active)");
+   Print("UI: Chart indicator synchronization complete");
+   Print(StringFormat("  → %d Overlays | %d Subwindows | %d TS Components Active", overlays, sw-1, ts_active));
    Print("═══════════════════════════════════════════════════════════");
 }

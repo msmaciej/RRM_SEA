@@ -27,8 +27,7 @@ double GetRecommendedInitialSlCushionPips()
    if      (tf <= PERIOD_M5)  return isJPY ?  3.0 :  2.0;    // Covers M1 through M5
    else if (tf <= PERIOD_M30) return isJPY ?  5.0 :  3.0;    // Covers M6 through M30
    else if (tf <= PERIOD_H1)  return isJPY ?  8.0 :  5.0;    // Covers H1
-   else if (tf <= PERIOD_H2)  return isJPY ? 12.0 :  7.0;    // Covers H2
-   else if (tf <= PERIOD_H4)  return isJPY ? 15.0 : 10.0;    // Covers H3 through H4
+   else if (tf <= PERIOD_H4)  return isJPY ? 15.0 : 10.0;    // Covers H2 through H4
    else                       return isJPY ? 25.0 : 15.0;    // Covers H6, D1, W1, MN1
 }
 
@@ -677,8 +676,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_CandleBody_Enabled   = true;
       cfg.Ind_CI_Enabled           = false;
       // Enable ranging market protection
-      cfg.Ind_VRC_Enabled          = true;
-      cfg.Ind_Cci_Enabled          = true;
+      cfg.Ind_VRC_Enabled          = false;
+      cfg.Ind_Cci_Enabled          = false;
       cfg.Ind_EmaSig_Enabled       = true;
       cfg.Ind_Macd_Enabled         = true;
       cfg.Ind_Mfi_Enabled          = false;
@@ -927,8 +926,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasEnabled               = true;
       cfg.BiasMode                  = BIAS_AUTO;
       cfg.AutoStrat                 = STRAT_POSITION_SLOPE;
-      cfg.BiasFastID                = (int)ROLE_EMA1;
-      cfg.BiasSlowID                = (int)ROLE_EMA3;
+      cfg.BiasFastID                = (int)ROLE_EMA3;
+      cfg.BiasSlowID                = (int)ROLE_EMA4;
       cfg.MaType                    = METHOD_EMA;
       cfg.RequirePriceCross         = false;
       cfg.MABenchmarkStrict         = false;
@@ -942,7 +941,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Adx_Enabled           = false;
       cfg.Ind_Atr_Enabled           = false;
       cfg.Ind_Bb_Enabled            = false;
-      cfg.Ind_CandleBody_Enabled    = true;
+      cfg.Ind_CandleBody_Enabled    = false;
       cfg.Ind_CI_Enabled            = false;
       cfg.Ind_VRC_Enabled           = false;
       cfg.Ind_Cci_Enabled           = true;
@@ -1018,7 +1017,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_MacdSig                 = 3;      // ORG: 9   8   5
       cfg.MacdVoteMode              = MACD_HISTOGRAM;
       cfg.MacdRequireSlope          = true;   // ORG: false
-      cfg.MacdRequireDivergence     = true;   // ORG: false
+      cfg.MacdRequireDivergence     = false;   // ORG: false
       cfg.MacdRequireHook           = false;  // ORG: false
       cfg.MacdFreshBars             = 10;     // ORG: 3
       cfg.MacdSlopeMin              = 0.000001; // ORG: 0.00001
@@ -1069,9 +1068,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // PULLBACK DETECTION GATES (All disabled)
       // ================================================================
-      cfg.RequirePullback           = true;   // ORG: false
+      cfg.RequirePullback           = false;   // ORG: false
       cfg.PullbackLookback          = 10;     // ORG: 0
-      cfg.RequireRecoveryMomentum   = true;   // ORG: false
+      cfg.RequireRecoveryMomentum   = false;   // ORG: false
       cfg.Gate_UseMultiLayer        = false;
       cfg.LayerTouchTolerance       = 0.0;
    
@@ -1182,8 +1181,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.TrailMode              = TRAIL_PSAR;
          cfg.TrailTrigger           = TRIGGER_IMMEDIATE; // Start checking immediately
          cfg.RRM_TrailStartsAfterBE = false;             // ✅ Only trail after BE hit (safer!)
-         cfg.TrailDistancePips      = 0.0;               // Not used (PSAR mode = dynamic)
-         cfg.TrailProfitPercent     = 0.0;               // Not used (PSAR mode)
+         cfg.TrailDistancePips      = 5.0;               // Not used (PSAR mode = dynamic)
+         cfg.TrailProfitPercent     = 5.0;               // Not used (PSAR mode)
          cfg.TrailStepPips          = 0.0;               // Not used (PSAR mode)
          cfg.TrailLockProfit        = true;              // Never trail SL below entry
 
@@ -1205,16 +1204,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // MA-SPECIFIC SETTINGS
       // ================================================================
-      cfg.ma_h_shift                   = 1;
-      cfg.ma_v_shift                   = 1;
+      cfg.ma_h_shift                   = 0;
+      cfg.ma_v_shift                   = 0;
       
       // ================================================================
       // RRM DRAWDOWN PROTECTION (Enabled for testing safety)
       // ================================================================
-      cfg.RRM_EnableDrawdownProtection = true; // ✅ Enabled
-      cfg.RRM_MaxConsecutiveLosses     = 3;    // ✅ Stop after 3 losses
-      cfg.RRM_MaxTradesPerDay          = 12;   // ✅ Limit overtrading
-      cfg.RRM_MaxDailyDrawdownPct      = 6.0;  // ✅ Stop if -6% day
+      cfg.RRM_EnableDrawdownProtection = false; // ✅ Enabled
+      cfg.RRM_MaxConsecutiveLosses     = 5;    // ✅ 3: Stop after 3 losses
+      cfg.RRM_MaxTradesPerDay          = 12;   // ✅ 12: Limit overtrading
+      cfg.RRM_MaxDailyDrawdownPct      = 6.0;  // ✅ 6: Stop if -6% day
 
       // ================================================================
       // SLOPE CALCULATION SETTINGS (Minimal - Testing Mode)

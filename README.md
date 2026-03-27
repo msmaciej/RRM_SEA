@@ -22,15 +22,28 @@ The system architecture has been refactored into focused, authoritative files. S
 
 ---
 
+## 🏛️ System Architecture: The Modular Shift
+SimpleEA utilizes a highly modular architecture. To eliminate parameter bloat and prevent over-optimization, all configuration and preset definitions have been permanently migrated into dedicated header files:
+
+1. **`SEA_Config.mqh`**: The ultimate source of truth for all global variables, enums, and the master `ST_Settings` struct. This file manages the visual inputs in the MT5 dialog and maps them via `InitializeConfig()` into the global struct used by all other modules.
+2. **`SEA_Presets.mqh`**: Contains hardcoded strategy arrays and struct assignments. When a specific preset is selected, this file overrides the MT5 UI inputs to enforce strict, institutional-grade parameters.
+
 ## ⚙️ Configuration Zones (The Architect Manual)
 
 Inputs in `SEA_Config.mqh` are visually grouped in the MT5 dialog to distinguish operator controls from preset-controlled strategy variables.
 
 ### ZONE 1: Preset Selection
-Selects the core strategy.
-* `PRESET_CUSTOM`: All inputs respected; full user control.
+Selects the core strategy mapped within `SEA_Presets.mqh`.
 * `PRESET_MA`: Replicates the MT5 Moving Average EA benchmark.
-* `PRESET_RRM`: Phase-based layer detection system (The Production Standard).
+* `PRESET_CUSTOM`: All inputs respected; full user control.
+* `PRESET_RRM`: Institutional strategy. **Overrides all strategy-related inputs.** Enforces `VOTE_MODE_ALL`, strict trailing steps, and specific indicator configurations.
+
+1.  **Anti-Confusion Mapping:** When `PRESET_RRM` is active, it fully defines all strategy-critical settings via `SEA_Presets.mqh`. Strategy-related inputs in MT5 are ignored. The EA prints a clear initialization note, and the UI/Logs display the *effective* settings.
+2.  **Two-Phase Signal Timing:**
+    * **TS (Trade Setup):** Evaluated strictly on the closed candle (`shift=1`) via `GetDirection()`.
+    * **TE (Trade Entry):** Evaluated strictly on the open tick (`shift=0`) via `EvaluateTE()`, checking real-time spread, time, and news limits. 
+    * No signal evaluation occurs on forming bars. No trade execution occurs without a prior TS validation.
+3.  **Strict Multiplicative Voting:** In RRM setups, `VOTE_MODE_ALL` is enforced. Adding indicators makes the system MORE restrictive, not less. ANY indicator returning 0 kills the signal.
 
 ### ZONE 2: User Controls (Policy A Gates)
 **Always editable by the user, regardless of preset.**
@@ -65,7 +78,7 @@ To avoid misleading behavior and user confusion, presets are defined as **fully 
 
 ## 📊 System Analysis & Reporting
 
-SimpleEA automatically outputs comprehensive performance metrics directly to the `OnDeinit` log, segmented into three critical diagnostic areas:
+SimpleEA automatically outputs comprehensive performance metrics directly to the `OnDeinit` log, segmented into three critical diagnostic areas:\
 
 1.  **Signal Efficiency:** Tracks total bars evaluated, TS conversion rate, and individual component pass/fail rates (e.g., "Bias=0: 56.9% rejection").
 2.  **Trade Performance:** Win rate (Long vs Short), Profit Factor, Average Win/Loss, and Consecutive streaks.

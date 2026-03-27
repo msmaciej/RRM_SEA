@@ -544,27 +544,20 @@ int OrchestrateInit()
    SEA_UI_Init(Inp_MagicNum);
    SEA_UI_UpdateSettingsPanel();
    {
-      SVoteSnapshot init_snaps[];
-      int init_snap_count = 0;
-      int total_active = GetEnabledIndicatorCount(Settings);
+      // Fetch the initial empty state from the Signal Engine
+      ST_SignalTelemetry telemetry = Signal.GetTelemetry();
       
-      SEA_UI_UpdateCockpitPanel(
-         Signal.GetATR(),        // 1. atr
-         0,                      // 2. last_signal_dir
-         Signal.LastBias(),      // 3. last_bias
-         Signal.LastVotes(),     // 4. last_votes
-         total_active,           // 5. total_enabled (The new 'fractional' denominator)
-         Signal.LastReason(),    // 6. last_reason
-         "",                     // 7. ts_snap
-         "",                     // 8. te_snap
-         init_snaps,             // 9. vote_snaps[]
-         init_snap_count,        // 10. vote_snap_count
-         "",                     // 11. diag_snap
-         PHASE_UNORDERED,        // 12. current_phase
-         LAYER_NONE,             // 13. entry_layer
-         false,                  // 14. filter_active
-         false,                  // 15. layer_allowed
-         ""                      // 16. pos_snap
+      // Push the initial state to the Cockpit (Zero active trade metrics on startup)
+      SEA_UI_UpdateCockpit(
+         telemetry, 
+         0.0, // active_lots
+         0.0, // active_risk_money
+         0.0, // active_reward_money
+         0.0, // active_sl_pips
+         0.0, // active_tp_pips
+         0.0, // current_rr
+         Settings.RiskPercent, 
+         EnumToString(Settings.TrailMode)
       );
    }
 
@@ -692,27 +685,37 @@ void OrchestrateTick()
                      (Executor.LastTEReason() != "" ? ": " + Executor.LastTEReason() : "")) : "";
 
    // 9. Update Cockpit Panel with Synchronized Data
-   int total_active = GetEnabledIndicatorCount(Settings);
-   
-   SEA_UI_UpdateCockpitPanel(
-      Signal.GetATR(),
-      (drawdown_blocked ? 0 : g_ts_dir),
-      snap_bias,
-      snap_votes,
-      total_active,
-      snap_reason,
-      ts_snap,
-      te_snap,
-      vote_snaps,
-      vote_snap_count,
-      Signal.GetDiagnosticsString(),
-      PHASE_UNORDERED, 
-      LAYER_NONE, 
-      false, 
-      false, 
-      Executor.GetPositionSnapshot()
-   );
+   ST_SignalTelemetry telemetry = Signal.GetTelemetry();
 
+   double active_lots = 0.0;
+   double active_risk_money = 0.0;
+   double active_reward_money = 0.0;
+   double sl_pips = 0.0;
+   double tp_pips = 0.0;
+   double current_rr = 0.0;
+
+   if(PositionSelect(_Symbol))
+   {
+      active_lots         = Executor.GetActiveLots(Inp_MagicNum);
+      active_risk_money   = Executor.GetActiveRiskMoney(Inp_MagicNum);
+      active_reward_money = Executor.GetActiveRewardMoney(Inp_MagicNum);
+      sl_pips             = Executor.GetActiveSLPips(Inp_MagicNum);
+      tp_pips             = Executor.GetActiveTPPips(Inp_MagicNum);
+      current_rr          = Executor.GetCurrentRR(Inp_MagicNum);
+   }
+   
+   SEA_UI_UpdateCockpit(
+      telemetry, 
+      active_lots, 
+      active_risk_money, 
+      active_reward_money, 
+      sl_pips, 
+      tp_pips, 
+      current_rr, 
+      Settings.RiskPercent, 
+      EnumToString(Settings.TrailMode)
+   );
+   
    FlowLog("Bar pipeline complete");
 }
 

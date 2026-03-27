@@ -1574,6 +1574,36 @@ void PrintIndicatorRegistry()
                   (g_indicator_registry[i].prefers_subwindow ? "true" : "false"));
    }
 }
+
+//+------------------------------------------------------------------+
+//| Global Price Normalization Utils                                 |
+//+------------------------------------------------------------------+
+double GlobalPipSize(string symbol)
+{
+   double point  = SymbolInfoDouble(symbol, SYMBOL_POINT);
+   int    digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   if(digits == 3 || digits == 5) return point * 10.0;
+   return point;
+}
+
+double GlobalSpreadPips(string symbol)
+{
+   double bid = SymbolInfoDouble(symbol, SYMBOL_BID);
+   double ask = SymbolInfoDouble(symbol, SYMBOL_ASK);
+   double pip = GlobalPipSize(symbol);
+   return (pip <= 0.0) ? 0.0 : (ask - bid) / pip;
+}
+
+//+------------------------------------------------------------------+
+//| Global Volatility Normalization                                  |
+//+------------------------------------------------------------------+
+double GlobalAtrPips(double atr_value, string symbol)
+{
+   double pip = GlobalPipSize(symbol);
+   if(pip <= 0.0 || atr_value <= 0.0) return 0.0;
+   return atr_value / pip;
+}
+
 //+------------------------------------------------------------------+
 //| END OF FILE                                                      |
 //+------------------------------------------------------------------+
