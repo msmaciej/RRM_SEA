@@ -34,8 +34,9 @@ enum EMaMethod
 enum EBiasMode
 {
    BIAS_MANUAL,   // User sets fixed direction (Long/Short/Both)
-   BIAS_2EMA,     // Two EMAs: Fast vs Slow crossover
-   BIAS_4EMA      // Four EMAs: Phase detection (TRENDING/EMERGING/UNORDERED)
+   BIAS_1EMA,     // Single EMA: slope direction only
+   BIAS_2EMA,     // Two EMAs: crossover or position+slope
+   BIAS_4EMA      // Four EMAs: phase detection (TRENDING/EMERGING/UNORDERED)
 };
 // --- MARKET PHASE: used by BIAS_4EMA (4-EMA structure analysis) ---
 enum EMarketPhase {
@@ -66,12 +67,39 @@ enum EManualSide
 };
 enum EAutoStrategy
 {
-   STRAT_SINGLE_SLOPE,      // STRAT_SINGLE_SLOPE: 1EMA slope direction
-   STRAT_PAIR_CROSS,        // STRAT_PAIR_CROSS: 2EMAs cross (one-bar signal at cross point)
-   STRAT_PRICE_CROSS,       // STRAT_PRICE_CROSS: Price crosses EMA (one-bar signal at cross point)
-   STRAT_POSITION_SLOPE,    // STRAT_POSITION_SLOPE: EMA position + slope confirmation (persistent bias)
-   STRAT_LAYER_DETECTION    // STRAT_LAYER_DETECTION: Layer-based pullback detection (Strong/Medium/Weak layers)
+   STRAT_1EMA_SLOPE,    // ONLY for BIAS_1EMA: single EMA slope direction
+   STRAT_2EMA_CROSS,    // ONLY for BIAS_2EMA: two EMAs crossover (one-bar signal)
+   STRAT_PRICE_CROSS,   // ONLY for BIAS_2EMA: price crosses EMA (one-bar signal at cross point)
+   STRAT_2EMA_POSITION, // ONLY for BIAS_2EMA: EMA position + slope confirmation (persistent bias)
+   STRAT_4EMA_LAYER     // ONLY for BIAS_4EMA: four EMAs with LayerW/M/S pullback detection
 };
+//+------------------------------------------------------------------+
+//| Validate BiasMode and AutoStrat compatibility                    |
+//| Returns: true if combination is valid, false otherwise           |
+//+------------------------------------------------------------------+
+bool ValidateBiasStratCombo(EBiasMode bias, EAutoStrategy strat)
+{
+   switch(bias)
+   {
+      case BIAS_MANUAL:
+         return true; // Manual mode doesn't use AutoStrat
+
+      case BIAS_1EMA:
+         return (strat == STRAT_1EMA_SLOPE);
+
+      case BIAS_2EMA:
+         return (strat == STRAT_2EMA_CROSS ||
+                 strat == STRAT_PRICE_CROSS ||
+                 strat == STRAT_2EMA_POSITION);
+
+      case BIAS_4EMA:
+         return (strat == STRAT_4EMA_LAYER);
+
+      default:
+         Print("[ERROR] Unknown BiasMode: ", EnumToString(bias));
+         return false;
+   }
+}
 enum EDebugLevel
 {
    DEBUG_SILENT,      // DEBUG_SILENT: No per-bar output (statistics only at end)
@@ -765,7 +793,7 @@ input group "╔═════════════════════�
 input group "║  🔧 STEP 2: Entry Signal                               ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Step2_Info             = "Configure entry timing strategy"; // Info
-input EAutoStrategy  Inp_AutoStrat              = STRAT_POSITION_SLOPE; // (CUSTOM; presets override)
+input EAutoStrategy  Inp_AutoStrat              = STRAT_2EMA_POSITION; // (CUSTOM; presets override)
 input double         Inp_LayerTolerance         = 0.01; // (DEPRECATED v1.04+: KISS refactor removed wick-touch tolerance; see EvaluateLayerX/EvaluateEmaSigX)
 input bool           Inp_RRM_EnableInCustom     = false; // (CUSTOM only)
 input bool           Inp_CloseOnReverse         = false; // (CUSTOM; presets may override)
@@ -1374,6 +1402,28 @@ void InitializeConfig()
 
    if(Settings.SlopeLookbackBars < 1) Settings.SlopeLookbackBars = 1;
    if(Settings.SlopeLookbackBars > 5) Settings.SlopeLookbackBars = 5;
+
+   // === FINAL VALIDATION: BiasMode vs AutoStrat compatibility ===
+   if(Settings.BiasEnabled && !ValidateBiasStratCombo(Settings.BiasMode, Settings.AutoStrat))
+   {
+      string msg = StringFormat(
+         "[FATAL] Invalid BiasMode/AutoStrat combination!\n"
+         "BiasMode=%s requires different AutoStrat than %s\n"
+         "Valid combinations:\n"
+         "  BIAS_1EMA    → STRAT_1EMA_SLOPE\n"
+         "  BIAS_2EMA    → STRAT_2EMA_CROSS, STRAT_PRICE_CROSS, or STRAT_2EMA_POSITION\n"
+         "  BIAS_4EMA    → STRAT_4EMA_LAYER\n"
+         "EA will use BIAS_MANUAL to prevent undefined behavior.",
+         EnumToString(Settings.BiasMode),
+         EnumToString(Settings.AutoStrat)
+      );
+      Print(msg);
+      Alert(msg);
+
+      // Force safe default
+      Settings.BiasMode = BIAS_MANUAL;
+      Settings.ManSide  = SIDE_BOTH;
+   }
 }
 
 //+------------------------------------------------------------------+

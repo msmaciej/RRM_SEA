@@ -195,9 +195,9 @@ void BuildUiReportingState()
    {
       if(Settings.AutoStrat == STRAT_PRICE_CROSS && Settings.BiasFastID == 0 && Settings.BiasSlowID == 0)
          g_effectiveEmaStrategy = EMA_STRAT_1_PRICE_CROSS;
-      else if(Settings.AutoStrat == STRAT_PAIR_CROSS && Settings.BiasFastID == 0 && Settings.BiasSlowID == 1)
+      else if(Settings.AutoStrat == STRAT_2EMA_CROSS && Settings.BiasFastID == 0 && Settings.BiasSlowID == 1)
          g_effectiveEmaStrategy = EMA_STRAT_2_CROSS_1_2;
-      else if(Settings.AutoStrat == STRAT_PAIR_CROSS && Settings.BiasFastID == 2 && Settings.BiasSlowID == 3)
+      else if(Settings.AutoStrat == STRAT_2EMA_CROSS && Settings.BiasFastID == 2 && Settings.BiasSlowID == 3)
          g_effectiveEmaStrategy = EMA_STRAT_2_CROSS_3_4;
       else
          g_effectiveEmaStrategy = EMA_STRAT_CUSTOM;

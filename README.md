@@ -22,8 +22,30 @@ Only **ONE** layer needs to be active and confirmed for a trade signal.
 
 **Bias Modes:**
 - **BIAS_MANUAL:** Fixed operator direction (Long/Short/Both)
-- **BIAS_2EMA:** Two EMAs — Fast vs Slow crossover
+- **BIAS_1EMA:** Single EMA slope direction only
+- **BIAS_2EMA:** Two EMAs — crossover or position+slope
 - **BIAS_4EMA:** Four EMAs — Phase detection (TRENDING/EMERGING/UNORDERED)
+
+---
+
+## 📐 Bias Modes & Strategy Mapping
+
+SimpleEA supports 4 bias modes, each with specific strategy requirements:
+
+| BiasMode | Description | Valid Strategies | EMAs Used | Layers |
+|----------|-------------|------------------|-----------|--------|
+| `BIAS_MANUAL` | User sets fixed direction | None | 0 | ❌ |
+| `BIAS_1EMA` | Single EMA slope | `STRAT_1EMA_SLOPE` | EMA1 only | ❌ |
+| `BIAS_2EMA` | Two EMA crossover/position | `STRAT_2EMA_CROSS`<br>`STRAT_PRICE_CROSS`<br>`STRAT_2EMA_POSITION` | EMA1, EMA2 | ❌ |
+| `BIAS_4EMA` | Four EMA phase detection | `STRAT_4EMA_LAYER` | EMA1-4 | ✅ LayerW/M/S |
+
+### Strategy Details
+
+- **`STRAT_1EMA_SLOPE`**: Signal based on single EMA slope direction (up/down/flat)
+- **`STRAT_2EMA_CROSS`**: Signal generated at EMA crossover point (one-bar signal)
+- **`STRAT_PRICE_CROSS`**: Signal generated when price crosses EMA (one-bar signal)
+- **`STRAT_2EMA_POSITION`**: Signal generated when position + slopes agree (continuous)
+- **`STRAT_4EMA_LAYER`**: Signal generated on pullback-recovery patterns in EMA zones
 
 ---
 

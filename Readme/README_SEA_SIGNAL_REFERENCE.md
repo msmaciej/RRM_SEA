@@ -60,11 +60,15 @@ flowchart TD
 ### Step 2: Evaluate Bias
 **Purpose:** Determine the PRIMARY trend direction (LONG/SHORT/NEUTRAL).
 * **BIAS_MANUAL:** Fixed operator direction.
-* **BIAS_2EMA:** Fast > Slow AND both slopes rising = LONG.
-* **BIAS_4EMA:** Uses EMA1=5, EMA2=13, EMA3=34, EMA4=89.
+* **BIAS_1EMA:** Single EMA slope direction (up=LONG, down=SHORT, flat=NEUTRAL).
+* **BIAS_2EMA:** Two EMAs crossover or position+slope validation.
+  * `STRAT_2EMA_CROSS`: Signal at cross point only (one-bar signal)
+  * `STRAT_PRICE_CROSS`: Signal when price crosses EMA (one-bar signal)
+  * `STRAT_2EMA_POSITION`: Continuous signal when Fast>Slow + slopes agree
+* **BIAS_4EMA:** Four EMAs phase detection. Uses EMA1=5, EMA2=13, EMA3=34, EMA4=89.
     * *TRENDING:* 3 of 3 layers agree on position + slope. (Bias = ±1)
     * *EMERGING:* 2 of 3 layers agree. (Bias = ±1)
-    * *UNORDERED:* < 2 layers agree. Bias forced to 0. 
+    * *UNORDERED:* < 2 layers agree. Bias forced to 0.
 
 ### Step 3: Evaluate LayerX ($Layer_{W}, Layer_{M}, Layer_{S}$)
 **Purpose:** Validate the local structural alignment for a specific pair of moving averages.
@@ -234,6 +238,14 @@ The signal evaluation pipeline has been drastically simplified:
 **Enum Clarity (v1.04):**
 - `BIAS_AUTO` renamed to `BIAS_2EMA` (2-EMA crossover)
 - `BIAS_AUTO_PHASE` renamed to `BIAS_4EMA` (4-EMA phase detection)
+
+**Enum Clarity (v1.05):**
+- `BIAS_1EMA` added (single EMA slope direction)
+- `STRAT_SINGLE_SLOPE` renamed to `STRAT_1EMA_SLOPE`
+- `STRAT_PAIR_CROSS` renamed to `STRAT_2EMA_CROSS`
+- `STRAT_POSITION_SLOPE` renamed to `STRAT_2EMA_POSITION`
+- `STRAT_LAYER_DETECTION` renamed to `STRAT_4EMA_LAYER`
+- `ValidateBiasStratCombo()` added to enforce valid combinations
 
 The formula is now purely multiplicative with clear OR logic for layers:
 ```

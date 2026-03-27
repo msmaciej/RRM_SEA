@@ -136,7 +136,7 @@ private:
 
    EEntryLayer  m_diag_last_entry_layer;  // 260304_PR4: Last detected entry layer
    bool         m_layer_allowed;          // 260304_PR7: Whether current entry layer is allowed in current phase
-   EEntryLayer  m_current_layer;          // Layer detected by STRAT_LAYER_DETECTION signal
+   EEntryLayer  m_current_layer;          // Layer detected by STRAT_4EMA_LAYER signal
 
    // --- 2c. KISS LAYER DIAGNOSTICS ---
    int         m_diag_layer_w;       // Last evaluated LayerW result (0/1)
@@ -1587,7 +1587,7 @@ public:
       // Initialize layer-allowed diagnostic
       m_layer_allowed = false;
 
-      // Initialize STRAT_LAYER_DETECTION layer
+      // Initialize STRAT_4EMA_LAYER layer
       m_current_layer = LAYER_NONE;
 
       m_diag_layer_w      = 0;
@@ -2875,9 +2875,9 @@ public:
    //    - PAIR: Fast > Slow AND both rising (LONG) or Fast < Slow AND both falling (SHORT)
    //    - NEUTRAL: Neither condition met -> REJECT
    // 3. AUTOSTRAT: Generate entry signal based on strategy
-   //    - STRAT_SINGLE_SLOPE: Single EMA direction
+   //    - STRAT_1EMA_SLOPE: Single EMA direction
    //    - STRAT_PRICE_CROSS: Price vs EMA
-   //    - STRAT_PAIR_CROSS: EMA crossover
+   //    - STRAT_2EMA_CROSS: EMA crossover
    // 4. SIGNAL VALIDATION: Entry signal must match bias
    // 5. HTF FILTER: Higher timeframe must agree with bias
    // 6. RRM GATES: Check pullback/divergence if enabled
@@ -3263,11 +3263,11 @@ public:
          // === STEP 2: Evaluate AutoStrat for Entry Signal ===
          int entry_signal = 0;
          
-         if(m_settings.AutoStrat == STRAT_SINGLE_SLOPE) {
+         if(m_settings.AutoStrat == STRAT_1EMA_SLOPE) {
             entry_signal = fast_slope;
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("STEP 2 ENTRY[%s]: STRAT_SINGLE_SLOPE %s slope=%d → signal=%d", TimeToString(bar_time), ema_fast_name, fast_slope, entry_signal);
+               PrintFormat("STEP 2 ENTRY[%s]: STRAT_1EMA_SLOPE %s slope=%d → signal=%d", TimeToString(bar_time), ema_fast_name, fast_slope, entry_signal);
             }
          }
          else if(m_settings.AutoStrat == STRAT_PRICE_CROSS) {
@@ -3285,7 +3285,7 @@ public:
                PrintFormat("STEP 2 ENTRY[%s]: STRAT_PRICE_CROSS %s price=%.5f ma=%.5f → signal=%d", TimeToString(bar_time), ema_fast_name, price, ma, entry_signal);
             }
          }
-         else if(m_settings.AutoStrat == STRAT_POSITION_SLOPE) {
+         else if(m_settings.AutoStrat == STRAT_2EMA_POSITION) {
             entry_signal = market_bias;
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
@@ -3295,7 +3295,7 @@ public:
                            TimeToString(bar_time), f_curr, s_curr, fast_slope, slow_slope, direction);
             }
          }
-         else if(m_settings.AutoStrat == STRAT_LAYER_DETECTION) {
+         else if(m_settings.AutoStrat == STRAT_4EMA_LAYER) {
             EEntryLayer layer = DetectLayerSignal(v_shift, market_bias);
             m_current_layer = layer;
             if(layer != LAYER_NONE) {
@@ -3308,11 +3308,11 @@ public:
             }
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               if(layer != LAYER_NONE) PrintFormat("STEP 2 ENTRY[%s]: STRAT_LAYER_DETECTION %s detected → signal=%d", TimeToString(bar_time), GetLayerName(layer), entry_signal);
-               else PrintFormat("STEP 2 ENTRY[%s]: STRAT_LAYER_DETECTION no layer → signal=0", TimeToString(bar_time));
+               if(layer != LAYER_NONE) PrintFormat("STEP 2 ENTRY[%s]: STRAT_4EMA_LAYER %s detected → signal=%d", TimeToString(bar_time), GetLayerName(layer), entry_signal);
+               else PrintFormat("STEP 2 ENTRY[%s]: STRAT_4EMA_LAYER no layer → signal=0", TimeToString(bar_time));
             }
          }
-         else {  // STRAT_PAIR_CROSS
+         else {  // STRAT_2EMA_CROSS
             double f_curr_cross = GetMAVal(hf, v_shift, 0);
             double f_prev_cross = GetMAVal(hf, v_shift + 1, 0);
             double s_curr_cross = GetMAVal(hs, v_shift, 0);
@@ -3347,13 +3347,13 @@ public:
                entry_signal = 0;
                if(m_settings.DebugFlow) {
                   datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-                  PrintFormat("STEP 2 ENTRY[%s]: STRAT_PAIR_CROSS no crossover → signal=0", TimeToString(bar_time));
+                  PrintFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS no crossover → signal=0", TimeToString(bar_time));
                }
             }
             
             if(m_settings.DebugFlow && has_crossover) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("STEP 2 ENTRY[%s]: STRAT_PAIR_CROSS %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
+               PrintFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
                            TimeToString(bar_time), ema_fast_name, ema_slow_name, f_prev_cross, s_prev_cross, f_curr_cross, s_curr_cross, entry_signal);
             }
          }
@@ -4337,7 +4337,7 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| STRAT_LAYER_DETECTION: Detect pullback-recovery layer(s)        |
+   //| STRAT_4EMA_LAYER: Detect pullback-recovery layer(s)        |
    //|                                                                  |
    //| 260308_PR: Returns a BITFIELD of all active layers so that      |
    //| simultaneous multi-layer signals (e.g. L1+L2) are captured.    |
