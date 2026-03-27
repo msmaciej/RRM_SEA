@@ -74,6 +74,13 @@ enum EAutoStrategy
    STRAT_2EMA_POSITION,    // ONLY for BIAS_2EMA: EMA position + slope confirmation (persistent bias)
    STRAT_4EMA_LAYER        // ONLY for BIAS_4EMA: four EMAs with LayerW/M/S pullback detection
 };
+enum EDebugLevel
+{
+   DEBUG_SILENT,      // DEBUG_SILENT: No per-bar output (statistics only at end)
+   DEBUG_SUMMARY,     // DEBUG_SUMMARY: Per-bar: signal result + rejection reason (1-2 lines)
+   DEBUG_INDICATORS,  // DEBUG_INDICATORS: Per-bar: indicator pass/fail + summary (20-30 lines)
+   DEBUG_FULL         // DEBUG_FULL: Everything: all internal steps + diagnostics (50+ lines)
+};
 enum EEmaRole
 {
    ROLE_EMA1,     // ROLE_EMA1: Fast EMA (5-period default) - L1_WEAK layer
@@ -141,6 +148,7 @@ enum EVolatilityRegime {
 //+------------------------------------------------------------------+
 //| CUSHION | TRAIL | SL | TP | BE | EXIT
 //+------------------------------------------------------------------+
+
 enum EPsarTrailCushionMode
 {
    PSAR_CUSHION_PIPS    // PSAR: Fixed pips cushion
@@ -564,6 +572,56 @@ struct ST_Settings
 // Global Configuration Instance
 ST_Settings Settings;
 
+
+//+------------------------------------------------------------------+
+//| Validate BiasMode and AutoStrat compatibility                    |
+//| Returns: true if combination is valid, false otherwise           |
+//+------------------------------------------------------------------+
+bool ValidateBiasStratCombo(EBiasMode bias, EAutoStrategy strat)
+{
+   switch(bias)
+   {
+      case BIAS_MANUAL:
+         return true; // Manual mode doesn't use AutoStrat
+
+      case BIAS_1EMA:
+         return (strat == STRAT_1EMA_SLOPE);
+
+      case BIAS_2EMA:
+         return (strat == STRAT_2EMA_CROSS_EMA ||
+                 strat == STRAT_2EMA_CROSS_PRICE ||
+                 strat == STRAT_2EMA_POSITION);
+
+      case BIAS_4EMA:
+         return (strat == STRAT_4EMA_LAYER);
+
+      default:
+         Print("[ERROR] Unknown BiasMode: ", EnumToString(bias));
+         return false;
+   }
+}
+
+
+// Returns human-readable description of active MACD configuration
+string GetMACDModeDescription(EMacdVoteMode mode, bool has_slope, bool has_div, bool has_hook)
+{
+   string base = "";
+   switch(mode) {
+      case MACD_ZERO_LINE:      base = "Main>0 (momentum zone)"; break;
+      case MACD_HISTOGRAM:      base = "Histogram>0 (acceleration)"; break;
+      case MACD_CROSSOVER:      base = "Main>Signal (shift)"; break;
+      case MACD_ZERO_AND_CROSS: base = "Main>0 AND Main>Signal (traditional)"; break;
+      case MACD_ZERO_AND_HIST:  base = "Main>0 AND Histogram>0 (strict)"; break;
+      case MACD_TRIPLE:         base = "Zero+Cross+Hist (ultra-strict)"; break;
+      case MACD_CROSSOVER_N:    base = "Fresh crossover (within N bars)"; break;
+      case MACD_ZERO_CROSS_N:   base = "Fresh zero cross (within N bars)"; break;
+   }
+   string filters = "";
+   if(has_slope) filters += " +SLOPE";
+   if(has_div)   filters += " +DIVERGENCE";
+   if(has_hook)  filters += " +HOOK";
+   return base + filters;
+}
 
 //+------------------------------------------------------------------+
 //| Validate BiasMode and AutoStrat compatibility                    |

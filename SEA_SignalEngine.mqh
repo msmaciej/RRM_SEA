@@ -2876,8 +2876,8 @@ public:
    //    - NEUTRAL: Neither condition met -> REJECT
    // 3. AUTOSTRAT: Generate entry signal based on strategy
    //    - STRAT_1EMA_SLOPE: Single EMA direction
-   //    - STRAT_PRICE_CROSS: Price vs EMA
-   //    - STRAT_2EMA_CROSS: EMA crossover
+   //    - STRAT_2EMA_CROSS_PRICE: Price vs EMA
+   //    - STRAT_2EMA_CROSS_EMA: EMA crossover
    // 4. SIGNAL VALIDATION: Entry signal must match bias
    // 5. HTF FILTER: Higher timeframe must agree with bias
    // 6. RRM GATES: Check pullback/divergence if enabled
@@ -3270,7 +3270,7 @@ public:
                PrintFormat("STEP 2 ENTRY[%s]: STRAT_1EMA_SLOPE %s slope=%d → signal=%d", TimeToString(bar_time), ema_fast_name, fast_slope, entry_signal);
             }
          }
-         else if(m_settings.AutoStrat == STRAT_PRICE_CROSS) {
+         else if(m_settings.AutoStrat == STRAT_2EMA_CROSS_PRICE) {
             if(m_settings.RequirePriceCross) {
                entry_signal = PriceCrossDirection(hf, v_shift);
             } else {
@@ -3282,7 +3282,7 @@ public:
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
                double ma    = GetMAVal(hf, v_shift, 0);
-               PrintFormat("STEP 2 ENTRY[%s]: STRAT_PRICE_CROSS %s price=%.5f ma=%.5f → signal=%d", TimeToString(bar_time), ema_fast_name, price, ma, entry_signal);
+               PrintFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_PRICE %s price=%.5f ma=%.5f → signal=%d", TimeToString(bar_time), ema_fast_name, price, ma, entry_signal);
             }
          }
          else if(m_settings.AutoStrat == STRAT_2EMA_POSITION) {
@@ -3312,7 +3312,7 @@ public:
                else PrintFormat("STEP 2 ENTRY[%s]: STRAT_4EMA_LAYER no layer → signal=0", TimeToString(bar_time));
             }
          }
-         else {  // STRAT_2EMA_CROSS
+         else {  // STRAT_2EMA_CROSS_EMA
             double f_curr_cross = GetMAVal(hf, v_shift, 0);
             double f_prev_cross = GetMAVal(hf, v_shift + 1, 0);
             double s_curr_cross = GetMAVal(hs, v_shift, 0);
@@ -3347,13 +3347,13 @@ public:
                entry_signal = 0;
                if(m_settings.DebugFlow) {
                   datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-                  PrintFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS no crossover → signal=0", TimeToString(bar_time));
+                  PrintFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_EMA no crossover → signal=0", TimeToString(bar_time));
                }
             }
             
             if(m_settings.DebugFlow && has_crossover) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
+               PrintFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_EMA %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
                            TimeToString(bar_time), ema_fast_name, ema_slow_name, f_prev_cross, s_prev_cross, f_curr_cross, s_curr_cross, entry_signal);
             }
          }
