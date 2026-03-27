@@ -320,7 +320,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       cfg.CloseOnReverse    = true;
       cfg.BiasEnabled       = true;
-      cfg.BiasMode          = BIAS_AUTO;
+      cfg.BiasMode          = BIAS_2EMA;
       cfg.AutoStrat         = STRAT_PRICE_CROSS;
       cfg.BiasFastID        = (int)ROLE_EMA1;
       cfg.BiasSlowID        = (int)ROLE_EMA1;
@@ -458,10 +458,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // PULLBACK DETECTION GATES
       // ================================================================
-      cfg.RequirePullback         = false;
-      cfg.PullbackLookback        = 0;
       cfg.RequireRecoveryMomentum = false;
-      cfg.Gate_UseMultiLayer      = false;
       cfg.LayerTouchTolerance     = 0.0;
       
       // Gate 2: Recovery momentum
@@ -573,7 +570,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    {
       // ================================================================
       // PRESET_RRM: Strict Trend Pullback Strategy
-      // - Bias: User-selectable (BIAS_AUTO or BIAS_AUTO_PHASE via Inp_BiasMode)
+      // - Bias: User-selectable (BIAS_2EMA or BIAS_4EMA via Inp_BiasMode)
       // - Entry: Layer detection (pullback-recovery on EMA zones)
       // - Votes: EMA ribbon + MACD + CCI + PSAR (4 votes, ALL must agree)
       // - ATR: Disabled for voting (Ind_Atr_Enabled = false)
@@ -605,10 +602,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // BIAS MODE ROUTING
       // ================================================================
-      if(cfg.BiasMode == BIAS_AUTO_PHASE)
+      if(cfg.BiasMode == BIAS_4EMA)
       {
          // ────────────────────────────────────────────────────────────
-         // BRANCH 1: BIAS_AUTO_PHASE (4-EMA Phase Detection)
+         // BRANCH 1: BIAS_4EMA (4-EMA Phase Detection)
          // Uses: EMA1(5), EMA2(13), EMA3(34), EMA4(89)
          // Logic: 3-layer hierarchical validation (TRENDING/EMERGING/UNORDERED)
          // AutoStrat: STRAT_LAYER_DETECTION (pullback-recovery on EMA zones)
@@ -623,10 +620,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.P_Ema4 = 89;
          cfg.MaxSpread = (mode == RRM_SCALP) ? 2.0 : 4.0;
       }
-      else  // BIAS_AUTO or BIAS_MANUAL
+      else  // BIAS_2EMA or BIAS_MANUAL
       {
          // ────────────────────────────────────────────────────────────
-         // BRANCH 2: BIAS_AUTO (Traditional 2-EMA Bias)
+         // BRANCH 2: BIAS_2EMA (Traditional 2-EMA Bias)
          // Sub-branches: RRM_SCALP vs RRM_SWING
          // ────────────────────────────────────────────────────────────
          
@@ -786,12 +783,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // PULLBACK DETECTION GATES
       // ================================================================
-      cfg.RequirePullback           = true;
-      cfg.PullbackLookback          = (_Period <= PERIOD_M5) ? 15 : 10;
       cfg.RequireRecoveryMomentum   = true;
-      
-      // ✅ FIX: Match multi-layer gate requirements to the base layer detection flag
-      cfg.Gate_UseMultiLayer        = cfg.EnableLayerDetection;
       cfg.LayerTouchTolerance       = 0.1;   // ORG: 0.01      
    
       // Gate 2: Recovery momentum
@@ -909,7 +901,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Flexible configuration for testing SimpleEA signal processing pipeline
       // - Multiple indicators enabled by default (admin can adjust as needed)
       // - All gates disabled (no filtering noise)
-      // - Simple bias: Position + Slope (BIAS_AUTO + STRAT_POSITION_SLOPE)
+      // - Simple bias: Position + Slope (BIAS_2EMA + STRAT_POSITION_SLOPE)
       // - Phase/layer detection OFF (focus on core voting logic)
       // - RRM protection enabled for safety during testing
       // - TF-adaptive exit management for multi-timeframe testing
@@ -924,7 +916,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       cfg.CloseOnReverse            = false;
       cfg.BiasEnabled               = true;
-      cfg.BiasMode                  = BIAS_AUTO;
+      cfg.BiasMode                  = BIAS_2EMA;
       cfg.AutoStrat                 = STRAT_POSITION_SLOPE;
       cfg.BiasFastID                = (int)ROLE_EMA3;
       cfg.BiasSlowID                = (int)ROLE_EMA4;
@@ -1068,10 +1060,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // PULLBACK DETECTION GATES (All disabled)
       // ================================================================
-      cfg.RequirePullback           = false;   // ORG: false
-      cfg.PullbackLookback          = 10;     // ORG: 0
       cfg.RequireRecoveryMomentum   = false;   // ORG: false
-      cfg.Gate_UseMultiLayer        = false;
       cfg.LayerTouchTolerance       = 0.0;
    
       // Gate 2: Recovery momentum

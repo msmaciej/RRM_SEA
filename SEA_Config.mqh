@@ -33,11 +33,11 @@ enum EMaMethod
 // --- BIAS MODE: how market direction is determined ---
 enum EBiasMode
 {
-   BIAS_MANUAL,      // BIAS_MANUAL: direction (LONG_ONLY, SHORT_ONLY, BOTH)
-   BIAS_AUTO,        // BIAS_AUTO: direction and slope (single or dual EMA)
-   BIAS_AUTO_PHASE   // BIAS_AUTO_PHASE: market phase bias (4-EMA structure → TRENDING/EMERGING/UNORDERED)
+   BIAS_MANUAL,   // User sets fixed direction (Long/Short/Both)
+   BIAS_2EMA,     // Two EMAs: Fast vs Slow crossover
+   BIAS_4EMA      // Four EMAs: Phase detection (TRENDING/EMERGING/UNORDERED)
 };
-// --- MARKET PHASE: used by BIAS_AUTO_PHASE (4-EMA structure analysis) ---
+// --- MARKET PHASE: used by BIAS_4EMA (4-EMA structure analysis) ---
 enum EMarketPhase {
    PHASE_UNORDERED,     // PHASE_UNO: block all trades (TS = 0)
    PHASE_EMERGING,      // PHASE_EM: Trend forming (EMA4 between EMA2/EMA3)
@@ -532,10 +532,7 @@ struct ST_Settings
    bool   RRM_TrailStartsAfterBE;   // RRM_Delay trail activation until BE is triggered
 
    // Gate system (reusable hard gates for any preset)
-   bool        RequirePullback;        // Dynamic structure pullback gate (replaces pip-based Gate_Pullback)
-   int         PullbackLookback;       // Bars to look back for pullback structure
    bool        RequireRecoveryMomentum;// Require recovery bar to close in trend direction
-   bool        Gate_UseMultiLayer;     // Enable multi-layer cascading EMA pullback detection (RRM standard)
    int         Vote_EvalShift;         // Shift for vote evaluation
    bool        Vote_AllowPsarFlip;     // Allow PSAR flip signal in votes
    
@@ -751,7 +748,7 @@ input group "║  🔧 STEP 1: Bias Calculation                           ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Step1_Info             = "Configure major trend detection"; // Info
 input bool           Inp_BiasEnabled            = true; // (CUSTOM; presets override)
-input EBiasMode      Inp_BiasMode               = BIAS_AUTO_PHASE; // (CUSTOM; presets override)
+input EBiasMode      Inp_BiasMode               = BIAS_4EMA; // Bias: Manual, 2-EMA, or 4-EMA (CUSTOM; presets override)
 input int            Inp_BiasFastID             = 2; // (CUSTOM; presets override)
 input int            Inp_BiasSlowID             = 3; // (CUSTOM; presets override)
 input EManualSide    Inp_ManualSide             = SIDE_BOTH; // (CUSTOM; presets override)
@@ -778,11 +775,6 @@ input group "╔═════════════════════�
 input group "║  🔧 STEP 5: Structure Gate (Pullback)                  ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Step5_Info             = "KISS pipeline (v1.04+): LayerX (position+slope) + EmaSigX (price close) replaced pullback detection"; // Info
-input bool           Inp_Gate_UseMultiLayer     = false; // (DEPRECATED v1.04+; presets override)
-// Inp_Gate_RequirePullback and Inp_Gate_PullbackLookback are deprecated (KISS refactor v1.04+)
-// The KISS pipeline (EvaluateLayerX + EvaluateEmaSigX) replaces dynamic pullback detection.
-input bool           Inp_Gate_RequirePullback   = false; // (DEPRECATED v1.04+; no longer used)
-input int            Inp_Gate_PullbackLookback  = 15; // (DEPRECATED v1.04+; no longer used)
 input bool           Inp_Gate_RequireRecoveryMomentum = false; // (CUSTOM; presets override)
 input int            Inp_RRM_Lookback           = 5; // (CUSTOM; presets override)
 input double         Inp_RRM_MinDivPips         = 0.5; // (CUSTOM; presets override)
@@ -1174,10 +1166,7 @@ void InitializeConfig()
 
    Settings.RRM_Lookback               = Inp_RRM_Lookback;
    Settings.RRM_MinDivPips             = Inp_RRM_MinDivPips;
-   Settings.RequirePullback            = Inp_Gate_RequirePullback;
-   Settings.PullbackLookback           = Inp_Gate_PullbackLookback;
    Settings.RequireRecoveryMomentum    = Inp_Gate_RequireRecoveryMomentum;
-   Settings.Gate_UseMultiLayer         = Inp_Gate_UseMultiLayer;
    
    Settings.Gate_Recovery.mode         = GATE_SCALE_OFF;
    Settings.Gate_Recovery.value        = 0.0;
