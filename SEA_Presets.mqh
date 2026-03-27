@@ -608,9 +608,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          // BRANCH 1: BIAS_4EMA (4-EMA Phase Detection)
          // Uses: EMA1(5), EMA2(13), EMA3(34), EMA4(89)
          // Logic: 3-layer hierarchical validation (TRENDING/EMERGING/UNORDERED)
-         // AutoStrat: STRAT_LAYER_DETECTION (pullback-recovery on EMA zones)
+         // AutoStrat: STRAT_4EMA_LAYER (pullback-recovery on EMA zones)
          // ────────────────────────────────────────────────────────────
-         cfg.AutoStrat  = STRAT_LAYER_DETECTION;
+         cfg.AutoStrat  = STRAT_4EMA_LAYER;
          cfg.BiasFastID = (int)ROLE_EMA3;
          cfg.BiasSlowID = (int)ROLE_EMA4;
          
@@ -632,9 +632,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
             // ························································
             // SUB-BRANCH 2A: RRM_SCALP (M1/M5/M15 timeframes)
             // Bias: EMA34 vs EMA89 (slower pair for stable bias)
-            // Entry: STRAT_PAIR_CROSS (crossover-based entries)
+            // Entry: STRAT_2EMA_CROSS (crossover-based entries)
             // ························································
-            cfg.AutoStrat  = STRAT_POSITION_SLOPE;
+            cfg.AutoStrat  = STRAT_2EMA_POSITION;
             cfg.BiasFastID = (int)ROLE_EMA1;
             cfg.BiasSlowID = (int)ROLE_EMA2;
             
@@ -649,10 +649,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
             // ························································
             // SUB-BRANCH 2B: RRM_SWING (H1+ timeframes)
             // Bias: EMA34 vs EMA89 (stable trend direction)
-            // Entry: STRAT_PAIR_CROSS (crossover-based entries)
+            // Entry: STRAT_2EMA_CROSS (crossover-based entries)
             // Full 4-EMA structure: EMA5/13/34/89 for layer detection
             // ························································
-            cfg.AutoStrat  = STRAT_POSITION_SLOPE;
+            cfg.AutoStrat  = STRAT_2EMA_POSITION;
             cfg.BiasFastID = (int)ROLE_EMA3;
             cfg.BiasSlowID = (int)ROLE_EMA4;
             
@@ -766,7 +766,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PhaseDetectionEnabled      = true;
       
       // ✅ FIX: Only enable strict layer touch evaluation if the strategy requires it
-      cfg.EnableLayerDetection       = (cfg.AutoStrat == STRAT_LAYER_DETECTION);
+      cfg.EnableLayerDetection       = (cfg.AutoStrat == STRAT_4EMA_LAYER);
       
       cfg.BlockUnorderedPhase        = true;
       cfg.RequireMinPhaseConfirm     = true;
@@ -901,7 +901,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Flexible configuration for testing SimpleEA signal processing pipeline
       // - Multiple indicators enabled by default (admin can adjust as needed)
       // - All gates disabled (no filtering noise)
-      // - Simple bias: Position + Slope (BIAS_2EMA + STRAT_POSITION_SLOPE)
+      // - Simple bias: Position + Slope (BIAS_2EMA + STRAT_2EMA_POSITION)
       // - Phase/layer detection OFF (focus on core voting logic)
       // - RRM protection enabled for safety during testing
       // - TF-adaptive exit management for multi-timeframe testing
@@ -917,7 +917,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CloseOnReverse            = false;
       cfg.BiasEnabled               = true;
       cfg.BiasMode                  = BIAS_2EMA;
-      cfg.AutoStrat                 = STRAT_POSITION_SLOPE;
+      cfg.AutoStrat                 = STRAT_2EMA_POSITION;
       cfg.BiasFastID                = (int)ROLE_EMA3;
       cfg.BiasSlowID                = (int)ROLE_EMA4;
       cfg.MaType                    = METHOD_EMA;
