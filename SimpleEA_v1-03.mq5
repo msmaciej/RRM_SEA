@@ -53,7 +53,7 @@ CTradeExecutor Executor;
 // --- UI/Reporting compatibility globals (previously built in old presets logic)
 EEmaStrategy g_effectiveEmaStrategy = EMA_STRAT_1_PRICE_CROSS;
 EMaMethod    g_effectiveMaType      = METHOD_EMA;
-EBiasMode    g_effectiveBiasMode    = BIAS_AUTO;
+EBiasMode    g_effectiveBiasMode    = BIAS_2EMA;
 string       g_effectiveSigNote     = "";
 string       g_effectiveDirSource   = "";
 
@@ -329,9 +329,9 @@ void ValidateConfiguration()
    // (Admin override section removed)
 
    // Warn if phase detection enabled but BiasMode is not AUTO_PHASE
-   if(Settings.PhaseDetectionEnabled && Settings.BiasMode != BIAS_AUTO_PHASE) {
+   if(Settings.PhaseDetectionEnabled && Settings.BiasMode != BIAS_4EMA) {
       Print("WARNING: PhaseDetection=true but BiasMode != AUTO_PHASE");
-      Print("   Phase detection only works with BIAS_AUTO_PHASE");
+      Print("   Phase detection only works with BIAS_4EMA");
       has_warnings = true;
    }
 

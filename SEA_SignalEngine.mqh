@@ -138,12 +138,13 @@ private:
    bool         m_layer_allowed;          // 260304_PR7: Whether current entry layer is allowed in current phase
    EEntryLayer  m_current_layer;          // Layer detected by STRAT_LAYER_DETECTION signal
 
-   // --- 2c. STRUCTURE GATE DIAGNOSTICS ---
-   int         m_active_layer;       // Active EMA layer (1/2/3/0=none)
-   bool        m_pullback_found;     // Was a pullback detected?
-   int         m_pullback_bar;       // Bar index of pullback extreme
-   double      m_pullback_extreme;   // Price at pullback extreme
-   bool        m_recovery_detected;  // Was recovery detected?
+   // --- 2c. KISS LAYER DIAGNOSTICS ---
+   int         m_diag_layer_w;       // Last evaluated LayerW result (0/1)
+   int         m_diag_layer_m;       // Last evaluated LayerM result (0/1)
+   int         m_diag_layer_s;       // Last evaluated LayerS result (0/1)
+   int         m_diag_emasig_w;      // Last evaluated EmaSigW result (0/1)
+   int         m_diag_emasig_m;      // Last evaluated EmaSigM result (0/1)
+   int         m_diag_emasig_s;      // Last evaluated EmaSigS result (0/1)
 
    // --- 2d. REJECTION STATISTICS ---
    int         m_bars_evaluated;     // Total bars evaluated by EvaluateTS()
@@ -1398,194 +1399,6 @@ private:
       return 0;
    }
 
-   // HARD GATE 1: Dynamic structure-based pullback detection (no pip thresholds)
-   // Single-layer: 5-level check (1) current reclaimed, (2) pullback found, (3) prior trend,
-   //               (4) optional momentum, (5) comprehensive logging
-   // Multi-layer:  Recovery-based detection — (1) EMA-alignment layer selection, (2) pullback extreme,
-   //               (3) recovery started, (4) optional momentum, (5) layer intact at extreme
-   bool Check_Gate_DynamicPullback(const int bias)
-   {
-      if(!m_settings.RequirePullback) return true;
-
-      // Reset structure diagnostics
-      m_active_layer      = 0;
-      m_pullback_found    = false;
-      m_pullback_bar      = 0;
-      m_pullback_extreme  = 0.0;
-      m_recovery_detected = false;
-
-      int lookback = m_settings.PullbackLookback;
-
-      // === MULTI-LAYER MODE (RRM standard) ===
-      if(m_settings.Gate_UseMultiLayer)
-      {
-         // Step 1: Determine active layer by EMA alignment only (no price-position requirement).
-         // This allows recovery detection even when price is still in the pullback zone.
-         double e1 = GetMAVal(h_ema1, 1);
-         double e2 = GetMAVal(h_ema2, 1);
-         double e3 = GetMAVal(h_ema3, 1);
-         double e4 = GetMAVal(h_ema4, 1);
-
-         int    active_layer = 0;
-         int    fast_handle  = INVALID_HANDLE, slow_handle = INVALID_HANDLE;
-         string layer_name   = "";
-         int    fast_period  = 0, slow_period = 0;
-
-         if(bias == -1)  // SHORT: fast EMA must be below slow EMA
-         {
-            if(e1 < e2)      { active_layer = 1; fast_handle = h_ema1; slow_handle = h_ema2; layer_name = "EMA1-EMA2"; fast_period = m_settings.P_Ema1; slow_period = m_settings.P_Ema2; }
-            else if(e2 < e3) { active_layer = 2; fast_handle = h_ema2; slow_handle = h_ema3; layer_name = "EMA2-EMA3"; fast_period = m_settings.P_Ema2; slow_period = m_settings.P_Ema3; }
-            else if(e3 < e4) { active_layer = 3; fast_handle = h_ema3; slow_handle = h_ema4; layer_name = "EMA3-EMA4"; fast_period = m_settings.P_Ema3; slow_period = m_settings.P_Ema4; }
-         }
-         else             // LONG: fast EMA must be above slow EMA
-         {
-            if(e1 > e2)      { active_layer = 1; fast_handle = h_ema1; slow_handle = h_ema2; layer_name = "EMA1-EMA2"; fast_period = m_settings.P_Ema1; slow_period = m_settings.P_Ema2; }
-            else if(e2 > e3) { active_layer = 2; fast_handle = h_ema2; slow_handle = h_ema3; layer_name = "EMA2-EMA3"; fast_period = m_settings.P_Ema2; slow_period = m_settings.P_Ema3; }
-            else if(e3 > e4) { active_layer = 3; fast_handle = h_ema3; slow_handle = h_ema4; layer_name = "EMA3-EMA4"; fast_period = m_settings.P_Ema3; slow_period = m_settings.P_Ema4; }
-         }
-
-         m_active_layer = active_layer;
-
-         if(active_layer == 0)
-         {
-            m_diag_last_reason = "DYN_PB_NO_VALID_LAYER";
-            if(m_settings.DebugFlow)
-               Print("DYN_PULLBACK: No valid EMA layer (all layers broken) → REJECT");
-            return false;
-         }
-
-         // Step 2: Find pullback extreme — bar in [2..lookback] with most price movement against bias
-         int    extreme_bar   = -1;
-         double extreme_price = 0;
-
-         for(int i = 2; i <= lookback; i++)
-         {
-            if(bias == -1)  // SHORT: pullback is price rising — find highest high
-            {
-               double hi = iHigh(m_symbol, PERIOD_CURRENT, i);
-               if(extreme_bar == -1 || hi > extreme_price) { extreme_bar = i; extreme_price = hi; }
-            }
-            else            // LONG: pullback is price falling — find lowest low
-            {
-               double lo = iLow(m_symbol, PERIOD_CURRENT, i);
-               if(extreme_bar == -1 || lo < extreme_price) { extreme_bar = i; extreme_price = lo; }
-            }
-         }
-
-         if(extreme_bar == -1)
-         {
-            m_diag_last_reason = "DYN_PB_NOT_FOUND_" + layer_name;
-            return false;
-         }
-
-         m_pullback_found   = true;
-         m_pullback_bar     = extreme_bar;
-         m_pullback_extreme = extreme_price;
-
-         // Step 3: Verify recovery started — current bar has moved back from pullback extreme
-         double curr_close       = iClose(m_symbol, PERIOD_CURRENT, 1);
-         bool   recovery_started = (bias == -1) ? (curr_close < extreme_price) : (curr_close > extreme_price);
-         m_recovery_detected = recovery_started;
-         if(!recovery_started)
-         {
-            m_diag_last_reason = "DYN_PB_NO_RECOVERY_" + layer_name;
-            return false;
-         }
-
-         // Step 4: Optional momentum — current candle closes in bias direction
-         if(m_settings.RequireRecoveryMomentum)
-         {
-            double bar1_open    = iOpen(m_symbol, PERIOD_CURRENT, 1);
-            bool   has_momentum = (bias == 1) ? (curr_close > bar1_open) : (curr_close < bar1_open);
-            if(!has_momentum)
-            {
-               m_diag_last_reason = "DYN_PB_NO_MOMENTUM_" + layer_name;
-               return false;
-            }
-         }
-
-         // Step 5: Validate layer intact at extreme bar (EMAs still aligned at pullback peak)
-         double fast_at_extreme = GetMAVal(fast_handle, extreme_bar);
-         double slow_at_extreme = GetMAVal(slow_handle, extreme_bar);
-         bool   layer_intact    = (bias == 1) ? (fast_at_extreme > slow_at_extreme) : (fast_at_extreme < slow_at_extreme);
-         if(!layer_intact)
-         {
-            m_diag_last_reason = "DYN_PB_LAYER_BROKEN_" + layer_name;
-            return false;
-         }
-
-         if(m_settings.DebugFlow)
-            PrintFormat("DYN_PULLBACK[bias=%d]: Layer%d (%s: %d-%d periods) extreme_bar=%d recovery=YES layer_intact=YES → PASS",
-                        bias, active_layer, layer_name, fast_period, slow_period, extreme_bar);
-
-         return true;
-      }
-
-      // === SINGLE-LAYER MODE (fallback for other presets) ===
-      int hf = BiasFastHandle();
-
-      // Level 1: Current bar is with the trend (price has reclaimed the EMA)
-      double ema1   = GetMAVal(hf, 1);
-      double close1 = iClose(m_symbol, PERIOD_CURRENT, 1);
-      bool reclaimed = (bias == 1) ? (close1 > ema1) : (close1 < ema1);
-      if(!reclaimed)
-      {
-         m_diag_last_reason = "DYN_PB_NOT_RECLAIMED";
-         return false;
-      }
-
-      // Level 2: Pullback found — any bar in lookback window touched the EMA
-      int pb_bar = 0;
-      for(int i = 2; i <= lookback + 1; i++)
-      {
-         double ema  = GetMAVal(hf, i);
-         double low  = iLow(m_symbol,  PERIOD_CURRENT, i);
-         double high = iHigh(m_symbol, PERIOD_CURRENT, i);
-         if(bias == 1  && low  <= ema) { pb_bar = i; break; }
-         if(bias == -1 && high >= ema) { pb_bar = i; break; }
-      }
-      if(pb_bar == 0)
-      {
-         m_diag_last_reason = "DYN_PB_NOT_FOUND";
-         return false;
-      }
-
-      m_pullback_found   = true;
-      m_pullback_bar     = pb_bar;
-      m_pullback_extreme = (bias == 1) ? iLow(m_symbol, PERIOD_CURRENT, pb_bar) : iHigh(m_symbol, PERIOD_CURRENT, pb_bar);
-      m_recovery_detected = true; // reclaimed = recovery confirmed in single-layer mode
-
-      // Level 3: Prior trend verified — EMA was sloping with trend before pullback
-      double ema_pb   = GetMAVal(hf, pb_bar);
-      double ema_prev = GetMAVal(hf, pb_bar + 1);
-      bool prior_trend = (bias == 1) ? (ema_pb >= ema_prev) : (ema_pb <= ema_prev);
-      if(!prior_trend)
-      {
-         m_diag_last_reason = "DYN_PB_NO_PRIOR_TREND";
-         return false;
-      }
-
-      // Level 4: Optional momentum — recovery bar closes in trend direction
-      if(m_settings.RequireRecoveryMomentum)
-      {
-         double open1 = iOpen(m_symbol, PERIOD_CURRENT, 1);
-         bool momentum = (bias == 1) ? (close1 > open1) : (close1 < open1);
-         if(!momentum)
-         {
-            m_diag_last_reason = "DYN_PB_NO_MOMENTUM";
-            return false;
-         }
-      }
-
-      // Level 5: Log structure found
-      if(m_settings.DebugFlow)
-         PrintFormat("DYN_PULLBACK[bias=%d]: reclaimed=YES pb_bar=%d prior_trend=YES%s → PASS",
-                     bias, pb_bar,
-                     m_settings.RequireRecoveryMomentum ? " momentum=YES" : "");
-
-      return true;
-   }
-
    //==========================================================================
    // KISS: EvaluateLayerX — Structural alignment check (position + slope)
    // Returns 1 if the EMA pair is aligned with bias, 0 otherwise.
@@ -1702,7 +1515,7 @@ public:
 
       // 5. Build Final Output String
       // Logic: If we aren't using 4-EMA Phase logic, don't show "UNORDERED"
-      bool show_phase = (m_settings.BiasMode == BIAS_AUTO_PHASE);
+      bool show_phase = (m_settings.BiasMode == BIAS_4EMA);
       
       string final_ui = StringFormat("BIAS%s | %s\n%s", 
                                      bias_sym, 
@@ -1777,11 +1590,12 @@ public:
       // Initialize STRAT_LAYER_DETECTION layer
       m_current_layer = LAYER_NONE;
 
-      m_active_layer      = 0;
-      m_pullback_found    = false;
-      m_pullback_bar      = 0;
-      m_pullback_extreme  = 0.0;
-      m_recovery_detected = false;
+      m_diag_layer_w      = 0;
+      m_diag_layer_m      = 0;
+      m_diag_layer_s      = 0;
+      m_diag_emasig_w     = 0;
+      m_diag_emasig_m     = 0;
+      m_diag_emasig_s     = 0;
 
       m_bars_evaluated    = 0;
       m_signals_generated = 0;
@@ -1870,12 +1684,13 @@ public:
       return false;
    }
 
-   // Structure gate diagnostics
-   int    ActiveLayer()       const { return m_active_layer; }
-   bool   PullbackFound()     const { return m_pullback_found; }
-   int    PullbackBar()       const { return m_pullback_bar; }
-   double PullbackExtreme()   const { return m_pullback_extreme; }
-   bool   RecoveryDetected()  const { return m_recovery_detected; }
+   // KISS layer diagnostic getters
+   int    DiagLayerW()        const { return m_diag_layer_w; }
+   int    DiagLayerM()        const { return m_diag_layer_m; }
+   int    DiagLayerS()        const { return m_diag_layer_s; }
+   int    DiagEmaSigW()       const { return m_diag_emasig_w; }
+   int    DiagEmaSigM()       const { return m_diag_emasig_m; }
+   int    DiagEmaSigS()       const { return m_diag_emasig_s; }
 
    // Rejection statistics
    int    BarsEvaluated()     const { return m_bars_evaluated; }
@@ -1922,16 +1737,10 @@ public:
                            m_settings.P_Ema3, e3, (price - e3) / pip,
                            m_settings.P_Ema4, e4, (price - e4) / pip);
 
-      // Structure gate status (only shown when gate is active)
-      if(m_settings.RequirePullback)
-      {
-         string layer_str = (m_active_layer > 0 ? StringFormat("L%d", m_active_layer) : "NONE");
-         string pb_str    = (m_pullback_found
-                             ? StringFormat("bar[%d]@%.5f", m_pullback_bar, m_pullback_extreme)
-                             : "NONE");
-         string rec_str   = (m_recovery_detected ? "YES" : "NO");
-         diag += StringFormat("Layer=%s PB=%s Recov=%s\n", layer_str, pb_str, rec_str);
-      }
+      // KISS Layer status (always shown)
+      diag += StringFormat("LayerW=%d LayerM=%d LayerS=%d | EmaSigW=%d EmaSigM=%d EmaSigS=%d\n",
+                           m_diag_layer_w, m_diag_layer_m, m_diag_layer_s,
+                           m_diag_emasig_w, m_diag_emasig_m, m_diag_emasig_s);
 
       // Rejection statistics for this session
       diag += StringFormat("Stats: eval=%d sig=%d rejF=%d rejB=%d rejG=%d rejV=%d",
@@ -3327,12 +3136,12 @@ public:
       double f_curr = GetMAVal(hf, v_shift, 0);
       double s_curr = GetMAVal(hs, v_shift, 0);
       
-      if(m_settings.BiasMode == BIAS_AUTO_PHASE)
+      if(m_settings.BiasMode == BIAS_4EMA)
       {
          bias = GetBias_PhaseBased(v_shift);
          if(m_settings.DebugFlow) {
             datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-            PrintFormat("STEP 1 BIAS[%s]: BIAS_AUTO_PHASE mode → bias=%d", TimeToString(bar_time), bias);
+            PrintFormat("STEP 1 BIAS[%s]: BIAS_4EMA mode → bias=%d", TimeToString(bar_time), bias);
          }
          str_B = (bias != 0) ? "+" : "POS";
          
@@ -3660,9 +3469,24 @@ public:
       }
       if(m_settings.DebugFlow) Print("STEP 4 EMASIG: Active layer confirmed → PASS");
 
+      // Determine active setup type and store KISS diagnostics
+      string active_setup = "";
+      if(layer_w == 1 && emasig_w == 1)       active_setup = "LayerW (Weak/Ribbon) - Shallow pullback EMA1/2";
+      else if(layer_m == 1 && emasig_m == 1)  active_setup = "LayerM (Medium/Ghost) - Medium pullback EMA2/3";
+      else if(layer_s == 1 && emasig_s == 1)  active_setup = "LayerS (Strong/Shark) - Deep pullback EMA3/4";
+
+      // Store KISS layer/emasig results for diagnostics
+      m_diag_layer_w  = layer_w;
+      m_diag_layer_m  = layer_m;
+      m_diag_layer_s  = layer_s;
+      m_diag_emasig_w = emasig_w;
+      m_diag_emasig_m = emasig_m;
+      m_diag_emasig_s = emasig_s;
+
+      // Enhanced KISS diagnostic log
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-         PrintFormat("[KISS] Bias=%d | LayerW=%d LayerM=%d LayerS=%d | EmaSigW=%d EmaSigM=%d EmaSigS=%d",
-                     bias, layer_w, layer_m, layer_s, emasig_w, emasig_m, emasig_s);
+         PrintFormat("[KISS] Setup: %s | Bias=%d | Layers: W=%d M=%d S=%d | EmaSig: W=%d M=%d S=%d",
+                     active_setup, bias, layer_w, layer_m, layer_s, emasig_w, emasig_m, emasig_s);
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -4184,7 +4008,7 @@ public:
       if(!m_settings.PhaseDetectionEnabled)
       {
          if(m_settings.DebugFlow)
-            Print("[260304_BIAS] ERROR: BIAS_AUTO_PHASE selected but PhaseDetectionEnabled=false");
+            Print("[260304_BIAS] ERROR: BIAS_4EMA selected but PhaseDetectionEnabled=false");
          return 0;  // No bias - configuration error
       }
       

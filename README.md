@@ -6,6 +6,27 @@ SimpleEA is a professional-grade Expert Advisor for MetaTrader 5 implementing a 
 
 ---
 
+## 📊 Signal Evaluation Formula
+
+The EA uses a strict multiplicative formula:
+```
+TS = Bias × (LayerW × EmaSigW OR LayerM × EmaSigM OR LayerS × EmaSigS) × Indicators × Filters
+```
+
+When using **BIAS_4EMA**, the system can detect **3 types of trade setups**:
+- **LayerW (Weak/Ribbon)**: Shallow pullback to EMA1/2 zone
+- **LayerM (Medium/Ghost)**: Medium pullback to EMA2/3 zone  
+- **LayerS (Strong/Shark)**: Deep pullback to EMA3/4 zone
+
+Only **ONE** layer needs to be active and confirmed for a trade signal.
+
+**Bias Modes:**
+- **BIAS_MANUAL:** Fixed operator direction (Long/Short/Both)
+- **BIAS_2EMA:** Two EMAs — Fast vs Slow crossover
+- **BIAS_4EMA:** Four EMAs — Phase detection (TRENDING/EMERGING/UNORDERED)
+
+---
+
 ## 🗺️ Canonical Documentation Map
 The system architecture has been refactored into focused, authoritative files. Start here:
 

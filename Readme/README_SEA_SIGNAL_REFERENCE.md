@@ -60,8 +60,8 @@ flowchart TD
 ### Step 2: Evaluate Bias
 **Purpose:** Determine the PRIMARY trend direction (LONG/SHORT/NEUTRAL).
 * **BIAS_MANUAL:** Fixed operator direction.
-* **BIAS_AUTO (2-EMA):** Fast > Slow AND both slopes rising = LONG.
-* **BIAS_AUTO_PHASE (4-EMA):** Uses EMA1=5, EMA2=13, EMA3=34, EMA4=89.
+* **BIAS_2EMA:** Fast > Slow AND both slopes rising = LONG.
+* **BIAS_4EMA:** Uses EMA1=5, EMA2=13, EMA3=34, EMA4=89.
     * *TRENDING:* 3 of 3 layers agree on position + slope. (Bias = ±1)
     * *EMERGING:* 2 of 3 layers agree. (Bias = ±1)
     * *UNORDERED:* < 2 layers agree. Bias forced to 0. 
@@ -80,6 +80,30 @@ Instead of tracking dynamic wicks, the engine simply checks if the target EMA pa
 
 ### Step 5 & 6: Gates, Indicators, and Filters
 Each ENABLED indicator calls its `Check_XXX(bias, shift)` function. The system enforcing a multiplicative unanimous agreement. Disabled indicators automatically return $1$. If all active equations pass, the final TS is approved and stored in `g_ts_active`.
+
+### The Three Trade Setups (BIAS_4EMA Mode)
+
+When using 4-EMA bias detection, the system evaluates **3 potential setups simultaneously**:
+
+1. **LayerW × EmaSigW (Weak/Ribbon Setup)**
+   - Structural check: EMA1 vs EMA2 position + slope aligned
+   - Trigger: Close beyond EMA1 (fast EMA)
+   - Characteristics: Shallow pullback, fastest entry, lower risk
+   - Example (LONG): EMA1 > EMA2, both rising, Close > EMA1
+
+2. **LayerM × EmaSigM (Medium/Ghost Setup)**
+   - Structural check: EMA2 vs EMA3 position + slope aligned
+   - Trigger: Close beyond EMA2
+   - Characteristics: Medium pullback, balanced risk/reward
+   - Example (LONG): EMA2 > EMA3, both rising, Close > EMA2
+
+3. **LayerS × EmaSigS (Strong/Shark Setup)**
+   - Structural check: EMA3 vs EMA4 position + slope aligned
+   - Trigger: Close beyond EMA3
+   - Characteristics: Deep pullback, highest confirmation, higher risk
+   - Example (LONG): EMA3 > EMA4, both rising, Close > EMA3
+
+**Important**: Only **ONE** of these three setups needs to be active to generate a trade signal. The system takes the first active setup that passes all filters.
 
 ---
 
@@ -193,24 +217,29 @@ The UI renders these as a vertical audit list within the Cockpit panel, providin
 
 ## KISS Refactor Notes (v1.04+)
 
-The signal evaluation pipeline has been simplified to remove indicator lag and complexity.
+The signal evaluation pipeline has been drastically simplified:
 
-**What was removed:**
-- 1% wick touch tolerance calculations
-- Historical bar scanning for pullback extremes (`Check_Gate_DynamicPullback`)
+**What was removed (v1.04):**
+- Dynamic pullback detection with 1% wick touch tolerance (~300 lines)
+- Historical bar scanning for pullback extremes
 - Complex recovery detection state machines
-- `RequirePullback` / `PullbackLookback` configuration flags (deprecated)
+- Phase-layer filtering logic
+- Pullback state tracking variables (`RequirePullback`, `PullbackLookback`, `Gate_UseMultiLayer`)
 
 **What replaced it:**
-- **LayerX** (`EvaluateLayerX`): Pure structural alignment check (position + slope)
-- **EmaSigX** (`EvaluateEmaSigX`): Simple price close confirmation
-- **Result**: Faster execution, clearer logic, easier to understand
+- **EvaluateLayerX()**: Pure structural alignment (position + slope) per EMA pair
+- **EvaluateEmaSigX()**: Simple price close confirmation beyond fast EMA
+- **Result**: ~500 lines of dead code removed, clearer logic, faster execution
 
-The formula is now purely multiplicative:
+**Enum Clarity (v1.04):**
+- `BIAS_AUTO` renamed to `BIAS_2EMA` (2-EMA crossover)
+- `BIAS_AUTO_PHASE` renamed to `BIAS_4EMA` (4-EMA phase detection)
+
+The formula is now purely multiplicative with clear OR logic for layers:
 ```
-TS = Bias × LayerX × EmaSigX × IndicatorX × FilterX
+TS = Bias × (LayerW × EmaSigW OR LayerM × EmaSigM OR LayerS × EmaSigS) × Indicators × Filters
 ```
-Any factor returning 0 immediately stops the pipeline.
+Any Bias=0 or all layers=0 immediately stops the pipeline.
 
 ### Step 3 Detail: EvaluateLayerX
 Each layer checks two conditions for the selected EMA pair:

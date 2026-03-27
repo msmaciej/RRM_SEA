@@ -498,8 +498,6 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
    AddLine(StringFormat("BIAS:     %s", EnumToString(Settings.BiasMode)), v_clr, lines, line_clrs);
    AddLine(StringFormat("EMAS:     %s", SEA_UI_BiasEmaLabel(Settings)), v_clr, lines, line_clrs);
    AddLine(StringFormat("RIBBON:   %d/%d/%d/%d", Settings.P_Ema1, Settings.P_Ema2, Settings.P_Ema3, Settings.P_Ema4), v_clr, lines, line_clrs);
-   AddLine(StringFormat("PULLBACK: %s", SEA_UI_OnOff(Settings.RequirePullback)), v_clr, lines, line_clrs);
-   AddLine(StringFormat("M-LAYER:  %s", SEA_UI_OnOff(Settings.Gate_UseMultiLayer)), v_clr, lines, line_clrs);
    AddLine("", (color)0, lines, line_clrs); // Spacer
    
    // --- ZONE 3: ENVIRONMENT AUDIT ---
