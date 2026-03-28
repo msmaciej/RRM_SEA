@@ -11,11 +11,11 @@ SimpleEA handles execution dynamically. All cushion and buffer values auto-adjus
 
 The Signal Engine evaluates the core KISS equation on the **CLOSED candle (shift=1)** to eliminate lag and false triggers. The entry logic is decoupled into structural alignment and price action triggers:
 
-$$TS = Bias \times Layer_{X} \times EmaSig_{X} \times \prod_{i=1}^{n} Ind_{i} \times \prod_{j=1}^{m} Filter_{j}$$
+$$TS = Bias \times Layer_{X} \times bc_{X} \times \prod_{i=1}^{n} Ind_{i} \times \prod_{j=1}^{m} Filter_{j}$$
 
 * **Bias:** The master directional permission (1 = Long, -1 = Short, 0 = Neutral).
 * **LayerX ($Layer_W, Layer_M, Layer_S$):** Validates the structural alignment. Evaluates to 1 ONLY if the specific EMA pair's position and slope agree with the Bias.
-* **EmaSigX ($EmaSig_W, EmaSig_M, EmaSig_S$):** The precise price action trigger. Evaluates to 1 ONLY if the closed candle body successfully crosses or closes beyond the fast EMA of that active layer.
+* **bcX ($bc_W, bc_M, bc_S$):** The precise price action trigger (Bar Close confirmation). Evaluates to 1 ONLY if the closed candle body successfully crosses or closes beyond the fast EMA of that active layer.
 
 If a setup passes this strict multiplicative consensus, it is stored in the global queue (`g_ts_active = 1` or `-1`) precisely at `shift=1`. The Trade Executor then handles the *physical* execution with the broker strictly on `shift=0` (the open tick).
 

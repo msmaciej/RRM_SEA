@@ -156,7 +156,6 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("    CI:      ", (cfg.Ind_CI_Enabled ? "✓" : "✗"));
    Print("    VRC:     ", (cfg.Ind_VRC_Enabled ? "✓" : "✗"));
    Print("    CCI:     ", (cfg.Ind_Cci_Enabled ? "✓" : "✗"));
-   Print("    EmaSig:  ", (cfg.Ind_EmaSig_Enabled ? "✓" : "✗"));
    Print("    MACD:    ", (cfg.Ind_Macd_Enabled ? "✓" : "✗"), (cfg.Ind_Macd_Enabled ? " (" + EnumToString(cfg.MacdVoteMode) + ")" : ""));
    Print("    MFI:     ", (cfg.Ind_Mfi_Enabled ? "✓" : "✗"));
    Print("    P123:    ", (cfg.Ind_P123_Enabled ? "✓" : "✗"));
@@ -339,9 +338,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
       // ================================================================
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
-      // NOTE: EmaSig is DEPRECATED and replaced by BarClose (bcX component).
-      //       EmaSig indicator voting is disabled in all presets.
-      //       Use BarClose settings to control price-position gating.
       // ================================================================
       cfg.Ind_Adx_Enabled        = false;
       cfg.Ind_Atr_Enabled        = false;
@@ -350,7 +346,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_CI_Enabled         = false;
       cfg.Ind_VRC_Enabled        = false;
       cfg.Ind_Cci_Enabled        = false;
-      cfg.Ind_EmaSig_Enabled     = false; // ✅ Replaced by bcX (BarClose component)
       cfg.Ind_Macd_Enabled       = false;
       cfg.Ind_Mfi_Enabled        = false;
       cfg.Ind_P123_Enabled       = false;
@@ -700,9 +695,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
       // ================================================================
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
-      // NOTE: EmaSig is DEPRECATED and replaced by BarClose (bcX component).
-      //       EmaSig indicator voting is disabled in all presets.
-      //       Use BarClose settings to control price-position gating.
       // ================================================================
       cfg.Ind_Adx_Enabled           = false;
       cfg.Ind_Atr_Enabled           = false;
@@ -711,7 +703,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_CI_Enabled            = false;
       cfg.Ind_VRC_Enabled           = false; // Enable ranging market protection
       cfg.Ind_Cci_Enabled           = false;
-      cfg.Ind_EmaSig_Enabled        = false; // ✅ Replaced by bcX (BarClose component)
       cfg.Ind_Macd_Enabled          = true;
       cfg.Ind_Mfi_Enabled           = false;
       cfg.Ind_P123_Enabled          = false;
@@ -991,9 +982,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       
       // ================================================================
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
-      // NOTE: EmaSig is DEPRECATED and replaced by BarClose (bcX component).
-      //       EmaSig indicator voting is disabled in all presets.
-      //       Use BarClose settings to control price-position gating.
       // Multiple indicators enabled for comprehensive EA testing
       // Admin can disable/enable as needed via individual inputs
       // ================================================================
@@ -1004,7 +992,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_CI_Enabled            = false;
       cfg.Ind_VRC_Enabled           = false;
       cfg.Ind_Cci_Enabled           = true;
-      cfg.Ind_EmaSig_Enabled        = false; // ✅ Replaced by bcX (BarClose component)
       cfg.Ind_Macd_Enabled          = true;
       cfg.Ind_Mfi_Enabled           = false;
       cfg.Ind_P123_Enabled          = false;
