@@ -975,7 +975,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CloseOnReverse            = false;
       cfg.BiasEnabled               = true;
       cfg.BiasMode                  = BIAS_2EMA;
-      cfg.AutoStrat                 = STRAT_2EMA_POSITION;
+      cfg.AutoStrat                 = STRAT_2EMA_CROSS_PRICE;  // ✅ Compatible with BIAS_2EMA
       cfg.BiasFastID                = (int)ROLE_EMA3;
       cfg.BiasSlowID                = (int)ROLE_EMA4;
       cfg.MaType                    = METHOD_EMA;
