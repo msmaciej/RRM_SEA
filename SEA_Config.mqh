@@ -358,7 +358,6 @@ struct ST_Settings
 
    // Per-indicator weights (1 = standard; only used in VOTE_MODE_THRESHOLD for weighted sum)
    // In VOTE_MODE_ALL, weights are ignored — all enabled indicators must simply agree.
-   int Ind_EmaSig_Weight;
    int Ind_Adx_Weight;
    int Ind_Macd_Weight;
    int Ind_Rsi_Weight;
@@ -437,7 +436,6 @@ struct ST_Settings
    EBbMode    BbMode;
 
    // Active Votes
-   bool Ind_EmaSig_Enabled;
    bool Ind_Adx_Enabled;
    bool Ind_Macd_Enabled;
    bool Ind_Rsi_Enabled;
@@ -794,7 +792,7 @@ input group "║  🔧 STEP 2: Entry Signal                               ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Step2_Info             = "Entry - Configure entry timing strategy"; // Info
 input EAutoStrategy  Inp_AutoStrat              = STRAT_2EMA_POSITION; // Entry AutoStrat (CUSTOM; presets override)
-input double         Inp_LayerTolerance         = 0.01; // Entry Layer Tolerance (DEPRECATED v1.04+: KISS refactor removed wick-touch tolerance; see EvaluateLayerX/EvaluateEmaSigX)
+input double         Inp_LayerTolerance         = 0.01; // Entry Layer Tolerance (DEPRECATED v1.04+: KISS refactor removed wick-touch tolerance; see EvaluateLayerX/EvaluateBcX)
 input bool           Inp_RRM_EnableInCustom     = false; // Entry RRM Enable In Custom (CUSTOM only)
 input bool           Inp_CloseOnReverse         = false; // Entry Close On REverse (CUSTOM; presets may override)
 
@@ -809,7 +807,7 @@ input EEmaRole       Inp_BarClose_DefaultEMA    = ROLE_EMA1; // [bcX] EMA to che
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🔧 STEP 5: Structure Gate (Pullback)                  ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input string         Inp_Step5_Info             = "KISS pipeline (v1.04+): LayerX (position+slope) + EmaSigX (price close) replaced pullback detection"; // Info
+input string         Inp_Step5_Info             = "KISS pipeline (v1.04+): LayerX (position+slope) + bcX (price close) replaced pullback detection"; // Info
 input bool           Inp_Gate_RequireRecoveryMomentum = false; // RRM Gate (CUSTOM; presets override)
 input int            Inp_RRM_Lookback           = 5; // RRM Lookback (CUSTOM; presets override)
 input double         Inp_RRM_MinDivPips         = 0.5; // RRM MinDivPips (CUSTOM; presets override)
@@ -819,13 +817,6 @@ input group "║  🔧 STEP 6: Voting Configuration                       ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_Step6_Info             = "Voting - Configure multi-indicator consensus (ALL enabled must pass)"; // Info
 input bool           Inp_VoteMode_All           = true; // VOTE All (CUSTOM; presets override)
-
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📊 EmaSig (Price vs EMA position)                     ║";
-input group "╚════════════════════════════════════════════════════════╝";
-input string         Inp_Ind_EmaSig_Info        = "EmaSig - Price position vs EMA1"; // [EmaSig] Description
-input bool           Inp_Ind_EmaSig_Enabled     = true; // [EmaSig] Enable EMA signal vote
-input int            Inp_Ind_EmaSig_Weight      = 1; // [EmaSig] Vote weight
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 ADX (Trend Strength Filter)                        ║";
@@ -1274,7 +1265,6 @@ void InitializeConfig()
    Settings.MfiMode              = Inp_Ind_Mfi_Mode;
 
    // Active votes
-   Settings.Ind_EmaSig_Enabled   = Inp_Ind_EmaSig_Enabled;
    Settings.Ind_Adx_Enabled      = Inp_Ind_Adx_Enabled;
    Settings.Ind_Macd_Enabled     = Inp_Ind_Macd_Enabled;
    Settings.Ind_Rsi_Enabled      = Inp_Ind_Rsi_Enabled;
@@ -1291,7 +1281,6 @@ void InitializeConfig()
    Settings.Ind_VRC_Enabled       = Inp_Ind_VRC_Enabled;
 
    // Weights
-   Settings.Ind_EmaSig_Weight    = Inp_Ind_EmaSig_Weight;
    Settings.Ind_Adx_Weight       = Inp_Ind_Adx_Weight;
    Settings.Ind_Macd_Weight      = Inp_Ind_Macd_Weight;
    Settings.Ind_Rsi_Weight       = Inp_Ind_Rsi_Weight;
@@ -1489,13 +1478,6 @@ void InitializeIndicatorRegistry(const ST_Settings &cfg)
    g_indicator_registry[i].prefers_subwindow = true;
    i++;
 
-   g_indicator_registry[i].name       = "EmaSig";
-   g_indicator_registry[i].short_name = "EmaSig";
-   g_indicator_registry[i].is_enabled = cfg.Ind_EmaSig_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_EmaSig_Weight;
-   g_indicator_registry[i].prefers_subwindow = false;
-   i++;
-   
    g_indicator_registry[i].name       = "MACD";
    g_indicator_registry[i].short_name = "MACD";
    g_indicator_registry[i].is_enabled = cfg.Ind_Macd_Enabled;
@@ -1564,7 +1546,6 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
    if(cfg.Ind_CandleBody_Enabled) count++;
    if(cfg.Ind_CI_Enabled)         count++;
    if(cfg.Ind_Cci_Enabled)        count++;
-   if(cfg.Ind_EmaSig_Enabled)     count++;
    if(cfg.Ind_Macd_Enabled)       count++;
    if(cfg.Ind_Mfi_Enabled)        count++;
    if(cfg.Ind_P123_Enabled)       count++;
@@ -1581,17 +1562,17 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
 //+------------------------------------------------------------------+
 string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 {
-   string names[]  = {"ADX", "ATR", "BB", "CandleBody", "Choppiness Index", "CCI", "EmaSig", "MACD",
+   string names[]  = {"ADX", "ATR", "BB", "CandleBody", "Choppiness Index", "CCI", "MACD",
                       "MFI", "P123", "PSAR", "Ross", "RSI", "Stochastic", "VRC"};
-   string shorts[] = {"ADX", "ATR", "BB", "CBody", "CI", "CCI", "EmaSig", "MACD",
+   string shorts[] = {"ADX", "ATR", "BB", "CBody", "CI", "CCI", "MACD",
                       "MFI", "P123", "PSAR", "Ross", "RSI", "Stoch", "VRC"};
    bool enabled[]  = {cfg.Ind_Adx_Enabled, cfg.Ind_Atr_Enabled, cfg.Ind_Bb_Enabled,
                       cfg.Ind_CandleBody_Enabled, cfg.Ind_CI_Enabled, cfg.Ind_Cci_Enabled,
-                      cfg.Ind_EmaSig_Enabled, cfg.Ind_Macd_Enabled, cfg.Ind_Mfi_Enabled,
+                      cfg.Ind_Macd_Enabled, cfg.Ind_Mfi_Enabled,
                       cfg.Ind_P123_Enabled, cfg.Ind_Psar_Enabled, cfg.Ind_Ross_Enabled,
                       cfg.Ind_Rsi_Enabled, cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled};
    string list = "";
-   for(int i = 0; i < 15; i++)
+   for(int i = 0; i < 14; i++)
    {
       if(!enabled[i]) continue;
       if(list != "") list += compact ? ", " : "\n  + ";

@@ -10,7 +10,7 @@ SimpleEA is a professional-grade Expert Advisor for MetaTrader 5 implementing a 
 
 The EA uses a strict multiplicative formula:
 ```
-TS = Bias × (LayerW × EmaSigW OR LayerM × EmaSigM OR LayerS × EmaSigS) × Indicators × Filters
+TS = Bias × (LayerW × bcW OR LayerM × bcM OR LayerS × bcS) × Indicators × Filters
 ```
 
 When using **BIAS_4EMA**, the system can detect **3 types of trade setups**:

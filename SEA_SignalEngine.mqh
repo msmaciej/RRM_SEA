@@ -80,7 +80,6 @@ struct SRejectionStats {
    int passed_layer_blocked,rejected_layer_blocked;
 
    // Directional indicators (passed + rejected)
-   int passed_emasig,  rejected_emasig;
    int passed_macd,    rejected_macd;
    int passed_psar,    rejected_psar;
    int passed_cci,     rejected_cci;
@@ -143,9 +142,6 @@ private:
    int         m_diag_layer_w;       // Last evaluated LayerW result (0/1)
    int         m_diag_layer_m;       // Last evaluated LayerM result (0/1)
    int         m_diag_layer_s;       // Last evaluated LayerS result (0/1)
-   int         m_diag_emasig_w;      // Last evaluated EmaSigW result (0/1)
-   int         m_diag_emasig_m;      // Last evaluated EmaSigM result (0/1)
-   int         m_diag_emasig_s;      // Last evaluated EmaSigS result (0/1)
 
    // --- 2d. REJECTION STATISTICS ---
    int         m_bars_evaluated;     // Total bars evaluated by EvaluateTS()
@@ -186,7 +182,6 @@ private:
    int      m_eval_layer_m;              // LayerM alignment result (0/1) set by EvaluateLayerX
    int      m_eval_layer_s;              // LayerS alignment result (0/1) set by EvaluateLayerX
    // Per-indicator results (set by EvaluateIndicatorX, read by TS_SUMMARY in EvaluateTS)
-   bool     m_eval_ind_res_emasig;
    bool     m_eval_ind_res_adx;
    bool     m_eval_ind_res_macd;
    bool     m_eval_ind_res_rsi;
@@ -411,8 +406,6 @@ private:
    //+------------------------------------------------------------------+
    //| Check_BarClose(): Layer-aware price position gate                |
    //|                                                                  |
-   //| REPLACES: EmaSig indicator voting (deprecated)                   |
-   //|                                                                  |
    //| LAYER-AWARE BEHAVIOR:                                            |
    //|   LayerW → Checks price vs EMA1 (fast layer boundary)           |
    //|   LayerM → Checks price vs EMA2 (medium layer boundary)         |
@@ -631,19 +624,6 @@ private:
       }
 
       return is_trending;
-   }
-
-   //+------------------------------------------------------------------+
-   // Check_EMA: EMA Recovery (Price vs EMA1)
-   //+------------------------------------------------------------------+
-   bool Check_EMA1(int bias, int shift) {
-      double p = iClose(m_symbol, PERIOD_CURRENT, shift);
-      double e = GetMAVal(h_ema1, shift);
-      bool result = (bias == 1) ? (p > e) : (p < e);
-      if(m_settings.DebugFlow)
-         PrintFormat("[IND_EMASIG] ENABLED | Price=%.5f EMA=%.5f | Result: %s",
-                     p, e, result ? "PASS" : "FAIL");
-      return result;
    }
 
    //+------------------------------------------------------------------+
@@ -1602,34 +1582,7 @@ private:
    }
 
    //==========================================================================
-   // CheckEmaSigByLayer — Price close confirmation (momentum resumption)
-   // Returns 1 if the closed candle closes beyond the fast EMA of the layer.
-   // layer_type: 1=LayerW (EMA1), 2=LayerM (EMA2), 3=LayerS (EMA3)
-   //==========================================================================
-   int CheckEmaSigByLayer(int bias, int layer_type)
-   {
-      int h_fast = INVALID_HANDLE;
-
-      switch(layer_type)
-      {
-         case 1: h_fast = h_ema1; break;
-         case 2: h_fast = h_ema2; break;
-         case 3: h_fast = h_ema3; break;
-         default: return 0;
-      }
-
-      double ema_fast = GetMAVal(h_fast, 1);
-      double close    = iClose(m_symbol, PERIOD_CURRENT, 1);
-
-      if(bias == 1  && close > ema_fast) return 1;
-      else if(bias == -1 && close < ema_fast) return 1;
-
-      return 0;
-   }
-
-   //==========================================================================
    // Eval_BarClose — Wrapper: delegates to Check_BarClose() (handle-based access)
-   // Replaces EvaluateEmaSigX when BarClose_Enabled=true.
    // layer_id: LAYER_1_WEAK / LAYER_2_MEDIUM / LAYER_3_STRONG
    //==========================================================================
    int Eval_BarClose(int v_shift, int bias, int layer_id)
@@ -1757,9 +1710,6 @@ public:
       m_diag_layer_w      = 0;
       m_diag_layer_m      = 0;
       m_diag_layer_s      = 0;
-      m_diag_emasig_w     = 0;
-      m_diag_emasig_m     = 0;
-      m_diag_emasig_s     = 0;
 
       m_bars_evaluated    = 0;
       m_signals_generated = 0;
@@ -1852,9 +1802,6 @@ public:
    int    DiagLayerW()        const { return m_diag_layer_w; }
    int    DiagLayerM()        const { return m_diag_layer_m; }
    int    DiagLayerS()        const { return m_diag_layer_s; }
-   int    DiagEmaSigW()       const { return m_diag_emasig_w; }
-   int    DiagEmaSigM()       const { return m_diag_emasig_m; }
-   int    DiagEmaSigS()       const { return m_diag_emasig_s; }
 
    // Rejection statistics
    int    BarsEvaluated()     const { return m_bars_evaluated; }
@@ -1902,9 +1849,8 @@ public:
                            m_settings.P_Ema4, e4, (price - e4) / pip);
 
       // KISS Layer status (always shown)
-      diag += StringFormat("LayerW=%d LayerM=%d LayerS=%d | EmaSigW=%d EmaSigM=%d EmaSigS=%d\n",
-                           m_diag_layer_w, m_diag_layer_m, m_diag_layer_s,
-                           m_diag_emasig_w, m_diag_emasig_m, m_diag_emasig_s);
+      diag += StringFormat("LayerW=%d LayerM=%d LayerS=%d\n",
+                           m_diag_layer_w, m_diag_layer_m, m_diag_layer_s);
 
       // Rejection statistics for this session
       diag += StringFormat("Stats: eval=%d sig=%d rejF=%d rejB=%d rejG=%d rejV=%d",
@@ -1977,10 +1923,6 @@ public:
       reasons[idx].name = "CCI";
       reasons[idx].count = m_stats.rejected_cci;
       reasons[idx++].pct = m_stats.rejected_cci * 100.0 / m_stats.total_bars;
-
-      reasons[idx].name = "EmaSig";
-      reasons[idx].count = m_stats.rejected_emasig;
-      reasons[idx++].pct = m_stats.rejected_emasig * 100.0 / m_stats.total_bars;
 
       reasons[idx].name = "RSI";
       reasons[idx].count = m_stats.rejected_rsi;
@@ -2110,7 +2052,6 @@ public:
       Print("================================================================");
       PrintFormat("%-14s %-8s %7s %7s %7s   %-12s %s", "Indicator", "Status", "Passed", "Failed", "Pass%", "Agreement", "Impact");
       Print("----------------------------------------------------------------");
-      PrintIndicatorStat("EmaSig",     m_settings.Ind_EmaSig_Enabled, m_stats.passed_emasig, m_stats.rejected_emasig);
       PrintIndicatorStat("MACD",       m_settings.Ind_Macd_Enabled,   m_stats.passed_macd,   m_stats.rejected_macd);
       PrintIndicatorStat("PSAR",       m_settings.Ind_Psar_Enabled,   m_stats.passed_psar,   m_stats.rejected_psar);
       PrintIndicatorStat("CCI",        m_settings.Ind_Cci_Enabled,    m_stats.passed_cci,    m_stats.rejected_cci);
@@ -2188,7 +2129,6 @@ public:
       if(m_stats.rejected_phase > 0)          { bn[idx].name="Phase=UNORD";    bn[idx].rejected=m_stats.rejected_phase;         bn[idx++].pct=m_stats.rejected_phase*100.0/m_stats.total_bars; }
       if(m_stats.rejected_layer_none > 0)     { bn[idx].name="Layer=NONE";     bn[idx].rejected=m_stats.rejected_layer_none;    bn[idx++].pct=m_stats.rejected_layer_none*100.0/m_stats.total_bars; }
       if(m_stats.rejected_layer_blocked > 0)  { bn[idx].name="Layer blocked";  bn[idx].rejected=m_stats.rejected_layer_blocked; bn[idx++].pct=m_stats.rejected_layer_blocked*100.0/m_stats.total_bars; }
-      if(m_settings.Ind_EmaSig_Enabled && m_stats.rejected_emasig > 0) { bn[idx].name="EmaSig";    bn[idx].rejected=m_stats.rejected_emasig; bn[idx++].pct=m_stats.rejected_emasig*100.0/m_stats.total_bars; }
       if(m_settings.Ind_Macd_Enabled   && m_stats.rejected_macd   > 0) { bn[idx].name="MACD";      bn[idx].rejected=m_stats.rejected_macd;   bn[idx++].pct=m_stats.rejected_macd*100.0/m_stats.total_bars; }
       if(m_settings.Ind_Psar_Enabled   && m_stats.rejected_psar   > 0) { bn[idx].name="PSAR";      bn[idx].rejected=m_stats.rejected_psar;   bn[idx++].pct=m_stats.rejected_psar*100.0/m_stats.total_bars; }
       if(m_settings.Ind_Cci_Enabled    && m_stats.rejected_cci    > 0) { bn[idx].name="CCI";       bn[idx].rejected=m_stats.rejected_cci;    bn[idx++].pct=m_stats.rejected_cci*100.0/m_stats.total_bars; }
@@ -2233,7 +2173,6 @@ public:
          Print("");
       }
       string worst_ind = ""; int worst_cnt = 0;
-      if(m_settings.Ind_EmaSig_Enabled && m_stats.rejected_emasig > worst_cnt) { worst_cnt=m_stats.rejected_emasig; worst_ind="EmaSig"; }
       if(m_settings.Ind_Macd_Enabled   && m_stats.rejected_macd   > worst_cnt) { worst_cnt=m_stats.rejected_macd;   worst_ind="MACD"; }
       if(m_settings.Ind_Psar_Enabled   && m_stats.rejected_psar   > worst_cnt) { worst_cnt=m_stats.rejected_psar;   worst_ind="PSAR"; }
       if(m_settings.Ind_Cci_Enabled    && m_stats.rejected_cci    > worst_cnt) { worst_cnt=m_stats.rejected_cci;    worst_ind="CCI"; }
@@ -2264,23 +2203,10 @@ public:
    {
       int shift = m_settings.ma_v_shift;
       count = 0;
-      ArrayResize(out, 16); // 15 possible indicators + 1 spare
+      ArrayResize(out, 15); // 14 possible indicators + 1 spare
       
       // We use the EXACT same shift used for the numerical calculation
       int v_shift = m_settings.Vote_EvalShift;
-
-      if(m_settings.Ind_EmaSig_Enabled && h_ema1 != INVALID_HANDLE)
-      {
-         double p = iClose(m_symbol, PERIOD_CURRENT, shift);
-         double e = GetMAVal(h_ema1, shift);
-         out[count].name    = "EmaSig";
-         out[count].enabled = true;
-         if(p > e)      { out[count].state = "BUY";  out[count].reason = "(price>EMA1)"; }
-         else if(p < e) { out[count].state = "SELL"; out[count].reason = "(price<EMA1)"; }
-         else           { out[count].state = "FLAT"; out[count].reason = "(price=EMA1)"; }
-         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
-         count++;
-      }
 
       if(m_settings.Ind_Adx_Enabled && h_adx != INVALID_HANDLE)
       {
@@ -3570,7 +3496,6 @@ public:
 
    // ─────────────────────────────────────────────────────────────────────────
    // EvaluateBcX — KISS Component: Bar close confirmation (bcX)
-   // REPLACES: EmaSig indicator voting (deprecated, disabled in all presets).
    // Uses m_eval_layer_{w/m/s} from EvaluateLayerX to check active layers only.
    // Layer-aware: LayerW→EMA1, LayerM→EMA2, LayerS→EMA3
    // Returns 1 if at least one active layer has its bar close confirmed, 0 otherwise.
@@ -3581,9 +3506,6 @@ public:
       if(!m_settings.EnableLayerDetection || m_settings.BiasMode != BIAS_4EMA)
       {
          int bc_result = Eval_BarClose(v_shift, bias, LAYER_NONE);
-         m_diag_emasig_w = bc_result;
-         m_diag_emasig_m = bc_result;
-         m_diag_emasig_s = bc_result;
 
          if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
             PrintFormat("[KISS] Step4 bcX=%d (non-layer mode, bias=%d, mode=%s)",
@@ -3608,22 +3530,17 @@ public:
       int bc_m = (m_eval_layer_m == 1) ? Eval_BarClose(v_shift, bias, LAYER_2_MEDIUM) : 1;
       int bc_s = (m_eval_layer_s == 1) ? Eval_BarClose(v_shift, bias, LAYER_3_STRONG) : 1;
 
-      // Keep emasig aliases for diagnostic/UI compatibility
-      int emasig_w = bc_w;
-      int emasig_m = bc_m;
-      int emasig_s = bc_s;
-
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
          PrintFormat("[KISS] Step4 bcW=%d bcM=%d bcS=%d (bias=%d, mode=%s)",
                      bc_w, bc_m, bc_s, bias, EnumToString(m_settings.BarClose_Mode));
       }
 
       // At least one active layer must have its bcX confirmed
-      bool emasig_any = ((m_eval_layer_w == 1 && emasig_w == 1) ||
-                         (m_eval_layer_m == 1 && emasig_m == 1) ||
-                         (m_eval_layer_s == 1 && emasig_s == 1));
+      bool bc_any = ((m_eval_layer_w == 1 && bc_w == 1) ||
+                     (m_eval_layer_m == 1 && bc_m == 1) ||
+                     (m_eval_layer_s == 1 && bc_s == 1));
 
-      if(!emasig_any) {
+      if(!bc_any) {
          m_diag_last_reason = "BC_NOT_CONFIRMED";
          m_reject_gate++;
          if(m_settings.DebugFlow) Print("STEP 4 BCX: No active layer close confirmed → REJECT");
@@ -3634,14 +3551,10 @@ public:
 
       // Determine active setup type and store KISS diagnostics
       string active_setup = "";
-      if(m_eval_layer_w == 1 && emasig_w == 1)       active_setup = "LayerW (Weak/Ribbon) - Shallow pullback EMA1/2";
-      else if(m_eval_layer_m == 1 && emasig_m == 1)  active_setup = "LayerM (Medium/Ghost) - Medium pullback EMA2/3";
-      else if(m_eval_layer_s == 1 && emasig_s == 1)  active_setup = "LayerS (Strong/Shark) - Deep pullback EMA3/4";
-      else                                            active_setup = "None (no active layer confirmed)";
-
-      m_diag_emasig_w = emasig_w;
-      m_diag_emasig_m = emasig_m;
-      m_diag_emasig_s = emasig_s;
+      if(m_eval_layer_w == 1 && bc_w == 1)       active_setup = "LayerW (Weak/Ribbon) - Shallow pullback EMA1/2";
+      else if(m_eval_layer_m == 1 && bc_m == 1)  active_setup = "LayerM (Medium/Ghost) - Medium pullback EMA2/3";
+      else if(m_eval_layer_s == 1 && bc_s == 1)  active_setup = "LayerS (Strong/Shark) - Deep pullback EMA3/4";
+      else                                        active_setup = "None (no active layer confirmed)";
 
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
          PrintFormat("[KISS] Setup: %s | Bias=%d | Layers: W=%d M=%d S=%d | bcX: W=%d M=%d S=%d",
@@ -3671,7 +3584,6 @@ public:
             else { all_pass = false; stat_rej_field++; } \
          }
 
-      CAST_VOTE_STAT(m_settings.Ind_EmaSig_Enabled, m_settings.Ind_EmaSig_Weight, Check_EMA1(bias, v_shift), m_stats.rejected_emasig, m_stats.passed_emasig)
       CAST_VOTE_STAT(m_settings.Ind_Adx_Enabled,    m_settings.Ind_Adx_Weight,    Check_ADX(v_shift),        m_stats.rejected_adx, m_stats.passed_adx)
       CAST_VOTE_STAT(m_settings.Ind_Macd_Enabled,   m_settings.Ind_Macd_Weight,   Check_MACD(bias, v_shift), m_stats.rejected_macd, m_stats.passed_macd)
       CAST_VOTE_STAT(m_settings.Ind_Rsi_Enabled,    m_settings.Ind_Rsi_Weight,    Check_RSI(bias, v_shift),  m_stats.rejected_rsi, m_stats.passed_rsi)
@@ -3695,7 +3607,6 @@ public:
 
       // Calculate string telemetry for Indicators
       int s_enabled=0, s_passed=0;
-      if(m_settings.Ind_EmaSig_Enabled) { s_enabled++; if(Check_EMA1(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_Adx_Enabled)    { s_enabled++; if(Check_ADX(v_shift)) s_passed++; }
       if(m_settings.Ind_Macd_Enabled)   { s_enabled++; if(Check_MACD(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_Rsi_Enabled)    { s_enabled++; if(Check_RSI(bias, v_shift)) s_passed++; }
@@ -3714,13 +3625,12 @@ public:
       m_diag_last_votes = (int)MathRound(vote_weight);
 
       // Per-indicator results for diagnostic logging
-      bool _res_emasig=false, _res_adx=false, _res_macd=false, _res_rsi=false,
+      bool _res_adx=false, _res_macd=false, _res_rsi=false,
            _res_cci=false, _res_mfi=false, _res_sto=false, _res_bb=false,
            _res_psar=false, _res_p123=false, _res_ross=false;
 
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGIN =====
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-         if(m_settings.Ind_EmaSig_Enabled) _res_emasig = Check_EMA1(bias, v_shift);
          if(m_settings.Ind_Adx_Enabled)    _res_adx    = Check_ADX(v_shift);
          if(m_settings.Ind_Macd_Enabled)   _res_macd   = Check_MACD(bias, v_shift);
          if(m_settings.Ind_Rsi_Enabled)    _res_rsi    = Check_RSI(bias, v_shift);
@@ -3736,13 +3646,6 @@ public:
             string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
             PrintFormat("[IND] --- Indicators (mode=%s bias=%d weight=%.2f) ---",
                         mode_str, bias, vote_weight);
-
-            if(m_settings.Ind_EmaSig_Enabled) {
-               double p = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-               double e = GetMAVal(h_ema1, v_shift);
-               PrintFormat("[IND] EmaSig: price=%.5f ema=%.5f → %s (w=%d)",
-                           p, e, _res_emasig ? "PASS" : "FAIL", m_settings.Ind_EmaSig_Weight);
-            } else Print("[IND] EmaSig: DISABLED → SKIP");
 
             if(m_settings.Ind_Adx_Enabled) {
                double adx = GetVal(h_adx, v_shift);
@@ -3851,7 +3754,6 @@ public:
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: END =====
 
       // Store results for TS_SUMMARY diagnostic block in EvaluateTS()
-      m_eval_ind_res_emasig = _res_emasig;
       m_eval_ind_res_adx    = _res_adx;
       m_eval_ind_res_macd   = _res_macd;
       m_eval_ind_res_rsi    = _res_rsi;
@@ -4081,7 +3983,6 @@ public:
 
          // INDICATORS SECTION
          int s_enabled=0, s_disabled=0, s_passed=0;
-         if(m_settings.Ind_EmaSig_Enabled) s_enabled++; else s_disabled++;
          if(m_settings.Ind_Adx_Enabled)    s_enabled++; else s_disabled++;
          if(m_settings.Ind_Macd_Enabled)   s_enabled++; else s_disabled++;
          if(m_settings.Ind_Rsi_Enabled)    s_enabled++; else s_disabled++;
@@ -4096,11 +3997,6 @@ public:
          PrintFormat("INDICATORS (%d enabled, %d disabled):", s_enabled, s_disabled);
 
          string saved_reason = m_diag_last_reason;
-
-         if(m_settings.Ind_EmaSig_Enabled) {
-            PrintFormat("  %s EmaSig", m_eval_ind_res_emasig ? "✅" : "❌");
-            if(m_eval_ind_res_emasig) s_passed++;
-         } else Print("  ⏭️  EmaSig: disabled");
 
          if(m_settings.Ind_Adx_Enabled) {
             PrintFormat("  %s ADX", m_eval_ind_res_adx ? "✅" : "❌");

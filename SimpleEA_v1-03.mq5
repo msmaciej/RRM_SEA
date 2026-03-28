@@ -493,7 +493,6 @@ int OrchestrateInit()
 
       Print("VOTING MODE: ", (Settings.VoteMode == VOTE_MODE_ALL ? "ALL (pure multiplicative)" : "THRESHOLD"));
       int enabled_count = 0;
-      if(Settings.Ind_EmaSig_Enabled) { Print("  + EmaSig"); enabled_count++; }
       if(Settings.Ind_Macd_Enabled)   { Print("  + MACD");   enabled_count++; }
       if(Settings.Ind_Psar_Enabled)   { Print("  + PSAR");   enabled_count++; }
       if(Settings.Ind_Cci_Enabled)    { Print("  + CCI");    enabled_count++; }
@@ -1034,13 +1033,11 @@ void PrintSignalEfficiency()
    Print("  └─ When bias ≠ 0:");
 
    // Build a list of enabled indicators with their pass counts
-   // Array size = total supported indicator slots (15: EmaSig,MACD,PSAR,CCI,RSI,ADX,MFI,Sto,BB,P123,Ross,CandleBody,CI,VRC,ATR)
+   // Array size = total supported indicator slots (14: MACD, PSAR, CCI, RSI, ADX, MFI, Sto, BB, P123, Ross, CandleBody, CI, VRC, ATR)
    struct SIndEntry { string name; int passed; };
-   SIndEntry inds[15];
+   SIndEntry inds[14];
    int ind_count = 0;
 
-   if(Settings.Ind_EmaSig_Enabled)
-      { inds[ind_count].name = "EmaSig";     inds[ind_count++].passed = st.passed_emasig; }
    if(Settings.Ind_Macd_Enabled)
       { inds[ind_count].name = "MACD";       inds[ind_count++].passed = st.passed_macd; }
    if(Settings.Ind_Psar_Enabled)

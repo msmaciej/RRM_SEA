@@ -7,7 +7,7 @@ The Signal Engine evaluates **EVERY condition on the CLOSED candle** (shift=1, t
 
 The core system uses a strict multiplicative formula where unanimous agreement is required. Based on the KISS architecture, the core equation is:
 
-$$TS = Bias \times Layer_{X} \times EmaSig_{X} \times \prod_{i=1}^{n} Ind_{i} \times \prod_{j=1}^{m} Filter_{j}$$
+$$TS = Bias \times Layer_{X} \times bc_{X} \times \prod_{i=1}^{n} Ind_{i} \times \prod_{j=1}^{m} Filter_{j}$$
 
 Where each factor returns 1 (pass/enabled), 0 (fail), or -1 (contradicts). Any 0 or -1 stops the pipeline.
 
@@ -30,12 +30,12 @@ flowchart TD
     S3 --> |LayerW / LayerM / LayerS| LayerCheck{LayerX = 1 ?}
     LayerCheck -- Local Pair Slope/Pos Fail --> Reject
     
-    LayerCheck -- Local Pair Aligned --> S4[Step 4: Evaluate EmaSigX]
+    LayerCheck -- Local Pair Aligned --> S4[Step 4: Evaluate bcX]
     
-    S4 --> |Close beyond Fast EMA| EmaSigCheck{EmaSigX = 1 ?}
-    EmaSigCheck -- Price Trigger Fail --> Reject
+    S4 --> |Close beyond Fast EMA| BcCheck{bcX = 1 ?}
+    BcCheck -- Price Trigger Fail --> Reject
     
-    EmaSigCheck -- Price Trigger Pass --> S5{Step 5: Hard Gates & HTF}
+    BcCheck -- Price Trigger Pass --> S5{Step 5: Hard Gates & HTF}
     S5 -- Fails --> Reject
     
     S5 -- Passes --> S8[Step 6: Indicator & Filter Voting]
@@ -77,10 +77,10 @@ Instead of tracking dynamic wicks, the engine simply checks if the target EMA pa
 * **LayerM (Medium / Ghost):** Evaluates position and slope of EMA2 vs EMA3. Returns 1 if aligned.
 * **LayerS (Strong / Shark):** Evaluates position and slope of EMA3 vs EMA4. Returns 1 if aligned.
 
-### Step 4: Evaluate EmaSigX ($EmaSig_{W}, EmaSig_{M}, EmaSig_{S}$)
-**Purpose:** The final price action trigger verifying momentum resumption.
+### Step 4: Evaluate bcX ($bc_{W}, bc_{M}, bc_{S}$)
+**Purpose:** The final price action trigger verifying momentum resumption (Bar Close confirmation).
 * **Logic:** Evaluates to 1 ONLY if the closed candle body strictly crosses or closes beyond the fast EMA of the active layer. 
-* *Example (Short LayerW):* Bias is -1. LayerW is 1. `EmaSigW` becomes 1 only when `Close < EMA1`.
+* *Example (Short LayerW):* Bias is -1. LayerW is 1. `bcW` becomes 1 only when `Close < EMA1`.
 
 ### Step 5 & 6: Gates, Indicators, and Filters
 Each ENABLED indicator calls its `Check_XXX(bias, shift)` function. The system enforcing a multiplicative unanimous agreement. Disabled indicators automatically return $1$. If all active equations pass, the final TS is approved and stored in `g_ts_active`.
@@ -89,19 +89,19 @@ Each ENABLED indicator calls its `Check_XXX(bias, shift)` function. The system e
 
 When using 4-EMA bias detection, the system evaluates **3 potential setups simultaneously**:
 
-1. **LayerW × EmaSigW (Weak/Ribbon Setup)**
+1. **LayerW × bcW (Weak/Ribbon Setup)**
    - Structural check: EMA1 vs EMA2 position + slope aligned
    - Trigger: Close beyond EMA1 (fast EMA)
    - Characteristics: Shallow pullback, fastest entry, lower risk
    - Example (LONG): EMA1 > EMA2, both rising, Close > EMA1
 
-2. **LayerM × EmaSigM (Medium/Ghost Setup)**
+2. **LayerM × bcM (Medium/Ghost Setup)**
    - Structural check: EMA2 vs EMA3 position + slope aligned
    - Trigger: Close beyond EMA2
    - Characteristics: Medium pullback, balanced risk/reward
    - Example (LONG): EMA2 > EMA3, both rising, Close > EMA2
 
-3. **LayerS × EmaSigS (Strong/Shark Setup)**
+3. **LayerS × bcS (Strong/Shark Setup)**
    - Structural check: EMA3 vs EMA4 position + slope aligned
    - Trigger: Close beyond EMA3
    - Characteristics: Deep pullback, highest confirmation, higher risk
@@ -232,7 +232,7 @@ The signal evaluation pipeline has been drastically simplified:
 
 **What replaced it:**
 - **EvaluateLayerX()**: Pure structural alignment (position + slope) per EMA pair
-- **EvaluateEmaSigX()**: Simple price close confirmation beyond fast EMA
+- **EvaluateBcX()**: Simple price close confirmation beyond fast EMA
 - **Result**: ~500 lines of dead code removed, clearer logic, faster execution
 
 **Enum Clarity (v1.04):**
@@ -249,7 +249,7 @@ The signal evaluation pipeline has been drastically simplified:
 
 The formula is now purely multiplicative with clear OR logic for layers:
 ```
-TS = Bias × (LayerW × EmaSigW OR LayerM × EmaSigM OR LayerS × EmaSigS) × Indicators × Filters
+TS = Bias × (LayerW × bcW OR LayerM × bcM OR LayerS × bcS) × Indicators × Filters
 ```
 Any Bias=0 or all layers=0 immediately stops the pipeline.
 
@@ -260,7 +260,7 @@ Each layer checks two conditions for the selected EMA pair:
 
 Returns 1 if both conditions pass, 0 otherwise. At least ONE of the three layers (LayerW, LayerM, LayerS) must return 1 to proceed.
 
-### Step 4 Detail: EvaluateEmaSigX
+### Step 4 Detail: EvaluateBcX
 For each **active** layer (LayerX == 1), checks if the closed candle has momentum confirmation:
 - **LONG Setup**: `Close > Fast EMA` of the active layer
 - **SHORT Setup**: `Close < Fast EMA` of the active layer
@@ -268,7 +268,7 @@ For each **active** layer (LayerX == 1), checks if the closed candle has momentu
 **Example (Short LayerW):**
 - Bias = -1 (SHORT)
 - LayerW = 1 (EMA1 < EMA2, both falling)
-- EmaSigW = 1 when Close < EMA1
+- bcW = 1 when Close < EMA1
 
-At least ONE active layer must have its EmaSig confirmed to proceed.
+At least ONE active layer must have its bcX confirmed to proceed.
 

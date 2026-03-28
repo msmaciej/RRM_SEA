@@ -312,7 +312,6 @@ string SEA_UI_GetActiveIndicatorsCompact(const ST_Settings &cfg)
    if(cfg.Ind_CandleBody_Enabled) list += StringFormat("CBody(%d), ", cfg.CandleBody_AvgPeriod);
    if(cfg.Ind_CI_Enabled)         list += StringFormat("CI(%d), ", cfg.CI_Period);
    if(cfg.Ind_Cci_Enabled)        list += StringFormat("CCI(%d), ", cfg.P_Cci);
-   if(cfg.Ind_EmaSig_Enabled)     list += StringFormat("EmaSig(%d), ", cfg.P_Ema1);
    if(cfg.Ind_Macd_Enabled)       list += StringFormat("MACD(%d,%d,%d), ", cfg.P_MacdFast, cfg.P_MacdSlow, cfg.P_MacdSig);
    if(cfg.Ind_Mfi_Enabled)        list += StringFormat("MFI(%d), ", cfg.P_Mfi);
    if(cfg.Ind_P123_Enabled)       list += "P123, ";
@@ -329,7 +328,6 @@ string SEA_UI_BuildActiveVotesList(const ST_Settings &cfg)
 {
    string output = "";
    int count = 0;
-   if(cfg.Ind_EmaSig_Enabled)     { output += StringFormat("  + EmaSig   (EMA1 price pos)  w=%d\n", cfg.Ind_EmaSig_Weight); count++; }
    if(cfg.Ind_Adx_Enabled)        { output += StringFormat("  + ADX      (trend strength)  w=%d\n", cfg.Ind_Adx_Weight); count++; }
    if(cfg.Ind_Macd_Enabled)       { output += StringFormat("  + MACD     (momentum)        w=%d\n", cfg.Ind_Macd_Weight); count++; }
    if(cfg.Ind_Rsi_Enabled)        { output += StringFormat("  + RSI      (momentum zones)  w=%d\n", cfg.Ind_Rsi_Weight); count++; }
@@ -351,7 +349,6 @@ string SEA_UI_BuildActiveVotesList(const ST_Settings &cfg)
 string SEA_UI_BuildDisabledVotesList(const ST_Settings &cfg)
 {
    string list = "";
-   if(!cfg.Ind_EmaSig_Enabled)     list += "EmaSig, ";
    if(!cfg.Ind_Adx_Enabled)        list += "ADX, ";
    if(!cfg.Ind_Macd_Enabled)       list += "MACD, ";
    if(!cfg.Ind_Rsi_Enabled)        list += "RSI, ";
@@ -762,7 +759,7 @@ void SEA_UI_ManageChartIndicators(CSignalEngine &engine)
 
    // EMA Ribbon Logic
    bool need_ema[4];
-   need_ema[0] = (Settings.BiasFastID == 0 || Settings.BiasSlowID == 0 || Settings.Ind_EmaSig_Enabled);
+   need_ema[0] = (Settings.BiasFastID == 0 || Settings.BiasSlowID == 0);
    need_ema[1] = (Settings.BiasFastID == 1 || Settings.BiasSlowID == 1);
    need_ema[2] = (Settings.BiasFastID == 2 || Settings.BiasSlowID == 2);
    need_ema[3] = (Settings.BiasFastID == 3 || Settings.BiasSlowID == 3);
@@ -771,7 +768,6 @@ void SEA_UI_ManageChartIndicators(CSignalEngine &engine)
       if(need_ema[i]) {
          string label = StringFormat("EMA%d (%d)", i+1, Settings.P_Ema1 + (i*8));
          _SEA_UI_AddIndicator(0, engine.GetEmaHandle(i), label, overlays);
-         if(i == 0 && Settings.Ind_EmaSig_Enabled) ts_active++;
       }
    }
 
