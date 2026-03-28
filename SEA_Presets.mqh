@@ -204,6 +204,15 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    }
    Print("");
 
+   Print("📊 BAR CLOSE (bcX):");
+   Print("  Enabled:       ", cfg.BarClose_Enabled ? "✓ YES" : "✗ NO");
+   if(cfg.BarClose_Enabled && cfg.BarClose_Mode != BC_DISABLED) {
+      Print("  Mode:          ", EnumToString(cfg.BarClose_Mode));
+      if(cfg.BarClose_Mode == BC_FIXED_EMA || cfg.BarClose_Mode == BC_LAYER_AWARE)
+         Print("  DefaultEMA:    ", EnumToString(cfg.BarClose_DefaultEMA));
+   }
+   Print("");
+
    Print("═══════════════════════════════════════════════════════════");
 }
 
@@ -547,6 +556,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SlopeThresholdAdaptive = false;
       cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
 
+      // ════════════════════════════════════════════════════════════════
+      // BAR CLOSE (bcX) CONFIGURATION - Disabled for MA benchmark mode
+      // ════════════════════════════════════════════════════════════════
+      cfg.BarClose_Enabled    = false;        // Disabled: bcX not used in MA benchmark
+      cfg.BarClose_Mode       = BC_DISABLED;
+      cfg.BarClose_DefaultEMA = ROLE_EMA1;
+
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================
@@ -874,6 +890,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SlopeThresholdPips     = 0.0; // Use adaptive calculation
       cfg.SlopeThresholdAdaptive = true; // Auto: M5=0.4p, H1=1.2p, H4=2.0p
       cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
+
+      // ════════════════════════════════════════════════════════════════
+      // BAR CLOSE (bcX) CONFIGURATION
+      // Formula: TS = Bias × LayerX × bcX × IndicatorX × FilterX
+      // bcW: Close beyond EMA1 (LayerW) | bcM: EMA2 (LayerM) | bcS: EMA3 (LayerS)
+      // ════════════════════════════════════════════════════════════════
+      cfg.BarClose_Enabled    = true;              // ✅ Enable bcX
+      cfg.BarClose_Mode       = BC_LAYER_AWARE;    // bcW/bcM/bcS adaptive (layer-aware)
+      cfg.BarClose_DefaultEMA = ROLE_EMA1;         // Fallback EMA for non-layer-aware modes
       
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
@@ -1211,6 +1236,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SlopeThresholdPips           = 0.0;
       cfg.SlopeThresholdAdaptive       = false;
       cfg.SlopeMeasureMode             = SLOPE_MEASURE_PIPS;
+
+      // ════════════════════════════════════════════════════════════════
+      // BAR CLOSE (bcX) CONFIGURATION
+      // Formula: TS = Bias × LayerX × bcX × IndicatorX × FilterX
+      // CONFIGURATION: Fixed EMA1 check (not layer-aware for simpler testing)
+      // ════════════════════════════════════════════════════════════════
+      cfg.BarClose_Enabled    = true;           // ✅ Enable bcX
+      cfg.BarClose_Mode       = BC_FIXED_EMA;   // Always check vs fixed EMA
+      cfg.BarClose_DefaultEMA = ROLE_EMA1;      // Close vs EMA1
       
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES

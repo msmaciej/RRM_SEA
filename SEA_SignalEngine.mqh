@@ -44,6 +44,7 @@ enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103001 = SEA_BUILD_TOKEN_103001 };
 
 
 #include <RRMS\SEA_Config.mqh>
+#include <RRMS\SEA_BarClose.mqh>
 
 
 // Note: Requires ST_Settings and SNewsEvent structs to be defined in main file
@@ -1471,6 +1472,22 @@ private:
       else if(bias == -1 && close < ema_fast) return 1;
 
       return 0;
+   }
+
+   //==========================================================================
+   // Eval_BarClose — Wrapper: computes EMA values and calls Check_BarClose()
+   // Replaces EvaluateEmaSigX when BarClose_Enabled=true.
+   // layer_id: LAYER_1_WEAK / LAYER_2_MEDIUM / LAYER_3_STRONG
+   //==========================================================================
+   int Eval_BarClose(int v_shift, int bias, int layer_id)
+   {
+      double ema1  = GetMAVal(h_ema1, v_shift);
+      double ema2  = GetMAVal(h_ema2, v_shift);
+      double ema3  = GetMAVal(h_ema3, v_shift);
+      double ema4  = GetMAVal(h_ema4, v_shift);
+      double close = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+
+      return Check_BarClose(v_shift, bias, layer_id, ema1, ema2, ema3, ema4, close);
    }
 
 public:
@@ -3444,30 +3461,37 @@ public:
       if(m_settings.DebugFlow) Print("STEP 3 LAYER: At least one layer aligned → PASS");
 
       // ═══════════════════════════════════════════════════════════════
-      // KISS: Step 4 — Evaluate EmaSigX (price close confirmation)
-      // Only evaluate EmaSig for active layers; inactive layers default to pass (1)
+      // KISS: Step 4 — bcX (Bar close confirmation)
+      // Replaces EmaSigX: configurable via BarClose_Mode in Settings.
+      // Only evaluate bcX for active layers; inactive layers default to pass (1)
       // ═══════════════════════════════════════════════════════════════
-      int emasig_w = (layer_w == 1) ? EvaluateEmaSigX(bias, 1) : 1;
-      int emasig_m = (layer_m == 1) ? EvaluateEmaSigX(bias, 2) : 1;
-      int emasig_s = (layer_s == 1) ? EvaluateEmaSigX(bias, 3) : 1;
+      int bc_w = (layer_w == 1) ? Eval_BarClose(v_shift, bias, LAYER_1_WEAK)   : 1;
+      int bc_m = (layer_m == 1) ? Eval_BarClose(v_shift, bias, LAYER_2_MEDIUM) : 1;
+      int bc_s = (layer_s == 1) ? Eval_BarClose(v_shift, bias, LAYER_3_STRONG) : 1;
+
+      // Keep emasig aliases for diagnostic/UI compatibility
+      int emasig_w = bc_w;
+      int emasig_m = bc_m;
+      int emasig_s = bc_s;
 
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-         PrintFormat("[KISS] Step4 EmaSigW=%d EmaSigM=%d EmaSigS=%d (bias=%d)", emasig_w, emasig_m, emasig_s, bias);
+         PrintFormat("[KISS] Step4 bcW=%d bcM=%d bcS=%d (bias=%d, mode=%s)",
+                     bc_w, bc_m, bc_s, bias, EnumToString(m_settings.BarClose_Mode));
       }
 
-      // At least one active layer must have its EmaSig confirmed
+      // At least one active layer must have its bcX confirmed
       bool emasig_any = ((layer_w == 1 && emasig_w == 1) ||
                          (layer_m == 1 && emasig_m == 1) ||
                          (layer_s == 1 && emasig_s == 1));
 
       if(!emasig_any) {
-         m_diag_last_reason = "EMASIG_NOT_CONFIRMED";
+         m_diag_last_reason = "BC_NOT_CONFIRMED";
          m_reject_gate++;
-         if(m_settings.DebugFlow) Print("STEP 4 EMASIG: No active layer confirmed → REJECT");
+         if(m_settings.DebugFlow) Print("STEP 4 BCX: No active layer close confirmed → REJECT");
          m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
          return 0;
       }
-      if(m_settings.DebugFlow) Print("STEP 4 EMASIG: Active layer confirmed → PASS");
+      if(m_settings.DebugFlow) Print("STEP 4 BCX: Active layer close confirmed → PASS");
 
       // Determine active setup type and store KISS diagnostics
       string active_setup = "";
@@ -3476,7 +3500,7 @@ public:
       else if(layer_s == 1 && emasig_s == 1)  active_setup = "LayerS (Strong/Shark) - Deep pullback EMA3/4";
       else                                     active_setup = "None (no active layer confirmed)";
 
-      // Store KISS layer/emasig results for diagnostics
+      // Store KISS layer/bcX results for diagnostics (emasig aliases used for UI compat)
       m_diag_layer_w  = layer_w;
       m_diag_layer_m  = layer_m;
       m_diag_layer_s  = layer_s;
@@ -3486,8 +3510,8 @@ public:
 
       // Enhanced KISS diagnostic log
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-         PrintFormat("[KISS] Setup: %s | Bias=%d | Layers: W=%d M=%d S=%d | EmaSig: W=%d M=%d S=%d",
-                     active_setup, bias, layer_w, layer_m, layer_s, emasig_w, emasig_m, emasig_s);
+         PrintFormat("[KISS] Setup: %s | Bias=%d | Layers: W=%d M=%d S=%d | bcX: W=%d M=%d S=%d",
+                     active_setup, bias, layer_w, layer_m, layer_s, bc_w, bc_m, bc_s);
       }
 
       // ═══════════════════════════════════════════════════════════════
