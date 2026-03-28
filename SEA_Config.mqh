@@ -83,6 +83,18 @@ enum EEmaRole
 };
 
 //+------------------------------------------------------------------+
+//| BarClose Mode: Which EMA to check for bar close confirmation     |
+//| Used by bcX component in the signal formula                      |
+//+------------------------------------------------------------------+
+enum EBarCloseMode
+{
+   BC_DISABLED    = 0,  // Disabled: always returns 1 (skip bar close check)
+   BC_FIXED_EMA   = 1,  // Fixed EMA: always check vs BarClose_DefaultEMA
+   BC_LAYER_AWARE = 2,  // Layer-aware: bcW=EMA1, bcM=EMA2, bcS=EMA3
+   BC_BIAS_FAST   = 3   // Use BiasFastID EMA
+};
+
+//+------------------------------------------------------------------+
 //| Indicator Modes
 //+------------------------------------------------------------------+
 enum EADXMode {
@@ -559,6 +571,15 @@ struct ST_Settings
    double SlopeThresholdPips;        // Min movement to consider as slope (pips; 0=adaptive)
    bool   SlopeThresholdAdaptive;    // Auto-adjust by TF and pair
    ESlopeMeasure SlopeMeasureMode;   // Pips or Percentage
+
+   // ════════════════════════════════════════════════════════════════
+   // BAR CLOSE (bcX) CONFIGURATION
+   // ════════════════════════════════════════════════════════════════
+   // Formula: TS = Bias × LayerX × bcX × IndicatorX × FilterX
+   // bcX checks candle close position vs target EMA, separate from LayerX
+   bool          BarClose_Enabled;      // Master enable/disable for bcX check
+   EBarCloseMode BarClose_Mode;         // Which EMA to check (see EBarCloseMode)
+   EEmaRole      BarClose_DefaultEMA;   // EMA for BC_FIXED_EMA mode (fallback)
 };
 
 // Global Configuration Instance
@@ -776,6 +797,14 @@ input EAutoStrategy  Inp_AutoStrat              = STRAT_2EMA_POSITION; // Entry 
 input double         Inp_LayerTolerance         = 0.01; // Entry Layer Tolerance (DEPRECATED v1.04+: KISS refactor removed wick-touch tolerance; see EvaluateLayerX/EvaluateEmaSigX)
 input bool           Inp_RRM_EnableInCustom     = false; // Entry RRM Enable In Custom (CUSTOM only)
 input bool           Inp_CloseOnReverse         = false; // Entry Close On REverse (CUSTOM; presets may override)
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  🔧 STEP 3B: Bar Close (bcX) Confirmation             ║";
+input group "╚════════════════════════════════════════════════════════╝";
+input string         Inp_BarClose_Info          = "bcX: Checks candle close beyond target EMA (separate from LayerX position check)"; // [bcX] Description
+input bool           Inp_BarClose_Enabled       = true; // [bcX] Enable bar close confirmation (CUSTOM; presets override)
+input EBarCloseMode  Inp_BarClose_Mode          = BC_LAYER_AWARE; // [bcX] Mode: DISABLED/FIXED_EMA/LAYER_AWARE/BIAS_FAST (CUSTOM; presets override)
+input EEmaRole       Inp_BarClose_DefaultEMA    = ROLE_EMA1; // [bcX] EMA to check in FIXED mode (CUSTOM; presets override)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🔧 STEP 5: Structure Gate (Pullback)                  ║";
@@ -1369,6 +1398,11 @@ void InitializeConfig()
 
    if(Settings.SlopeLookbackBars < 1) Settings.SlopeLookbackBars = 1;
    if(Settings.SlopeLookbackBars > 5) Settings.SlopeLookbackBars = 5;
+
+   // BarClose (bcX) settings
+   Settings.BarClose_Enabled    = Inp_BarClose_Enabled;
+   Settings.BarClose_Mode       = Inp_BarClose_Mode;
+   Settings.BarClose_DefaultEMA = Inp_BarClose_DefaultEMA;
 
    // === FINAL VALIDATION: BiasMode vs AutoStrat compatibility ===
    if(Settings.BiasEnabled && !ValidateBiasStratCombo(Settings.BiasMode, Settings.AutoStrat))
