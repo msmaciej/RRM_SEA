@@ -176,6 +176,30 @@ private:
    datetime m_lastVRCCalculation;        // Last cache update timestamp
    double   m_cachedVRCLowThreshold;     // Cached ATR value at low percentile
 
+   // --- 2i. KISS EVALUATION STATE (reset each bar, shared between KISS component functions) ---
+   bool     m_eval_any_failure;          // True if any filter/gate failed this evaluation
+   string   m_eval_first_failure;        // Reason string for the first failure encountered
+   string   m_eval_str_F;                // Filter status telemetry string ("OK", "SPREAD", etc.)
+   string   m_eval_str_B;                // Bias status telemetry string ("+", "POS", "SLOPE", etc.)
+   string   m_eval_str_I;                // Indicator status telemetry string (e.g., "2/4")
+   int      m_eval_layer_w;              // LayerW alignment result (0/1) set by EvaluateLayerX
+   int      m_eval_layer_m;              // LayerM alignment result (0/1) set by EvaluateLayerX
+   int      m_eval_layer_s;              // LayerS alignment result (0/1) set by EvaluateLayerX
+   // Per-indicator results (set by EvaluateIndicatorX, read by TS_SUMMARY in EvaluateTS)
+   bool     m_eval_ind_res_emasig;
+   bool     m_eval_ind_res_adx;
+   bool     m_eval_ind_res_macd;
+   bool     m_eval_ind_res_rsi;
+   bool     m_eval_ind_res_cci;
+   bool     m_eval_ind_res_mfi;
+   bool     m_eval_ind_res_sto;
+   bool     m_eval_ind_res_bb;
+   bool     m_eval_ind_res_psar;
+   bool     m_eval_ind_res_p123;
+   bool     m_eval_ind_res_ross;
+   double   m_eval_vote_weight;          // Total vote weight from EvaluateIndicatorX
+   bool     m_eval_all_pass;             // True if all enabled indicators passed
+
    // Simplified buffer access for cleaner logic code
 
    // Version 1: No validity checking (backward compatible)
@@ -422,25 +446,25 @@ private:
          switch(active_layer)
          {
             case LAYER_1_WEAK:
-               check_ema = iEMA_Buf1[v_shift];
+               check_ema = GetMAVal(h_ema1, v_shift);
                bc_label = "bcW";
                ema_name = "EMA1";
                break;
             
             case LAYER_2_MEDIUM:
-               check_ema = iEMA_Buf2[v_shift];
+               check_ema = GetMAVal(h_ema2, v_shift);
                bc_label = "bcM";
                ema_name = "EMA2";
                break;
             
             case LAYER_3_STRONG:
-               check_ema = iEMA_Buf3[v_shift];
+               check_ema = GetMAVal(h_ema3, v_shift);
                bc_label = "bcS";
                ema_name = "EMA3";
                break;
             
             default:
-               check_ema = iEMA_Buf1[v_shift];
+               check_ema = GetMAVal(h_ema1, v_shift);
                bc_label = "bc";
                ema_name = "EMA1";
                break;
@@ -451,11 +475,11 @@ private:
          // Use BiasFastID
          switch(Settings.BiasFastID)
          {
-            case (int)ROLE_EMA1: check_ema = iEMA_Buf1[v_shift]; ema_name = "EMA1"; break;
-            case (int)ROLE_EMA2: check_ema = iEMA_Buf2[v_shift]; ema_name = "EMA2"; break;
-            case (int)ROLE_EMA3: check_ema = iEMA_Buf3[v_shift]; ema_name = "EMA3"; break;
-            case (int)ROLE_EMA4: check_ema = iEMA_Buf4[v_shift]; ema_name = "EMA4"; break;
-            default:             check_ema = iEMA_Buf1[v_shift]; ema_name = "EMA1"; break;
+            case (int)ROLE_EMA1: check_ema = GetMAVal(h_ema1, v_shift); ema_name = "EMA1"; break;
+            case (int)ROLE_EMA2: check_ema = GetMAVal(h_ema2, v_shift); ema_name = "EMA2"; break;
+            case (int)ROLE_EMA3: check_ema = GetMAVal(h_ema3, v_shift); ema_name = "EMA3"; break;
+            case (int)ROLE_EMA4: check_ema = GetMAVal(h_ema4, v_shift); ema_name = "EMA4"; break;
+            default:             check_ema = GetMAVal(h_ema1, v_shift); ema_name = "EMA1"; break;
          }
          bc_label = "bc";
       }
@@ -464,11 +488,11 @@ private:
          // Use BarClose_DefaultEMA
          switch(Settings.BarClose_DefaultEMA)
          {
-            case ROLE_EMA1: check_ema = iEMA_Buf1[v_shift]; ema_name = "EMA1"; break;
-            case ROLE_EMA2: check_ema = iEMA_Buf2[v_shift]; ema_name = "EMA2"; break;
-            case ROLE_EMA3: check_ema = iEMA_Buf3[v_shift]; ema_name = "EMA3"; break;
-            case ROLE_EMA4: check_ema = iEMA_Buf4[v_shift]; ema_name = "EMA4"; break;
-            default:        check_ema = iEMA_Buf1[v_shift]; ema_name = "EMA1"; break;
+            case ROLE_EMA1: check_ema = GetMAVal(h_ema1, v_shift); ema_name = "EMA1"; break;
+            case ROLE_EMA2: check_ema = GetMAVal(h_ema2, v_shift); ema_name = "EMA2"; break;
+            case ROLE_EMA3: check_ema = GetMAVal(h_ema3, v_shift); ema_name = "EMA3"; break;
+            case ROLE_EMA4: check_ema = GetMAVal(h_ema4, v_shift); ema_name = "EMA4"; break;
+            default:        check_ema = GetMAVal(h_ema1, v_shift); ema_name = "EMA1"; break;
          }
          bc_label = "bc";
       }
@@ -1521,11 +1545,11 @@ private:
    }
 
    //==========================================================================
-   // KISS: EvaluateLayerX — Structural alignment check (position + slope)
+   // CheckLayerPairAlign — Structural alignment check (position + slope)
    // Returns 1 if the EMA pair is aligned with bias, 0 otherwise.
    // layer_type: 1=LayerW (EMA1/EMA2), 2=LayerM (EMA2/EMA3), 3=LayerS (EMA3/EMA4)
    //==========================================================================
-   int EvaluateLayerX(int bias, int layer_type)
+   int CheckLayerPairAlign(int bias, int layer_type)
    {
       int h_fast = INVALID_HANDLE, h_slow = INVALID_HANDLE;
 
@@ -1569,11 +1593,11 @@ private:
    }
 
    //==========================================================================
-   // KISS: EvaluateEmaSigX — Price close confirmation (momentum resumption)
+   // CheckEmaSigByLayer — Price close confirmation (momentum resumption)
    // Returns 1 if the closed candle closes beyond the fast EMA of the layer.
    // layer_type: 1=LayerW (EMA1), 2=LayerM (EMA2), 3=LayerS (EMA3)
    //==========================================================================
-   int EvaluateEmaSigX(int bias, int layer_type)
+   int CheckEmaSigByLayer(int bias, int layer_type)
    {
       int h_fast = INVALID_HANDLE;
 
@@ -1595,19 +1619,13 @@ private:
    }
 
    //==========================================================================
-   // Eval_BarClose — Wrapper: computes EMA values and calls Check_BarClose()
+   // Eval_BarClose — Wrapper: delegates to Check_BarClose() (handle-based access)
    // Replaces EvaluateEmaSigX when BarClose_Enabled=true.
    // layer_id: LAYER_1_WEAK / LAYER_2_MEDIUM / LAYER_3_STRONG
    //==========================================================================
    int Eval_BarClose(int v_shift, int bias, int layer_id)
    {
-      double ema1  = GetMAVal(h_ema1, v_shift);
-      double ema2  = GetMAVal(h_ema2, v_shift);
-      double ema3  = GetMAVal(h_ema3, v_shift);
-      double ema4  = GetMAVal(h_ema4, v_shift);
-      double close = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-
-      return Check_BarClose(v_shift, bias, layer_id, ema1, ema2, ema3, ema4, close);
+      return Check_BarClose(v_shift, bias, layer_id);
    }
 
 public:
@@ -2999,92 +3017,18 @@ public:
    }
 
    //==========================================================================
-   // === EvaluateTS: BEGIN ===
+   // KISS COMPONENT FUNCTIONS
+   // Implement the KISS formula: TS = Bias × LayerX × bcX × IndicatorX × FilterX
+   // Each component runs independently and returns 0 (fail) or 1/±bias (pass).
    //==========================================================================
-   // This function implements the 9-step signal validation pipeline.
-   // Each step must pass before moving to the next.
-   // If any step fails, the function returns 0 (no trade).
-   //
-   // PROCESS FLOW:
-   // 1. PRE-FILTERS: Spread, time checks
-   // 2. MARKET BIAS: Check EMA position and slopes
-   //    - SINGLE_SLOPE: EMA rising/falling (when BiasFastID == BiasSlowID)
-   //    - PAIR: Fast > Slow AND both rising (LONG) or Fast < Slow AND both falling (SHORT)
-   //    - NEUTRAL: Neither condition met -> REJECT
-   // 3. AUTOSTRAT: Generate entry signal based on strategy
-   //    - STRAT_1EMA_SLOPE: Single EMA direction
-   //    - STRAT_2EMA_CROSS_PRICE: Price vs EMA
-   //    - STRAT_2EMA_CROSS_EMA: EMA crossover
-   // 4. SIGNAL VALIDATION: Entry signal must match bias
-   // 5. HTF FILTER: Higher timeframe must agree with bias
-   // 6. RRM GATES: Check pullback/divergence if enabled
-   // 7. VOTING BYPASS: Skip voting if threshold <= 1
-   // 8. INDICATOR VOTING: Count indicator confirmations
-   // 9. FINAL DECISION: Accept if votes >= threshold
-   //
-   // RETURNS: 1 (LONG), -1 (SHORT), 0 (NO TRADE)
-   //==========================================================================
-   // EvaluateTS() - Main Signal Processing Pipeline (WITH DIAGNOSTICS & TELEMETRY)
-   // Evaluates strictly on the closed candle (shift=1)
-   //==========================================================================
-   int EvaluateTS() 
-   {   
-      if(m_settings.DebugFlow) {
-         Print("[DEBUG_TEST] EvaluateTS() CALLED");
-         PrintFormat("[DEBUG_TEST] m_settings.DebugFlow = %s", m_settings.DebugFlow ? "TRUE" : "FALSE");
-         PrintFormat("[DEBUG_TEST] Current time: %s", TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES));
-      }
 
-      // Update PSAR flip tracking on each bar close (uses shift=1 for closed bar)
-      if(m_settings.Vote_AllowPsarFlip)
-         UpdatePSARFlipTracking(m_settings.Vote_EvalShift);
-
-      // ═══════════════════════════════════════════════════════════════
-      // Update phase diagnostics (passive - doesn't affect logic)
-      // ═══════════════════════════════════════════════════════════════
-      UpdatePhaseDiagnostics(m_settings.ma_v_shift);
-
-      // ═══════════════════════════════════════════════════════════════
-      // Update layer diagnostics (passive - doesn't affect logic)
-      // ═══════════════════════════════════════════════════════════════
-      UpdateLayerDiagnostics(m_settings.ma_v_shift);
-
-      // Diagnostics reset (for Cockpit/UI)
-      m_diag_last_bias   = 0;
-      m_diag_last_votes  = 0;
-      m_diag_last_reason = "";
-      m_ts_status_string = "B[0] | I[0/0] | F[OK]"; // Telemetry init
-      
-      // Reset Telemetry Struct
-      m_telemetry.bias = 0;
-      m_telemetry.phase = 0;
-      m_telemetry.layer = 0;
-      m_telemetry.votes_for = 0;
-      m_telemetry.votes_total = 0;
-      m_telemetry.rejection_reason = "Evaluating...";
-      m_telemetry.active_indicators = "0/0";
-      m_bars_evaluated++;
-      m_stats.total_bars++;
-
-      // Bar-close diagnostic banner
-      if(m_settings.DebugFlow)
-      {
-         datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.ma_v_shift);
-         PrintFormat("[EVAL_START] ===========================================");
-         PrintFormat("[EVAL_START] Bar: %s (shift=%d)",
-                     TimeToString(bar_time, TIME_DATE|TIME_MINUTES), m_settings.ma_v_shift);
-         PrintFormat("[EVAL_START] ===========================================");
-      }
-
-      // --- TELEMETRY TRACKERS ---
-      string str_F = "OK";
-      string str_B = "0";
-      string str_I = "0/0";
-
-      // 1. Check Filters
-      bool any_failure  = false;
-      string first_failure = "";
-
+   // ─────────────────────────────────────────────────────────────────────────
+   // EvaluateFilterX — Non-directional gates (time, news, spread)
+   // Returns 1 (all filters pass) or 0 (at least one filter failed).
+   // In Stats_FullEvaluation mode: updates m_eval_any_failure but continues.
+   // ─────────────────────────────────────────────────────────────────────────
+   int EvaluateFilterX(int v_shift)
+   {
       // --- Time Window ---
       if(m_settings.UseTime) {
          MqlDateTime dt;
@@ -3092,23 +3036,22 @@ public:
          bool time_pass = (m_settings.StartHr < m_settings.EndHr) ?
                           (dt.hour >= m_settings.StartHr && dt.hour < m_settings.EndHr) :
                           (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
-         
+
          if(time_pass) m_stats.passed_time++;
          else m_stats.rejected_time++;
-         
+
          if(m_settings.DebugFlow)
             PrintFormat("[GATE] Time: hour=%d window=[%d-%d] → %s",
                         dt.hour, m_settings.StartHr, m_settings.EndHr,
                         time_pass ? "PASS" : "FAIL");
-                        
+
          if(!time_pass) {
-            str_F = "TIME";
-            if(first_failure == "") first_failure = "TIME";
-            any_failure = true;
+            m_eval_str_F = "TIME";
+            if(m_eval_first_failure == "") m_eval_first_failure = "TIME";
+            m_eval_any_failure = true;
             if(!m_settings.Stats_FullEvaluation) {
                m_diag_last_reason = "TIME";
-               m_reject_filter++; 
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+               m_reject_filter++;
                return 0;
             }
          }
@@ -3125,13 +3068,13 @@ public:
             datetime now = TimeCurrent();
             int pre_sec  = m_settings.NewsPre  * 60;
             int post_sec = m_settings.NewsPost * 60;
-            
+
             for(int i=0; i<m_news_count; i++) {
                if(!NewsImpactPass(m_news_events[i].impact)) continue;
                string ccy = m_news_events[i].currency;
                if(ccy != base && ccy != quote) continue;
                datetime t = m_news_events[i].time;
-               
+
                if(now >= (t - pre_sec) && now <= (t + post_sec)) {
                   news_pass = false;
                   if(m_last_news_block_log == 0 || (now - m_last_news_block_log) >= 60) {
@@ -3148,18 +3091,17 @@ public:
          }
          if(news_pass) m_stats.passed_news++;
          else m_stats.rejected_news++;
-         
+
          if(m_settings.DebugFlow)
             PrintFormat("[GATE] News: %s", news_pass ? "PASS" : "FAIL (event active)");
-            
+
          if(!news_pass) {
-            str_F = "NEWS";
-            if(first_failure == "") first_failure = "NEWS";
-            any_failure = true;
+            m_eval_str_F = "NEWS";
+            if(m_eval_first_failure == "") m_eval_first_failure = "NEWS";
+            m_eval_any_failure = true;
             if(!m_settings.Stats_FullEvaluation) {
                m_diag_last_reason = "NEWS";
-               m_reject_filter++; 
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+               m_reject_filter++;
                return 0;
             }
          }
@@ -3172,7 +3114,7 @@ public:
       bool spread_pass = !(m_settings.UseSpread && m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread);
       if(spread_pass) m_stats.passed_spread++;
       else m_stats.rejected_spread++;
-      
+
       if(m_settings.DebugFlow) {
          if(!m_settings.UseSpread || m_settings.MaxSpread <= 0.0)
             Print("[GATE] Spread: DISABLED → SKIP");
@@ -3180,32 +3122,40 @@ public:
             PrintFormat("[GATE] Spread: %.1f pips / %.1f max → %s",
                         spread_pips, m_settings.MaxSpread, spread_pass ? "PASS" : "FAIL");
       }
-      
+
       if(!spread_pass) {
-         str_F = "SPREAD";
-         if(first_failure == "") first_failure = "SPREAD";
-         any_failure = true;
+         m_eval_str_F = "SPREAD";
+         if(m_eval_first_failure == "") m_eval_first_failure = "SPREAD";
+         m_eval_any_failure = true;
          if(!m_settings.Stats_FullEvaluation) {
-            m_diag_last_reason = "SPREAD"; 
+            m_diag_last_reason = "SPREAD";
             m_reject_filter++;
-            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
             return 0;
          }
       }
 
-      if(any_failure && m_settings.Stats_FullEvaluation) m_reject_filter++;
+      if(m_eval_any_failure && m_settings.Stats_FullEvaluation) m_reject_filter++;
 
-      // 1b. Master bias gate
-      if(!m_settings.BiasEnabled) { 
-         m_diag_last_reason="BIAS_DISABLED";
-         m_reject_bias++; 
-         m_stats.rejected_bias++; 
-         m_ts_status_string = StringFormat("B[-] | I[-] | F[%s]", str_F);
-         return 0; 
+      return m_eval_any_failure ? 0 : 1;
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
+   // EvaluateBias — Directional market condition (all BiasMode variants)
+   // Returns +1 (LONG), -1 (SHORT), or 0 (no directional bias / reject).
+   // Includes: BiasEnabled gate, phase filtering, bias computation, AutoStrat,
+   //           entry signal validation, and HTF filter.
+   // ─────────────────────────────────────────────────────────────────────────
+   int EvaluateBias(int v_shift)
+   {
+      // Master bias gate
+      if(!m_settings.BiasEnabled) {
+         m_diag_last_reason = "BIAS_DISABLED";
+         m_reject_bias++;
+         m_stats.rejected_bias++;
+         m_ts_status_string = StringFormat("B[-] | I[-] | F[%s]", m_eval_str_F);
+         return 0;
       }
 
-      int v_shift = m_settings.Vote_EvalShift;
-      
       // ═══════════════════════════════════════════════════════════════
       // Detect entry layer
       // ═══════════════════════════════════════════════════════════════
@@ -3232,32 +3182,32 @@ public:
             m_stats.rejected_phase++;
             if(m_settings.DebugFlow) PrintFormat("[260308_PR5] UNORDERED phase detected - blocking ALL trades (layers=%s)", LayerBitfieldToString((int)m_diag_last_entry_layer));
             if(!m_settings.Stats_FullEvaluation) {
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
                return 0;
             }
-            if(first_failure == "") first_failure = "PHASE_UNORDERED";
-            any_failure = true;
+            if(m_eval_first_failure == "") m_eval_first_failure = "PHASE_UNORDERED";
+            m_eval_any_failure = true;
          }
          else {
             m_stats.passed_phase++;
          }
-         
+
          if(is_emerging && IsLayerActive(m_diag_last_entry_layer, LAYER_3_STRONG)) {
             m_diag_last_reason = "PHASE_EMERGING_BLOCKS_STRONG";
             m_reject_bias++;
             m_stats.rejected_layer_blocked++;
             if(m_settings.DebugFlow) PrintFormat("[260308_PR5] %s phase detected - blocking L3 component; layers=%s", EnumToString(phase), LayerBitfieldToString((int)m_diag_last_entry_layer));
             if(!m_settings.Stats_FullEvaluation) {
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
                return 0;
             }
-            if(first_failure == "") first_failure = "PHASE_EMERGING_L3";
-            any_failure = true;
+            if(m_eval_first_failure == "") m_eval_first_failure = "PHASE_EMERGING_L3";
+            m_eval_any_failure = true;
          }
          else if(phase != PHASE_UNORDERED) {
             m_stats.passed_layer_blocked++;
          }
-         
+
          if(m_settings.DebugFlow && is_trending) {
             PrintFormat("[260308_PR5] %s phase - allowing ALL layers (%s)", EnumToString(phase), LayerBitfieldToString((int)m_diag_last_entry_layer));
          }
@@ -3267,12 +3217,12 @@ public:
 
       // 2. Determine MASTER BIAS (Strategy)
       int bias = 0;
-      
+
       int hf = BiasFastHandle();
       int hs = BiasSlowHandle();
       double f_curr = GetMAVal(hf, v_shift, 0);
       double s_curr = GetMAVal(hs, v_shift, 0);
-      
+
       if(m_settings.BiasMode == BIAS_4EMA)
       {
          bias = GetBias_PhaseBased(v_shift);
@@ -3280,19 +3230,19 @@ public:
             datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
             PrintFormat("STEP 1 BIAS[%s]: BIAS_4EMA mode → bias=%d", TimeToString(bar_time), bias);
          }
-         str_B = (bias != 0) ? "+" : "POS";
-         
+         m_eval_str_B = (bias != 0) ? "+" : "POS";
+
          if(bias == 0) {
             m_diag_last_bias = 0;
             m_diag_last_reason = "BIAS_ZERO";
             m_reject_bias++;
             m_stats.rejected_bias++;
             if(!m_settings.Stats_FullEvaluation) {
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
                return 0;
             }
-            if(first_failure == "") first_failure = "BIAS_ZERO";
-            any_failure = true;
+            if(m_eval_first_failure == "") m_eval_first_failure = "BIAS_ZERO";
+            m_eval_any_failure = true;
          }
          m_diag_last_bias = bias;
       }
@@ -3300,14 +3250,13 @@ public:
          if(m_settings.ManSide == SIDE_LONG) bias = 1;
          else if(m_settings.ManSide == SIDE_SHORT) bias = -1;
          else bias = 0;
-         
-         // Telemetry check for manual contradiction
+
          if((bias == 1 && f_curr <= s_curr) || (bias == -1 && f_curr >= s_curr)) {
-            str_B = "MAN";
+            m_eval_str_B = "MAN";
          } else {
-            str_B = "+";
+            m_eval_str_B = "+";
          }
-            
+
          if(m_settings.DebugFlow) {
             datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
             PrintFormat("STEP 1 BIAS[%s]: MANUAL mode → bias=%d", TimeToString(bar_time), bias);
@@ -3323,23 +3272,23 @@ public:
          if(lookback < 1) lookback = 1;
          if(lookback > 5) lookback = 5;
 
-         double f_prev = GetMAVal(hf, v_shift + lookback, 0);  
-         double s_prev = GetMAVal(hs, v_shift + lookback, 0);  
+         double f_prev = GetMAVal(hf, v_shift + lookback, 0);
+         double s_prev = GetMAVal(hs, v_shift + lookback, 0);
 
          double min_slope = GetMinSlopeThreshold(f_curr, s_curr);
          double pip = PipSize();
 
          int fast_slope = CalculateSlope(f_curr, f_prev, min_slope);
          int slow_slope = CalculateSlope(s_curr, s_prev, min_slope);
-         
+
          int market_bias = 0;
 
          if(m_settings.BiasFastID == m_settings.BiasSlowID)
          {
-            if(fast_slope == 1) { market_bias = 1; str_B = "+"; }
-            else if(fast_slope == -1) { market_bias = -1; str_B = "+"; }
-            else str_B = "SLOPE";
-            
+            if(fast_slope == 1) { market_bias = 1; m_eval_str_B = "+"; }
+            else if(fast_slope == -1) { market_bias = -1; m_eval_str_B = "+"; }
+            else m_eval_str_B = "SLOPE";
+
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                double change_pips = (f_curr - f_prev) / pip;
@@ -3351,17 +3300,16 @@ public:
          }
          else
          {
-            // Telemetry strings for PAIR bias
             if(f_curr > s_curr) {
-               if(fast_slope == 1 && slow_slope == 1) { market_bias = 1; str_B = "+"; }
-               else str_B = "SLOPE";
-            } 
+               if(fast_slope == 1 && slow_slope == 1) { market_bias = 1; m_eval_str_B = "+"; }
+               else m_eval_str_B = "SLOPE";
+            }
             else if(f_curr < s_curr) {
-               if(fast_slope == -1 && slow_slope == -1) { market_bias = -1; str_B = "+"; }
-               else str_B = "SLOPE";
-            } 
+               if(fast_slope == -1 && slow_slope == -1) { market_bias = -1; m_eval_str_B = "+"; }
+               else m_eval_str_B = "SLOPE";
+            }
             else {
-               str_B = "POS";
+               m_eval_str_B = "POS";
             }
 
             if(m_settings.DebugFlow) {
@@ -3377,29 +3325,29 @@ public:
                            position, threshold_pips, lookback, market_bias);
             }
          }
-         
+
          if(market_bias == 0) {
             m_diag_last_bias = 0;
             m_diag_last_reason = "BIAS_ZERO";
             m_reject_bias++;
             m_stats.rejected_bias++;
-            
+
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                PrintFormat("STEP 1 BIAS[%s]: bias=0 → REJECT (no trend)", TimeToString(bar_time));
             }
-            
+
             if(!m_settings.Stats_FullEvaluation) {
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
                return 0;
             }
-            if(first_failure == "") first_failure = "BIAS_ZERO";
-            any_failure = true;
+            if(m_eval_first_failure == "") m_eval_first_failure = "BIAS_ZERO";
+            m_eval_any_failure = true;
          }
-         
+
          // === STEP 2: Evaluate AutoStrat for Entry Signal ===
          int entry_signal = 0;
-         
+
          if(m_settings.AutoStrat == STRAT_1EMA_SLOPE) {
             entry_signal = fast_slope;
             if(m_settings.DebugFlow) {
@@ -3454,11 +3402,11 @@ public:
             double f_prev_cross = GetMAVal(hf, v_shift + 1, 0);
             double s_curr_cross = GetMAVal(hs, v_shift, 0);
             double s_prev_cross = GetMAVal(hs, v_shift + 1, 0);
-            
+
             bool bullish_cross = (f_prev_cross <= s_prev_cross && f_curr_cross > s_curr_cross);
             bool bearish_cross = (f_prev_cross >= s_prev_cross && f_curr_cross < s_curr_cross);
             bool has_crossover = (bullish_cross || bearish_cross);
-            
+
             if(bullish_cross) entry_signal = 1;
             else if(bearish_cross) entry_signal = -1;
             else if(m_settings.ExitProfile == EXIT_PROFILE_RRM && market_bias != 0) {
@@ -3487,14 +3435,14 @@ public:
                   PrintFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_EMA no crossover → signal=0", TimeToString(bar_time));
                }
             }
-            
+
             if(m_settings.DebugFlow && has_crossover) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                PrintFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_EMA %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
                            TimeToString(bar_time), ema_fast_name, ema_slow_name, f_prev_cross, s_prev_cross, f_curr_cross, s_curr_cross, entry_signal);
             }
          }
-         
+
          // === STEP 3: Validate Entry Signal Against Market Bias ===
          if(entry_signal == market_bias) {
             bias = market_bias;
@@ -3507,7 +3455,7 @@ public:
             bias = 0;
             m_diag_last_bias = 0;
             m_diag_last_reason = "SIGNAL_MISMATCH";
-            
+
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                PrintFormat("STEP 3 MATCH[%s]: entry=%d != bias=%d → REJECT", TimeToString(bar_time), entry_signal, market_bias);
@@ -3515,43 +3463,43 @@ public:
             m_reject_bias++;
             m_stats.rejected_bias++;
             if(!m_settings.Stats_FullEvaluation) {
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
                return 0;
             }
-            if(first_failure == "") first_failure = "SIGNAL_MISMATCH";
-            any_failure = true;
+            if(m_eval_first_failure == "") m_eval_first_failure = "SIGNAL_MISMATCH";
+            m_eval_any_failure = true;
          }
       }
-      
+
       m_diag_last_bias = bias;
-      if(bias == 0) { 
-         m_diag_last_reason="BIAS_ZERO";
+      if(bias == 0) {
+         m_diag_last_reason = "BIAS_ZERO";
          m_reject_bias++;
          m_stats.rejected_bias++;
          if(!m_settings.Stats_FullEvaluation) {
-            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
             return 0;
          }
-         if(first_failure == "") first_failure = "BIAS_ZERO";
-         any_failure = true;
+         if(m_eval_first_failure == "") m_eval_first_failure = "BIAS_ZERO";
+         m_eval_any_failure = true;
       }
       else {
          m_stats.passed_bias++;
       }
 
-      // 3. HTF Filter Check
+      // HTF Filter Check
       if(m_settings.UseHTF) {
          double curr = GetMAVal(h_htf_ema, 1);
          double prev = GetMAVal(h_htf_ema, 2);
          int htf_dir = (curr > prev) ? 1 : -1;
-         if(bias != htf_dir) { 
-            m_diag_last_reason="HTF_VETO";
+         if(bias != htf_dir) {
+            m_diag_last_reason = "HTF_VETO";
             m_reject_gate++;
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                PrintFormat("STEP 4 HTF[%s]: bias=%d htf_dir=%d → VETO", TimeToString(bar_time), bias, htf_dir);
             }
-            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
             return 0;
          }
          if(m_settings.DebugFlow) {
@@ -3560,34 +3508,94 @@ public:
          }
       }
 
-      // ═══════════════════════════════════════════════════════════════
-      // KISS: Step 3 — Evaluate LayerX (structural alignment per EMA pair)
-      // ═══════════════════════════════════════════════════════════════
-      int layer_w = EvaluateLayerX(bias, 1);
-      int layer_m = EvaluateLayerX(bias, 2);
-      int layer_s = EvaluateLayerX(bias, 3);
+      return bias;
+   }
 
-      if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-         PrintFormat("[KISS] Step3 LayerW=%d LayerM=%d LayerS=%d (bias=%d)", layer_w, layer_m, layer_s, bias);
+   // ─────────────────────────────────────────────────────────────────────────
+   // EvaluateLayerX — KISS Component: Phase + EMA pair structural alignment
+   // Checks all 3 layers (W/M/S) and stores results in m_eval_layer_{w/m/s}.
+   // Returns 1 if at least one layer is aligned, 0 if none are aligned.
+   // Guard: returns 1 (pass) when EnableLayerDetection=false or BiasMode!=BIAS_4EMA.
+   // ─────────────────────────────────────────────────────────────────────────
+   int EvaluateLayerX(int v_shift, int bias)
+   {
+      // Layer detection only applies to BIAS_4EMA phase system
+      if(!m_settings.EnableLayerDetection || m_settings.BiasMode != BIAS_4EMA)
+      {
+         m_eval_layer_w = 1;
+         m_eval_layer_m = 1;
+         m_eval_layer_s = 1;
+         m_diag_layer_w = 1;
+         m_diag_layer_m = 1;
+         m_diag_layer_s = 1;
+         if(m_settings.DebugFlow) Print("STEP 3 LAYER: Disabled/N.A. (non-4EMA mode) → PASS");
+         return 1;
       }
 
-      if(layer_w == 0 && layer_m == 0 && layer_s == 0) {
+      // ═══════════════════════════════════════════════════════════════
+      // KISS: Evaluate LayerX (structural alignment per EMA pair)
+      // ═══════════════════════════════════════════════════════════════
+      m_eval_layer_w = CheckLayerPairAlign(bias, 1);
+      m_eval_layer_m = CheckLayerPairAlign(bias, 2);
+      m_eval_layer_s = CheckLayerPairAlign(bias, 3);
+
+      if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
+         PrintFormat("[KISS] Step3 LayerW=%d LayerM=%d LayerS=%d (bias=%d)", m_eval_layer_w, m_eval_layer_m, m_eval_layer_s, bias);
+      }
+
+      if(m_eval_layer_w == 0 && m_eval_layer_m == 0 && m_eval_layer_s == 0) {
          m_diag_last_reason = "LAYER_NONE_ALIGNED";
          m_reject_gate++;
          if(m_settings.DebugFlow) Print("STEP 3 LAYER: No layer aligned → REJECT");
-         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
          return 0;
       }
       if(m_settings.DebugFlow) Print("STEP 3 LAYER: At least one layer aligned → PASS");
 
+      m_diag_layer_w = m_eval_layer_w;
+      m_diag_layer_m = m_eval_layer_m;
+      m_diag_layer_s = m_eval_layer_s;
+
+      return 1;
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
+   // EvaluateBcX — KISS Component: Bar close confirmation (bcX)
+   // Uses m_eval_layer_{w/m/s} from EvaluateLayerX to check active layers only.
+   // Returns 1 if at least one active layer has its bar close confirmed, 0 otherwise.
+   // ─────────────────────────────────────────────────────────────────────────
+   int EvaluateBcX(int v_shift, int bias)
+   {
+      // For non-4EMA modes (layer detection disabled), use a direct bc check
+      if(!m_settings.EnableLayerDetection || m_settings.BiasMode != BIAS_4EMA)
+      {
+         int bc_result = Eval_BarClose(v_shift, bias, LAYER_NONE);
+         m_diag_emasig_w = bc_result;
+         m_diag_emasig_m = bc_result;
+         m_diag_emasig_s = bc_result;
+
+         if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
+            PrintFormat("[KISS] Step4 bcX=%d (non-layer mode, bias=%d, mode=%s)",
+                        bc_result, bias, EnumToString(m_settings.BarClose_Mode));
+         }
+         if(bc_result == 0) {
+            m_diag_last_reason = "BC_NOT_CONFIRMED";
+            m_reject_gate++;
+            if(m_settings.DebugFlow) Print("STEP 4 BCX: Bar close not confirmed → REJECT");
+            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+            return 0;
+         }
+         if(m_settings.DebugFlow) Print("STEP 4 BCX: Bar close confirmed → PASS");
+         return 1;
+      }
+
       // ═══════════════════════════════════════════════════════════════
-      // KISS: Step 4 — bcX (Bar close confirmation)
-      // Replaces EmaSigX: configurable via BarClose_Mode in Settings.
+      // KISS: bcX (Bar close confirmation, layer-aware)
       // Only evaluate bcX for active layers; inactive layers default to pass (1)
       // ═══════════════════════════════════════════════════════════════
-      int bc_w = (layer_w == 1) ? Eval_BarClose(v_shift, bias, LAYER_1_WEAK)   : 1;
-      int bc_m = (layer_m == 1) ? Eval_BarClose(v_shift, bias, LAYER_2_MEDIUM) : 1;
-      int bc_s = (layer_s == 1) ? Eval_BarClose(v_shift, bias, LAYER_3_STRONG) : 1;
+      int bc_w = (m_eval_layer_w == 1) ? Eval_BarClose(v_shift, bias, LAYER_1_WEAK)   : 1;
+      int bc_m = (m_eval_layer_m == 1) ? Eval_BarClose(v_shift, bias, LAYER_2_MEDIUM) : 1;
+      int bc_s = (m_eval_layer_s == 1) ? Eval_BarClose(v_shift, bias, LAYER_3_STRONG) : 1;
 
       // Keep emasig aliases for diagnostic/UI compatibility
       int emasig_w = bc_w;
@@ -3600,42 +3608,47 @@ public:
       }
 
       // At least one active layer must have its bcX confirmed
-      bool emasig_any = ((layer_w == 1 && emasig_w == 1) ||
-                         (layer_m == 1 && emasig_m == 1) ||
-                         (layer_s == 1 && emasig_s == 1));
+      bool emasig_any = ((m_eval_layer_w == 1 && emasig_w == 1) ||
+                         (m_eval_layer_m == 1 && emasig_m == 1) ||
+                         (m_eval_layer_s == 1 && emasig_s == 1));
 
       if(!emasig_any) {
          m_diag_last_reason = "BC_NOT_CONFIRMED";
          m_reject_gate++;
          if(m_settings.DebugFlow) Print("STEP 4 BCX: No active layer close confirmed → REJECT");
-         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
          return 0;
       }
       if(m_settings.DebugFlow) Print("STEP 4 BCX: Active layer close confirmed → PASS");
 
       // Determine active setup type and store KISS diagnostics
       string active_setup = "";
-      if(layer_w == 1 && emasig_w == 1)       active_setup = "LayerW (Weak/Ribbon) - Shallow pullback EMA1/2";
-      else if(layer_m == 1 && emasig_m == 1)  active_setup = "LayerM (Medium/Ghost) - Medium pullback EMA2/3";
-      else if(layer_s == 1 && emasig_s == 1)  active_setup = "LayerS (Strong/Shark) - Deep pullback EMA3/4";
-      else                                     active_setup = "None (no active layer confirmed)";
+      if(m_eval_layer_w == 1 && emasig_w == 1)       active_setup = "LayerW (Weak/Ribbon) - Shallow pullback EMA1/2";
+      else if(m_eval_layer_m == 1 && emasig_m == 1)  active_setup = "LayerM (Medium/Ghost) - Medium pullback EMA2/3";
+      else if(m_eval_layer_s == 1 && emasig_s == 1)  active_setup = "LayerS (Strong/Shark) - Deep pullback EMA3/4";
+      else                                            active_setup = "None (no active layer confirmed)";
 
-      // Store KISS layer/bcX results for diagnostics (emasig aliases used for UI compat)
-      m_diag_layer_w  = layer_w;
-      m_diag_layer_m  = layer_m;
-      m_diag_layer_s  = layer_s;
       m_diag_emasig_w = emasig_w;
       m_diag_emasig_m = emasig_m;
       m_diag_emasig_s = emasig_s;
 
-      // Enhanced KISS diagnostic log
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
          PrintFormat("[KISS] Setup: %s | Bias=%d | Layers: W=%d M=%d S=%d | bcX: W=%d M=%d S=%d",
-                     active_setup, bias, layer_w, layer_m, layer_s, bc_w, bc_m, bc_s);
+                     active_setup, bias, m_eval_layer_w, m_eval_layer_m, m_eval_layer_s, bc_w, bc_m, bc_s);
       }
 
+      return 1;
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
+   // EvaluateIndicatorX — KISS Component: Voting consensus
+   // Casts all enabled indicator votes, logs diagnostics, applies vote mode.
+   // Returns bias if voting passes, 0 if consensus fails.
+   // ─────────────────────────────────────────────────────────────────────────
+   int EvaluateIndicatorX(int v_shift, int bias)
+   {
       // ═══════════════════════════════════════════════════════════════
-      // 4. Voting Logic — Dynamic weight-based consensus (Step 8)
+      // 4. Voting Logic — Dynamic weight-based consensus
       // ═══════════════════════════════════════════════════════════════
       double vote_weight = 0.0;
       bool   all_pass    = true;
@@ -3668,7 +3681,7 @@ public:
       #undef CAST_VOTE_STAT
 
       m_diag_last_votes = (int)MathRound(vote_weight);
-      
+
       // Calculate string telemetry for Indicators
       int s_enabled=0, s_passed=0;
       if(m_settings.Ind_EmaSig_Enabled) { s_enabled++; if(Check_EMA1(bias, v_shift)) s_passed++; }
@@ -3683,25 +3696,19 @@ public:
       if(m_settings.Ind_P123_Enabled)   { s_enabled++; if(Check_P123(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_Ross_Enabled)   { s_enabled++; if(Check_Ross(bias, v_shift)) s_passed++; }
 
-      str_I = StringFormat("%d/%d", s_passed, s_enabled);
-      m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
+      m_eval_str_I = StringFormat("%d/%d", s_passed, s_enabled);
+      m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
 
-
-      // Store integer-rounded weight for display (backward-compatible diagnostics)
-      // FORCE the UI counter to show the current vote weight (e.g., 1, 2, 3)
+      // Force the UI counter to show the current vote weight
       m_diag_last_votes = (int)MathRound(vote_weight);
 
-
-      // Per-indicator results captured during diagnostic logging (used by pipeline summary)
+      // Per-indicator results for diagnostic logging
       bool _res_emasig=false, _res_adx=false, _res_macd=false, _res_rsi=false,
            _res_cci=false, _res_mfi=false, _res_sto=false, _res_bb=false,
            _res_psar=false, _res_p123=false, _res_ross=false;
 
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGIN =====
-      // DEBUG_INDICATORS: populate _res_* for TS_SUMMARY (pass/fail per indicator)
-      // DEBUG_FULL: also print detailed [IND] lines with indicator values
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-         // Populate _res_* results for the TS_SUMMARY block below
          if(m_settings.Ind_EmaSig_Enabled) _res_emasig = Check_EMA1(bias, v_shift);
          if(m_settings.Ind_Adx_Enabled)    _res_adx    = Check_ADX(v_shift);
          if(m_settings.Ind_Macd_Enabled)   _res_macd   = Check_MACD(bias, v_shift);
@@ -3714,13 +3721,11 @@ public:
          if(m_settings.Ind_P123_Enabled)   _res_p123   = Check_P123(bias, v_shift);
          if(m_settings.Ind_Ross_Enabled)   _res_ross   = Check_Ross(bias, v_shift);
 
-         // DEBUG_FULL: print detailed [IND] lines with indicator values
          if(m_settings.DebugLevel >= DEBUG_FULL) {
             string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
             PrintFormat("[IND] --- Indicators (mode=%s bias=%d weight=%.2f) ---",
                         mode_str, bias, vote_weight);
 
-            // EmaSig
             if(m_settings.Ind_EmaSig_Enabled) {
                double p = iClose(m_symbol, PERIOD_CURRENT, v_shift);
                double e = GetMAVal(h_ema1, v_shift);
@@ -3728,14 +3733,12 @@ public:
                            p, e, _res_emasig ? "PASS" : "FAIL", m_settings.Ind_EmaSig_Weight);
             } else Print("[IND] EmaSig: DISABLED → SKIP");
 
-            // ADX
             if(m_settings.Ind_Adx_Enabled) {
                double adx = GetVal(h_adx, v_shift);
                PrintFormat("[IND] ADX: %.2f / threshold=%.2f → %s (w=%d)",
                            adx, m_cachedADXThreshold, _res_adx ? "PASS" : "FAIL", m_settings.Ind_Adx_Weight);
             } else Print("[IND] ADX: DISABLED → SKIP");
 
-            // MACD
             if(m_settings.Ind_Macd_Enabled) {
                double macd_m = GetVal(h_macd, v_shift, 0);
                double macd_s = GetVal(h_macd, v_shift, 1);
@@ -3743,28 +3746,24 @@ public:
                            macd_m, macd_s, macd_m - macd_s, _res_macd ? "PASS" : "FAIL", m_settings.Ind_Macd_Weight);
             } else Print("[IND] MACD: DISABLED → SKIP");
 
-            // RSI
             if(m_settings.Ind_Rsi_Enabled) {
                double r = GetVal(h_rsi, v_shift);
                PrintFormat("[IND] RSI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
                            r, m_settings.T_RsiOB, m_settings.T_RsiOS, _res_rsi ? "PASS" : "FAIL", m_settings.Ind_Rsi_Weight);
             } else Print("[IND] RSI: DISABLED → SKIP");
 
-            // CCI
             if(m_settings.Ind_Cci_Enabled) {
                double c = GetVal(h_cci, v_shift);
                PrintFormat("[IND] CCI: %.2f → %s (w=%d)",
                            c, _res_cci ? "PASS" : "FAIL", m_settings.Ind_Cci_Weight);
             } else Print("[IND] CCI: DISABLED → SKIP");
 
-            // MFI
             if(m_settings.Ind_Mfi_Enabled) {
                double mfi = GetVal(h_mfi, v_shift);
                PrintFormat("[IND] MFI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
                            mfi, m_settings.T_MfiOB, m_settings.T_MfiOS, _res_mfi ? "PASS" : "FAIL", m_settings.Ind_Mfi_Weight);
             } else Print("[IND] MFI: DISABLED → SKIP");
 
-            // Stochastic
             if(m_settings.Ind_Sto_Enabled) {
                double sk = GetVal(h_sto, v_shift, 0);
                double sd = GetVal(h_sto, v_shift, 1);
@@ -3772,7 +3771,6 @@ public:
                            sk, sd, m_settings.T_StoOB, m_settings.T_StoOS, _res_sto ? "PASS" : "FAIL", m_settings.Ind_Sto_Weight);
             } else Print("[IND] Stoch: DISABLED → SKIP");
 
-            // Bollinger Bands
             if(m_settings.Ind_Bb_Enabled) {
                double bb_mid = GetVal(h_bb, v_shift, 0);
                double cl_bb  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
@@ -3780,7 +3778,6 @@ public:
                            bb_mid, cl_bb, _res_bb ? "PASS" : "FAIL", m_settings.Ind_Bb_Weight);
             } else Print("[IND] BB: DISABLED → SKIP");
 
-            // PSAR
             if(m_settings.Ind_Psar_Enabled) {
                double psar_v = GetVal(h_psar, v_shift);
                double cl_p   = iClose(m_symbol, PERIOD_CURRENT, v_shift);
@@ -3801,17 +3798,14 @@ public:
                            psar_v, cl_p, flip_info, _res_psar ? "PASS" : "FAIL", m_settings.Ind_Psar_Weight);
             } else Print("[IND] PSAR: DISABLED → SKIP");
 
-            // P123
             if(m_settings.Ind_P123_Enabled) {
                PrintFormat("[IND] P123: → %s (w=%d)", _res_p123 ? "PASS" : "FAIL", m_settings.Ind_P123_Weight);
             } else Print("[IND] P123: DISABLED → SKIP");
 
-            // Ross Hook
             if(m_settings.Ind_Ross_Enabled) {
                PrintFormat("[IND] RossHook: → %s (w=%d)", _res_ross ? "PASS" : "FAIL", m_settings.Ind_Ross_Weight);
             } else Print("[IND] RossHook: DISABLED → SKIP");
 
-            // ATR Vote (non-directional voting indicator)
             if(m_settings.Ind_Atr_Enabled) {
                double atr_v_pips = m_diag_last_atr_pips;
                bool   atr_v_ok   = true;
@@ -3823,7 +3817,6 @@ public:
             } else
                Print("[IND] ATR Vote: DISABLED → SKIP");
 
-            // CandleBody Vote (non-directional voting indicator)
             if(m_settings.Ind_CandleBody_Enabled) {
                bool cb_ok = CheckCandleBodyIndicator();
                PrintFormat("[IND] CandleBody: avg period=%d max=x%.1f check=%d → %s (w=%d)",
@@ -3833,7 +3826,6 @@ public:
             } else
                Print("[IND] CandleBody: DISABLED → SKIP");
 
-            // Choppiness Index
             if(m_settings.Ind_CI_Enabled) {
                double ci_val = CalculateCI(v_shift);
                bool ci_ok = Check_CI(bias, v_shift);
@@ -3847,63 +3839,193 @@ public:
       }
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: END =====
 
+      // Store results for TS_SUMMARY diagnostic block in EvaluateTS()
+      m_eval_ind_res_emasig = _res_emasig;
+      m_eval_ind_res_adx    = _res_adx;
+      m_eval_ind_res_macd   = _res_macd;
+      m_eval_ind_res_rsi    = _res_rsi;
+      m_eval_ind_res_cci    = _res_cci;
+      m_eval_ind_res_mfi    = _res_mfi;
+      m_eval_ind_res_sto    = _res_sto;
+      m_eval_ind_res_bb     = _res_bb;
+      m_eval_ind_res_psar   = _res_psar;
+      m_eval_ind_res_p123   = _res_p123;
+      m_eval_ind_res_ross   = _res_ross;
+      m_eval_vote_weight    = vote_weight;
+      m_eval_all_pass       = all_pass;
 
-      // --- REFACTORED STEP 9: FINAL DECISION & UI SYNC ---
+      // Apply vote mode and return result
+      if(all_pass) {
+         m_diag_last_reason = "OK";
+         m_signals_generated++;
+         m_stats.signals_confirmed++;
+         if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=%d (ALL votes pass, weight=%.2f)", bias, vote_weight);
+         return bias;
+      }
+      else {
+         m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
+         m_reject_votes++;
+         if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
+         return 0;
+      }
+   }
+
+   //==========================================================================
+   // === EvaluateTS: BEGIN ===
+   //==========================================================================
+   // This function implements the 9-step signal validation pipeline.
+   // Each step must pass before moving to the next.
+   // If any step fails, the function returns 0 (no trade).
+   //
+   // PROCESS FLOW:
+   // 1. PRE-FILTERS: Spread, time checks
+   // 2. MARKET BIAS: Check EMA position and slopes
+   //    - SINGLE_SLOPE: EMA rising/falling (when BiasFastID == BiasSlowID)
+   //    - PAIR: Fast > Slow AND both rising (LONG) or Fast < Slow AND both falling (SHORT)
+   //    - NEUTRAL: Neither condition met -> REJECT
+   // 3. AUTOSTRAT: Generate entry signal based on strategy
+   //    - STRAT_1EMA_SLOPE: Single EMA direction
+   //    - STRAT_2EMA_CROSS_PRICE: Price vs EMA
+   //    - STRAT_2EMA_CROSS_EMA: EMA crossover
+   // 4. SIGNAL VALIDATION: Entry signal must match bias
+   // 5. HTF FILTER: Higher timeframe must agree with bias
+   // 6. RRM GATES: Check pullback/divergence if enabled
+   // 7. VOTING BYPASS: Skip voting if threshold <= 1
+   // 8. INDICATOR VOTING: Count indicator confirmations
+   // 9. FINAL DECISION: Accept if votes >= threshold
+   //
+   // RETURNS: 1 (LONG), -1 (SHORT), 0 (NO TRADE)
+   //==========================================================================
+   // EvaluateTS() - Main Signal Processing Pipeline (WITH DIAGNOSTICS & TELEMETRY)
+   // Evaluates strictly on the closed candle (shift=1)
+   //==========================================================================
+   int EvaluateTS() 
+   {   
+      if(m_settings.DebugFlow) {
+         Print("[DEBUG_TEST] EvaluateTS() CALLED");
+         PrintFormat("[DEBUG_TEST] m_settings.DebugFlow = %s", m_settings.DebugFlow ? "TRUE" : "FALSE");
+         PrintFormat("[DEBUG_TEST] Current time: %s", TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES));
+      }
+
+      // Update PSAR flip tracking on each bar close (uses shift=1 for closed bar)
+      if(m_settings.Vote_AllowPsarFlip)
+         UpdatePSARFlipTracking(m_settings.Vote_EvalShift);
+
+      UpdatePhaseDiagnostics(m_settings.ma_v_shift);
+      UpdateLayerDiagnostics(m_settings.ma_v_shift);
+
+      // ═══════════════════════════════════════════════════════════════
+      // Reset diagnostics, telemetry, and KISS evaluation state
+      // ═══════════════════════════════════════════════════════════════
+      m_diag_last_bias   = 0;
+      m_diag_last_votes  = 0;
+      m_diag_last_reason = "";
+      m_ts_status_string = "B[0] | I[0/0] | F[OK]";
+
+      m_telemetry.bias = 0;
+      m_telemetry.phase = 0;
+      m_telemetry.layer = 0;
+      m_telemetry.votes_for = 0;
+      m_telemetry.votes_total = 0;
+      m_telemetry.rejection_reason = "Evaluating...";
+      m_telemetry.active_indicators = "0/0";
+      m_bars_evaluated++;
+      m_stats.total_bars++;
+
+      // Reset KISS evaluation state (shared between component functions)
+      m_eval_any_failure   = false;
+      m_eval_first_failure = "";
+      m_eval_str_F         = "OK";
+      m_eval_str_B         = "0";
+      m_eval_str_I         = "0/0";
+      m_eval_layer_w       = 0;
+      m_eval_layer_m       = 0;
+      m_eval_layer_s       = 0;
+      m_eval_vote_weight   = 0.0;
+      m_eval_all_pass      = false;
+
+      // Bar-close diagnostic banner
+      if(m_settings.DebugFlow)
+      {
+         datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.ma_v_shift);
+         PrintFormat("[EVAL_START] ===========================================");
+         PrintFormat("[EVAL_START] Bar: %s (shift=%d)",
+                     TimeToString(bar_time, TIME_DATE|TIME_MINUTES), m_settings.ma_v_shift);
+         PrintFormat("[EVAL_START] ===========================================");
+      }
+
+      int v_shift = m_settings.Vote_EvalShift;
+
+      // ════════════════════════════════════════════════════════════
+      // KISS FORMULA: TS = Bias × LayerX × bcX × IndicatorX × FilterX
+      // Each component returns 0 (fail/block) or 1/±bias (pass)
+      // ════════════════════════════════════════════════════════════
+
+      // COMPONENT 1: FilterX — Non-directional gates (time, news, spread)
+      int filterX = EvaluateFilterX(v_shift);
+      if(filterX == 0 && !m_settings.Stats_FullEvaluation) {
+         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+         UpdateTelemetry(0);
+         return 0;
+      }
+
+      // COMPONENT 2: Bias — Directional market condition
+      int bias = EvaluateBias(v_shift);
+      if(bias == 0 && !m_settings.Stats_FullEvaluation) {
+         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+         UpdateTelemetry(0);
+         return 0;
+      }
+      m_diag_last_bias = bias;
+
+      // COMPONENT 3: LayerX — EMA pair structural alignment (hard gate)
+      int layerX = EvaluateLayerX(v_shift, bias);
+      if(layerX == 0) {
+         UpdateTelemetry(0);
+         return 0;
+      }
+
+      // COMPONENT 4: bcX — Bar close confirmation (hard gate)
+      int bcX = EvaluateBcX(v_shift, bias);
+      if(bcX == 0) {
+         UpdateTelemetry(0);
+         return 0;
+      }
+
+      // COMPONENT 5: IndicatorX — Voting consensus
+      int indicatorX = EvaluateIndicatorX(v_shift, bias);
+
+      // ════════════════════════════════════════════════════════════
+      // FINAL DECISION
+      // ════════════════════════════════════════════════════════════
       int final_signal = 0;
-            
-      if(m_settings.VoteMode == VOTE_MODE_ALL)
-      {
-         if(all_pass && !any_failure) {
-            m_diag_last_reason="OK";
-            m_signals_generated++;
-            m_stats.signals_confirmed++;
-            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=%d (ALL votes pass, weight=%.2f)", bias, vote_weight);
-            final_signal = bias;
-         }
-         else if(any_failure) {
-            if(m_diag_last_reason == "") m_diag_last_reason = first_failure;
-            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
-         }
-         else {
-            m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
-            m_reject_votes++;
-            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
-         }
+
+      if(m_eval_any_failure) {
+         // FullEval mode: accumulated failure from FilterX or EvaluateBias
+         if(m_diag_last_reason == "") m_diag_last_reason = m_eval_first_failure;
+         if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
       }
-      else
-      {
-         // THRESHOLD mode
-         if(all_pass && !any_failure) {
-            m_diag_last_reason="OK";
-            m_signals_generated++;
-            m_stats.signals_confirmed++;
-            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=%d (votes %.2f all pass)", bias, vote_weight);
-            final_signal = bias;
-         }
-         else if(any_failure) {
-            if(m_diag_last_reason == "") m_diag_last_reason = first_failure;
-            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
-         }
-         else {
-            m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
-            m_reject_votes++;
-            if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
-         }
+      else if(indicatorX == 0) {
+         // Indicator voting failed (reason already set by EvaluateIndicatorX)
+         if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
+      }
+      else {
+         // All components passed → signal confirmed
+         final_signal = bias;
+         if(m_settings.DebugFlow && final_signal != 0)
+            PrintFormat("[RESULT] TS=%d (Votes: %.2f)", final_signal, m_eval_vote_weight);
       }
 
-
-      // Final safeguard: ensure the UI variable is NOT zero if votes were cast
-      if(vote_weight > 0 && m_diag_last_votes == 0) 
-         m_diag_last_votes = (int)MathRound(vote_weight);
-      
-      // Final Debug Log (if enabled)
-      if(m_settings.DebugFlow && final_signal != 0)
-         PrintFormat("[RESULT] TS=%d (Votes: %.2f)", final_signal, vote_weight);
+      // Ensure UI vote counter is up-to-date
+      if(m_eval_vote_weight > 0 && m_diag_last_votes == 0)
+         m_diag_last_votes = (int)MathRound(m_eval_vote_weight);
 
       // ===== TS PIPELINE SUMMARY =====
-      // DEBUG_INDICATORS+: show per-bar gate/bias/indicator summary (20-30 lines)
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
          datetime sum_bar_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.ma_v_shift);
+         // Re-read spread for summary
+         double spread_pips = SpreadPips();
+         bool spread_pass = !(m_settings.UseSpread && m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread);
          Print("════════════════════════════════════════════════════════════");
          PrintFormat("[TS_SUMMARY] Bar: %s (shift=%d)",
                      TimeToString(sum_bar_time, TIME_DATE|TIME_MINUTES),
@@ -3965,67 +4087,59 @@ public:
          string saved_reason = m_diag_last_reason;
 
          if(m_settings.Ind_EmaSig_Enabled) {
-            PrintFormat("  %s EmaSig", _res_emasig ? "✅" : "❌");
-            if(_res_emasig) s_passed++;
+            PrintFormat("  %s EmaSig", m_eval_ind_res_emasig ? "✅" : "❌");
+            if(m_eval_ind_res_emasig) s_passed++;
          } else Print("  ⏭️  EmaSig: disabled");
 
          if(m_settings.Ind_Adx_Enabled) {
-            PrintFormat("  %s ADX", _res_adx ? "✅" : "❌");
-            if(_res_adx) s_passed++;
+            PrintFormat("  %s ADX", m_eval_ind_res_adx ? "✅" : "❌");
+            if(m_eval_ind_res_adx) s_passed++;
          } else Print("  ⏭️  ADX: disabled");
 
          if(m_settings.Ind_Macd_Enabled) {
-            PrintFormat("  %s MACD", _res_macd ? "✅" : "❌");
-            if(_res_macd) s_passed++;
+            PrintFormat("  %s MACD", m_eval_ind_res_macd ? "✅" : "❌");
+            if(m_eval_ind_res_macd) s_passed++;
          } else Print("  ⏭️  MACD: disabled");
 
          if(m_settings.Ind_Rsi_Enabled) {
-            PrintFormat("  %s RSI", _res_rsi ? "✅" : "❌");
-            if(_res_rsi) s_passed++;
+            PrintFormat("  %s RSI", m_eval_ind_res_rsi ? "✅" : "❌");
+            if(m_eval_ind_res_rsi) s_passed++;
          } else Print("  ⏭️  RSI: disabled");
 
          if(m_settings.Ind_Cci_Enabled) {
-            PrintFormat("  %s CCI", _res_cci ? "✅" : "❌");
-            if(_res_cci) s_passed++;
+            PrintFormat("  %s CCI", m_eval_ind_res_cci ? "✅" : "❌");
+            if(m_eval_ind_res_cci) s_passed++;
          } else Print("  ⏭️  CCI: disabled");
 
          if(m_settings.Ind_Mfi_Enabled) {
-            PrintFormat("  %s MFI", _res_mfi ? "✅" : "❌");
-            if(_res_mfi) s_passed++;
+            PrintFormat("  %s MFI", m_eval_ind_res_mfi ? "✅" : "❌");
+            if(m_eval_ind_res_mfi) s_passed++;
          } else Print("  ⏭️  MFI: disabled");
 
          if(m_settings.Ind_Sto_Enabled) {
-            PrintFormat("  %s Stochastic", _res_sto ? "✅" : "❌");
-            if(_res_sto) s_passed++;
+            PrintFormat("  %s Stochastic", m_eval_ind_res_sto ? "✅" : "❌");
+            if(m_eval_ind_res_sto) s_passed++;
          } else Print("  ⏭️  Stochastic: disabled");
 
          if(m_settings.Ind_Bb_Enabled) {
-            PrintFormat("  %s Bollinger Bands", _res_bb ? "✅" : "❌");
-            if(_res_bb) s_passed++;
+            PrintFormat("  %s Bollinger Bands", m_eval_ind_res_bb ? "✅" : "❌");
+            if(m_eval_ind_res_bb) s_passed++;
          } else Print("  ⏭️  Bollinger Bands: disabled");
 
          if(m_settings.Ind_Psar_Enabled) {
-            string psar_mode;
-            if(!m_settings.Vote_AllowPsarFlip)
-               psar_mode = "DOT";
-            else if(m_settings.Vote_PsarFlipDelay == -1)
-               psar_mode = "PERSISTENT";
-            else
-               psar_mode = "FLIP";
-            PrintFormat("  %s PSAR (%s mode)",
-                        _res_psar ? "✅" : "❌",
-                        psar_mode);
-            if(_res_psar) s_passed++;
+            string psar_mode = !m_settings.Vote_AllowPsarFlip ? "DOT" : (m_settings.Vote_PsarFlipDelay == -1) ? "PERSISTENT" : "FLIP";
+            PrintFormat("  %s PSAR (%s mode)", m_eval_ind_res_psar ? "✅" : "❌", psar_mode);
+            if(m_eval_ind_res_psar) s_passed++;
          } else Print("  ⏭️  PSAR: disabled");
 
          if(m_settings.Ind_P123_Enabled) {
-            PrintFormat("  %s Pattern 1-2-3", _res_p123 ? "✅" : "❌");
-            if(_res_p123) s_passed++;
+            PrintFormat("  %s Pattern 1-2-3", m_eval_ind_res_p123 ? "✅" : "❌");
+            if(m_eval_ind_res_p123) s_passed++;
          } else Print("  ⏭️  Pattern 1-2-3: disabled");
 
          if(m_settings.Ind_Ross_Enabled) {
-            PrintFormat("  %s Ross Hook", _res_ross ? "✅" : "❌");
-            if(_res_ross) s_passed++;
+            PrintFormat("  %s Ross Hook", m_eval_ind_res_ross ? "✅" : "❌");
+            if(m_eval_ind_res_ross) s_passed++;
          } else Print("  ⏭️  Ross Hook: disabled");
 
          Print("");
@@ -4068,55 +4182,51 @@ public:
       // ═══════════════════════════════════════════════════════════════
       // TELEMETRY INJECTION (B|I|F Construction)
       // ═══════════════════════════════════════════════════════════════
-      
+
       // 1. Filter Interrogation
       if(m_diag_last_reason == "TIME" || m_diag_last_reason == "NEWS" || m_diag_last_reason == "SPREAD") {
-         str_F = m_diag_last_reason;
+         m_eval_str_F = m_diag_last_reason;
       }
-   
+
       // 2. Bias Interrogation
       if(bias != 0) {
-         str_B = "+";
+         m_eval_str_B = "+";
       } else {
-         // Calculate only on failure to spare memory/CPU
          double f_val = GetMAVal(BiasFastHandle(), v_shift);
          double s_val = GetMAVal(BiasSlowHandle(), v_shift);
          int f_slope = GetSlope(BiasFastHandle(), v_shift);
-         int s_slope = GetSlope(BiasSlowHandle(), v_shift);
-   
-         if(m_diag_last_reason == "PHASE_UNORDERED" || m_diag_last_reason == "PHASE") str_B = "PHASE";
-         else if((f_val > s_val && f_slope <= 0) || (f_val < s_val && f_slope >= 0)) str_B = "SLOPE";
-         else str_B = "POS";
+
+         if(m_diag_last_reason == "PHASE_UNORDERED" || m_diag_last_reason == "PHASE") m_eval_str_B = "PHASE";
+         else if((f_val > s_val && f_slope <= 0) || (f_val < s_val && f_slope >= 0)) m_eval_str_B = "SLOPE";
+         else m_eval_str_B = "POS";
       }
-   
-      // 3. Indicator Interrogation (Optimized for OnTick)
+
+      // 3. Indicator Interrogation
       int total_enabled = CountEnabledIndicators();
-      
-      //string
-      str_I = StringFormat("%d/%d", m_diag_last_votes, total_enabled);
-   
+      m_eval_str_I = StringFormat("%d/%d", m_diag_last_votes, total_enabled);
+
       // 4. Final String Assembly
-      m_ts_status_str = StringFormat("B[%s] | I[%s] | F[%s]", str_B, str_I, str_F);
-      
+      m_ts_status_str = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+
       // 5. Populate Final UI Telemetry Snapshot
       m_telemetry.bias = final_signal;
       m_telemetry.phase = (int)m_diag_last_phase;
       m_telemetry.layer = (int)m_diag_last_entry_layer;
       m_telemetry.votes_for = m_diag_last_votes;
       m_telemetry.votes_total = total_enabled;
-      
+
       if(final_signal != 0) {
          m_telemetry.rejection_reason = "Valid Signal";
       } else {
-         if(str_F != "OK") {
-            m_telemetry.rejection_reason = "TE: " + str_F + " Check Failed";
+         if(m_eval_str_F != "OK") {
+            m_telemetry.rejection_reason = "TE: " + m_eval_str_F + " Check Failed";
          } else {
             m_telemetry.rejection_reason = "TS: " + (m_diag_last_reason != "" ? m_diag_last_reason : "Unknown Mismatch");
          }
       }
 
       // --- AUDITED TERMINATION ---
-      UpdateTelemetry(final_signal); 
+      UpdateTelemetry(final_signal);
       return final_signal;
    } // === EvaluateTS: END ===
 
