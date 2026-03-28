@@ -799,7 +799,7 @@ input bool           Inp_RRM_EnableInCustom     = false; // Entry RRM Enable In 
 input bool           Inp_CloseOnReverse         = false; // Entry Close On REverse (CUSTOM; presets may override)
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  🔧 STEP 3B: Bar Close (bcX) Confirmation             ║";
+input group "║  🔧 STEP 3: Bar Close (bcX) Confirmation               ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input string         Inp_BarClose_Info          = "bcX: Checks candle close beyond target EMA (separate from LayerX position check)"; // [bcX] Description
 input bool           Inp_BarClose_Enabled       = true; // [bcX] Enable bar close confirmation (CUSTOM; presets override)

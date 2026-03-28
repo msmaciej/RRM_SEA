@@ -1049,10 +1049,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BbMode                    = BB_TREND_FOLLOW;
       
       // Candle Body
-      cfg.CandleBody_AvgPeriod      = 5;      // ORG: 10
-      cfg.CandleBody_MaxMult        = 3.0;    // ORG: 3.0
-      cfg.CandleBody_CheckBars      = 3;      // ORG: 1
-      cfg.Ind_CandleBody_Weight     = 1;      // ORG: 1
+      cfg.CandleBody_AvgPeriod      = 5;      // ORG: 10     5
+      cfg.CandleBody_MaxMult        = 3.0;    // ORG:  3.0   3.0
+      cfg.CandleBody_CheckBars      = 3;      // ORG:  1     3
+      cfg.Ind_CandleBody_Weight     = 1;      // ORG:  1
 
       // Choppiness Index
       cfg.CI_Period                 = 14;
@@ -1076,12 +1076,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Ema4                    = 89;     // ORG: 89
    
       // MACD (Moving Average Convergence Divergence)
-      cfg.P_MacdFast                = 5;      // ORG: 12  8   5
-      cfg.P_MacdSlow                = 8;      // ORG: 26  13  8
-      cfg.P_MacdSig                 = 3;      // ORG: 9   8   5
+      cfg.P_MacdFast                = 8;      // ORG: 12  8   5  5
+      cfg.P_MacdSlow                = 13;     // ORG: 26  13  8  8
+      cfg.P_MacdSig                 = 5;      // ORG: 9   8   5  3
       cfg.MacdVoteMode              = MACD_HISTOGRAM;
       cfg.MacdRequireSlope          = true;   // ORG: false
-      cfg.MacdRequireDivergence     = false;   // ORG: false
+      cfg.MacdRequireDivergence     = true;   // ORG: false
       cfg.MacdRequireHook           = false;  // ORG: false
       cfg.MacdFreshBars             = 10;     // ORG: 3
       cfg.MacdSlopeMin              = 0.000001; // ORG: 0.00001
@@ -1216,7 +1216,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          // ────────────────────────────────────────────────────────────
          // CORE SETTINGS
          // ────────────────────────────────────────────────────────────
-         cfg.RRRatio             = 2.5;             // Risk:Reward = 2:1 (risk 50p to win 100p)
+         cfg.RRRatio             = 3.5;             // Risk:Reward = 2:1 (risk 50p to win 100p)
          cfg.SwingLookback       = swing_lookback;  // TF-adaptive (M1=10 bars, D1=30 bars)
 
          // ────────────────────────────────────────────────────────────
@@ -1231,8 +1231,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          // ────────────────────────────────────────────────────────────
          // BREAKEVEN
          // ────────────────────────────────────────────────────────────
-         cfg.BE_Mode             = BE_MODE_TP_PROGRESS_PCT;
-         cfg.RRM_BE_ProgressPct  = 10.0;              // Trigger at 10% progress toward TP
+         cfg.BE_Mode             = BE_MODE_R_MULTIPLE;
+         cfg.RRM_BE_ProgressPct  = 5.0;              // Trigger at 10% progress toward TP
          cfg.RRM_BE_BufferPips   = be_cushion * 0.5;  // TF-adaptive, tighter (H4=7.5p vs old 15p)
          cfg.BEThresholdPips     = 0.0;               // Not used (ProgressPct mode)
 
