@@ -426,9 +426,9 @@ private:
       // ════════════════════════════════════════════════════════════════
       // Check if enabled
       // ════════════════════════════════════════════════════════════════
-      if(!Settings.BarClose_Enabled || Settings.BarClose_Mode == BC_DISABLED)
+      if(!m_settings.BarClose_Enabled || m_settings.BarClose_Mode == BC_DISABLED)
       {
-         if(Settings.DebugFlow)
+         if(m_settings.DebugFlow)
             Print("[bcX] DISABLED → PASS (returns 1)");
          return 1;
       }
@@ -440,7 +440,7 @@ private:
       string bc_label = "bc";
       string ema_name = "";
       
-      if(Settings.BarClose_Mode == BC_LAYER_AWARE && active_layer != LAYER_NONE)
+      if(m_settings.BarClose_Mode == BC_LAYER_AWARE && active_layer != LAYER_NONE)
       {
          // Layer-aware mode: bcW/bcM/bcS
          switch(active_layer)
@@ -470,10 +470,10 @@ private:
                break;
          }
       }
-      else if(Settings.BarClose_Mode == BC_BIAS_FAST)
+      else if(m_settings.BarClose_Mode == BC_BIAS_FAST)
       {
          // Use BiasFastID
-         switch(Settings.BiasFastID)
+         switch(m_settings.BiasFastID)
          {
             case (int)ROLE_EMA1: check_ema = GetMAVal(h_ema1, v_shift); ema_name = "EMA1"; break;
             case (int)ROLE_EMA2: check_ema = GetMAVal(h_ema2, v_shift); ema_name = "EMA2"; break;
@@ -486,7 +486,7 @@ private:
       else  // BC_FIXED_EMA
       {
          // Use BarClose_DefaultEMA
-         switch(Settings.BarClose_DefaultEMA)
+         switch(m_settings.BarClose_DefaultEMA)
          {
             case ROLE_EMA1: check_ema = GetMAVal(h_ema1, v_shift); ema_name = "EMA1"; break;
             case ROLE_EMA2: check_ema = GetMAVal(h_ema2, v_shift); ema_name = "EMA2"; break;
@@ -507,7 +507,7 @@ private:
       {
          passed = (close_price > check_ema);
          
-         if(Settings.DebugFlow)
+         if(m_settings.DebugFlow)
             Print("[", bc_label, "] LONG: Close=", DoubleToString(close_price, _Digits),
                   " vs ", ema_name, "=", DoubleToString(check_ema, _Digits),
                   " → ", (passed ? "PASS (Close > EMA)" : "FAIL (Close <= EMA)"));
@@ -516,7 +516,7 @@ private:
       {
          passed = (close_price < check_ema);
          
-         if(Settings.DebugFlow)
+         if(m_settings.DebugFlow)
             Print("[", bc_label, "] SHORT: Close=", DoubleToString(close_price, _Digits),
                   " vs ", ema_name, "=", DoubleToString(check_ema, _Digits),
                   " → ", (passed ? "PASS (Close < EMA)" : "FAIL (Close >= EMA)"));
