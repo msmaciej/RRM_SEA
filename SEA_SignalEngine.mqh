@@ -409,17 +409,26 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   //| Check_BarClose: Bar close confirmation (bcX)                     |
-   //| Returns: 1 (pass), 0 (fail)                                      |
+   //| Check_BarClose(): Layer-aware price position gate                |
+   //|                                                                  |
+   //| REPLACES: EmaSig indicator voting (deprecated)                   |
+   //|                                                                  |
+   //| LAYER-AWARE BEHAVIOR:                                            |
+   //|   LayerW → Checks price vs EMA1 (fast layer boundary)           |
+   //|   LayerM → Checks price vs EMA2 (medium layer boundary)         |
+   //|   LayerS → Checks price vs EMA3 (strong layer boundary)         |
+   //|   Non-layer mode → Uses BarClose_DefaultEMA setting             |
    //|                                                                  |
    //| MODES:                                                           |
-   //|   BC_DISABLED:    Always returns 1 (bcX disabled)                |
-   //|   BC_FIXED_EMA:   Check vs BarClose_DefaultEMA                   |
-   //|   BC_LAYER_AWARE: Check vs fast EMA of active layer             |
-   //|     • LayerW → bcW: Close beyond EMA1                            |
-   //|     • LayerM → bcM: Close beyond EMA2                            |
-   //|     • LayerS → bcS: Close beyond EMA3                            |
-   //|   BC_BIAS_FAST:   Check vs BiasFastID EMA                        |
+   //|   BC_DISABLED:    Always returns 1 (bcX disabled)               |
+   //|   BC_FIXED_EMA:   Check vs BarClose_DefaultEMA (fixed EMA)      |
+   //|   BC_LAYER_AWARE: Layer-aware check (bcW/bcM/bcS)               |
+   //|     • LayerW (LAYER_1_WEAK)   → bcW: Close beyond EMA1          |
+   //|     • LayerM (LAYER_2_MEDIUM) → bcM: Close beyond EMA2          |
+   //|     • LayerS (LAYER_3_STRONG) → bcS: Close beyond EMA3          |
+   //|   BC_BIAS_FAST:   Check vs BiasFastID EMA                       |
+   //|                                                                  |
+   //| Returns: 1 = pass, 0 = fail                                      |
    //+------------------------------------------------------------------+
    int Check_BarClose(int v_shift, int bias, int active_layer)
    {
@@ -3561,7 +3570,9 @@ public:
 
    // ─────────────────────────────────────────────────────────────────────────
    // EvaluateBcX — KISS Component: Bar close confirmation (bcX)
+   // REPLACES: EmaSig indicator voting (deprecated, disabled in all presets).
    // Uses m_eval_layer_{w/m/s} from EvaluateLayerX to check active layers only.
+   // Layer-aware: LayerW→EMA1, LayerM→EMA2, LayerS→EMA3
    // Returns 1 if at least one active layer has its bar close confirmed, 0 otherwise.
    // ─────────────────────────────────────────────────────────────────────────
    int EvaluateBcX(int v_shift, int bias)
