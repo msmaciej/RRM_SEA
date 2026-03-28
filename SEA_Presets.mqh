@@ -563,6 +563,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BarClose_Mode             = BC_DISABLED;
       cfg.BarClose_DefaultEMA       = ROLE_EMA1;
 
+      // ════════════════════════════════════════════════════════════════
+      // BAR CLOSE (bcX) CONFIGURATION - Disabled for MA benchmark mode
+      // ════════════════════════════════════════════════════════════════
+      cfg.BarClose_Enabled    = false;        // Disabled: bcX not used in MA benchmark
+      cfg.BarClose_Mode       = BC_DISABLED;
+      cfg.BarClose_DefaultEMA = ROLE_EMA1;
+
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================
@@ -899,6 +906,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       if(tf >= PERIOD_H1)
          slope_lookback = 2; // Smoother for swing trading (H1+)
 
+      cfg.SlopeLookbackBars      = slope_lookback;
+      cfg.UseSlopeThreshold      = true;
+      cfg.SlopeThresholdPips     = 0.0; // Use adaptive calculation
+      cfg.SlopeThresholdAdaptive = true; // Auto: M5=0.4p, H1=1.2p, H4=2.0p
+      cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
       cfg.SlopeLookbackBars         = slope_lookback;
       cfg.UseSlopeThreshold         = true;
       cfg.SlopeThresholdPips        = 0.0; // Use adaptive calculation
@@ -910,6 +922,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Formula: TS = Bias × LayerX × bcX × IndicatorX × FilterX
       // bcW: Close beyond EMA1 (LayerW) | bcM: EMA2 (LayerM) | bcS: EMA3 (LayerS)
       // ════════════════════════════════════════════════════════════════
+      cfg.BarClose_Enabled    = true;              // ✅ Enable bcX
+      cfg.BarClose_Mode       = BC_LAYER_AWARE;    // bcW/bcM/bcS adaptive (layer-aware)
+      cfg.BarClose_DefaultEMA = ROLE_EMA1;         // Fallback EMA for non-layer-aware modes
       cfg.BarClose_Enabled          = true;              // ✅ Enable bcX
       cfg.BarClose_Mode             = BC_LAYER_AWARE;    // bcW/bcM/bcS adaptive (layer-aware)
       cfg.BarClose_DefaultEMA       = ROLE_EMA1;         // Fallback EMA for non-layer-aware modes
@@ -1255,6 +1270,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // SLOPE CALCULATION SETTINGS (Minimal - Testing Mode)
       // ================================================================
+      cfg.SlopeLookbackBars            = 1;     // Single bar (fast)
+      cfg.UseSlopeThreshold            = false; // No filtering
+      cfg.SlopeThresholdPips           = 0.0;
+      cfg.SlopeThresholdAdaptive       = false;
+      cfg.SlopeMeasureMode             = SLOPE_MEASURE_PIPS;
       cfg.SlopeLookbackBars      = 1;     // Single bar (fast)
       cfg.UseSlopeThreshold      = false; // No filtering
       cfg.SlopeThresholdPips     = 0.0;
