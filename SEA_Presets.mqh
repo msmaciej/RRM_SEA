@@ -326,134 +326,134 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // CORE STRATEGY SETTINGS
       // ================================================================
-      cfg.CloseOnReverse    = true;
-      cfg.BiasEnabled       = true;
-      cfg.BiasMode          = BIAS_2EMA;
-      cfg.AutoStrat         = STRAT_2EMA_CROSS_PRICE;
-      cfg.BiasFastID        = (int)ROLE_EMA1;
-      cfg.BiasSlowID        = (int)ROLE_EMA1;
-      cfg.MaType            = METHOD_SMA;
-      cfg.RequirePriceCross = true;
-      cfg.MABenchmarkStrict = true;
-      cfg.UseMACompatSizer  = true;
+      cfg.CloseOnReverse         = true;
+      cfg.BiasEnabled            = true;
+      cfg.BiasMode               = BIAS_2EMA;
+      cfg.AutoStrat              = STRAT_2EMA_CROSS_PRICE;
+      cfg.BiasFastID             = (int)ROLE_EMA1;
+      cfg.BiasSlowID             = (int)ROLE_EMA1;
+      cfg.MaType                 = METHOD_SMA;
+      cfg.RequirePriceCross      = true;
+      cfg.MABenchmarkStrict      = true;
+      cfg.UseMACompatSizer       = true;
    
       // ================================================================
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
       // ================================================================
-      cfg.Ind_Adx_Enabled          = false;
-      cfg.Ind_Atr_Enabled          = false;
-      cfg.Ind_Bb_Enabled           = false;
-      cfg.Ind_CandleBody_Enabled   = false;
-      cfg.Ind_CI_Enabled           = false;
-      cfg.Ind_VRC_Enabled          = false;
-      cfg.Ind_Cci_Enabled          = false;
-      cfg.Ind_EmaSig_Enabled       = false;
-      cfg.Ind_Macd_Enabled         = false;
-      cfg.Ind_Mfi_Enabled          = false;
-      cfg.Ind_P123_Enabled         = false;
-      cfg.Ind_Psar_Enabled         = false;
-      cfg.Ind_Ross_Enabled         = false;
-      cfg.Ind_Rsi_Enabled          = false;
-      cfg.Ind_Sto_Enabled          = false;
+      cfg.Ind_Adx_Enabled        = false;
+      cfg.Ind_Atr_Enabled        = false;
+      cfg.Ind_Bb_Enabled         = false;
+      cfg.Ind_CandleBody_Enabled = false;
+      cfg.Ind_CI_Enabled         = false;
+      cfg.Ind_VRC_Enabled        = false;
+      cfg.Ind_Cci_Enabled        = false;
+      cfg.Ind_EmaSig_Enabled     = false;
+      cfg.Ind_Macd_Enabled       = false;
+      cfg.Ind_Mfi_Enabled        = false;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Psar_Enabled       = false;
+      cfg.Ind_Ross_Enabled       = false;
+      cfg.Ind_Rsi_Enabled        = false;
+      cfg.Ind_Sto_Enabled        = false;
    
-      cfg.VoteMode = VOTE_MODE_ALL;
+      cfg.VoteMode               = VOTE_MODE_ALL;
       
       // ================================================================
       // INDICATOR PERIODS & THRESHOLDS (Alphabetical)
       // ================================================================
       
       // ADX (Average Directional Index)
-      cfg.P_Adx = 14;
-      cfg.T_Adx = 20.0;
-      cfg.ADX_Mode                   = ADX_MODE_STATIC;
-      cfg.ADX_Percentile             = 50.0;
-      cfg.ADX_Lookback               = 100;
+      cfg.P_Adx                  = 14;
+      cfg.T_Adx                  = 20.0;
+      cfg.ADX_Mode               = ADX_MODE_STATIC;
+      cfg.ADX_Percentile         = 50.0;
+      cfg.ADX_Lookback           = 100;
       cfg.ADX_Threshold_Accumulation = 12.0;
       cfg.ADX_Threshold_Trending     = 25.0;
       cfg.ADX_Threshold_Distribution = 18.0;
       
       // ATR (Average True Range) - Voting Indicator Only
-      cfg.P_Atr       = 14;
-      cfg.ATR_VoteMinPips   = 5.0;
-      cfg.ATR_VoteMaxPips   = 50.0;
+      cfg.P_Atr                  = 14;
+      cfg.ATR_VoteMinPips        = 5.0;
+      cfg.ATR_VoteMaxPips        = 50.0;
       
       // Bollinger Bands
-      cfg.P_Bb    = 20;
-      cfg.P_BbDev = 2.0;
-      cfg.BbMode  = BB_TREND_FOLLOW;
+      cfg.P_Bb                   = 20;
+      cfg.P_BbDev                = 2.0;
+      cfg.BbMode                 = BB_TREND_FOLLOW;
    
       // Candle Body
-      cfg.CandleBody_AvgPeriod     = 10;
-      cfg.CandleBody_MaxMult       = 3.0;
-      cfg.CandleBody_CheckBars     = 1;
-      cfg.Ind_CandleBody_Weight    = 1;
+      cfg.CandleBody_AvgPeriod   = 10;
+      cfg.CandleBody_MaxMult     = 3.0;
+      cfg.CandleBody_CheckBars   = 1;
+      cfg.Ind_CandleBody_Weight  = 1;
 
       // Choppiness Index
-      cfg.CI_Period           = 14;
-      cfg.CI_RangingThreshold = 61.8;
-      cfg.Ind_CI_Weight       = 1;
+      cfg.CI_Period              = 14;
+      cfg.CI_RangingThreshold    = 61.8;
+      cfg.Ind_CI_Weight          = 1;
       
       // VRC (Volatility Regime Classifier)
-      cfg.VRC_ATR_Period      = 14;
-      cfg.VRC_Lookback        = 100;
-      cfg.VRC_LowThreshold    = 33.0;
-      cfg.Ind_VRC_Weight      = 1;
+      cfg.VRC_ATR_Period         = 14;
+      cfg.VRC_Lookback           = 100;
+      cfg.VRC_LowThreshold       = 33.0;
+      cfg.Ind_VRC_Weight         = 1;
 
       // CCI (Commodity Channel Index)
-      cfg.P_Cci   = 14;
-      cfg.CciMode = CCI_TREND_ZERO;
+      cfg.P_Cci                  = 14;
+      cfg.CciMode                = CCI_TREND_ZERO;
 
       // EMA (Periods)
-      cfg.P_Ema1 = Inp_MA_Period; // Primary MA (user-controlled via input)
-      cfg.P_Ema2 = 13;
-      cfg.P_Ema3 = 34;
-      cfg.P_Ema4 = 89;
+      cfg.P_Ema1                 = Inp_MA_Period; // Primary MA (user-controlled via input)
+      cfg.P_Ema2                 = 13;
+      cfg.P_Ema3                 = 34;
+      cfg.P_Ema4                 = 89;
       
       // MACD (Moving Average Convergence Divergence)
-      cfg.P_MacdFast            = 12;
-      cfg.P_MacdSlow            = 26;
-      cfg.P_MacdSig             = 9;
-      cfg.MacdVoteMode          = MACD_HISTOGRAM;
-      cfg.MacdRequireSlope      = false;
-      cfg.MacdRequireDivergence = false;
-      cfg.MacdRequireHook       = false;
-      cfg.MacdFreshBars         = 3;
-      cfg.MacdSlopeMin          = 0.00001;
+      cfg.P_MacdFast             = 12;
+      cfg.P_MacdSlow             = 26;
+      cfg.P_MacdSig              = 9;
+      cfg.MacdVoteMode           = MACD_HISTOGRAM;
+      cfg.MacdRequireSlope       = false;
+      cfg.MacdRequireDivergence  = false;
+      cfg.MacdRequireHook        = false;
+      cfg.MacdFreshBars          = 3;
+      cfg.MacdSlopeMin           = 0.00001;
       
       // MFI (Money Flow Index)
-      cfg.P_Mfi   = 14;
-      cfg.T_MfiOB = 80.0;
-      cfg.T_MfiOS = 20.0;
-      cfg.MfiMode = MFI_ZONE_FILTER;
+      cfg.P_Mfi                  = 14;
+      cfg.T_MfiOB                = 80.0;
+      cfg.T_MfiOS                = 20.0;
+      cfg.MfiMode                = MFI_ZONE_FILTER;
    
       // PSAR (Parabolic SAR)
-      cfg.P_PsarStep         = 0.02;
-      cfg.P_PsarMax          = 0.2;
-      cfg.Vote_AllowPsarFlip = false;
-      cfg.Vote_PsarFlipDelay = 0;
+      cfg.P_PsarStep             = 0.02;
+      cfg.P_PsarMax              = 0.2;
+      cfg.Vote_AllowPsarFlip     = false;
+      cfg.Vote_PsarFlipDelay     = 0;
       
       // RSI (Relative Strength Index)
-      cfg.P_Rsi   = 14;
-      cfg.T_RsiOB = 70.0;
-      cfg.T_RsiOS = 30.0;
-      cfg.RsiMode = RSI_TREND_ABOVE_50;
+      cfg.P_Rsi                  = 14;
+      cfg.T_RsiOB                = 70.0;
+      cfg.T_RsiOS                = 30.0;
+      cfg.RsiMode                = RSI_TREND_ABOVE_50;
    
       // Stochastic Oscillator
-      cfg.P_StoK    = 5;
-      cfg.P_StoD    = 3;
-      cfg.P_StoSlow = 3;
-      cfg.T_StoOB   = 80.0;
-      cfg.T_StoOS   = 20.0;
-      cfg.StoMode   = STO_CROSS_SIGNAL;
+      cfg.P_StoK                 = 5;
+      cfg.P_StoD                 = 3;
+      cfg.P_StoSlow              = 3;
+      cfg.T_StoOB                = 80.0;
+      cfg.T_StoOS                = 20.0;
+      cfg.StoMode                = STO_CROSS_SIGNAL;
    
       // ================================================================
       // PHASE DETECTION & LAYER FILTERING
       // ================================================================
-      cfg.PhaseDetectionEnabled      = false;
-      cfg.EnableLayerDetection       = false;
-      cfg.BlockUnorderedPhase        = false;
-      cfg.RequireMinPhaseConfirm     = false;
-      cfg.MinPhaseConfirmBars        = 0;
+      cfg.PhaseDetectionEnabled     = false;
+      cfg.EnableLayerDetection      = false;
+      cfg.BlockUnorderedPhase       = false;
+      cfg.RequireMinPhaseConfirm    = false;
+      cfg.MinPhaseConfirmBars       = 0;
       
       // Layer permissions per phase
       cfg.Trending_AllowWeakTrades   = false;
@@ -466,18 +466,18 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // PULLBACK DETECTION GATES
       // ================================================================
-      cfg.RequireRecoveryMomentum = false;
-      cfg.LayerTouchTolerance     = 0.0;
+      cfg.RequireRecoveryMomentum   = false;
+      cfg.LayerTouchTolerance       = 0.0;
       
       // Gate 2: Recovery momentum
-      cfg.Gate_Recovery.mode  = GATE_SCALE_FIXED;
-      cfg.Gate_Recovery.value = 0.0;
-      cfg.RRM_Lookback        = 0;
+      cfg.Gate_Recovery.mode        = GATE_SCALE_FIXED;
+      cfg.Gate_Recovery.value       = 0.0;
+      cfg.RRM_Lookback              = 0;
       
       // Gate 3: EMA divergence
-      cfg.Gate_EmaDiv.mode    = GATE_SCALE_FIXED;
-      cfg.Gate_EmaDiv.value   = 0.0;
-      cfg.RRM_MinDivPips      = 0.0;
+      cfg.Gate_EmaDiv.mode          = GATE_SCALE_FIXED;
+      cfg.Gate_EmaDiv.value         = 0.0;
+      cfg.RRM_MinDivPips            = 0.0;
       
       // Gate 4: Candle direction
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
@@ -486,75 +486,82 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // VOTE EVALUATION SETTINGS
       // ================================================================
-      cfg.Vote_EvalShift = 1;
+      cfg.Vote_EvalShift            = 1;
       
       // ================================================================
       // RISK MANAGEMENT (Portfolio-level)
       // ================================================================
-      cfg.RiskPercent       = 0.0; // Uses MA-compatible sizer instead
-      cfg.FixedLotSize      = 0.0;
-      cfg.MaxTotalRisk      = 100.0;
-      cfg.MaxOpenTrades     = 1;
-      cfg.CountBEasZeroRisk = false;
+      cfg.RiskPercent               = 0.0; // Uses MA-compatible sizer instead
+      cfg.FixedLotSize              = 0.0;
+      cfg.MaxTotalRisk              = 100.0;
+      cfg.MaxOpenTrades             = 1;
+      cfg.CountBEasZeroRisk         = false;
       
       // ================================================================
       // EXIT STRATEGY CONFIGURATION
       // ================================================================
-      cfg.ExitProfile           = EXIT_PROFILE_NONE;
-      cfg.TP_Enabled            = false;
-      cfg.TrailMode             = TRAIL_NONE;
-      cfg.PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;
-      cfg.PSAR_TrailPipsCushion = 0.0;
-      cfg.BE_Mode               = BE_MODE_OFF;
+      cfg.ExitProfile               = EXIT_PROFILE_NONE;
+      cfg.TP_Enabled                = false;
+      cfg.TrailMode                 = TRAIL_NONE;
+      cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
+      cfg.PSAR_TrailPipsCushion     = 0.0;
+      cfg.BE_Mode                   = BE_MODE_OFF;
       
       // ================================================================
       // SL/TP STRATEGY MODES
       // ================================================================
-      cfg.SLMode        = SL_MODE_FIXED_PIPS;
-      cfg.TPMode        = TP_MODE_NONE;
-      cfg.FixedTPPips   = 0.0;
-      cfg.SLPercent     = 0.0;
-      cfg.RRRatio       = 0.0;
-      cfg.SwingLookback = 0;
+      cfg.SLMode                    = SL_MODE_FIXED_PIPS;
+      cfg.TPMode                    = TP_MODE_NONE;
+      cfg.FixedTPPips               = 0.0;
+      cfg.SLPercent                 = 0.0;
+      cfg.RRRatio                   = 0.0;
+      cfg.SwingLookback             = 0;
       
       // ================================================================
       // FRACTAL/PSAR SL/TP DEFAULTS
       // ================================================================
-      cfg.FractalPeriod   = 5;
-      cfg.TPFractalOffset = 1;
+      cfg.FractalPeriod             = 5;
+      cfg.TPFractalOffset           = 1;
 
       // ================================================================
       // ADVANCED TRAILING TRIGGER DEFAULTS
       // ================================================================
-      cfg.TrailTrigger       = TRIGGER_IMMEDIATE;
-      cfg.TrailDistancePips  = 0.0;
-      cfg.BEThresholdPips    = 0.0;
-      cfg.TrailProfitPercent = 0.0;
-      cfg.TrailStepPips      = 0.0;
-      cfg.TrailLockProfit    = false;
+      cfg.TrailTrigger              = TRIGGER_IMMEDIATE;
+      cfg.TrailDistancePips         = 0.0;
+      cfg.BEThresholdPips           = 0.0;
+      cfg.TrailProfitPercent        = 0.0;
+      cfg.TrailStepPips             = 0.0;
+      cfg.TrailLockProfit           = false;
       
       // ================================================================
       // MA-SPECIFIC SETTINGS
       // ================================================================
-      cfg.ma_h_shift = Inp_MA_Shift;
-      cfg.ma_v_shift = 1;
+      cfg.ma_h_shift                = Inp_MA_Shift;
+      cfg.ma_v_shift                = 1;
    
       // ================================================================
       // MA DRAWDOWN PROTECTION (All off for benchmark mode)
       // ================================================================
       cfg.RRM_EnableDrawdownProtection = false;
-      cfg.RRM_MaxConsecutiveLosses     = 0;
-      cfg.RRM_MaxTradesPerDay          = 0;
-      cfg.RRM_MaxDailyDrawdownPct      = 0.0;
+      cfg.RRM_MaxConsecutiveLosses  = 0;
+      cfg.RRM_MaxTradesPerDay       = 0;
+      cfg.RRM_MaxDailyDrawdownPct   = 0.0;
 
       // ================================================================
       // SLOPE CALCULATION SETTINGS (Benchmark Mode - No Filtering)
       // ================================================================
-      cfg.SlopeLookbackBars      = 1; // MT5 standard (single bar)
-      cfg.UseSlopeThreshold      = false; // No filtering (match MT5)
-      cfg.SlopeThresholdPips     = 0.0;
-      cfg.SlopeThresholdAdaptive = false;
-      cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
+      cfg.SlopeLookbackBars         = 1; // MT5 standard (single bar)
+      cfg.UseSlopeThreshold         = false; // No filtering (match MT5)
+      cfg.SlopeThresholdPips        = 0.0;
+      cfg.SlopeThresholdAdaptive    = false;
+      cfg.SlopeMeasureMode          = SLOPE_MEASURE_PIPS;
+
+      // ════════════════════════════════════════════════════════════════
+      // BAR CLOSE (bcX) CONFIGURATION - Disabled for MA benchmark mode
+      // ════════════════════════════════════════════════════════════════
+      cfg.BarClose_Enabled          = false;        // Disabled: bcX not used in MA benchmark
+      cfg.BarClose_Mode             = BC_DISABLED;
+      cfg.BarClose_DefaultEMA       = ROLE_EMA1;
 
       // ════════════════════════════════════════════════════════════════
       // BAR CLOSE (bcX) CONFIGURATION - Disabled for MA benchmark mode
@@ -584,13 +591,22 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    if(preset == PRESET_RRM)
    {
       // ================================================================
-      // PRESET_RRM: Strict Trend Pullback Strategy
-      // - Bias: User-selectable (BIAS_2EMA or BIAS_4EMA via Inp_BiasMode)
-      // - Entry: Layer detection (pullback-recovery on EMA zones)
-      // - Votes: EMA ribbon + MACD + CCI + PSAR (4 votes, ALL must agree)
-      // - ATR: Disabled for voting (Ind_Atr_Enabled = false)
-      // - Exits: User-controlled via inputs (SL/TP/BE/Trailing preserved)
-      // - Phase filtering: Enabled (blocks UNORDERED, restricts L3 in EMERGING)
+      // PRESET_RRM: KISS Minimal Layer-Based Strategy
+      // ================================================================
+      //
+      // FORMULA:
+      //   TS = Bias × LayerX × bcX × IndicatorX × FilterX
+      //
+      // COMPONENTS:
+      //   Bias = BIAS_4EMA (Phase: UNO/EM/TM)
+      //   LayerX = EMA pair structure (position + slope)
+      //   bcX = Bar close confirmation (layer-aware)
+      //     • bcW: Close beyond EMA1 (for LayerW)
+      //     • bcM: Close beyond EMA2 (for LayerM)
+      //     • bcS: Close beyond EMA3 (for LayerS)
+      //   IndicatorX = PSAR only
+      //   FilterX = User-controlled gates
+      //
       // ================================================================
    
       ERRMMode mode = Inp_RRM_Mode;
@@ -606,13 +622,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // CORE STRATEGY SETTINGS
       // ================================================================
-      cfg.CloseOnReverse      = true;
-      cfg.BiasEnabled         = true;
-      cfg.BiasMode            = Inp_BiasMode;
-      cfg.MaType              = METHOD_EMA;
-      cfg.RequirePriceCross   = false;
-      cfg.MABenchmarkStrict   = false;
-      cfg.UseMACompatSizer    = false;
+      cfg.CloseOnReverse         = true;
+      cfg.BiasEnabled            = true;
+      cfg.BiasMode               = Inp_BiasMode;
+      cfg.MaType                 = METHOD_EMA;
+      cfg.RequirePriceCross      = false;
+      cfg.MABenchmarkStrict      = false;
+      cfg.UseMACompatSizer       = false;
       
       // ================================================================
       // BIAS MODE ROUTING
@@ -625,14 +641,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          // Logic: 3-layer hierarchical validation (TRENDING/EMERGING/UNORDERED)
          // AutoStrat: STRAT_4EMA_LAYER (pullback-recovery on EMA zones)
          // ────────────────────────────────────────────────────────────
-         cfg.AutoStrat  = STRAT_4EMA_LAYER;
-         cfg.BiasFastID = (int)ROLE_EMA3;
-         cfg.BiasSlowID = (int)ROLE_EMA4;
+         cfg.AutoStrat           = STRAT_4EMA_LAYER;
+         cfg.BiasFastID          = (int)ROLE_EMA3;
+         cfg.BiasSlowID          = (int)ROLE_EMA4;
          
-         cfg.P_Ema1 = 5; 
-         cfg.P_Ema2 = 13; 
-         cfg.P_Ema3 = 34; 
-         cfg.P_Ema4 = 89;
+         cfg.P_Ema1              = 5; 
+         cfg.P_Ema2              = 13; 
+         cfg.P_Ema3              = 34; 
+         cfg.P_Ema4              = 89;
          cfg.MaxSpread = (mode == RRM_SCALP) ? 2.0 : 4.0;
       }
       else  // BIAS_2EMA or BIAS_MANUAL
@@ -649,15 +665,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
             // Bias: EMA34 vs EMA89 (slower pair for stable bias)
             // Entry: STRAT_2EMA_CROSS_EMA (crossover-based entries)
             // ························································
-            cfg.AutoStrat  = STRAT_2EMA_POSITION;
-            cfg.BiasFastID = (int)ROLE_EMA1;
-            cfg.BiasSlowID = (int)ROLE_EMA2;
+            cfg.AutoStrat        = STRAT_2EMA_POSITION;
+            cfg.BiasFastID       = (int)ROLE_EMA1;
+            cfg.BiasSlowID       = (int)ROLE_EMA2;
             
-            cfg.P_Ema1 = 5; 
-            cfg.P_Ema2 = 13; 
-            cfg.P_Ema3 = 34; 
-            cfg.P_Ema4 = 89;
-            cfg.MaxSpread = 2.5;
+            cfg.P_Ema1           = 5; 
+            cfg.P_Ema2           = 13; 
+            cfg.P_Ema3           = 34; 
+            cfg.P_Ema4           = 89;
+            cfg.MaxSpread        = 2.5;
          }
          else  // RRM_SWING (H1/H4/D1 and higher timeframes)
          {
@@ -667,68 +683,73 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
             // Entry: STRAT_2EMA_CROSS_EMA (crossover-based entries)
             // Full 4-EMA structure: EMA5/13/34/89 for layer detection
             // ························································
-            cfg.AutoStrat  = STRAT_2EMA_POSITION;
-            cfg.BiasFastID = (int)ROLE_EMA3;
-            cfg.BiasSlowID = (int)ROLE_EMA4;
+            cfg.AutoStrat        = STRAT_2EMA_POSITION;
+            cfg.BiasFastID       = (int)ROLE_EMA3;
+            cfg.BiasSlowID       = (int)ROLE_EMA4;
             
-            cfg.P_Ema1 = 5;
-            cfg.P_Ema2 = 13;
-            cfg.P_Ema3 = 34;
-            cfg.P_Ema4 = 89;
-            cfg.MaxSpread = 5.0;
+            cfg.P_Ema1           = 5;
+            cfg.P_Ema2           = 13;
+            cfg.P_Ema3           = 34;
+            cfg.P_Ema4           = 89;
+            cfg.MaxSpread        = 5.0;
          }
       }
    
       // ================================================================
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
       // ================================================================
-      cfg.Ind_Adx_Enabled          = false;
-      cfg.Ind_Atr_Enabled          = false;
-      cfg.Ind_Bb_Enabled           = false;
-      cfg.Ind_CandleBody_Enabled   = true;
-      cfg.Ind_CI_Enabled           = false;
-      // Enable ranging market protection
-      cfg.Ind_VRC_Enabled          = false;
-      cfg.Ind_Cci_Enabled          = false;
-      cfg.Ind_EmaSig_Enabled       = true;
-      cfg.Ind_Macd_Enabled         = true;
-      cfg.Ind_Mfi_Enabled          = false;
-      cfg.Ind_P123_Enabled         = false;
-      cfg.Ind_Psar_Enabled         = true;
-      cfg.Ind_Ross_Enabled         = false;
-      cfg.Ind_Rsi_Enabled          = false;
-      cfg.Ind_Sto_Enabled          = false;
+      cfg.Ind_Adx_Enabled           = false;
+      cfg.Ind_Atr_Enabled           = false;
+      cfg.Ind_Bb_Enabled            = false;
+      cfg.Ind_CandleBody_Enabled    = true;
+      cfg.Ind_CI_Enabled            = false;
+      cfg.Ind_VRC_Enabled           = false; // Enable ranging market protection
+      cfg.Ind_Cci_Enabled           = false;
+      cfg.Ind_EmaSig_Enabled        = true;
+      cfg.Ind_Macd_Enabled          = true;
+      cfg.Ind_Mfi_Enabled           = false;
+      cfg.Ind_P123_Enabled          = false;
+      cfg.Ind_Psar_Enabled          = true;
+      cfg.Ind_Ross_Enabled          = false;
+      cfg.Ind_Rsi_Enabled           = false;
+      cfg.Ind_Sto_Enabled           = false;
+
+      // BAR CLOSE (bcX) CONFIGURATION
+      cfg.BarClose_Enabled          = true;              // ✅ Enable bcX
+      cfg.BarClose_Mode             = BC_LAYER_AWARE;    // bcW/bcM/bcS adaptive
+      cfg.BarClose_DefaultEMA       = ROLE_EMA1;         // Fallback
    
-      cfg.VoteMode = VOTE_MODE_ALL;
+      cfg.VoteMode                  = VOTE_MODE_ALL;
+      
       
       // ================================================================
       // INDICATOR PERIODS & THRESHOLDS (Alphabetical)
       // ================================================================
       
       // ADX (Average Directional Index)
-      cfg.P_Adx = 14;
-      cfg.T_Adx = 20.0;
-      cfg.ADX_Mode                   = ADX_MODE_PHASE_AWARE;
-      cfg.ADX_Percentile             = 50.0;
-      cfg.ADX_Lookback               = 100;
+      cfg.P_Adx                  = 14;
+      cfg.T_Adx                  = 20.0;
+      cfg.ADX_Mode               = ADX_MODE_PHASE_AWARE;
+      cfg.ADX_Percentile         = 50.0;
+      cfg.ADX_Lookback           = 100;
       cfg.ADX_Threshold_Accumulation = 12.0;
       cfg.ADX_Threshold_Trending     = 25.0;
       cfg.ADX_Threshold_Distribution = 18.0;
       
       // ATR (Average True Range) - Voting Indicator Only
-      cfg.P_Atr             = 14;
-      cfg.ATR_VoteMinPips   = 5.0;
-      cfg.ATR_VoteMaxPips   = 50.0;
+      cfg.P_Atr                  = 14;
+      cfg.ATR_VoteMinPips        = 5.0;
+      cfg.ATR_VoteMaxPips        = 50.0;
       
       // Bollinger Bands
-      cfg.P_Bb    = 20;
-      cfg.P_BbDev = 2.0;
+      cfg.P_Bb                   = 20;
+      cfg.P_BbDev                = 2.0;
       
       // Candle Body
-      cfg.CandleBody_AvgPeriod     = 15;
-      cfg.CandleBody_MaxMult       = 3.5;
-      cfg.CandleBody_CheckBars     = 2;
-      cfg.Ind_CandleBody_Weight    = 1;
+      cfg.CandleBody_AvgPeriod   = 15;
+      cfg.CandleBody_MaxMult     = 3.5;
+      cfg.CandleBody_CheckBars   = 2;
+      cfg.Ind_CandleBody_Weight  = 1;
 
       // Choppiness Index (ranging market protection)
       cfg.CI_Period              = 14;
@@ -818,55 +839,55 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // VOTE EVALUATION SETTINGS
       // ================================================================
-      cfg.Vote_EvalShift         = 1;
+      cfg.Vote_EvalShift            = 1;
       
       // ================================================================
       // RISK MANAGEMENT (Portfolio-level)
       // ================================================================
-      cfg.RiskPercent            = 2.0;
-      cfg.FixedLotSize           = 0.0;
-      cfg.MaxTotalRisk           = 4.0;
-      cfg.MaxOpenTrades          = 3;
-      cfg.CountBEasZeroRisk      = true;
+      cfg.RiskPercent               = 2.0;
+      cfg.FixedLotSize              = 0.0;
+      cfg.MaxTotalRisk              = 4.0;
+      cfg.MaxOpenTrades             = 3;
+      cfg.CountBEasZeroRisk         = true;
       
       // ================================================================
       // EXIT STRATEGY CONFIGURATION
       // ================================================================
-      cfg.ExitProfile           = EXIT_PROFILE_RRM;
-      cfg.SL_SwingPipsCushion   = GetRecommendedInitialSlCushionPips();
-      cfg.SL_PsarPipsCushion    = GetRecommendedInitialSlCushionPips();
-      cfg.TP_Enabled            = true;
-      cfg.TrailMode             = TRAIL_PSAR;
-      cfg.PSAR_TrailCushionMode = PSAR_CUSHION_PIPS;
-      cfg.PSAR_TrailPipsCushion = GetRecommendedTrailPsarCushionPips();
-      cfg.BE_Mode               = BE_MODE_R_MULTIPLE;
+      cfg.ExitProfile               = EXIT_PROFILE_RRM;
+      cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
+      cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
+      cfg.TP_Enabled                = true;
+      cfg.TrailMode                 = TRAIL_PSAR;
+      cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
+      cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
+      cfg.BE_Mode                   = BE_MODE_R_MULTIPLE;
       
       // ================================================================
       // SL/TP STRATEGY MODES
       // ================================================================
-      cfg.SLMode              = SL_MODE_SWING;
-      cfg.TPMode              = TP_MODE_RR;
-      cfg.FixedTPPips         = 40.0;
-      cfg.SLPercent           = 0.5;
-      cfg.RRRatio             = 3.0;
-      cfg.SwingLookback       = 20;
+      cfg.SLMode                    = SL_MODE_SWING;
+      cfg.TPMode                    = TP_MODE_RR;
+      cfg.FixedTPPips               = 40.0;
+      cfg.SLPercent                 = 0.5;
+      cfg.RRRatio                   = 3.0;
+      cfg.SwingLookback             = 20;
    
       // ================================================================
       // FRACTAL/PSAR SL/TP DEFAULTS
       // ================================================================
-      cfg.FractalPeriod       = 5;
-      cfg.TPFractalOffset     = 1;
+      cfg.FractalPeriod             = 5;
+      cfg.TPFractalOffset           = 1;
 
       // ================================================================
       // ADVANCED TRAILING TRIGGER DEFAULTS
       // ================================================================
       ENUM_TIMEFRAMES tf = (ENUM_TIMEFRAMES)_Period;
-      cfg.TrailTrigger       = TRIGGER_BREAKEVEN;
-      cfg.TrailDistancePips  = GetTFBasedCushion(tf);
-      cfg.BEThresholdPips    = GetTFBasedCushion(tf);
-      cfg.TrailProfitPercent = 2.0; // ORG: 1.0
-      cfg.TrailStepPips      = 5.0;
-      cfg.TrailLockProfit    = true;
+      cfg.TrailTrigger              = TRIGGER_BREAKEVEN;
+      cfg.TrailDistancePips         = GetTFBasedCushion(tf);
+      cfg.BEThresholdPips           = GetTFBasedCushion(tf);
+      cfg.TrailProfitPercent        = 2.0; // ORG: 1.0
+      cfg.TrailStepPips             = 5.0;
+      cfg.TrailLockProfit           = true;
    
       // ================================================================
       // RRM DRAWDOWN PROTECTION
@@ -890,6 +911,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SlopeThresholdPips     = 0.0; // Use adaptive calculation
       cfg.SlopeThresholdAdaptive = true; // Auto: M5=0.4p, H1=1.2p, H4=2.0p
       cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
+      cfg.SlopeLookbackBars         = slope_lookback;
+      cfg.UseSlopeThreshold         = true;
+      cfg.SlopeThresholdPips        = 0.0; // Use adaptive calculation
+      cfg.SlopeThresholdAdaptive    = true; // Auto: M5=0.4p, H1=1.2p, H4=2.0p
+      cfg.SlopeMeasureMode          = SLOPE_MEASURE_PIPS;
 
       // ════════════════════════════════════════════════════════════════
       // BAR CLOSE (bcX) CONFIGURATION
@@ -899,6 +925,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BarClose_Enabled    = true;              // ✅ Enable bcX
       cfg.BarClose_Mode       = BC_LAYER_AWARE;    // bcW/bcM/bcS adaptive (layer-aware)
       cfg.BarClose_DefaultEMA = ROLE_EMA1;         // Fallback EMA for non-layer-aware modes
+      cfg.BarClose_Enabled          = true;              // ✅ Enable bcX
+      cfg.BarClose_Mode             = BC_LAYER_AWARE;    // bcW/bcM/bcS adaptive (layer-aware)
+      cfg.BarClose_DefaultEMA       = ROLE_EMA1;         // Fallback EMA for non-layer-aware modes
       
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
@@ -922,13 +951,18 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    {
       // ================================================================
       // PRESET_TEST: EA System Testing Mode
-      // Flexible configuration for testing SimpleEA signal processing pipeline
-      // - Multiple indicators enabled by default (admin can adjust as needed)
-      // - All gates disabled (no filtering noise)
-      // - Simple bias: Position + Slope (BIAS_2EMA + STRAT_2EMA_POSITION)
-      // - Phase/layer detection OFF (focus on core voting logic)
-      // - RRM protection enabled for safety during testing
-      // - TF-adaptive exit management for multi-timeframe testing
+      // ================================================================
+      //
+      // FORMULA:
+      //   TS = Bias × LayerX × bcX × IndicatorX × FilterX
+      //
+      // CONFIGURATION:
+      //   Bias = BIAS_2EMA (simple position + slope)
+      //   LayerX = DISABLED (returns 1)
+      //   bcX = Fixed EMA1 check
+      //   IndicatorX = MACD, CCI, PSAR, CandleBody
+      //   FilterX = User-controlled
+      //
       // ================================================================
    
       Print("═══════════════════════════════════════════════════════════");
@@ -970,6 +1004,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Rsi_Enabled           = false;
       cfg.Ind_Sto_Enabled           = false;
    
+      // BAR CLOSE (bcX) CONFIGURATION
+      cfg.BarClose_Enabled          = true;           // ✅ Enable bc
+      cfg.BarClose_Mode             = BC_FIXED_EMA;   // Always EMA1
+      cfg.BarClose_DefaultEMA       = ROLE_EMA1;      // Close vs EMA1
+   
       cfg.VoteMode = VOTE_MODE_ALL;
       
       // ================================================================
@@ -977,11 +1016,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       
       // ADX (Average Directional Index)
-      cfg.P_Adx                        = 14;
-      cfg.T_Adx                        = 20.0;
-      cfg.ADX_Mode                     = ADX_MODE_STATIC;
-      cfg.ADX_Percentile               = 50.0;
-      cfg.ADX_Lookback                 = 100;
+      cfg.P_Adx                     = 14;
+      cfg.T_Adx                     = 20.0;
+      cfg.ADX_Mode                  = ADX_MODE_STATIC;
+      cfg.ADX_Percentile            = 50.0;
+      cfg.ADX_Lookback              = 100;
       cfg.ADX_Threshold_Accumulation   = 12.0;
       cfg.ADX_Threshold_Trending       = 25.0;
       cfg.ADX_Threshold_Distribution   = 18.0;
@@ -1191,13 +1230,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          // ────────────────────────────────────────────────────────────
          // TRAILING STOP
          // ────────────────────────────────────────────────────────────
-         cfg.TrailMode              = TRAIL_PSAR;
-         cfg.TrailTrigger           = TRIGGER_IMMEDIATE; // Start checking immediately
+         cfg.TrailMode           = TRAIL_PSAR;
+         cfg.TrailTrigger        = TRIGGER_IMMEDIATE; // Start checking immediately
          cfg.RRM_TrailStartsAfterBE = false;             // ✅ Only trail after BE hit (safer!)
-         cfg.TrailDistancePips      = 5.0;               // Not used (PSAR mode = dynamic)
-         cfg.TrailProfitPercent     = 5.0;               // Not used (PSAR mode)
-         cfg.TrailStepPips          = 0.0;               // Not used (PSAR mode)
-         cfg.TrailLockProfit        = true;              // Never trail SL below entry
+         cfg.TrailDistancePips   = 5.0;               // Not used (PSAR mode = dynamic)
+         cfg.TrailProfitPercent  = 5.0;               // Not used (PSAR mode)
+         cfg.TrailStepPips       = 0.0;               // Not used (PSAR mode)
+         cfg.TrailLockProfit     = true;              // Never trail SL below entry
 
          // ────────────────────────────────────────────────────────────
          // STOP LOSS
@@ -1217,16 +1256,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // MA-SPECIFIC SETTINGS
       // ================================================================
-      cfg.ma_h_shift                   = 0;
-      cfg.ma_v_shift                   = 0;
+      cfg.ma_h_shift             = 0;
+      cfg.ma_v_shift             = 0;
       
       // ================================================================
       // RRM DRAWDOWN PROTECTION (Enabled for testing safety)
       // ================================================================
       cfg.RRM_EnableDrawdownProtection = false; // ✅ Enabled
-      cfg.RRM_MaxConsecutiveLosses     = 5;    // ✅ 3: Stop after 3 losses
-      cfg.RRM_MaxTradesPerDay          = 12;   // ✅ 12: Limit overtrading
-      cfg.RRM_MaxDailyDrawdownPct      = 6.0;  // ✅ 6: Stop if -6% day
+      cfg.RRM_MaxConsecutiveLosses  = 5;    // ✅ 3: Stop after 3 losses
+      cfg.RRM_MaxTradesPerDay       = 12;   // ✅ 12: Limit overtrading
+      cfg.RRM_MaxDailyDrawdownPct   = 6.0;  // ✅ 6: Stop if -6% day
 
       // ================================================================
       // SLOPE CALCULATION SETTINGS (Minimal - Testing Mode)
@@ -1236,6 +1275,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SlopeThresholdPips           = 0.0;
       cfg.SlopeThresholdAdaptive       = false;
       cfg.SlopeMeasureMode             = SLOPE_MEASURE_PIPS;
+      cfg.SlopeLookbackBars      = 1;     // Single bar (fast)
+      cfg.UseSlopeThreshold      = false; // No filtering
+      cfg.SlopeThresholdPips     = 0.0;
+      cfg.SlopeThresholdAdaptive = false;
+      cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
 
       // ════════════════════════════════════════════════════════════════
       // BAR CLOSE (bcX) CONFIGURATION

@@ -271,29 +271,18 @@ private:
       return 0.0;
    }
 
+   //+------------------------------------------------------------------+
    // --- 5. SIGNAL CHECKS (VOTING LOGIC) ---
-   
    //+------------------------------------------------------------------+
-   // Vote 1: EMA Recovery (Price vs EMA1)
-   // Returns: ...
+
+
    //+------------------------------------------------------------------+
-   bool Check_EMA1(int bias, int shift) {
-      double p = iClose(m_symbol, PERIOD_CURRENT, shift);
-      double e = GetMAVal(h_ema1, shift);
-      bool result = (bias == 1) ? (p > e) : (p < e);
-      if(m_settings.DebugFlow)
-         PrintFormat("[IND_EMASIG] ENABLED | Price=%.5f EMA=%.5f | Result: %s",
-                     p, e, result ? "PASS" : "FAIL");
-      return result;
-   }
-   
+   // Check_ADX: ADX Strength (Trend Strength)
    //+------------------------------------------------------------------+
-   // Vote 2: ADX Strength (Trend Strength)
-   // Returns: ...
-   //+------------------------------------------------------------------+
-   //
-   // Supports three modes: STATIC (fixed threshold), DYNAMIC_PERCENTILE (percentile-based adaptive),
-   // and PHASE_AWARE (different thresholds per market phase).
+   // Supports three modes: 
+   //    STATIC (fixed threshold), 
+   //    DYNAMIC_PERCENTILE (percentile-based adaptive),
+   //    PHASE_AWARE (different thresholds per market phase)
    //
    bool Check_ADX(int shift) {
       double adx = GetVal(h_adx, shift);
@@ -342,11 +331,291 @@ private:
       return result;
    }
 
+
    //+------------------------------------------------------------------+
-   // Vote 3: MACD — two-tier architecture (base mode + optional filters)
-   // Returns: ...
+   // Check_ATR: Volatility Range Filter (non-directional)
    //+------------------------------------------------------------------+
-   //
+   // Returns: true if ATR is within configured minimum/maximum pips
+   bool Check_ATR(int bias, int shift)
+   {
+      // Utilizing the cached ATR pip value calculated during CheckFilters()
+      double atr_pips = m_diag_last_atr_pips; 
+      bool pass = true;
+      
+      if(m_settings.ATR_VoteMinPips > 0.0 && atr_pips < m_settings.ATR_VoteMinPips) pass = false;
+      if(m_settings.ATR_VoteMaxPips > 0.0 && atr_pips > m_settings.ATR_VoteMaxPips) pass = false;
+      
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_Atr_Enabled)
+            PrintFormat("[IND_ATR] ENABLED | ATR=%.1f pips (Min=%.1f, Max=%.1f) | Result: %s",
+                        atr_pips, m_settings.ATR_VoteMinPips, m_settings.ATR_VoteMaxPips, pass ? "PASS" : "FAIL");
+         else
+            Print("[IND_ATR] DISABLED - skipped");
+      }
+      return pass;
+   }
+
+   //+------------------------------------------------------------------+
+   // Check_BB: Bollinger Bands
+   //+------------------------------------------------------------------+
+   bool Check_BB(int bias, int shift) {
+      double mid = GetVal(h_bb, shift, 0);
+      double cl  = iClose(m_symbol, PERIOD_CURRENT, shift);
+      bool result;
+      
+      if(m_settings.BbMode == BB_TREND_FOLLOW) {
+         result = (bias==1) ? (cl > mid) : (cl < mid);
+      }
+      else {
+         // Mean Reversion: Price touched Lower/Upper Band
+         double lower = GetVal(h_bb, shift, 2);
+         double upper = GetVal(h_bb, shift, 1);
+         double low   = iLow(m_symbol, PERIOD_CURRENT, shift);
+         double high  = iHigh(m_symbol, PERIOD_CURRENT, shift);
+         result = (bias==1) ? (low <= lower) : (high >= upper);
+      }
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_Bb_Enabled)
+            PrintFormat("[IND_BB] ENABLED | Mid=%.5f Close=%.5f | Result: %s",
+                        mid, cl, result ? "PASS" : "FAIL");
+         else
+            Print("[IND_BB] DISABLED - skipped");
+      }
+      return result;
+   }
+
+   //+------------------------------------------------------------------+
+   //| Check_BarClose: Bar close confirmation (bcX)                     |
+   //| Returns: 1 (pass), 0 (fail)                                      |
+   //|                                                                  |
+   //| MODES:                                                           |
+   //|   BC_DISABLED:    Always returns 1 (bcX disabled)                |
+   //|   BC_FIXED_EMA:   Check vs BarClose_DefaultEMA                   |
+   //|   BC_LAYER_AWARE: Check vs fast EMA of active layer             |
+   //|     • LayerW → bcW: Close beyond EMA1                            |
+   //|     • LayerM → bcM: Close beyond EMA2                            |
+   //|     • LayerS → bcS: Close beyond EMA3                            |
+   //|   BC_BIAS_FAST:   Check vs BiasFastID EMA                        |
+   //+------------------------------------------------------------------+
+   int Check_BarClose(int v_shift, int bias, int active_layer)
+   {
+      // ════════════════════════════════════════════════════════════════
+      // Check if enabled
+      // ════════════════════════════════════════════════════════════════
+      if(!Settings.BarClose_Enabled || Settings.BarClose_Mode == BC_DISABLED)
+      {
+         if(Settings.DebugFlow)
+            Print("[bcX] DISABLED → PASS (returns 1)");
+         return 1;
+      }
+      
+      // ════════════════════════════════════════════════════════════════
+      // Determine which EMA to check
+      // ════════════════════════════════════════════════════════════════
+      double check_ema = 0.0;
+      string bc_label = "bc";
+      string ema_name = "";
+      
+      if(Settings.BarClose_Mode == BC_LAYER_AWARE && active_layer != LAYER_NONE)
+      {
+         // Layer-aware mode: bcW/bcM/bcS
+         switch(active_layer)
+         {
+            case LAYER_1_WEAK:
+               check_ema = iEMA_Buf1[v_shift];
+               bc_label = "bcW";
+               ema_name = "EMA1";
+               break;
+            
+            case LAYER_2_MEDIUM:
+               check_ema = iEMA_Buf2[v_shift];
+               bc_label = "bcM";
+               ema_name = "EMA2";
+               break;
+            
+            case LAYER_3_STRONG:
+               check_ema = iEMA_Buf3[v_shift];
+               bc_label = "bcS";
+               ema_name = "EMA3";
+               break;
+            
+            default:
+               check_ema = iEMA_Buf1[v_shift];
+               bc_label = "bc";
+               ema_name = "EMA1";
+               break;
+         }
+      }
+      else if(Settings.BarClose_Mode == BC_BIAS_FAST)
+      {
+         // Use BiasFastID
+         switch(Settings.BiasFastID)
+         {
+            case (int)ROLE_EMA1: check_ema = iEMA_Buf1[v_shift]; ema_name = "EMA1"; break;
+            case (int)ROLE_EMA2: check_ema = iEMA_Buf2[v_shift]; ema_name = "EMA2"; break;
+            case (int)ROLE_EMA3: check_ema = iEMA_Buf3[v_shift]; ema_name = "EMA3"; break;
+            case (int)ROLE_EMA4: check_ema = iEMA_Buf4[v_shift]; ema_name = "EMA4"; break;
+            default:             check_ema = iEMA_Buf1[v_shift]; ema_name = "EMA1"; break;
+         }
+         bc_label = "bc";
+      }
+      else  // BC_FIXED_EMA
+      {
+         // Use BarClose_DefaultEMA
+         switch(Settings.BarClose_DefaultEMA)
+         {
+            case ROLE_EMA1: check_ema = iEMA_Buf1[v_shift]; ema_name = "EMA1"; break;
+            case ROLE_EMA2: check_ema = iEMA_Buf2[v_shift]; ema_name = "EMA2"; break;
+            case ROLE_EMA3: check_ema = iEMA_Buf3[v_shift]; ema_name = "EMA3"; break;
+            case ROLE_EMA4: check_ema = iEMA_Buf4[v_shift]; ema_name = "EMA4"; break;
+            default:        check_ema = iEMA_Buf1[v_shift]; ema_name = "EMA1"; break;
+         }
+         bc_label = "bc";
+      }
+      
+      // ════════════════════════════════════════════════════════════════
+      // Check close vs EMA
+      // ════════════════════════════════════════════════════════════════
+      double close_price = iClose(_Symbol, _Period, v_shift);
+      bool passed = false;
+      
+      if(bias == 1)  // LONG: Close must be above EMA
+      {
+         passed = (close_price > check_ema);
+         
+         if(Settings.DebugFlow)
+            Print("[", bc_label, "] LONG: Close=", DoubleToString(close_price, _Digits),
+                  " vs ", ema_name, "=", DoubleToString(check_ema, _Digits),
+                  " → ", (passed ? "PASS (Close > EMA)" : "FAIL (Close <= EMA)"));
+      }
+      else if(bias == -1)  // SHORT: Close must be below EMA
+      {
+         passed = (close_price < check_ema);
+         
+         if(Settings.DebugFlow)
+            Print("[", bc_label, "] SHORT: Close=", DoubleToString(close_price, _Digits),
+                  " vs ", ema_name, "=", DoubleToString(check_ema, _Digits),
+                  " → ", (passed ? "PASS (Close < EMA)" : "FAIL (Close >= EMA)"));
+      }
+      
+      return passed ? 1 : 0;
+   }
+
+   //+------------------------------------------------------------------+
+   // Check_CB: CandleBody - Overextension Filter (non-directional)
+   //+------------------------------------------------------------------+
+   // Wraps the existing price-action check into the standard vote API
+   bool Check_CandleBody(int bias, int shift)
+   {
+      bool pass = CheckCandleBodyIndicator();
+      
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_CandleBody_Enabled)
+            PrintFormat("[IND_CANDLEBODY] ENABLED | Extension Check | Result: %s", pass ? "PASS" : "FAIL");
+         else
+            Print("[IND_CANDLEBODY] DISABLED - skipped");
+      }
+      return pass;
+   }
+
+   //+------------------------------------------------------------------+
+   // Check_CCI: CCI (Zero or Impulse)
+   //+------------------------------------------------------------------+
+   bool Check_CCI(int bias, int shift) {
+      double c = GetVal(h_cci, shift);
+      bool result;
+      if(m_settings.CciMode == CCI_TREND_ZERO) result = (bias==1) ? (c > 0) : (c < 0);
+      else result = (bias==1) ? (c > 100) : (c < -100);
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_Cci_Enabled)
+            PrintFormat("[IND_CCI] ENABLED | Value=%.2f | Result: %s",
+                        c, result ? "PASS" : "FAIL");
+         else
+            Print("[IND_CCI] DISABLED - skipped");
+      }
+      return result;
+   }
+   
+   //+------------------------------------------------------------------+
+   // CalculateCI: Calculate Choppiness Index for given shift
+   //+------------------------------------------------------------------+
+   // Formula: 100 * log10(Σ TR) / log10(Highest High - Lowest Low)
+   // Returns: CI value (0-100), where >61.8 indicates ranging market
+   double CalculateCI(int shift)
+   {
+      int period = m_settings.CI_Period;
+
+      // Sum of True Ranges over period
+      double sum_tr = 0.0;
+      for(int i = shift; i < shift + period; i++)
+      {
+         double h = iHigh(m_symbol, PERIOD_CURRENT, i);
+         double l = iLow(m_symbol, PERIOD_CURRENT, i);
+         double c_prev = iClose(m_symbol, PERIOD_CURRENT, i + 1);
+
+         // True Range = max(H-L, |H-C_prev|, |L-C_prev|)
+         double tr = MathMax(h - l, MathMax(MathAbs(h - c_prev), MathAbs(l - c_prev)));
+         sum_tr += tr;
+      }
+
+      // Highest high and lowest low over period
+      int highest_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, period, shift);
+      int lowest_idx  = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, period, shift);
+      double highest  = iHigh(m_symbol, PERIOD_CURRENT, highest_idx);
+      double lowest   = iLow(m_symbol, PERIOD_CURRENT, lowest_idx);
+      double range    = highest - lowest;
+
+      // Avoid division by zero or log of zero (flat / zero-range market = max choppiness)
+      // 0.00001 is sub-pip level: any real price range will exceed this
+      if(range < 0.00001 || sum_tr <= 0.0) return 100.0;
+
+      // Calculate CI using the standard Choppiness Index formula:
+      //   CI = 100 * log10(sum_TR / range) / log10(n)
+      // where n = period, range = highest_high - lowest_low
+      // CI range: 0 (perfect trend) to 100 (maximum choppiness)
+      // Threshold 61.8 = ranging; below 38.2 = strongly trending
+      double ci = 100.0 * MathLog10(sum_tr / range) / MathLog10(period);
+
+      return ci;
+   }
+
+   //+------------------------------------------------------------------+
+   // Check_CI: Choppiness Index vote (non-directional ranging market filter)
+   //+------------------------------------------------------------------+
+   // Returns: true if market is NOT ranging (CI < threshold)
+   bool Check_CI(int bias, int shift)
+   {
+      double ci = CalculateCI(shift);
+
+      // Reject if CI indicates ranging market
+      bool is_trending = (ci < m_settings.CI_RangingThreshold);
+
+      if(m_settings.DebugFlow) {
+         PrintFormat("[IND_CI] CI=%.2f | Threshold=%.2f | %s | Result: %s",
+                     ci, m_settings.CI_RangingThreshold,
+                     is_trending ? "TRENDING" : "RANGING",
+                     is_trending ? "PASS" : "FAIL");
+      }
+
+      return is_trending;
+   }
+
+   //+------------------------------------------------------------------+
+   // Check_EMA: EMA Recovery (Price vs EMA1)
+   //+------------------------------------------------------------------+
+   bool Check_EMA1(int bias, int shift) {
+      double p = iClose(m_symbol, PERIOD_CURRENT, shift);
+      double e = GetMAVal(h_ema1, shift);
+      bool result = (bias == 1) ? (p > e) : (p < e);
+      if(m_settings.DebugFlow)
+         PrintFormat("[IND_EMASIG] ENABLED | Price=%.5f EMA=%.5f | Result: %s",
+                     p, e, result ? "PASS" : "FAIL");
+      return result;
+   }
+
+   //+------------------------------------------------------------------+
+   // Check_MACD: MACD — two-tier architecture (base mode + optional filters)
+   //+------------------------------------------------------------------+
    // MACD Indicator buffer outputs:
    //   Buffer 0 = MACD Main Line (fast EMA - slow EMA)
    //   Buffer 1 = MACD Signal Line (SMA of Main Line)
@@ -468,7 +737,7 @@ private:
       return true;  // Base + all filters passed
    }
 
-   // Helper: Detect bars since MACD main/signal crossover
+   // MACD Helper: Detect bars since MACD main/signal crossover
    int GetBarsSinceMACDCrossover(int bias, int shift) {
       static const int MACD_EVENT_LOOKBACK = 20;  // Max bars to look back for a recent MACD event
       for(int i = shift; i < shift + MACD_EVENT_LOOKBACK; i++) {
@@ -488,7 +757,7 @@ private:
       return -1;  // No recent crossover found
    }
 
-   // Helper: Detect bars since MACD zero line cross
+   // MACD Helper: Detect bars since MACD zero line cross
    int GetBarsSinceMACDZeroCross(int bias, int shift) {
       static const int MACD_EVENT_LOOKBACK = 20;  // Max bars to look back for a recent MACD event
       for(int i = shift; i < shift + MACD_EVENT_LOOKBACK; i++) {
@@ -506,7 +775,7 @@ private:
       return -1;  // No recent zero cross
    }
 
-   // Helper: Check for bullish/bearish divergence
+   // MACD Helper: Check for bullish/bearish divergence
    bool CheckMACDDivergence(int bias, int shift) {
       // Simple divergence check using two non-overlapping 10-bar windows
       // Bullish divergence: price makes lower low, MACD makes higher low
@@ -540,7 +809,7 @@ private:
       }
    }
 
-   // Mode description: returns human-readable string for active MACD configuration
+   // MACD Mode description: returns human-readable string for active MACD configuration
    string GetMACDModeDescription()
    {
       return ::GetMACDModeDescription(
@@ -551,58 +820,8 @@ private:
       );
    }
 
-
    //+------------------------------------------------------------------+
-   // Vote 4: RSI
-   // Returns: ...
-   //+------------------------------------------------------------------+
-   bool Check_RSI(int bias, int shift) {
-      if(!m_settings.Ind_Rsi_Enabled) {
-         if(m_settings.DebugFlow) Print("[IND_RSI] DISABLED - skipped");
-         return true;
-      }
-      double r = GetVal(h_rsi, shift);
-      bool result;
-      
-      if(m_settings.RsiMode == RSI_FILTER_EXTREME) {
-         // Buy if NOT Overbought, Sell if NOT Oversold
-         result = (bias==1) ? (r < m_settings.T_RsiOB) : (r > m_settings.T_RsiOS);
-      }
-      else if(m_settings.RsiMode == RSI_TREND_ABOVE_50) {
-         result = (bias==1) ? (r > 50) : (r < 50);
-      }
-      else {
-         // Cross Level Mode
-         result = (bias==1) ? (r > m_settings.T_RsiOS) : (r < m_settings.T_RsiOB);
-      }
-      if(m_settings.DebugFlow)
-         PrintFormat("[IND_RSI] ENABLED | Value=%.2f | Result: %s",
-                     r, result ? "PASS" : "FAIL");
-      return result;
-   }
-   
-   //+------------------------------------------------------------------+
-   // Vote 5: CCI (Zero or Impulse)
-   // Returns: ...
-   //+------------------------------------------------------------------+
-   bool Check_CCI(int bias, int shift) {
-      double c = GetVal(h_cci, shift);
-      bool result;
-      if(m_settings.CciMode == CCI_TREND_ZERO) result = (bias==1) ? (c > 0) : (c < 0);
-      else result = (bias==1) ? (c > 100) : (c < -100);
-      if(m_settings.DebugFlow) {
-         if(m_settings.Ind_Cci_Enabled)
-            PrintFormat("[IND_CCI] ENABLED | Value=%.2f | Result: %s",
-                        c, result ? "PASS" : "FAIL");
-         else
-            Print("[IND_CCI] DISABLED - skipped");
-      }
-      return result;
-   }
-   
-   //+------------------------------------------------------------------+
-   // Vote 6: MFI (Money Flow)
-   // Returns: ...
+   // Check_MFI: MFI (Money Flow)
    //+------------------------------------------------------------------+
    bool Check_MFI(int bias, int shift) {
       double mfi = GetVal(h_mfi, shift);
@@ -616,65 +835,9 @@ private:
       }
       return result;
    }
-   
-   //+------------------------------------------------------------------+
-   // Vote 7: Stochastic
-   // Returns: ...
-   //+------------------------------------------------------------------+
-   bool Check_Sto(int bias, int shift) {
-      double k = GetVal(h_sto, shift, 0);
-      double d = GetVal(h_sto, shift, 1);
-      bool result;
-      
-      if(m_settings.StoMode == STO_CROSS_SIGNAL) 
-         result = (bias==1) ? (k > d) : (k < d);
-      else
-         // Zone Filter: Buy if NOT overbought
-         result = (bias==1) ? (k < m_settings.T_StoOB) : (k > m_settings.T_StoOS);
 
-      if(m_settings.DebugFlow) {
-         if(m_settings.Ind_Sto_Enabled)
-            PrintFormat("[IND_STOCH] ENABLED | K=%.2f D=%.2f | Result: %s",
-                        k, d, result ? "PASS" : "FAIL");
-         else
-            Print("[IND_STOCH] DISABLED - skipped");
-      }
-      return result;
-   }
-   
    //+------------------------------------------------------------------+
-   // Vote 8: Bollinger Bands
-   // Returns: ...
-   //+------------------------------------------------------------------+
-   bool Check_BB(int bias, int shift) {
-      double mid = GetVal(h_bb, shift, 0);
-      double cl  = iClose(m_symbol, PERIOD_CURRENT, shift);
-      bool result;
-      
-      if(m_settings.BbMode == BB_TREND_FOLLOW) {
-         result = (bias==1) ? (cl > mid) : (cl < mid);
-      }
-      else {
-         // Mean Reversion: Price touched Lower/Upper Band
-         double lower = GetVal(h_bb, shift, 2);
-         double upper = GetVal(h_bb, shift, 1);
-         double low   = iLow(m_symbol, PERIOD_CURRENT, shift);
-         double high  = iHigh(m_symbol, PERIOD_CURRENT, shift);
-         result = (bias==1) ? (low <= lower) : (high >= upper);
-      }
-      if(m_settings.DebugFlow) {
-         if(m_settings.Ind_Bb_Enabled)
-            PrintFormat("[IND_BB] ENABLED | Mid=%.5f Close=%.5f | Result: %s",
-                        mid, cl, result ? "PASS" : "FAIL");
-         else
-            Print("[IND_BB] DISABLED - skipped");
-      }
-      return result;
-   }
-   
-   //+------------------------------------------------------------------+
-   // Vote 9: PSAR (basic price vs. PSAR position check)
-   // Returns: ...
+   // Check_PSAR: PSAR (basic price vs. PSAR position check)
    //+------------------------------------------------------------------+
    bool Check_PSAR(int bias, int shift) {
       double p = GetVal(h_psar, shift);
@@ -695,9 +858,13 @@ private:
       return result;
    }
 
-   // PSAR flip helper: detect if a flip occurred at the given bar shift.
-   // A flip occurs when PSAR crosses from above price to below price (bullish: +1)
-   // or from below price to above price (bearish: -1).
+   //+------------------------------------------------------------------+
+   // Detect PSAR flip
+   //+------------------------------------------------------------------+
+   // detect if a flip occurred at the given bar shift.
+   // A flip occurs when PSAR crosses 
+   //    from above price to below price (bullish: +1) or
+   //    from below price to above price (bearish: -1).
    // Returns 1 (bullish flip), -1 (bearish flip), or 0 (no flip / insufficient data).
    // Uses closed bars only: checks shift vs shift+1 (shift+1 is the previous closed bar).
    int DetectPSARFlipAt(int shift) {
@@ -773,7 +940,10 @@ private:
       return flip;
    }
 
-   // PSAR flip tracker: call once per bar close to record the most recent flip.
+   //+------------------------------------------------------------------+
+   // PSAR flip tracker 
+   //+------------------------------------------------------------------+
+   // call once per bar close to record the most recent flip.
    // Stores direction-specific timestamps so bullish and bearish flips are tracked independently.
    void UpdatePSARFlipTracking(int shift = 1) {
       if(m_settings.DebugFlow)
@@ -796,8 +966,12 @@ private:
       }
    }
 
-   // Returns the number of bars elapsed since the last recorded PSAR flip in the given bias direction,
-   // measured from current_shift. Returns INT_MAX if no flip has been recorded for that direction.
+   //+------------------------------------------------------------------+
+   // Get Bars Since Last Flip
+   //+------------------------------------------------------------------+
+   // Returns the number of bars elapsed since the last recorded PSAR flip 
+   // in the given bias direction, measured from current_shift. 
+   // Returns INT_MAX if no flip has been recorded for that direction.
    // bias: 1 = bullish, -1 = bearish.
    int GetBarsSinceLastFlip(int bias, int current_shift) {
       datetime flip_time = (bias == 1) ? m_psar_last_flip_time_bull : m_psar_last_flip_time_bear;
@@ -810,6 +984,9 @@ private:
       return (elapsed < 0) ? INT_MAX : elapsed;
    }
 
+   //+------------------------------------------------------------------+
+   // Check_Psar_WithFlip
+   //+------------------------------------------------------------------+
    // Vote 9 (enhanced): PSAR with countdown-based flip validation.
    // Passes only if:
    //   1. PSAR dot is on the correct side of price (basic position check)
@@ -956,10 +1133,61 @@ private:
       return true;
    }
 
+   //+------------------------------------------------------------------+
+   // Check_RSI: RSI
+   //+------------------------------------------------------------------+
+   bool Check_RSI(int bias, int shift) {
+      if(!m_settings.Ind_Rsi_Enabled) {
+         if(m_settings.DebugFlow) Print("[IND_RSI] DISABLED - skipped");
+         return true;
+      }
+      double r = GetVal(h_rsi, shift);
+      bool result;
+      
+      if(m_settings.RsiMode == RSI_FILTER_EXTREME) {
+         // Buy if NOT Overbought, Sell if NOT Oversold
+         result = (bias==1) ? (r < m_settings.T_RsiOB) : (r > m_settings.T_RsiOS);
+      }
+      else if(m_settings.RsiMode == RSI_TREND_ABOVE_50) {
+         result = (bias==1) ? (r > 50) : (r < 50);
+      }
+      else {
+         // Cross Level Mode
+         result = (bias==1) ? (r > m_settings.T_RsiOS) : (r < m_settings.T_RsiOB);
+      }
+      if(m_settings.DebugFlow)
+         PrintFormat("[IND_RSI] ENABLED | Value=%.2f | Result: %s",
+                     r, result ? "PASS" : "FAIL");
+      return result;
+   }
+     
+   //+------------------------------------------------------------------+
+   // Check_STO: Stochastic
+   //+------------------------------------------------------------------+
+   bool Check_Sto(int bias, int shift) {
+      double k = GetVal(h_sto, shift, 0);
+      double d = GetVal(h_sto, shift, 1);
+      bool result;
+      
+      if(m_settings.StoMode == STO_CROSS_SIGNAL) 
+         result = (bias==1) ? (k > d) : (k < d);
+      else
+         // Zone Filter: Buy if NOT overbought
+         result = (bias==1) ? (k < m_settings.T_StoOB) : (k > m_settings.T_StoOS);
+
+      if(m_settings.DebugFlow) {
+         if(m_settings.Ind_Sto_Enabled)
+            PrintFormat("[IND_STOCH] ENABLED | K=%.2f D=%.2f | Result: %s",
+                        k, d, result ? "PASS" : "FAIL");
+         else
+            Print("[IND_STOCH] DISABLED - skipped");
+      }
+      return result;
+   }
+   
    
    //+------------------------------------------------------------------+
-   // Vote 10: Pattern 1-2-3 (Breakout)
-   // Returns: ...
+   // Check_P123: Pattern 1-2-3 (Breakout)
    //+------------------------------------------------------------------+
    bool Check_P123(int bias, int shift) {
       // 1. Get most recent Upper and Lower Fractals
@@ -984,8 +1212,7 @@ private:
    }
    
    //+------------------------------------------------------------------+
-   // Vote 11: Ross Hook (Trend-Following Momentum Interlock)
-   // Returns: ...
+   // Check Ross Hook: Ross Hook (Trend-Following Momentum Interlock)
    //+------------------------------------------------------------------+
    bool Check_Ross(int bias, int shift) {
       // 1. PRICE ACTION BREAKOUT
@@ -1012,120 +1239,10 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   //| Check_ATR(): Volatility Range Filter (non-directional)           |
-   //| Returns: true if ATR is within configured minimum/maximum pips   |
+   // Check_VRC: Volatility Regime Classifier vote (non-directional)
    //+------------------------------------------------------------------+
-   bool Check_ATR(int bias, int shift)
-   {
-      // Utilizing the cached ATR pip value calculated during CheckFilters()
-      double atr_pips = m_diag_last_atr_pips; 
-      bool pass = true;
-      
-      if(m_settings.ATR_VoteMinPips > 0.0 && atr_pips < m_settings.ATR_VoteMinPips) pass = false;
-      if(m_settings.ATR_VoteMaxPips > 0.0 && atr_pips > m_settings.ATR_VoteMaxPips) pass = false;
-      
-      if(m_settings.DebugFlow) {
-         if(m_settings.Ind_Atr_Enabled)
-            PrintFormat("[IND_ATR] ENABLED | ATR=%.1f pips (Min=%.1f, Max=%.1f) | Result: %s",
-                        atr_pips, m_settings.ATR_VoteMinPips, m_settings.ATR_VoteMaxPips, pass ? "PASS" : "FAIL");
-         else
-            Print("[IND_ATR] DISABLED - skipped");
-      }
-      return pass;
-   }
-
-   //+------------------------------------------------------------------+
-   //| Check_CandleBody(): Overextension Filter (non-directional)       |
-   //| Wraps the existing price-action check into the standard vote API |
-   //+------------------------------------------------------------------+
-   bool Check_CandleBody(int bias, int shift)
-   {
-      bool pass = CheckCandleBodyIndicator();
-      
-      if(m_settings.DebugFlow) {
-         if(m_settings.Ind_CandleBody_Enabled)
-            PrintFormat("[IND_CANDLEBODY] ENABLED | Extension Check | Result: %s", pass ? "PASS" : "FAIL");
-         else
-            Print("[IND_CANDLEBODY] DISABLED - skipped");
-      }
-      return pass;
-   }
-
-   // NOTE: Check_CI(int bias, int shift) and Check_VRC(int bias, int shift) 
-   // already perfectly match the standardized signature in your current codebase 
-   // and require no modification to their internal logic.
-
-
-   //+------------------------------------------------------------------+
-   //| CalculateCI(): Calculate Choppiness Index for given shift       |
-   //| Formula: 100 * log10(Σ TR) / log10(Highest High - Lowest Low)   |
-   //| Returns: CI value (0-100), where >61.8 indicates ranging market  |
-   //+------------------------------------------------------------------+
-   double CalculateCI(int shift)
-   {
-      int period = m_settings.CI_Period;
-
-      // Sum of True Ranges over period
-      double sum_tr = 0.0;
-      for(int i = shift; i < shift + period; i++)
-      {
-         double h = iHigh(m_symbol, PERIOD_CURRENT, i);
-         double l = iLow(m_symbol, PERIOD_CURRENT, i);
-         double c_prev = iClose(m_symbol, PERIOD_CURRENT, i + 1);
-
-         // True Range = max(H-L, |H-C_prev|, |L-C_prev|)
-         double tr = MathMax(h - l, MathMax(MathAbs(h - c_prev), MathAbs(l - c_prev)));
-         sum_tr += tr;
-      }
-
-      // Highest high and lowest low over period
-      int highest_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, period, shift);
-      int lowest_idx  = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, period, shift);
-      double highest  = iHigh(m_symbol, PERIOD_CURRENT, highest_idx);
-      double lowest   = iLow(m_symbol, PERIOD_CURRENT, lowest_idx);
-      double range    = highest - lowest;
-
-      // Avoid division by zero or log of zero (flat / zero-range market = max choppiness)
-      // 0.00001 is sub-pip level: any real price range will exceed this
-      if(range < 0.00001 || sum_tr <= 0.0) return 100.0;
-
-      // Calculate CI using the standard Choppiness Index formula:
-      //   CI = 100 * log10(sum_TR / range) / log10(n)
-      // where n = period, range = highest_high - lowest_low
-      // CI range: 0 (perfect trend) to 100 (maximum choppiness)
-      // Threshold 61.8 = ranging; below 38.2 = strongly trending
-      double ci = 100.0 * MathLog10(sum_tr / range) / MathLog10(period);
-
-      return ci;
-   }
-
-   //+------------------------------------------------------------------+
-   //| Check_CI(): Choppiness Index vote (non-directional ranging market filter)
-   //| Returns: true if market is NOT ranging (CI < threshold)
-   //+------------------------------------------------------------------+
-   bool Check_CI(int bias, int shift)
-   {
-      double ci = CalculateCI(shift);
-
-      // Reject if CI indicates ranging market
-      bool is_trending = (ci < m_settings.CI_RangingThreshold);
-
-      if(m_settings.DebugFlow) {
-         PrintFormat("[IND_CI] CI=%.2f | Threshold=%.2f | %s | Result: %s",
-                     ci, m_settings.CI_RangingThreshold,
-                     is_trending ? "TRENDING" : "RANGING",
-                     is_trending ? "PASS" : "FAIL");
-      }
-
-      return is_trending;
-   }
-
-
-   //+------------------------------------------------------------------+
-   //| Check_VRC(): Volatility Regime Classifier vote (non-directional)
-   //| Returns: true if volatility is acceptable, false if too low
-   //| Pattern: Same as Check_CI() – independent of trade direction
-   //+------------------------------------------------------------------+
+   // Returns: true if volatility is acceptable, false if too low
+   // Pattern: Same as Check_CI() – independent of trade direction
    bool Check_VRC(int bias, int shift)
    {
       // ATR handle must be valid (h_atr created in Init())
@@ -1149,7 +1266,10 @@ private:
    }
 
 
+   //+------------------------------------------------------------------+
    // --- NEWS HELPERS (CSV calendar_statement.csv) ---
+   //+------------------------------------------------------------------+
+
    string TrimStr(string s) {
       StringTrimLeft(s);
       StringTrimRight(s);
@@ -1258,7 +1378,7 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   //| Calculate slope direction with configurable threshold            |
+   // Calculate slope direction with configurable threshold
    //+------------------------------------------------------------------+
    int CalculateSlope(double curr, double prev, double min_threshold)
    {
@@ -1274,7 +1394,7 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   //| Get adaptive threshold based on TF and pair                      |
+   // Get adaptive threshold based on TF and pair
    //+------------------------------------------------------------------+
    double GetAdaptiveThresholdPips()
    {
@@ -1344,7 +1464,7 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   //| Get minimum slope threshold (adaptive or fixed)                  |
+   // Get minimum slope threshold (adaptive or fixed)
    //+------------------------------------------------------------------+
    double GetMinSlopeThreshold(double ema_curr_fast, double ema_curr_slow)
    {
