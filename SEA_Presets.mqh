@@ -465,7 +465,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // PULLBACK DETECTION GATES
       // ================================================================
       cfg.RequireRecoveryMomentum   = false;
-      cfg.LayerTouchTolerance       = 0.0;
       
       // Gate 2: Recovery momentum
       cfg.Gate_Recovery.mode        = GATE_SCALE_FIXED;
@@ -817,7 +816,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // PULLBACK DETECTION GATES
       // ================================================================
       cfg.RequireRecoveryMomentum   = true;
-      cfg.LayerTouchTolerance       = 0.1;   // ORG: 0.01      
    
       // Gate 2: Recovery momentum
       cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
@@ -1120,7 +1118,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // PULLBACK DETECTION GATES (All disabled)
       // ================================================================
       cfg.RequireRecoveryMomentum   = false;   // ORG: false
-      cfg.LayerTouchTolerance       = 0.0;
    
       // Gate 2: Recovery momentum
       cfg.Gate_Recovery.mode        = GATE_SCALE_FIXED;

@@ -488,7 +488,6 @@ int OrchestrateInit()
 
       Print("ENTRY LAYER:");
       Print("  EnableLayerDetection: ", (Settings.EnableLayerDetection ? "true" : "false"));
-      Print("  LayerTouchTolerance: ", DoubleToString(Settings.LayerTouchTolerance * 100.0, 1), "%");
       Print("  RequireRecoveryMomentum: ", (Settings.RequireRecoveryMomentum ? "true" : "false"));
 
       Print("VOTING MODE: ", (Settings.VoteMode == VOTE_MODE_ALL ? "ALL (pure multiplicative)" : "THRESHOLD"));
