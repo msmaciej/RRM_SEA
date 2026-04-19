@@ -1552,9 +1552,21 @@ private:
 
       double ema_fast      = GetMAVal(h_fast, 1);
       double ema_slow      = GetMAVal(h_slow, 1);
-      if(ema_fast == 0.0 || ema_slow == 0.0 ||
-         ema_fast == EMPTY_VALUE || ema_slow == EMPTY_VALUE)
+      // Warmup check: EMPTY_VALUE is normal during indicator initialization
+      if(ema_fast == EMPTY_VALUE || ema_slow == EMPTY_VALUE) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[LayerAlign] WARMUP: EMA data not ready (fast=%.5f slow=%.5f)",
+                        ema_fast, ema_slow);
+         return 0;  // Normal during warmup period
+      }
+
+      // Data integrity check: reject suspicious zero/negative values (actual errors)
+      if((ema_fast == 0.0 && ema_slow == 0.0) || ema_fast < 0.0 || ema_slow < 0.0) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[LayerAlign] ERROR: Invalid EMA data (fast=%.5f slow=%.5f)",
+                        ema_fast, ema_slow);
          return 0;
+      }
 
       // ── Position check: fast must be on the correct side of slow ──
       bool position_aligned = (bias == 1)  ? (ema_fast > ema_slow) :
@@ -1568,9 +1580,20 @@ private:
 
       double ema_fast_prev = GetMAVal(h_fast, 1 + lookback);
       double ema_slow_prev = GetMAVal(h_slow, 1 + lookback);
-      if(ema_fast_prev == 0.0 || ema_slow_prev == 0.0 ||
-         ema_fast_prev == EMPTY_VALUE || ema_slow_prev == EMPTY_VALUE)
+      // Warmup check: EMPTY_VALUE is normal during indicator initialization
+      if(ema_fast_prev == EMPTY_VALUE || ema_slow_prev == EMPTY_VALUE) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[LayerAlign] WARMUP: Previous bar EMA data not ready");
+         return 0;  // Normal during warmup period
+      }
+
+      // Data integrity check: reject suspicious zero/negative values (actual errors)
+      if((ema_fast_prev == 0.0 && ema_slow_prev == 0.0) || ema_fast_prev < 0.0 || ema_slow_prev < 0.0) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[LayerAlign] ERROR: Invalid previous bar EMA data (fast=%.5f slow=%.5f)",
+                        ema_fast_prev, ema_slow_prev);
          return 0;
+      }
 
       bool slope_fast_aligned = (bias == 1)  ? (ema_fast > ema_fast_prev) :
                                 (bias == -1) ? (ema_fast < ema_fast_prev) : false;
