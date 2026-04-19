@@ -12,7 +12,8 @@ enum EDebugLevel
    DEBUG_SILENT,      // DEBUG_SILENT: No per-bar output (statistics only at end)
    DEBUG_SUMMARY,     // DEBUG_SUMMARY: Per-bar: signal result + rejection reason (1-2 lines)
    DEBUG_INDICATORS,  // DEBUG_INDICATORS: Per-bar: indicator pass/fail + summary (20-30 lines)
-   DEBUG_FULL         // DEBUG_FULL: Everything: all internal steps + diagnostics (50+ lines)
+   DEBUG_FULL,        // DEBUG_FULL: Everything: all internal steps + diagnostics (50+ lines)
+   DEBUG_SIGNALS_ONLY // DEBUG_SIGNALS_ONLY: FULL debug ONLY for confirmed signals (TS≠0)
 };
 enum EStrategyPreset
 {

@@ -186,6 +186,112 @@ private:
    double   m_eval_vote_weight;          // Total vote weight from EvaluateIndicatorX
    bool     m_eval_all_pass;             // True if all enabled indicators passed
 
+   // --- 2j. BUFFERED LOGGING (for DEBUG_SIGNALS_ONLY mode) ---
+   string   m_debug_buffer[];            // Memory buffer for debug lines
+   int      m_debug_buffer_size;         // Current number of lines in buffer
+
+   // --- 2k. INDICATOR RESULT CACHE (eliminates duplicate checks per bar) ---
+   struct SIndicatorCache {
+      int    cached_shift;        // Bar shift that's cached (-1 = invalid)
+      datetime cached_bar_time;   // Bar timestamp that's cached (0 = invalid)
+      int    cached_bias;         // Bias for directional indicator cache (0 = invalid)
+
+      // Cached indicator results (int: -1=not cached, 0=fail, 1=pass)
+      int    adx_result;
+      int    macd_result;
+      int    rsi_result;
+      int    cci_result;
+      int    mfi_result;
+      int    sto_result;
+      int    bb_result;
+      int    psar_result;
+      int    psar_flip_result;
+      int    atr_result;
+      int    candlebody_result;
+      int    ci_result;
+      int    vrc_result;
+
+      // Cached indicator values (for debug logging)
+      double adx_value;
+      double macd_main;
+      double macd_signal;
+      double rsi_value;
+      double cci_value;
+      double mfi_value;
+      double sto_main;
+      double sto_signal;
+      double bb_mid;
+      double bb_close;
+      double psar_value;
+      double psar_close;
+   };
+
+   SIndicatorCache m_ind_cache;
+
+   //+------------------------------------------------------------------+
+   //| DebugLog: Buffered logging for DEBUG_SIGNALS_ONLY mode           |
+   //| - In normal modes: prints immediately                            |
+   //| - In DEBUG_SIGNALS_ONLY: stores in buffer, prints only if TS≠0   |
+   //+------------------------------------------------------------------+
+   void DebugLog(string message)
+   {
+      if(m_settings.DebugLevel != DEBUG_SIGNALS_ONLY) {
+         Print(message);
+         return;
+      }
+
+      ArrayResize(m_debug_buffer, m_debug_buffer_size + 1);
+      m_debug_buffer[m_debug_buffer_size] = message;
+      m_debug_buffer_size++;
+   }
+
+   //+------------------------------------------------------------------+
+   //| FlushOrClearDebugBuffer: Print buffer if signal, discard if not  |
+   //+------------------------------------------------------------------+
+   void FlushOrClearDebugBuffer(int ts_result)
+   {
+      if(m_settings.DebugLevel != DEBUG_SIGNALS_ONLY) return;
+
+      if(ts_result != 0) {
+         Print("════════════════════════════════════════════════════════════");
+         Print(StringFormat("[SIGNAL] CONFIRMED: %s", (ts_result > 0 ? "LONG" : "SHORT")));
+         Print("════════════════════════════════════════════════════════════");
+
+         for(int i = 0; i < m_debug_buffer_size; i++)
+            Print(m_debug_buffer[i]);
+      }
+
+      m_debug_buffer_size = 0;
+      ArrayResize(m_debug_buffer, 0);
+   }
+
+   void InvalidateIndicatorCache(int shift)
+   {
+      m_ind_cache.cached_shift = shift;
+      m_ind_cache.cached_bar_time = iTime(m_symbol, PERIOD_CURRENT, shift);
+      m_ind_cache.cached_bias  = 0;
+      m_ind_cache.adx_result = -1;
+      m_ind_cache.macd_result = -1;
+      m_ind_cache.rsi_result = -1;
+      m_ind_cache.cci_result = -1;
+      m_ind_cache.mfi_result = -1;
+      m_ind_cache.sto_result = -1;
+      m_ind_cache.bb_result = -1;
+      m_ind_cache.psar_result = -1;
+      m_ind_cache.psar_flip_result = -1;
+      m_ind_cache.atr_result = -1;
+      m_ind_cache.candlebody_result = -1;
+      m_ind_cache.ci_result = -1;
+      m_ind_cache.vrc_result = -1;
+   }
+
+   bool IsCacheValidForShift(int shift) const
+   {
+      if(shift != m_ind_cache.cached_shift) return false;
+      if(m_ind_cache.cached_bar_time == 0)  return false;
+      return (iTime(m_symbol, PERIOD_CURRENT, shift) == m_ind_cache.cached_bar_time);
+   }
+
    // Simplified buffer access for cleaner logic code
 
    // Version 1: No validity checking (backward compatible)
@@ -295,6 +401,9 @@ private:
    //    PHASE_AWARE (different thresholds per market phase)
    //
    bool Check_ADX(int shift) {
+      if(IsCacheValidForShift(shift) && m_ind_cache.adx_result != -1)
+         return (m_ind_cache.adx_result == 1);
+
       double adx = GetVal(h_adx, shift);
 
       // Update rolling history for dynamic modes (skip for static — no history needed)
@@ -331,12 +440,14 @@ private:
       bool result = adx >= threshold;
       // Cache the effective threshold for diagnostic display (GetVoteSnapshot, debug logs)
       m_cachedADXThreshold = threshold;
+      m_ind_cache.adx_value = adx;
+      m_ind_cache.adx_result = result ? 1 : 0;
       if(m_settings.DebugFlow) {
          if(m_settings.Ind_Adx_Enabled)
-            PrintFormat("[IND_ADX] ENABLED | Value=%.2f | Threshold=%.2f | Mode=%s | Result: %s",
-                        adx, threshold, modeStr, result ? "PASS" : "FAIL");
+            DebugLog(StringFormat("[IND_ADX] ENABLED | Value=%.2f | Threshold=%.2f | Mode=%s | Result: %s",
+                                  adx, threshold, modeStr, result ? "PASS" : "FAIL"));
          else
-            Print("[IND_ADX] DISABLED - skipped");
+            DebugLog("[IND_ADX] DISABLED - skipped");
       }
       return result;
    }
@@ -348,19 +459,23 @@ private:
    // Returns: true if ATR is within configured minimum/maximum pips
    bool Check_ATR(int bias, int shift)
    {
+      if(IsCacheValidForShift(shift) && m_ind_cache.atr_result != -1)
+         return (m_ind_cache.atr_result == 1);
+
       // Utilizing the cached ATR pip value calculated during CheckFilters()
       double atr_pips = m_diag_last_atr_pips; 
       bool pass = true;
       
       if(m_settings.ATR_VoteMinPips > 0.0 && atr_pips < m_settings.ATR_VoteMinPips) pass = false;
       if(m_settings.ATR_VoteMaxPips > 0.0 && atr_pips > m_settings.ATR_VoteMaxPips) pass = false;
+      m_ind_cache.atr_result = pass ? 1 : 0;
       
       if(m_settings.DebugFlow) {
          if(m_settings.Ind_Atr_Enabled)
-            PrintFormat("[IND_ATR] ENABLED | ATR=%.1f pips (Min=%.1f, Max=%.1f) | Result: %s",
-                        atr_pips, m_settings.ATR_VoteMinPips, m_settings.ATR_VoteMaxPips, pass ? "PASS" : "FAIL");
+            DebugLog(StringFormat("[IND_ATR] ENABLED | ATR=%.1f pips (Min=%.1f, Max=%.1f) | Result: %s",
+                                  atr_pips, m_settings.ATR_VoteMinPips, m_settings.ATR_VoteMaxPips, pass ? "PASS" : "FAIL"));
          else
-            Print("[IND_ATR] DISABLED - skipped");
+            DebugLog("[IND_ATR] DISABLED - skipped");
       }
       return pass;
    }
@@ -369,6 +484,11 @@ private:
    // Check_BB: Bollinger Bands
    //+------------------------------------------------------------------+
    bool Check_BB(int bias, int shift) {
+      if(IsCacheValidForShift(shift) &&
+         m_ind_cache.bb_result != -1 &&
+         m_ind_cache.cached_bias == bias)
+         return (m_ind_cache.bb_result == 1);
+
       double mid = GetVal(h_bb, shift, 0);
       double cl  = iClose(m_symbol, PERIOD_CURRENT, shift);
       bool result;
@@ -384,12 +504,16 @@ private:
          double high  = iHigh(m_symbol, PERIOD_CURRENT, shift);
          result = (bias==1) ? (low <= lower) : (high >= upper);
       }
+      m_ind_cache.cached_bias = bias;
+      m_ind_cache.bb_mid = mid;
+      m_ind_cache.bb_close = cl;
+      m_ind_cache.bb_result = result ? 1 : 0;
       if(m_settings.DebugFlow) {
          if(m_settings.Ind_Bb_Enabled)
-            PrintFormat("[IND_BB] ENABLED | Mid=%.5f Close=%.5f | Result: %s",
-                        mid, cl, result ? "PASS" : "FAIL");
+            DebugLog(StringFormat("[IND_BB] ENABLED | Mid=%.5f Close=%.5f | Result: %s",
+                                  mid, cl, result ? "PASS" : "FAIL"));
          else
-            Print("[IND_BB] DISABLED - skipped");
+            DebugLog("[IND_BB] DISABLED - skipped");
       }
       return result;
    }
@@ -422,7 +546,7 @@ private:
       if(!m_settings.BarClose_Enabled || m_settings.BarClose_Mode == BC_DISABLED)
       {
          if(m_settings.DebugFlow)
-            Print("[bcX] DISABLED → PASS (returns 1)");
+            DebugLog("[bcX] DISABLED → PASS (returns 1)");
          return 1;
       }
       
@@ -501,18 +625,24 @@ private:
          passed = (close_price > check_ema);
          
          if(m_settings.DebugFlow)
-            Print("[", bc_label, "] LONG: Close=", DoubleToString(close_price, _Digits),
-                  " vs ", ema_name, "=", DoubleToString(check_ema, _Digits),
-                  " → ", (passed ? "PASS (Close > EMA)" : "FAIL (Close <= EMA)"));
+            DebugLog(StringFormat("[%s] LONG: Close=%s vs %s=%s → %s",
+                                  bc_label,
+                                  DoubleToString(close_price, _Digits),
+                                  ema_name,
+                                  DoubleToString(check_ema, _Digits),
+                                  (passed ? "PASS (Close > EMA)" : "FAIL (Close <= EMA)")));
       }
       else if(bias == -1)  // SHORT: Close must be below EMA
       {
          passed = (close_price < check_ema);
          
          if(m_settings.DebugFlow)
-            Print("[", bc_label, "] SHORT: Close=", DoubleToString(close_price, _Digits),
-                  " vs ", ema_name, "=", DoubleToString(check_ema, _Digits),
-                  " → ", (passed ? "PASS (Close < EMA)" : "FAIL (Close >= EMA)"));
+            DebugLog(StringFormat("[%s] SHORT: Close=%s vs %s=%s → %s",
+                                  bc_label,
+                                  DoubleToString(close_price, _Digits),
+                                  ema_name,
+                                  DoubleToString(check_ema, _Digits),
+                                  (passed ? "PASS (Close < EMA)" : "FAIL (Close >= EMA)")));
       }
       
       return passed ? 1 : 0;
@@ -524,13 +654,17 @@ private:
    // Wraps the existing price-action check into the standard vote API
    bool Check_CandleBody(int bias, int shift)
    {
+      if(IsCacheValidForShift(shift) && m_ind_cache.candlebody_result != -1)
+         return (m_ind_cache.candlebody_result == 1);
+
       bool pass = CheckCandleBodyIndicator();
+      m_ind_cache.candlebody_result = pass ? 1 : 0;
       
       if(m_settings.DebugFlow) {
          if(m_settings.Ind_CandleBody_Enabled)
-            PrintFormat("[IND_CANDLEBODY] ENABLED | Extension Check | Result: %s", pass ? "PASS" : "FAIL");
+            DebugLog(StringFormat("[IND_CANDLEBODY] ENABLED | Extension Check | Result: %s", pass ? "PASS" : "FAIL"));
          else
-            Print("[IND_CANDLEBODY] DISABLED - skipped");
+            DebugLog("[IND_CANDLEBODY] DISABLED - skipped");
       }
       return pass;
    }
@@ -539,16 +673,24 @@ private:
    // Check_CCI: CCI (Zero or Impulse)
    //+------------------------------------------------------------------+
    bool Check_CCI(int bias, int shift) {
+      if(IsCacheValidForShift(shift) &&
+         m_ind_cache.cci_result != -1 &&
+         m_ind_cache.cached_bias == bias)
+         return (m_ind_cache.cci_result == 1);
+
       double c = GetVal(h_cci, shift);
       bool result;
       if(m_settings.CciMode == CCI_TREND_ZERO) result = (bias==1) ? (c > 0) : (c < 0);
       else result = (bias==1) ? (c > 100) : (c < -100);
+      m_ind_cache.cached_bias = bias;
+      m_ind_cache.cci_value = c;
+      m_ind_cache.cci_result = result ? 1 : 0;
       if(m_settings.DebugFlow) {
          if(m_settings.Ind_Cci_Enabled)
-            PrintFormat("[IND_CCI] ENABLED | Value=%.2f | Result: %s",
-                        c, result ? "PASS" : "FAIL");
+            DebugLog(StringFormat("[IND_CCI] ENABLED | Value=%.2f | Result: %s",
+                                  c, result ? "PASS" : "FAIL"));
          else
-            Print("[IND_CCI] DISABLED - skipped");
+            DebugLog("[IND_CCI] DISABLED - skipped");
       }
       return result;
    }
@@ -602,16 +744,20 @@ private:
    // Returns: true if market is NOT ranging (CI < threshold)
    bool Check_CI(int bias, int shift)
    {
+      if(IsCacheValidForShift(shift) && m_ind_cache.ci_result != -1)
+         return (m_ind_cache.ci_result == 1);
+
       double ci = CalculateCI(shift);
 
       // Reject if CI indicates ranging market
       bool is_trending = (ci < m_settings.CI_RangingThreshold);
+      m_ind_cache.ci_result = is_trending ? 1 : 0;
 
       if(m_settings.DebugFlow) {
-         PrintFormat("[IND_CI] CI=%.2f | Threshold=%.2f | %s | Result: %s",
-                     ci, m_settings.CI_RangingThreshold,
-                     is_trending ? "TRENDING" : "RANGING",
-                     is_trending ? "PASS" : "FAIL");
+         DebugLog(StringFormat("[IND_CI] CI=%.2f | Threshold=%.2f | %s | Result: %s",
+                               ci, m_settings.CI_RangingThreshold,
+                               is_trending ? "TRENDING" : "RANGING",
+                               is_trending ? "PASS" : "FAIL"));
       }
 
       return is_trending;
@@ -627,9 +773,14 @@ private:
    //
    bool Check_MACD(int bias, int shift) {
       if(!m_settings.Ind_Macd_Enabled) {
-         if(m_settings.DebugFlow) Print("[IND_MACD] DISABLED - skipped");
+         if(m_settings.DebugFlow) DebugLog("[IND_MACD] DISABLED - skipped");
          return false;
       }
+
+      if(IsCacheValidForShift(shift) &&
+         m_ind_cache.macd_result != -1 &&
+         m_ind_cache.cached_bias == bias)
+         return (m_ind_cache.macd_result == 1);
 
       double m = GetVal(h_macd, shift, 0);  // Main line
       double s = GetVal(h_macd, shift, 1);  // Signal line
@@ -681,8 +832,12 @@ private:
 
       if(!base_pass) {
          if(m_settings.DebugFlow)
-            PrintFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (base mode)",
-                        m, s);
+            DebugLog(StringFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (base mode)",
+                                  m, s));
+         m_ind_cache.cached_bias = bias;
+         m_ind_cache.macd_main = m;
+         m_ind_cache.macd_signal = s;
+         m_ind_cache.macd_result = 0;
          return false;
       }
 
@@ -698,8 +853,12 @@ private:
          // Check minimum slope threshold (if configured)
          if(m_settings.MacdSlopeMin > 0 && MathAbs(slope) < m_settings.MacdSlopeMin) {
             if(m_settings.DebugFlow)
-               PrintFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (slope min)",
-                           m, s);
+               DebugLog(StringFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (slope min)",
+                                     m, s));
+            m_ind_cache.cached_bias = bias;
+            m_ind_cache.macd_main = m;
+            m_ind_cache.macd_signal = s;
+            m_ind_cache.macd_result = 0;
             return false;
          }
 
@@ -707,8 +866,12 @@ private:
          bool accelerating = (bias == 1) ? (slope > 0) : (slope < 0);
          if(!accelerating) {
             if(m_settings.DebugFlow)
-               PrintFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (slope dir)",
-                           m, s);
+               DebugLog(StringFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (slope dir)",
+                                     m, s));
+            m_ind_cache.cached_bias = bias;
+            m_ind_cache.macd_main = m;
+            m_ind_cache.macd_signal = s;
+            m_ind_cache.macd_result = 0;
             return false;
          }
       }
@@ -717,8 +880,12 @@ private:
       if(m_settings.MacdRequireDivergence) {
          if(!CheckMACDDivergence(bias, shift)) {
             if(m_settings.DebugFlow)
-               PrintFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (divergence)",
-                           m, s);
+               DebugLog(StringFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (divergence)",
+                                     m, s));
+            m_ind_cache.cached_bias = bias;
+            m_ind_cache.macd_main = m;
+            m_ind_cache.macd_signal = s;
+            m_ind_cache.macd_result = 0;
             return false;
          }
       }
@@ -729,15 +896,23 @@ private:
          bool hook = (bias == 1) ? (h > 0 && h_prev <= 0) : (h < 0 && h_prev >= 0);
          if(!hook) {
             if(m_settings.DebugFlow)
-               PrintFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (hook)",
-                           m, s);
+               DebugLog(StringFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (hook)",
+                                     m, s));
+            m_ind_cache.cached_bias = bias;
+            m_ind_cache.macd_main = m;
+            m_ind_cache.macd_signal = s;
+            m_ind_cache.macd_result = 0;
             return false;
          }
       }
 
+      m_ind_cache.cached_bias = bias;
+      m_ind_cache.macd_main = m;
+      m_ind_cache.macd_signal = s;
+      m_ind_cache.macd_result = 1;
       if(m_settings.DebugFlow)
-         PrintFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: PASS",
-                     m, s);
+         DebugLog(StringFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: PASS",
+                               m, s));
       return true;  // Base + all filters passed
    }
 
@@ -828,14 +1003,22 @@ private:
    // Check_MFI: MFI (Money Flow)
    //+------------------------------------------------------------------+
    bool Check_MFI(int bias, int shift) {
+      if(IsCacheValidForShift(shift) &&
+         m_ind_cache.mfi_result != -1 &&
+         m_ind_cache.cached_bias == bias)
+         return (m_ind_cache.mfi_result == 1);
+
       double mfi = GetVal(h_mfi, shift);
       bool result = (bias==1) ? (mfi > m_settings.T_MfiOB) : (mfi < m_settings.T_MfiOS);
+      m_ind_cache.cached_bias = bias;
+      m_ind_cache.mfi_value = mfi;
+      m_ind_cache.mfi_result = result ? 1 : 0;
       if(m_settings.DebugFlow) {
          if(m_settings.Ind_Mfi_Enabled)
-            PrintFormat("[IND_MFI] ENABLED | Value=%.2f | Result: %s",
-                        mfi, result ? "PASS" : "FAIL");
+            DebugLog(StringFormat("[IND_MFI] ENABLED | Value=%.2f | Result: %s",
+                                  mfi, result ? "PASS" : "FAIL"));
          else
-            Print("[IND_MFI] DISABLED - skipped");
+            DebugLog("[IND_MFI] DISABLED - skipped");
       }
       return result;
    }
@@ -844,19 +1027,28 @@ private:
    // Check_PSAR: PSAR (basic price vs. PSAR position check)
    //+------------------------------------------------------------------+
    bool Check_PSAR(int bias, int shift) {
+      if(IsCacheValidForShift(shift) &&
+         m_ind_cache.psar_result != -1 &&
+         m_ind_cache.cached_bias == bias)
+         return (m_ind_cache.psar_result == 1);
+
       double p = GetVal(h_psar, shift);
       double cl = iClose(m_symbol, PERIOD_CURRENT, shift);
 
       bool result = (bias==1) ? (cl > p) : (cl < p);
+      m_ind_cache.cached_bias = bias;
+      m_ind_cache.psar_value = p;
+      m_ind_cache.psar_close = cl;
+      m_ind_cache.psar_result = result ? 1 : 0;
 
       if(m_settings.DebugFlow) {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, shift);
-         PrintFormat("[PSAR_DOT_CHECK] Bar: %s | Bias: %s | PSAR=%.5f | Close=%.5f | Dot position: %s | Result: %s",
-                     TimeToString(bar_time, TIME_DATE|TIME_MINUTES),
-                     (bias > 0 ? "LONG" : "SHORT"),
-                     p, cl,
-                     (cl > p ? "BELOW price" : "ABOVE price"),
-                     (result ? "PASS" : "FAIL (dot on wrong side)"));
+         DebugLog(StringFormat("[PSAR_DOT_CHECK] Bar: %s | Bias: %s | PSAR=%.5f | Close=%.5f | Dot position: %s | Result: %s",
+                               TimeToString(bar_time, TIME_DATE|TIME_MINUTES),
+                               (bias > 0 ? "LONG" : "SHORT"),
+                               p, cl,
+                               (cl > p ? "BELOW price" : "ABOVE price"),
+                               (result ? "PASS" : "FAIL (dot on wrong side)")));
       }
 
       return result;
@@ -878,15 +1070,15 @@ private:
       
       if(current_time - last_log_time > 86400) { // Log once per day
          last_log_time = current_time;
-         PrintFormat("[PSAR_HEALTH] Date: %s | Handle: %d | Valid: %s",
-                     TimeToString(current_time, TIME_DATE),
-                     h_psar,
-                     (h_psar != INVALID_HANDLE) ? "YES" : "NO");
+         DebugLog(StringFormat("[PSAR_HEALTH] Date: %s | Handle: %d | Valid: %s",
+                               TimeToString(current_time, TIME_DATE),
+                               h_psar,
+                               (h_psar != INVALID_HANDLE) ? "YES" : "NO"));
       }
       // Check if handle is still valid
       if(h_psar == INVALID_HANDLE) {
          if(m_settings.DebugFlow)
-            PrintFormat("[PSAR_ERROR] Handle became INVALID! Need to reinitialize.");
+            DebugLog("[PSAR_ERROR] Handle became INVALID! Need to reinitialize.");
          return 0;
       }
       
@@ -898,7 +1090,7 @@ private:
 
       if(!psar_curr_valid || !psar_prev_valid) {
          if(m_settings.DebugFlow)
-            PrintFormat("[PSAR_FLIP_DETECT] shift=%d | SKIP: PSAR data not ready (history loading)", shift);
+            DebugLog(StringFormat("[PSAR_FLIP_DETECT] shift=%d | SKIP: PSAR data not ready (history loading)", shift));
          return 0;
       }
 
@@ -907,13 +1099,13 @@ private:
 
       if(cl_curr == 0.0 || cl_prev == 0.0) {
          if(m_settings.DebugFlow)
-            PrintFormat("[PSAR_FLIP_DETECT] shift=%d | SKIP: close price not available", shift);
+            DebugLog(StringFormat("[PSAR_FLIP_DETECT] shift=%d | SKIP: close price not available", shift));
          return 0;
       }
 
       if(m_settings.DebugFlow)
-         PrintFormat("[PSAR_FLIP_DETECT] shift=%d | psar_curr=%.5f cl_curr=%.5f psar_prev=%.5f cl_prev=%.5f",
-                     shift, psar_curr, cl_curr, psar_prev, cl_prev);
+         DebugLog(StringFormat("[PSAR_FLIP_DETECT] shift=%d | psar_curr=%.5f cl_curr=%.5f psar_prev=%.5f cl_prev=%.5f",
+                               shift, psar_curr, cl_curr, psar_prev, cl_prev));
 
       bool curr_bullish = (cl_curr > psar_curr);
       bool prev_bullish = (cl_prev > psar_prev);
@@ -923,22 +1115,22 @@ private:
       if(!curr_bullish && prev_bullish) flip = -1;   // Bearish flip: PSAR moved above price
 
       if(m_settings.DebugFlow)
-         PrintFormat("[PSAR_FLIP_DETECT] curr_bullish=%s prev_bullish=%s -> result=%s",
-                     (curr_bullish ? "true" : "false"),
-                     (prev_bullish ? "true" : "false"),
-                     (flip == 1 ? "BULLISH FLIP" : (flip == -1 ? "BEARISH FLIP" : "NO FLIP (same side)")));
+         DebugLog(StringFormat("[PSAR_FLIP_DETECT] curr_bullish=%s prev_bullish=%s -> result=%s",
+                               (curr_bullish ? "true" : "false"),
+                               (prev_bullish ? "true" : "false"),
+                               (flip == 1 ? "BULLISH FLIP" : (flip == -1 ? "BEARISH FLIP" : "NO FLIP (same side)"))));
 
       if(m_settings.DebugFlow && flip != 0) {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, shift);
-         PrintFormat("[PSAR_FLIP_DETECT] ══════════════════════════════════");
-         PrintFormat("[PSAR_FLIP_DETECT] Bar: %s (shift=%d)",
-                     TimeToString(bar_time, TIME_DATE|TIME_MINUTES), shift);
-         PrintFormat("[PSAR_FLIP_DETECT] Flip type: %s",
-                     (flip == 1 ? "BULLISH (dot moved BELOW price)" : "BEARISH (dot moved ABOVE price)"));
-         PrintFormat("[PSAR_FLIP_DETECT] Previous bar: PSAR=%.5f Close=%.5f (close %s PSAR)",
-                     psar_prev, cl_prev, (prev_bullish ? "ABOVE" : "BELOW"));
-         PrintFormat("[PSAR_FLIP_DETECT] Current bar:  PSAR=%.5f Close=%.5f (close %s PSAR)",
-                     psar_curr, cl_curr, (curr_bullish ? "ABOVE" : "BELOW"));
+         DebugLog("[PSAR_FLIP_DETECT] ══════════════════════════════════");
+         DebugLog(StringFormat("[PSAR_FLIP_DETECT] Bar: %s (shift=%d)",
+                               TimeToString(bar_time, TIME_DATE|TIME_MINUTES), shift));
+         DebugLog(StringFormat("[PSAR_FLIP_DETECT] Flip type: %s",
+                               (flip == 1 ? "BULLISH (dot moved BELOW price)" : "BEARISH (dot moved ABOVE price)")));
+         DebugLog(StringFormat("[PSAR_FLIP_DETECT] Previous bar: PSAR=%.5f Close=%.5f (close %s PSAR)",
+                               psar_prev, cl_prev, (prev_bullish ? "ABOVE" : "BELOW")));
+         DebugLog(StringFormat("[PSAR_FLIP_DETECT] Current bar:  PSAR=%.5f Close=%.5f (close %s PSAR)",
+                               psar_curr, cl_curr, (curr_bullish ? "ABOVE" : "BELOW")));
       }
 
       return flip;
@@ -951,21 +1143,21 @@ private:
    // Stores direction-specific timestamps so bullish and bearish flips are tracked independently.
    void UpdatePSARFlipTracking(int shift = 1) {
       if(m_settings.DebugFlow)
-         Print("[DEBUG_TEST] UpdatePSARFlipTracking() CALLED");
+         DebugLog("[DEBUG_TEST] UpdatePSARFlipTracking() CALLED");
       int flip = DetectPSARFlipAt(shift);
       if(flip != 0) {
          datetime flip_time = iTime(m_symbol, PERIOD_CURRENT, shift);
          if(flip == 1) {
             m_psar_last_flip_time_bull = flip_time;
             if(m_settings.DebugFlow)
-               PrintFormat("[PSAR_FLIP_TRACK] BULLISH flip REGISTERED at %s (stored in m_psar_last_flip_time_bull)",
-                           TimeToString(flip_time, TIME_DATE|TIME_MINUTES));
+               DebugLog(StringFormat("[PSAR_FLIP_TRACK] BULLISH flip REGISTERED at %s (stored in m_psar_last_flip_time_bull)",
+                                     TimeToString(flip_time, TIME_DATE|TIME_MINUTES)));
          }
          else if(flip == -1) {
             m_psar_last_flip_time_bear = flip_time;
             if(m_settings.DebugFlow)
-               PrintFormat("[PSAR_FLIP_TRACK] BEARISH flip REGISTERED at %s (stored in m_psar_last_flip_time_bear)",
-                           TimeToString(flip_time, TIME_DATE|TIME_MINUTES));
+               DebugLog(StringFormat("[PSAR_FLIP_TRACK] BEARISH flip REGISTERED at %s (stored in m_psar_last_flip_time_bear)",
+                                     TimeToString(flip_time, TIME_DATE|TIME_MINUTES)));
          }
       }
    }
@@ -997,27 +1189,34 @@ private:
    //   2. A flip in the matching direction has been recorded
    //   3. The flip occurred within the last Vote_PsarFlipDelay bars
    bool Check_PSAR_WithFlip(int bias, int shift) {
+      if(IsCacheValidForShift(shift) &&
+         m_ind_cache.psar_flip_result != -1 &&
+         m_ind_cache.cached_bias == bias)
+         return (m_ind_cache.psar_flip_result == 1);
+
       if(m_settings.DebugFlow) {
-         Print("[DEBUG_TEST] Check_PSAR_WithFlip() CALLED");
-         PrintFormat("[DEBUG_TEST] bias=%d shift=%d DebugFlow=%s",
-                     bias, shift, m_settings.DebugFlow ? "TRUE" : "FALSE");
+         DebugLog("[DEBUG_TEST] Check_PSAR_WithFlip() CALLED");
+         DebugLog(StringFormat("[DEBUG_TEST] bias=%d shift=%d DebugFlow=%s",
+                               bias, shift, m_settings.DebugFlow ? "TRUE" : "FALSE"));
       }
 
       // Fast-path: persistent mode (-1) — check dot position only, no flip tracking
       if(m_settings.Vote_PsarFlipDelay == -1) {
          bool result = Check_PSAR(bias, shift);
          if(m_settings.DebugFlow)
-            PrintFormat("[PSAR_FLIP_CHECK] PERSISTENT mode: dot check only → %s", result ? "PASS" : "FAIL");
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK] PERSISTENT mode: dot check only → %s", result ? "PASS" : "FAIL"));
+         m_ind_cache.cached_bias = bias;
+         m_ind_cache.psar_flip_result = result ? 1 : 0;
          return result;
       }
 
       // START DEBUG LOGGING BANNER
       if(m_settings.DebugFlow) {
          datetime eval_bar_time = iTime(m_symbol, PERIOD_CURRENT, shift);
-         PrintFormat("[PSAR_FLIP_CHECK] ===========================================");
-         PrintFormat("[PSAR_FLIP_CHECK] Evaluating bar: %s (shift=%d)",
-                     TimeToString(eval_bar_time, TIME_DATE|TIME_MINUTES), shift);
-         PrintFormat("[PSAR_FLIP_CHECK] Required bias: %s", (bias > 0 ? "LONG" : "SHORT"));
+         DebugLog("[PSAR_FLIP_CHECK] ===========================================");
+         DebugLog(StringFormat("[PSAR_FLIP_CHECK] Evaluating bar: %s (shift=%d)",
+                               TimeToString(eval_bar_time, TIME_DATE|TIME_MINUTES), shift));
+         DebugLog(StringFormat("[PSAR_FLIP_CHECK] Required bias: %s", (bias > 0 ? "LONG" : "SHORT")));
       }
 
       // 1. PSAR dot must be on correct side NOW
@@ -1029,20 +1228,22 @@ private:
          m_diag_last_reason = "PSAR_DOT_WRONG_SIDE";
 
          if(m_settings.DebugFlow) {
-            PrintFormat("[PSAR_FLIP_CHECK] STEP 1 FAILED: DOT WRONG SIDE");
-            PrintFormat("[PSAR_FLIP_CHECK]    PSAR=%.5f | Close=%.5f | Dot is %s",
-                        psar_val, close_val,
-                        (close_val > psar_val ? "BELOW price (bullish)" : "ABOVE price (bearish)"));
-            PrintFormat("[PSAR_FLIP_CHECK]    Need: %s | Got: %s",
-                        (bias > 0 ? "dot BELOW price" : "dot ABOVE price"),
-                        (close_val > psar_val ? "dot BELOW price" : "dot ABOVE price"));
+            DebugLog("[PSAR_FLIP_CHECK] STEP 1 FAILED: DOT WRONG SIDE");
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    PSAR=%.5f | Close=%.5f | Dot is %s",
+                                  psar_val, close_val,
+                                  (close_val > psar_val ? "BELOW price (bullish)" : "ABOVE price (bearish)")));
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Need: %s | Got: %s",
+                                  (bias > 0 ? "dot BELOW price" : "dot ABOVE price"),
+                                  (close_val > psar_val ? "dot BELOW price" : "dot ABOVE price")));
          }
 
-         return false;
+          m_ind_cache.cached_bias = bias;
+          m_ind_cache.psar_flip_result = 0;
+          return false;
       }
 
       if(m_settings.DebugFlow)
-         PrintFormat("[PSAR_FLIP_CHECK] STEP 1 PASSED: Dot on correct side");
+         DebugLog("[PSAR_FLIP_CHECK] STEP 1 PASSED: Dot on correct side");
 
       // 2. Check if a flip was recorded for this direction
       datetime flip_time = (bias > 0) ? m_psar_last_flip_time_bull : m_psar_last_flip_time_bear;
@@ -1050,21 +1251,21 @@ private:
       // Display flip countdown status
       if(m_settings.DebugFlow) {
          if(flip_time == 0) {
-            PrintFormat("[PSAR_FLIP_CHECK] STEP 2: No %s flip recorded yet",
-                        (bias > 0 ? "BULLISH" : "BEARISH"));
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK] STEP 2: No %s flip recorded yet",
+                                  (bias > 0 ? "BULLISH" : "BEARISH")));
          } else {
             int bars_elapsed   = GetBarsSinceLastFlip(bias, shift);
             int bars_remaining = m_settings.Vote_PsarFlipDelay - bars_elapsed;
             bool is_valid      = (bars_elapsed <= m_settings.Vote_PsarFlipDelay);
 
-            PrintFormat("[PSAR_FLIP_CHECK] STEP 2: Flip recorded at %s",
-                        TimeToString(flip_time, TIME_DATE|TIME_MINUTES));
-            PrintFormat("[PSAR_FLIP_CHECK]    Flip age: %d bars | Delay limit: %d bars | Remaining: %d bars",
-                        bars_elapsed,
-                        m_settings.Vote_PsarFlipDelay,
-                        bars_remaining);
-            PrintFormat("[PSAR_FLIP_CHECK]    Status: %s",
-                        is_valid ? "VALID (within delay window)" : "EXPIRED (too old)");
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK] STEP 2: Flip recorded at %s",
+                                  TimeToString(flip_time, TIME_DATE|TIME_MINUTES)));
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Flip age: %d bars | Delay limit: %d bars | Remaining: %d bars",
+                                  bars_elapsed,
+                                  m_settings.Vote_PsarFlipDelay,
+                                  bars_remaining));
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Status: %s",
+                                  is_valid ? "VALID (within delay window)" : "EXPIRED (too old)"));
          }
       }
 
@@ -1072,19 +1273,21 @@ private:
          m_diag_last_reason = StringFormat("PSAR_NO_FLIP_RECORDED (bias=%d)", bias);
 
          if(m_settings.DebugFlow) {
-            PrintFormat("[PSAR_FLIP_CHECK] STEP 2 FAILED: NO FLIP RECORDED");
-            PrintFormat("[PSAR_FLIP_CHECK]    No %s flip has been registered yet",
-                        (bias > 0 ? "bullish" : "bearish"));
-            PrintFormat("[PSAR_FLIP_CHECK]    m_psar_last_flip_time_%s = 0",
-                        (bias > 0 ? "bull" : "bear"));
+            DebugLog("[PSAR_FLIP_CHECK] STEP 2 FAILED: NO FLIP RECORDED");
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    No %s flip has been registered yet",
+                                  (bias > 0 ? "bullish" : "bearish")));
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    m_psar_last_flip_time_%s = 0",
+                                  (bias > 0 ? "bull" : "bear")));
          }
 
-         return false;
+          m_ind_cache.cached_bias = bias;
+          m_ind_cache.psar_flip_result = 0;
+          return false;
       }
 
       if(m_settings.DebugFlow)
-         PrintFormat("[PSAR_FLIP_CHECK] STEP 2 PASSED: Flip recorded at %s",
-                     TimeToString(flip_time, TIME_DATE|TIME_MINUTES));
+         DebugLog(StringFormat("[PSAR_FLIP_CHECK] STEP 2 PASSED: Flip recorded at %s",
+                               TimeToString(flip_time, TIME_DATE|TIME_MINUTES)));
 
       // 3. Calculate bars since flip
       int flip_bar   = iBarShift(m_symbol, PERIOD_CURRENT, flip_time, false);
@@ -1092,21 +1295,23 @@ private:
       int delay      = m_settings.Vote_PsarFlipDelay;
 
       if(m_settings.DebugFlow) {
-         PrintFormat("[PSAR_FLIP_CHECK] STEP 3: Calculate flip age");
-         PrintFormat("[PSAR_FLIP_CHECK]    Flip time: %s", TimeToString(flip_time, TIME_DATE|TIME_MINUTES));
-         PrintFormat("[PSAR_FLIP_CHECK]    Flip bar index: %d", flip_bar);
-         PrintFormat("[PSAR_FLIP_CHECK]    Current shift: %d", shift);
-         PrintFormat("[PSAR_FLIP_CHECK]    Bars since flip: %d", bars_since);
-         PrintFormat("[PSAR_FLIP_CHECK]    Delay setting: %d bars", delay);
+         DebugLog("[PSAR_FLIP_CHECK] STEP 3: Calculate flip age");
+         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Flip time: %s", TimeToString(flip_time, TIME_DATE|TIME_MINUTES)));
+         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Flip bar index: %d", flip_bar));
+         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Current shift: %d", shift));
+         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Bars since flip: %d", bars_since));
+         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Delay setting: %d bars", delay));
       }
 
       if(bars_since == INT_MAX) {
          m_diag_last_reason = "PSAR_FLIP_INVALID";
 
          if(m_settings.DebugFlow)
-            PrintFormat("[PSAR_FLIP_CHECK] STEP 3 FAILED: iBarShift returned invalid index");
+            DebugLog("[PSAR_FLIP_CHECK] STEP 3 FAILED: iBarShift returned invalid index");
 
-         return false;
+          m_ind_cache.cached_bias = bias;
+          m_ind_cache.psar_flip_result = 0;
+          return false;
       }
 
       // 4. Check if flip is within delay window
@@ -1115,26 +1320,30 @@ private:
                                            bars_since, delay);
 
          if(m_settings.DebugFlow) {
-            PrintFormat("[PSAR_FLIP_CHECK] STEP 3 FAILED: FLIP EXPIRED");
-            PrintFormat("[PSAR_FLIP_CHECK]    %d bars elapsed > %d delay window",
-                        bars_since, delay);
+            DebugLog("[PSAR_FLIP_CHECK] STEP 3 FAILED: FLIP EXPIRED");
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    %d bars elapsed > %d delay window",
+                                  bars_since, delay));
          }
 
-         return false;
+          m_ind_cache.cached_bias = bias;
+          m_ind_cache.psar_flip_result = 0;
+          return false;
       }
 
       // SUCCESS
       if(m_settings.DebugFlow) {
-         PrintFormat("[PSAR_FLIP_CHECK] STEP 3 PASSED: Flip within delay window");
-         PrintFormat("[PSAR_FLIP_CHECK] ===========================================");
-         PrintFormat("[PSAR_FLIP_CHECK] ALL CHECKS PASSED");
-         PrintFormat("[PSAR_FLIP_CHECK]    %s flip from %s is valid (%d bars ago, delay=%d)",
-                     (bias > 0 ? "Bullish" : "Bearish"),
-                     TimeToString(flip_time, TIME_DATE|TIME_MINUTES),
-                     bars_since, delay);
+         DebugLog("[PSAR_FLIP_CHECK] STEP 3 PASSED: Flip within delay window");
+         DebugLog("[PSAR_FLIP_CHECK] ===========================================");
+         DebugLog("[PSAR_FLIP_CHECK] ALL CHECKS PASSED");
+         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    %s flip from %s is valid (%d bars ago, delay=%d)",
+                               (bias > 0 ? "Bullish" : "Bearish"),
+                               TimeToString(flip_time, TIME_DATE|TIME_MINUTES),
+                               bars_since, delay));
       }
 
-      return true;
+       m_ind_cache.cached_bias = bias;
+       m_ind_cache.psar_flip_result = 1;
+       return true;
    }
 
    //+------------------------------------------------------------------+
@@ -1142,9 +1351,13 @@ private:
    //+------------------------------------------------------------------+
    bool Check_RSI(int bias, int shift) {
       if(!m_settings.Ind_Rsi_Enabled) {
-         if(m_settings.DebugFlow) Print("[IND_RSI] DISABLED - skipped");
+         if(m_settings.DebugFlow) DebugLog("[IND_RSI] DISABLED - skipped");
          return true;
       }
+      if(IsCacheValidForShift(shift) &&
+         m_ind_cache.rsi_result != -1 &&
+         m_ind_cache.cached_bias == bias)
+         return (m_ind_cache.rsi_result == 1);
       double r = GetVal(h_rsi, shift);
       bool result;
       
@@ -1159,9 +1372,12 @@ private:
          // Cross Level Mode
          result = (bias==1) ? (r > m_settings.T_RsiOS) : (r < m_settings.T_RsiOB);
       }
+      m_ind_cache.cached_bias = bias;
+      m_ind_cache.rsi_value = r;
+      m_ind_cache.rsi_result = result ? 1 : 0;
       if(m_settings.DebugFlow)
-         PrintFormat("[IND_RSI] ENABLED | Value=%.2f | Result: %s",
-                     r, result ? "PASS" : "FAIL");
+         DebugLog(StringFormat("[IND_RSI] ENABLED | Value=%.2f | Result: %s",
+                               r, result ? "PASS" : "FAIL"));
       return result;
    }
      
@@ -1169,6 +1385,11 @@ private:
    // Check_STO: Stochastic
    //+------------------------------------------------------------------+
    bool Check_Sto(int bias, int shift) {
+      if(IsCacheValidForShift(shift) &&
+         m_ind_cache.sto_result != -1 &&
+         m_ind_cache.cached_bias == bias)
+         return (m_ind_cache.sto_result == 1);
+
       double k = GetVal(h_sto, shift, 0);
       double d = GetVal(h_sto, shift, 1);
       bool result;
@@ -1178,13 +1399,17 @@ private:
       else
          // Zone Filter: Buy if NOT overbought
          result = (bias==1) ? (k < m_settings.T_StoOB) : (k > m_settings.T_StoOS);
+      m_ind_cache.cached_bias = bias;
+      m_ind_cache.sto_main = k;
+      m_ind_cache.sto_signal = d;
+      m_ind_cache.sto_result = result ? 1 : 0;
 
       if(m_settings.DebugFlow) {
          if(m_settings.Ind_Sto_Enabled)
-            PrintFormat("[IND_STOCH] ENABLED | K=%.2f D=%.2f | Result: %s",
-                        k, d, result ? "PASS" : "FAIL");
+            DebugLog(StringFormat("[IND_STOCH] ENABLED | K=%.2f D=%.2f | Result: %s",
+                                  k, d, result ? "PASS" : "FAIL"));
          else
-            Print("[IND_STOCH] DISABLED - skipped");
+            DebugLog("[IND_STOCH] DISABLED - skipped");
       }
       return result;
    }
@@ -1249,9 +1474,13 @@ private:
    // Pattern: Same as Check_CI() – independent of trade direction
    bool Check_VRC(int bias, int shift)
    {
+      if(IsCacheValidForShift(shift) && m_ind_cache.vrc_result != -1)
+         return (m_ind_cache.vrc_result == 1);
+
       // ATR handle must be valid (h_atr created in Init())
       if(h_atr == INVALID_HANDLE) {
-         if(m_settings.DebugFlow) Print("VRC: ATR handle invalid");
+         if(m_settings.DebugFlow) DebugLog("VRC: ATR handle invalid");
+         m_ind_cache.vrc_result = 0;
          return false;
       }
 
@@ -1260,12 +1489,14 @@ private:
 
       // FAIL if volatility is too low (market too quiet, likely choppy/ranging)
       if(regime == VOLATILITY_LOW) {
-         if(m_settings.DebugFlow) Print("VRC: FAIL (volatility too low for reliable trend)");
+         if(m_settings.DebugFlow) DebugLog("VRC: FAIL (volatility too low for reliable trend)");
+         m_ind_cache.vrc_result = 0;
          return false;
       }
 
       // PASS if volatility is acceptable (NORMAL or HIGH)
-      if(m_settings.DebugFlow) Print("VRC: PASS (volatility acceptable)");
+      if(m_settings.DebugFlow) DebugLog("VRC: PASS (volatility acceptable)");
+      m_ind_cache.vrc_result = 1;
       return true;
    }
 
@@ -1747,6 +1978,28 @@ public:
       // Initialize PSAR flip tracking
       m_psar_last_flip_time_bull = 0;
       m_psar_last_flip_time_bear = 0;
+
+      // Initialize DEBUG_SIGNALS_ONLY buffer
+      m_debug_buffer_size = 0;
+      ArrayResize(m_debug_buffer, 0);
+
+      // Initialize indicator cache state
+      m_ind_cache.cached_shift = -1;
+      m_ind_cache.cached_bar_time = 0;
+      m_ind_cache.cached_bias  = 0;
+      m_ind_cache.adx_result = -1;
+      m_ind_cache.macd_result = -1;
+      m_ind_cache.rsi_result = -1;
+      m_ind_cache.cci_result = -1;
+      m_ind_cache.mfi_result = -1;
+      m_ind_cache.sto_result = -1;
+      m_ind_cache.bb_result = -1;
+      m_ind_cache.psar_result = -1;
+      m_ind_cache.psar_flip_result = -1;
+      m_ind_cache.atr_result = -1;
+      m_ind_cache.candlebody_result = -1;
+      m_ind_cache.ci_result = -1;
+      m_ind_cache.vrc_result = -1;
 
       // Initialize ADX history tracking
       ArrayResize(m_adxHistory, 0);
@@ -2431,6 +2684,11 @@ public:
    bool Init(ST_Settings &sets, string symbol) {
       m_settings = sets;
       m_symbol   = symbol;
+      m_debug_buffer_size = 0;
+      ArrayResize(m_debug_buffer, 0);
+      m_ind_cache.cached_shift = -1;
+      m_ind_cache.cached_bar_time = 0;
+      m_ind_cache.cached_bias  = 0;
 
       // Initialize ADX history tracking from settings
       m_adxHistoryMaxSize  = (m_settings.ADX_Lookback > 0 ? m_settings.ADX_Lookback : 100);
@@ -3121,7 +3379,7 @@ public:
          bias = GetBias_PhaseBased(v_shift);
          if(m_settings.DebugFlow) {
             datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-            PrintFormat("STEP 1 BIAS[%s]: BIAS_4EMA mode → bias=%d", TimeToString(bar_time), bias);
+            DebugLog(StringFormat("STEP 1 BIAS[%s]: BIAS_4EMA mode → bias=%d", TimeToString(bar_time), bias));
          }
          m_eval_str_B = (bias != 0) ? "+" : "POS";
 
@@ -3152,7 +3410,7 @@ public:
 
          if(m_settings.DebugFlow) {
             datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-            PrintFormat("STEP 1 BIAS[%s]: MANUAL mode → bias=%d", TimeToString(bar_time), bias);
+            DebugLog(StringFormat("STEP 1 BIAS[%s]: MANUAL mode → bias=%d", TimeToString(bar_time), bias));
          }
       }
       else {
@@ -3186,9 +3444,9 @@ public:
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                double change_pips = (f_curr - f_prev) / pip;
                double threshold_pips = (pip > 0) ? min_slope / pip : 0.0;
-               PrintFormat("STEP 1 BIAS[%s]: SINGLE_SLOPE %s | curr=%.5f prev=%.5f change=%.2f pips slope=%s thresh=%.2fp lookback=%d → bias=%d",
-                           TimeToString(bar_time), ema_fast_name, f_curr, f_prev, change_pips,
-                           (fast_slope==1)?"RISING":(fast_slope==-1)?"FALLING":"FLAT", threshold_pips, lookback, market_bias);
+               DebugLog(StringFormat("STEP 1 BIAS[%s]: SINGLE_SLOPE %s | curr=%.5f prev=%.5f change=%.2f pips slope=%s thresh=%.2fp lookback=%d → bias=%d",
+                                     TimeToString(bar_time), ema_fast_name, f_curr, f_prev, change_pips,
+                                     (fast_slope==1)?"RISING":(fast_slope==-1)?"FALLING":"FLAT", threshold_pips, lookback, market_bias));
             }
          }
          else
@@ -3211,11 +3469,11 @@ public:
                double slow_change_pips = (s_curr - s_prev) / pip;
                double threshold_pips = (pip > 0) ? min_slope / pip : 0.0;
                string position = (f_curr > s_curr) ? "ABOVE" : (f_curr < s_curr) ? "BELOW" : "EQUAL";
-               PrintFormat("STEP 1 BIAS[%s]: PAIR %s vs %s | fast=%.5f(%+.2fp %s) slow=%.5f(%+.2fp %s) pos=%s thresh=%.2fp lookback=%d → bias=%d",
-                           TimeToString(bar_time), ema_fast_name, ema_slow_name,
-                           f_curr, fast_change_pips, (fast_slope==1)?"UP":(fast_slope==-1)?"DN":"FLAT",
-                           s_curr, slow_change_pips, (slow_slope==1)?"UP":(slow_slope==-1)?"DN":"FLAT",
-                           position, threshold_pips, lookback, market_bias);
+               DebugLog(StringFormat("STEP 1 BIAS[%s]: PAIR %s vs %s | fast=%.5f(%+.2fp %s) slow=%.5f(%+.2fp %s) pos=%s thresh=%.2fp lookback=%d → bias=%d",
+                                     TimeToString(bar_time), ema_fast_name, ema_slow_name,
+                                     f_curr, fast_change_pips, (fast_slope==1)?"UP":(fast_slope==-1)?"DN":"FLAT",
+                                     s_curr, slow_change_pips, (slow_slope==1)?"UP":(slow_slope==-1)?"DN":"FLAT",
+                                     position, threshold_pips, lookback, market_bias));
             }
          }
 
@@ -3227,7 +3485,7 @@ public:
 
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("STEP 1 BIAS[%s]: bias=0 → REJECT (no trend)", TimeToString(bar_time));
+               DebugLog(StringFormat("STEP 1 BIAS[%s]: bias=0 → REJECT (no trend)", TimeToString(bar_time)));
             }
 
             if(!m_settings.Stats_FullEvaluation) {
@@ -3245,7 +3503,7 @@ public:
             entry_signal = fast_slope;
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("STEP 2 ENTRY[%s]: STRAT_1EMA_SLOPE %s slope=%d → signal=%d", TimeToString(bar_time), ema_fast_name, fast_slope, entry_signal);
+               DebugLog(StringFormat("STEP 2 ENTRY[%s]: STRAT_1EMA_SLOPE %s slope=%d → signal=%d", TimeToString(bar_time), ema_fast_name, fast_slope, entry_signal));
             }
          }
          else if(m_settings.AutoStrat == STRAT_2EMA_CROSS_PRICE) {
@@ -3260,7 +3518,7 @@ public:
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
                double ma    = GetMAVal(hf, v_shift, 0);
-               PrintFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_PRICE %s price=%.5f ma=%.5f → signal=%d", TimeToString(bar_time), ema_fast_name, price, ma, entry_signal);
+               DebugLog(StringFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_PRICE %s price=%.5f ma=%.5f → signal=%d", TimeToString(bar_time), ema_fast_name, price, ma, entry_signal));
             }
          }
          else if(m_settings.AutoStrat == STRAT_2EMA_POSITION) {
@@ -3269,8 +3527,8 @@ public:
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                string direction = (entry_signal == 1) ? "LONG (position + slopes aligned UP)" :
                                   (entry_signal == -1) ? "SHORT (position + slopes aligned DOWN)" : "NEUTRAL (slopes not aligned or conflicting)";
-               PrintFormat("[BIAS_POSITION_SLOPE][%s] Fast=%.5f Slow=%.5f | SlopeFast=%d SlopeSlow=%d → %s",
-                           TimeToString(bar_time), f_curr, s_curr, fast_slope, slow_slope, direction);
+               DebugLog(StringFormat("[BIAS_POSITION_SLOPE][%s] Fast=%.5f Slow=%.5f | SlopeFast=%d SlopeSlow=%d → %s",
+                                     TimeToString(bar_time), f_curr, s_curr, fast_slope, slow_slope, direction));
             }
          }
          else if(m_settings.AutoStrat == STRAT_4EMA_LAYER) {
@@ -3281,8 +3539,8 @@ public:
             entry_signal = market_bias;
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("STEP 2 ENTRY[%s]: STRAT_4EMA_LAYER → bias=%d passed to KISS pipeline",
-                           TimeToString(bar_time), entry_signal);
+               DebugLog(StringFormat("STEP 2 ENTRY[%s]: STRAT_4EMA_LAYER → bias=%d passed to KISS pipeline",
+                                     TimeToString(bar_time), entry_signal));
             }
          }
          else {  // STRAT_2EMA_CROSS_EMA
@@ -3303,16 +3561,16 @@ public:
                   entry_signal = market_bias;
                   if(m_settings.DebugFlow) {
                      datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-                     PrintFormat("STEP 2 ENTRY[%s]: RRM CONTINUATION bias=%d trend intact f=%.5f %s s=%.5f → signal=%d",
-                                 TimeToString(bar_time), market_bias, f_curr_cross, (market_bias == 1 ? ">" : "<"), s_curr_cross, entry_signal);
+                     DebugLog(StringFormat("STEP 2 ENTRY[%s]: RRM CONTINUATION bias=%d trend intact f=%.5f %s s=%.5f → signal=%d",
+                                           TimeToString(bar_time), market_bias, f_curr_cross, (market_bias == 1 ? ">" : "<"), s_curr_cross, entry_signal));
                   }
                }
                else {
                   entry_signal = 0;
                   if(m_settings.DebugFlow) {
                      datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-                     PrintFormat("STEP 2 ENTRY[%s]: RRM CONTINUATION rejected f=%.5f vs s=%.5f bias=%d → signal=0",
-                                 TimeToString(bar_time), f_curr_cross, s_curr_cross, market_bias);
+                     DebugLog(StringFormat("STEP 2 ENTRY[%s]: RRM CONTINUATION rejected f=%.5f vs s=%.5f bias=%d → signal=0",
+                                           TimeToString(bar_time), f_curr_cross, s_curr_cross, market_bias));
                   }
                }
             }
@@ -3320,14 +3578,14 @@ public:
                entry_signal = 0;
                if(m_settings.DebugFlow) {
                   datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-                  PrintFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_EMA no crossover → signal=0", TimeToString(bar_time));
+                  DebugLog(StringFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_EMA no crossover → signal=0", TimeToString(bar_time)));
                }
             }
 
             if(m_settings.DebugFlow && has_crossover) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_EMA %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
-                           TimeToString(bar_time), ema_fast_name, ema_slow_name, f_prev_cross, s_prev_cross, f_curr_cross, s_curr_cross, entry_signal);
+               DebugLog(StringFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_EMA %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
+                                     TimeToString(bar_time), ema_fast_name, ema_slow_name, f_prev_cross, s_prev_cross, f_curr_cross, s_curr_cross, entry_signal));
             }
          }
 
@@ -3336,7 +3594,7 @@ public:
             bias = market_bias;
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("STEP 3 MATCH[%s]: entry=%d matches bias=%d → PASS", TimeToString(bar_time), entry_signal, market_bias);
+               DebugLog(StringFormat("STEP 3 MATCH[%s]: entry=%d matches bias=%d → PASS", TimeToString(bar_time), entry_signal, market_bias));
             }
          }
          else {
@@ -3346,7 +3604,7 @@ public:
 
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("STEP 3 MATCH[%s]: entry=%d != bias=%d → REJECT", TimeToString(bar_time), entry_signal, market_bias);
+               DebugLog(StringFormat("STEP 3 MATCH[%s]: entry=%d != bias=%d → REJECT", TimeToString(bar_time), entry_signal, market_bias));
             }
             m_reject_bias++;
             m_stats.rejected_bias++;
@@ -3385,14 +3643,14 @@ public:
             m_reject_gate++;
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("STEP 4 HTF[%s]: bias=%d htf_dir=%d → VETO", TimeToString(bar_time), bias, htf_dir);
+               DebugLog(StringFormat("STEP 4 HTF[%s]: bias=%d htf_dir=%d → VETO", TimeToString(bar_time), bias, htf_dir));
             }
             m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
             return 0;
          }
          if(m_settings.DebugFlow) {
             datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-            PrintFormat("STEP 4 HTF[%s]: bias=%d htf_dir=%d → PASS", TimeToString(bar_time), bias, htf_dir);
+            DebugLog(StringFormat("STEP 4 HTF[%s]: bias=%d htf_dir=%d → PASS", TimeToString(bar_time), bias, htf_dir));
          }
       }
 
@@ -3416,7 +3674,7 @@ public:
          m_diag_layer_w = 1;
          m_diag_layer_m = 1;
          m_diag_layer_s = 1;
-         if(m_settings.DebugFlow) Print("STEP 3 LAYER: Disabled/N.A. (non-4EMA mode) → PASS");
+         if(m_settings.DebugFlow) DebugLog("STEP 3 LAYER: Disabled/N.A. (non-4EMA mode) → PASS");
          return 1;
       }
 
@@ -3428,17 +3686,17 @@ public:
       m_eval_layer_s = CheckLayerPairAlign(bias, 3);
 
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-         PrintFormat("[KISS] Step3 LayerW=%d LayerM=%d LayerS=%d (bias=%d)", m_eval_layer_w, m_eval_layer_m, m_eval_layer_s, bias);
+         DebugLog(StringFormat("[KISS] Step3 LayerW=%d LayerM=%d LayerS=%d (bias=%d)", m_eval_layer_w, m_eval_layer_m, m_eval_layer_s, bias));
       }
 
       if(m_eval_layer_w == 0 && m_eval_layer_m == 0 && m_eval_layer_s == 0) {
          m_diag_last_reason = "LAYER_NONE_ALIGNED";
          m_reject_gate++;
-         if(m_settings.DebugFlow) Print("STEP 3 LAYER: No layer aligned → REJECT");
+         if(m_settings.DebugFlow) DebugLog("STEP 3 LAYER: No layer aligned → REJECT");
          m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
          return 0;
       }
-      if(m_settings.DebugFlow) Print("STEP 3 LAYER: At least one layer aligned → PASS");
+      if(m_settings.DebugFlow) DebugLog("STEP 3 LAYER: At least one layer aligned → PASS");
 
       m_diag_layer_w = m_eval_layer_w;
       m_diag_layer_m = m_eval_layer_m;
@@ -3461,17 +3719,17 @@ public:
          int bc_result = Eval_BarClose(v_shift, bias, LAYER_NONE);
 
          if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-            PrintFormat("[KISS] Step4 bcX=%d (non-layer mode, bias=%d, mode=%s)",
-                        bc_result, bias, EnumToString(m_settings.BarClose_Mode));
+            DebugLog(StringFormat("[KISS] Step4 bcX=%d (non-layer mode, bias=%d, mode=%s)",
+                                  bc_result, bias, EnumToString(m_settings.BarClose_Mode)));
          }
          if(bc_result == 0) {
             m_diag_last_reason = "BC_NOT_CONFIRMED";
             m_reject_gate++;
-            if(m_settings.DebugFlow) Print("STEP 4 BCX: Bar close not confirmed → REJECT");
+            if(m_settings.DebugFlow) DebugLog("STEP 4 BCX: Bar close not confirmed → REJECT");
             m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
             return 0;
          }
-         if(m_settings.DebugFlow) Print("STEP 4 BCX: Bar close confirmed → PASS");
+         if(m_settings.DebugFlow) DebugLog("STEP 4 BCX: Bar close confirmed → PASS");
          return 1;
       }
 
@@ -3484,8 +3742,8 @@ public:
       int bc_s = (m_eval_layer_s == 1) ? Eval_BarClose(v_shift, bias, LAYER_3_STRONG) : 1;
 
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-         PrintFormat("[KISS] Step4 bcW=%d bcM=%d bcS=%d (bias=%d, mode=%s)",
-                     bc_w, bc_m, bc_s, bias, EnumToString(m_settings.BarClose_Mode));
+         DebugLog(StringFormat("[KISS] Step4 bcW=%d bcM=%d bcS=%d (bias=%d, mode=%s)",
+                               bc_w, bc_m, bc_s, bias, EnumToString(m_settings.BarClose_Mode)));
       }
 
       // At least one active layer must have its bcX confirmed
@@ -3496,11 +3754,11 @@ public:
       if(!bc_any) {
          m_diag_last_reason = "BC_NOT_CONFIRMED";
          m_reject_gate++;
-         if(m_settings.DebugFlow) Print("STEP 4 BCX: No active layer close confirmed → REJECT");
+         if(m_settings.DebugFlow) DebugLog("STEP 4 BCX: No active layer close confirmed → REJECT");
          m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
          return 0;
       }
-      if(m_settings.DebugFlow) Print("STEP 4 BCX: Active layer close confirmed → PASS");
+      if(m_settings.DebugFlow) DebugLog("STEP 4 BCX: Active layer close confirmed → PASS");
 
       // Determine active setup type and store KISS diagnostics
       string active_setup = "";
@@ -3510,8 +3768,8 @@ public:
       else                                        active_setup = "None (no active layer confirmed)";
 
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-         PrintFormat("[KISS] Setup: %s | Bias=%d | Layers: W=%d M=%d S=%d | bcX: W=%d M=%d S=%d",
-                     active_setup, bias, m_eval_layer_w, m_eval_layer_m, m_eval_layer_s, bc_w, bc_m, bc_s);
+         DebugLog(StringFormat("[KISS] Setup: %s | Bias=%d | Layers: W=%d M=%d S=%d | bcX: W=%d M=%d S=%d",
+                               active_setup, bias, m_eval_layer_w, m_eval_layer_m, m_eval_layer_s, bc_w, bc_m, bc_s));
       }
 
       return 1;
@@ -3597,53 +3855,53 @@ public:
 
          if(m_settings.DebugLevel >= DEBUG_FULL) {
             string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
-            PrintFormat("[IND] --- Indicators (mode=%s bias=%d weight=%.2f) ---",
-                        mode_str, bias, vote_weight);
+            DebugLog(StringFormat("[IND] --- Indicators (mode=%s bias=%d weight=%.2f) ---",
+                                  mode_str, bias, vote_weight));
 
             if(m_settings.Ind_Adx_Enabled) {
                double adx = GetVal(h_adx, v_shift);
-               PrintFormat("[IND] ADX: %.2f / threshold=%.2f → %s (w=%d)",
-                           adx, m_cachedADXThreshold, _res_adx ? "PASS" : "FAIL", m_settings.Ind_Adx_Weight);
-            } else Print("[IND] ADX: DISABLED → SKIP");
+               DebugLog(StringFormat("[IND] ADX: %.2f / threshold=%.2f → %s (w=%d)",
+                                     adx, m_cachedADXThreshold, _res_adx ? "PASS" : "FAIL", m_settings.Ind_Adx_Weight));
+            } else DebugLog("[IND] ADX: DISABLED → SKIP");
 
             if(m_settings.Ind_Macd_Enabled) {
                double macd_m = GetVal(h_macd, v_shift, 0);
                double macd_s = GetVal(h_macd, v_shift, 1);
-               PrintFormat("[IND] MACD: main=%.6f signal=%.6f hist=%.6f → %s (w=%d)",
-                           macd_m, macd_s, macd_m - macd_s, _res_macd ? "PASS" : "FAIL", m_settings.Ind_Macd_Weight);
-            } else Print("[IND] MACD: DISABLED → SKIP");
+               DebugLog(StringFormat("[IND] MACD: main=%.6f signal=%.6f hist=%.6f → %s (w=%d)",
+                                     macd_m, macd_s, macd_m - macd_s, _res_macd ? "PASS" : "FAIL", m_settings.Ind_Macd_Weight));
+            } else DebugLog("[IND] MACD: DISABLED → SKIP");
 
             if(m_settings.Ind_Rsi_Enabled) {
                double r = GetVal(h_rsi, v_shift);
-               PrintFormat("[IND] RSI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
-                           r, m_settings.T_RsiOB, m_settings.T_RsiOS, _res_rsi ? "PASS" : "FAIL", m_settings.Ind_Rsi_Weight);
-            } else Print("[IND] RSI: DISABLED → SKIP");
+               DebugLog(StringFormat("[IND] RSI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
+                                     r, m_settings.T_RsiOB, m_settings.T_RsiOS, _res_rsi ? "PASS" : "FAIL", m_settings.Ind_Rsi_Weight));
+            } else DebugLog("[IND] RSI: DISABLED → SKIP");
 
             if(m_settings.Ind_Cci_Enabled) {
                double c = GetVal(h_cci, v_shift);
-               PrintFormat("[IND] CCI: %.2f → %s (w=%d)",
-                           c, _res_cci ? "PASS" : "FAIL", m_settings.Ind_Cci_Weight);
-            } else Print("[IND] CCI: DISABLED → SKIP");
+               DebugLog(StringFormat("[IND] CCI: %.2f → %s (w=%d)",
+                                     c, _res_cci ? "PASS" : "FAIL", m_settings.Ind_Cci_Weight));
+            } else DebugLog("[IND] CCI: DISABLED → SKIP");
 
             if(m_settings.Ind_Mfi_Enabled) {
                double mfi = GetVal(h_mfi, v_shift);
-               PrintFormat("[IND] MFI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
-                           mfi, m_settings.T_MfiOB, m_settings.T_MfiOS, _res_mfi ? "PASS" : "FAIL", m_settings.Ind_Mfi_Weight);
-            } else Print("[IND] MFI: DISABLED → SKIP");
+               DebugLog(StringFormat("[IND] MFI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
+                                     mfi, m_settings.T_MfiOB, m_settings.T_MfiOS, _res_mfi ? "PASS" : "FAIL", m_settings.Ind_Mfi_Weight));
+            } else DebugLog("[IND] MFI: DISABLED → SKIP");
 
             if(m_settings.Ind_Sto_Enabled) {
                double sk = GetVal(h_sto, v_shift, 0);
                double sd = GetVal(h_sto, v_shift, 1);
-               PrintFormat("[IND] Stoch: K=%.2f D=%.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
-                           sk, sd, m_settings.T_StoOB, m_settings.T_StoOS, _res_sto ? "PASS" : "FAIL", m_settings.Ind_Sto_Weight);
-            } else Print("[IND] Stoch: DISABLED → SKIP");
+               DebugLog(StringFormat("[IND] Stoch: K=%.2f D=%.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
+                                     sk, sd, m_settings.T_StoOB, m_settings.T_StoOS, _res_sto ? "PASS" : "FAIL", m_settings.Ind_Sto_Weight));
+            } else DebugLog("[IND] Stoch: DISABLED → SKIP");
 
             if(m_settings.Ind_Bb_Enabled) {
                double bb_mid = GetVal(h_bb, v_shift, 0);
                double cl_bb  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("[IND] BB: mid=%.5f close=%.5f → %s (w=%d)",
-                           bb_mid, cl_bb, _res_bb ? "PASS" : "FAIL", m_settings.Ind_Bb_Weight);
-            } else Print("[IND] BB: DISABLED → SKIP");
+               DebugLog(StringFormat("[IND] BB: mid=%.5f close=%.5f → %s (w=%d)",
+                                     bb_mid, cl_bb, _res_bb ? "PASS" : "FAIL", m_settings.Ind_Bb_Weight));
+            } else DebugLog("[IND] BB: DISABLED → SKIP");
 
             if(m_settings.Ind_Psar_Enabled) {
                double psar_v = GetVal(h_psar, v_shift);
@@ -3661,47 +3919,47 @@ public:
                                                  MathMax(0, m_settings.Vote_PsarFlipDelay - bars_since_flip));
                   }
                }
-               PrintFormat("[IND] PSAR: dot=%.5f close=%.5f%s → %s (w=%d)",
-                           psar_v, cl_p, flip_info, _res_psar ? "PASS" : "FAIL", m_settings.Ind_Psar_Weight);
-            } else Print("[IND] PSAR: DISABLED → SKIP");
+               DebugLog(StringFormat("[IND] PSAR: dot=%.5f close=%.5f%s → %s (w=%d)",
+                                     psar_v, cl_p, flip_info, _res_psar ? "PASS" : "FAIL", m_settings.Ind_Psar_Weight));
+            } else DebugLog("[IND] PSAR: DISABLED → SKIP");
 
             if(m_settings.Ind_P123_Enabled) {
-               PrintFormat("[IND] P123: → %s (w=%d)", _res_p123 ? "PASS" : "FAIL", m_settings.Ind_P123_Weight);
-            } else Print("[IND] P123: DISABLED → SKIP");
+               DebugLog(StringFormat("[IND] P123: → %s (w=%d)", _res_p123 ? "PASS" : "FAIL", m_settings.Ind_P123_Weight));
+            } else DebugLog("[IND] P123: DISABLED → SKIP");
 
             if(m_settings.Ind_Ross_Enabled) {
-               PrintFormat("[IND] RossHook: → %s (w=%d)", _res_ross ? "PASS" : "FAIL", m_settings.Ind_Ross_Weight);
-            } else Print("[IND] RossHook: DISABLED → SKIP");
+               DebugLog(StringFormat("[IND] RossHook: → %s (w=%d)", _res_ross ? "PASS" : "FAIL", m_settings.Ind_Ross_Weight));
+            } else DebugLog("[IND] RossHook: DISABLED → SKIP");
 
             if(m_settings.Ind_Atr_Enabled) {
                double atr_v_pips = m_diag_last_atr_pips;
                bool   atr_v_ok   = true;
                if(m_settings.ATR_VoteMinPips > 0.0 && atr_v_pips < m_settings.ATR_VoteMinPips) atr_v_ok = false;
                if(m_settings.ATR_VoteMaxPips > 0.0 && atr_v_pips > m_settings.ATR_VoteMaxPips) atr_v_ok = false;
-               PrintFormat("[IND] ATR Vote: %.1f pips (min=%.1f max=%.1f) → %s (w=1)",
-                           atr_v_pips, m_settings.ATR_VoteMinPips, m_settings.ATR_VoteMaxPips,
-                           atr_v_ok ? "PASS" : "FAIL");
+               DebugLog(StringFormat("[IND] ATR Vote: %.1f pips (min=%.1f max=%.1f) → %s (w=1)",
+                                     atr_v_pips, m_settings.ATR_VoteMinPips, m_settings.ATR_VoteMaxPips,
+                                     atr_v_ok ? "PASS" : "FAIL"));
             } else
-               Print("[IND] ATR Vote: DISABLED → SKIP");
+               DebugLog("[IND] ATR Vote: DISABLED → SKIP");
 
             if(m_settings.Ind_CandleBody_Enabled) {
                bool cb_ok = CheckCandleBodyIndicator();
-               PrintFormat("[IND] CandleBody: avg period=%d max=x%.1f check=%d → %s (w=%d)",
-                           m_settings.CandleBody_AvgPeriod, m_settings.CandleBody_MaxMult,
-                           m_settings.CandleBody_CheckBars, cb_ok ? "PASS" : "FAIL",
-                           m_settings.Ind_CandleBody_Weight);
+               DebugLog(StringFormat("[IND] CandleBody: avg period=%d max=x%.1f check=%d → %s (w=%d)",
+                                     m_settings.CandleBody_AvgPeriod, m_settings.CandleBody_MaxMult,
+                                     m_settings.CandleBody_CheckBars, cb_ok ? "PASS" : "FAIL",
+                                     m_settings.Ind_CandleBody_Weight));
             } else
-               Print("[IND] CandleBody: DISABLED → SKIP");
+               DebugLog("[IND] CandleBody: DISABLED → SKIP");
 
             if(m_settings.Ind_CI_Enabled) {
                double ci_val = CalculateCI(v_shift);
                bool ci_ok = Check_CI(bias, v_shift);
                string ci_status = (ci_val >= m_settings.CI_RangingThreshold ? "RANGING" : "TRENDING");
-               PrintFormat("[IND] ChoppinessIndex: CI=%.1f threshold=%.1f status=%s → %s (w=%d)",
-                           ci_val, m_settings.CI_RangingThreshold, ci_status,
-                           ci_ok ? "PASS" : "FAIL", m_settings.Ind_CI_Weight);
+               DebugLog(StringFormat("[IND] ChoppinessIndex: CI=%.1f threshold=%.1f status=%s → %s (w=%d)",
+                                     ci_val, m_settings.CI_RangingThreshold, ci_status,
+                                     ci_ok ? "PASS" : "FAIL", m_settings.Ind_CI_Weight));
             } else
-               Print("[IND] ChoppinessIndex: DISABLED → SKIP");
+               DebugLog("[IND] ChoppinessIndex: DISABLED → SKIP");
          }
       }
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: END =====
@@ -3725,13 +3983,13 @@ public:
          m_diag_last_reason = "OK";
          m_signals_generated++;
          m_stats.signals_confirmed++;
-         if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=%d (ALL votes pass, weight=%.2f)", bias, vote_weight);
+         if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=%d (ALL votes pass, weight=%.2f)", bias, vote_weight));
          return bias;
       }
       else {
          m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
          m_reject_votes++;
-         if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
+         if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
          return 0;
       }
    }
@@ -3767,10 +4025,19 @@ public:
    //==========================================================================
    int EvaluateTS() 
    {   
+      int v_shift = m_settings.Vote_EvalShift;
+      m_debug_buffer_size = 0;
+      ArrayResize(m_debug_buffer, 0);
+
+      // Invalidate indicator cache if evaluating a different bar
+      datetime eval_bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+      if(v_shift != m_ind_cache.cached_shift || eval_bar_time != m_ind_cache.cached_bar_time)
+         InvalidateIndicatorCache(v_shift);
+
       if(m_settings.DebugFlow) {
-         Print("[DEBUG_TEST] EvaluateTS() CALLED");
-         PrintFormat("[DEBUG_TEST] m_settings.DebugFlow = %s", m_settings.DebugFlow ? "TRUE" : "FALSE");
-         PrintFormat("[DEBUG_TEST] Current time: %s", TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES));
+         DebugLog("[DEBUG_TEST] EvaluateTS() CALLED");
+         DebugLog(StringFormat("[DEBUG_TEST] m_settings.DebugFlow = %s", m_settings.DebugFlow ? "TRUE" : "FALSE"));
+         DebugLog(StringFormat("[DEBUG_TEST] Current time: %s", TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES)));
       }
 
       // Update PSAR flip tracking on each bar close (uses shift=1 for closed bar)
@@ -3811,15 +4078,13 @@ public:
 
       // Bar-close diagnostic banner
       if(m_settings.DebugFlow)
-      {
+         {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.ma_v_shift);
-         PrintFormat("[EVAL_START] ===========================================");
-         PrintFormat("[EVAL_START] Bar: %s (shift=%d)",
-                     TimeToString(bar_time, TIME_DATE|TIME_MINUTES), m_settings.ma_v_shift);
-         PrintFormat("[EVAL_START] ===========================================");
+         DebugLog("[EVAL_START] ===========================================");
+         DebugLog(StringFormat("[EVAL_START] Bar: %s (shift=%d)",
+                               TimeToString(bar_time, TIME_DATE|TIME_MINUTES), m_settings.ma_v_shift));
+         DebugLog("[EVAL_START] ===========================================");
       }
-
-      int v_shift = m_settings.Vote_EvalShift;
 
       // ════════════════════════════════════════════════════════════
       // KISS FORMULA: TS = Bias × LayerX × bcX × IndicatorX × FilterX
@@ -3831,6 +4096,7 @@ public:
       if(filterX == 0 && !m_settings.Stats_FullEvaluation) {
          m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
          UpdateTelemetry(0);
+         FlushOrClearDebugBuffer(0);
          return 0;
       }
 
@@ -3839,6 +4105,7 @@ public:
       if(bias == 0 && !m_settings.Stats_FullEvaluation) {
          m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
          UpdateTelemetry(0);
+         FlushOrClearDebugBuffer(0);
          return 0;
       }
       m_diag_last_bias = bias;
@@ -3847,6 +4114,7 @@ public:
       int layerX = EvaluateLayerX(v_shift, bias);
       if(layerX == 0) {
          UpdateTelemetry(0);
+         FlushOrClearDebugBuffer(0);
          return 0;
       }
 
@@ -3854,6 +4122,7 @@ public:
       int bcX = EvaluateBcX(v_shift, bias);
       if(bcX == 0) {
          UpdateTelemetry(0);
+         FlushOrClearDebugBuffer(0);
          return 0;
       }
 
@@ -3868,17 +4137,17 @@ public:
       if(m_eval_any_failure) {
          // FullEval mode: accumulated failure from FilterX or EvaluateBias
          if(m_diag_last_reason == "") m_diag_last_reason = m_eval_first_failure;
-         if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
+         if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
       }
       else if(indicatorX == 0) {
          // Indicator voting failed (reason already set by EvaluateIndicatorX)
-         if(m_settings.DebugFlow) PrintFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason);
+         if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
       }
       else {
          // All components passed → signal confirmed
          final_signal = bias;
          if(m_settings.DebugFlow && final_signal != 0)
-            PrintFormat("[RESULT] TS=%d (Votes: %.2f)", final_signal, m_eval_vote_weight);
+            DebugLog(StringFormat("[RESULT] TS=%d (Votes: %.2f)", final_signal, m_eval_vote_weight));
       }
 
       // Ensure UI vote counter is up-to-date
@@ -3891,48 +4160,48 @@ public:
          // Re-read spread for summary
          double spread_pips = SpreadPips();
          bool spread_pass = !(m_settings.UseSpread && m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread);
-         Print("════════════════════════════════════════════════════════════");
-         PrintFormat("[TS_SUMMARY] Bar: %s (shift=%d)",
-                     TimeToString(sum_bar_time, TIME_DATE|TIME_MINUTES),
-                     m_settings.ma_v_shift);
-         Print("════════════════════════════════════════════════════════════");
-         Print("");
+         DebugLog("════════════════════════════════════════════════════════════");
+         DebugLog(StringFormat("[TS_SUMMARY] Bar: %s (shift=%d)",
+                               TimeToString(sum_bar_time, TIME_DATE|TIME_MINUTES),
+                               m_settings.ma_v_shift));
+         DebugLog("════════════════════════════════════════════════════════════");
+         DebugLog("");
 
          // GATES SECTION
-         Print("GATES:");
+         DebugLog("GATES:");
          if(m_settings.UseSpread && m_settings.MaxSpread > 0.0) {
-            PrintFormat("  %s Spread: %.1f / %.1f pips max",
-                        spread_pass ? "✅" : "❌", spread_pips, m_settings.MaxSpread);
+            DebugLog(StringFormat("  %s Spread: %.1f / %.1f pips max",
+                                  spread_pass ? "✅" : "❌", spread_pips, m_settings.MaxSpread));
          } else {
-            Print("  ⏭️  Spread: disabled");
+            DebugLog("  ⏭️  Spread: disabled");
          }
-         Print("  ⏭️  Time window: " + (m_settings.UseTime ? "active" : "disabled"));
-         Print("  ⏭️  News filter: " + (m_settings.UseNews ? "active" : "disabled"));
-         Print("");
+         DebugLog("  ⏭️  Time window: " + (m_settings.UseTime ? "active" : "disabled"));
+         DebugLog("  ⏭️  News filter: " + (m_settings.UseNews ? "active" : "disabled"));
+         DebugLog("");
 
          // BIAS & STRUCTURE SECTION
-         Print("BIAS & STRUCTURE:");
+         DebugLog("BIAS & STRUCTURE:");
          if(bias == 0) {
-            PrintFormat("  ❌ Bias: NEUTRAL (%s)", m_diag_last_reason);
+            DebugLog(StringFormat("  ❌ Bias: NEUTRAL (%s)", m_diag_last_reason));
          } else {
-            PrintFormat("  ✅ Bias: %s (EMAs aligned)", bias > 0 ? "LONG" : "SHORT");
+            DebugLog(StringFormat("  ✅ Bias: %s (EMAs aligned)", bias > 0 ? "LONG" : "SHORT"));
          }
          if(m_settings.PhaseDetectionEnabled) {
             string phase_str = EnumToString(m_diag_last_phase);
             bool phase_blocked = (m_diag_last_phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase);
-            PrintFormat("  %s Phase: %s%s",
-                        phase_blocked ? "❌" : "✅", phase_str,
-                        phase_blocked ? " (blocked)" : "");
+            DebugLog(StringFormat("  %s Phase: %s%s",
+                                  phase_blocked ? "❌" : "✅", phase_str,
+                                  phase_blocked ? " (blocked)" : ""));
          } else {
-            Print("  ⏭️  Phase: disabled");
+            DebugLog("  ⏭️  Phase: disabled");
          }
          if(m_settings.EnableLayerDetection && m_settings.BiasMode == BIAS_4EMA) {
-            PrintFormat("  └ KISS Layers: W=%d M=%d S=%d",
-                        m_diag_layer_w, m_diag_layer_m, m_diag_layer_s);
+            DebugLog(StringFormat("  └ KISS Layers: W=%d M=%d S=%d",
+                                  m_diag_layer_w, m_diag_layer_m, m_diag_layer_s));
          } else {
-            Print("  └  Layer: disabled (non-4EMA mode)");
+            DebugLog("  └  Layer: disabled (non-4EMA mode)");
          }
-         Print("");
+         DebugLog("");
 
          // INDICATORS SECTION
          int s_enabled=0, s_disabled=0, s_passed=0;
@@ -3947,82 +4216,82 @@ public:
          if(m_settings.Ind_P123_Enabled)   s_enabled++; else s_disabled++;
          if(m_settings.Ind_Ross_Enabled)   s_enabled++; else s_disabled++;
 
-         PrintFormat("INDICATORS (%d enabled, %d disabled):", s_enabled, s_disabled);
+         DebugLog(StringFormat("INDICATORS (%d enabled, %d disabled):", s_enabled, s_disabled));
 
          string saved_reason = m_diag_last_reason;
 
          if(m_settings.Ind_Adx_Enabled) {
-            PrintFormat("  %s ADX", m_eval_ind_res_adx ? "✅" : "❌");
+            DebugLog(StringFormat("  %s ADX", m_eval_ind_res_adx ? "✅" : "❌"));
             if(m_eval_ind_res_adx) s_passed++;
-         } else Print("  ⏭️  ADX: disabled");
+         } else DebugLog("  ⏭️  ADX: disabled");
 
          if(m_settings.Ind_Macd_Enabled) {
-            PrintFormat("  %s MACD", m_eval_ind_res_macd ? "✅" : "❌");
+            DebugLog(StringFormat("  %s MACD", m_eval_ind_res_macd ? "✅" : "❌"));
             if(m_eval_ind_res_macd) s_passed++;
-         } else Print("  ⏭️  MACD: disabled");
+         } else DebugLog("  ⏭️  MACD: disabled");
 
          if(m_settings.Ind_Rsi_Enabled) {
-            PrintFormat("  %s RSI", m_eval_ind_res_rsi ? "✅" : "❌");
+            DebugLog(StringFormat("  %s RSI", m_eval_ind_res_rsi ? "✅" : "❌"));
             if(m_eval_ind_res_rsi) s_passed++;
-         } else Print("  ⏭️  RSI: disabled");
+         } else DebugLog("  ⏭️  RSI: disabled");
 
          if(m_settings.Ind_Cci_Enabled) {
-            PrintFormat("  %s CCI", m_eval_ind_res_cci ? "✅" : "❌");
+            DebugLog(StringFormat("  %s CCI", m_eval_ind_res_cci ? "✅" : "❌"));
             if(m_eval_ind_res_cci) s_passed++;
-         } else Print("  ⏭️  CCI: disabled");
+         } else DebugLog("  ⏭️  CCI: disabled");
 
          if(m_settings.Ind_Mfi_Enabled) {
-            PrintFormat("  %s MFI", m_eval_ind_res_mfi ? "✅" : "❌");
+            DebugLog(StringFormat("  %s MFI", m_eval_ind_res_mfi ? "✅" : "❌"));
             if(m_eval_ind_res_mfi) s_passed++;
-         } else Print("  ⏭️  MFI: disabled");
+         } else DebugLog("  ⏭️  MFI: disabled");
 
          if(m_settings.Ind_Sto_Enabled) {
-            PrintFormat("  %s Stochastic", m_eval_ind_res_sto ? "✅" : "❌");
+            DebugLog(StringFormat("  %s Stochastic", m_eval_ind_res_sto ? "✅" : "❌"));
             if(m_eval_ind_res_sto) s_passed++;
-         } else Print("  ⏭️  Stochastic: disabled");
+         } else DebugLog("  ⏭️  Stochastic: disabled");
 
          if(m_settings.Ind_Bb_Enabled) {
-            PrintFormat("  %s Bollinger Bands", m_eval_ind_res_bb ? "✅" : "❌");
+            DebugLog(StringFormat("  %s Bollinger Bands", m_eval_ind_res_bb ? "✅" : "❌"));
             if(m_eval_ind_res_bb) s_passed++;
-         } else Print("  ⏭️  Bollinger Bands: disabled");
+         } else DebugLog("  ⏭️  Bollinger Bands: disabled");
 
          if(m_settings.Ind_Psar_Enabled) {
             string psar_mode = !m_settings.Vote_AllowPsarFlip ? "DOT" : (m_settings.Vote_PsarFlipDelay == -1) ? "PERSISTENT" : "FLIP";
-            PrintFormat("  %s PSAR (%s mode)", m_eval_ind_res_psar ? "✅" : "❌", psar_mode);
+            DebugLog(StringFormat("  %s PSAR (%s mode)", m_eval_ind_res_psar ? "✅" : "❌", psar_mode));
             if(m_eval_ind_res_psar) s_passed++;
-         } else Print("  ⏭️  PSAR: disabled");
+         } else DebugLog("  ⏭️  PSAR: disabled");
 
          if(m_settings.Ind_P123_Enabled) {
-            PrintFormat("  %s Pattern 1-2-3", m_eval_ind_res_p123 ? "✅" : "❌");
+            DebugLog(StringFormat("  %s Pattern 1-2-3", m_eval_ind_res_p123 ? "✅" : "❌"));
             if(m_eval_ind_res_p123) s_passed++;
-         } else Print("  ⏭️  Pattern 1-2-3: disabled");
+         } else DebugLog("  ⏭️  Pattern 1-2-3: disabled");
 
          if(m_settings.Ind_Ross_Enabled) {
-            PrintFormat("  %s Ross Hook", m_eval_ind_res_ross ? "✅" : "❌");
+            DebugLog(StringFormat("  %s Ross Hook", m_eval_ind_res_ross ? "✅" : "❌"));
             if(m_eval_ind_res_ross) s_passed++;
-         } else Print("  ⏭️  Ross Hook: disabled");
+         } else DebugLog("  ⏭️  Ross Hook: disabled");
 
-         Print("");
+         DebugLog("");
 
          // VOTING SUMMARY
          if(s_enabled > 0) {
             double pass_pct = (double)s_passed / s_enabled * 100.0;
-            PrintFormat("VOTING: %d/%d passed (%.1f%%) - requires %s",
-                        s_passed, s_enabled, pass_pct,
-                        m_settings.VoteMode == VOTE_MODE_ALL ? "ALL (100%)" : "THRESHOLD");
+            DebugLog(StringFormat("VOTING: %d/%d passed (%.1f%%) - requires %s",
+                                  s_passed, s_enabled, pass_pct,
+                                  m_settings.VoteMode == VOTE_MODE_ALL ? "ALL (100%)" : "THRESHOLD"));
          }
-         Print("");
+         DebugLog("");
 
          // FINAL RESULT
-         Print("════════════════════════════════════════════════════════════");
+         DebugLog("════════════════════════════════════════════════════════════");
          if(final_signal == 0) {
-            PrintFormat("[TS_RESULT] ❌ REJECTED - Reason: %s", saved_reason);
+            DebugLog(StringFormat("[TS_RESULT] ❌ REJECTED - Reason: %s", saved_reason));
          } else {
-            PrintFormat("[TS_RESULT] ✅✅✅ SIGNAL CONFIRMED: %s ✅✅✅",
-                        final_signal > 0 ? "LONG" : "SHORT");
+            DebugLog(StringFormat("[TS_RESULT] ✅✅✅ SIGNAL CONFIRMED: %s ✅✅✅",
+                                  final_signal > 0 ? "LONG" : "SHORT"));
          }
-         Print("════════════════════════════════════════════════════════════");
-         Print("");
+         DebugLog("════════════════════════════════════════════════════════════");
+         DebugLog("");
       }
       // ===== TS PIPELINE SUMMARY: END =====
 
@@ -4030,13 +4299,13 @@ public:
       if(m_settings.DebugLevel >= DEBUG_SUMMARY) {
          datetime sum_bar_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.ma_v_shift);
          if(final_signal != 0)
-            PrintFormat("%s: %s CONFIRMED [%s]",
-                        TimeToString(sum_bar_time, TIME_DATE|TIME_MINUTES),
-                        final_signal > 0 ? "LONG" : "SHORT", m_ts_status_string);
+            DebugLog(StringFormat("%s: %s CONFIRMED [%s]",
+                                  TimeToString(sum_bar_time, TIME_DATE|TIME_MINUTES),
+                                  final_signal > 0 ? "LONG" : "SHORT", m_ts_status_string));
          else
-            PrintFormat("%s: REJECTED (%s) [%s]",
-                        TimeToString(sum_bar_time, TIME_DATE|TIME_MINUTES),
-                        m_diag_last_reason, m_ts_status_string);
+            DebugLog(StringFormat("%s: REJECTED (%s) [%s]",
+                                  TimeToString(sum_bar_time, TIME_DATE|TIME_MINUTES),
+                                  m_diag_last_reason, m_ts_status_string));
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -4087,6 +4356,7 @@ public:
 
       // --- AUDITED TERMINATION ---
       UpdateTelemetry(final_signal);
+      FlushOrClearDebugBuffer(final_signal);
       return final_signal;
    } // === EvaluateTS: END ===
 
