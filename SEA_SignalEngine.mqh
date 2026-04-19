@@ -4077,8 +4077,7 @@ public:
       m_eval_all_pass      = false;
 
       // Bar-close diagnostic banner
-      if(m_settings.DebugFlow)
-         {
+      if(m_settings.DebugFlow) {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.ma_v_shift);
          DebugLog("[EVAL_START] ===========================================");
          DebugLog(StringFormat("[EVAL_START] Bar: %s (shift=%d)",
