@@ -550,8 +550,6 @@ struct ST_Settings
 
    // Layer detection settings
    bool     EnableLayerDetection;         // Master switch for multi-layer pullback detection
-   double   LayerTouchTolerancePips;      // Pip tolerance for EMA touch detection
-   double   LayerTouchTolerance;          // Percentage tolerance for EMA touch detection (e.g. 0.01 = 1%)
    bool     AllowLayer1_Entries;          // Allow Layer 1 (EMA1/EMA2 touch) entries
    bool     AllowLayer2_Entries;          // Allow Layer 2 (EMA2/EMA3 touch) entries
    bool     AllowLayer3_Entries;          // Allow Layer 3 (EMA3/EMA4 touch) entries
@@ -1197,7 +1195,6 @@ void InitializeConfig()
    Settings.BiasFastID           = MathMax(0, MathMin(3, Inp_BiasFastID));
    Settings.BiasSlowID           = MathMax(0, MathMin(3, Inp_BiasSlowID));
    Settings.AutoStrat            = Inp_AutoStrat;
-   Settings.LayerTouchTolerance  = Inp_LayerTolerance;
    Settings.MaType               = Inp_MaType;
    Settings.ma_h_shift           = Inp_MaHorShift;
    Settings.ma_v_shift           = Inp_MaVerShift;
@@ -1368,8 +1365,6 @@ void InitializeConfig()
    Settings.Trending_AllowStrongTrades   = true;
 
    Settings.EnableLayerDetection         = false;
-   Settings.LayerTouchTolerancePips      = 2.0;
-   Settings.LayerTouchTolerance          = 0.01;
    Settings.AllowLayer1_Entries          = true;
    Settings.AllowLayer2_Entries          = true;
    Settings.AllowLayer3_Entries          = true;

@@ -44,7 +44,6 @@ enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103001 = SEA_BUILD_TOKEN_103001 };
 
 
 #include <RRMS\SEA_Config.mqh>
-#include <RRMS\SEA_BarClose.mqh>
 
 
 // Note: Requires ST_Settings and SNewsEvent structs to be defined in main file
@@ -129,14 +128,6 @@ private:
    // Phase Detection Diagnostics
    EMarketPhase m_diag_last_phase;       // Last detected market phase
    int          m_diag_phase_confirm_bars; // Number of consecutive bars in current phase
-
-   // Layer Detection Diagnostics
-   EEntryLayer  m_diag_last_layer;       // Last detected entry layer
-   double       m_diag_layer_distance;   // Distance to nearest EMA layer in pips
-
-   EEntryLayer  m_diag_last_entry_layer;  // 260304_PR4: Last detected entry layer
-   bool         m_layer_allowed;          // 260304_PR7: Whether current entry layer is allowed in current phase
-   EEntryLayer  m_current_layer;          // Layer detected by STRAT_4EMA_LAYER signal
 
    // --- 2c. KISS LAYER DIAGNOSTICS ---
    int         m_diag_layer_w;       // Last evaluated LayerW result (0/1)
@@ -1535,13 +1526,22 @@ private:
 
    //==========================================================================
    // CheckLayerPairAlign — Structural alignment check (position + slope)
-   // Returns 1 if the EMA pair is aligned with bias, 0 otherwise.
+   // Returns 1 if the EMA pair is aligned with bias direction, 0 otherwise.
+   //
    // layer_type: 1=LayerW (EMA1/EMA2), 2=LayerM (EMA2/EMA3), 3=LayerS (EMA3/EMA4)
+   //
+   // Position: fast EMA must be on the correct side of slow EMA.
+   // Slope: BOTH EMAs must be moving in the bias direction.
+   //   - During pullback: fast EMA slope flattens/reverses → returns 0 naturally.
+   //   - On recovery: both slopes realign → returns 1 again.
+   //   - No wick-touch or pip-tolerance arithmetic needed.
+   //
+   // SlopeLookbackBars: adaptive lookback from settings (default=1 for short TF,
+   //   2 for H1+ swing). Higher values reduce noise sensitivity on lower timeframes.
    //==========================================================================
    int CheckLayerPairAlign(int bias, int layer_type)
    {
       int h_fast = INVALID_HANDLE, h_slow = INVALID_HANDLE;
-
       switch(layer_type)
       {
          case 1: h_fast = h_ema1; h_slow = h_ema2; break;
@@ -1550,35 +1550,49 @@ private:
          default: return 0;
       }
 
-      double ema_fast = GetMAVal(h_fast, 1);
-      double ema_slow = GetMAVal(h_slow, 1);
+      double ema_fast      = GetMAVal(h_fast, 1);
+      double ema_slow      = GetMAVal(h_slow, 1);
+      if(ema_fast == 0.0 || ema_slow == 0.0 ||
+         ema_fast == EMPTY_VALUE || ema_slow == EMPTY_VALUE)
+         return 0;
 
-      // Check position alignment
-      bool position_aligned = false;
-      if(bias == 1)  position_aligned = (ema_fast > ema_slow);
-      else if(bias == -1) position_aligned = (ema_fast < ema_slow);
-
+      // ── Position check: fast must be on the correct side of slow ──
+      bool position_aligned = (bias == 1)  ? (ema_fast > ema_slow) :
+                              (bias == -1) ? (ema_fast < ema_slow) : false;
       if(!position_aligned) return 0;
 
-      // Check slope alignment
-      double ema_fast_prev = GetMAVal(h_fast, 2);
-      double ema_slow_prev = GetMAVal(h_slow, 2);
+      // ── Slope check: use SlopeLookbackBars for timeframe-adaptive sensitivity ──
+      int lookback = m_settings.SlopeLookbackBars;
+      if(lookback < 1) lookback = 1;
+      if(lookback > 5) lookback = 5;
 
-      bool slope_fast_aligned = false;
-      bool slope_slow_aligned = false;
+      double ema_fast_prev = GetMAVal(h_fast, 1 + lookback);
+      double ema_slow_prev = GetMAVal(h_slow, 1 + lookback);
+      if(ema_fast_prev == 0.0 || ema_slow_prev == 0.0 ||
+         ema_fast_prev == EMPTY_VALUE || ema_slow_prev == EMPTY_VALUE)
+         return 0;
 
-      if(bias == 1)
+      bool slope_fast_aligned = (bias == 1)  ? (ema_fast > ema_fast_prev) :
+                                (bias == -1) ? (ema_fast < ema_fast_prev) : false;
+      bool slope_slow_aligned = (bias == 1)  ? (ema_slow > ema_slow_prev) :
+                                (bias == -1) ? (ema_slow < ema_slow_prev) : false;
+
+      bool result = (slope_fast_aligned && slope_slow_aligned);
+
+      if(m_settings.DebugFlow)
       {
-         slope_fast_aligned = (ema_fast > ema_fast_prev);
-         slope_slow_aligned = (ema_slow > ema_slow_prev);
-      }
-      else if(bias == -1)
-      {
-         slope_fast_aligned = (ema_fast < ema_fast_prev);
-         slope_slow_aligned = (ema_slow < ema_slow_prev);
+         string pair_name = (layer_type == 1) ? "LayerW(EMA1/2)" :
+                            (layer_type == 2) ? "LayerM(EMA2/3)" : "LayerS(EMA3/4)";
+         PrintFormat("[LayerAlign] %s | bias=%d | fast=%.5f prev=%.5f (%s) | slow=%.5f prev=%.5f (%s) | pos=%s slope=%s → %s",
+                     pair_name, bias,
+                     ema_fast, ema_fast_prev, slope_fast_aligned ? "OK" : "FAIL",
+                     ema_slow, ema_slow_prev, slope_slow_aligned ? "OK" : "FAIL",
+                     position_aligned ? "OK" : "FAIL",
+                     result ? "OK" : "FAIL",
+                     result ? "PASS" : "REJECT");
       }
 
-      return (position_aligned && slope_fast_aligned && slope_slow_aligned) ? 1 : 0;
+      return result ? 1 : 0;
    }
 
    //==========================================================================
@@ -1694,19 +1708,6 @@ public:
       m_diag_last_phase = PHASE_UNORDERED;
       m_diag_phase_confirm_bars = 0;
 
-      // Initialize layer diagnostics
-      m_diag_last_layer = LAYER_NONE;
-      m_diag_layer_distance = 0.0;
-
-      // Initialize entry layer diagnostic
-      m_diag_last_entry_layer = LAYER_NONE;
-
-      // Initialize layer-allowed diagnostic
-      m_layer_allowed = false;
-
-      // Initialize STRAT_4EMA_LAYER layer
-      m_current_layer = LAYER_NONE;
-
       m_diag_layer_w      = 0;
       m_diag_layer_m      = 0;
       m_diag_layer_s      = 0;
@@ -1745,13 +1746,6 @@ public:
    // 260304_PR1: Phase Detection Diagnostics
    EMarketPhase GetLastDetectedPhase() const { return m_diag_last_phase; }
    int          GetPhaseConfirmBars() const { return m_diag_phase_confirm_bars; }
-
-   // 260304_PR3: Layer Detection Diagnostics
-   EEntryLayer  GetLastDetectedLayer() const { return m_diag_last_layer; }
-
-   // 260304_PR7: Entry layer and phase-filter diagnostics for UI
-   EEntryLayer  GetLastEntryLayer()    const { return m_diag_last_entry_layer; }
-   bool         GetLayerAllowed()      const { return m_layer_allowed; }
 
    // Returns true if the given entry layer is permitted in the given phase.
    // Requires PhaseDetectionEnabled AND EnableLayerDetection to activate filtering.
@@ -3091,65 +3085,6 @@ public:
          return 0;
       }
 
-      // ═══════════════════════════════════════════════════════════════
-      // Detect entry layer
-      // ═══════════════════════════════════════════════════════════════
-      m_diag_last_entry_layer = DetectEntryLayer(v_shift);
-      if(m_settings.DebugFlow) {
-         PrintFormat("ENTRY LAYER[%s]: Detected %s (bitfield=%d)",
-                     TimeToString(iTime(m_symbol, PERIOD_CURRENT, v_shift)),
-                     LayerBitfieldToString((int)m_diag_last_entry_layer),
-                     (int)m_diag_last_entry_layer);
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // Phase-Based Layer Filtering
-      // ═══════════════════════════════════════════════════════════════
-      if(m_settings.EnableLayerDetection && m_settings.PhaseDetectionEnabled && m_diag_last_entry_layer != LAYER_NONE)
-      {
-         EMarketPhase phase = m_diag_last_phase;
-         bool is_emerging = (phase == PHASE_EMERGING || phase == PHASE_EMERGING_UP || phase == PHASE_EMERGING_DN);
-         bool is_trending = (phase == PHASE_TRENDING || phase == PHASE_TRENDING_UP || phase == PHASE_TRENDING_DN);
-
-         if(phase == PHASE_UNORDERED) {
-            m_diag_last_reason = "PHASE_UNORDERED_BLOCKS_ALL";
-            m_reject_bias++;
-            m_stats.rejected_phase++;
-            if(m_settings.DebugFlow) PrintFormat("[260308_PR5] UNORDERED phase detected - blocking ALL trades (layers=%s)", LayerBitfieldToString((int)m_diag_last_entry_layer));
-            if(!m_settings.Stats_FullEvaluation) {
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-               return 0;
-            }
-            if(m_eval_first_failure == "") m_eval_first_failure = "PHASE_UNORDERED";
-            m_eval_any_failure = true;
-         }
-         else {
-            m_stats.passed_phase++;
-         }
-
-         if(is_emerging && IsLayerActive(m_diag_last_entry_layer, LAYER_3_STRONG)) {
-            m_diag_last_reason = "PHASE_EMERGING_BLOCKS_STRONG";
-            m_reject_bias++;
-            m_stats.rejected_layer_blocked++;
-            if(m_settings.DebugFlow) PrintFormat("[260308_PR5] %s phase detected - blocking L3 component; layers=%s", EnumToString(phase), LayerBitfieldToString((int)m_diag_last_entry_layer));
-            if(!m_settings.Stats_FullEvaluation) {
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-               return 0;
-            }
-            if(m_eval_first_failure == "") m_eval_first_failure = "PHASE_EMERGING_L3";
-            m_eval_any_failure = true;
-         }
-         else if(phase != PHASE_UNORDERED) {
-            m_stats.passed_layer_blocked++;
-         }
-
-         if(m_settings.DebugFlow && is_trending) {
-            PrintFormat("[260308_PR5] %s phase - allowing ALL layers (%s)", EnumToString(phase), LayerBitfieldToString((int)m_diag_last_entry_layer));
-         }
-      }
-
-      m_layer_allowed = IsLayerAllowed(m_diag_last_entry_layer, m_diag_last_phase);
-
       // 2. Determine MASTER BIAS (Strategy)
       int bias = 0;
 
@@ -3316,20 +3251,15 @@ public:
             }
          }
          else if(m_settings.AutoStrat == STRAT_4EMA_LAYER) {
-            EEntryLayer layer = DetectLayerSignal(v_shift, market_bias);
-            m_current_layer = layer;
-            if(layer != LAYER_NONE) {
-               entry_signal = market_bias;
-               m_stats.passed_layer_none++;
-            } else {
-               entry_signal = 0;
-               m_diag_last_reason = "LAYER_NONE";
-               m_stats.rejected_layer_none++;
-            }
+            // KISS design: pass bias directly to pipeline.
+            // Layer qualification (position+slope per EMA pair) is handled in EvaluateLayerX().
+            // Bar close confirmation is handled in EvaluateBcX().
+            // DetectLayerSignal() (wick-touch) is NOT used — it contradicts the design intent.
+            entry_signal = market_bias;
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               if(layer != LAYER_NONE) PrintFormat("STEP 2 ENTRY[%s]: STRAT_4EMA_LAYER %s detected → signal=%d", TimeToString(bar_time), GetLayerName(layer), entry_signal);
-               else PrintFormat("STEP 2 ENTRY[%s]: STRAT_4EMA_LAYER no layer → signal=0", TimeToString(bar_time));
+               PrintFormat("STEP 2 ENTRY[%s]: STRAT_4EMA_LAYER → bias=%d passed to KISS pipeline",
+                           TimeToString(bar_time), entry_signal);
             }
          }
          else {  // STRAT_2EMA_CROSS_EMA
@@ -3825,7 +3755,6 @@ public:
          UpdatePSARFlipTracking(m_settings.Vote_EvalShift);
 
       UpdatePhaseDiagnostics(m_settings.ma_v_shift);
-      UpdateLayerDiagnostics(m_settings.ma_v_shift);
 
       // ═══════════════════════════════════════════════════════════════
       // Reset diagnostics, telemetry, and KISS evaluation state
@@ -3974,10 +3903,11 @@ public:
          } else {
             Print("  ⏭️  Phase: disabled");
          }
-         if(m_settings.EnableLayerDetection) {
-            PrintFormat("  ✅ Layer: %s", LayerBitfieldToString((int)m_diag_last_entry_layer));
+         if(m_settings.EnableLayerDetection && m_settings.BiasMode == BIAS_4EMA) {
+            PrintFormat("  └ KISS Layers: W=%d M=%d S=%d",
+                        m_diag_layer_w, m_diag_layer_m, m_diag_layer_s);
          } else {
-            Print("  ⏭️  Layer: disabled");
+            Print("  └  Layer: disabled (non-4EMA mode)");
          }
          Print("");
 
@@ -4118,7 +4048,7 @@ public:
       // 5. Populate Final UI Telemetry Snapshot
       m_telemetry.bias = final_signal;
       m_telemetry.phase = (int)m_diag_last_phase;
-      m_telemetry.layer = (int)m_diag_last_entry_layer;
+      m_telemetry.layer = (int)m_diag_layer_w | (m_diag_layer_m << 1) | (m_diag_layer_s << 2);
       m_telemetry.votes_for = m_diag_last_votes;
       m_telemetry.votes_total = total_enabled;
 
@@ -4395,85 +4325,6 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| 260304_PR4: Entry Layer Detection                                |
-   //| Classifies pullback depth based on which EMAs price touched      |
-   //|                                                                  |
-   //| 260308_PR: Returns a BITFIELD of all active layers so that      |
-   //| simultaneous multi-layer signals are captured.                  |
-   //|                                                                  |
-   //| Returns:                                                         |
-   //|   Bitfield of LAYER_x flags (OR-combined)                       |
-   //|   LAYER_NONE (0)  - Detection disabled or no EMA touch found   |
-   //|                                                                  |
-   //| Note: Detection is PASSIVE - results stored in diagnostic field |
-   //|       but do not affect trade execution (filtering not enabled) |
-   //+------------------------------------------------------------------+
-   EEntryLayer DetectEntryLayer(const int v_shift = 1)
-   {
-      if(!m_settings.EnableLayerDetection) return LAYER_NONE;
-
-      double ema1 = GetMAVal(h_ema1, v_shift, 0);
-      double ema2 = GetMAVal(h_ema2, v_shift, 0);
-      double ema3 = GetMAVal(h_ema3, v_shift, 0);
-      double ema4 = GetMAVal(h_ema4, v_shift, 0);
-
-      if(ema1 == EMPTY_VALUE || ema1 == 0.0 ||
-         ema2 == EMPTY_VALUE || ema2 == 0.0 ||
-         ema3 == EMPTY_VALUE || ema3 == 0.0 ||
-         ema4 == EMPTY_VALUE || ema4 == 0.0)
-         return LAYER_NONE;
-
-      double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-      double tol   = m_settings.LayerTouchTolerancePips * SymbolInfoDouble(m_symbol, SYMBOL_POINT) * 10.0;
-
-      int active_layers = 0;  // 260308_PR: Bitfield accumulator — check ALL layers
-
-      // Layer 1: price touches EMA1 or EMA2 zone
-      if(MathAbs(price - ema1) <= tol || MathAbs(price - ema2) <= tol)
-      {
-         active_layers |= (int)LAYER_1_WEAK;
-         if(m_settings.DebugFlow)
-            PrintFormat("[260304_ENTRY] WEAK layer detected: Price=%.5f touched EMA1(%.5f) tolerance=%.5f",
-                        price, ema1, tol);
-      }
-
-      // Layer 2: price touches EMA2 or EMA3 zone
-      if(MathAbs(price - ema2) <= tol || MathAbs(price - ema3) <= tol)
-      {
-         active_layers |= (int)LAYER_2_MEDIUM;
-         if(m_settings.DebugFlow)
-            PrintFormat("[260304_ENTRY] MEDIUM layer detected: Price=%.5f touched EMA2(%.5f) tolerance=%.5f",
-                        price, ema2, tol);
-      }
-
-      // Layer 3: price touches EMA3 or EMA4 zone
-      if(MathAbs(price - ema3) <= tol || MathAbs(price - ema4) <= tol)
-      {
-         active_layers |= (int)LAYER_3_STRONG;
-         if(m_settings.DebugFlow)
-            PrintFormat("[260304_ENTRY] STRONG layer detected: Price=%.5f touched EMA3(%.5f) tolerance=%.5f",
-                        price, ema3, tol);
-      }
-
-      return (EEntryLayer)active_layers;
-   }
-
-   //+------------------------------------------------------------------+
-   //| 260304_PR3: Update Layer Diagnostics (passive observation only) |
-   //+------------------------------------------------------------------+
-   void UpdateLayerDiagnostics(const int v_shift = 1)
-   {
-      if(!m_settings.EnableLayerDetection)
-      {
-         m_diag_last_layer    = LAYER_NONE;
-         m_diag_layer_distance = 0.0;
-         return;
-      }
-
-      m_diag_last_layer = DetectEntryLayer(v_shift);
-   }
-
-   //+------------------------------------------------------------------+
    //| 260308_PR: Convert layer bitfield to readable string            |
    //| Examples: 0→"NONE", 1→"L1", 3→"L1+L2", 7→"L1+L2+L3"         |
    //+------------------------------------------------------------------+
@@ -4495,121 +4346,6 @@ public:
    bool IsLayerActive(EEntryLayer bitfield, EEntryLayer layer) const
    {
       return ((int)bitfield & (int)layer) != 0;
-   }
-
-   //+------------------------------------------------------------------+
-   //| STRAT_4EMA_LAYER: Detect pullback-recovery layer(s)        |
-   //|                                                                  |
-   //| 260308_PR: Returns a BITFIELD of all active layers so that      |
-   //| simultaneous multi-layer signals (e.g. L1+L2) are captured.    |
-   //|                                                                  |
-   //| Implements Python EA TrSet patterns:                             |
-   //|   LAYER_1_WEAK   (Ribbon): Low touches EMA1, Close beyond EMA2  |
-   //|   LAYER_2_MEDIUM (Ghost):  Low touches EMA2, Close beyond EMA3  |
-   //|   LAYER_3_STRONG (Shark):  Low touches EMA3, Close beyond EMA4  |
-   //|                                                                  |
-   //| Parameters:                                                      |
-   //|   v_shift - bar shift (1 = last closed bar)                     |
-   //|   bias    - market bias (1=LONG, -1=SHORT)                      |
-   //+------------------------------------------------------------------+
-   EEntryLayer DetectLayerSignal(const int v_shift, const int bias)
-   {
-      if(bias == 0) return LAYER_NONE;
-
-      double ema1 = GetMAVal(h_ema1, v_shift, 0);
-      double ema2 = GetMAVal(h_ema2, v_shift, 0);
-      double ema3 = GetMAVal(h_ema3, v_shift, 0);
-      double ema4 = GetMAVal(h_ema4, v_shift, 0);
-
-      if(ema1 == EMPTY_VALUE || ema1 == 0.0 ||
-         ema2 == EMPTY_VALUE || ema2 == 0.0 ||
-         ema3 == EMPTY_VALUE || ema3 == 0.0 ||
-         ema4 == EMPTY_VALUE || ema4 == 0.0)
-         return LAYER_NONE;
-
-      double high  = iHigh(m_symbol,  PERIOD_CURRENT, v_shift);
-      double low   = iLow(m_symbol,   PERIOD_CURRENT, v_shift);
-      double close = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-
-      double tol = m_settings.LayerTouchTolerance;  // Percentage tolerance (e.g. 0.01 = 1%)
-
-      int active_layers = 0;  // 260308_PR: Bitfield accumulator — check ALL layers
-
-      if(bias == 1)  // LONG: look for bullish pullback-recovery
-      {
-         // LAYER_1_WEAK (Ribbon): Low touched EMA1, Close beyond EMA2
-         if(low <= ema1 * (1.0 + tol) && close > ema2 && ema1 > ema2)
-         {
-            active_layers |= (int)LAYER_1_WEAK;
-            if(m_settings.DebugFlow)
-               PrintFormat("[LAYER] LAYER_1_WEAK (Ribbon): Low=%.5f touched EMA1=%.5f, Close=%.5f > EMA2=%.5f",
-                           low, ema1, close, ema2);
-         }
-         // LAYER_2_MEDIUM (Ghost): Low touched EMA2, Close beyond EMA3
-         if(low <= ema2 * (1.0 + tol) && close > ema3 && ema2 > ema3)
-         {
-            active_layers |= (int)LAYER_2_MEDIUM;
-            if(m_settings.DebugFlow)
-               PrintFormat("[LAYER] LAYER_2_MEDIUM (Ghost): Low=%.5f touched EMA2=%.5f, Close=%.5f > EMA3=%.5f",
-                           low, ema2, close, ema3);
-         }
-         // LAYER_3_STRONG (Shark): Low touched EMA3, Close beyond EMA4
-         if(low <= ema3 * (1.0 + tol) && close > ema4 && ema3 > ema4)
-         {
-            active_layers |= (int)LAYER_3_STRONG;
-            if(m_settings.DebugFlow)
-               PrintFormat("[LAYER] LAYER_3_STRONG (Shark): Low=%.5f touched EMA3=%.5f, Close=%.5f > EMA4=%.5f",
-                           low, ema3, close, ema4);
-         }
-      }
-      else  // SHORT (bias == -1): look for bearish pullback-recovery
-      {
-         // LAYER_1_WEAK (Ribbon): High touched EMA1, Close beyond EMA2
-         if(high >= ema1 * (1.0 - tol) && close < ema2 && ema1 < ema2)
-         {
-            active_layers |= (int)LAYER_1_WEAK;
-            if(m_settings.DebugFlow)
-               PrintFormat("[LAYER] LAYER_1_WEAK (Ribbon): High=%.5f touched EMA1=%.5f, Close=%.5f < EMA2=%.5f",
-                           high, ema1, close, ema2);
-         }
-         // LAYER_2_MEDIUM (Ghost): High touched EMA2, Close beyond EMA3
-         if(high >= ema2 * (1.0 - tol) && close < ema3 && ema2 < ema3)
-         {
-            active_layers |= (int)LAYER_2_MEDIUM;
-            if(m_settings.DebugFlow)
-               PrintFormat("[LAYER] LAYER_2_MEDIUM (Ghost): High=%.5f touched EMA2=%.5f, Close=%.5f < EMA3=%.5f",
-                           high, ema2, close, ema3);
-         }
-         // LAYER_3_STRONG (Shark): High touched EMA3, Close beyond EMA4
-         if(high >= ema3 * (1.0 - tol) && close < ema4 && ema3 < ema4)
-         {
-            active_layers |= (int)LAYER_3_STRONG;
-            if(m_settings.DebugFlow)
-               PrintFormat("[LAYER] LAYER_3_STRONG (Shark): High=%.5f touched EMA3=%.5f, Close=%.5f < EMA4=%.5f",
-                           high, ema3, close, ema4);
-         }
-      }
-
-      if(m_settings.DebugFlow)
-         PrintFormat("[260308_LAYER] Active layers: %s (bitfield=%d)", LayerBitfieldToString(active_layers), active_layers);
-
-      return (EEntryLayer)active_layers;
-   }
-
-   //+------------------------------------------------------------------+
-   //| Get human-readable layer name (for diagnostics)                 |
-   //| 260308_PR: Handles bitfield values via LayerBitfieldToString()  |
-   //+------------------------------------------------------------------+
-   string GetLayerName(EEntryLayer layer)
-   {
-      switch(layer)
-      {
-         case LAYER_1_WEAK:    return "LAYER_1_WEAK (Ribbon)";
-         case LAYER_2_MEDIUM:  return "LAYER_2_MEDIUM (Ghost)";
-         case LAYER_3_STRONG:  return "LAYER_3_STRONG (Shark)";
-         case LAYER_NONE:      return "LAYER_NONE";
-         default:              return LayerBitfieldToString((int)layer);
-      }
    }
 
 };
