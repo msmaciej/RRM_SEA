@@ -781,9 +781,9 @@ input bool           Inp_RRM_Use_Mfi      = false;  // RRM: MFI vote enabled
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📐 RRM: MACD Settings                                 ║";
 input EMacdVoteMode Inp_RRM_MacdMode      = MACD_ZERO_AND_HIST;  // RRM MACD vote mode
-input int           Inp_RRM_MacdFast      = 12;                  // RRM MACD Fast period
-input int           Inp_RRM_MacdSlow      = 26;                  // RRM MACD Slow period
-input int           Inp_RRM_MacdSig       = 9;                   // RRM MACD Signal period
+input int           Inp_RRM_MacdFast      = 12;                  // RRM MACD Fast period ORG 12
+input int           Inp_RRM_MacdSlow      = 26;                  // RRM MACD Slow period ORG 26
+input int           Inp_RRM_MacdSig       = 9;                   // RRM MACD Signal period ORG 9
 input bool          Inp_RRM_MacdSlope     = true;                // RRM MACD require slope
 input bool          Inp_RRM_MacdDiv       = true;                // RRM MACD require divergence
 
@@ -907,7 +907,7 @@ input group "║  MACD: PARAMETERS                                      ║";
 input int            Inp_P_MacdFast             = 8; // [MACD] Fast EMA period
 input int            Inp_P_MacdSlow             = 13; // [MACD] Slow EMA period
 input int            Inp_P_MacdSig              = 5; // [MACD] Signal SMA period
-input int            Inp_MacdFreshBars          = 5; // [MACD] Fresh signal validity
+input int            Inp_MacdFreshBars          = 3; // [MACD] Fresh signal validity
 input double         Inp_MacdSlopeMin           = 0.000001; // [MACD] Min slope change per bar
 
 input group "╔════════════════════════════════════════════════════════╗";
