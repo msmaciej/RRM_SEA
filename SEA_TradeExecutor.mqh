@@ -377,7 +377,7 @@ private:
       if(usage_limit_pct <= 0.0) usage_limit_pct = 100.0;
       double safe_free = free * usage_limit_pct / 100.0;
       double max_vol = safe_free / margin_per_lot;
-      vol = MathMin(vol, NormalizeVolume(max_vol));
+      vol = NormalizeVolume(MathMin(vol, max_vol));
 
       double vmin = 0.0;
       if(!SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN, vmin) || vmin <= 0.0) vmin = 0.01;
