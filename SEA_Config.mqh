@@ -992,7 +992,7 @@ int                  Inp_Ind_CandleBody_Weight    = 1; // [CandleBody] Vote weig
 input int            Inp_Ind_CandleBody_AvgPeriod = 10; // [CandleBody] Average body period
 input double         Inp_Ind_CandleBody_MaxMult   = 3.0; // [CandleBody] Max body multiplier
 input int            Inp_Ind_CandleBody_CheckBars = 1; // [CandleBody] Bars to check
-input bool           Inp_Ind_CandleBody_RequireDirection = true; // CandleBody: Require bar direction match
+input bool           Inp_Ind_CandleBody_RequireDirection = true; // [CandleBody] Require bar direction match
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 CI (Choppiness Index)                              ║";
