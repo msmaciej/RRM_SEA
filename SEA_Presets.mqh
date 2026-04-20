@@ -621,76 +621,23 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       cfg.CloseOnReverse         = true;
       cfg.BiasEnabled            = true;
-      cfg.BiasMode               = Inp_BiasMode;
+      cfg.BiasMode               = BIAS_4EMA;
       cfg.MaType                 = METHOD_EMA;
       cfg.RequirePriceCross      = false;
       cfg.MABenchmarkStrict      = false;
       cfg.UseMACompatSizer       = false;
       
-      // ================================================================
-      // BIAS MODE ROUTING
-      // ================================================================
-      if(cfg.BiasMode == BIAS_4EMA)
-      {
-         // ────────────────────────────────────────────────────────────
-         // BRANCH 1: BIAS_4EMA (4-EMA Phase Detection)
-         // Uses: EMA1(5), EMA2(13), EMA3(34), EMA4(89)
-         // Logic: 3-layer hierarchical validation (TRENDING/EMERGING/UNORDERED)
-         // AutoStrat: STRAT_4EMA_LAYER (pullback-recovery on EMA zones)
-         // ────────────────────────────────────────────────────────────
-         cfg.AutoStrat           = STRAT_4EMA_LAYER;
-         cfg.BiasFastID          = (int)ROLE_EMA3;
-         cfg.BiasSlowID          = (int)ROLE_EMA4;
-         
-         cfg.P_Ema1              = 5; 
-         cfg.P_Ema2              = 13; 
-         cfg.P_Ema3              = 34; 
-         cfg.P_Ema4              = 89;
-         cfg.MaxSpread = (mode == RRM_SCALP) ? 2.0 : 4.0;
-      }
-      else  // BIAS_2EMA or BIAS_MANUAL
-      {
-         // ────────────────────────────────────────────────────────────
-         // BRANCH 2: BIAS_2EMA (Traditional 2-EMA Bias)
-         // Sub-branches: RRM_SCALP vs RRM_SWING
-         // ────────────────────────────────────────────────────────────
-         
-         if(mode == RRM_SCALP)
-         {
-            // ························································
-            // SUB-BRANCH 2A: RRM_SCALP (M1/M5/M15 timeframes)
-            // Bias: EMA34 vs EMA89 (slower pair for stable bias)
-            // Entry: STRAT_2EMA_CROSS_EMA (crossover-based entries)
-            // ························································
-            cfg.AutoStrat        = STRAT_2EMA_POSITION;
-            cfg.BiasFastID       = (int)ROLE_EMA1;
-            cfg.BiasSlowID       = (int)ROLE_EMA2;
-            
-            cfg.P_Ema1           = 5; 
-            cfg.P_Ema2           = 13; 
-            cfg.P_Ema3           = 34; 
-            cfg.P_Ema4           = 89;
-            cfg.MaxSpread        = 2.5;
-         }
-         else  // RRM_SWING (H1/H4/D1 and higher timeframes)
-         {
-            // ························································
-            // SUB-BRANCH 2B: RRM_SWING (H1+ timeframes)
-            // Bias: EMA34 vs EMA89 (stable trend direction)
-            // Entry: STRAT_2EMA_CROSS_EMA (crossover-based entries)
-            // Full 4-EMA structure: EMA5/13/34/89 for layer detection
-            // ························································
-            cfg.AutoStrat        = STRAT_2EMA_POSITION;
-            cfg.BiasFastID       = (int)ROLE_EMA3;
-            cfg.BiasSlowID       = (int)ROLE_EMA4;
-            
-            cfg.P_Ema1           = 5;
-            cfg.P_Ema2           = 13;
-            cfg.P_Ema3           = 34;
-            cfg.P_Ema4           = 89;
-            cfg.MaxSpread        = 5.0;
-         }
-      }
+      // ── SIGNAL ARCHITECTURE: always 4-EMA phase-based (RRM methodology) ──
+      cfg.AutoStrat              = STRAT_4EMA_LAYER;
+      cfg.BiasFastID             = (int)ROLE_EMA3;
+      cfg.BiasSlowID             = (int)ROLE_EMA4;
+      cfg.P_Ema1                 = 5;
+      cfg.P_Ema2                 = 13;
+      cfg.P_Ema3                 = 34;
+      cfg.P_Ema4                 = 89;
+
+      // ── SCALP/SWING only affects spread gate (exit/risk, not signal logic) ──
+      cfg.MaxSpread              = (mode == RRM_SCALP) ? 2.0 : 4.0;
    
       // ================================================================
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
@@ -759,6 +706,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_VRC_Weight         = 1;
       
       // MACD
+      cfg.P_MacdFast            = 12;
+      cfg.P_MacdSlow            = 26;
+      cfg.P_MacdSig             = 9;
       cfg.MacdVoteMode           = MACD_ZERO_AND_CROSS;
       cfg.MacdRequireSlope       = true;
       cfg.MacdRequireDivergence  = true;
@@ -906,28 +856,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SlopeThresholdPips     = 0.0; // Use adaptive calculation
       cfg.SlopeThresholdAdaptive = true; // Auto: M5=0.4p, H1=1.2p, H4=2.0p
       cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
-      cfg.SlopeLookbackBars      = slope_lookback;
-      cfg.UseSlopeThreshold      = true;
-      cfg.SlopeThresholdPips     = 0.1; // Use adaptive calculation
-      cfg.SlopeThresholdAdaptive = true; // Auto: M5=0.4p, H1=1.2p, H4=2.0p
-      cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
 
-      // ════════════════════════════════════════════════════════════════
-      // BAR CLOSE (bcX) CONFIGURATION
-      // Formula: TS = Bias × LayerX × bcX × IndicatorX × FilterX
-      // bcW: Close beyond EMA1 (LayerW) | bcM: EMA2 (LayerM) | bcS: EMA3 (LayerS)
-      // ════════════════════════════════════════════════════════════════
-      cfg.BarClose_Enabled       = true;              // ✅ Enable bcX
-      cfg.BarClose_Mode          = BC_LAYER_AWARE;    // bcW/bcM/bcS adaptive (layer-aware)
-      cfg.BarClose_DefaultEMA    = ROLE_EMA1;         // Fallback EMA for non-layer-aware modes
-      cfg.BarClose_Enabled       = true;              // ✅ Enable bcX
-      cfg.BarClose_Mode          = BC_LAYER_AWARE;    // bcW/bcM/bcS adaptive (layer-aware)
-      cfg.BarClose_DefaultEMA    = ROLE_EMA1;         // Fallback EMA for non-layer-aware modes
-      
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================
-      cfg.MaxSpread              = op_MaxSpread;
       cfg.UseSpread              = op_UseSpread;
       cfg.UseTime                = op_UseTime;
       cfg.StartHr                = op_StartHr;
