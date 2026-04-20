@@ -36,6 +36,8 @@ private:
    bool        m_rrm_trail_frozen;
    bool        m_rrm_be_reached;
    double      m_rrm_initial_sl;
+   datetime    m_last_tm_bar;      // last bar on which EvaluateTM ran (gate)
+   double      m_initial_sl_price; // SL price captured at trade entry (never changes)
    datetime    m_rrm_freeze_time;
    datetime    m_last_te_time;
    string      m_last_te_result;
@@ -489,6 +491,7 @@ private:
          m_rrm_freeze_time  = 0;
          m_rrm_be_reached   = false;
          if(m_rrm_initial_sl <= 0.0) m_rrm_initial_sl = PositionGetDouble(POSITION_SL);
+         if(m_initial_sl_price <= 0.0) m_initial_sl_price = PositionGetDouble(POSITION_SL);
       }
 
       ENUM_POSITION_TYPE pos_type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
@@ -610,10 +613,11 @@ private:
 
 public:
    CTradeExecutor() : m_last_trade_bar(0), m_last_risk_warn(0),
-                      m_rrm_last_ticket(0), m_rrm_trail_frozen(false),
-                      m_rrm_be_reached(false), m_rrm_initial_sl(0.0),
-                      m_rrm_freeze_time(0), m_last_te_time(0), m_last_te_result(""), m_last_te_reason(""),
-                      m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE) // CACHED HANDLES
+                       m_rrm_last_ticket(0), m_rrm_trail_frozen(false),
+                       m_rrm_be_reached(false), m_rrm_initial_sl(0.0),
+                       m_last_tm_bar(0), m_initial_sl_price(0.0), m_rrm_freeze_time(0),
+                       m_last_te_time(0), m_last_te_result(""), m_last_te_reason(""),
+                       m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE) // CACHED HANDLES
    {
       m_excursion.ticket = 0; m_excursion.entry_time = 0; m_excursion.entry_price = 0.0;
       m_excursion.mae_pips = 0.0; m_excursion.mfe_pips = 0.0; m_excursion.current_pips = 0.0;
@@ -787,6 +791,16 @@ public:
       return 0.0;
    }
 
+   // Initial (entry) SL in pips — never changes after entry
+   double GetInitialSLPips(ulong magic) {
+      ulong ticket = FindPositionByMagic(magic);
+      if(ticket > 0 && PositionSelectByTicket(ticket) && m_initial_sl_price > 0.0) {
+         double open = PositionGetDouble(POSITION_PRICE_OPEN);
+         return MathAbs(open - m_initial_sl_price) / GetPipSize();
+      }
+      return 0.0;
+   }
+
    double GetActiveTPPips(ulong magic) {
       ulong ticket = FindPositionByMagic(magic);
       if(ticket > 0 && PositionSelectByTicket(ticket)) {
@@ -815,6 +829,21 @@ public:
       return 0.0;
    }
 
+   // Initial (entry) risk in $ — based on original SL, not current trailed SL
+   double GetInitialRiskMoney(ulong magic) {
+      ulong ticket = FindPositionByMagic(magic);
+      if(ticket > 0 && PositionSelectByTicket(ticket) && m_initial_sl_price > 0.0) {
+         double open       = PositionGetDouble(POSITION_PRICE_OPEN);
+         double volume     = PositionGetDouble(POSITION_VOLUME);
+         double tick_size  = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+         double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+         if(tick_size > 0.0 && tick_value > 0.0)
+            return (MathAbs(open - m_initial_sl_price) / tick_size) * tick_value * volume;
+      }
+      return 0.0;
+   }
+
    double GetActiveRewardMoney(ulong magic) {
       ulong ticket = FindPositionByMagic(magic);
       if(ticket > 0 && PositionSelectByTicket(ticket)) {
@@ -828,6 +857,39 @@ public:
          if(tick_size > 0.0 && tick_value > 0.0) {
             return (MathAbs(tp - open) / tick_size) * tick_value * volume;
          }
+      }
+      return 0.0;
+   }
+
+   // Current risk % of equity based on current (possibly trailed) SL
+   double GetCurrentRiskPct(ulong magic) {
+      ulong ticket = FindPositionByMagic(magic);
+      if(ticket > 0 && PositionSelectByTicket(ticket)) {
+         double sl         = PositionGetDouble(POSITION_SL);
+         double open       = PositionGetDouble(POSITION_PRICE_OPEN);
+         double volume     = PositionGetDouble(POSITION_VOLUME);
+         double equity     = AccountInfoDouble(ACCOUNT_EQUITY);
+         double tick_size  = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+         double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+         if(sl > 0.0 && tick_size > 0.0 && tick_value > 0.0 && equity > 0.0)
+            return ((MathAbs(open - sl) / tick_size) * tick_value * volume / equity) * 100.0;
+      }
+      return 0.0;
+   }
+
+   // Current risk in $ based on current (possibly trailed) SL
+   double GetCurrentRiskMoney(ulong magic) {
+      ulong ticket = FindPositionByMagic(magic);
+      if(ticket > 0 && PositionSelectByTicket(ticket)) {
+         double sl         = PositionGetDouble(POSITION_SL);
+         double open       = PositionGetDouble(POSITION_PRICE_OPEN);
+         double volume     = PositionGetDouble(POSITION_VOLUME);
+         double tick_size  = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+         double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+         if(sl > 0.0 && tick_size > 0.0 && tick_value > 0.0)
+            return (MathAbs(open - sl) / tick_size) * tick_value * volume;
       }
       return 0.0;
    }
@@ -975,6 +1037,7 @@ public:
       if(m_trade.PositionOpen(_Symbol, type, lots, price, sl, tp, comment)) {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "ENTERED";
          m_last_trade_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
+         m_initial_sl_price = sl;
          if(m_settings.ExitProfile == EXIT_PROFILE_RRM) {
             m_rrm_initial_sl = sl; m_rrm_be_reached = false; m_rrm_trail_frozen = false; m_rrm_last_ticket = 0;
          }
@@ -1010,11 +1073,36 @@ public:
    //+------------------------------------------------------------------+
    //| REFACTORED: GENERAL EVALUATE TM (No Double Scaling)              |
    //+------------------------------------------------------------------+
+   // Public method: excursion tracking only, no SL modification (for tick-by-tick call)
+   void UpdateExcursionOnly() {
+      ulong ticket = GetMyPosition();
+      if(ticket == 0 || !PositionSelectByTicket(ticket)) {
+         m_initial_sl_price = 0.0;
+         return;
+      }
+      UpdatePositionExcursion(ticket);
+   }
+
    void EvaluateTM() {
       ulong ticket = GetMyPosition();
-      if(ticket == 0 || !PositionSelectByTicket(ticket)) return;
+      if(ticket == 0 || !PositionSelectByTicket(ticket)) {
+         // Reset initial SL when no position
+         m_initial_sl_price = 0.0;
+         return;
+      }
 
+      // Always run excursion tracking (tick-by-tick, no gate)
       UpdatePositionExcursion(ticket);
+
+      // Gate SL/BE modifications to once per bar
+      datetime current_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
+      if(current_bar == m_last_tm_bar) return;
+      m_last_tm_bar = current_bar;
+
+      // Capture initial SL once at first bar of new position
+      if(m_initial_sl_price <= 0.0) {
+         m_initial_sl_price = PositionGetDouble(POSITION_SL);
+      }
 
       if(m_settings.ExitProfile == EXIT_PROFILE_RRM) {
          RRM_ManageStrictNoATR(ticket);
