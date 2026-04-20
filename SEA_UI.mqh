@@ -557,12 +557,15 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
 void SEA_UI_UpdateCockpit(
    const ST_SignalTelemetry &ts_telemetry, 
    double active_lots, 
-   double active_risk_money, 
+   double initial_risk_money,
    double active_reward_money, 
-   double active_sl_pips, 
+   double initial_sl_pips,
+   double current_sl_pips,
    double active_tp_pips, 
    double current_rr, 
    double config_risk_pct, 
+   double current_risk_pct,
+   double current_risk_money,
    string config_trail_method
 ) {
    if(!Inp_UI_ShowCockpitPanel) { 
@@ -660,17 +663,32 @@ void SEA_UI_UpdateCockpit(
 
    AddLine("", (color)0, lines, line_clrs);
 
-   // --- RISK & PROTECTION ---
-   AddLine("--- RISK & PROTECTION ---", h_clr, lines, line_clrs);
+   // --- RISK & PROTECTION (Orig | Bar) ---
+   AddLine("--- RISK & PROTECTION (Orig | Bar) ---", h_clr, lines, line_clrs);
    if(active_lots == 0) {
-      AddLine(StringFormat("RISK:   %.2f%%", config_risk_pct), v_clr, lines, line_clrs);
-      AddLine(StringFormat("TRAIL:  %s", config_trail_method), v_clr, lines, line_clrs);
+      AddLine(StringFormat("RISK:  %.2f%%  TRAIL: %s", config_risk_pct, config_trail_method), v_clr, lines, line_clrs);
    } 
    else {
-      AddLine(StringFormat("RISK:   %.2f%% ($%.2f)", config_risk_pct, active_risk_money), v_clr, lines, line_clrs);
-      AddLine(StringFormat("SL:     %.1f pips", active_sl_pips), v_clr, lines, line_clrs);
-      AddLine(StringFormat("TP:     %.1f pips ($%.2f)", active_tp_pips, active_reward_money), v_clr, lines, line_clrs);
-      AddLine(StringFormat("RR:     %.2f", current_rr), v_clr, lines, line_clrs);
+      // Color current risk green when trail has cut exposure significantly (< 50% of original)
+      bool risk_reduced = (current_risk_pct > 0.0 && current_risk_pct < config_risk_pct * 0.5);
+      color risk_clr = risk_reduced ? Settings.clr_Pass : v_clr;
+
+      // Setup RR from original SL (fixed at entry)
+      double setup_rr = (initial_sl_pips > 0.0 && active_tp_pips > 0.0) ? (active_tp_pips / initial_sl_pips) : 0.0;
+
+      AddLine(StringFormat("RISK:  %.2f%%($%.0f) | %.2f%%($%.0f)",
+              config_risk_pct, initial_risk_money,
+              current_risk_pct, current_risk_money),
+              risk_clr, lines, line_clrs);
+      AddLine(StringFormat("SL:    %.1f pips | %.1f pips",
+              initial_sl_pips, current_sl_pips),
+              v_clr, lines, line_clrs);
+      AddLine(StringFormat("TP:    %.1f pips ($%.0f)",
+              active_tp_pips, active_reward_money),
+              v_clr, lines, line_clrs);
+      AddLine(StringFormat("RR:    %.2f setup | %.2f cur",
+              setup_rr, current_rr),
+              v_clr, lines, line_clrs);
    }
 
    // --- FINAL RENDER ---

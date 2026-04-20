@@ -557,12 +557,15 @@ int OrchestrateInit()
       SEA_UI_UpdateCockpit(
          telemetry, 
          0.0, // active_lots
-         0.0, // active_risk_money
+         0.0, // initial_risk_money
          0.0, // active_reward_money
-         0.0, // active_sl_pips
+         0.0, // initial_sl_pips
+         0.0, // current_sl_pips
          0.0, // active_tp_pips
          0.0, // current_rr
-         Settings.RiskPercent, 
+         Settings.RiskPercent,
+         0.0, // current_risk_pct
+         0.0, // current_risk_money
          EnumToString(Settings.TrailMode)
       );
    }
@@ -592,16 +595,20 @@ void OrchestrateTick()
    double current_dd = g_peak_equity - current_equity;
    if(current_dd > g_max_drawdown_abs) g_max_drawdown_abs = current_dd;
 
-   // 3. TM: Trade Management (runs every tick)
-   Executor.EvaluateTM();
+   // 3. Excursion tracking runs every tick (MAE/MFE price tracking)
+   Executor.UpdateExcursionOnly();
 
    // 4. New-bar pipeline: runs only once per bar
    if(!is_new_bar) return;
 
    g_last_bar_time = current_bar;
+
+   // 5. TM: Trail/BE modifications — bar-close only
+   Executor.EvaluateTM();
+
    FlowLog("OnTick -> NewBar detected -> begin bar pipeline");
 
-   // 5. RRM Drawdown Protection Filter
+   // 6. RRM Drawdown Protection Filter
    bool drawdown_blocked = false;
    if(Settings.RRM_EnableDrawdownProtection)
    {
@@ -646,7 +653,7 @@ void OrchestrateTick()
    SVoteSnapshot vote_snaps[];
    int vote_snap_count = 0;
 
-   // 6. TS: Trade Setup evaluation on bar close (shift=1)
+   // 7. TS: Trade Setup evaluation on bar close (shift=1)
    if(!drawdown_blocked)
    {
       FlowLog("Step B: Compute direction signal (TS evaluation at shift=1)");
@@ -670,7 +677,7 @@ void OrchestrateTick()
          if(Settings.DrawEntryLines)
             SEA_DrawEntrySignalLine(g_ts_time, ts, snap_reason);
 
-         // 7. TE: Evaluate Trade Entry (shift=0)
+          // 8. TE: Evaluate Trade Entry (shift=0)
          int te = Executor.EvaluateTE(ts); 
       }
       else 
@@ -682,7 +689,7 @@ void OrchestrateTick()
       }
    }
 
-   // 8. Build Display Snapshots 
+   // 9. Build Display Snapshots 
    string ts_snap = (g_ts_time > 0) ? StringFormat("TS@%s dir=%s votes=%d reason=%s", 
                      TimeToString(g_ts_time, TIME_DATE|TIME_MINUTES), (g_ts_dir > 0 ? "BUY" : "SELL"), g_ts_votes, g_ts_reason) : "";
    
@@ -690,24 +697,30 @@ void OrchestrateTick()
                      TimeToString(Executor.LastTETime(), TIME_DATE|TIME_MINUTES), Executor.LastTEResult(), 
                      (Executor.LastTEReason() != "" ? ": " + Executor.LastTEReason() : "")) : "";
 
-   // 9. Update Cockpit Panel with Synchronized Data
+   // 10. Update Cockpit Panel with Synchronized Data
    ST_SignalTelemetry telemetry = Signal.GetTelemetry();
 
    double active_lots = 0.0;
    double active_risk_money = 0.0;
    double active_reward_money = 0.0;
    double sl_pips = 0.0;
+   double cur_sl_pips = 0.0;
    double tp_pips = 0.0;
    double current_rr = 0.0;
+   double current_risk_pct = 0.0;
+   double current_risk_money = 0.0;
 
    if(PositionSelect(_Symbol))
    {
       active_lots         = Executor.GetActiveLots(Inp_MagicNum);
-      active_risk_money   = Executor.GetActiveRiskMoney(Inp_MagicNum);
+      active_risk_money   = Executor.GetInitialRiskMoney(Inp_MagicNum);
       active_reward_money = Executor.GetActiveRewardMoney(Inp_MagicNum);
-      sl_pips             = Executor.GetActiveSLPips(Inp_MagicNum);
+      sl_pips             = Executor.GetInitialSLPips(Inp_MagicNum);
+      cur_sl_pips         = Executor.GetActiveSLPips(Inp_MagicNum);
       tp_pips             = Executor.GetActiveTPPips(Inp_MagicNum);
       current_rr          = Executor.GetCurrentRR(Inp_MagicNum);
+      current_risk_pct    = Executor.GetCurrentRiskPct(Inp_MagicNum);
+      current_risk_money  = Executor.GetCurrentRiskMoney(Inp_MagicNum);
    }
    
    SEA_UI_UpdateCockpit(
@@ -716,9 +729,12 @@ void OrchestrateTick()
       active_risk_money, 
       active_reward_money, 
       sl_pips, 
+      cur_sl_pips,
       tp_pips, 
       current_rr, 
-      Settings.RiskPercent, 
+      Settings.RiskPercent,
+      current_risk_pct,
+      current_risk_money,
       EnumToString(Settings.TrailMode)
    );
    
