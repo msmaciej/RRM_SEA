@@ -309,7 +309,9 @@ private:
       if(loss_per_lot <= 0.0) return 0.0;
       double raw_lot = risk_money / loss_per_lot;
       if(raw_lot <= 0.0) return 0.0;
-      double large_lot_threshold = (equity / 10000.0) * 10.0;
+      const double equity_block_usd = 10000.0; // 10 lots per each $10k equity block
+      const double lots_per_equity_block = 10.0;
+      double large_lot_threshold = (equity / equity_block_usd) * lots_per_equity_block;
       double pip_size = GetPipSize();
       if(pip_size > 0.0 && raw_lot > large_lot_threshold) {
          PrintFormat("⚠️ [CM] Very large lot computed: %.2f lots for %.1f pip SL on $%.0f equity — check SL_MinPips setting",
@@ -1051,7 +1053,8 @@ public:
          if(equity <= 0.0) equity = AccountInfoDouble(ACCOUNT_BALANCE);
          if(OrderCalcMargin(order_type, _Symbol, lots, price, new_trade_margin) && new_trade_margin > 0.0) {
             double projected_margin = current_margin + new_trade_margin;
-            double projected_level = (projected_margin > 0.0) ? (equity / projected_margin * 100.0) : 999999.0;
+            const double unlimited_margin_level = 999999.0;
+            double projected_level = (projected_margin > 0.0) ? (equity / projected_margin * 100.0) : unlimited_margin_level;
             if(projected_level < m_settings.MinMarginLevel) {
                PrintFormat("🚫 [RC] Projected margin level %.1f%% < MinMarginLevel %.1f%% — trade blocked", projected_level, m_settings.MinMarginLevel);
                return false;
