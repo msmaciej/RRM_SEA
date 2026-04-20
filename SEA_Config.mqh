@@ -1453,9 +1453,6 @@ void InitializeConfig()
 
    Settings.SlopeLookbackBars      = 1;
 
-   if(Settings.SlopeLookbackBars < 1) Settings.SlopeLookbackBars = 1;
-   if(Settings.SlopeLookbackBars > 5) Settings.SlopeLookbackBars = 5;
-
    // BarClose (bcX) settings
    Settings.BarClose_Enabled    = Inp_BarClose_Enabled;
    Settings.BarClose_Mode       = Inp_BarClose_Mode;
