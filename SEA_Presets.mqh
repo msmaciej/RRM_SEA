@@ -192,15 +192,6 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
 
    Print("📐 SLOPE CALCULATION:");
    Print("  Lookback:      ", cfg.SlopeLookbackBars, " bar(s)");
-   Print("  Threshold:     ", cfg.UseSlopeThreshold ? "ENABLED" : "DISABLED");
-   if(cfg.UseSlopeThreshold) {
-      if(cfg.SlopeThresholdAdaptive) {
-         Print("  Mode:          ADAPTIVE (TF + Pair)");
-      } else {
-         Print("  Mode:          FIXED (", cfg.SlopeThresholdPips, " pips)");
-      }
-      Print("  Measure:       ", EnumToString(cfg.SlopeMeasureMode));
-   }
    Print("");
 
    Print("📊 BAR CLOSE (bcX):");
@@ -548,10 +539,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // SLOPE CALCULATION SETTINGS (Benchmark Mode - No Filtering)
       // ================================================================
       cfg.SlopeLookbackBars         = 1; // MT5 standard (single bar)
-      cfg.UseSlopeThreshold         = false; // No filtering (match MT5)
-      cfg.SlopeThresholdPips        = 0.0;
-      cfg.SlopeThresholdAdaptive    = false;
-      cfg.SlopeMeasureMode          = SLOPE_MEASURE_PIPS;
 
       // ════════════════════════════════════════════════════════════════
       // BAR CLOSE (bcX) CONFIGURATION - Disabled for MA benchmark mode
@@ -787,11 +774,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_MaxDailyDrawdownPct      = Inp_RRM_MaxDailyDrawdownPct;
 
       // ── SLOPE CALCULATION ─────────────────────────────────────────────
-      cfg.SlopeLookbackBars          = (tf >= PERIOD_H1) ? 2 : 1;
-      cfg.UseSlopeThreshold          = true;
-      cfg.SlopeThresholdPips         = 0.1;
-      cfg.SlopeThresholdAdaptive     = true;
-      cfg.SlopeMeasureMode           = SLOPE_MEASURE_PIPS;
+      cfg.SlopeLookbackBars          = 1;
 
       // ── POLICY A: RESTORE OPERATOR-CONTROLLED GATES ───────────────────
       cfg.UseSpread     = op_UseSpread;
@@ -1162,15 +1145,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // SLOPE CALCULATION SETTINGS (Minimal - Testing Mode)
       // ================================================================
       cfg.SlopeLookbackBars         = 1;        // Single bar (fast)
-      cfg.UseSlopeThreshold         = false;    // No filtering
-      cfg.SlopeThresholdPips        = 0.1;
-      cfg.SlopeThresholdAdaptive    = false;
-      cfg.SlopeMeasureMode          = SLOPE_MEASURE_PIPS;
-      cfg.SlopeLookbackBars         = 1;        // Single bar (fast)
-      cfg.UseSlopeThreshold         = false;    // No filtering
-      cfg.SlopeThresholdPips        = 0.0;
-      cfg.SlopeThresholdAdaptive    = false;
-      cfg.SlopeMeasureMode          = SLOPE_MEASURE_PIPS;
 
       // ════════════════════════════════════════════════════════════════
       // BAR CLOSE (bcX) CONFIGURATION

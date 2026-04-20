@@ -232,13 +232,6 @@ enum EUIFrameMode
    UI_FRAME_NONE,            // UI: Text only (no rectangle)
    UI_FRAME_TEXT_BOUNDS      // UI: Text bounds markers (BEGIN/END), no rectangle
 };
-enum ESlopeMeasure
-{
-   SLOPE_MEASURE_PIPS,       // SLOPE: Absolute pips movement
-   SLOPE_MEASURE_PERCENT     // SLOPE: Percentage change relative to EMA value
-};
-
-
 //+------------------------------------------------------------------+
 //| STRUCTURES
 //+------------------------------------------------------------------+
@@ -561,10 +554,6 @@ struct ST_Settings
    // SLOPE CALCULATION CONFIGURATION
    // ================================================================
    int    SlopeLookbackBars;
-   bool   UseSlopeThreshold;         // Enable minimum slope filtering
-   double SlopeThresholdPips;        // Min movement to consider as slope (pips; 0=adaptive)
-   bool   SlopeThresholdAdaptive;    // Auto-adjust by TF and pair
-   ESlopeMeasure SlopeMeasureMode;   // Pips or Percentage
 
    // ════════════════════════════════════════════════════════════════
    // BAR CLOSE (bcX) CONFIGURATION
@@ -1000,17 +989,6 @@ int            Inp_Ind_Atr_Weight         = 1; // [ATR] Vote weight
 input int            Inp_Ind_Atr_Period         = 14; // [ATR] Period
 input double         Inp_Ind_Atr_VoteMinPips    = 5.0; // [ATR] Voting min pips
 input double         Inp_Ind_Atr_VoteMaxPips    = 50.0; // [ATR] Voting max pips
-
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📐 Slope Settings                                     ║";
-//input group "╚════════════════════════════════════════════════════════╝";
-// input string         Inp_SlopeInfo              = "SLOPE - Adaptive: M5=0.5p, H1=1.5p, H4=2.5p (scaled by pair)"; // [Slope] Info
-input ESlopeMeasure  Inp_SlopeMeasureMode       = SLOPE_MEASURE_PIPS; // [Slope] Measure: pips or %
-input bool           Inp_UseSlopeThreshold      = true; // [Slope] Enable minimum threshold
-//input 
-int            Inp_SlopeLookbackBars      = 1; // [Slope] Bars lookback
-input double         Inp_SlopeThresholdPips     = 0.1; // [Slope] Min movement (pips)
-input bool           Inp_SlopeThresholdAdaptive = true; // [Slope] Auto-adjust by TF/pair
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 CBody: Candle Body Overextension                   ║";
@@ -1473,11 +1451,7 @@ void InitializeConfig()
    Settings.RRM_MaxTradesPerDay          = Inp_RRM_MaxTradesPerDay;
    Settings.RRM_MaxDailyDrawdownPct      = Inp_RRM_MaxDailyDrawdownPct;
 
-   Settings.SlopeLookbackBars      = Inp_SlopeLookbackBars;
-   Settings.UseSlopeThreshold      = Inp_UseSlopeThreshold;
-   Settings.SlopeThresholdPips     = Inp_SlopeThresholdPips;
-   Settings.SlopeThresholdAdaptive = Inp_SlopeThresholdAdaptive;
-   Settings.SlopeMeasureMode       = Inp_SlopeMeasureMode;
+   Settings.SlopeLookbackBars      = 1;
 
    if(Settings.SlopeLookbackBars < 1) Settings.SlopeLookbackBars = 1;
    if(Settings.SlopeLookbackBars > 5) Settings.SlopeLookbackBars = 5;
