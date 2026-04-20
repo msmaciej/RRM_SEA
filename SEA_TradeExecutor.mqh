@@ -434,7 +434,10 @@ private:
       // Broker minimum distance is in points; add one full pip as an extra buffer.
       double user_min_dist = m_settings.SL_MinPips * pipSize;
       long stops_level_points = 0;
-      if(!SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_level_points)) stops_level_points = 0;
+      if(!SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_level_points)) {
+         Print("⚠️ [SL] Failed to read SYMBOL_TRADE_STOPS_LEVEL; using 0 points + 1 pip buffer fallback");
+         stops_level_points = 0;
+      }
       double broker_min_dist = (double)stops_level_points * _Point + pipSize;
       double min_sl_dist = MathMax(user_min_dist, broker_min_dist);
 
@@ -1077,7 +1080,7 @@ public:
 
       sl = CalcEntrySL(isBuy, price);
       if(sl == 0.0) {
-         Print("🚫 [ExecuteTrade] SL calculation returned 0 — trade blocked");
+         Print("🚫 [ExecuteTrade] SL calculation returned 0 (minimum-distance policy) — trade blocked");
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
          m_last_te_result = "BLOCKED";
          return;
