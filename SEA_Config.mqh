@@ -731,9 +731,9 @@ input int            Inp_UI_FramePadPx          = 6;    // UI: Panel padding (px
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🔍 DEBUG: DIAGNOSTICS                                 ║";
 //input group "╚════════════════════════════════════════════════════════╝";
-input EDebugLevel    Inp_DebugLevel             = DEBUG_SILENT; // Debug: Level
+input EDebugLevel    Inp_DebugLevel             = DEBUG_SIGNALS_ONLY; // Debug: Level
+input bool           Inp_DebugFlow              = true; // Debug: Print OnInit/OnTick/OnDeinit flow ... have tu be true with DEBUG_SIGNALS_ONLY
 input bool           Inp_PrintEffectiveConfig   = true; // Debug: Print effective config on init
-input bool           Inp_DebugFlow              = true; // Debug: Print OnInit/OnTick/OnDeinit flow
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🔍 DEBUG: DIAGNOSTICS: STATISTICS                     ║";
@@ -838,7 +838,7 @@ input group "║  📊 MACD                                               ║";
 //input group "╚════════════════════════════════════════════════════════╝";
 // input string         Inp_MacdFilterInfo         = "MACD - Enable filters below to add requirements to base mode"; // [Info]
 input bool           Inp_Ind_Macd_Enabled       = false; // [MACD] Enable MACD vote
-input EMacdVoteMode  Inp_MacdVoteMode           = MACD_HISTOGRAM; // [MACD] base mode
+input EMacdVoteMode  Inp_MacdVoteMode           = MACD_ZERO_AND_HIST; // [MACD] base mode
 //input 
 int            Inp_Ind_Macd_Weight        = 1; // [MACD] Vote weight
 input bool           Inp_MacdRequireSlope       = false; // [MACD] Require MACD rising/falling
@@ -940,7 +940,7 @@ input bool           Inp_UseSlopeThreshold      = true; // [Slope] Enable minimu
 //input 
 int            Inp_SlopeLookbackBars      = 1; // [Slope] Bars lookback
 input ESlopeMeasure  Inp_SlopeMeasureMode       = SLOPE_MEASURE_PIPS; // [Slope] Measure: pips or %
-input double         Inp_SlopeThresholdPips     = 0.0; // [Slope] Min movement (pips)
+input double         Inp_SlopeThresholdPips     = 0.1; // [Slope] Min movement (pips)
 input bool           Inp_SlopeThresholdAdaptive = true; // [Slope] Auto-adjust by TF/pair
 
 input group "╔════════════════════════════════════════════════════════╗";

@@ -906,38 +906,38 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SlopeThresholdPips     = 0.0; // Use adaptive calculation
       cfg.SlopeThresholdAdaptive = true; // Auto: M5=0.4p, H1=1.2p, H4=2.0p
       cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
-      cfg.SlopeLookbackBars         = slope_lookback;
-      cfg.UseSlopeThreshold         = true;
-      cfg.SlopeThresholdPips        = 0.0; // Use adaptive calculation
-      cfg.SlopeThresholdAdaptive    = true; // Auto: M5=0.4p, H1=1.2p, H4=2.0p
-      cfg.SlopeMeasureMode          = SLOPE_MEASURE_PIPS;
+      cfg.SlopeLookbackBars      = slope_lookback;
+      cfg.UseSlopeThreshold      = true;
+      cfg.SlopeThresholdPips     = 0.1; // Use adaptive calculation
+      cfg.SlopeThresholdAdaptive = true; // Auto: M5=0.4p, H1=1.2p, H4=2.0p
+      cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
 
       // ════════════════════════════════════════════════════════════════
       // BAR CLOSE (bcX) CONFIGURATION
       // Formula: TS = Bias × LayerX × bcX × IndicatorX × FilterX
       // bcW: Close beyond EMA1 (LayerW) | bcM: EMA2 (LayerM) | bcS: EMA3 (LayerS)
       // ════════════════════════════════════════════════════════════════
-      cfg.BarClose_Enabled    = true;              // ✅ Enable bcX
-      cfg.BarClose_Mode       = BC_LAYER_AWARE;    // bcW/bcM/bcS adaptive (layer-aware)
-      cfg.BarClose_DefaultEMA = ROLE_EMA1;         // Fallback EMA for non-layer-aware modes
-      cfg.BarClose_Enabled          = true;              // ✅ Enable bcX
-      cfg.BarClose_Mode             = BC_LAYER_AWARE;    // bcW/bcM/bcS adaptive (layer-aware)
-      cfg.BarClose_DefaultEMA       = ROLE_EMA1;         // Fallback EMA for non-layer-aware modes
+      cfg.BarClose_Enabled       = true;              // ✅ Enable bcX
+      cfg.BarClose_Mode          = BC_LAYER_AWARE;    // bcW/bcM/bcS adaptive (layer-aware)
+      cfg.BarClose_DefaultEMA    = ROLE_EMA1;         // Fallback EMA for non-layer-aware modes
+      cfg.BarClose_Enabled       = true;              // ✅ Enable bcX
+      cfg.BarClose_Mode          = BC_LAYER_AWARE;    // bcW/bcM/bcS adaptive (layer-aware)
+      cfg.BarClose_DefaultEMA    = ROLE_EMA1;         // Fallback EMA for non-layer-aware modes
       
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================
-      cfg.MaxSpread     = op_MaxSpread;
-      cfg.UseSpread     = op_UseSpread;
-      cfg.UseTime       = op_UseTime;
-      cfg.StartHr       = op_StartHr;
-      cfg.EndHr         = op_EndHr;
-      cfg.UseNews       = op_UseNews;
-      cfg.NewsPre       = op_NewsPre;
-      cfg.NewsPost      = op_NewsPost;
-      cfg.RiskPercent   = op_RiskPercent; // Policy A: restore user risk tolerance
-      cfg.MaxOpenTrades = op_MaxOpenTrades; // Policy A: restore user position limit
-      cfg.MaxTotalRisk  = op_MaxTotalRisk; // Policy A: restore user portfolio risk cap
+      cfg.MaxSpread              = op_MaxSpread;
+      cfg.UseSpread              = op_UseSpread;
+      cfg.UseTime                = op_UseTime;
+      cfg.StartHr                = op_StartHr;
+      cfg.EndHr                  = op_EndHr;
+      cfg.UseNews                = op_UseNews;
+      cfg.NewsPre                = op_NewsPre;
+      cfg.NewsPost               = op_NewsPost;
+      cfg.RiskPercent            = op_RiskPercent; // Policy A: restore user risk tolerance
+      cfg.MaxOpenTrades          = op_MaxOpenTrades; // Policy A: restore user position limit
+      cfg.MaxTotalRisk           = op_MaxTotalRisk; // Policy A: restore user portfolio risk cap
 
       return;
    }
@@ -1003,7 +1003,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasEnabled               = true;     // true
       cfg.BiasMode                  = BIAS_2EMA;
       cfg.AutoStrat                 = STRAT_2EMA_POSITION;  // ✅ Compatible with BIAS_2EMA
-      cfg.BiasFastID                = (int)ROLE_EMA3;
+      cfg.BiasFastID                = (int)ROLE_EMA2;
       cfg.BiasSlowID                = (int)ROLE_EMA4;
       cfg.MaType                    = METHOD_EMA;
       cfg.RequirePriceCross         = false;
@@ -1096,7 +1096,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_MacdFast                = 8;      // ORG: 12  8   5  5
       cfg.P_MacdSlow                = 13;     // ORG: 26  13  8  8
       cfg.P_MacdSig                 = 5;      // ORG: 9   8   5  3
-      cfg.MacdVoteMode              = MACD_HISTOGRAM;
+      cfg.MacdVoteMode              = MACD_ZERO_AND_HIST;
       cfg.MacdRequireSlope          = true;   // ORG: false
       cfg.MacdRequireDivergence     = true;   // ORG: false
       cfg.MacdRequireHook           = false;  // ORG: false
@@ -1297,7 +1297,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       cfg.SlopeLookbackBars         = 1;        // Single bar (fast)
       cfg.UseSlopeThreshold         = false;    // No filtering
-      cfg.SlopeThresholdPips        = 0.0;
+      cfg.SlopeThresholdPips        = 0.1;
       cfg.SlopeThresholdAdaptive    = false;
       cfg.SlopeMeasureMode          = SLOPE_MEASURE_PIPS;
       cfg.SlopeLookbackBars         = 1;        // Single bar (fast)
@@ -1313,22 +1313,22 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ════════════════════════════════════════════════════════════════
       cfg.BarClose_Enabled          = true;           // ✅ Enable bcX
       cfg.BarClose_Mode             = BC_FIXED_EMA;   // Always check vs fixed EMA
-      cfg.BarClose_DefaultEMA       = ROLE_EMA3;      // Close vs EMA1
+      cfg.BarClose_DefaultEMA       = ROLE_EMA2;      // Close vs EMA1
       
       // ================================================================
       // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
       // ================================================================
-      cfg.MaxSpread     = op_MaxSpread;
-      cfg.UseSpread     = op_UseSpread;
-      cfg.UseTime       = op_UseTime;
-      cfg.StartHr       = op_StartHr;
-      cfg.EndHr         = op_EndHr;
-      cfg.UseNews       = op_UseNews;
-      cfg.NewsPre       = op_NewsPre;
-      cfg.NewsPost      = op_NewsPost;
-      cfg.RiskPercent   = op_RiskPercent;    // Policy A: restore user risk tolerance
-      cfg.MaxOpenTrades = op_MaxOpenTrades;  // Policy A: restore user position limit
-      cfg.MaxTotalRisk  = op_MaxTotalRisk;   // Policy A: restore user portfolio risk cap
+      cfg.MaxSpread                 = op_MaxSpread;
+      cfg.UseSpread                 = op_UseSpread;
+      cfg.UseTime                   = op_UseTime;
+      cfg.StartHr                   = op_StartHr;
+      cfg.EndHr                     = op_EndHr;
+      cfg.UseNews                   = op_UseNews;
+      cfg.NewsPre                   = op_NewsPre;
+      cfg.NewsPost                  = op_NewsPost;
+      cfg.RiskPercent               = op_RiskPercent;    // Policy A: restore user risk tolerance
+      cfg.MaxOpenTrades             = op_MaxOpenTrades;  // Policy A: restore user position limit
+      cfg.MaxTotalRisk              = op_MaxTotalRisk;   // Policy A: restore user portfolio risk cap
 
       return;
    }
