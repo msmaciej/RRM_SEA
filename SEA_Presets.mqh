@@ -279,7 +279,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    //   - MaxSpread:  Cost control / broker protection (slippage, spreads)
    //   - Time:       User availability / preferred trading sessions
    //   - News:       Risk aversion / avoid high-impact news volatility
-   //   - Risk:       Personal risk tolerance (RiskPercent, MaxOpenTrades, MaxTotalRisk)
+   //   - Risk:       Personal risk tolerance (RiskPercent, MaxOpenTrades, MaxTotalRisk, margin thresholds)
    //
    // Strategic filters (ATR voting, HTF) are preset-controlled.
    // Users who want full control: Use PRESET_CUSTOM
@@ -298,6 +298,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    const int    op_MaxOpenTrades = cfg.MaxOpenTrades;
    // Policy A: user portfolio risk cap
    const double op_MaxTotalRisk  = cfg.MaxTotalRisk;
+   // Policy A: user margin safety thresholds
+   const double op_MinMarginLevel = cfg.MinMarginLevel;
+   const double op_EmergencyMarginLevel = cfg.EmergencyMarginLevel;
    // Saved for PRESET_TEST exit-profile logic
    const EExitProfile op_ExitProfile = cfg.ExitProfile;
 
@@ -569,6 +572,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RiskPercent   = op_RiskPercent; // Policy A: restore user risk tolerance
       cfg.MaxOpenTrades = op_MaxOpenTrades; // Policy A: restore user position limit
       cfg.MaxTotalRisk  = op_MaxTotalRisk; // Policy A: restore user portfolio risk cap
+      cfg.MinMarginLevel = op_MinMarginLevel; // Policy A: restore entry margin guard
+      cfg.EmergencyMarginLevel = op_EmergencyMarginLevel; // Policy A: restore emergency margin guard
 
       return;
    }
@@ -789,6 +794,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RiskPercent               = op_RiskPercent;
       cfg.MaxOpenTrades             = op_MaxOpenTrades;
       cfg.MaxTotalRisk              = op_MaxTotalRisk;
+      cfg.MinMarginLevel            = op_MinMarginLevel;
+      cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
 
       return;
    }
@@ -1172,6 +1179,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RiskPercent               = op_RiskPercent;    // Policy A: restore user risk tolerance
       cfg.MaxOpenTrades             = op_MaxOpenTrades;  // Policy A: restore user position limit
       cfg.MaxTotalRisk              = op_MaxTotalRisk;   // Policy A: restore user portfolio risk cap
+      cfg.MinMarginLevel            = op_MinMarginLevel; // Policy A: restore entry margin guard
+      cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel; // Policy A: restore emergency margin guard
 
       return;
    }

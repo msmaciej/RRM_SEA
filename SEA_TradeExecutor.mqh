@@ -84,6 +84,23 @@ private:
       return 0;
    }
 
+   ulong FindWorstPosition() {
+      ulong worst_ticket = 0;
+      double worst_profit = DBL_MAX;
+      for(int i = PositionsTotal() - 1; i >= 0; i--) {
+         ulong ticket = PositionGetTicket(i);
+         if(ticket == 0 || !PositionSelectByTicket(ticket)) continue;
+         if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+         if((ulong)PositionGetInteger(POSITION_MAGIC) != m_magic) continue;
+         double profit = PositionGetDouble(POSITION_PROFIT);
+         if(worst_ticket == 0 || profit < worst_profit) {
+            worst_ticket = ticket;
+            worst_profit = profit;
+         }
+      }
+      return worst_ticket;
+   }
+
    void CountMyPositions(int &buy_count, int &sell_count) {
       buy_count = 0; sell_count = 0;
       for(int i = PositionsTotal() - 1; i >= 0; i--) {
@@ -732,7 +749,7 @@ public:
       if(!PositionSelectByTicket(ticket)) return false;
       double sl = PositionGetDouble(POSITION_SL);
       double open_price = PositionGetDouble(POSITION_PRICE_OPEN);
-      return (sl != 0.0 && MathAbs(sl - open_price) <= 2.0 * SymbolInfoDouble(_Symbol, SYMBOL_POINT));
+      return (sl != 0.0 && MathAbs(sl - open_price) <= 2.0 * GetPipSize());
    }
 
    double CalculatePositionRisk(ulong ticket) {
@@ -750,6 +767,22 @@ public:
       double account_equity = AccountInfoDouble(ACCOUNT_EQUITY);
       if(account_equity == 0.0) return 0.0;
       return (((stop_dist / tick_size) * tick_value * volume) / account_equity) * 100.0;
+   }
+
+   double ComputeRiskPercent(double volume, double stop_dist) {
+      if(volume <= 0.0 || stop_dist <= 0.0) return 0.0;
+
+      double tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+      double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+      if(tick_value <= 0.0) tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+      if(tick_size <= 0.0 || tick_value <= 0.0) return 0.0;
+
+      double account_equity = AccountInfoDouble(ACCOUNT_EQUITY);
+      if(account_equity <= 0.0) return 0.0;
+
+      double risk_money = (stop_dist / tick_size) * tick_value * volume;
+      if(risk_money <= 0.0) return 0.0;
+      return (risk_money / account_equity) * 100.0;
    }
 
    ulong FindPositionByMagic(ulong magic) const {
@@ -957,7 +990,12 @@ public:
       return AdjustLotForMargin(order_type, lot, price);
    }
 
-   bool EvaluateRC() {
+   bool EvaluateRC(int direction, double lots) {
+      if(m_settings.MinMarginLevel > 0.0) {
+         double margin_level = AccountInfoDouble(ACCOUNT_MARGIN_LEVEL);
+         if(margin_level > 0.0 && margin_level < m_settings.MinMarginLevel) return false;
+      }
+
       if(m_settings.MaxOpenTrades > 0) {
          int open_count = 0;
          for(int i = PositionsTotal() - 1; i >= 0; i--) {
@@ -969,7 +1007,11 @@ public:
          if(open_count >= m_settings.MaxOpenTrades) return false;
       }
       if(m_settings.MaxTotalRisk > 0.0) {
-         if(CalculateActiveRisk() + m_settings.RiskPercent > m_settings.MaxTotalRisk) return false;
+         bool isBuy = (direction > 0);
+         double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         double sl = CalcEntrySL(isBuy, price);
+         double new_trade_risk = ComputeRiskPercent(lots, MathAbs(price - sl));
+         if(CalculateActiveRisk() + new_trade_risk > m_settings.MaxTotalRisk) return false;
       }
       return true;
    }
@@ -1051,13 +1093,13 @@ public:
       m_te_veto_reason = "OK";
       string te_reject_reason = "";
       
-      if(te_reject_reason == "") { if(!EvaluateRC()) te_reject_reason = "VETO_RISK_CONTROL"; }
-      
       double te_lots = 0;
       if(te_reject_reason == "") {
          te_lots = EvaluateCM(ts_direction);
          if(te_lots <= 0) te_reject_reason = "VETO_INVALID_LOTS";
       }
+
+      if(te_reject_reason == "") { if(!EvaluateRC(ts_direction, te_lots)) te_reject_reason = "VETO_RISK_CONTROL"; }
 
       int result = 0;
       if(te_reject_reason == "") {
@@ -1084,6 +1126,17 @@ public:
    }
 
    void EvaluateTM() {
+      if(m_settings.EmergencyMarginLevel > 0.0) {
+         double margin_level = AccountInfoDouble(ACCOUNT_MARGIN_LEVEL);
+         if(margin_level > 0.0 && margin_level < m_settings.EmergencyMarginLevel) {
+            ulong worst_ticket = FindWorstPosition();
+            if(worst_ticket > 0) {
+               m_trade.PositionClose(worst_ticket);
+               return;
+            }
+         }
+      }
+
       ulong ticket = GetMyPosition();
       if(ticket == 0 || !PositionSelectByTicket(ticket)) {
          // Reset initial SL when no position
