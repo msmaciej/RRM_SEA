@@ -237,6 +237,14 @@ void PrintEffectiveConfig()
          " DebugFlow=", (Settings.DebugFlow ? "true" : "false"),
          " DebugLevel=", EnumToString(Settings.DebugLevel));
 
+   if(Settings.DebugEvalFrom > 0 || Settings.DebugEvalAt > 0)
+   {
+      Print("DebugEval: Window=[", TimeToString(Settings.DebugEvalFrom, TIME_DATE|TIME_MINUTES),
+            " → ", TimeToString(Settings.DebugEvalTo, TIME_DATE|TIME_MINUTES),
+            "] At=", (Settings.DebugEvalAt > 0 ? TimeToString(Settings.DebugEvalAt, TIME_DATE|TIME_MINUTES) : "off"),
+            " Mode=", EnumToString(Settings.DebugEvalMode));
+   }
+
    Print("UI: StatusPanel=", (Settings.UI_ShowStatusPanel ? "true" : "false"),
          " CockpitPanel=", (Settings.UI_ShowCockpitPanel ? "true" : "false"),
          " ManageChartIndicators=", (Settings.UI_ManageChartIndicators ? "true" : "false"),

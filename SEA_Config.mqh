@@ -559,6 +559,11 @@ struct ST_Settings
    bool Stats_TrackRejections;  // Track rejection counts per indicator
    bool Stats_TrackPasses;      // Track pass counts (positive stats)
    bool Stats_FullEvaluation;   // Evaluate ALL indicators per bar (no early exit)
+   // Targeted bar evaluation debug (force-print window or pinpoint, independent of TS outcome)
+   datetime    DebugEvalFrom;     // Force debug output from this bar time (0=disabled)
+   datetime    DebugEvalTo;       // Force debug output up to this bar time (0=disabled; paired with From)
+   datetime    DebugEvalAt;       // Force debug output at this exact bar time (0=disabled)
+   EDebugLevel DebugEvalMode;     // Debug level to apply during forced printing (default: DEBUG_FULL)
 
    // ================================================================
    // SLOPE CALCULATION CONFIGURATION
@@ -734,6 +739,14 @@ input group "║  🔍 DEBUG: DIAGNOSTICS                                 ║";
 input EDebugLevel    Inp_DebugLevel             = DEBUG_SIGNALS_ONLY; // Debug: Level
 input bool           Inp_DebugFlow              = true; // Debug: Print OnInit/OnTick/OnDeinit flow ... have tu be true with DEBUG_SIGNALS_ONLY
 input bool           Inp_PrintEffectiveConfig   = true; // Debug: Print effective config on init
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  🔬 DEBUG: TARGETED BAR EVALUATION                     ║";
+//input group "╚════════════════════════════════════════════════════════╝";
+input datetime    Inp_DebugEvalFrom  = 0;           // Debug window: force eval print from (0=off)
+input datetime    Inp_DebugEvalTo    = 0;           // Debug window: force eval print to (0=off; use with From)
+input datetime    Inp_DebugEvalAt    = 0;           // Debug pinpoint: force eval at exact bar time (0=off)
+input EDebugLevel Inp_DebugEvalMode  = DEBUG_FULL;  // Forced eval: debug level to apply
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🔍 DEBUG: DIAGNOSTICS: STATISTICS                     ║";
@@ -1161,6 +1174,10 @@ void InitializeConfig()
    // Map debug level first; DebugFlow=false forces SILENT mode
    Settings.DebugLevel               = Inp_DebugFlow ? Inp_DebugLevel : DEBUG_SILENT;
    Settings.DebugFlow                = (Settings.DebugLevel >= DEBUG_FULL);
+   Settings.DebugEvalFrom            = Inp_DebugEvalFrom;
+   Settings.DebugEvalTo              = Inp_DebugEvalTo;
+   Settings.DebugEvalAt              = Inp_DebugEvalAt;
+   Settings.DebugEvalMode            = Inp_DebugEvalMode;
    Settings.Stats_TrackRejections    = Inp_Stats_TrackRejections;
    Settings.Stats_TrackPasses        = Inp_Stats_TrackPasses;
    Settings.Stats_FullEvaluation     = Inp_Stats_FullEvaluation;
