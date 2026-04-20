@@ -303,7 +303,7 @@ struct ST_Settings
    int    CandleBody_AvgPeriod;   // Bars used to compute average body size
    double CandleBody_MaxMult;     // Block if body > avg * multiplier
    int    CandleBody_CheckBars;   // Number of recent closed candles to check
-   bool   CandleBody_RequireDirection; // CandleBody: Require bar direction to match trade direction
+   bool   CandleBody_RequireDirection; // CandleBody: Require signal bar to close in trade direction
    
    // MT5 Moving Average benchmark compatibility
    bool   UseMACompatSizer;
@@ -992,7 +992,7 @@ int                  Inp_Ind_CandleBody_Weight    = 1; // [CandleBody] Vote weig
 input int            Inp_Ind_CandleBody_AvgPeriod = 10; // [CandleBody] Average body period
 input double         Inp_Ind_CandleBody_MaxMult   = 3.0; // [CandleBody] Max body multiplier
 input int            Inp_Ind_CandleBody_CheckBars = 1; // [CandleBody] Bars to check
-input bool           Inp_Ind_CandleBody_RequireDirection = true; // [CandleBody] Require bar direction match
+input bool           Inp_Ind_CandleBody_RequireDirection = true; // [CandleBody] Require signal bar to close in trade direction
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 CI (Choppiness Index)                              ║";
