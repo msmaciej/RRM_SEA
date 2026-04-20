@@ -431,6 +431,7 @@ private:
             break;
       }
 
+      // Broker minimum distance is in points; add one full pip as an extra buffer.
       double user_min_dist = m_settings.SL_MinPips * pipSize;
       long stops_level_points_raw = 0;
       if(!SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_level_points_raw)) stops_level_points_raw = 0;
@@ -1077,7 +1078,9 @@ public:
       sl = CalcEntrySL(isBuy, price);
       if(sl == 0.0) {
          Print("🚫 [ExecuteTrade] SL calculation returned 0 — trade blocked");
-         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
+         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
+         m_last_te_result = "BLOCKED";
+         return;
       }
 
       if(m_settings.ExitProfile == EXIT_PROFILE_RRM) {

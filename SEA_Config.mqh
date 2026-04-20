@@ -1051,7 +1051,7 @@ input ESLMode        Inp_SLMode                 = SL_MODE_SWING; // SL calculati
 // input string         Inp_SL_Help2               = "PSAR_DOT: PSAR level  |  PERCENT: % of price  |  FRACTAL: Bill Williams";
 input double         Inp_SL_FixedPips           = 20.0; // SL distance (pips; for SL_MODE_FIXED_PIPS)
 input double         Inp_SL_MinPips             = 3.0; // Minimum SL distance in pips (0 = disabled user floor)
-input bool           Inp_SL_WidenToMinimum      = false; // true=widen SL to minimum, false=block trade
+input bool           Inp_SL_WidenToMinimum      = false; // If true, widen SL to meet minimum distance; if false, block trade entry
 // input string         Inp_SL_TFCushion_Note      = "PSAR/Swing cushions auto-set by timeframe (M15=5, H1=10, H4=20 pips)";
 input int            Inp_SwingLookback          = 20; // Swing lookback (bars; for SL_MODE_SWING)
 input double         Inp_SLPercent              = 0.5; // SL as % of entry
