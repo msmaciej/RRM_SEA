@@ -375,6 +375,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_AvgPeriod   = 10;
       cfg.CandleBody_MaxMult     = 3.0;
       cfg.CandleBody_CheckBars   = 1;
+      cfg.CandleBody_RequireDirection = true;
       cfg.Ind_CandleBody_Weight  = 1;
 
       // Choppiness Index
@@ -691,6 +692,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_AvgPeriod   = 15;
       cfg.CandleBody_MaxMult     = 3.5;
       cfg.CandleBody_CheckBars   = 2;
+      cfg.CandleBody_RequireDirection = true;
       cfg.Ind_CandleBody_Weight  = 1;
 
       // ── BAR CLOSE (bcX) CONFIGURATION ────────────────────────────────
@@ -918,6 +920,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_AvgPeriod      = 5;      // ORG: 10     5
       cfg.CandleBody_MaxMult        = 3.0;    // ORG:  3.0   3.0
       cfg.CandleBody_CheckBars      = 3;      // ORG:  1     3
+      cfg.CandleBody_RequireDirection = true;
       cfg.Ind_CandleBody_Weight     = 1;      // ORG:  1
 
       // Choppiness Index

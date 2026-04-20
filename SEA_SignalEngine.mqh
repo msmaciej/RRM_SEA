@@ -709,7 +709,7 @@ private:
       if(IsCacheValidForShift(shift) && m_ind_cache.candlebody_result != -1)
          return (m_ind_cache.candlebody_result == 1);
 
-      bool pass = CheckCandleBodyIndicator();
+      bool pass = CheckCandleBodyIndicator(bias);
       m_ind_cache.candlebody_result = pass ? 1 : 0;
       
       if(m_settings.DebugFlow) {
@@ -2588,7 +2588,7 @@ public:
       // CandleBody (overextension filter – non-directional vote)
       if(m_settings.Ind_CandleBody_Enabled)
       {
-         bool pass = CheckCandleBodyIndicator();
+         bool pass = CheckCandleBodyIndicator(current_bias);
          out[count].name    = "CBody";
          out[count].enabled = true;
          if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = "(body ok)"; }
@@ -2889,8 +2889,17 @@ public:
    }
 
    // --- 9b. CANDLE BODY OVEREXTENSION INDICATOR (voting) ---
-   bool CheckCandleBodyIndicator() {
+   bool CheckCandleBodyIndicator(int bias) {
       if(!m_settings.Ind_CandleBody_Enabled) return true;
+
+      // Direction check: signal bar must close in trade direction
+      if(m_settings.CandleBody_RequireDirection && bias != 0)
+      {
+         double o = iOpen(m_symbol, PERIOD_CURRENT, 1);
+         double c = iClose(m_symbol, PERIOD_CURRENT, 1);
+         if(bias == 1  && c <= o) return false;  // BUY requires bullish bar (close > open)
+         if(bias == -1 && c >= o) return false;  // SELL requires bearish bar (close < open)
+      }
 
       // Calculate average body over past N bars (starting at shift 2 to exclude current bar)
       double sum_body = 0.0;
@@ -3892,7 +3901,7 @@ public:
                DebugLog("[IND] ATR Vote: DISABLED → SKIP");
 
             if(m_settings.Ind_CandleBody_Enabled) {
-               bool cb_ok = CheckCandleBodyIndicator();
+               bool cb_ok = CheckCandleBodyIndicator(bias);
                DebugLog(StringFormat("[IND] CandleBody: avg period=%d max=x%.1f check=%d → %s (w=%d)",
                                      m_settings.CandleBody_AvgPeriod, m_settings.CandleBody_MaxMult,
                                      m_settings.CandleBody_CheckBars, cb_ok ? "PASS" : "FAIL",
