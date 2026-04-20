@@ -189,6 +189,9 @@ private:
    // --- 2j. BUFFERED LOGGING (for DEBUG_SIGNALS_ONLY mode) ---
    string   m_debug_buffer[];            // Memory buffer for debug lines
    int      m_debug_buffer_size;         // Current number of lines in buffer
+   bool         m_forced_debug_active;   // True while a forced-debug bar is being evaluated
+   EDebugLevel  m_saved_debug_level;     // DebugLevel saved before forced override
+   bool         m_saved_debug_flow;      // DebugFlow saved before forced override
 
    // --- 2k. INDICATOR RESULT CACHE (eliminates duplicate checks per bar) ---
    struct SIndicatorCache {
@@ -252,9 +255,15 @@ private:
    {
       if(m_settings.DebugLevel != DEBUG_SIGNALS_ONLY) return;
 
-      if(ts_result != 0) {
+      bool should_flush = (ts_result != 0) || m_forced_debug_active;
+
+      if(should_flush)
+      {
          Print("════════════════════════════════════════════════════════════");
-         Print(StringFormat("[SIGNAL] CONFIRMED: %s", (ts_result > 0 ? "LONG" : "SHORT")));
+         if(ts_result != 0)
+            Print(StringFormat("[SIGNAL] CONFIRMED: %s", (ts_result > 0 ? "LONG" : "SHORT")));
+         else
+            Print(StringFormat("[FORCED_DEBUG] TS=0 (no signal) | DebugEvalMode=%s", EnumToString(m_settings.DebugEvalMode)));
          Print("════════════════════════════════════════════════════════════");
 
          for(int i = 0; i < m_debug_buffer_size; i++)
@@ -263,6 +272,49 @@ private:
 
       m_debug_buffer_size = 0;
       ArrayResize(m_debug_buffer, 0);
+   }
+
+   //+------------------------------------------------------------------+
+   //| ApplyForcedDebug: Temporarily override debug level for this bar  |
+   //| Called at start of EvaluateTS() with the bar's timestamp.       |
+   //| If bar matches DebugEvalFrom/To window or DebugEvalAt pinpoint,  |
+   //| overrides DebugLevel/DebugFlow to DebugEvalMode for this eval.   |
+   //+------------------------------------------------------------------+
+   void ApplyForcedDebug(datetime bar_time)
+   {
+      m_forced_debug_active = false;
+
+      bool window_active = (m_settings.DebugEvalFrom > 0
+                            && m_settings.DebugEvalTo   > 0
+                            && bar_time >= m_settings.DebugEvalFrom
+                            && bar_time <= m_settings.DebugEvalTo);
+
+      bool at_active = (m_settings.DebugEvalAt > 0
+                        && bar_time == m_settings.DebugEvalAt);
+
+      if(!window_active && !at_active)
+         return;
+
+      m_forced_debug_active = true;
+      m_saved_debug_level   = m_settings.DebugLevel;
+      m_saved_debug_flow    = m_settings.DebugFlow;
+
+      m_settings.DebugLevel = m_settings.DebugEvalMode;
+      m_settings.DebugFlow  = (m_settings.DebugLevel >= DEBUG_FULL);
+   }
+
+   //+------------------------------------------------------------------+
+   //| RestoreForcedDebug: Restore saved debug level after forced eval  |
+   //| Must be called at every return point in EvaluateTS(), AFTER the  |
+   //| FlushOrClearDebugBuffer() call.                                  |
+   //+------------------------------------------------------------------+
+   void RestoreForcedDebug()
+   {
+      if(!m_forced_debug_active)
+         return;
+      m_settings.DebugLevel = m_saved_debug_level;
+      m_settings.DebugFlow  = m_saved_debug_flow;
+      m_forced_debug_active = false;
    }
 
    void InvalidateIndicatorCache(int shift)
@@ -1982,6 +2034,9 @@ public:
       // Initialize DEBUG_SIGNALS_ONLY buffer
       m_debug_buffer_size = 0;
       ArrayResize(m_debug_buffer, 0);
+      m_forced_debug_active = false;
+      m_saved_debug_level   = DEBUG_SILENT;
+      m_saved_debug_flow    = false;
 
       // Initialize indicator cache state
       m_ind_cache.cached_shift = -1;
@@ -4031,6 +4086,7 @@ public:
 
       // Invalidate indicator cache if evaluating a different bar
       datetime eval_bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+      ApplyForcedDebug(eval_bar_time);
       if(v_shift != m_ind_cache.cached_shift || eval_bar_time != m_ind_cache.cached_bar_time)
          InvalidateIndicatorCache(v_shift);
 
@@ -4096,6 +4152,7 @@ public:
          m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
          UpdateTelemetry(0);
          FlushOrClearDebugBuffer(0);
+         RestoreForcedDebug();
          return 0;
       }
 
@@ -4105,6 +4162,7 @@ public:
          m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
          UpdateTelemetry(0);
          FlushOrClearDebugBuffer(0);
+         RestoreForcedDebug();
          return 0;
       }
       m_diag_last_bias = bias;
@@ -4114,6 +4172,7 @@ public:
       if(layerX == 0) {
          UpdateTelemetry(0);
          FlushOrClearDebugBuffer(0);
+         RestoreForcedDebug();
          return 0;
       }
 
@@ -4122,6 +4181,7 @@ public:
       if(bcX == 0) {
          UpdateTelemetry(0);
          FlushOrClearDebugBuffer(0);
+         RestoreForcedDebug();
          return 0;
       }
 
@@ -4356,6 +4416,7 @@ public:
       // --- AUDITED TERMINATION ---
       UpdateTelemetry(final_signal);
       FlushOrClearDebugBuffer(final_signal);
+      RestoreForcedDebug();
       return final_signal;
    } // === EvaluateTS: END ===
 
