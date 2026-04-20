@@ -376,6 +376,7 @@ private:
 
       double usage_limit_pct = m_settings.MarginUsageLimit;
       // Config semantics: 0 means "no cap override", i.e. allow up to 100% of free margin.
+      // Settings are clamped to >=0 in InitializeConfig(); <=0 check is defensive.
       if(usage_limit_pct <= 0.0) usage_limit_pct = 100.0;
       double safe_free = free * usage_limit_pct / 100.0;
       double max_vol = safe_free / margin_per_lot;
