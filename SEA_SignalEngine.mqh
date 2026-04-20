@@ -1665,116 +1665,13 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   // Calculate slope direction with configurable threshold
+   // Calculate slope direction from two adjacent points
    //+------------------------------------------------------------------+
-   int CalculateSlope(double curr, double prev, double min_threshold)
+   int CalculateSlope(double curr, double prev)
    {
-      double change = curr - prev;
-      double abs_change = MathAbs(change);
-
-      // Check if movement exceeds threshold
-      if(abs_change <= min_threshold)
-         return 0; // Flat (within noise range)
-
-      // Determine direction
-      return (change > 0) ? 1 : -1;
-   }
-
-   //+------------------------------------------------------------------+
-   // Get adaptive threshold based on TF and pair
-   //+------------------------------------------------------------------+
-   double GetAdaptiveThresholdPips()
-   {
-      // === TIMEFRAME COMPONENT ===
-      ENUM_TIMEFRAMES tf = Period();
-      double tf_multiplier = 1.0;
-
-      switch(tf)
-      {
-         case PERIOD_M1:  tf_multiplier = 0.3; break;  // Very sensitive
-         case PERIOD_M5:  tf_multiplier = 0.5; break;
-         case PERIOD_M15: tf_multiplier = 0.8; break;
-         case PERIOD_M30: tf_multiplier = 1.0; break;
-         case PERIOD_H1:  tf_multiplier = 1.5; break;
-         case PERIOD_H2:  tf_multiplier = 2.0; break;
-         case PERIOD_H4:  tf_multiplier = 2.5; break;
-         case PERIOD_D1:  tf_multiplier = 4.0; break;
-         default:         tf_multiplier = 1.0;
-      }
-
-      // === PAIR COMPONENT ===
-      string symbol = m_symbol;
-      double pair_base = 0.5; // Default base threshold in pips
-
-      // Major pairs (tight spreads, need tighter thresholds)
-      if(StringFind(symbol, "EURUSD") >= 0 ||
-         StringFind(symbol, "GBPUSD") >= 0 ||
-         StringFind(symbol, "USDJPY") >= 0 ||
-         StringFind(symbol, "USDCHF") >= 0)
-         pair_base = 0.5;
-
-      // Cross pairs (wider spreads, need looser thresholds)
-      else if(StringFind(symbol, "EURJPY") >= 0 ||
-              StringFind(symbol, "GBPJPY") >= 0 ||
-              StringFind(symbol, "EURGBP") >= 0)
-         pair_base = 0.8;
-
-      // Commodity currencies
-      else if(StringFind(symbol, "AUD") >= 0 ||
-              StringFind(symbol, "NZD") >= 0 ||
-              StringFind(symbol, "CAD") >= 0)
-         pair_base = 0.7;
-
-      // Gold/metals (higher pip values)
-      else if(StringFind(symbol, "XAU") >= 0 ||
-              StringFind(symbol, "GOLD") >= 0)
-         pair_base = 2.0;
-
-      // Silver
-      else if(StringFind(symbol, "XAG") >= 0 ||
-              StringFind(symbol, "SILVER") >= 0)
-         pair_base = 1.5;
-
-      // Crypto (if supported)
-      else if(StringFind(symbol, "BTC") >= 0 ||
-              StringFind(symbol, "ETH") >= 0)
-         pair_base = 10.0;
-
-      // === PRESET ADJUSTMENTS ===
-      double threshold = pair_base * tf_multiplier;
-
-      // RRM preset is stricter - reduce threshold by 20%
-      //if(m_settings.Preset == PRESET_RRM)
-      //   threshold *= 0.8;
-
-      return threshold;
-   }
-
-   //+------------------------------------------------------------------+
-   // Get minimum slope threshold (adaptive or fixed)
-   //+------------------------------------------------------------------+
-   double GetMinSlopeThreshold(double ema_curr_fast, double ema_curr_slow)
-   {
-      if(!m_settings.UseSlopeThreshold)
-         return 0.0; // No threshold - any movement counts
-
-      // === PERCENTAGE MODE ===
-      if(m_settings.SlopeMeasureMode == SLOPE_MEASURE_PERCENT)
-      {
-         // 0.01% threshold (e.g., EMA at 1.08000 must move 0.000108 price units ~ 1.08 pips)
-         double avg_ema = (ema_curr_fast + ema_curr_slow) / 2.0;
-         return avg_ema * 0.0001; // 0.01% of EMA value
-      }
-
-      // === PIPS MODE ===
-      // Adaptive or fixed threshold
-      double threshold_pips = m_settings.SlopeThresholdAdaptive
-                              ? GetAdaptiveThresholdPips()
-                              : m_settings.SlopeThresholdPips;
-
-      // Convert to price units
-      double pip = PipSize();
-      return threshold_pips * pip;
+      if(curr > prev) return 1;
+      if(curr < prev) return -1;
+      return 0;
    }
 
    // --- HARD GATES ---
@@ -3481,11 +3378,10 @@ public:
          double f_prev = GetMAVal(hf, v_shift + lookback, 0);
          double s_prev = GetMAVal(hs, v_shift + lookback, 0);
 
-         double min_slope = GetMinSlopeThreshold(f_curr, s_curr);
          double pip = PipSize();
 
-         int fast_slope = CalculateSlope(f_curr, f_prev, min_slope);
-         int slow_slope = CalculateSlope(s_curr, s_prev, min_slope);
+         int fast_slope = CalculateSlope(f_curr, f_prev);
+         int slow_slope = CalculateSlope(s_curr, s_prev);
 
          int market_bias = 0;
 
@@ -3498,10 +3394,9 @@ public:
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                double change_pips = (f_curr - f_prev) / pip;
-               double threshold_pips = (pip > 0) ? min_slope / pip : 0.0;
-               DebugLog(StringFormat("STEP 1 BIAS[%s]: SINGLE_SLOPE %s | curr=%.5f prev=%.5f change=%.2f pips slope=%s thresh=%.2fp lookback=%d → bias=%d",
+               DebugLog(StringFormat("STEP 1 BIAS[%s]: SINGLE_SLOPE %s | curr=%.5f prev=%.5f change=%.2f pips slope=%s lookback=%d → bias=%d",
                                      TimeToString(bar_time), ema_fast_name, f_curr, f_prev, change_pips,
-                                     (fast_slope==1)?"RISING":(fast_slope==-1)?"FALLING":"FLAT", threshold_pips, lookback, market_bias));
+                                     (fast_slope==1)?"RISING":(fast_slope==-1)?"FALLING":"FLAT", lookback, market_bias));
             }
          }
          else
@@ -3522,13 +3417,12 @@ public:
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                double fast_change_pips = (f_curr - f_prev) / pip;
                double slow_change_pips = (s_curr - s_prev) / pip;
-               double threshold_pips = (pip > 0) ? min_slope / pip : 0.0;
                string position = (f_curr > s_curr) ? "ABOVE" : (f_curr < s_curr) ? "BELOW" : "EQUAL";
-               DebugLog(StringFormat("STEP 1 BIAS[%s]: PAIR %s vs %s | fast=%.5f(%+.2fp %s) slow=%.5f(%+.2fp %s) pos=%s thresh=%.2fp lookback=%d → bias=%d",
+               DebugLog(StringFormat("STEP 1 BIAS[%s]: PAIR %s vs %s | fast=%.5f(%+.2fp %s) slow=%.5f(%+.2fp %s) pos=%s lookback=%d → bias=%d",
                                      TimeToString(bar_time), ema_fast_name, ema_slow_name,
                                      f_curr, fast_change_pips, (fast_slope==1)?"UP":(fast_slope==-1)?"DN":"FLAT",
                                      s_curr, slow_change_pips, (slow_slope==1)?"UP":(slow_slope==-1)?"DN":"FLAT",
-                                     position, threshold_pips, lookback, market_bias));
+                                     position, lookback, market_bias));
             }
          }
 
