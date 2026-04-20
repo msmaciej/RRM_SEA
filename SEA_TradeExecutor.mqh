@@ -366,20 +366,22 @@ private:
       if(vol <= 0.0) return 0.0;
       double free = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
       if(free <= 0.0) return 0.0;
-      double margin = 0.0;
-      if(!OrderCalcMargin(type, _Symbol, vol, price, margin) || margin <= 0.0) return vol;
-      if(margin <= free) return vol;
-      double vmin=0.0, vstep=0.0;
-      if(!SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN, vmin) || vmin <= 0.0) vmin = 0.01;
-      if(!SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP, vstep) || vstep <= 0.0) vstep = vmin;
-      int guard = 0;
-      while(vol > vmin && margin > free && guard < 1000) {
-         vol = NormalizeVolume(vol - vstep);
-         if(vol < vmin) vol = vmin;
-         if(!OrderCalcMargin(type, _Symbol, vol, price, margin) || margin <= 0.0) break;
-         guard++;
+      double margin_per_lot = 0.0;
+      if(!OrderCalcMargin(type, _Symbol, 1.0, price, margin_per_lot) || margin_per_lot <= 0.0) {
+         double margin = 0.0;
+         if(!OrderCalcMargin(type, _Symbol, vol, price, margin) || margin <= 0.0) return vol;
+         return (margin <= free) ? vol : 0.0;
       }
-      if(margin > free) return 0.0;
+
+      double usage_limit_pct = m_settings.MarginUsageLimit;
+      if(usage_limit_pct <= 0.0) usage_limit_pct = 100.0;
+      double safe_free = free * usage_limit_pct / 100.0;
+      double max_vol = safe_free / margin_per_lot;
+      vol = MathMin(vol, NormalizeVolume(max_vol));
+
+      double vmin = 0.0;
+      if(!SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN, vmin) || vmin <= 0.0) vmin = 0.01;
+      if(vol < vmin) return 0.0;
       return vol;
    }
 
@@ -1017,6 +1019,9 @@ public:
    }
 
    void ExecuteTrade(int direction, double lots) {
+      if(lots <= 0.0) {
+         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
+      }
       if(m_settings.ma_v_shift == 1 && m_last_trade_bar == iTime(_Symbol, PERIOD_CURRENT, 0)) {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
       }
