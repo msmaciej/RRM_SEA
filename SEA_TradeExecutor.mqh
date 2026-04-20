@@ -412,16 +412,16 @@ private:
    //+------------------------------------------------------------------+
    //| REFACTORED: PURE PRICE ANCHOR SL CALCULATION                     |
    //+------------------------------------------------------------------+
-   double RRM_GetStrictSL(bool isBuy, double sl_anchor, double fill_price) {
+   double RRM_GetStrictSL(bool isBuy, double price) {
       double pipSize = GetPipSize();
       double fixed_dist = m_settings.SL_FixedPips * pipSize;
-      double sl = isBuy ? (sl_anchor - fixed_dist) : (sl_anchor + fixed_dist);
+      double sl = isBuy ? (price - fixed_dist) : (price + fixed_dist);
       
       switch(m_settings.SLMode) {
          case SL_MODE_SWING: {
             double swing_level = GetSwingLevel(isBuy ? 1 : -1);
             if(swing_level > 0.0) {
-               bool valid = isBuy ? (swing_level < fill_price) : (swing_level > fill_price);
+               bool valid = isBuy ? (swing_level < price) : (swing_level > price);
                if(!valid) {
                   PrintFormat("⚠️ [RRM SL] Swing anchor on wrong side. Using Fixed Pips.");
                   break;
@@ -436,7 +436,7 @@ private:
          case SL_MODE_PSAR_DOT: {
             double psar = GetPSARAnchor(1);
             if(psar > 0.0) {
-               bool valid = isBuy ? (psar < fill_price) : (psar > fill_price);
+               bool valid = isBuy ? (psar < price) : (psar > price);
                if(!valid) {
                   PrintFormat("⚠️ [RRM SL] PSAR anchor on wrong side. Using Fixed Pips.");
                   break;
@@ -462,10 +462,10 @@ private:
       double broker_min_dist = (double)stops_level_points * _Point + pipSize;
       double min_sl_dist = MathMax(user_min_dist, broker_min_dist);
 
-      double actual_dist = MathAbs(sl_anchor - sl);
+      double actual_dist = MathAbs(price - sl);
       if(actual_dist < min_sl_dist) {
          if(m_settings.SL_WidenToMinimum) {
-            sl = isBuy ? (sl_anchor - min_sl_dist) : (sl_anchor + min_sl_dist);
+            sl = isBuy ? (price - min_sl_dist) : (price + min_sl_dist);
             PrintFormat("⚠️ [SL] SL too close (%.1f pips), widened to minimum (%.1f pips)",
                         actual_dist / pipSize, min_sl_dist / pipSize);
          } else {
@@ -477,27 +477,27 @@ private:
       return sl;
    }
 
-   double CalcEntrySL(bool isBuy, double sl_anchor, double fill_price) {
+   double CalcEntrySL(bool isBuy, double price) {
       double sl = 0.0;
       double pipSize = GetPipSize();
 
       if(m_settings.ExitProfile == EXIT_PROFILE_RRM) {
-         return RRM_GetStrictSL(isBuy, sl_anchor, fill_price);
+         return RRM_GetStrictSL(isBuy, price);
       }
 
       double anchor = 0.0;
       double cushion_pips = 0.0;
 
-      PrintFormat("🔍 [SL TRACE] Calculating Entry SL... Mode: %s | isBuy: %s | EntryPrice: %.5f", EnumToString(m_settings.SLMode), isBuy ? "YES" : "NO", fill_price);
+      PrintFormat("🔍 [SL TRACE] Calculating Entry SL... Mode: %s | isBuy: %s | EntryPrice: %.5f", EnumToString(m_settings.SLMode), isBuy ? "YES" : "NO", price);
 
       switch(m_settings.SLMode) {
          case SL_MODE_SWING:
             anchor = GetSwingLevel(isBuy ? 1 : -1);
             cushion_pips = m_settings.SL_SwingPipsCushion;
             if(anchor > 0.0) {
-               bool valid = isBuy ? (anchor < fill_price) : (anchor > fill_price);
+               bool valid = isBuy ? (anchor < price) : (anchor > price);
                if(!valid) {
-                  PrintFormat("⚠️ [SL] Swing anchor (%.5f) on wrong side of entry (%.5f) for %s — fallback to Fixed Pips", anchor, fill_price, isBuy ? "BUY" : "SELL");
+                  PrintFormat("⚠️ [SL] Swing anchor (%.5f) on wrong side of entry (%.5f) for %s — fallback to Fixed Pips", anchor, price, isBuy ? "BUY" : "SELL");
                   anchor = 0.0;
                }
             }
@@ -506,9 +506,9 @@ private:
             anchor = GetPSARAnchor(1);
             cushion_pips = m_settings.SL_PsarPipsCushion;
             if(anchor > 0.0) {
-               bool valid = isBuy ? (anchor < fill_price) : (anchor > fill_price);
+               bool valid = isBuy ? (anchor < price) : (anchor > price);
                if(!valid) {
-                  PrintFormat("⚠️ [SL] PSAR anchor (%.5f) on wrong side of entry (%.5f) for %s — fallback to Fixed Pips", anchor, fill_price, isBuy ? "BUY" : "SELL");
+                  PrintFormat("⚠️ [SL] PSAR anchor (%.5f) on wrong side of entry (%.5f) for %s — fallback to Fixed Pips", anchor, price, isBuy ? "BUY" : "SELL");
                   anchor = 0.0;
                }
             }
@@ -518,14 +518,14 @@ private:
             cushion_pips = 0.0; 
             break;
          case SL_MODE_PERCENT: {
-            double sl_pips = (sl_anchor * m_settings.SLPercent / 100.0) / pipSize;
-            return isBuy ? (sl_anchor - (sl_pips * pipSize)) : (sl_anchor + (sl_pips * pipSize));
+            double sl_pips = (price * m_settings.SLPercent / 100.0) / pipSize;
+            return isBuy ? (price - (sl_pips * pipSize)) : (price + (sl_pips * pipSize));
          }
          case SL_MODE_FIXED_PIPS:
          default: {
             double dist = m_settings.SL_FixedPips * pipSize;
             PrintFormat("ℹ️ [SL TRACE] Using FIXED PIPS: %.1f", m_settings.SL_FixedPips);
-            return isBuy ? (sl_anchor - dist) : (sl_anchor + dist);
+            return isBuy ? (price - dist) : (price + dist);
          }
       }
 
@@ -536,7 +536,7 @@ private:
       } else {
          PrintFormat("❌ [SL TRACE] Anchor FAILED! Falling back to %f pips.", m_settings.SL_FixedPips);
          double fallback_dist = m_settings.SL_FixedPips * pipSize;
-         sl = isBuy ? (sl_anchor - fallback_dist) : (sl_anchor + fallback_dist);
+         sl = isBuy ? (price - fallback_dist) : (price + fallback_dist);
       }
       return sl;
    }
@@ -814,7 +814,8 @@ public:
 
       double stop_dist = MathAbs(open_price - sl);
       double tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
-      double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+      double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+      if(tick_value <= 0.0) tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
       if(tick_size == 0.0 || tick_value == 0.0) return 0.0;
       
       double account_equity = AccountInfoDouble(ACCOUNT_EQUITY);
@@ -992,10 +993,9 @@ public:
 
    double GetStopLossPips(int direction) {
       bool isBuy = (direction > 0);
-      double entry_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      double sl_anchor = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_BID) : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-      double sl = CalcEntrySL(isBuy, sl_anchor, entry_price);
-      return (sl > 0.0) ? MathAbs(entry_price - sl) / GetPipSize() : 0.0;
+      double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double sl = CalcEntrySL(isBuy, price);
+      return (sl > 0.0) ? MathAbs(price - sl) / GetPipSize() : 0.0;
    }
 
    double GetTakeProfitPips(int direction) {
@@ -1028,21 +1028,20 @@ public:
    double EvaluateCM(int direction) {
       if(direction == 0) return 0.0;
       bool isBuy = (direction == 1);
-      double entry_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      double sl_anchor = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_BID) : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-      double sl = CalcEntrySL(isBuy, sl_anchor, entry_price);
+      double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double sl = CalcEntrySL(isBuy, price);
       
       double lot = NormalizeVolume(SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN));
       if(m_settings.UseMACompatSizer) {
          double ma_lot = CalcLotMACompat();
          if(ma_lot > 0.0) lot = ma_lot;
       } else {
-         double risk_lot = CalcLotByRisk(entry_price, sl);
+         double risk_lot = CalcLotByRisk(price, sl);
          if(risk_lot > 0.0) lot = risk_lot;
       }
 
       ENUM_ORDER_TYPE order_type = isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
-      return AdjustLotForMargin(order_type, lot, entry_price);
+      return AdjustLotForMargin(order_type, lot, price);
    }
 
    bool EvaluateRC(int direction, double lots) {
@@ -1076,10 +1075,9 @@ public:
       }
       if(m_settings.MaxTotalRisk > 0.0) {
          bool isBuy = (direction > 0);
-         double entry_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-         double sl_anchor = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_BID) : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-         double sl = CalcEntrySL(isBuy, sl_anchor, entry_price);
-         double new_trade_risk = ComputeRiskPercent(lots, MathAbs(entry_price - sl));
+         double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         double sl = CalcEntrySL(isBuy, price);
+         double new_trade_risk = ComputeRiskPercent(lots, MathAbs(price - sl));
          if(CalculateActiveRisk() + new_trade_risk > m_settings.MaxTotalRisk) return false;
       }
       return true;
@@ -1113,10 +1111,9 @@ public:
       if(direction == 0) return;
       bool isBuy = (direction == 1);
       double entry_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      double sl_anchor = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_BID) : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
       double sl = 0, tp = 0;
 
-      sl = CalcEntrySL(isBuy, sl_anchor, entry_price);
+      sl = CalcEntrySL(isBuy, entry_price);
       if(sl == 0.0) {
          Print("🚫 [ExecuteTrade] SL calculation returned 0 (minimum-distance policy) — trade blocked");
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
