@@ -455,6 +455,8 @@ struct ST_Settings
    double   SL_PsarPipsCushion;
    double   SL_SwingPipsCushion;
    double   SL_FixedPips;
+   double   SL_MinPips;          // Minimum allowed SL distance (pips; 0 = disabled user floor)
+   bool     SL_WidenToMinimum;   // If true widen too-close SL, otherwise block trade (return 0.0)
    
    // SL/TP Strategy Configuration
    ESLMode  SLMode;           // How to calculate SL distance
@@ -1048,6 +1050,8 @@ input ESLMode        Inp_SLMode                 = SL_MODE_SWING; // SL calculati
 // input string         Inp_SL_Help1               = "FIXED_PIPS: Simple pip distance  |  SWING: Recent structure high/low";
 // input string         Inp_SL_Help2               = "PSAR_DOT: PSAR level  |  PERCENT: % of price  |  FRACTAL: Bill Williams";
 input double         Inp_SL_FixedPips           = 20.0; // SL distance (pips; for SL_MODE_FIXED_PIPS)
+input double         Inp_SL_MinPips             = 3.0; // Minimum SL distance in pips (0 = disabled user floor)
+input bool           Inp_SL_WidenToMinimum      = false; // true=widen SL to minimum, false=block trade
 // input string         Inp_SL_TFCushion_Note      = "PSAR/Swing cushions auto-set by timeframe (M15=5, H1=10, H4=20 pips)";
 input int            Inp_SwingLookback          = 20; // Swing lookback (bars; for SL_MODE_SWING)
 input double         Inp_SLPercent              = 0.5; // SL as % of entry
@@ -1379,6 +1383,8 @@ void InitializeConfig()
 
    // Exits
    Settings.SL_FixedPips         = Inp_SL_FixedPips;
+   Settings.SL_MinPips           = MathMax(0.0, Inp_SL_MinPips);
+   Settings.SL_WidenToMinimum    = Inp_SL_WidenToMinimum;
    Settings.SLMode               = Inp_SLMode;
    Settings.TPMode               = Inp_TPMode;
    Settings.FixedTPPips          = Inp_FixedTPPips;

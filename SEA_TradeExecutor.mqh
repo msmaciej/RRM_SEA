@@ -394,6 +394,7 @@ private:
    double RRM_GetStrictSL(bool isBuy, double entry) {
       double pipSize = GetPipSize();
       double fixed_dist = m_settings.SL_FixedPips * pipSize;
+      double sl = isBuy ? (entry - fixed_dist) : (entry + fixed_dist);
       
       switch(m_settings.SLMode) {
          case SL_MODE_SWING: {
@@ -402,13 +403,14 @@ private:
                bool valid = isBuy ? (swing_level < entry) : (swing_level > entry);
                if(!valid) {
                   PrintFormat("⚠️ [RRM SL] Swing anchor on wrong side. Using Fixed Pips.");
-                  return isBuy ? (entry - fixed_dist) : (entry + fixed_dist);
+                  break;
                }
                double cushion_price = m_settings.SL_SwingPipsCushion * pipSize;
-               return isBuy ? (swing_level - cushion_price) : (swing_level + cushion_price);
+               sl = isBuy ? (swing_level - cushion_price) : (swing_level + cushion_price);
+               break;
             }
             PrintFormat("⚠️ [RRM SL FALLBACK] Swing Anchor failed. Using Fixed Pips.");
-            return isBuy ? (entry - fixed_dist) : (entry + fixed_dist);
+            break;
          }
          case SL_MODE_PSAR_DOT: {
             double psar = GetPSARAnchor(1);
@@ -416,17 +418,38 @@ private:
                bool valid = isBuy ? (psar < entry) : (psar > entry);
                if(!valid) {
                   PrintFormat("⚠️ [RRM SL] PSAR anchor on wrong side. Using Fixed Pips.");
-                  return isBuy ? (entry - fixed_dist) : (entry + fixed_dist);
+                  break;
                }
                double cushion_price = m_settings.SL_PsarPipsCushion * pipSize;
-               return isBuy ? (psar - cushion_price) : (psar + cushion_price);
+               sl = isBuy ? (psar - cushion_price) : (psar + cushion_price);
+               break;
             }
             PrintFormat("⚠️ [RRM SL FALLBACK] PSAR Anchor failed or buffer empty. Using Fixed Pips.");
-            return isBuy ? (entry - fixed_dist) : (entry + fixed_dist);
+            break;
          }
          default:
-            return isBuy ? (entry - fixed_dist) : (entry + fixed_dist);
+            break;
       }
+
+      double user_min_dist = m_settings.SL_MinPips * pipSize;
+      long stops_level_points_raw = 0;
+      if(!SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_level_points_raw)) stops_level_points_raw = 0;
+      double broker_min_dist = (double)stops_level_points_raw * _Point + pipSize;
+      double min_sl_dist = MathMax(user_min_dist, broker_min_dist);
+
+      double actual_dist = MathAbs(entry - sl);
+      if(actual_dist < min_sl_dist) {
+         if(m_settings.SL_WidenToMinimum) {
+            sl = isBuy ? (entry - min_sl_dist) : (entry + min_sl_dist);
+            PrintFormat("⚠️ [SL] SL too close (%.1f pips), widened to minimum (%.1f pips)",
+                        actual_dist / pipSize, min_sl_dist / pipSize);
+         } else {
+            PrintFormat("🚫 [SL] SL too close (%.1f pips < min %.1f pips), trade blocked",
+                        actual_dist / pipSize, min_sl_dist / pipSize);
+            return 0.0;
+         }
+      }
+      return sl;
    }
 
    double CalcEntrySL(bool isBuy, double price) {
@@ -1052,6 +1075,10 @@ public:
       bool isBuy = (direction == 1);
 
       sl = CalcEntrySL(isBuy, price);
+      if(sl == 0.0) {
+         Print("🚫 [ExecuteTrade] SL calculation returned 0 — trade blocked");
+         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
+      }
 
       if(m_settings.ExitProfile == EXIT_PROFILE_RRM) {
          tp = RRM_GetStrictTP(isBuy, price, sl);
