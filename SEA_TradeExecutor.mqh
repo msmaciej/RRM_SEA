@@ -992,9 +992,10 @@ public:
 
    double GetStopLossPips(int direction) {
       bool isBuy = (direction > 0);
-      double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      double sl = CalcEntrySL(isBuy, price);
-      return (sl > 0.0) ? MathAbs(price - sl) / GetPipSize() : 0.0;
+      double entry_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double sl_anchor = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_BID) : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      double sl = CalcEntrySL(isBuy, sl_anchor);
+      return (sl > 0.0) ? MathAbs(entry_price - sl) / GetPipSize() : 0.0;
    }
 
    double GetTakeProfitPips(int direction) {
@@ -1027,20 +1028,21 @@ public:
    double EvaluateCM(int direction) {
       if(direction == 0) return 0.0;
       bool isBuy = (direction == 1);
-      double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      double sl = CalcEntrySL(isBuy, price);
+      double entry_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double sl_anchor = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_BID) : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      double sl = CalcEntrySL(isBuy, sl_anchor);
       
       double lot = NormalizeVolume(SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN));
       if(m_settings.UseMACompatSizer) {
          double ma_lot = CalcLotMACompat();
          if(ma_lot > 0.0) lot = ma_lot;
       } else {
-         double risk_lot = CalcLotByRisk(price, sl);
+         double risk_lot = CalcLotByRisk(entry_price, sl);
          if(risk_lot > 0.0) lot = risk_lot;
       }
 
       ENUM_ORDER_TYPE order_type = isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
-      return AdjustLotForMargin(order_type, lot, price);
+      return AdjustLotForMargin(order_type, lot, entry_price);
    }
 
    bool EvaluateRC(int direction, double lots) {
@@ -1074,9 +1076,10 @@ public:
       }
       if(m_settings.MaxTotalRisk > 0.0) {
          bool isBuy = (direction > 0);
-         double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-         double sl = CalcEntrySL(isBuy, price);
-         double new_trade_risk = ComputeRiskPercent(lots, MathAbs(price - sl));
+         double entry_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         double sl_anchor = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_BID) : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         double sl = CalcEntrySL(isBuy, sl_anchor);
+         double new_trade_risk = ComputeRiskPercent(lots, MathAbs(entry_price - sl));
          if(CalculateActiveRisk() + new_trade_risk > m_settings.MaxTotalRisk) return false;
       }
       return true;
@@ -1108,11 +1111,12 @@ public:
       }
    
       if(direction == 0) return;
-      double price = (direction == 1) ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      double sl = 0, tp = 0;
       bool isBuy = (direction == 1);
+      double entry_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double sl_anchor = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_BID) : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      double sl = 0, tp = 0;
 
-      sl = CalcEntrySL(isBuy, price);
+      sl = CalcEntrySL(isBuy, sl_anchor);
       if(sl == 0.0) {
          Print("🚫 [ExecuteTrade] SL calculation returned 0 (minimum-distance policy) — trade blocked");
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
@@ -1121,7 +1125,7 @@ public:
       }
 
       if(m_settings.ExitProfile == EXIT_PROFILE_RRM) {
-         tp = RRM_GetStrictTP(isBuy, price, sl);
+         tp = RRM_GetStrictTP(isBuy, entry_price, sl);
       } else {
          if(m_settings.TPMode == TP_MODE_NONE || m_settings.TPMode == TP_MODE_PSAR_FLIP) {
             tp = 0.0;
@@ -1129,14 +1133,14 @@ public:
             double tp_pips = GetFractalTP(direction == 1 ? 1 : -1);
             if(tp_pips > 0.0) {
                double tp_dist = tp_pips * GetPipSize();
-               tp = isBuy ? (price + tp_dist) : (price - tp_dist);
+               tp = isBuy ? (entry_price + tp_dist) : (entry_price - tp_dist);
             } else if(sl > 0.0 && m_settings.RRRatio > 0.0) {
-               double sl_dist = MathAbs(price - sl);
-               tp = isBuy ? (price + sl_dist * m_settings.RRRatio) : (price - sl_dist * m_settings.RRRatio);
+               double sl_dist = MathAbs(entry_price - sl);
+               tp = isBuy ? (entry_price + sl_dist * m_settings.RRRatio) : (entry_price - sl_dist * m_settings.RRRatio);
             }
          } else if(m_settings.RRRatio > 0) {
-            double dist = (sl > 0) ? MathAbs(price - sl) * m_settings.RRRatio : m_settings.SL_FixedPips * GetPipSize() * m_settings.RRRatio;
-            tp = isBuy ? price + dist : price - dist;
+            double dist = (sl > 0) ? MathAbs(entry_price - sl) * m_settings.RRRatio : m_settings.SL_FixedPips * GetPipSize() * m_settings.RRRatio;
+            tp = isBuy ? entry_price + dist : entry_price - dist;
          }
       }
       
@@ -1147,11 +1151,11 @@ public:
       ENUM_ORDER_TYPE type = isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
       string comment = StringFormat("SEA_%s", EnumToString(m_settings.SLMode));
 
-      if(!ValidateStopLevels(price, sl, tp)) {
+      if(!ValidateStopLevels(entry_price, sl, tp)) {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
       }
 
-      if(m_trade.PositionOpen(_Symbol, type, lots, price, sl, tp, comment)) {
+      if(m_trade.PositionOpen(_Symbol, type, lots, entry_price, sl, tp, comment)) {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "ENTERED";
          m_last_trade_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
          m_initial_sl_price = sl;
