@@ -881,8 +881,7 @@ input group "║  📊 ADX (Trend Strength Filter)                        ║";
 // input string         Inp_Ind_Adx_Info           = "ADX - Trend strength filter"; // [ADX] Description
 input EADXMode       Inp_Ind_Adx_Mode           = ADX_MODE_STATIC; // [ADX] Mode
 input bool           Inp_Ind_Adx_Enabled        = false; // [ADX] Enable ADX vote
-//input 
-int            Inp_Ind_Adx_Weight         = 1; // [ADX] Vote weight
+int                  Inp_Ind_Adx_Weight         = 1; // [ADX] Vote weight
 input int            Inp_Ind_Adx_Period         = 14; // [ADX] Period
 input int            Inp_Ind_Adx_Threshold      = 20; // [ADX] Threshold (Static mode)
 input double         Inp_Ind_Adx_Percentile     = 50.0; // [ADX] Percentile
@@ -897,8 +896,7 @@ input group "║  📊 MACD                                               ║";
 // input string         Inp_MacdFilterInfo         = "MACD - Enable filters below to add requirements to base mode"; // [Info]
 input EMacdVoteMode  Inp_MacdVoteMode           = MACD_ZERO_AND_HIST; // [MACD] base mode
 input bool           Inp_Ind_Macd_Enabled       = false; // [MACD] Enable MACD vote
-//input 
-int            Inp_Ind_Macd_Weight        = 1; // [MACD] Vote weight
+int                  Inp_Ind_Macd_Weight        = 1; // [MACD] Vote weight
 input bool           Inp_MacdRequireSlope       = false; // [MACD] Require MACD rising/falling
 input bool           Inp_MacdRequireDivergence  = false; // [MACD] Require price/MACD divergence
 input bool           Inp_MacdRequireHook        = false; // [MACD] Require histogram flip
@@ -916,10 +914,10 @@ input group "╔═════════════════════�
 input group "║  📊 RSI (Relative Strength Index)                      ║";
 //input group "╚════════════════════════════════════════════════════════╝";
 // input string         Inp_Ind_Rsi_Info           = "RSI - Relative Strength Index"; // [RSI] Description
+input ERsiMode       Inp_Ind_Rsi_Mode           = RSI_FILTER_EXTREME; // [RSI] Mode
 input bool           Inp_Ind_Rsi_Enabled        = false; // [RSI] Enable RSI vote
 //input 
 int            Inp_Ind_Rsi_Weight         = 1; // [RSI] Vote weight
-input ERsiMode       Inp_Ind_Rsi_Mode           = RSI_FILTER_EXTREME; // [RSI] Mode
 input int            Inp_Ind_Rsi_Period         = 14; // [RSI] Period
 input double         Inp_Ind_Rsi_OB             = 70.0; // [RSI] Overbought level
 input double         Inp_Ind_Rsi_OS             = 30.0; // [RSI] Oversold level
@@ -930,8 +928,7 @@ input group "║  📊 CCI (Commodity Channel Index)                      ║";
 // input string         Inp_Ind_Cci_Info           = "CCI - Commodity Channel Index"; // [CCI] Description
 input ECciMode       Inp_Ind_Cci_Mode           = CCI_TREND_ZERO; // [CCI] Mode
 input bool           Inp_Ind_Cci_Enabled        = false; // [CCI] Enable CCI vote
-//input 
-int            Inp_Ind_Cci_Weight         = 1; // [CCI] Vote weight
+int                  Inp_Ind_Cci_Weight         = 1; // [CCI] Vote weight
 input int            Inp_Ind_Cci_Period         = 14; // [CCI] Period
 
 input group "╔════════════════════════════════════════════════════════╗";
@@ -940,8 +937,7 @@ input group "║  📊 MFI (Money Flow Index)                             ║";
 // input string         Inp_Ind_Mfi_Info           = "MFI - Money Flow Index"; // [MFI] Description
 input EMfiMode       Inp_Ind_Mfi_Mode           = MFI_ZONE_FILTER; // [MFI] Mode
 input bool           Inp_Ind_Mfi_Enabled        = false; // [MFI] Enable MFI vote
-//input 
-int            Inp_Ind_Mfi_Weight         = 1; // [MFI] Vote weight
+int                  Inp_Ind_Mfi_Weight         = 1; // [MFI] Vote weight
 input int            Inp_Ind_Mfi_Period         = 14; // [MFI] Period
 input double         Inp_Ind_Mfi_Level          = 50.0; // [MFI] Threshold/level
 
@@ -951,8 +947,7 @@ input group "║  📊 STO (Stochastic Oscillator)                        ║";
 // input string         Inp_Ind_Sto_Info           = "STO - Stochastic oscillator"; // [Stoch] Description
 input EStochMode     Inp_Ind_Sto_Mode           = STO_ZONE_FILTER; // [Sto] Mode
 input bool           Inp_Ind_Sto_Enabled        = false; // [Sto] Enable Stochastic vote
-//input 
-int            Inp_Ind_Sto_Weight         = 1; // [Sto] Vote weight
+int                  Inp_Ind_Sto_Weight         = 1; // [Sto] Vote weight
 input int            Inp_Ind_Sto_K              = 5; // [Sto] %K period
 input int            Inp_Ind_Sto_D              = 3; // [Sto] %D period
 input int            Inp_Ind_Sto_Slow           = 3; // [Sto] Slowing
@@ -963,8 +958,7 @@ input group "║  📊 BB (Bollinger Bands)                               ║";
 // input string         Inp_Ind_Bb_Info            = "BB - Bollinger Bands channel"; // [BB] Description
 input EBbMode        Inp_Ind_Bb_Mode            = BB_TREND_FOLLOW; // [BB] Mode
 input bool           Inp_Ind_Bb_Enabled         = false; // [BB] Enable Bollinger Bands vote
-//input 
-int            Inp_Ind_Bb_Weight          = 1; // [BB] Vote weight
+int                  Inp_Ind_Bb_Weight          = 1; // [BB] Vote weight
 input int            Inp_Ind_Bb_Period          = 20; // [BB] Period
 input double         Inp_Ind_Bb_Dev             = 2.0; // [BB] Deviation
 
@@ -973,8 +967,7 @@ input group "║  📊 PSAR                                               ║";
 //input group "╚════════════════════════════════════════════════════════╝";
 // input string         Inp_Ind_Psar_Info          = "PSAR - Parabolic SAR position"; // [PSAR] Description
 input bool           Inp_Ind_Psar_Enabled       = true; // [PSAR] Enable PSAR vote
-//input 
-int            Inp_Ind_Psar_Weight        = 1; // [PSAR] Vote weight
+int                  Inp_Ind_Psar_Weight        = 1; // [PSAR] Vote weight
 input double         Inp_Ind_Psar_Step          = 0.05; // [PSAR] Step
 input double         Inp_Ind_Psar_Max           = 0.5; // [PSAR] Maximum
 input int            Inp_Vote_PsarFlipDelay     = 10; // [PSAR] Flip timer: -1=persistent, 0=flip bar, 1-10=countdown
@@ -984,8 +977,7 @@ input group "║  📊 ATR (Volatility)                                   ║";
 //input group "╚════════════════════════════════════════════════════════╝";
 // input string         Inp_Ind_Atr_Info           = "ATR - Non-directional: validates volatility range (voting)"; // [ATR] Description
 input bool           Inp_Ind_Atr_Enabled        = false; // [ATR] Enable ATR vote
-//input 
-int            Inp_Ind_Atr_Weight         = 1; // [ATR] Vote weight
+int                  Inp_Ind_Atr_Weight         = 1; // [ATR] Vote weight
 input int            Inp_Ind_Atr_Period         = 14; // [ATR] Period
 input double         Inp_Ind_Atr_VoteMinPips    = 5.0; // [ATR] Voting min pips
 input double         Inp_Ind_Atr_VoteMaxPips    = 50.0; // [ATR] Voting max pips
@@ -995,8 +987,7 @@ input group "║  📊 CBody: Candle Body Overextension                   ║";
 //input group "╚════════════════════════════════════════════════════════╝";
 // input string         Inp_Ind_CandleBody_Info      = "CBody - Votes against overextended candles (news/spikes)"; // [CandleBody] Description
 input bool           Inp_Ind_CandleBody_Enabled   = false; // [CandleBody] Enable voting indicator
-//input 
-int            Inp_Ind_CandleBody_Weight    = 1; // [CandleBody] Vote weight
+int                  Inp_Ind_CandleBody_Weight    = 1; // [CandleBody] Vote weight
 input int            Inp_Ind_CandleBody_AvgPeriod = 10; // [CandleBody] Average body period
 input double         Inp_Ind_CandleBody_MaxMult   = 3.0; // [CandleBody] Max body multiplier
 input int            Inp_Ind_CandleBody_CheckBars = 1; // [CandleBody] Bars to check
@@ -1006,8 +997,7 @@ input group "║  📊 CI (Choppiness Index)                              ║";
 //input group "╚════════════════════════════════════════════════════════╝";
 // input string         Inp_Ind_CI_Info            = "CI - Blocks trades when market is ranging/choppy (CI > threshold)"; // [CI] Description
 input bool           Inp_Ind_CI_Enabled         = false; // [CI] Enable ranging market filter
-//input 
-int            Inp_Ind_CI_Weight          = 1; // [CI] Vote weight
+int                  Inp_Ind_CI_Weight          = 1; // [CI] Vote weight
 input int            Inp_CI_Period              = 14; // [CI] Calculation period
 input double         Inp_CI_RangingThreshold    = 61.8; // [CI] Ranging threshold (>= this value = reject)
 
@@ -1016,8 +1006,7 @@ input group "║  📊 VRC (Volatility Regime Classifier)                 ║";
 //input group "╚════════════════════════════════════════════════════════╝";
 // input string         Inp_Ind_VRC_Info           = "VRC - Rejects trades in low volatility (quiet/choppy markets)"; // [VRC] Description
 input bool           Inp_Ind_VRC_Enabled        = false; // [VRC] Enable volatility regime filter
-//input 
-int            Inp_Ind_VRC_Weight         = 1; // [VRC] Vote weight
+int                  Inp_Ind_VRC_Weight         = 1; // [VRC] Vote weight
 input int            Inp_Ind_VRC_ATR_Period     = 14; // [VRC] ATR period
 input int            Inp_Ind_VRC_Lookback       = 100; // [VRC] Lookback bars for percentile
 input double         Inp_Ind_VRC_LowThreshold   = 33.0; // [VRC] Low volatility threshold (percentile)
@@ -1027,16 +1016,14 @@ input group "║  📊 P123: Pattern 1-2-3                                ║";
 //input group "╚════════════════════════════════════════════════════════╝";
 // input string         Inp_Ind_P123_Info          = "1-2-3 fractal breakout pattern"; // [P123] Description
 input bool           Inp_Ind_P123_Enabled       = false; // [P123] Enable 1-2-3 pattern vote
-//input 
-int            Inp_Ind_P123_Weight        = 1; // [P123] Vote weight
+int                  Inp_Ind_P123_Weight        = 1; // [P123] Vote weight
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 Ross Hook                                          ║";
 //input group "╚════════════════════════════════════════════════════════╝";
 // input string         Inp_Ind_Ross_Info          = "Ross hook trend momentum"; // [Ross] Description
 input bool           Inp_Ind_Ross_Enabled       = false; // [Ross] Enable Ross hook vote
-//input 
-int            Inp_Ind_Ross_Weight        = 1; // [Ross] Vote weight
+int                  Inp_Ind_Ross_Weight        = 1; // [Ross] Vote weight
 
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
