@@ -368,12 +368,14 @@ private:
       if(free <= 0.0) return 0.0;
       double margin_per_lot = 0.0;
       if(!OrderCalcMargin(type, _Symbol, 1.0, price, margin_per_lot) || margin_per_lot <= 0.0) {
+         // Broker/symbol can occasionally fail 1-lot probing; fall back to direct requested-volume check.
          double margin = 0.0;
          if(!OrderCalcMargin(type, _Symbol, vol, price, margin) || margin <= 0.0) return vol;
          return (margin <= free) ? vol : 0.0;
       }
 
       double usage_limit_pct = m_settings.MarginUsageLimit;
+      // Config semantics: 0 means "no cap override", i.e. allow up to 100% of free margin.
       if(usage_limit_pct <= 0.0) usage_limit_pct = 100.0;
       double safe_free = free * usage_limit_pct / 100.0;
       double max_vol = safe_free / margin_per_lot;
