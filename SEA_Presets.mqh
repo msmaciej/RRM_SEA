@@ -637,7 +637,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Ema4                 = 89;
 
       // ── SCALP/SWING only affects spread gate (exit/risk, not signal logic) ──
-      cfg.MaxSpread              = (mode == RRM_SCALP) ? 2.0 : 4.0;
+      cfg.MaxSpread              = (mode == RRM_SCALP) ? 2.0 : 4.0; // RRM preset-controlled; op_MaxSpread not applied here
    
       // ================================================================
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
@@ -705,7 +705,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.VRC_LowThreshold       = 33.0;
       cfg.Ind_VRC_Weight         = 1;
       
-      // MACD
+      // MACD (RRM standard defaults; still overridable via AdminOverride)
       cfg.P_MacdFast            = 12;
       cfg.P_MacdSlow            = 26;
       cfg.P_MacdSig             = 9;
