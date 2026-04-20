@@ -309,6 +309,12 @@ private:
       if(loss_per_lot <= 0.0) return 0.0;
       double raw_lot = risk_money / loss_per_lot;
       if(raw_lot <= 0.0) return 0.0;
+      double large_lot_threshold = (equity / 10000.0) * 10.0;
+      double pip_size = GetPipSize();
+      if(pip_size > 0.0 && raw_lot > large_lot_threshold) {
+         PrintFormat("⚠️ [CM] Very large lot computed: %.2f lots for %.1f pip SL on $%.0f equity — check SL_MinPips setting",
+                     raw_lot, stop_dist / pip_size, equity);
+      }
       return NormalizeVolume(raw_lot);
    }
 
@@ -381,6 +387,18 @@ private:
       double safe_free = free * usage_limit_pct / 100.0;
       double max_vol = safe_free / margin_per_lot;
       vol = NormalizeVolume(MathMin(vol, max_vol));
+
+      // Secondary cap: ensure projected margin level stays above MinMarginLevel
+      if(m_settings.MinMarginLevel > 0.0) {
+         double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+         double current_margin = AccountInfoDouble(ACCOUNT_MARGIN);
+         if(equity > 0.0 && margin_per_lot > 0.0) {
+            double max_additional_margin = (equity / (m_settings.MinMarginLevel / 100.0)) - current_margin;
+            if(max_additional_margin <= 0.0) return 0.0;
+            double max_vol_by_margin_level = max_additional_margin / margin_per_lot;
+            vol = NormalizeVolume(MathMin(vol, max_vol_by_margin_level));
+         }
+      }
 
       double vmin = 0.0;
       if(!SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN, vmin) || vmin <= 0.0) vmin = 0.01;
@@ -1024,8 +1042,21 @@ public:
 
    bool EvaluateRC(int direction, double lots) {
       if(m_settings.MinMarginLevel > 0.0) {
-         double margin_level = AccountInfoDouble(ACCOUNT_MARGIN_LEVEL);
-         if(margin_level > 0.0 && margin_level < m_settings.MinMarginLevel) return false;
+         bool isBuy = (direction > 0);
+         double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         ENUM_ORDER_TYPE order_type = isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
+         double new_trade_margin = 0.0;
+         double current_margin = AccountInfoDouble(ACCOUNT_MARGIN);
+         double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+         if(equity <= 0.0) equity = AccountInfoDouble(ACCOUNT_BALANCE);
+         if(OrderCalcMargin(order_type, _Symbol, lots, price, new_trade_margin) && new_trade_margin > 0.0) {
+            double projected_margin = current_margin + new_trade_margin;
+            double projected_level = (projected_margin > 0.0) ? (equity / projected_margin * 100.0) : 999999.0;
+            if(projected_level < m_settings.MinMarginLevel) {
+               PrintFormat("🚫 [RC] Projected margin level %.1f%% < MinMarginLevel %.1f%% — trade blocked", projected_level, m_settings.MinMarginLevel);
+               return false;
+            }
+         }
       }
 
       if(m_settings.MaxOpenTrades > 0) {
