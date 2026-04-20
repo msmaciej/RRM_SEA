@@ -296,6 +296,8 @@ struct ST_Settings
    double MaxTotalRisk;       // Max % of account at risk simultaneously (e.g., 4.0)
    int    MaxOpenTrades;      // Max number of concurrent trades (0 = no limit)
    bool   CountBEasZeroRisk;  // If true, trades at breakeven don't count toward risk
+   double MinMarginLevel;     // Block new entries if margin level (%) is below this threshold (0 = disabled)
+   double EmergencyMarginLevel; // Emergency TM threshold (%) to cut worst position (0 = disabled)
    double MaxSpread;
    bool   UseSpread;          // Enable spread filter (false = bypass spread gate)
 
@@ -1104,6 +1106,10 @@ input bool           Inp_RRM_FreezeTrailOnFlip  = true; // Freeze trail on PSAR 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  💰 Risk Management";
 input double         Inp_RiskPercent            = 2.0; // Risk per trade (%)
+input int            Inp_MaxOpenTrades          = 3;   // Max concurrent trades (0 = unlimited)
+input double         Inp_MaxTotalRisk           = 6.0; // Max total active risk (%; 0 = unlimited)
+input double         Inp_MinMarginLevel         = 200.0; // Min margin level (%) required to allow new entries (0 = disabled)
+input double         Inp_EmergencyMarginLevel   = 120.0; // Emergency margin level (%) to force-close worst position (0 = disabled)
 // input string         Inp_Step9_Ref1             = "Risk per trade applies to all presets unless overridden by Admin Override";
 // input string         Inp_Step9_Ref2             = "To adjust exits under a strict preset: use PRESET_CUSTOM mode";
 
@@ -1403,9 +1409,11 @@ void InitializeConfig()
    Settings.Vote_AllowPsarFlip   = false;
    Settings.Vote_PsarFlipDelay   = (Inp_Vote_PsarFlipDelay < -1) ? -1 : (Inp_Vote_PsarFlipDelay > 10) ? 10 : Inp_Vote_PsarFlipDelay;
 
-   Settings.MaxTotalRisk         = 0.0;
-   Settings.MaxOpenTrades        = 0;
+   Settings.MaxTotalRisk         = MathMax(0.0, Inp_MaxTotalRisk);
+   Settings.MaxOpenTrades        = MathMax(0, Inp_MaxOpenTrades);
    Settings.CountBEasZeroRisk    = true;
+   Settings.MinMarginLevel       = MathMax(0.0, Inp_MinMarginLevel);
+   Settings.EmergencyMarginLevel = MathMax(0.0, Inp_EmergencyMarginLevel);
 
    Settings.Adaptive.PairType          = Inp_Adaptive_PairType;
    Settings.Adaptive.Spread_Major      = Inp_Adaptive_Spread_Major;
