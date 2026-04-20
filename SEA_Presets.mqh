@@ -858,7 +858,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
 
       // ================================================================
-      // POLICY A: RESTORE OPERATOR-CONTROLLED GATES
+      // POLICY A: RESTORE OPERATOR-CONTROLLED GATES (except MaxSpread)
+      // MaxSpread is preset-controlled in PRESET_RRM via RRM_SCALP/RRM_SWING mode.
       // ================================================================
       cfg.UseSpread              = op_UseSpread;
       cfg.UseTime                = op_UseTime;
