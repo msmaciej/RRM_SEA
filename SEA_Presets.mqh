@@ -947,7 +947,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_MacdSlow                = 13;          // ORG: 26  13  8  8
       cfg.P_MacdSig                 = 5;           // ORG: 9   8   5  3
       cfg.MacdRequireSlope          = true;        // ORG: false
-      cfg.MacdRequireDivergence     = true;        // ORG: false
+      cfg.MacdRequireDivergence     = false;       // ORG: false
       cfg.MacdRequireHook           = false;       // ORG: false
       cfg.MacdFreshBars             = 10;          // ORG: 3
       cfg.MacdSlopeMin              = 0.000001;    // ORG: 0.00001

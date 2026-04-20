@@ -904,11 +904,11 @@ input bool           Inp_MacdRequireHook        = false; // [MACD] Require histo
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  MACD: PARAMETERS                                      ║";
 //input group "╚════════════════════════════════════════════════════════╝";
-input int            Inp_P_MacdFast             = 5; // [MACD] Fast EMA period
-input int            Inp_P_MacdSlow             = 8; // [MACD] Slow EMA period
+input int            Inp_P_MacdFast             = 8; // [MACD] Fast EMA period
+input int            Inp_P_MacdSlow             = 13; // [MACD] Slow EMA period
 input int            Inp_P_MacdSig              = 5; // [MACD] Signal SMA period
-input int            Inp_MacdFreshBars          = 3; // [MACD] Fresh signal validity
-input double         Inp_MacdSlopeMin           = 0.00001; // [MACD] Min slope change per bar
+input int            Inp_MacdFreshBars          = 5; // [MACD] Fresh signal validity
+input double         Inp_MacdSlopeMin           = 0.000001; // [MACD] Min slope change per bar
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 RSI (Relative Strength Index)                      ║";
