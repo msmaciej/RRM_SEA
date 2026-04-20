@@ -737,7 +737,7 @@ input group "╔═════════════════════�
 input group "║  🔍 DEBUG: DIAGNOSTICS                                 ║";
 //input group "╚════════════════════════════════════════════════════════╝";
 input EDebugLevel    Inp_DebugLevel             = DEBUG_SIGNALS_ONLY; // Debug: Level
-input bool           Inp_DebugFlow              = true; // Debug: Print OnInit/OnTick/OnDeinit flow ... have tu be true with DEBUG_SIGNALS_ONLY
+input bool           Inp_DebugFlow              = true; // Debug: Print OnInit/OnTick/OnDeinit flow ... have to be true with DEBUG_SIGNALS_ONLY
 input bool           Inp_PrintEffectiveConfig   = true; // Debug: Print effective config on init
 
 input group "╔════════════════════════════════════════════════════════╗";
