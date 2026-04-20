@@ -206,14 +206,6 @@ enum EExitProfile
 };
 
 
-// --- PRESET_RRM adaptive configuration ---
-enum ERRMMode
-{
-   RRM_AUTO_BY_TF,     // RRM_AUTO_BY_TF: Auto-select scalp/swing based on timeframe (M1-M15=scalp, M30+=swing)
-   RRM_SCALP,          // RRM_SCALP: Scalp: Tight SL/TP, Layer 1 entries, fast exits
-   RRM_SWING           // RRM_SWING: Swing: Wide SL/TP, Layer 2-3 entries, patient exits
-};
-
 enum EGateScaleMode
 {
    GATE_SCALE_OFF,        // GATE_OFF: Gate disabled
@@ -766,12 +758,75 @@ input bool           Inp_ExportUseCommonFiles   = false; // Report: Use terminal
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  🔧 RRM MODE & DRAWDOWN PROTECTION (Policy A)          ║";
 //input group "╚════════════════════════════════════════════════════════╝";
-input ERRMMode       Inp_RRM_Mode                       = RRM_AUTO_BY_TF; // RRM: mode
 input bool           Inp_RRM_EnableDrawdownProtection   = false;          // RRM: Enable drawdown protection
 input int            Inp_RRM_MaxConsecutiveLosses       = 5;              // RRM: Max consecutive losses before pause
 input int            Inp_RRM_MaxTradesPerDay            = 15;             // RRM: Max trades per day
 input double         Inp_RRM_MaxDailyDrawdownPct        = 3.0;            // RRM: Max daily drawdown %
 
+
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "  📐 ZONE 3B: PRESET_RRM SETTINGS";
+input group "      (Only active when InpPreset = PRESET_RRM)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 RRM: EMA Periods                                   ║";
+input int    Inp_RRM_Ema1Period  = 5;    // RRM EMA1 Period (default: 5)
+input int    Inp_RRM_Ema2Period  = 13;   // RRM EMA2 Period (default: 13)
+input int    Inp_RRM_Ema3Period  = 34;   // RRM EMA3 Period (default: 34)
+input int    Inp_RRM_Ema4Period  = 89;   // RRM EMA4 Period (default: 89)
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 RRM: Indicators — Enable/Disable                   ║";
+input bool   Inp_RRM_Use_Macd        = true;   // RRM: MACD vote enabled
+input bool   Inp_RRM_Use_Psar        = true;   // RRM: PSAR vote enabled
+input bool   Inp_RRM_Use_CandleBody  = true;   // RRM: Candle body vote enabled
+input bool   Inp_RRM_Use_Cci         = false;  // RRM: CCI vote enabled
+input bool   Inp_RRM_Use_Rsi         = false;  // RRM: RSI vote enabled
+input bool   Inp_RRM_Use_Adx         = false;  // RRM: ADX vote enabled
+input bool   Inp_RRM_Use_Stoch       = false;  // RRM: Stochastic vote enabled
+input bool   Inp_RRM_Use_Bb          = false;  // RRM: Bollinger Bands vote enabled
+input bool   Inp_RRM_Use_Mfi         = false;  // RRM: MFI vote enabled
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 RRM: MACD Settings                                 ║";
+input int           Inp_RRM_MacdFast   = 12;                  // RRM MACD Fast period
+input int           Inp_RRM_MacdSlow   = 26;                  // RRM MACD Slow period
+input int           Inp_RRM_MacdSig    = 9;                   // RRM MACD Signal period
+input EMacdVoteMode Inp_RRM_MacdMode   = MACD_ZERO_AND_CROSS; // RRM MACD vote mode
+input bool          Inp_RRM_MacdSlope  = true;                // RRM MACD require slope
+input bool          Inp_RRM_MacdDiv    = true;                // RRM MACD require divergence
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 RRM: PSAR Settings                                 ║";
+input double Inp_RRM_PsarStep = 0.05;  // RRM PSAR Step
+input double Inp_RRM_PsarMax  = 0.5;   // RRM PSAR Max
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 RRM: CCI Settings                                  ║";
+input int      Inp_RRM_CciPeriod = 14;             // RRM CCI Period
+input ECciMode Inp_RRM_CciMode   = CCI_TREND_ZERO; // RRM CCI Mode
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 RRM: RSI Settings                                  ║";
+input int      Inp_RRM_RsiPeriod = 14;                  // RRM RSI Period
+input ERsiMode Inp_RRM_RsiMode   = RSI_TREND_ABOVE_50;  // RRM RSI Mode
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 RRM: ADX Settings                                  ║";
+input int    Inp_RRM_AdxPeriod    = 14;   // RRM ADX Period
+input double Inp_RRM_AdxThreshold = 20.0; // RRM ADX Threshold
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 RRM: Exit — SL Mode                                ║";
+input ESLMode       Inp_RRM_SLMode         = SL_MODE_SWING; // RRM SL placement mode
+input ETPMode       Inp_RRM_TPMode         = TP_MODE_RR;    // RRM TP mode
+input double        Inp_RRM_RRRatio        = 3.0;           // RRM R:R ratio (used with TP_MODE_RR)
+input int           Inp_RRM_SwingLookback  = 20;            // RRM Swing lookback bars (used with SL_MODE_SWING)
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 RRM: Exit — Trailing Stop                          ║";
+input ETrailingMode Inp_RRM_TrailMode      = TRAIL_PSAR;    // RRM Trailing stop mode
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "  ⚠️  ZONE 3A: PIPELINE CONFIG";

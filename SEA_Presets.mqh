@@ -588,289 +588,222 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    if(preset == PRESET_RRM)
    {
       // ================================================================
-      // PRESET_RRM: KISS Minimal Layer-Based Strategy
+      // PRESET_RRM: RRM Methodology — Phase-Based Trend Pullback
       // ================================================================
       //
-      // FORMULA:
-      //   TS = Bias × LayerX × bcX × IndicatorX × FilterX
+      // SIGNAL FORMULA (locked, no branches):
+      //   TS = Phase(4EMA) × Layer(EMA-pair) × BarClose × Indicators × Gates
       //
-      // COMPONENTS:
-      //   Bias = BIAS_4EMA (Phase: UNO/EM/TM)
-      //   LayerX = EMA pair structure (position + slope)
-      //   bcX = Bar close confirmation (layer-aware)
-      //     • bcW: Close beyond EMA1 (for LayerW)
-      //     • bcM: Close beyond EMA2 (for LayerM)
-      //     • bcS: Close beyond EMA3 (for LayerS)
-      //   IndicatorX = PSAR only
-      //   FilterX = User-controlled gates
+      // LOCKED (never user-changeable):
+      //   BiasMode    = BIAS_4EMA          (4-EMA phase: TRENDING/EMERGING/UNORDERED)
+      //   AutoStrat   = STRAT_4EMA_LAYER   (layer-based pullback entry)
+      //   VoteMode    = VOTE_MODE_ALL       (all enabled indicators must agree)
+      //   Phase/Layer detection ON, UNORDERED blocked
+      //
+      // FLEXIBLE (via dedicated Inp_RRM_* inputs):
+      //   EMA periods, indicator toggles, indicator parameters, SL/TP/Trail modes
       //
       // ================================================================
-   
-      ERRMMode mode = Inp_RRM_Mode;
-      if(mode == RRM_AUTO_BY_TF)
-      {
-         // Auto-select sub-mode based on chart timeframe
-         if(_Period == PERIOD_M1 || _Period == PERIOD_M5 || _Period == PERIOD_M15) 
-            mode = RRM_SCALP;
-         else 
-            mode = RRM_SWING;
-      }
-   
-      // ================================================================
-      // CORE STRATEGY SETTINGS
-      // ================================================================
-      cfg.CloseOnReverse         = true;
-      cfg.BiasEnabled            = true;
-      cfg.BiasMode               = BIAS_4EMA;
-      cfg.MaType                 = METHOD_EMA;
-      cfg.RequirePriceCross      = false;
-      cfg.MABenchmarkStrict      = false;
-      cfg.UseMACompatSizer       = false;
-      
-      // ── SIGNAL ARCHITECTURE: always 4-EMA phase-based (RRM methodology) ──
-      cfg.AutoStrat              = STRAT_4EMA_LAYER;
-      cfg.BiasFastID             = (int)ROLE_EMA3;
-      cfg.BiasSlowID             = (int)ROLE_EMA4;
-      cfg.P_Ema1                 = 5;
-      cfg.P_Ema2                 = 13;
-      cfg.P_Ema3                 = 34;
-      cfg.P_Ema4                 = 89;
 
-      // ── SCALP/SWING only affects spread gate (exit/risk, not signal logic) ──
-      cfg.MaxSpread              = (mode == RRM_SCALP) ? 2.0 : 4.0; // RRM preset-controlled; op_MaxSpread not applied here
-   
-      // ================================================================
-      // INDICATOR VOTING CONFIGURATION (Alphabetical)
-      // ================================================================
-      cfg.Ind_Adx_Enabled           = false;
-      cfg.Ind_Atr_Enabled           = false;
-      cfg.Ind_Bb_Enabled            = false;
-      cfg.Ind_CandleBody_Enabled    = true;
-      cfg.Ind_CI_Enabled            = false;
-      cfg.Ind_VRC_Enabled           = false; // Enable ranging market protection
-      cfg.Ind_Cci_Enabled           = false;
-      cfg.Ind_Macd_Enabled          = true;
-      cfg.Ind_Mfi_Enabled           = false;
-      cfg.Ind_P123_Enabled          = false;
-      cfg.Ind_Psar_Enabled          = true;
-      cfg.Ind_Ross_Enabled          = false;
-      cfg.Ind_Rsi_Enabled           = false;
-      cfg.Ind_Sto_Enabled           = false;
+      // ── SIGNAL ARCHITECTURE: locked ──────────────────────────────────
+      cfg.BiasMode       = BIAS_4EMA;
+      cfg.AutoStrat      = STRAT_4EMA_LAYER;
+      cfg.BiasFastID     = (int)ROLE_EMA3;   // EMA34: phase direction fast
+      cfg.BiasSlowID     = (int)ROLE_EMA4;   // EMA89: phase direction slow
+      cfg.MaType         = METHOD_EMA;
+      cfg.CloseOnReverse = true;
+      cfg.BiasEnabled    = true;
+      cfg.RequirePriceCross  = false;
+      cfg.MABenchmarkStrict  = false;
+      cfg.UseMACompatSizer   = false;
+      cfg.VoteMode           = VOTE_MODE_ALL;
 
-      // BAR CLOSE (bcX) CONFIGURATION
-      cfg.BarClose_Enabled          = true;              // ✅ Enable bcX
-      cfg.BarClose_Mode             = BC_LAYER_AWARE;    // bcW/bcM/bcS adaptive
-      cfg.BarClose_DefaultEMA       = ROLE_EMA1;         // Fallback
-   
-      cfg.VoteMode                  = VOTE_MODE_ALL;
-      
-      
-      // ================================================================
-      // INDICATOR PERIODS & THRESHOLDS (Alphabetical)
-      // ================================================================
-      
-      // ADX (Average Directional Index)
-      cfg.P_Adx                  = 14;
-      cfg.T_Adx                  = 20.0;
-      cfg.ADX_Mode               = ADX_MODE_PHASE_AWARE;
-      cfg.ADX_Percentile         = 50.0;
-      cfg.ADX_Lookback           = 100;
-      cfg.ADX_Threshold_Accumulation = 12.0;
-      cfg.ADX_Threshold_Trending     = 25.0;
-      cfg.ADX_Threshold_Distribution = 18.0;
-      
-      // ATR (Average True Range) - Voting Indicator Only
-      cfg.P_Atr                  = 14;
-      cfg.ATR_VoteMinPips        = 5.0;
-      cfg.ATR_VoteMaxPips        = 50.0;
-      
-      // Bollinger Bands
-      cfg.P_Bb                   = 20;
-      cfg.P_BbDev                = 2.0;
-      
-      // Candle Body
-      cfg.CandleBody_AvgPeriod   = 15;
-      cfg.CandleBody_MaxMult     = 3.5;
-      cfg.CandleBody_CheckBars   = 2;
-      cfg.Ind_CandleBody_Weight  = 1;
+      // ── EMA PERIODS: flexible via Inp_RRM_* ──────────────────────────
+      cfg.P_Ema1 = Inp_RRM_Ema1Period;   // default 5
+      cfg.P_Ema2 = Inp_RRM_Ema2Period;   // default 13
+      cfg.P_Ema3 = Inp_RRM_Ema3Period;   // default 34
+      cfg.P_Ema4 = Inp_RRM_Ema4Period;   // default 89
 
-      // Choppiness Index (ranging market protection)
-      cfg.CI_Period              = 14;
-      cfg.CI_RangingThreshold    = 61.8;   // Standard threshold
-      cfg.Ind_CI_Weight          = 1;
-      
-      // VRC (Volatility Regime Classifier)
-      cfg.VRC_ATR_Period         = 14;
-      cfg.VRC_Lookback           = 100;
-      cfg.VRC_LowThreshold       = 33.0;
-      cfg.Ind_VRC_Weight         = 1;
-      
-      // MACD (RRM standard defaults; still overridable via AdminOverride)
-      cfg.P_MacdFast            = 12;
-      cfg.P_MacdSlow            = 26;
-      cfg.P_MacdSig             = 9;
-      cfg.MacdVoteMode           = MACD_ZERO_AND_CROSS;
-      cfg.MacdRequireSlope       = true;
-      cfg.MacdRequireDivergence  = true;
+      // ── SPREAD: derived from pair type (Zone 3C), no mode branching ──
+      cfg.MaxSpread = op_MaxSpread;  // Policy A: user spread gate
+
+      // ── INDICATOR TOGGLES: flexible via Inp_RRM_* ────────────────────
+      cfg.Ind_Macd_Enabled       = Inp_RRM_Use_Macd;
+      cfg.Ind_Psar_Enabled       = Inp_RRM_Use_Psar;
+      cfg.Ind_CandleBody_Enabled = Inp_RRM_Use_CandleBody;
+      cfg.Ind_Cci_Enabled        = Inp_RRM_Use_Cci;
+      cfg.Ind_Rsi_Enabled        = Inp_RRM_Use_Rsi;
+      cfg.Ind_Adx_Enabled        = Inp_RRM_Use_Adx;
+      cfg.Ind_Sto_Enabled        = Inp_RRM_Use_Stoch;
+      cfg.Ind_Bb_Enabled         = Inp_RRM_Use_Bb;
+      cfg.Ind_Mfi_Enabled        = Inp_RRM_Use_Mfi;
+      // Always off in RRM (not part of RRM methodology):
+      cfg.Ind_Atr_Enabled        = false;
+      cfg.Ind_CI_Enabled         = false;
+      cfg.Ind_VRC_Enabled        = false;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Ross_Enabled       = false;
+
+      // ── MACD SETTINGS: flexible via Inp_RRM_* ────────────────────────
+      cfg.P_MacdFast             = Inp_RRM_MacdFast;
+      cfg.P_MacdSlow             = Inp_RRM_MacdSlow;
+      cfg.P_MacdSig              = Inp_RRM_MacdSig;
+      cfg.MacdVoteMode           = Inp_RRM_MacdMode;
+      cfg.MacdRequireSlope       = Inp_RRM_MacdSlope;
+      cfg.MacdRequireDivergence  = Inp_RRM_MacdDiv;
       cfg.MacdRequireHook        = false;
       cfg.MacdFreshBars          = 3;
       cfg.MacdSlopeMin           = 0.00001;
-      
-      // MFI (Money Flow Index)
-      cfg.P_Mfi                  = 14;
-      cfg.T_MfiOB                = 80.0;
-      cfg.T_MfiOS                = 20.0;
-      cfg.MfiMode                = MFI_ZONE_FILTER;
-      
-      // PSAR (Parabolic SAR)
-      cfg.P_PsarStep             = 0.05;
-      cfg.P_PsarMax              = 0.5;
+
+      // ── PSAR SETTINGS: flexible via Inp_RRM_* ────────────────────────
+      cfg.P_PsarStep             = Inp_RRM_PsarStep;
+      cfg.P_PsarMax              = Inp_RRM_PsarMax;
       cfg.Vote_AllowPsarFlip     = true;
-      cfg.Vote_PsarFlipDelay     = -1; // Persistent mode: dot on correct side = pass (no flip timer)
-   
-      // RSI (Relative Strength Index)
-      cfg.P_Rsi                  = 14;
+      cfg.Vote_PsarFlipDelay     = -1;
+
+      // ── CCI SETTINGS: flexible via Inp_RRM_* ─────────────────────────
+      cfg.P_Cci                  = Inp_RRM_CciPeriod;
+      cfg.CciMode                = Inp_RRM_CciMode;
+
+      // ── RSI SETTINGS: flexible via Inp_RRM_* ─────────────────────────
+      cfg.P_Rsi                  = Inp_RRM_RsiPeriod;
       cfg.T_RsiOB                = 70.0;
       cfg.T_RsiOS                = 30.0;
-      cfg.RsiMode                = RSI_TREND_ABOVE_50;
-      
-      // Stochastic Oscillator
+      cfg.RsiMode                = Inp_RRM_RsiMode;
+
+      // ── ADX SETTINGS: flexible via Inp_RRM_* ─────────────────────────
+      cfg.P_Adx                  = Inp_RRM_AdxPeriod;
+      cfg.T_Adx                  = Inp_RRM_AdxThreshold;
+      cfg.ADX_Mode               = ADX_MODE_PHASE_AWARE;
+      cfg.ADX_Percentile         = 50.0;
+      cfg.ADX_Lookback           = 100;
+      cfg.ADX_Threshold_Accumulation  = 12.0;
+      cfg.ADX_Threshold_Trending      = 25.0;
+      cfg.ADX_Threshold_Distribution  = 18.0;
+
+      // ── STOCH SETTINGS: fixed reasonable defaults ─────────────────────
       cfg.P_StoK                 = 5;
       cfg.P_StoD                 = 3;
       cfg.P_StoSlow              = 3;
       cfg.T_StoOB                = 80.0;
       cfg.T_StoOS                = 20.0;
       cfg.StoMode                = STO_CROSS_SIGNAL;
-      
-      // ================================================================
-      // PHASE DETECTION & LAYER FILTERING
-      // ================================================================
+
+      // ── BB SETTINGS: fixed reasonable defaults ────────────────────────
+      cfg.P_Bb                   = 20;
+      cfg.P_BbDev                = 2.0;
+      cfg.BbMode                 = BB_TREND_FOLLOW;
+
+      // ── MFI SETTINGS: fixed reasonable defaults ───────────────────────
+      cfg.P_Mfi                  = 14;
+      cfg.T_MfiOB                = 80.0;
+      cfg.T_MfiOS                = 20.0;
+      cfg.MfiMode                = MFI_ZONE_FILTER;
+
+      // ── CANDLE BODY SETTINGS ──────────────────────────────────────────
+      cfg.CandleBody_AvgPeriod   = 15;
+      cfg.CandleBody_MaxMult     = 3.5;
+      cfg.CandleBody_CheckBars   = 2;
+      cfg.Ind_CandleBody_Weight  = 1;
+
+      // ── BAR CLOSE (bcX) CONFIGURATION ────────────────────────────────
+      cfg.BarClose_Enabled       = true;
+      cfg.BarClose_Mode          = BC_LAYER_AWARE;
+      cfg.BarClose_DefaultEMA    = ROLE_EMA1;
+
+      // ── PHASE DETECTION & LAYER FILTERING: locked ────────────────────
       cfg.PhaseDetectionEnabled      = true;
-      
-      // ✅ FIX: Only enable strict layer touch evaluation if the strategy requires it
-      cfg.EnableLayerDetection       = (cfg.AutoStrat == STRAT_4EMA_LAYER);
-      
+      cfg.EnableLayerDetection       = true;
       cfg.BlockUnorderedPhase        = true;
       cfg.RequireMinPhaseConfirm     = true;
       cfg.MinPhaseConfirmBars        = 4;
-      
-      // Layer permissions per phase
+
+      // Layer permissions per phase (per RRM methodology PNGs):
+      //   TRENDING:  Weak + Medium + Strong trades allowed
+      //   EMERGING:  Weak + Medium allowed; Strong blocked
+      //   UNORDERED: all blocked (BlockUnorderedPhase = true)
       cfg.Trending_AllowWeakTrades   = true;
       cfg.Emerging_AllowWeakTrades   = true;
       cfg.Trending_AllowMediumTrades = true;
       cfg.Emerging_AllowMediumTrades = true;
       cfg.Trending_AllowStrongTrades = true;
       cfg.Emerging_AllowStrongTrades = false;
-      
-      // ================================================================
-      // PULLBACK DETECTION GATES
-      // ================================================================
-      cfg.RequireRecoveryMomentum   = true;
-   
-      // Gate 2: Recovery momentum
-      cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
-      cfg.Gate_Recovery.value       = 1.0;
-      cfg.RRM_Lookback              = (_Period <= PERIOD_M5) ? 5 : 7;
-   
-      // Gate 3: EMA divergence
-      cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
-      cfg.Gate_EmaDiv.value         = 1.0;
-      cfg.RRM_MinDivPips            = 1.5;
-      
-      // Gate 4: Candle direction
+
+      // ── PULLBACK DETECTION GATES ──────────────────────────────────────
+      cfg.RequireRecoveryMomentum    = true;
+
+      cfg.Gate_Recovery.mode         = GATE_SCALE_AUTO_TF;
+      cfg.Gate_Recovery.value        = 1.0;
+      cfg.RRM_Lookback               = (_Period <= PERIOD_M5) ? 5 : 7;
+
+      cfg.Gate_EmaDiv.mode           = GATE_SCALE_AUTO_TF;
+      cfg.Gate_EmaDiv.value          = 1.0;
+      cfg.RRM_MinDivPips             = 1.5;
+
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
       cfg.Gate_CandleDirection.value = 1.0;
-      
-      // ================================================================
-      // VOTE EVALUATION SETTINGS
-      // ================================================================
-      cfg.Vote_EvalShift            = 1;
-      
-      // ================================================================
-      // RISK MANAGEMENT (Portfolio-level)
-      // ================================================================
-      cfg.RiskPercent               = 2.0;
-      cfg.FixedLotSize              = 0.0;
-      cfg.MaxTotalRisk              = 4.0;
-      cfg.MaxOpenTrades             = 3;
-      cfg.CountBEasZeroRisk         = true;
-      
-      // ================================================================
-      // EXIT STRATEGY CONFIGURATION
-      // ================================================================
-      cfg.ExitProfile               = EXIT_PROFILE_RRM;
-      cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
-      cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
-      cfg.TP_Enabled                = true;
-      cfg.TrailMode                 = TRAIL_PSAR;
-      cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
-      cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
-      cfg.BE_Mode                   = BE_MODE_R_MULTIPLE;
-      
-      // ================================================================
-      // SL/TP STRATEGY MODES
-      // ================================================================
-      cfg.SLMode                    = SL_MODE_SWING;
-      cfg.TPMode                    = TP_MODE_RR;
-      cfg.FixedTPPips               = 40.0;
-      cfg.SLPercent                 = 0.5;
-      cfg.RRRatio                   = 3.0;
-      cfg.SwingLookback             = 20;
-   
-      // ================================================================
-      // FRACTAL/PSAR SL/TP DEFAULTS
-      // ================================================================
-      cfg.FractalPeriod             = 5;
-      cfg.TPFractalOffset           = 1;
 
-      // ================================================================
-      // ADVANCED TRAILING TRIGGER DEFAULTS
-      // ================================================================
-      ENUM_TIMEFRAMES tf = (ENUM_TIMEFRAMES)_Period;
-      cfg.TrailTrigger              = TRIGGER_BREAKEVEN;
-      cfg.TrailDistancePips         = GetTFBasedCushion(tf);
-      cfg.BEThresholdPips           = GetTFBasedCushion(tf);
-      cfg.TrailProfitPercent        = 2.0; // ORG: 1.0
-      cfg.TrailStepPips             = 5.0;
-      cfg.TrailLockProfit           = true;
-   
-      // ================================================================
-      // RRM DRAWDOWN PROTECTION
-      // ================================================================
+      // ── VOTE EVALUATION ───────────────────────────────────────────────
+      cfg.Vote_EvalShift             = 1;
+
+      // ── RISK MANAGEMENT ───────────────────────────────────────────────
+      cfg.FixedLotSize               = 0.0;
+      cfg.CountBEasZeroRisk          = true;
+
+      // ── EXIT STRATEGY: flexible via Inp_RRM_* ────────────────────────
+      cfg.ExitProfile                = EXIT_PROFILE_RRM;
+      cfg.SLMode                     = Inp_RRM_SLMode;
+      cfg.TPMode                     = Inp_RRM_TPMode;
+      cfg.RRRatio                    = Inp_RRM_RRRatio;
+      cfg.SwingLookback              = Inp_RRM_SwingLookback;
+      cfg.SL_SwingPipsCushion        = GetRecommendedInitialSlCushionPips();
+      cfg.SL_PsarPipsCushion         = GetRecommendedInitialSlCushionPips();
+      cfg.FixedTPPips                = 40.0;
+      cfg.SLPercent                  = 0.5;
+      cfg.TP_Enabled                 = (Inp_RRM_TPMode != TP_MODE_NONE);
+
+      cfg.TrailMode                  = Inp_RRM_TrailMode;
+      cfg.PSAR_TrailCushionMode      = PSAR_CUSHION_PIPS;
+      cfg.PSAR_TrailPipsCushion      = GetRecommendedTrailPsarCushionPips();
+      cfg.BE_Mode                    = BE_MODE_R_MULTIPLE;
+
+      // ── ADVANCED TRAILING TRIGGER ─────────────────────────────────────
+      ENUM_TIMEFRAMES tf             = (ENUM_TIMEFRAMES)_Period;
+      cfg.TrailTrigger               = TRIGGER_BREAKEVEN;
+      cfg.TrailDistancePips          = GetTFBasedCushion(tf);
+      cfg.BEThresholdPips            = GetTFBasedCushion(tf);
+      cfg.TrailProfitPercent         = 2.0;
+      cfg.TrailStepPips              = 5.0;
+      cfg.TrailLockProfit            = true;
+
+      // ── FRACTAL SL/TP DEFAULTS ────────────────────────────────────────
+      cfg.FractalPeriod              = 5;
+      cfg.TPFractalOffset            = 1;
+
+      // ── RRM DRAWDOWN PROTECTION ───────────────────────────────────────
       cfg.RRM_EnableDrawdownProtection = Inp_RRM_EnableDrawdownProtection;
       cfg.RRM_MaxConsecutiveLosses     = Inp_RRM_MaxConsecutiveLosses;
       cfg.RRM_MaxTradesPerDay          = Inp_RRM_MaxTradesPerDay;
       cfg.RRM_MaxDailyDrawdownPct      = Inp_RRM_MaxDailyDrawdownPct;
 
-      // ================================================================
-      // SLOPE CALCULATION SETTINGS (Adaptive by Timeframe)
-      // ================================================================
+      // ── SLOPE CALCULATION ─────────────────────────────────────────────
+      cfg.SlopeLookbackBars          = (tf >= PERIOD_H1) ? 2 : 1;
+      cfg.UseSlopeThreshold          = true;
+      cfg.SlopeThresholdPips         = 0.1;
+      cfg.SlopeThresholdAdaptive     = true;
+      cfg.SlopeMeasureMode           = SLOPE_MEASURE_PIPS;
 
-      // Determine lookback based on timeframe branch
-      int slope_lookback = 1;
-      if(tf >= PERIOD_H1)
-         slope_lookback = 2; // Smoother for swing trading (H1+)
-
-      cfg.SlopeLookbackBars      = slope_lookback;
-      cfg.UseSlopeThreshold      = true;
-      cfg.SlopeThresholdPips     = 0.0; // Use adaptive calculation
-      cfg.SlopeThresholdAdaptive = true; // Auto: M5=0.4p, H1=1.2p, H4=2.0p
-      cfg.SlopeMeasureMode       = SLOPE_MEASURE_PIPS;
-
-      // ================================================================
-      // POLICY A: RESTORE OPERATOR-CONTROLLED GATES (except MaxSpread)
-      // MaxSpread is preset-controlled in PRESET_RRM via RRM_SCALP/RRM_SWING mode.
-      // ================================================================
-      cfg.UseSpread              = op_UseSpread;
-      cfg.UseTime                = op_UseTime;
-      cfg.StartHr                = op_StartHr;
-      cfg.EndHr                  = op_EndHr;
-      cfg.UseNews                = op_UseNews;
-      cfg.NewsPre                = op_NewsPre;
-      cfg.NewsPost               = op_NewsPost;
-      cfg.RiskPercent            = op_RiskPercent; // Policy A: restore user risk tolerance
-      cfg.MaxOpenTrades          = op_MaxOpenTrades; // Policy A: restore user position limit
-      cfg.MaxTotalRisk           = op_MaxTotalRisk; // Policy A: restore user portfolio risk cap
+      // ── POLICY A: RESTORE OPERATOR-CONTROLLED GATES ───────────────────
+      cfg.UseSpread     = op_UseSpread;
+      cfg.UseTime       = op_UseTime;
+      cfg.StartHr       = op_StartHr;
+      cfg.EndHr         = op_EndHr;
+      cfg.UseNews       = op_UseNews;
+      cfg.NewsPre       = op_NewsPre;
+      cfg.NewsPost      = op_NewsPost;
+      cfg.RiskPercent   = op_RiskPercent;
+      cfg.MaxOpenTrades = op_MaxOpenTrades;
+      cfg.MaxTotalRisk  = op_MaxTotalRisk;
 
       return;
    }
