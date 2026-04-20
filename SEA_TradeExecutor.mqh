@@ -433,9 +433,9 @@ private:
 
       // Broker minimum distance is in points; add one full pip as an extra buffer.
       double user_min_dist = m_settings.SL_MinPips * pipSize;
-      long stops_level_points_raw = 0;
-      if(!SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_level_points_raw)) stops_level_points_raw = 0;
-      double broker_min_dist = (double)stops_level_points_raw * _Point + pipSize;
+      long stops_level_points = 0;
+      if(!SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_level_points)) stops_level_points = 0;
+      double broker_min_dist = (double)stops_level_points * _Point + pipSize;
       double min_sl_dist = MathMax(user_min_dist, broker_min_dist);
 
       double actual_dist = MathAbs(entry - sl);
