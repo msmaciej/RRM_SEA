@@ -110,7 +110,9 @@ private:
    //+------------------------------------------------------------------+
    
    double GetPipSize() const {
-      return _Point * (StringFind(_Symbol, "JPY") >= 0 ? 100.0 : 10.0);
+      int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+      if(digits == 3 || digits == 5) return _Point * 10.0;
+      return _Point;
    }
 
    double GetPSARAnchor(int shift=1) {
@@ -373,6 +375,11 @@ private:
          case SL_MODE_SWING: {
             double swing_level = GetSwingLevel(isBuy ? 1 : -1);
             if(swing_level > 0.0) {
+               bool valid = isBuy ? (swing_level < entry) : (swing_level > entry);
+               if(!valid) {
+                  PrintFormat("⚠️ [RRM SL] Swing anchor on wrong side. Using Fixed Pips.");
+                  return isBuy ? (entry - fixed_dist) : (entry + fixed_dist);
+               }
                double cushion_price = m_settings.SL_SwingPipsCushion * pipSize;
                return isBuy ? (swing_level - cushion_price) : (swing_level + cushion_price);
             }
@@ -382,6 +389,11 @@ private:
          case SL_MODE_PSAR_DOT: {
             double psar = GetPSARAnchor(1);
             if(psar > 0.0) {
+               bool valid = isBuy ? (psar < entry) : (psar > entry);
+               if(!valid) {
+                  PrintFormat("⚠️ [RRM SL] PSAR anchor on wrong side. Using Fixed Pips.");
+                  return isBuy ? (entry - fixed_dist) : (entry + fixed_dist);
+               }
                double cushion_price = m_settings.SL_PsarPipsCushion * pipSize;
                return isBuy ? (psar - cushion_price) : (psar + cushion_price);
             }
@@ -410,10 +422,24 @@ private:
          case SL_MODE_SWING:
             anchor = GetSwingLevel(isBuy ? 1 : -1);
             cushion_pips = m_settings.SL_SwingPipsCushion;
+            if(anchor > 0.0) {
+               bool valid = isBuy ? (anchor < price) : (anchor > price);
+               if(!valid) {
+                  PrintFormat("⚠️ [SL] Swing anchor (%.5f) on wrong side of entry (%.5f) for %s — fallback to Fixed Pips", anchor, price, isBuy ? "BUY" : "SELL");
+                  anchor = 0.0;
+               }
+            }
             break;
          case SL_MODE_PSAR_DOT:
             anchor = GetPSARAnchor(1);
             cushion_pips = m_settings.SL_PsarPipsCushion;
+            if(anchor > 0.0) {
+               bool valid = isBuy ? (anchor < price) : (anchor > price);
+               if(!valid) {
+                  PrintFormat("⚠️ [SL] PSAR anchor (%.5f) on wrong side of entry (%.5f) for %s — fallback to Fixed Pips", anchor, price, isBuy ? "BUY" : "SELL");
+                  anchor = 0.0;
+               }
+            }
             break;
          case SL_MODE_FRACTAL:
             anchor = GetFractalLevel(isBuy ? 1 : -1);
