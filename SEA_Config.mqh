@@ -20,7 +20,8 @@ enum EStrategyPreset
    PRESET_CUSTOM,          // PRESET_CUSTOM: user-defined settings
    PRESET_MA,              // PRESET_MA: benchmark: MT5 MA EA compatibility
    PRESET_RRM,             // PRESET_RRM: phase-based layer detection system
-   PRESET_TEST             // PRESET_TEST: development/debugging preset
+   PRESET_TEST,            // PRESET_TEST: development/debugging preset
+   PRESET_FPM              // PRESET_FPM: Five-Point Method (PSAR+MACD+BB+SMA10/20)
 };
 enum EEmaStrategy
 {
@@ -823,6 +824,32 @@ input int           Inp_RRM_SwingLookback = 20;            // RRM Swing lookback
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📐 RRM: Exit — Trailing Stop                          ║";
 input ETrailingMode Inp_RRM_TrailMode     = TRAIL_PSAR;    // RRM Trailing stop mode
+
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "  📐 ZONE 3C: PRESET_FPM SETTINGS";
+input group "      (Only active when InpPreset = PRESET_FPM)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 FPM: Swing SL Settings                             ║";
+input int           Inp_FPM_SwingLookback    = 5;    // FPM SL swing lookback bars (used with SL_MODE_SWING)
+input double        Inp_FPM_MaxSlPips        = 25.0; // FPM SL max pips guideline (informational; see comments)
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 FPM: Trailing Stop (Optional)                      ║";
+input bool          Inp_FPM_UseTrailing      = true;  // FPM: Enable optional trailing stop
+input double        Inp_FPM_TrailDistancePips = 15.0; // FPM: Trailing distance in pips (15 = cheat sheet default)
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 FPM: PSAR Settings                                 ║";
+input double        Inp_FPM_PsarStep         = 0.02; // FPM PSAR Step
+input double        Inp_FPM_PsarMax          = 0.2;  // FPM PSAR Max
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 FPM: MACD Settings                                 ║";
+input int           Inp_FPM_MacdFast         = 12;   // FPM MACD Fast period
+input int           Inp_FPM_MacdSlow         = 26;   // FPM MACD Slow period
+input int           Inp_FPM_MacdSig          = 9;    // FPM MACD Signal period
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "  ⚠️  ZONE 3A: PIPELINE CONFIG";
