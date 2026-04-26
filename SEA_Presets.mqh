@@ -64,7 +64,7 @@ double GetFPMFixedTpPips()
    if      (tf <= PERIOD_M5)  return 11.0;   // M5:  7-15 pips → midpoint 11
    else if (tf <= PERIOD_M15) return 15.0;   // M15: 10-20 pips → midpoint 15
    else if (tf <= PERIOD_M30) return 40.0;   // M30: 30-50 pips → midpoint 40
-   else                       return 50.0;   // H1+: generous default
+   else                       return 50.0;   // H1+: cheat sheet specifies 50 pips for higher timeframes
 }
 
 string PresetToString(EStrategyPreset p)
@@ -1223,12 +1223,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       //
       // NOTE - Condition 4 (SMA convergence):
       //   True "SMA gap narrowing" detection is not available in the engine.
-      //   STRAT_2EMA_POSITION approximates it by requiring SMA10 vs SMA20
-      //   positional alignment. Use PRESET_CUSTOM for full manual control.
+      //   STRAT_2EMA_POSITION checks that price is positioned above both SMA10
+      //   and SMA20 for a buy (below both for a sell), approximating the aligned
+      //   SMA structure implied by the convergence condition. It does not measure
+      //   whether the gap between the two SMAs is actually narrowing.
+      //   Use PRESET_CUSTOM for full manual control.
       //
       // NOTE - SL max 25 pips:
       //   SL_MODE_SWING is used per cheat sheet. The 25-pip maximum is a
-      //   guideline — enforce manually if swing SL is too wide.
+      //   guideline only — it is NOT programmatically enforced. If the computed
+      //   swing SL exceeds 25 pips, reduce Inp_FPM_SwingLookback or skip the
+      //   trade manually.
       //
       // FLEXIBLE (via Inp_FPM_* inputs):
       //   Swing lookback, PSAR step/max, MACD periods, trailing toggle, trail distance
@@ -1237,7 +1242,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── SIGNAL ARCHITECTURE: locked ──────────────────────────────────
       cfg.BiasMode               = BIAS_2EMA;
-      cfg.AutoStrat              = STRAT_2EMA_POSITION;    // Position + slope
+      cfg.AutoStrat              = STRAT_2EMA_POSITION;    // Price must be above/below both SMA10 and SMA20
       cfg.BiasFastID             = (int)ROLE_EMA1;         // SMA10: fast
       cfg.BiasSlowID             = (int)ROLE_EMA2;         // SMA20: slow
       cfg.MaType                 = METHOD_SMA;             // SMA (not EMA)
@@ -1276,7 +1281,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_PsarStep             = Inp_FPM_PsarStep;
       cfg.P_PsarMax              = Inp_FPM_PsarMax;
       cfg.Vote_AllowPsarFlip     = true;   // Allow flip detection
-      cfg.Vote_PsarFlipDelay     = -1;     // -1 = persistent: PSAR dot side vs price
+      cfg.Vote_PsarFlipDelay     = -1;     // -1 = no time expiry: PSAR dot position evaluated on every bar
 
       // ── MACD SETTINGS ─────────────────────────────────────────────────
       // Condition 2: MACD crossed above signal line = MACD_CROSSOVER (Main > Signal)
@@ -1401,7 +1406,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BEThresholdPips           = 10.0;
       cfg.TrailTrigger              = TRIGGER_BREAKEVEN;
 
-      // Trail: Optional 15-pip trailing stop (cheat sheet: "15 points or min allowed")
+      // Trail: Optional 15-pip trailing stop (cheat sheet: "15 points or minimum broker-allowed distance")
+      // If 15 pips is below the broker's minimum trail distance, the platform will
+      // clamp it to the minimum. Set Inp_FPM_UseTrailing=false to disable entirely.
       cfg.TrailMode                 = Inp_FPM_UseTrailing ? TRAIL_FIXED_PIPS : TRAIL_NONE;
       cfg.TrailDistancePips         = Inp_FPM_TrailDistancePips;
       cfg.TrailLockProfit           = true;
