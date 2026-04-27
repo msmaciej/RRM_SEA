@@ -1589,7 +1589,7 @@ private:
       {
          if(m_settings.Ind_SmaConverge_Enabled)
             DebugLog(StringFormat("[IND_SMA_CONV] ENABLED | GapNow=%.5f | GapPrev=%.5f | Result: %s",
-                                  gap_now, gap_prev, result ? "PASS (converging)" : "FAIL (diverging)"));
+                                  gap_now, gap_prev, result ? "PASS (narrowing)" : "FAIL (widening)"));
          else
             DebugLog("[IND_SMA_CONV] DISABLED - skipped");
       }
@@ -2390,7 +2390,7 @@ public:
    {
       if(m_stats.total_bars == 0) return;
       struct SBottleneck { string name; int rejected; double pct; };
-      SBottleneck bn[26]; // Gates(3) + Bias/Phase/Layer(4) + Indicators(14 + CandleBody + CI + VRC + ATR) = up to 24 entries
+      SBottleneck bn[26]; // Gates(3) + Bias/Phase/Layer(4) + Indicators(15 + CandleBody + CI + VRC + ATR + SmaConverge) = up to 25 entries
       int idx = 0;
       if(m_stats.rejected_spread > 0)         { bn[idx].name="Spread";         bn[idx].rejected=m_stats.rejected_spread;        bn[idx++].pct=m_stats.rejected_spread*100.0/m_stats.total_bars; }
       if(m_stats.rejected_time > 0)           { bn[idx].name="Time Window";    bn[idx].rejected=m_stats.rejected_time;          bn[idx++].pct=m_stats.rejected_time*100.0/m_stats.total_bars; }

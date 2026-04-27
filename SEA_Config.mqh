@@ -1050,7 +1050,7 @@ input double         Inp_Ind_VRC_LowThreshold   = 33.0; // [VRC] Low volatility 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 SMA Convergence (SmaConverge)                      ║";
 input bool           Inp_Ind_SmaConverge_Enabled = false; // [SmaConv] Enable SMA convergence vote (FPM Condition 4)
-int                  Inp_Ind_SmaConverge_Weight  = 1; // [SmaConv] Vote weight
+input int            Inp_Ind_SmaConverge_Weight  = 1; // [SmaConv] Vote weight
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 P123: Pattern 1-2-3                                ║";

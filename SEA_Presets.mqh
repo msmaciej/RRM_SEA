@@ -1419,7 +1419,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // BE: Move to breakeven after 10 pips profit
       cfg.BE_Mode                   = BE_MODE_R_MULTIPLE;
-      cfg.RRM_BE_RMultiple          = 1.0;                         // BE at 1R profit (cheat sheet: 10 pips = initial SL distance)
+      cfg.RRM_BE_RMultiple          = 1.0;                         // BE at 1R profit (triggers when profit ≥ 1× initial SL distance)
       cfg.RRM_BE_BufferPips         = GetTFBasedCushion(_Period);  // TF-adaptive buffer (e.g., M5=3p, M15=5p, H1=8p)
       cfg.BEThresholdPips           = 0.0;                         // Not used in R_MULTIPLE mode
       cfg.TrailTrigger              = TRIGGER_BREAKEVEN;
