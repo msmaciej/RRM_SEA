@@ -52,16 +52,19 @@ SimpleEA supports 4 bias modes, each with specific strategy requirements:
 ## 🗺️ Canonical Documentation Map
 The system architecture has been refactored into focused, authoritative files. Start here:
 
-* **[Step 1: Signal & Indicator Engine](README_SEA_SIGNAL_REFERENCE.md)**
+* **[Step 1: Signal & Indicator Engine](Readme/README_SEA_SIGNAL_REFERENCE.md)**
     * The 9-step TS (Trade Setup) multiplicative pipeline (`TS = Bias × Phase × Layer × Indicators`).
     * Indicator logic (ADX Dynamic, VRC Percentiles, MACD, PSAR, etc.).
     * Developer Guide: Centralized Indicator Registry & Plugin pattern.
-* **[Step 2: Execution & Trade Logic](README_SEA_TRADE_LOGIC.md)**
+* **[Step 2: Execution & Trade Logic](Readme/README_SEA_TRADE_LOGIC.md)**
     * The TE (Trade Entry) execution architecture at shift=0.
     * Exit Management (SL, TP, Breakeven, and Trailing).
     * Auto-scaling TF-based cushions and Adaptive Spread Limits.
-* **[SEA Agents Bootstrapping](README_SEA_BOOTSTRAP.md)**
+* **[SEA Agents Bootstrapping](Readme/README_SEA_BOOTSTRAP.md)**
     * AI Agent Manifest and instructions for starting new chat tasks.
+* **[Preset Reference](Readme/README_SEA_PRESETS.md)**
+    * Full logic diagrams and user guides for all presets: CUSTOM, MA, RRM, TEST, FPM.
+    * Five-Point Method (PRESET_FPM) cheat sheet mapping and Zone 3C input reference.
 
 ---
 
@@ -76,10 +79,15 @@ SimpleEA utilizes a highly modular architecture. To eliminate parameter bloat an
 Inputs in `SEA_Config.mqh` are visually grouped in the MT5 dialog to distinguish operator controls from preset-controlled strategy variables.
 
 ### ZONE 1: Preset Selection
-Selects the core strategy mapped within `SEA_Presets.mqh`.
-* `PRESET_MA`: Replicates the MT5 Moving Average EA benchmark.
-* `PRESET_CUSTOM`: All inputs respected; full user control.
-* `PRESET_RRM`: Institutional strategy. **Overrides all strategy-related inputs.** Enforces `VOTE_MODE_ALL`, strict trailing steps, and specific indicator configurations.
+Selects the core strategy mapped within `SEA_Presets.mqh`. See **[📐 Preset Reference →](Readme/README_SEA_PRESETS.md)** for full logic diagrams and user guides.
+
+| Preset | Summary | Strategy locked? | Exits locked? |
+|---|---|---|---|
+| `PRESET_CUSTOM` | All inputs respected; full user control | ✗ | ✗ |
+| `PRESET_MA` | MT5 Moving Average EA benchmark | ✓ (voting off) | ✓ fixed pips |
+| `PRESET_RRM` | Phase-based trend pullback (4EMA, PSAR+MACD+CCI) | ✓ | Partially (trail locked, SL/TP user) |
+| `PRESET_TEST` | Development / debug bypass | ✗ (threshold=1) | ✓ fixed pips |
+| `PRESET_FPM` | **Five-Point Method** — PSAR + MACD crossover + BB widening + SMA10/20 convergence + bar close | ✓ | ✗ (SL/TP/Trail user-controlled via Zone 3C) |
 
 1.  **Anti-Confusion Mapping:** When `PRESET_RRM` is active, it fully defines all strategy-critical settings via `SEA_Presets.mqh`. Strategy-related inputs in MT5 are ignored. The EA prints a clear initialization note, and the UI/Logs display the *effective* settings.
 2.  **Two-Phase Signal Timing:**
