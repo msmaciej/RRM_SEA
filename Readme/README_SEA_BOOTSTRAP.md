@@ -13,6 +13,7 @@ When starting a new conversation, paste:
   - `Readme/README_INDICATORS.md`
   - `Readme/README_SEA_RULES.md`
   - `Readme/README_SEA_AI-AGENTS.md`
+  - `Readme/README_SEA_PRESETS.md`
 - Treat `Legacy/` as archive only:
   - do not use unless explicitly requested
 - Preset policy: **Model A**
