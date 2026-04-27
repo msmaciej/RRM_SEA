@@ -363,6 +363,7 @@ struct ST_Settings
    int Ind_CandleBody_Weight;
    int Ind_CI_Weight;
    int Ind_VRC_Weight;
+   int  Ind_SmaConverge_Weight;  // Weight for VOTE_MODE_THRESHOLD
 
    // Choppiness Index
    int    CI_Period;
@@ -370,6 +371,7 @@ struct ST_Settings
 
    // VRC (Volatility Regime Classifier)
    bool   Ind_VRC_Enabled;
+   bool   Ind_SmaConverge_Enabled;  // SMA Convergence vote (gap narrowing = pullback signal)
    int    VRC_ATR_Period;
    int    VRC_Lookback;
    double VRC_LowThreshold;  // Below this percentile = LOW regime (reject trade)
@@ -1046,6 +1048,11 @@ input int            Inp_Ind_VRC_Lookback       = 100; // [VRC] Lookback bars fo
 input double         Inp_Ind_VRC_LowThreshold   = 33.0; // [VRC] Low volatility threshold (percentile)
 
 input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📊 SMA Convergence (SmaConverge)                      ║";
+input bool           Inp_Ind_SmaConverge_Enabled = false; // [SmaConv] Enable SMA convergence vote (FPM Condition 4)
+int                  Inp_Ind_SmaConverge_Weight  = 1; // [SmaConv] Vote weight
+
+input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📊 P123: Pattern 1-2-3                                ║";
 //input group "╚════════════════════════════════════════════════════════╝";
 // input string         Inp_Ind_P123_Info          = "1-2-3 fractal breakout pattern"; // [P123] Description
@@ -1382,6 +1389,7 @@ void InitializeConfig()
    Settings.Ind_CandleBody_Enabled = Inp_Ind_CandleBody_Enabled;
    Settings.Ind_CI_Enabled        = Inp_Ind_CI_Enabled;
    Settings.Ind_VRC_Enabled       = Inp_Ind_VRC_Enabled;
+   Settings.Ind_SmaConverge_Enabled = Inp_Ind_SmaConverge_Enabled;
 
    // Weights
    Settings.Ind_Adx_Weight       = Inp_Ind_Adx_Weight;
@@ -1398,6 +1406,7 @@ void InitializeConfig()
    Settings.Ind_CandleBody_Weight = Inp_Ind_CandleBody_Weight;
    Settings.Ind_CI_Weight         = Inp_Ind_CI_Weight;
    Settings.Ind_VRC_Weight        = Inp_Ind_VRC_Weight;
+   Settings.Ind_SmaConverge_Weight = Inp_Ind_SmaConverge_Weight;
 
    // Choppiness Index
    Settings.CI_Period             = MathMax(5, Inp_CI_Period);
@@ -1527,7 +1536,7 @@ struct SIndicatorMeta {
    bool   prefers_subwindow;  // Indicates if the UI should draw this in a subwindow
 };
 
-SIndicatorMeta g_indicator_registry[15];
+SIndicatorMeta g_indicator_registry[16];
 
 //+------------------------------------------------------------------+
 //| InitializeIndicatorRegistry(): Populate registry from settings    |
@@ -1631,6 +1640,13 @@ void InitializeIndicatorRegistry(const ST_Settings &cfg)
    g_indicator_registry[i].is_enabled = cfg.Ind_VRC_Enabled;
    g_indicator_registry[i].weight     = cfg.Ind_VRC_Weight;
    g_indicator_registry[i].prefers_subwindow = false;
+   i++;
+
+   g_indicator_registry[i].name             = "SmaConverge";
+   g_indicator_registry[i].short_name       = "SmaConv";
+   g_indicator_registry[i].is_enabled       = cfg.Ind_SmaConverge_Enabled;
+   g_indicator_registry[i].weight           = cfg.Ind_SmaConverge_Weight;
+   g_indicator_registry[i].prefers_subwindow = false;
 }
 
 //+------------------------------------------------------------------+
@@ -1653,6 +1669,7 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
    if(cfg.Ind_Rsi_Enabled)        count++;
    if(cfg.Ind_Sto_Enabled)        count++;
    if(cfg.Ind_VRC_Enabled)        count++;
+   if(cfg.Ind_SmaConverge_Enabled) count++;
    return count;
 }
 
@@ -1662,16 +1679,17 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
 string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 {
    string names[]  = {"ADX", "ATR", "BB", "CandleBody", "Choppiness Index", "CCI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "Stochastic", "VRC"};
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC"};
    string shorts[] = {"ADX", "ATR", "BB", "CBody", "CI", "CCI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "Stoch", "VRC"};
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConv", "Stoch", "VRC"};
    bool enabled[]  = {cfg.Ind_Adx_Enabled, cfg.Ind_Atr_Enabled, cfg.Ind_Bb_Enabled,
                       cfg.Ind_CandleBody_Enabled, cfg.Ind_CI_Enabled, cfg.Ind_Cci_Enabled,
                       cfg.Ind_Macd_Enabled, cfg.Ind_Mfi_Enabled,
                       cfg.Ind_P123_Enabled, cfg.Ind_Psar_Enabled, cfg.Ind_Ross_Enabled,
-                      cfg.Ind_Rsi_Enabled, cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled};
+                      cfg.Ind_Rsi_Enabled, cfg.Ind_SmaConverge_Enabled,
+                      cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled};
    string list = "";
-   for(int i = 0; i < 14; i++)
+   for(int i = 0; i < 15; i++)
    {
       if(!enabled[i]) continue;
       if(list != "") list += compact ? ", " : "\n  + ";
@@ -1685,8 +1703,8 @@ string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 //+------------------------------------------------------------------+
 void PrintIndicatorRegistry()
 {
-   Print("--- Indicator Registry (15 entries) ---");
-   for(int i = 0; i < 15; i++)
+   Print("--- Indicator Registry (16 entries) ---");
+   for(int i = 0; i < 16; i++)
    {
       PrintFormat("  [%2d] %-12s  enabled=%-5s  weight=%d  subwindow=%-5s",
                   i,

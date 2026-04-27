@@ -176,6 +176,7 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("    Ross:    ", (cfg.Ind_Ross_Enabled ? "✓" : "✗"));
    Print("    RSI:     ", (cfg.Ind_Rsi_Enabled ? "✓" : "✗"));
    Print("    Stoch:   ", (cfg.Ind_Sto_Enabled ? "✓" : "✗"));
+   Print("    SmaConv: ", (cfg.Ind_SmaConverge_Enabled ? "✓" : "✗"));
    Print("");
 
    Print("💰 RISK MANAGEMENT:");
@@ -360,6 +361,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Ross_Enabled       = false;
       cfg.Ind_Rsi_Enabled        = false;
       cfg.Ind_Sto_Enabled        = false;
+      cfg.Ind_SmaConverge_Enabled = false;
+      cfg.Ind_SmaConverge_Weight  = 1;
    
       cfg.VoteMode               = VOTE_MODE_ALL;
       
@@ -649,6 +652,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_VRC_Enabled        = false;
       cfg.Ind_P123_Enabled       = false;
       cfg.Ind_Ross_Enabled       = false;
+      cfg.Ind_SmaConverge_Enabled = false;
+      cfg.Ind_SmaConverge_Weight  = 1;
 
       // ── MACD SETTINGS: flexible via Inp_RRM_* ────────────────────────
       cfg.P_MacdFast             = Inp_RRM_MacdFast;
@@ -900,6 +905,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Ross_Enabled          = false;
       cfg.Ind_Rsi_Enabled           = false;
       cfg.Ind_Sto_Enabled           = false;
+      cfg.Ind_SmaConverge_Enabled   = false;
+      cfg.Ind_SmaConverge_Weight    = 1;
    
       // BAR CLOSE (bcX) CONFIGURATION
       cfg.BarClose_Enabled          = true;           // true
@@ -1206,9 +1213,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       //
       // ENTRY FORMULA (all 5 must align):
       //   1. PSAR crossed below/above price (dot position + optional flip)
-      //   2. MACD crossed above/below signal line (MACD_CROSSOVER mode)
-      //   3. Bollinger Bands widening (BB_TREND_FOLLOW mode)
-      //   4. 10 + 20 SMA converging (BIAS_2EMA + STRAT_2EMA_POSITION approximation)
+      //   2. MACD crossed above/below signal line (MACD_CROSSOVER_N: fresh cross, ≤3 bars)
+      //   3. Bollinger Bands widening (BB_TREND_FOLLOW mode, see NOTE below)
+      //   4. 10 + 20 SMA converging (Ind_SmaConverge: gap narrowing, direction-neutral)
       //   5. Candle closed above/below 10+20 SMA (BarClose_Mode=BC_BIAS_FAST)
       //
       // LOCKED (never user-changeable in FPM):
@@ -1222,12 +1229,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       //   Phase/Layer detection OFF      (simple 2-SMA system)
       //
       // NOTE - Condition 4 (SMA convergence):
-      //   True "SMA gap narrowing" detection is not available in the engine.
-      //   STRAT_2EMA_POSITION checks that price is positioned above both SMA10
-      //   and SMA20 for a buy (below both for a sell), approximating the aligned
-      //   SMA structure implied by the convergence condition. It does not measure
-      //   whether the gap between the two SMAs is actually narrowing.
-      //   Use PRESET_CUSTOM for full manual control.
+      //   Ind_SmaConverge checks that the |SMA10 - SMA20| gap is NARROWING:
+      //   gap_now < gap_prev (direction-neutral, applies equally to BUY and SELL).
+      //   This faithfully implements the cheat sheet "10 and 20 SMA are converging"
+      //   condition as a dedicated voting indicator.
+      //
+      // NOTE - Condition 3 (BB widening) approximation:
+      //   BB_TREND_FOLLOW checks price vs midband (see BB SETTINGS section below).
       //
       // NOTE - SL max 25 pips:
       //   SL_MODE_SWING is used per cheat sheet. The 25-pip maximum is a
@@ -1275,6 +1283,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Ross_Enabled       = false;
       cfg.Ind_Rsi_Enabled        = false;
       cfg.Ind_Sto_Enabled        = false;
+      cfg.Ind_SmaConverge_Enabled = true;   // Condition 4: SMA 10/20 convergence (gap narrowing)
+      cfg.Ind_SmaConverge_Weight  = 1;
 
       // ── PSAR SETTINGS ─────────────────────────────────────────────────
       // Condition 1: PSAR crossed below price (for buy) = PSAR dot below price
@@ -1284,22 +1294,28 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Vote_PsarFlipDelay     = -1;     // -1 = no time expiry: PSAR dot position evaluated on every bar
 
       // ── MACD SETTINGS ─────────────────────────────────────────────────
-      // Condition 2: MACD crossed above signal line = MACD_CROSSOVER (Main > Signal)
+      // Condition 2: MACD crossed above signal line = fresh crossover (within N bars)
       cfg.P_MacdFast             = Inp_FPM_MacdFast;
       cfg.P_MacdSlow             = Inp_FPM_MacdSlow;
       cfg.P_MacdSig              = Inp_FPM_MacdSig;
-      cfg.MacdVoteMode           = MACD_CROSSOVER;  // Main > Signal line
+      cfg.MacdVoteMode           = MACD_CROSSOVER_N;  // Fresh cross only (within N bars)
       cfg.MacdRequireSlope       = false;
       cfg.MacdRequireDivergence  = false;
       cfg.MacdRequireHook        = false;
-      cfg.MacdFreshBars          = 3;
+      cfg.MacdFreshBars          = 3;                  // Valid for 3 bars after cross
       cfg.MacdSlopeMin           = 0.00001;
 
       // ── BOLLINGER BANDS SETTINGS ──────────────────────────────────────
-      // Condition 3: Bollinger Bands widening = BB_TREND_FOLLOW (price near outer band)
+      // Condition 3: Bollinger Bands widening (approximation)
+      //   - BB_TREND_FOLLOW checks: price above midband for longs, below for shorts.
+      //   - True "BB widening" = BandWidth increasing = (upper - lower) expanding over time.
+      //   - A dedicated BB bandwidth indicator would be the correct implementation,
+      //     but is not available in this engine version.
+      //   - The current approximation (price vs midband) correlates reasonably with
+      //     trending conditions but may fire during non-widening trending moves.
       cfg.P_Bb                   = 20;
       cfg.P_BbDev                = 2.0;
-      cfg.BbMode                 = BB_TREND_FOLLOW;
+      cfg.BbMode                 = BB_TREND_FOLLOW;  // Proxy for BB widening (see note above)
 
       // ── BAR CLOSE (bcX): Condition 5 ──────────────────────────────────
       // Candle closed above 10 SMA (fast SMA) → above both SMAs in bullish bias
@@ -1403,7 +1419,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // BE: Move to breakeven after 10 pips profit
       cfg.BE_Mode                   = BE_MODE_R_MULTIPLE;
-      cfg.BEThresholdPips           = 10.0;
+      cfg.RRM_BE_RMultiple          = 1.0;                         // BE at 1R profit (cheat sheet: 10 pips = initial SL distance)
+      cfg.RRM_BE_BufferPips         = GetTFBasedCushion(_Period);  // TF-adaptive buffer (e.g., M5=3p, M15=5p, H1=8p)
+      cfg.BEThresholdPips           = 0.0;                         // Not used in R_MULTIPLE mode
       cfg.TrailTrigger              = TRIGGER_BREAKEVEN;
 
       // Trail: Optional 15-pip trailing stop (cheat sheet: "15 points or minimum broker-allowed distance")
