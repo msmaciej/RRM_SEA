@@ -95,7 +95,7 @@ string GetPresetContractWording(EStrategyPreset preset)
       case PRESET_TEST:
          return "PRESET TEST: Minimal testing mode: bypass voting (threshold=1), fixed SL/TP, no trailing.";
       case PRESET_FPM:
-         return "PRESET FPM: Five-Point Method locked (PSAR+MACD+BB+SMA10/20+BarClose); SL/TP/Trail and Policy A gates user-controlled.";
+         return "PRESET FPM: Five-Point Method locked (PSAR+MACD+BB_WIDENING+SMA10/20+BarClose); SL mode/TP mode/Trail user-controlled via Zone 3C.";
       default:
          return "PRESET: Preset active; strategy-critical settings fixed by preset.";
    }
@@ -1214,7 +1214,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ENTRY FORMULA (all 5 must align):
       //   1. PSAR crossed below/above price (dot position + optional flip)
       //   2. MACD crossed above/below signal line (MACD_CROSSOVER_N: fresh cross, ≤3 bars)
-      //   3. Bollinger Bands widening (BB_TREND_FOLLOW mode, see NOTE below)
+      //   3. Bollinger Bands widening (BB_WIDENING mode: bandwidth expanding bar-to-bar)
       //   4. 10 + 20 SMA converging (Ind_SmaConverge: gap narrowing, direction-neutral)
       //   5. Candle closed above/below 10+20 SMA (BarClose_Mode=BC_BIAS_FAST)
       //
@@ -1234,17 +1234,18 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       //   This faithfully implements the cheat sheet "10 and 20 SMA are converging"
       //   condition as a dedicated voting indicator.
       //
-      // NOTE - Condition 3 (BB widening) approximation:
-      //   BB_TREND_FOLLOW checks price vs midband (see BB SETTINGS section below).
+      // NOTE - Condition 3 (BB widening):
+      //   BB_WIDENING compares bandwidth (upper - lower) at shift vs shift+1.
+      //   Pass when bandwidth_now > bandwidth_prev (bands actively expanding).
+      //   Bias-direction is not relevant — widening is symmetric.
       //
-      // NOTE - SL max 25 pips:
-      //   SL_MODE_SWING is used per cheat sheet. The 25-pip maximum is a
-      //   guideline only — it is NOT programmatically enforced. If the computed
-      //   swing SL exceeds 25 pips, reduce Inp_FPM_SwingLookback or skip the
-      //   trade manually.
+      // NOTE - SL/TP user control (Zone 3C):
+      //   SL mode: SWING (swing high/low) or FIXED_PIPS — via Inp_FPM_SLMode
+      //   TP mode: FIXED_PIPS (TF-based cheat sheet pips) or RR (user ratio) — via Inp_FPM_TPMode
       //
       // FLEXIBLE (via Inp_FPM_* inputs):
-      //   Swing lookback, PSAR step/max, MACD periods, trailing toggle, trail distance
+      //   SL mode, swing lookback, fixed SL pips, TP mode, R:R ratio,
+      //   PSAR step/max, MACD periods, trailing toggle, trail distance
       //
       // ================================================================
 
@@ -1306,16 +1307,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MacdSlopeMin           = 0.00001;
 
       // ── BOLLINGER BANDS SETTINGS ──────────────────────────────────────
-      // Condition 3: Bollinger Bands widening (approximation)
-      //   - BB_TREND_FOLLOW checks: price above midband for longs, below for shorts.
-      //   - True "BB widening" = BandWidth increasing = (upper - lower) expanding over time.
-      //   - A dedicated BB bandwidth indicator would be the correct implementation,
-      //     but is not available in this engine version.
-      //   - The current approximation (price vs midband) correlates reasonably with
-      //     trending conditions but may fire during non-widening trending moves.
+      // Condition 3: Bollinger Bands widening (BB_WIDENING)
+      //   Compares bandwidth (upper - lower) at shift vs shift+1.
+      //   Passes when bandwidth_now > bandwidth_prev (bands actively expanding).
       cfg.P_Bb                   = 20;
       cfg.P_BbDev                = 2.0;
-      cfg.BbMode                 = BB_TREND_FOLLOW;  // Proxy for BB widening (see note above)
+      cfg.BbMode                 = BB_WIDENING;  // Cheat sheet: "Bollinger Bands are widening"
 
       // ── BAR CLOSE (bcX): Condition 5 ──────────────────────────────────
       // Candle closed above 10 SMA (fast SMA) → above both SMAs in bullish bias
@@ -1402,19 +1399,21 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── EXIT STRATEGY ─────────────────────────────────────────────────
       cfg.ExitProfile               = EXIT_PROFILE_SIMPLE;
 
-      // SL: Swing-based (under recent swing low / above swing high)
-      // NOTE: 25-pip max is a guideline; enforce manually if swing SL exceeds 25 pips
-      cfg.SLMode                    = SL_MODE_SWING;
+      // SL: User-selected mode — swing (recent high/low) or fixed pips
+      // Both are fully user-controlled via Zone 3C inputs; no hardcoded cap.
+      cfg.SLMode                    = Inp_FPM_SLMode;
       cfg.SwingLookback             = Inp_FPM_SwingLookback;
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
-      cfg.SL_FixedPips              = Inp_FPM_MaxSlPips;  // Fallback / reference max
+      cfg.SL_FixedPips              = Inp_FPM_SLFixedPips;
 
-      // TP: TF-based fixed pips (M5: 11, M15: 15, M30: 40, H1+: 50)
-      cfg.TPMode                    = TP_MODE_FIXED_PIPS;
+      // TP: User-selected mode
+      //   TP_MODE_FIXED_PIPS → TF-based cheat sheet midpoints via GetFPMFixedTpPips()
+      //   TP_MODE_RR         → user R:R ratio (Inp_FPM_RRRatio, any double e.g. 1.5, 2.0, 3.0)
+      cfg.TPMode                    = Inp_FPM_TPMode;
       cfg.TP_Enabled                = true;
-      cfg.FixedTPPips               = GetFPMFixedTpPips();
-      cfg.RRRatio                   = 0.0;
+      cfg.FixedTPPips               = (Inp_FPM_TPMode == TP_MODE_FIXED_PIPS) ? GetFPMFixedTpPips() : 0.0;
+      cfg.RRRatio                   = (Inp_FPM_TPMode == TP_MODE_RR)         ? Inp_FPM_RRRatio      : 0.0;
       cfg.SLPercent                 = 0.0;
 
       // BE: Move to breakeven after 10 pips profit
