@@ -89,6 +89,7 @@ struct SRejectionStats {
    int passed_bb,      rejected_bb;
    int passed_p123,    rejected_p123;
    int passed_ross,    rejected_ross;
+   int passed_sma_converge, rejected_sma_converge;
 
    int signals_confirmed;
 };
@@ -183,6 +184,7 @@ private:
    bool     m_eval_ind_res_psar;
    bool     m_eval_ind_res_p123;
    bool     m_eval_ind_res_ross;
+   bool     m_eval_ind_res_sma_converge;
    double   m_eval_vote_weight;          // Total vote weight from EvaluateIndicatorX
    bool     m_eval_all_pass;             // True if all enabled indicators passed
 
@@ -213,6 +215,7 @@ private:
       int    candlebody_result;
       int    ci_result;
       int    vrc_result;
+      int    sma_converge_result;
 
       // Cached indicator values (for debug logging)
       double adx_value;
@@ -335,6 +338,7 @@ private:
       m_ind_cache.candlebody_result = -1;
       m_ind_cache.ci_result = -1;
       m_ind_cache.vrc_result = -1;
+      m_ind_cache.sma_converge_result = -1;
    }
 
    bool IsCacheValidForShift(int shift) const
@@ -1554,6 +1558,45 @@ private:
 
 
    //+------------------------------------------------------------------+
+   // Check_SmaConverge: SMA/EMA 10+20 Convergence (FPM Condition 4)
+   // PASS when the gap between EMA1 and EMA2 is narrowing (converging).
+   // Bias-neutral: same check for BUY and SELL entries.
+   // Rationale: narrowing gap = price pulling back toward SMAs = setup.
+   //+------------------------------------------------------------------+
+   bool Check_SmaConverge(int shift)
+   {
+      if(IsCacheValidForShift(shift) && m_ind_cache.sma_converge_result != -1)
+         return (m_ind_cache.sma_converge_result == 1);
+
+      double e1_now  = GetMAVal(h_ema1, shift);
+      double e2_now  = GetMAVal(h_ema2, shift);
+      double e1_prev = GetMAVal(h_ema1, shift + 1);
+      double e2_prev = GetMAVal(h_ema2, shift + 1);
+
+      if(e1_now == 0.0 || e2_now == 0.0 || e1_prev == 0.0 || e2_prev == 0.0)
+      {
+         m_ind_cache.sma_converge_result = 0;
+         return false;
+      }
+
+      double gap_now  = MathAbs(e1_now  - e2_now);
+      double gap_prev = MathAbs(e1_prev - e2_prev);
+      bool result = (gap_now < gap_prev);
+
+      m_ind_cache.sma_converge_result = result ? 1 : 0;
+
+      if(m_settings.DebugFlow)
+      {
+         if(m_settings.Ind_SmaConverge_Enabled)
+            DebugLog(StringFormat("[IND_SMA_CONV] ENABLED | GapNow=%.5f | GapPrev=%.5f | Result: %s",
+                                  gap_now, gap_prev, result ? "PASS (narrowing)" : "FAIL (widening)"));
+         else
+            DebugLog("[IND_SMA_CONV] DISABLED - skipped");
+      }
+      return result;
+   }
+
+   //+------------------------------------------------------------------+
    // --- NEWS HELPERS (CSV calendar_statement.csv) ---
    //+------------------------------------------------------------------+
 
@@ -2115,7 +2158,7 @@ public:
 
       // Build sortable array of reason/count pairs
       struct SReason { string name; int count; double pct; };
-      SReason reasons[24];
+      SReason reasons[25];
       int idx = 0;
 
       reasons[idx].name = "Phase=UNORDERED";
@@ -2202,6 +2245,10 @@ public:
       reasons[idx].count = m_stats.rejected_ross;
       reasons[idx++].pct = m_stats.rejected_ross * 100.0 / m_stats.total_bars;
 
+      reasons[idx].name = "SmaConverge";
+      reasons[idx].count = m_stats.rejected_sma_converge;
+      reasons[idx++].pct = m_stats.rejected_sma_converge * 100.0 / m_stats.total_bars;
+
       // Bubble sort descending by count
       for(int i = 0; i < idx - 1; i++) {
          for(int j = i + 1; j < idx; j++) {
@@ -2287,6 +2334,7 @@ public:
       PrintIndicatorStat("CandleBody", m_settings.Ind_CandleBody_Enabled, m_stats.passed_candle_body, m_stats.rejected_candle_body);
       PrintIndicatorStat("ChoppinessIdx", m_settings.Ind_CI_Enabled, m_stats.passed_ci, m_stats.rejected_ci);
       PrintIndicatorStat("VRC",          m_settings.Ind_VRC_Enabled, m_stats.passed_vrc, m_stats.rejected_vrc);
+      PrintIndicatorStat("SmaConverge",  m_settings.Ind_SmaConverge_Enabled, m_stats.passed_sma_converge, m_stats.rejected_sma_converge);
       PrintIndicatorStat("ATR",          m_settings.Ind_Atr_Enabled, m_stats.passed_atr, m_stats.rejected_atr);
       Print("----------------------------------------------------------------");
       PrintFormat("Indicators: %d enabled (ALL must pass)", GetEnabledIndicatorCount(m_settings));
@@ -2342,7 +2390,7 @@ public:
    {
       if(m_stats.total_bars == 0) return;
       struct SBottleneck { string name; int rejected; double pct; };
-      SBottleneck bn[25]; // Gates(3) + Bias/Phase/Layer(4) + Indicators(13 + CandleBody + CI + VRC + ATR) = up to 23 entries
+      SBottleneck bn[26]; // Gates(3) + Bias/Phase/Layer(4) + Indicators(15 + CandleBody + CI + VRC + ATR + SmaConverge) = up to 25 entries
       int idx = 0;
       if(m_stats.rejected_spread > 0)         { bn[idx].name="Spread";         bn[idx].rejected=m_stats.rejected_spread;        bn[idx++].pct=m_stats.rejected_spread*100.0/m_stats.total_bars; }
       if(m_stats.rejected_time > 0)           { bn[idx].name="Time Window";    bn[idx].rejected=m_stats.rejected_time;          bn[idx++].pct=m_stats.rejected_time*100.0/m_stats.total_bars; }
@@ -2365,6 +2413,7 @@ public:
       if(m_settings.Ind_CI_Enabled     && m_stats.rejected_ci     > 0) { bn[idx].name="ChoppinessIdx"; bn[idx].rejected=m_stats.rejected_ci; bn[idx++].pct=m_stats.rejected_ci*100.0/m_stats.total_bars; }
       if(m_settings.Ind_VRC_Enabled    && m_stats.rejected_vrc    > 0) { bn[idx].name="VRC";           bn[idx].rejected=m_stats.rejected_vrc; bn[idx++].pct=m_stats.rejected_vrc*100.0/m_stats.total_bars; }
       if(m_settings.Ind_Atr_Enabled    && m_stats.rejected_atr    > 0) { bn[idx].name="ATR";           bn[idx].rejected=m_stats.rejected_atr; bn[idx++].pct=m_stats.rejected_atr*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_SmaConverge_Enabled && m_stats.rejected_sma_converge > 0) { bn[idx].name="SmaConverge"; bn[idx].rejected=m_stats.rejected_sma_converge; bn[idx++].pct=m_stats.rejected_sma_converge*100.0/m_stats.total_bars; }
       if(idx == 0) { Print("  (no rejections recorded)"); return; }
       for(int i = 0; i < idx-1; i++)
          for(int j = i+1; j < idx; j++)
@@ -2408,6 +2457,7 @@ public:
       if(m_settings.Ind_CandleBody_Enabled && m_stats.rejected_candle_body > worst_cnt) { worst_cnt=m_stats.rejected_candle_body; worst_ind="CandleBody"; }
       if(m_settings.Ind_CI_Enabled         && m_stats.rejected_ci         > worst_cnt) { worst_cnt=m_stats.rejected_ci;         worst_ind="ChoppinessIdx"; }
       if(m_settings.Ind_VRC_Enabled        && m_stats.rejected_vrc        > worst_cnt) { worst_cnt=m_stats.rejected_vrc;        worst_ind="VRC"; }
+      if(m_settings.Ind_SmaConverge_Enabled && m_stats.rejected_sma_converge > worst_cnt) { worst_cnt=m_stats.rejected_sma_converge; worst_ind="SmaConverge"; }
       if(m_settings.Ind_Atr_Enabled        && m_stats.rejected_atr        > worst_cnt) { worst_cnt=m_stats.rejected_atr;        worst_ind="ATR"; }
       if(worst_ind != "" && m_stats.total_bars > 0 && worst_cnt * 100.0 / m_stats.total_bars > 30) {
          any_rec = true;
@@ -2627,6 +2677,18 @@ public:
             out[count].reason = StringFormat("(NORMAL volatility ATR=%.5f)", atr);
          }
          out[count].vote_result = (regime == VOLATILITY_LOW) ? -1 : 1;
+         count++;
+      }
+
+      // SmaConverge (SMA convergence – direction-neutral vote)
+      if(m_settings.Ind_SmaConverge_Enabled && h_ema1 != INVALID_HANDLE && h_ema2 != INVALID_HANDLE)
+      {
+         bool pass = Check_SmaConverge(v_shift);
+         out[count].name    = "SmaConv";
+         out[count].enabled = true;
+         if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = "(SMA gap converging)"; }
+         else     { out[count].state = "FLAT"; out[count].reason = "(SMA gap diverging)"; }
+         out[count].vote_result = pass ? 1 : -1;
          count++;
       }
       ArrayResize(out, count);
@@ -3769,6 +3831,7 @@ public:
       CAST_VOTE_STAT(m_settings.Ind_CandleBody_Enabled, m_settings.Ind_CandleBody_Weight, Check_CandleBody(bias, v_shift), m_stats.rejected_candle_body, m_stats.passed_candle_body)
       CAST_VOTE_STAT(m_settings.Ind_CI_Enabled,         m_settings.Ind_CI_Weight,         Check_CI(bias, v_shift),         m_stats.rejected_ci, m_stats.passed_ci)
       CAST_VOTE_STAT(m_settings.Ind_VRC_Enabled,        m_settings.Ind_VRC_Weight,        Check_VRC(bias, v_shift),        m_stats.rejected_vrc, m_stats.passed_vrc)
+      CAST_VOTE_STAT(m_settings.Ind_SmaConverge_Enabled, m_settings.Ind_SmaConverge_Weight, Check_SmaConverge(v_shift),      m_stats.rejected_sma_converge, m_stats.passed_sma_converge)
 
       #undef CAST_VOTE_STAT
 
@@ -3786,6 +3849,7 @@ public:
       if(m_settings.Ind_Psar_Enabled)   { s_enabled++; if(m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_P123_Enabled)   { s_enabled++; if(Check_P123(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_Ross_Enabled)   { s_enabled++; if(Check_Ross(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_SmaConverge_Enabled) { s_enabled++; if(Check_SmaConverge(v_shift)) s_passed++; }
 
       m_eval_str_I = StringFormat("%d/%d", s_passed, s_enabled);
       m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
@@ -3933,6 +3997,7 @@ public:
       m_eval_ind_res_psar   = _res_psar;
       m_eval_ind_res_p123   = _res_p123;
       m_eval_ind_res_ross   = _res_ross;
+      m_eval_ind_res_sma_converge = (m_settings.Ind_SmaConverge_Enabled ? Check_SmaConverge(v_shift) : false);
       m_eval_vote_weight    = vote_weight;
       m_eval_all_pass       = all_pass;
 
@@ -4232,6 +4297,11 @@ public:
             DebugLog(StringFormat("  %s Ross Hook", m_eval_ind_res_ross ? "✅" : "❌"));
             if(m_eval_ind_res_ross) s_passed++;
          } else DebugLog("  ⏭️  Ross Hook: disabled");
+
+         if(m_settings.Ind_SmaConverge_Enabled) {
+            DebugLog(StringFormat("  %s SMA Convergence", m_eval_ind_res_sma_converge ? "✅" : "❌"));
+            if(m_eval_ind_res_sma_converge) s_passed++;
+         } else DebugLog("  ⏭️  SMA Convergence: disabled");
 
          DebugLog("");
 
