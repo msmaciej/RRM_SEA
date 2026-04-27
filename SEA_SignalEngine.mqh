@@ -552,6 +552,22 @@ private:
       if(m_settings.BbMode == BB_TREND_FOLLOW) {
          result = (bias==1) ? (cl > mid) : (cl < mid);
       }
+      else if(m_settings.BbMode == BB_WIDENING) {
+         double upper_now  = GetVal(h_bb, shift,   1);
+         double lower_now  = GetVal(h_bb, shift,   2);
+         double upper_prev = GetVal(h_bb, shift+1, 1);
+         double lower_prev = GetVal(h_bb, shift+1, 2);
+         double bw_now  = upper_now  - lower_now;
+         double bw_prev = upper_prev - lower_prev;
+         // Fail on missing data — do not trade on invalid reads
+         if(upper_now == 0.0 || lower_now == 0.0 || upper_prev == 0.0 || lower_prev == 0.0)
+            result = false;
+         else
+            result = (bw_now > bw_prev);
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[IND_BB] BB_WIDENING | BW_now=%.5f BW_prev=%.5f | Result: %s",
+                                  bw_now, bw_prev, result ? "PASS" : "FAIL"));
+      }
       else {
          // Mean Reversion: Price touched Lower/Upper Band
          double lower = GetVal(h_bb, shift, 2);

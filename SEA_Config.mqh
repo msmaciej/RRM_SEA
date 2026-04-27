@@ -106,8 +106,9 @@ enum EADXMode {
 };
 enum EBbMode
 {
-   BB_TREND_FOLLOW,     // BE_TREND_FOLLOW: Price near outer band = trend continuation
-   BB_MEAN_REVERSION    // BE_MEAN_REVERSION: Price at outer band = reversion to middle
+   BB_TREND_FOLLOW,     // BB_TREND_FOLLOW: Price near outer band = trend continuation
+   BB_MEAN_REVERSION,   // BB_MEAN_REVERSION: Price at outer band = reversion to middle
+   BB_WIDENING          // BB_WIDENING: Bands actively expanding (upper-lower gap increasing bar-to-bar)
 };
 enum ECciMode
 {
@@ -833,9 +834,15 @@ input group "      (Only active when InpPreset = PRESET_FPM)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║  📐 FPM: Swing SL Settings                             ║";
-input int           Inp_FPM_SwingLookback    = 5;    // FPM SL swing lookback bars (used with SL_MODE_SWING)
-input double        Inp_FPM_MaxSlPips        = 25.0; // FPM SL max pips guideline (informational; see comments)
+input group "║  📐 FPM: Stop Loss Settings                            ║";
+input ESLMode       Inp_FPM_SLMode           = SL_MODE_SWING;  // FPM SL mode: SWING (recent high/low) or FIXED_PIPS
+input int           Inp_FPM_SwingLookback    = 5;              // FPM SL swing lookback bars (SL_MODE_SWING only)
+input double        Inp_FPM_SLFixedPips      = 15.0;           // FPM SL fixed distance in pips (SL_MODE_FIXED_PIPS only)
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 FPM: Take Profit Settings                          ║";
+input ETPMode       Inp_FPM_TPMode           = TP_MODE_FIXED_PIPS; // FPM TP mode: FIXED_PIPS=TF-based cheat sheet pips; RR=user ratio
+input double        Inp_FPM_RRRatio          = 2.0;                // FPM R:R ratio (used with TP_MODE_RR, e.g. 1.5, 2.0, 3.0)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║  📐 FPM: Trailing Stop (Optional)                      ║";
