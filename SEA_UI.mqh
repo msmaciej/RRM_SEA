@@ -288,7 +288,7 @@ void SEA_UI_GetTradeMetrics(string &out_risk_p, string &out_rew_p, string &out_r
    double be_trigger_points = Settings.BEThresholdPips * _Point * p_fac;
    double be_level = entry + (type == POSITION_TYPE_BUY ? be_trigger_points : -be_trigger_points);
    double dist_to_be = (type == POSITION_TYPE_BUY ? (be_level - cur) : (cur - be_level)) / (_Point * p_fac);
-   out_be = (dist_to_be <= 0 ? "ACTIVE" : StringFormat("%.1f P", dist_to_be));
+   out_be = (dist_to_be <= 0 ? "ACTIVE" : StringFormat("%.1f pip", dist_to_be));
 }
 
 // -----------------------------------
