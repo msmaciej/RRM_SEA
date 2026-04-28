@@ -21,7 +21,8 @@ enum EStrategyPreset
    PRESET_MA,              // PRESET_MA: benchmark: MT5 MA EA compatibility
    PRESET_RRM,             // PRESET_RRM: phase-based layer detection system
    PRESET_TEST,            // PRESET_TEST: development/debugging preset
-   PRESET_FPM              // PRESET_FPM: Five-Point Method (PSAR+MACD+BB+SMA10/20)
+   PRESET_FPM,             // PRESET_FPM: Five-Point Method (PSAR+MACD+BB+SMA10/20)
+   PRESET_RRM_ORG          // PRESET_RRM_ORG: Russ Horn Original RRM with inline DPI momentum voter
 };
 enum EEmaStrategy
 {
@@ -373,6 +374,11 @@ struct ST_Settings
    // VRC (Volatility Regime Classifier)
    bool   Ind_VRC_Enabled;
    bool   Ind_SmaConverge_Enabled;  // SMA Convergence vote (gap narrowing = pullback signal)
+   bool   Ind_Dpi_Enabled;          // DPI vote (inline TSI momentum indicator)
+   int    Ind_Dpi_Weight;           // DPI vote weight
+   int    DPI_TSI_R;                // TSI R period (slow EMA smoothing)
+   int    DPI_TSI_S;                // TSI S period (medium EMA smoothing)
+   int    DPI_TSI_U;                // TSI Signal EMA period
    int    VRC_ATR_Period;
    int    VRC_Lookback;
    double VRC_LowThreshold;  // Below this percentile = LOW regime (reject trade)
@@ -859,6 +865,17 @@ input group "║  📐 FPM: MACD Settings                                 ║";
 input int           Inp_FPM_MacdFast         = 12;   // FPM MACD Fast period
 input int           Inp_FPM_MacdSlow         = 26;   // FPM MACD Slow period
 input int           Inp_FPM_MacdSig          = 9;    // FPM MACD Signal period
+
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "  📐 ZONE 3D: PRESET_RRM_ORG SETTINGS";
+input group "      (Only active when InpPreset = PRESET_RRM_ORG)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║  📐 RRM_ORG: DPI TSI Settings                          ║";
+input int            Inp_RRM_ORG_TSI_R = 25;  // RRM_ORG: DPI TSI R period (slow EMA)
+input int            Inp_RRM_ORG_TSI_S = 13;  // RRM_ORG: DPI TSI S period (medium EMA)
+input int            Inp_RRM_ORG_TSI_U = 7;   // RRM_ORG: DPI TSI Signal EMA period
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "  ⚠️  ZONE 3A: PIPELINE CONFIG";
@@ -1415,6 +1432,13 @@ void InitializeConfig()
    Settings.Ind_VRC_Weight        = Inp_Ind_VRC_Weight;
    Settings.Ind_SmaConverge_Weight = Inp_Ind_SmaConverge_Weight;
 
+   // DPI (disabled by default; enabled and parameterised by PRESET_RRM_ORG)
+   Settings.Ind_Dpi_Enabled       = false;
+   Settings.Ind_Dpi_Weight        = 1;
+   Settings.DPI_TSI_R             = MathMax(1, Inp_RRM_ORG_TSI_R);
+   Settings.DPI_TSI_S             = MathMax(1, Inp_RRM_ORG_TSI_S);
+   Settings.DPI_TSI_U             = MathMax(1, Inp_RRM_ORG_TSI_U);
+
    // Choppiness Index
    Settings.CI_Period             = MathMax(5, Inp_CI_Period);
    Settings.CI_RangingThreshold   = MathMax(0.0, Inp_CI_RangingThreshold);
@@ -1543,7 +1567,7 @@ struct SIndicatorMeta {
    bool   prefers_subwindow;  // Indicates if the UI should draw this in a subwindow
 };
 
-SIndicatorMeta g_indicator_registry[16];
+SIndicatorMeta g_indicator_registry[17];
 
 //+------------------------------------------------------------------+
 //| InitializeIndicatorRegistry(): Populate registry from settings    |
@@ -1654,6 +1678,13 @@ void InitializeIndicatorRegistry(const ST_Settings &cfg)
    g_indicator_registry[i].is_enabled       = cfg.Ind_SmaConverge_Enabled;
    g_indicator_registry[i].weight           = cfg.Ind_SmaConverge_Weight;
    g_indicator_registry[i].prefers_subwindow = false;
+   i++;
+
+   g_indicator_registry[i].name             = "DPI";
+   g_indicator_registry[i].short_name       = "DPI";
+   g_indicator_registry[i].is_enabled       = cfg.Ind_Dpi_Enabled;
+   g_indicator_registry[i].weight           = cfg.Ind_Dpi_Weight;
+   g_indicator_registry[i].prefers_subwindow = true;
 }
 
 //+------------------------------------------------------------------+
@@ -1677,6 +1708,7 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
    if(cfg.Ind_Sto_Enabled)        count++;
    if(cfg.Ind_VRC_Enabled)        count++;
    if(cfg.Ind_SmaConverge_Enabled) count++;
+   if(cfg.Ind_Dpi_Enabled)        count++;
    return count;
 }
 
@@ -1686,17 +1718,17 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
 string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 {
    string names[]  = {"ADX", "ATR", "BB", "CandleBody", "Choppiness Index", "CCI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC"};
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC", "DPI"};
    string shorts[] = {"ADX", "ATR", "BB", "CBody", "CI", "CCI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConv", "Stoch", "VRC"};
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConv", "Stoch", "VRC", "DPI"};
    bool enabled[]  = {cfg.Ind_Adx_Enabled, cfg.Ind_Atr_Enabled, cfg.Ind_Bb_Enabled,
                       cfg.Ind_CandleBody_Enabled, cfg.Ind_CI_Enabled, cfg.Ind_Cci_Enabled,
                       cfg.Ind_Macd_Enabled, cfg.Ind_Mfi_Enabled,
                       cfg.Ind_P123_Enabled, cfg.Ind_Psar_Enabled, cfg.Ind_Ross_Enabled,
                       cfg.Ind_Rsi_Enabled, cfg.Ind_SmaConverge_Enabled,
-                      cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled};
+                      cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled, cfg.Ind_Dpi_Enabled};
    string list = "";
-   for(int i = 0; i < 15; i++)
+   for(int i = 0; i < 16; i++)
    {
       if(!enabled[i]) continue;
       if(list != "") list += compact ? ", " : "\n  + ";
@@ -1710,8 +1742,8 @@ string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 //+------------------------------------------------------------------+
 void PrintIndicatorRegistry()
 {
-   Print("--- Indicator Registry (16 entries) ---");
-   for(int i = 0; i < 16; i++)
+   Print("--- Indicator Registry (17 entries) ---");
+   for(int i = 0; i < 17; i++)
    {
       PrintFormat("  [%2d] %-12s  enabled=%-5s  weight=%d  subwindow=%-5s",
                   i,

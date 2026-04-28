@@ -90,6 +90,7 @@ struct SRejectionStats {
    int passed_p123,    rejected_p123;
    int passed_ross,    rejected_ross;
    int passed_sma_converge, rejected_sma_converge;
+   int passed_dpi,          rejected_dpi;
 
    int signals_confirmed;
 };
@@ -185,6 +186,7 @@ private:
    bool     m_eval_ind_res_p123;
    bool     m_eval_ind_res_ross;
    bool     m_eval_ind_res_sma_converge;
+   bool     m_eval_ind_res_dpi;
    double   m_eval_vote_weight;          // Total vote weight from EvaluateIndicatorX
    bool     m_eval_all_pass;             // True if all enabled indicators passed
 
@@ -216,6 +218,7 @@ private:
       int    ci_result;
       int    vrc_result;
       int    sma_converge_result;
+      int    dpi_result;
 
       // Cached indicator values (for debug logging)
       double adx_value;
@@ -339,6 +342,7 @@ private:
       m_ind_cache.ci_result = -1;
       m_ind_cache.vrc_result = -1;
       m_ind_cache.sma_converge_result = -1;
+      m_ind_cache.dpi_result = -1;
    }
 
    bool IsCacheValidForShift(int shift) const
@@ -1612,8 +1616,129 @@ private:
       return result;
    }
 
-   //+------------------------------------------------------------------+
-   // --- NEWS HELPERS (CSV calendar_statement.csv) ---
+    //+------------------------------------------------------------------+
+    //| Check_DPI: Inline TSI-based Dynamic Price Indicator voter       |
+    //| Computes True Strength Index (Ergodic Oscillator) inline.       |
+    //| Vote logic:                                                      |
+    //|   BUY  when MainLine > SignalLine AND no nested histogram        |
+    //|   SELL when MainLine < SignalLine AND no nested histogram        |
+    //|   FAIL (abstain) when nested histogram present (active pullback) |
+    //|         or when both lines are near zero (no momentum)          |
+    //| Nested histogram: faster TSI (R=5, S=3) inside main histogram.  |
+    //| No static locals, no lambdas — safe for MQL5 on macOS/Wine.     |
+    //+------------------------------------------------------------------+
+   bool Check_DPI(int bias, int v_shift)
+   {
+      if(!m_settings.Ind_Dpi_Enabled) return true;
+
+      if(IsCacheValidForShift(v_shift) && m_ind_cache.cached_bias == bias && m_ind_cache.dpi_result != -1)
+         return (m_ind_cache.dpi_result == 1);
+
+      int R     = m_settings.DPI_TSI_R;
+      int S     = m_settings.DPI_TSI_S;
+      int U     = m_settings.DPI_TSI_U;
+      int FastR = 5;   // Fixed nested TSI R: empirically chosen to be responsive enough
+      int FastS = 3;   // Fixed nested TSI S: (R=5, S=3) produces a fast sub-indicator that
+                       // fires during pullbacks and disappears at trend resumption, matching
+                       // the "green nested histogram" behaviour of the original DPI indicator
+
+      // Minimum bars required: warmup (R+S+U) + target shift + safety buffer
+      int bars_needed = R + S + U + v_shift + 5;
+      // Need bars_needed+1 total bars: oldest close_prev (shift=bars_needed) is accessed
+      // at the first loop iteration when i = bars_needed-1.
+      if(iBars(m_symbol, PERIOD_CURRENT) <= bars_needed)
+      {
+         m_ind_cache.dpi_result = 0;
+         return false;
+      }
+
+      double alphaR  = 2.0 / (double)(R     + 1);
+      double alphaS  = 2.0 / (double)(S     + 1);
+      double alphaU  = 2.0 / (double)(U     + 1);
+      double alphaFR = 2.0 / (double)(FastR + 1);
+      double alphaFS = 2.0 / (double)(FastS + 1);
+
+      // EMA running state — seeded to zero at oldest bar
+      double e1m  = 0.0, e2m  = 0.0, e1a  = 0.0, e2a  = 0.0;
+      double fe1m = 0.0, fe2m = 0.0, fe1a = 0.0, fe2a = 0.0;
+      double sig  = 0.0;
+
+      double main_line = 0.0;
+      double fast_line = 0.0;
+
+      // Iterate from oldest bar (bars_needed-1) toward the target bar (v_shift),
+      // updating EMA state at each step.
+      // iClose(symbol, tf, shift): shift=0 is newest, shift=N is N bars ago.
+      for(int i = bars_needed - 1; i >= v_shift; i--)
+      {
+         double close_i    = iClose(m_symbol, PERIOD_CURRENT, i);
+         double close_prev = iClose(m_symbol, PERIOD_CURRENT, i + 1);
+         double mom        = close_i - close_prev;
+         double abs_mom    = MathAbs(mom);
+
+         // Main TSI: double EMA smoothing of momentum
+         e1m = alphaR * mom     + (1.0 - alphaR) * e1m;
+         e1a = alphaR * abs_mom + (1.0 - alphaR) * e1a;
+         e2m = alphaS * e1m     + (1.0 - alphaS) * e2m;
+         e2a = alphaS * e1a     + (1.0 - alphaS) * e2a;
+         main_line = (e2a != 0.0) ? (e2m / e2a) : 0.0;
+
+         // Signal line: EMA of main line
+         sig = alphaU * main_line + (1.0 - alphaU) * sig;
+
+         // Fast TSI: double EMA smoothing with faster periods (nested histogram)
+         fe1m = alphaFR * mom     + (1.0 - alphaFR) * fe1m;
+         fe1a = alphaFR * abs_mom + (1.0 - alphaFR) * fe1a;
+         fe2m = alphaFS * fe1m    + (1.0 - alphaFS) * fe2m;
+         fe2a = alphaFS * fe1a    + (1.0 - alphaFS) * fe2a;
+         fast_line = (fe2a != 0.0) ? (fe2m / fe2a) : 0.0;
+      }
+
+      double signal_line = sig;
+      double main_hist   = main_line - signal_line;
+      double nested_hist = fast_line - main_line;
+
+      // Nested histogram is "present" when the fast TSI histogram magnitude
+      // (|fast_line - main_line|) is smaller than the main histogram magnitude
+      // (|main_line - signal_line|). Both are derived from different TSI smoothing
+      // windows: main_hist uses the slow R/S smoothing, nested_hist compares the
+      // fast TSI (R=5/S=3) to the slow TSI mainline. When the inner bar is
+      // smaller than the outer bar, a pullback within the trend is active.
+      bool nested_present = (main_hist != 0.0 && MathAbs(nested_hist) < MathAbs(main_hist));
+
+      // ABSTAIN: active pullback (green nested histogram visible)
+      if(nested_present)
+      {
+         m_ind_cache.cached_bias = bias;
+         m_ind_cache.dpi_result = 0;
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[IND_DPI] ABSTAIN: nested pullback present (main=%.5f sig=%.5f fast=%.5f)",
+                                  main_line, signal_line, fast_line));
+         return false;
+      }
+
+      // ABSTAIN: no momentum (both lines essentially at zero)
+      if(MathAbs(main_line) < 0.001 && MathAbs(signal_line) < 0.001)
+      {
+         m_ind_cache.cached_bias = bias;
+         m_ind_cache.dpi_result = 0;
+         if(m_settings.DebugFlow)
+            DebugLog("[IND_DPI] ABSTAIN: both lines near zero (no trend momentum)");
+         return false;
+      }
+
+      // Directional vote
+      bool result = (bias > 0) ? (main_line > signal_line) : (main_line < signal_line);
+      m_ind_cache.cached_bias = bias;
+      m_ind_cache.dpi_result = result ? 1 : 0;
+
+      if(m_settings.DebugFlow)
+         DebugLog(StringFormat("[IND_DPI] bias=%d main=%.5f sig=%.5f hist=%.5f nested=%d → %s",
+                               bias, main_line, signal_line, main_hist,
+                               nested_present ? 1 : 0, result ? "PASS" : "FAIL"));
+      return result;
+   }
+
    //+------------------------------------------------------------------+
 
    string TrimStr(string s) {
@@ -2174,7 +2299,7 @@ public:
 
       // Build sortable array of reason/count pairs
       struct SReason { string name; int count; double pct; };
-      SReason reasons[25];
+      SReason reasons[27];
       int idx = 0;
 
       reasons[idx].name = "Phase=UNORDERED";
@@ -2265,6 +2390,10 @@ public:
       reasons[idx].count = m_stats.rejected_sma_converge;
       reasons[idx++].pct = m_stats.rejected_sma_converge * 100.0 / m_stats.total_bars;
 
+      reasons[idx].name = "DPI";
+      reasons[idx].count = m_stats.rejected_dpi;
+      reasons[idx++].pct = m_stats.rejected_dpi * 100.0 / m_stats.total_bars;
+
       // Bubble sort descending by count
       for(int i = 0; i < idx - 1; i++) {
          for(int j = i + 1; j < idx; j++) {
@@ -2352,6 +2481,7 @@ public:
       PrintIndicatorStat("VRC",          m_settings.Ind_VRC_Enabled, m_stats.passed_vrc, m_stats.rejected_vrc);
       PrintIndicatorStat("SmaConverge",  m_settings.Ind_SmaConverge_Enabled, m_stats.passed_sma_converge, m_stats.rejected_sma_converge);
       PrintIndicatorStat("ATR",          m_settings.Ind_Atr_Enabled, m_stats.passed_atr, m_stats.rejected_atr);
+      PrintIndicatorStat("DPI",          m_settings.Ind_Dpi_Enabled, m_stats.passed_dpi,          m_stats.rejected_dpi);
       Print("----------------------------------------------------------------");
       PrintFormat("Indicators: %d enabled (ALL must pass)", GetEnabledIndicatorCount(m_settings));
       Print("");
@@ -2406,7 +2536,7 @@ public:
    {
       if(m_stats.total_bars == 0) return;
       struct SBottleneck { string name; int rejected; double pct; };
-      SBottleneck bn[26]; // Gates(3) + Bias/Phase/Layer(4) + Indicators(15 + CandleBody + CI + VRC + ATR + SmaConverge) = up to 25 entries
+      SBottleneck bn[27]; // Gates(3) + Bias/Phase/Layer(4) + Indicators(16 incl. DPI) = up to 27 entries
       int idx = 0;
       if(m_stats.rejected_spread > 0)         { bn[idx].name="Spread";         bn[idx].rejected=m_stats.rejected_spread;        bn[idx++].pct=m_stats.rejected_spread*100.0/m_stats.total_bars; }
       if(m_stats.rejected_time > 0)           { bn[idx].name="Time Window";    bn[idx].rejected=m_stats.rejected_time;          bn[idx++].pct=m_stats.rejected_time*100.0/m_stats.total_bars; }
@@ -2430,6 +2560,7 @@ public:
       if(m_settings.Ind_VRC_Enabled    && m_stats.rejected_vrc    > 0) { bn[idx].name="VRC";           bn[idx].rejected=m_stats.rejected_vrc; bn[idx++].pct=m_stats.rejected_vrc*100.0/m_stats.total_bars; }
       if(m_settings.Ind_Atr_Enabled    && m_stats.rejected_atr    > 0) { bn[idx].name="ATR";           bn[idx].rejected=m_stats.rejected_atr; bn[idx++].pct=m_stats.rejected_atr*100.0/m_stats.total_bars; }
       if(m_settings.Ind_SmaConverge_Enabled && m_stats.rejected_sma_converge > 0) { bn[idx].name="SmaConverge"; bn[idx].rejected=m_stats.rejected_sma_converge; bn[idx++].pct=m_stats.rejected_sma_converge*100.0/m_stats.total_bars; }
+      if(m_settings.Ind_Dpi_Enabled         && m_stats.rejected_dpi         > 0) { bn[idx].name="DPI";         bn[idx].rejected=m_stats.rejected_dpi;         bn[idx++].pct=m_stats.rejected_dpi*100.0/m_stats.total_bars; }
       if(idx == 0) { Print("  (no rejections recorded)"); return; }
       for(int i = 0; i < idx-1; i++)
          for(int j = i+1; j < idx; j++)
@@ -2475,6 +2606,7 @@ public:
       if(m_settings.Ind_VRC_Enabled        && m_stats.rejected_vrc        > worst_cnt) { worst_cnt=m_stats.rejected_vrc;        worst_ind="VRC"; }
       if(m_settings.Ind_SmaConverge_Enabled && m_stats.rejected_sma_converge > worst_cnt) { worst_cnt=m_stats.rejected_sma_converge; worst_ind="SmaConverge"; }
       if(m_settings.Ind_Atr_Enabled        && m_stats.rejected_atr        > worst_cnt) { worst_cnt=m_stats.rejected_atr;        worst_ind="ATR"; }
+      if(m_settings.Ind_Dpi_Enabled        && m_stats.rejected_dpi        > worst_cnt) { worst_cnt=m_stats.rejected_dpi;        worst_ind="DPI"; }
       if(worst_ind != "" && m_stats.total_bars > 0 && worst_cnt * 100.0 / m_stats.total_bars > 30) {
          any_rec = true;
          PrintFormat("Priority 3: %s is the top indicator bottleneck (%.1f%% blocked).", worst_ind, worst_cnt * 100.0 / m_stats.total_bars);
@@ -2491,7 +2623,7 @@ public:
    {
       int shift = m_settings.ma_v_shift;
       count = 0;
-      ArrayResize(out, 15); // 14 possible indicators + 1 spare
+      ArrayResize(out, 17); // 16 possible indicators + 1 spare
       
       // We use the EXACT same shift used for the numerical calculation
       int v_shift = m_settings.Vote_EvalShift;
@@ -2705,6 +2837,20 @@ public:
          if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = "(SMA gap converging)"; }
          else     { out[count].state = "FLAT"; out[count].reason = "(SMA gap diverging)"; }
          out[count].vote_result = pass ? 1 : -1;
+         count++;
+      }
+
+      // DPI (inline TSI momentum voter – directional vote)
+      if(m_settings.Ind_Dpi_Enabled)
+      {
+         bool b = Check_DPI( 1, v_shift);
+         bool s = Check_DPI(-1, v_shift);
+         out[count].name    = "DPI";
+         out[count].enabled = true;
+         if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(R=%d S=%d U=%d BUY)", m_settings.DPI_TSI_R, m_settings.DPI_TSI_S, m_settings.DPI_TSI_U); }
+         else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(R=%d S=%d U=%d SELL)", m_settings.DPI_TSI_R, m_settings.DPI_TSI_S, m_settings.DPI_TSI_U); }
+         else             { out[count].state = "FLAT"; out[count].reason = "(nested pullback or no momentum)"; }
+         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
       ArrayResize(out, count);
@@ -3848,6 +3994,7 @@ public:
       CAST_VOTE_STAT(m_settings.Ind_CI_Enabled,         m_settings.Ind_CI_Weight,         Check_CI(bias, v_shift),         m_stats.rejected_ci, m_stats.passed_ci)
       CAST_VOTE_STAT(m_settings.Ind_VRC_Enabled,        m_settings.Ind_VRC_Weight,        Check_VRC(bias, v_shift),        m_stats.rejected_vrc, m_stats.passed_vrc)
       CAST_VOTE_STAT(m_settings.Ind_SmaConverge_Enabled, m_settings.Ind_SmaConverge_Weight, Check_SmaConverge(v_shift),      m_stats.rejected_sma_converge, m_stats.passed_sma_converge)
+      CAST_VOTE_STAT(m_settings.Ind_Dpi_Enabled,         m_settings.Ind_Dpi_Weight,         Check_DPI(bias, v_shift),         m_stats.rejected_dpi,          m_stats.passed_dpi)
 
       #undef CAST_VOTE_STAT
 
@@ -3866,6 +4013,7 @@ public:
       if(m_settings.Ind_P123_Enabled)   { s_enabled++; if(Check_P123(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_Ross_Enabled)   { s_enabled++; if(Check_Ross(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_SmaConverge_Enabled) { s_enabled++; if(Check_SmaConverge(v_shift)) s_passed++; }
+      if(m_settings.Ind_Dpi_Enabled)         { s_enabled++; if(Check_DPI(bias, v_shift)) s_passed++; }
 
       m_eval_str_I = StringFormat("%d/%d", s_passed, s_enabled);
       m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
@@ -3876,7 +4024,7 @@ public:
       // Per-indicator results for diagnostic logging
       bool _res_adx=false, _res_macd=false, _res_rsi=false,
            _res_cci=false, _res_mfi=false, _res_sto=false, _res_bb=false,
-           _res_psar=false, _res_p123=false, _res_ross=false;
+           _res_psar=false, _res_p123=false, _res_ross=false, _res_dpi=false;
 
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGIN =====
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
@@ -3890,6 +4038,7 @@ public:
          if(m_settings.Ind_Psar_Enabled)   _res_psar   = (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift));
          if(m_settings.Ind_P123_Enabled)   _res_p123   = Check_P123(bias, v_shift);
          if(m_settings.Ind_Ross_Enabled)   _res_ross   = Check_Ross(bias, v_shift);
+         if(m_settings.Ind_Dpi_Enabled)    _res_dpi    = Check_DPI(bias, v_shift);
 
          if(m_settings.DebugLevel >= DEBUG_FULL) {
             string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
@@ -3969,6 +4118,12 @@ public:
                DebugLog(StringFormat("[IND] RossHook: → %s (w=%d)", _res_ross ? "PASS" : "FAIL", m_settings.Ind_Ross_Weight));
             } else DebugLog("[IND] RossHook: DISABLED → SKIP");
 
+            if(m_settings.Ind_Dpi_Enabled) {
+               DebugLog(StringFormat("[IND] DPI: R=%d S=%d U=%d → %s (w=%d)",
+                                     m_settings.DPI_TSI_R, m_settings.DPI_TSI_S, m_settings.DPI_TSI_U,
+                                     _res_dpi ? "PASS" : "FAIL", m_settings.Ind_Dpi_Weight));
+            } else DebugLog("[IND] DPI: DISABLED → SKIP");
+
             if(m_settings.Ind_Atr_Enabled) {
                double atr_v_pips = m_diag_last_atr_pips;
                bool   atr_v_ok   = true;
@@ -4014,6 +4169,7 @@ public:
       m_eval_ind_res_p123   = _res_p123;
       m_eval_ind_res_ross   = _res_ross;
       m_eval_ind_res_sma_converge = (m_settings.Ind_SmaConverge_Enabled ? Check_SmaConverge(v_shift) : false);
+      m_eval_ind_res_dpi          = _res_dpi;
       m_eval_vote_weight    = vote_weight;
       m_eval_all_pass       = all_pass;
 
