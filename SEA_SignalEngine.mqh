@@ -1637,10 +1637,8 @@ private:
       int R     = m_settings.DPI_TSI_R;
       int S     = m_settings.DPI_TSI_S;
       int U     = m_settings.DPI_TSI_U;
-      int FastR = 5;   // Fixed nested TSI R: empirically chosen to be responsive enough
-      int FastS = 3;   // Fixed nested TSI S: (R=5, S=3) produces a fast sub-indicator that
-                       // fires during pullbacks and disappears at trend resumption, matching
-                       // the "green nested histogram" behaviour of the original DPI indicator
+      int FastR = m_settings.DPI_TSI_FastR;  // Nested TSI R (configurable via Zone 3D Inp_RRM_ORG_TSI_FastR)
+      int FastS = m_settings.DPI_TSI_FastS;  // Nested TSI S (configurable via Zone 3D Inp_RRM_ORG_TSI_FastS)
 
       // Minimum bars required: warmup (R+S+U) + target shift + safety buffer
       int bars_needed = R + S + U + v_shift + 5;
@@ -1702,9 +1700,17 @@ private:
       // (|fast_line - main_line|) is smaller than the main histogram magnitude
       // (|main_line - signal_line|). Both are derived from different TSI smoothing
       // windows: main_hist uses the slow R/S smoothing, nested_hist compares the
-      // fast TSI (R=5/S=3) to the slow TSI mainline. When the inner bar is
+      // fast TSI to the slow TSI mainline. When the inner bar is
       // smaller than the outer bar, a pullback within the trend is active.
       bool nested_present = (main_hist != 0.0 && MathAbs(nested_hist) < MathAbs(main_hist));
+
+      // DESIGN NOTE: The nested_present condition fires during moderate pullbacks
+      // (|fast_line - main_line| < |main_line - signal_line|). During very deep
+      // pullbacks the fast TSI swings far from the main line and |nested_hist|
+      // may exceed |main_hist| — nested_present becomes false. This is safe by
+      // design: deep pullbacks simultaneously disrupt 4EMA ordering, which is
+      // caught by the Layer/Phase structural gates before DPI is evaluated.
+      // Defence-in-depth: DPI handles moderate pullbacks; EMA gates handle deep ones.
 
       // ABSTAIN: active pullback (green nested histogram visible)
       if(nested_present)
