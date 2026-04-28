@@ -1642,7 +1642,9 @@ private:
 
       // Minimum bars required: warmup (R+S+U) + target shift + safety buffer
       int bars_needed = R + S + U + v_shift + 5;
-      if(iBars(m_symbol, PERIOD_CURRENT) < bars_needed)
+      // Need bars_needed+1 total bars: oldest close_prev (shift=bars_needed) is accessed
+      // at the first loop iteration when i = bars_needed-1.
+      if(iBars(m_symbol, PERIOD_CURRENT) <= bars_needed)
       {
          m_ind_cache.dpi_result = 0;
          return false;
@@ -1665,7 +1667,7 @@ private:
       // Iterate from oldest bar (bars_needed-1) toward the target bar (v_shift),
       // updating EMA state at each step.
       // iClose(symbol, tf, shift): shift=0 is newest, shift=N is N bars ago.
-      for(int i = bars_needed - 2; i >= v_shift; i--)
+      for(int i = bars_needed - 1; i >= v_shift; i--)
       {
          double close_i    = iClose(m_symbol, PERIOD_CURRENT, i);
          double close_prev = iClose(m_symbol, PERIOD_CURRENT, i + 1);
@@ -1694,8 +1696,10 @@ private:
       double main_hist   = main_line - signal_line;
       double nested_hist = fast_line - main_line;
 
-      // Nested histogram is "present" when |nested| < |main| AND main is non-zero
-      // (mirrors DPI_Indicator.mq5 Step 6 logic exactly)
+      // Nested histogram is "present" when the fast TSI histogram (fast_line - main_line)
+      // is smaller in absolute value than the main histogram (main_line - signal_line).
+      // This mirrors DPI_Indicator.mq5 Step 6 logic: when the nested (inner) bar is
+      // narrower than the outer main bar, a pullback within the trend is active.
       bool nested_present = (main_hist != 0.0 && MathAbs(nested_hist) < MathAbs(main_hist));
 
       // ABSTAIN: active pullback (green nested histogram visible)
@@ -2291,7 +2295,7 @@ public:
 
       // Build sortable array of reason/count pairs
       struct SReason { string name; int count; double pct; };
-      SReason reasons[26];
+      SReason reasons[27];
       int idx = 0;
 
       reasons[idx].name = "Phase=UNORDERED";

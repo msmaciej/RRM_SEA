@@ -1717,16 +1717,16 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
 //+------------------------------------------------------------------+
 string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 {
-   string names[]  = {"ADX", "ATR", "BB", "CandleBody", "Choppiness Index", "CCI", "DPI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC"};
-   string shorts[] = {"ADX", "ATR", "BB", "CBody", "CI", "CCI", "DPI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConv", "Stoch", "VRC"};
+   string names[]  = {"ADX", "ATR", "BB", "CandleBody", "Choppiness Index", "CCI", "MACD",
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC", "DPI"};
+   string shorts[] = {"ADX", "ATR", "BB", "CBody", "CI", "CCI", "MACD",
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConv", "Stoch", "VRC", "DPI"};
    bool enabled[]  = {cfg.Ind_Adx_Enabled, cfg.Ind_Atr_Enabled, cfg.Ind_Bb_Enabled,
                       cfg.Ind_CandleBody_Enabled, cfg.Ind_CI_Enabled, cfg.Ind_Cci_Enabled,
-                      cfg.Ind_Dpi_Enabled, cfg.Ind_Macd_Enabled, cfg.Ind_Mfi_Enabled,
+                      cfg.Ind_Macd_Enabled, cfg.Ind_Mfi_Enabled,
                       cfg.Ind_P123_Enabled, cfg.Ind_Psar_Enabled, cfg.Ind_Ross_Enabled,
                       cfg.Ind_Rsi_Enabled, cfg.Ind_SmaConverge_Enabled,
-                      cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled};
+                      cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled, cfg.Ind_Dpi_Enabled};
    string list = "";
    for(int i = 0; i < 16; i++)
    {
