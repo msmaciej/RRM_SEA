@@ -383,6 +383,21 @@ int OrchestrateInit()
    FlowLog("Step A: InitializeConfig() (inputs -> Settings)");
    InitializeConfig();
 
+   // Pip size sanity check (helps diagnose unusual broker digit configurations)
+   double pip_sz = GlobalPipSize(_Symbol);
+   int    sym_digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+   double tick_sz    = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+   double tick_val   = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+   bool   is_jpy     = (StringFind(_Symbol, "JPY") >= 0);
+   PrintFormat("📐 [SYMBOL] %s | digits=%d | _Point=%.6f | pip=%.6f | tick_sz=%.6f | tick_val=%.6f | isJPY=%s",
+               _Symbol, sym_digits, _Point, pip_sz, tick_sz, tick_val, (is_jpy ? "YES" : "NO"));
+   if(is_jpy && pip_sz < 0.005) {
+      PrintFormat("⚠️ [SYMBOL] JPY pair detected but pip size (%.6f) looks too small — check broker digit config (expected ~0.01)", pip_sz);
+   }
+   if(!is_jpy && pip_sz > 0.01) {
+      PrintFormat("⚠️ [SYMBOL] Non-JPY pair but pip size (%.6f) looks too large — check broker digit config", pip_sz);
+   }
+
    FlowLog("Step B: ApplyPreset() (preset overrides -> Settings)");
    ApplyPreset(InpPreset, Settings);
 

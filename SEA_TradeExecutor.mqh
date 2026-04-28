@@ -318,10 +318,19 @@ private:
          PrintFormat("⚠️ [CM] Very large lot computed: %.2f lots for %.1f pip SL on $%.0f equity -- check SL_MinPips setting",
                      raw_lot, stop_dist / pip_size, equity);
       }
+      PrintFormat("📊 [LOT CALC] %s | stop=%.5f | tick_sz=%.5f | tick_val=%.5f | loss_per_lot=%.4f | risk=$%.2f | raw_lot=%.4f | final_lot=%.4f",
+                  _Symbol,
+                  stop_dist,
+                  tick_size,
+                  tick_value,
+                  loss_per_lot,
+                  risk_money,
+                  raw_lot,
+                  NormalizeVolume(raw_lot));
       return NormalizeVolume(raw_lot);
    }
 
-   int CountConsecutiveLosses() {
+   int CountConsecutiveLosses(){
       datetime to = TimeCurrent();
       
       // FIX: Calculate midnight (start of the current server day)
@@ -667,7 +676,7 @@ private:
       double current_sl = PositionGetDouble(POSITION_SL);
       if(current_sl > 0.0) {
          double sl_dist_from_entry = MathAbs(current_sl - m_excursion.entry_price);
-         m_excursion.be_reached = (sl_dist_from_entry <= 5.0 * _Point);
+         m_excursion.be_reached = (sl_dist_from_entry <= 5.0 * GetPipSize());
       }
 
       switch(m_settings.TrailMode) {
