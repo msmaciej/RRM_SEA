@@ -1637,8 +1637,10 @@ private:
       int R     = m_settings.DPI_TSI_R;
       int S     = m_settings.DPI_TSI_S;
       int U     = m_settings.DPI_TSI_U;
-      int FastR = 5;   // Fixed nested TSI R period
-      int FastS = 3;   // Fixed nested TSI S period
+      int FastR = 5;   // Fixed nested TSI R: empirically chosen to be responsive enough
+      int FastS = 3;   // Fixed nested TSI S: (R=5, S=3) produces a fast sub-indicator that
+                       // fires during pullbacks and disappears at trend resumption, matching
+                       // the "green nested histogram" behaviour of the original DPI indicator
 
       // Minimum bars required: warmup (R+S+U) + target shift + safety buffer
       int bars_needed = R + S + U + v_shift + 5;
@@ -1696,10 +1698,12 @@ private:
       double main_hist   = main_line - signal_line;
       double nested_hist = fast_line - main_line;
 
-      // Nested histogram is "present" when the fast TSI histogram (fast_line - main_line)
-      // is smaller in absolute value than the main histogram (main_line - signal_line).
-      // This mirrors DPI_Indicator.mq5 Step 6 logic: when the nested (inner) bar is
-      // narrower than the outer main bar, a pullback within the trend is active.
+      // Nested histogram is "present" when the fast TSI histogram magnitude
+      // (|fast_line - main_line|) is smaller than the main histogram magnitude
+      // (|main_line - signal_line|). Both are derived from different TSI smoothing
+      // windows: main_hist uses the slow R/S smoothing, nested_hist compares the
+      // fast TSI (R=5/S=3) to the slow TSI mainline. When the inner bar is
+      // smaller than the outer bar, a pullback within the trend is active.
       bool nested_present = (main_hist != 0.0 && MathAbs(nested_hist) < MathAbs(main_hist));
 
       // ABSTAIN: active pullback (green nested histogram visible)

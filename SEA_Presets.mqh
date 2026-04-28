@@ -1638,7 +1638,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
       cfg.Gate_Recovery.value       = 1.0;
-      cfg.RRM_Lookback              = (_Period <= PERIOD_M5) ? 5 : 7;
+      cfg.RRM_Lookback              = (_Period <= PERIOD_M5) ? 5 : 7;  // 5 bars for fast TFs (M1-M5), 7 for slower TFs
 
       cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
       cfg.Gate_EmaDiv.value         = 1.0;
