@@ -1003,15 +1003,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MinPhaseConfirmBars       = 1;              // ORG: 4
 
       // Layer permissions per phase (per RRM methodology PNGs):
-      //   TRENDING:  Weak + Medium + Strong trades allowed
-      //   EMERGING:  Weak + Medium allowed; Strong blocked
+      //   TRENDING:  Weak + Medium + Strong trades allowed (user-controllable via Inp_RRM_Allow*)
+      //   EMERGING:  Weak + Medium allowed; Strong always blocked per RRM methodology
       //   UNORDERED: all blocked (BlockUnorderedPhase = true)
-      cfg.Trending_AllowWeakTrades   = true;          // true
-      cfg.Emerging_AllowWeakTrades   = true;          // true
-      cfg.Trending_AllowMediumTrades = true;          // true
-      cfg.Emerging_AllowMediumTrades = true;          // true
-      cfg.Trending_AllowStrongTrades = true;          // true
-      cfg.Emerging_AllowStrongTrades = false;
+      cfg.Trending_AllowWeakTrades   = Inp_RRM_AllowWeak;
+      cfg.Emerging_AllowWeakTrades   = Inp_RRM_AllowWeak;
+      cfg.Trending_AllowMediumTrades = Inp_RRM_AllowMedium;
+      cfg.Emerging_AllowMediumTrades = Inp_RRM_AllowMedium;
+      cfg.Trending_AllowStrongTrades = Inp_RRM_AllowStrong;
+      cfg.Emerging_AllowStrongTrades = false;  // STRONG always blocked in EMERGING per RRM methodology
 
       // ── PULLBACK DETECTION GATES ──────────────────────────────────────
       cfg.RequireRecoveryMomentum   = true;           // true
@@ -1238,15 +1238,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RequireMinPhaseConfirm    = true;
       cfg.MinPhaseConfirmBars       = 1;
 
-      // EMERGING phase: WEAK + MEDIUM only
-      cfg.Emerging_AllowWeakTrades   = true;
-      cfg.Emerging_AllowMediumTrades = true;
-      cfg.Emerging_AllowStrongTrades = false;         // BLOCKED in EMERGING
+      // EMERGING phase: WEAK + MEDIUM only; STRONG always blocked per RRM methodology
+      cfg.Emerging_AllowWeakTrades   = Inp_RRM_AllowWeak;
+      cfg.Emerging_AllowMediumTrades = Inp_RRM_AllowMedium;
+      cfg.Emerging_AllowStrongTrades = false;         // STRONG always blocked in EMERGING per RRM methodology
 
-      // TRENDING phase: WEAK + MEDIUM + STRONG
-      cfg.Trending_AllowWeakTrades   = true;
-      cfg.Trending_AllowMediumTrades = true;
-      cfg.Trending_AllowStrongTrades = true;
+      // TRENDING phase: controlled by layer filter inputs (Inp_RRM_Allow*)
+      cfg.Trending_AllowWeakTrades   = Inp_RRM_AllowWeak;
+      cfg.Trending_AllowMediumTrades = Inp_RRM_AllowMedium;
+      cfg.Trending_AllowStrongTrades = Inp_RRM_AllowStrong;
 
       // ── PULLBACK DETECTION GATES: LOCKED ON ──────────────────────────
       cfg.RequireRecoveryMomentum   = true;
