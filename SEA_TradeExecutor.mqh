@@ -1220,7 +1220,7 @@ public:
       }
    }
 
-   int EvaluateTE(int ts_direction) {
+   int EvaluateTE(int ts_direction, bool news_blocked = false) {
       if(ts_direction == 0) return 0;
       m_cached_sl   = 0.0;
       m_cached_lots = 0.0;
@@ -1235,6 +1235,46 @@ public:
       double live_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
       PrintFormat("📋 [TE] %s | ref_price(barClose)=%.5f | live_price=%.5f | spread_offset=%.5f",
                   _Symbol, ref_price, live_price, MathAbs(live_price - ref_price));
+
+      // --- TE Gate 1: Spread check ---
+      if(m_settings.UseSpread && m_settings.MaxSpread > 0.0)
+      {
+         double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+         double pip = (digits == 3 || digits == 5) ? _Point * 10.0 : _Point;
+         double spread_pips = (ask - bid) / pip;
+         if(spread_pips > m_settings.MaxSpread)
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[TE_GATE] Spread BLOCKED: %.1f pips > MaxSpread %.1f pips", spread_pips, m_settings.MaxSpread);
+            te_reject_reason = "VETO_SPREAD";
+         }
+      }
+
+      // --- TE Gate 2: Time window check ---
+      if(te_reject_reason == "" && m_settings.UseTime)
+      {
+         MqlDateTime dt;
+         TimeCurrent(dt);
+         bool time_pass = (m_settings.StartHr < m_settings.EndHr) ?
+                          (dt.hour >= m_settings.StartHr && dt.hour < m_settings.EndHr) :
+                          (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
+         if(!time_pass)
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[TE_GATE] Time BLOCKED: hour=%d outside window [%d-%d]", dt.hour, m_settings.StartHr, m_settings.EndHr);
+            te_reject_reason = "VETO_TIME";
+         }
+      }
+
+      // --- TE Gate 3: News check ---
+      if(te_reject_reason == "" && m_settings.UseNews && news_blocked)
+      {
+         if(m_settings.DebugFlow)
+            Print("[TE_GATE] News BLOCKED: high-impact event active");
+         te_reject_reason = "VETO_NEWS";
+      }
 
       double te_lots = 0;
       if(te_reject_reason == "") {
