@@ -717,9 +717,9 @@ void SEA_UI_UpdateCockpit(
    {
       string veto_label = (last_te_veto != "" && last_te_veto != "OK") ? last_te_veto : "BLOCKED";
       if(ts_pending)
-         AddLine(StringFormat("STATE:  TE_PENDING [%s]", veto_label), Settings.clr_Warn, lines, line_clrs);
+         AddLine(StringFormat("STATE:  TE_PENDING [%s]", veto_label), clrGold, lines, line_clrs);
       else
-         AddLine(StringFormat("STATE:  TE_BLOCKED [%s]", veto_label), Settings.clr_Fail, lines, line_clrs);
+         AddLine(StringFormat("STATE:  TE_BLOCKED [%s]", veto_label), clrRed, lines, line_clrs);
    }
    else
    {
