@@ -328,28 +328,28 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // PRESET_FPM: Five-Point Method (FPM)
       // ================================================================
       //
-      // ENTRY FORMULA (all 5 must align):
+      // ENTRY FORMULA (all 4 must align):
       //   1. PSAR crossed below/above price (dot position + optional flip)
-      //   2. MACD crossed above/below signal line (MACD_CROSSOVER_N: fresh cross, ≤3 bars)
+      //   2. MACD crossed above/below signal line (MACD_CROSSOVER_N: fresh cross, ≤5 bars)
       //   3. Bollinger Bands widening (BB_WIDENING mode: bandwidth expanding bar-to-bar)
-      //   4. 10 + 20 SMA converging (Ind_SmaConverge: gap narrowing, direction-neutral)
-      //   5. Candle closed above/below 10+20 SMA (BarClose_Mode=BC_BIAS_FAST)
+      //   4. Candle closed above/below 10+20 SMA (BarClose_Mode=BC_BIAS_FAST)
+      //      (SmaConverge removed: contradicts trending Bias; BC_BIAS_FAST covers this role)
       //
       // LOCKED (never user-changeable in FPM):
       //   MaType    = SMA               (10 + 20 period SMAs)
       //   P_Ema1    = 10, P_Ema2 = 20   (10 SMA, 20 SMA)
       //   BiasMode  = BIAS_2EMA          (two-SMA structure)
       //   AutoStrat = STRAT_2EMA_POSITION (price position vs both SMAs)
-      //   Ind_Psar  ON, Ind_Macd ON, Ind_Bb ON  (core FPM indicators)
+      //   Ind_Psar  ON, Ind_Macd ON, Ind_Bb ON  (core FPM indicators — 3 votes required)
       //   BarClose  = BC_BIAS_FAST       (close vs fast SMA=10)
       //   VoteMode  = VOTE_MODE_ALL      (all 3 indicators must agree)
       //   Phase/Layer detection OFF      (simple 2-SMA system)
       //
-      // NOTE - Condition 4 (SMA convergence):
-      //   Ind_SmaConverge checks that the |SMA10 - SMA20| gap is NARROWING:
-      //   gap_now < gap_prev (direction-neutral, applies equally to BUY and SELL).
-      //   This faithfully implements the cheat sheet "10 and 20 SMA are converging"
-      //   condition as a dedicated voting indicator.
+      // NOTE - Condition 4 (SmaConverge removed):
+      //   SmaConverge (gap narrowing) was mutually exclusive with the trending Bias:
+      //   when STRAT_2EMA_POSITION Bias fires (both SMAs moving apart), SmaConverge
+      //   fails, and vice versa.  The BC_BIAS_FAST bar-close gate already satisfies
+      //   "price is positioned relative to the SMAs." Ind_SmaConverge_Enabled = false.
       //
       // NOTE - Condition 3 (BB widening):
       //   BB_WIDENING compares bandwidth (upper - lower) at shift vs shift+1.
@@ -401,7 +401,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Ross_Enabled       = false;
       cfg.Ind_Rsi_Enabled        = false;
       cfg.Ind_Sto_Enabled        = false;
-      cfg.Ind_SmaConverge_Enabled = true;   // Condition 4: SMA 10/20 convergence (gap narrowing)
+      cfg.Ind_SmaConverge_Enabled = false;  // Removed: contradicts trending Bias; BC_BIAS_FAST covers Condition 4
       cfg.Ind_SmaConverge_Weight  = 1;
       cfg.Ind_Dpi_Enabled        = false;   // DPI not used in FPM methodology
       cfg.Ind_Dpi_Weight         = 1;
@@ -422,7 +422,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MacdRequireSlope       = false;
       cfg.MacdRequireDivergence  = false;
       cfg.MacdRequireHook        = false;
-      cfg.MacdFreshBars          = 3;                  // Valid for 3 bars after cross
+      cfg.MacdFreshBars          = 5;                  // Valid for 5 bars after cross (25 min on M5; allows Bias to confirm)
       cfg.MacdSlopeMin           = 0.00001;
 
       // ── BOLLINGER BANDS SETTINGS ──────────────────────────────────────
@@ -555,7 +555,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PSAR_TrailPipsCushion     = 0.0;
 
       // ── SLOPE CALCULATION ─────────────────────────────────────────────
-      cfg.SlopeLookbackBars         = 1;
+      cfg.SlopeLookbackBars         = 3;  // Smoother slope on M5; SMA20 needs multiple bars to show direction
 
       // ── MA BENCHMARK SPECIFIC: off ────────────────────────────────────
       cfg.ma_h_shift                = 1;

@@ -3636,17 +3636,9 @@ public:
          }
          else
          {
-            if(f_curr > s_curr) {
-               if(fast_slope == 1 && slow_slope == 1) { market_bias = 1; m_eval_str_B = "+"; }
-               else m_eval_str_B = "SLOPE";
-            }
-            else if(f_curr < s_curr) {
-               if(fast_slope == -1 && slow_slope == -1) { market_bias = -1; m_eval_str_B = "+"; }
-               else m_eval_str_B = "SLOPE";
-            }
-            else {
-               m_eval_str_B = "POS";
-            }
+            if(f_curr > s_curr && fast_slope == 1)       { market_bias = 1;  m_eval_str_B = "+"; }
+            else if(f_curr < s_curr && fast_slope == -1) { market_bias = -1; m_eval_str_B = "+"; }
+            else m_eval_str_B = "SLOPE";
 
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
