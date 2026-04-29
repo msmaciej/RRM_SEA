@@ -4404,7 +4404,11 @@ public:
          }
          if(m_settings.PhaseDetectionEnabled) {
             string phase_str = EnumToString(m_diag_last_phase);
-            bool phase_blocked = (m_diag_last_phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase);
+            bool is_emerging_phase = (m_diag_last_phase == PHASE_EMERGING_UP ||
+                                      m_diag_last_phase == PHASE_EMERGING_DN ||
+                                      m_diag_last_phase == PHASE_EMERGING);
+            bool phase_blocked = (m_diag_last_phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase) ||
+                                 (is_emerging_phase && m_settings.BlockEmergingPhase);
             DebugLog(StringFormat("  %s Phase: %s%s",
                                   phase_blocked ? "❌" : "✅", phase_str,
                                   phase_blocked ? " (blocked)" : ""));
@@ -4650,6 +4654,17 @@ public:
          if(m_settings.DebugFlow)
             Print("[260304_BIAS] UNORDERED phase blocked - no clear market structure");
          return 0;  // No bias in choppy markets
+      }
+      
+      // Block EMERGING phase if configured
+      bool is_emerging = (current_phase == PHASE_EMERGING_UP ||
+                          current_phase == PHASE_EMERGING_DN ||
+                          current_phase == PHASE_EMERGING);
+      if(is_emerging && m_settings.BlockEmergingPhase)
+      {
+         if(m_settings.DebugFlow)
+            Print("[260304_BIAS] EMERGING phase blocked - trend forming but not yet confirmed");
+         return 0;  // No bias until trend is confirmed TRENDING
       }
       
       // Map phase directly to bias direction (phase encodes direction)
