@@ -1705,6 +1705,44 @@ private:
       return result;
    }
 
+//+------------------------------------------------------------------+
+//| RESERVED — Original Check_DPI FastLine voter logic              |
+//| (Inactive. Preserved for reference / future research.)           |
+//|                                                                  |
+//| The variables below were used when Check_DPI used a second       |
+//| (faster) TSI computed with FastR/FastS periods (5 and 3).       |
+//|                                                                  |
+//|   int FastR = m_settings.DPI_TSI_FastR;                         |
+//|   int FastS = m_settings.DPI_TSI_FastS;                         |
+//|   double alphaFR = 2.0 / (double)(FastR + 1);                   |
+//|   double alphaFS = 2.0 / (double)(FastS + 1);                   |
+//|   double fe1m = 0.0, fe2m = 0.0, fe1a = 0.0, fe2a = 0.0;       |
+//|   double fast_line = 0.0;                                        |
+//|                                                                  |
+//|   // Inside loop (after signal line update):                     |
+//|   fe1m = alphaFR * mom     + (1.0 - alphaFR) * fe1m;            |
+//|   fe1a = alphaFR * abs_mom + (1.0 - alphaFR) * fe1a;            |
+//|   fe2m = alphaFS * fe1m    + (1.0 - alphaFS) * fe2m;            |
+//|   fe2a = alphaFS * fe1a    + (1.0 - alphaFS) * fe2a;            |
+//|   fast_line = (fe2a != 0.0) ? (fe2m / fe2a) : 0.0;              |
+//|                                                                  |
+//|   // After loop:                                                 |
+//|   double main_hist   = main_line - signal_line;                  |
+//|   double nested_hist = fast_line - main_line;                    |
+//|   bool nested_present = (main_hist != 0.0 &&                     |
+//|                MathAbs(nested_hist) < MathAbs(main_hist));       |
+//|                                                                  |
+//|   // ABSTAIN: active pullback (green nested histogram visible)   |
+//|   if(nested_present) { dpi_result=0; return false; }            |
+//|                                                                  |
+//|   // ABSTAIN: no momentum                                        |
+//|   if(MathAbs(main_line)<0.001 && MathAbs(signal_line)<0.001)    |
+//|      { dpi_result=0; return false; }                             |
+//|                                                                  |
+//|   // Directional vote (same as current active code):             |
+//|   result = (bias>0)?(main_line>signal_line):(main_line<signal_line);|
+//+------------------------------------------------------------------+
+
    //+------------------------------------------------------------------+
 
    string TrimStr(string s) {

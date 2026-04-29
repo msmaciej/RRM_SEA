@@ -181,8 +181,8 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("    Stoch:   ", (cfg.Ind_Sto_Enabled ? "✓" : "✗"));
    Print("    SmaConv: ", (cfg.Ind_SmaConverge_Enabled ? "✓" : "✗"));
    Print("    DPI:     ", (cfg.Ind_Dpi_Enabled ? "✓" : "✗"),
-         (cfg.Ind_Dpi_Enabled ? StringFormat(" (TSI R=%d S=%d U=%d)",
-          cfg.DPI_TSI_R, cfg.DPI_TSI_S, cfg.DPI_TSI_U) : ""));
+         (cfg.Ind_Dpi_Enabled ? StringFormat(" (TSI R=%d S=%d U=%d FastR=%d FastS=%d [reserved])",
+          cfg.DPI_TSI_R, cfg.DPI_TSI_S, cfg.DPI_TSI_U, cfg.DPI_TSI_FastR, cfg.DPI_TSI_FastS) : ""));
    Print("");
 
    Print("💰 RISK MANAGEMENT:");
@@ -1136,6 +1136,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.DPI_TSI_R              = Inp_RRM_ORG_TSI_R;       // default 25
       cfg.DPI_TSI_S              = Inp_RRM_ORG_TSI_S;       // default 13
       cfg.DPI_TSI_U              = Inp_RRM_ORG_TSI_U;       // default 7
+      cfg.DPI_TSI_FastR          = Inp_RRM_ORG_TSI_FastR;   // Reserved — not used by active voter
+      cfg.DPI_TSI_FastS          = Inp_RRM_ORG_TSI_FastS;   // Reserved — not used by active voter
 
       // ── PSAR: LOCKED ON (timing/direction confirmation) ───────────────
       cfg.Ind_Psar_Enabled       = true;
