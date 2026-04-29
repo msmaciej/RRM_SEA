@@ -328,11 +328,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // PRESET_FPM: Five-Point Method (FPM)
       // ================================================================
       //
-      // ENTRY FORMULA (all 4 must align):
+      // ENTRY FORMULA (3 indicator votes + bar-close gate must all align):
       //   1. PSAR crossed below/above price (dot position + optional flip)
       //   2. MACD crossed above/below signal line (MACD_CROSSOVER_N: fresh cross, ≤5 bars)
       //   3. Bollinger Bands widening (BB_WIDENING mode: bandwidth expanding bar-to-bar)
-      //   4. Candle closed above/below 10+20 SMA (BarClose_Mode=BC_BIAS_FAST)
+      //   + Bar-close gate: candle closed above/below 10+20 SMA (BarClose_Mode=BC_BIAS_FAST)
       //      (SmaConverge removed: contradicts trending Bias; BC_BIAS_FAST covers this role)
       //
       // LOCKED (never user-changeable in FPM):
@@ -340,9 +340,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       //   P_Ema1    = 10, P_Ema2 = 20   (10 SMA, 20 SMA)
       //   BiasMode  = BIAS_2EMA          (two-SMA structure)
       //   AutoStrat = STRAT_2EMA_POSITION (price position vs both SMAs)
-      //   Ind_Psar  ON, Ind_Macd ON, Ind_Bb ON  (core FPM indicators — 3 votes required)
+      //   Ind_Psar  ON, Ind_Macd ON, Ind_Bb ON  (3 voting indicators; unanimous via VOTE_MODE_ALL)
       //   BarClose  = BC_BIAS_FAST       (close vs fast SMA=10)
-      //   VoteMode  = VOTE_MODE_ALL      (all 3 indicators must agree)
+      //   VoteMode  = VOTE_MODE_ALL      (all 3 voting indicators must agree unanimously)
       //   Phase/Layer detection OFF      (simple 2-SMA system)
       //
       // NOTE - Condition 4 (SmaConverge removed):
