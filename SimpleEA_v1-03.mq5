@@ -728,6 +728,9 @@ void OrchestrateTick()
       }
       else 
       {
+         // TS=0 on current bar — invalidate any carry-forward
+         g_ts_active  = false;
+         g_ts_carried = 0;
          // Persist reason for 0/5 display
          g_ts_reason = snap_reason;
          g_ts_votes  = snap_votes;
