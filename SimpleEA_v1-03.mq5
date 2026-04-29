@@ -78,6 +78,10 @@ double g_ts_sl   = 0.0;
 double g_ts_lots = 0.0;
 double g_ts_risk = 0.0;
 
+// Last TE execution result (reset each new bar before TS evaluation)
+string g_last_te_result = "";   // "ENTERED", "BLOCKED", or "" (no signal this bar)
+string g_last_te_veto   = "";   // "SL_ZERO", "VETO_RISK_CONTROL", "OK", or ""
+
 // Global tracking for RRM drawdown protection
 int      g_consecutive_losses     = 0;
 int      g_trades_today           = 0;
@@ -676,6 +680,10 @@ void OrchestrateTick()
    // 7. TS: Trade Setup evaluation on bar close (shift=1)
    if(!drawdown_blocked)
    {
+      // Reset TE state each new bar so stale results from prior bar don't persist
+      g_last_te_result = "";
+      g_last_te_veto   = "";
+
       FlowLog("Step B: Compute direction signal (TS evaluation at shift=1)");
       int ts = Signal.EvaluateTS(); 
 
@@ -704,6 +712,10 @@ void OrchestrateTick()
          g_ts_sl   = Executor.LastCachedSL();
          g_ts_lots = Executor.LastCachedLots();
          g_ts_risk = Executor.LastCachedRisk();
+
+         // Capture TE result for cockpit STATE display
+         g_last_te_result = Executor.LastTEResult();
+         g_last_te_veto   = Executor.LastVetoReason();
 
          // Log TE outcome for diagnostics
          string veto = Executor.LastVetoReason();
@@ -766,7 +778,9 @@ void OrchestrateTick()
       Settings.RiskPercent,
       current_risk_pct,
       current_risk_money,
-      EnumToString(Settings.TrailMode)
+      EnumToString(Settings.TrailMode),
+      g_last_te_result,
+      g_last_te_veto
    );
    
    FlowLog("Bar pipeline complete");
