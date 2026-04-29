@@ -443,6 +443,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PhaseDetectionEnabled     = false;
       cfg.EnableLayerDetection      = false;
       cfg.BlockUnorderedPhase       = false;
+      cfg.BlockEmergingPhase        = false;
       cfg.RequireMinPhaseConfirm    = false;
       cfg.MinPhaseConfirmBars       = 0;
 
@@ -731,6 +732,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PhaseDetectionEnabled     = false;
       cfg.EnableLayerDetection      = false;
       cfg.BlockUnorderedPhase       = false;
+      cfg.BlockEmergingPhase        = false;
       cfg.RequireMinPhaseConfirm    = false;
       cfg.MinPhaseConfirmBars       = 0;
       
@@ -999,6 +1001,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PhaseDetectionEnabled     = true;           // true
       cfg.EnableLayerDetection      = true;           // true
       cfg.BlockUnorderedPhase       = true;           // true
+      cfg.BlockEmergingPhase        = true;           // true — EMERGING not confirmed enough for RRM entry
       cfg.RequireMinPhaseConfirm    = true;           // true
       cfg.MinPhaseConfirmBars       = 1;              // ORG: 4
 
@@ -1235,6 +1238,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PhaseDetectionEnabled     = true;
       cfg.EnableLayerDetection      = true;
       cfg.BlockUnorderedPhase       = true;           // UNORDERED → block all trades
+      cfg.BlockEmergingPhase        = true;           // true — EMERGING not confirmed enough for RRM entry
       cfg.RequireMinPhaseConfirm    = true;
       cfg.MinPhaseConfirmBars       = 1;
 
@@ -1525,6 +1529,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PhaseDetectionEnabled        = false;
       cfg.EnableLayerDetection         = false;
       cfg.BlockUnorderedPhase          = false;
+      cfg.BlockEmergingPhase           = false;
       cfg.RequireMinPhaseConfirm       = false;
       cfg.MinPhaseConfirmBars          = 0;
       

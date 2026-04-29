@@ -521,6 +521,7 @@ int OrchestrateInit()
       Print("  PhaseDetectionEnabled: ", (Settings.PhaseDetectionEnabled ? "true" : "false"));
       Print("  MinPhaseConfirmBars: ", Settings.MinPhaseConfirmBars, " (0=instant EMA check)");
       Print("  BlockUnorderedPhase: ", (Settings.BlockUnorderedPhase ? "true" : "false"));
+      Print("  BlockEmergingPhase:  ", (Settings.BlockEmergingPhase  ? "true" : "false"));
 
       Print("ENTRY LAYER:");
       Print("  EnableLayerDetection: ", (Settings.EnableLayerDetection ? "true" : "false"));
