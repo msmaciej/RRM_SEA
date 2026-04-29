@@ -4553,7 +4553,10 @@ public:
       }
 
       // --- AUDITED TERMINATION ---
-      UpdateTelemetry(final_signal);
+      // Pass the raw bias (not the final filtered signal) so the UI shows
+      // BIAS: LONG [+] even when the pipeline rejected on indicators/gates.
+      // The rejection_reason already explains WHY the signal was blocked.
+      UpdateTelemetry(m_diag_last_bias);
       FlushOrClearDebugBuffer(final_signal);
       RestoreForcedDebug();
       return final_signal;

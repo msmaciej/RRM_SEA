@@ -611,18 +611,31 @@ void SEA_UI_UpdateCockpit(
    string p_eq = (ts_telemetry.phase > 0) ? "+" : ((ts_telemetry.phase < 0) ? "-" : ".");
    string l_eq = (ts_telemetry.layer > 0) ? "+" : ((ts_telemetry.layer < 0) ? "-" : ".");
    string i_eq = (ts_telemetry.votes_for > 0) ? "+" : ".";
-   string f_eq = (StringFind(ts_telemetry.rejection_reason, "HTF") >= 0 || StringFind(ts_telemetry.rejection_reason, "Filter") >= 0) ? "-" : ".";
+   bool filter_rejected = (StringFind(ts_telemetry.rejection_reason, "HTF")    >= 0 ||
+                           StringFind(ts_telemetry.rejection_reason, "Filter") >= 0 ||
+                           StringFind(ts_telemetry.rejection_reason, "TIME")   >= 0 ||
+                           StringFind(ts_telemetry.rejection_reason, "SPREAD") >= 0 ||
+                           StringFind(ts_telemetry.rejection_reason, "NEWS")   >= 0);
+   bool signal_valid    = (ts_telemetry.rejection_reason == "Valid Signal" ||
+                           ts_telemetry.rejection_reason == "OK");
+   string f_eq = filter_rejected ? "-" : (signal_valid ? "+" : ".");
 
    AddLine(StringFormat("TS EQ: TS = B[%s] * P[%s] * L[%s] * I[%s] * F[%s]", b_eq, p_eq, l_eq, i_eq, f_eq), v_clr, lines, line_clrs);
    AddLine(StringFormat("VOTE:  %d / %d", ts_telemetry.votes_for, ts_telemetry.votes_total), v_clr, lines, line_clrs);
 
    // 2. Component Detail Audit
-   AddLine(StringFormat("  BIAS:  %s [.]", SEA_UI_BiasLabel(ts_telemetry.bias)), v_clr, lines, line_clrs);
+   string bias_sym = (ts_telemetry.bias > 0) ? "[+]" : (ts_telemetry.bias < 0 ? "[-]" : "[.]");
+   color  bias_clr = (ts_telemetry.bias > 0) ? Settings.clr_Pass : (ts_telemetry.bias < 0 ? Settings.clr_Pass : Settings.clr_Disabled);
+   AddLine(StringFormat("  BIAS:  %s %s", SEA_UI_BiasLabel(ts_telemetry.bias), bias_sym), bias_clr, lines, line_clrs);
    
    if(ts_telemetry.phase_detection_enabled)
    {
-      color dummy_p;
-      AddLine(StringFormat("  PHASE: %s [.]", SEA_UI_FormatPhase((EMarketPhase)ts_telemetry.phase, dummy_p)), v_clr, lines, line_clrs);
+      color phase_clr;
+      string phase_label = SEA_UI_FormatPhase((EMarketPhase)ts_telemetry.phase, phase_clr);
+      bool phase_trending  = (ts_telemetry.phase == PHASE_TRENDING || ts_telemetry.phase == PHASE_TRENDING_UP || ts_telemetry.phase == PHASE_TRENDING_DN);
+      bool phase_unordered = (ts_telemetry.phase == PHASE_UNORDERED);
+      string phase_sym = phase_trending ? "[+]" : (phase_unordered ? "[-]" : "[.]");
+      AddLine(StringFormat("  PHASE: %s %s", phase_label, phase_sym), phase_clr, lines, line_clrs);
    }
    else
    {
