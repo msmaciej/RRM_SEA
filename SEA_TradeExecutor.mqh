@@ -1037,32 +1037,38 @@ public:
    double EvaluateCM(int direction) {
       if(direction == 0) return 0.0;
       bool isBuy = (direction == 1);
-      double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      double sl = CalcEntrySL(isBuy, price);
+      // SL geometry and lot sizing anchored to bar-N close price (same data TS=1 was confirmed on)
+      double ref_price = iClose(_Symbol, PERIOD_CURRENT, 1);
+      double sl = CalcEntrySL(isBuy, ref_price);
       
       double lot = NormalizeVolume(SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN));
       if(m_settings.UseMACompatSizer) {
          double ma_lot = CalcLotMACompat();
          if(ma_lot > 0.0) lot = ma_lot;
       } else {
-         double risk_lot = CalcLotByRisk(price, sl);
+         double risk_lot = CalcLotByRisk(ref_price, sl);
          if(risk_lot > 0.0) lot = risk_lot;
       }
 
+      // Margin adjustment uses live price — margin is a live broker value (correct)
       ENUM_ORDER_TYPE order_type = isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
-      return AdjustLotForMargin(order_type, lot, price);
+      double live_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      return AdjustLotForMargin(order_type, lot, live_price);
    }
 
    bool EvaluateRC(int direction, double lots) {
+      bool isBuy = (direction > 0);
+      // Anchor reference price to bar-N close (same data TS=1 confirmed on)
+      double ref_price = iClose(_Symbol, PERIOD_CURRENT, 1);
+      double live_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+
       if(m_settings.MinMarginLevel > 0.0) {
-         bool isBuy = (direction > 0);
-         double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
          ENUM_ORDER_TYPE order_type = isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
          double new_trade_margin = 0.0;
          double current_margin = AccountInfoDouble(ACCOUNT_MARGIN);
          double equity = AccountInfoDouble(ACCOUNT_EQUITY);
          if(equity <= 0.0) equity = AccountInfoDouble(ACCOUNT_BALANCE);
-         if(OrderCalcMargin(order_type, _Symbol, lots, price, new_trade_margin) && new_trade_margin > 0.0) {
+         if(OrderCalcMargin(order_type, _Symbol, lots, live_price, new_trade_margin) && new_trade_margin > 0.0) {
             double projected_margin = current_margin + new_trade_margin;
             double projected_level = (projected_margin > 0.0) ? (equity / projected_margin * 100.0) : SEA_MARGIN_LEVEL_UNLIMITED;
             if(projected_level < m_settings.MinMarginLevel) {
@@ -1083,10 +1089,12 @@ public:
          if(open_count >= m_settings.MaxOpenTrades) return false;
       }
       if(m_settings.MaxTotalRisk > 0.0) {
-         bool isBuy = (direction > 0);
-         double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-         double sl = CalcEntrySL(isBuy, price);
-         double new_trade_risk = ComputeRiskPercent(lots, MathAbs(price - sl));
+         double sl = CalcEntrySL(isBuy, ref_price);   // anchored to bar-N close
+         if(sl <= 0.0) {
+            PrintFormat("🚫 [RC] SL calculation failed at bar-close reference price -- trade blocked (VETO_RISK_CONTROL/SL_ZERO)");
+            return false;
+         }
+         double new_trade_risk = ComputeRiskPercent(lots, MathAbs(ref_price - sl));
          if(CalculateActiveRisk() + new_trade_risk > m_settings.MaxTotalRisk) return false;
       }
       return true;
@@ -1177,7 +1185,14 @@ public:
       if(ts_direction == 0) return 0;
       m_te_veto_reason = "OK";
       string te_reject_reason = "";
-      
+
+      // Log the reference prices being used for diagnostics
+      bool isBuy = (ts_direction > 0);
+      double ref_price  = iClose(_Symbol, PERIOD_CURRENT, 1);
+      double live_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      PrintFormat("📋 [TE] %s | ref_price(barClose)=%.5f | live_price=%.5f | spread_offset=%.5f",
+                  _Symbol, ref_price, live_price, MathAbs(live_price - ref_price));
+
       double te_lots = 0;
       if(te_reject_reason == "") {
          te_lots = EvaluateCM(ts_direction);
