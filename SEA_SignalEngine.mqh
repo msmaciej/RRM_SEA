@@ -2157,6 +2157,29 @@ public:
    int    LastVotes()  const { return m_diag_last_votes; }
    string LastReason() const { return m_diag_last_reason; }
 
+   // --- TE Gate: Read-only news check for EvaluateTE() (shift=0) ---
+   // Returns true if a high-impact news event is currently active for this symbol.
+   // No stat updates — pure read-only check.
+   bool IsNewsBlocked()
+   {
+      if(!m_settings.UseNews || m_news_count == 0) return false;
+      string base, quote;
+      GetSymbolCurrencies(m_symbol, base, quote);
+      if(base == "" || quote == "") return false;
+      datetime now     = TimeCurrent();
+      int      pre_sec = m_settings.NewsPre  * 60;
+      int      post_sec= m_settings.NewsPost * 60;
+      for(int i = 0; i < m_news_count; i++)
+      {
+         string ccy = m_news_events[i].currency;
+         if(ccy != base && ccy != quote) continue;
+         if(!NewsImpactPass(m_news_events[i].impact)) continue;
+         datetime t = m_news_events[i].time;
+         if(now >= (t - pre_sec) && now <= (t + post_sec)) return true;
+      }
+      return false;
+   }
+
    // 260304_PR1: Phase Detection Diagnostics
    EMarketPhase GetLastDetectedPhase() const { return m_diag_last_phase; }
    int          GetPhaseConfirmBars() const { return m_diag_phase_confirm_bars; }

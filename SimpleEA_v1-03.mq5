@@ -706,7 +706,8 @@ void OrchestrateTick()
             SEA_DrawEntrySignalLine(g_ts_time, ts, snap_reason);
 
           // 8. TE: Evaluate Trade Entry (shift=0)
-         int te = Executor.EvaluateTE(ts);
+         bool te_news_blocked = (Settings.UseNews ? Signal.IsNewsBlocked() : false);
+         int te = Executor.EvaluateTE(ts, te_news_blocked);
 
          // Capture pre-computed SL/lots/risk (anchored to shift=1 historical data)
          g_ts_sl   = Executor.LastCachedSL();
