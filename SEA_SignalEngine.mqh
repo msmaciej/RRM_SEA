@@ -60,6 +60,8 @@ struct ST_SignalTelemetry {
    int    diag_layer_w;   // Raw result for L1 WEAK  sub-market: 1=pass, 0=none, -1=contra
    int    diag_layer_m;   // Raw result for L2 MEDIUM sub-market
    int    diag_layer_s;   // Raw result for L3 STRONG sub-market
+   bool   phase_detection_enabled;  // True when BiasMode == BIAS_4EMA and PhaseDetectionEnabled
+   bool   layer_detection_enabled;  // True when EnableLayerDetection && BiasMode == BIAS_4EMA
 };
 
 // Granular per-reason rejection statistics for EvaluateTS()
@@ -2039,6 +2041,8 @@ public:
       m_telemetry.diag_layer_w = m_diag_layer_w;
       m_telemetry.diag_layer_m = m_diag_layer_m;
       m_telemetry.diag_layer_s = m_diag_layer_s;
+      m_telemetry.phase_detection_enabled = (m_settings.BiasMode == BIAS_4EMA && m_settings.PhaseDetectionEnabled);
+      m_telemetry.layer_detection_enabled = (m_settings.EnableLayerDetection && m_settings.BiasMode == BIAS_4EMA);
    }
 
 

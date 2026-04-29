@@ -566,7 +566,9 @@ void SEA_UI_UpdateCockpit(
    double config_risk_pct, 
    double current_risk_pct,
    double current_risk_money,
-   string config_trail_method
+   string config_trail_method,
+   string last_te_result = "",
+   string last_te_veto   = ""
 ) {
    if(!Inp_UI_ShowCockpitPanel) { 
       SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
@@ -617,23 +619,37 @@ void SEA_UI_UpdateCockpit(
    // 2. Component Detail Audit
    AddLine(StringFormat("  BIAS:  %s [.]", SEA_UI_BiasLabel(ts_telemetry.bias)), v_clr, lines, line_clrs);
    
-   color dummy_p;
-   AddLine(StringFormat("  PHASE: %s [.]", SEA_UI_FormatPhase((EMarketPhase)ts_telemetry.phase, dummy_p)), v_clr, lines, line_clrs);
+   if(ts_telemetry.phase_detection_enabled)
+   {
+      color dummy_p;
+      AddLine(StringFormat("  PHASE: %s [.]", SEA_UI_FormatPhase((EMarketPhase)ts_telemetry.phase, dummy_p)), v_clr, lines, line_clrs);
+   }
+   else
+   {
+      AddLine("  PHASE: N/A (BIAS_2EMA mode)", Settings.clr_Disabled, lines, line_clrs);
+   }
 
    // Per-sub-market layer signals
-   string lw_sym = (ts_telemetry.diag_layer_w ==  1 ? "[+]" : ts_telemetry.diag_layer_w == -1 ? "[-]" : "[.]");
-   string lm_sym = (ts_telemetry.diag_layer_m ==  1 ? "[+]" : ts_telemetry.diag_layer_m == -1 ? "[-]" : "[.]");
-   string ls_sym = (ts_telemetry.diag_layer_s ==  1 ? "[+]" : ts_telemetry.diag_layer_s == -1 ? "[-]" : "[.]");
-   color lw_clr = (ts_telemetry.diag_layer_w == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_w == -1 ? Settings.clr_Fail : Settings.clr_Disabled);
-   color lm_clr = (ts_telemetry.diag_layer_m == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_m == -1 ? Settings.clr_Fail : Settings.clr_Disabled);
-   color ls_clr = (ts_telemetry.diag_layer_s == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_s == -1 ? Settings.clr_Fail : Settings.clr_Disabled);
-   // Show active layer bitfield label
-   string active_lbl = SEA_UI_EntryLayerLabel((EEntryLayer)ts_telemetry.layer);
-   if(active_lbl == "") active_lbl = "(none)";
-   AddLine(StringFormat("  WEAK:  EMA1/EMA2 %s", lw_sym), lw_clr, lines, line_clrs);
-   AddLine(StringFormat("  MED:   EMA2/EMA3 %s", lm_sym), lm_clr, lines, line_clrs);
-   AddLine(StringFormat("  STR:   EMA3/EMA4 %s", ls_sym), ls_clr, lines, line_clrs);
-   AddLine(StringFormat("  ACTIVE LAYER: %s", active_lbl), v_clr, lines, line_clrs);
+   if(ts_telemetry.layer_detection_enabled)
+   {
+      string lw_sym = (ts_telemetry.diag_layer_w ==  1 ? "[+]" : ts_telemetry.diag_layer_w == -1 ? "[-]" : "[.]");
+      string lm_sym = (ts_telemetry.diag_layer_m ==  1 ? "[+]" : ts_telemetry.diag_layer_m == -1 ? "[-]" : "[.]");
+      string ls_sym = (ts_telemetry.diag_layer_s ==  1 ? "[+]" : ts_telemetry.diag_layer_s == -1 ? "[-]" : "[.]");
+      color lw_clr = (ts_telemetry.diag_layer_w == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_w == -1 ? Settings.clr_Fail : Settings.clr_Disabled);
+      color lm_clr = (ts_telemetry.diag_layer_m == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_m == -1 ? Settings.clr_Fail : Settings.clr_Disabled);
+      color ls_clr = (ts_telemetry.diag_layer_s == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_s == -1 ? Settings.clr_Fail : Settings.clr_Disabled);
+      // Show active layer bitfield label
+      string active_lbl = SEA_UI_EntryLayerLabel((EEntryLayer)ts_telemetry.layer);
+      if(active_lbl == "") active_lbl = "(none)";
+      AddLine(StringFormat("  WEAK:  EMA1/EMA2 %s", lw_sym), lw_clr, lines, line_clrs);
+      AddLine(StringFormat("  MED:   EMA2/EMA3 %s", lm_sym), lm_clr, lines, line_clrs);
+      AddLine(StringFormat("  STR:   EMA3/EMA4 %s", ls_sym), ls_clr, lines, line_clrs);
+      AddLine(StringFormat("  ACTIVE LAYER: %s", active_lbl), v_clr, lines, line_clrs);
+   }
+   else
+   {
+      AddLine("  LAYER: N/A (phase detection off)", Settings.clr_Disabled, lines, line_clrs);
+   }
 
    // 3. INDICATOR AUDIT (Detailed MACD, CCI, PSAR restoration)
    string ind_parts[];
@@ -674,8 +690,24 @@ void SEA_UI_UpdateCockpit(
    
    // --- EXECUTION GATE ---
    AddLine("--- EXECUTION GATE ---", h_clr, lines, line_clrs);
-   string gate_status = (active_lots > 0) ? "ACTIVE" : "WAITING";
-   AddLine(StringFormat("STATE:  %s", gate_status), (active_lots > 0 ? Settings.clr_Pass : v_clr), lines, line_clrs);
+
+   if(active_lots > 0)
+   {
+      AddLine("STATE:  ACTIVE", Settings.clr_Pass, lines, line_clrs);
+   }
+   else if(last_te_result == "ENTERED")
+   {
+      AddLine("STATE:  ENTERED", Settings.clr_Pass, lines, line_clrs);
+   }
+   else if(last_te_result == "BLOCKED" || last_te_result == "VETO")
+   {
+      string veto_label = (last_te_veto != "" && last_te_veto != "OK") ? last_te_veto : "BLOCKED";
+      AddLine(StringFormat("STATE:  TE_BLOCKED [%s]", veto_label), Settings.clr_Fail, lines, line_clrs);
+   }
+   else
+   {
+      AddLine("STATE:  MONITORING", v_clr, lines, line_clrs);
+   }
 
    AddLine("", (color)0, lines, line_clrs);
 

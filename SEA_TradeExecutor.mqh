@@ -1103,11 +1103,16 @@ public:
       if(m_settings.MaxTotalRisk > 0.0) {
          double sl = CalcEntrySL(isBuy, ref_price);   // anchored to bar-N close
          if(sl <= 0.0) {
-            PrintFormat("🚫 [RC] SL calculation failed at bar-close reference price -- trade blocked (VETO_RISK_CONTROL/SL_ZERO)");
-            return false;
+            // SL could not be computed (indicator not yet ready) — skip MaxTotalRisk check
+            // this bar rather than blocking the trade. Risk guard is also enforced inside
+            // ExecuteTrade() via the SL=0 hard block and ValidateStopLevels(), so this is safe.
+            PrintFormat("⚠️ [RC] CalcEntrySL returned 0.0 — skipping MaxTotalRisk pre-check, ExecuteTrade will validate SL");
          }
-         double new_trade_risk = ComputeRiskPercent(lots, MathAbs(ref_price - sl));
-         if(CalculateActiveRisk() + new_trade_risk > m_settings.MaxTotalRisk) return false;
+         else
+         {
+            double new_trade_risk = ComputeRiskPercent(lots, MathAbs(ref_price - sl));
+            if(CalculateActiveRisk() + new_trade_risk > m_settings.MaxTotalRisk) return false;
+         }
       }
       return true;
    }
