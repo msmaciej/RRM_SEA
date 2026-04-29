@@ -815,6 +815,12 @@ input bool           Inp_RRM_Use_Bb       = false;  // RRM: Bollinger Bands vote
 input bool           Inp_RRM_Use_Mfi      = false;  // RRM: MFI vote enabled
 
 input group "_";
+input group "   📐 RRM: Layer Filter (sub-market isolation)           ";
+input bool   Inp_RRM_AllowWeak    = true;   // RRM: Allow WEAK   trades (L1 EMA1/EMA2)
+input bool   Inp_RRM_AllowMedium  = true;   // RRM: Allow MEDIUM trades (L2 EMA2/EMA3)
+input bool   Inp_RRM_AllowStrong  = true;   // RRM: Allow STRONG trades (L3 EMA3/EMA4, TRENDING only)
+
+input group "_";
 //input group "╔════════════════════════════════════════════════════════╗";
 input group "   📐 RRM: MACD Settings                                 ";
 input EMacdVoteMode Inp_RRM_MacdMode      = MACD_ZERO_AND_HIST;  // RRM MACD vote mode

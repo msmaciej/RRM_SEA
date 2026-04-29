@@ -57,6 +57,9 @@ struct ST_SignalTelemetry {
    int    votes_total;
    string rejection_reason;
    string active_indicators;
+   int    diag_layer_w;   // Raw result for L1 WEAK  sub-market: 1=pass, 0=none, -1=contra
+   int    diag_layer_m;   // Raw result for L2 MEDIUM sub-market
+   int    diag_layer_s;   // Raw result for L3 STRONG sub-market
 };
 
 // Granular per-reason rejection statistics for EvaluateTS()
@@ -2033,6 +2036,9 @@ public:
                                      ind_row);
 
       m_telemetry.active_indicators = final_ui;
+      m_telemetry.diag_layer_w = m_diag_layer_w;
+      m_telemetry.diag_layer_m = m_diag_layer_m;
+      m_telemetry.diag_layer_s = m_diag_layer_s;
    }
 
 

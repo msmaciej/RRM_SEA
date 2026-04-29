@@ -602,6 +602,7 @@ void SEA_UI_UpdateCockpit(
    
    // --- STRATEGY LOGIC (The Institutional Grid) ---
    AddLine("--- STRATEGY LOGIC ---", h_clr, lines, line_clrs);
+   AddLine(StringFormat("PRESET:    %s", GetPresetContractWording(InpPreset)), h_clr, lines, line_clrs);
    
    // 1. Standardized Equation: TS = B * P * L * I * F
    string b_eq = (ts_telemetry.bias > 0) ? "+" : ((ts_telemetry.bias < 0) ? "-" : ".");
@@ -618,6 +619,21 @@ void SEA_UI_UpdateCockpit(
    
    color dummy_p;
    AddLine(StringFormat("  PHASE: %s [.]", SEA_UI_FormatPhase((EMarketPhase)ts_telemetry.phase, dummy_p)), v_clr, lines, line_clrs);
+
+   // Per-sub-market layer signals
+   string lw_sym = (ts_telemetry.diag_layer_w ==  1 ? "[+]" : ts_telemetry.diag_layer_w == -1 ? "[-]" : "[.]");
+   string lm_sym = (ts_telemetry.diag_layer_m ==  1 ? "[+]" : ts_telemetry.diag_layer_m == -1 ? "[-]" : "[.]");
+   string ls_sym = (ts_telemetry.diag_layer_s ==  1 ? "[+]" : ts_telemetry.diag_layer_s == -1 ? "[-]" : "[.]");
+   color lw_clr = (ts_telemetry.diag_layer_w == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_w == -1 ? Settings.clr_Fail : Settings.clr_Disabled);
+   color lm_clr = (ts_telemetry.diag_layer_m == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_m == -1 ? Settings.clr_Fail : Settings.clr_Disabled);
+   color ls_clr = (ts_telemetry.diag_layer_s == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_s == -1 ? Settings.clr_Fail : Settings.clr_Disabled);
+   // Show active layer bitfield label
+   string active_lbl = SEA_UI_EntryLayerLabel((EEntryLayer)ts_telemetry.layer);
+   if(active_lbl == "") active_lbl = "(none)";
+   AddLine(StringFormat("  WEAK:  EMA1/EMA2 %s", lw_sym), lw_clr, lines, line_clrs);
+   AddLine(StringFormat("  MED:   EMA2/EMA3 %s", lm_sym), lm_clr, lines, line_clrs);
+   AddLine(StringFormat("  STR:   EMA3/EMA4 %s", ls_sym), ls_clr, lines, line_clrs);
+   AddLine(StringFormat("  ACTIVE LAYER: %s", active_lbl), v_clr, lines, line_clrs);
 
    // 3. INDICATOR AUDIT (Detailed MACD, CCI, PSAR restoration)
    string ind_parts[];
