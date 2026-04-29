@@ -73,6 +73,11 @@ int      g_ts_bias   = 0;
 int      g_ts_votes  = 0;
 string   g_ts_reason = "";
 
+// TS snapshot — SL/Lots/Risk computed at shift=0 bar open from historical anchors
+double g_ts_sl   = 0.0;
+double g_ts_lots = 0.0;
+double g_ts_risk = 0.0;
+
 // Global tracking for RRM drawdown protection
 int      g_consecutive_losses     = 0;
 int      g_trades_today           = 0;
@@ -693,7 +698,18 @@ void OrchestrateTick()
             SEA_DrawEntrySignalLine(g_ts_time, ts, snap_reason);
 
           // 8. TE: Evaluate Trade Entry (shift=0)
-         int te = Executor.EvaluateTE(ts); 
+         int te = Executor.EvaluateTE(ts);
+
+         // Capture pre-computed SL/lots/risk (anchored to shift=1 historical data)
+         g_ts_sl   = Executor.LastCachedSL();
+         g_ts_lots = Executor.LastCachedLots();
+         g_ts_risk = Executor.LastCachedRisk();
+
+         // Log TE outcome for diagnostics
+         string veto = Executor.LastVetoReason();
+         PrintFormat("📋 [TE RESULT] dir=%s | te=%d | SL=%.5f | lots=%.2f | risk=%.2f%% | veto=%s",
+                     (ts > 0 ? "BUY" : "SELL"), te, g_ts_sl, g_ts_lots, g_ts_risk,
+                     (veto != "" ? veto : "OK"));
       }
       else 
       {

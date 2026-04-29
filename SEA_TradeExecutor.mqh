@@ -45,6 +45,9 @@ private:
    datetime    m_last_te_time;
    string      m_last_te_result;
    string      m_last_te_reason;
+   double      m_cached_sl;    // SL pre-computed from historical anchor (EvaluateCM)
+   double      m_cached_lots;  // Lots from m_cached_sl (EvaluateCM)
+   double      m_cached_risk;  // Risk % (EvaluateCM)
    
    // Position excursion tracking
    struct SPositionExcursion {
@@ -696,6 +699,7 @@ public:
                        m_rrm_be_reached(false), m_rrm_initial_sl(0.0),
                        m_last_tm_bar(0), m_initial_sl_price(0.0), m_rrm_freeze_time(0),
                        m_last_te_time(0), m_last_te_result(""), m_last_te_reason(""),
+                       m_cached_sl(0.0), m_cached_lots(0.0), m_cached_risk(0.0),
                        m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE) // CACHED HANDLES
    {
       m_excursion.ticket = 0; m_excursion.entry_time = 0; m_excursion.entry_price = 0.0;
@@ -710,6 +714,10 @@ public:
    datetime LastTETime()   const { return m_last_te_time; }
    string   LastTEResult() const { return m_last_te_result; }
    string   LastTEReason() const { return m_last_te_reason; }
+   double   LastCachedSL()   const { return m_cached_sl; }
+   double   LastCachedLots() const { return m_cached_lots; }
+   double   LastCachedRisk() const { return m_cached_risk; }
+   string   LastVetoReason() const { return m_te_veto_reason; }
 
    void Init(ulong magic, ST_Settings &sets) {
       m_magic = magic;
@@ -1053,7 +1061,11 @@ public:
       // Margin adjustment uses live price — margin is a live broker value (correct)
       ENUM_ORDER_TYPE order_type = isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
       double live_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      return AdjustLotForMargin(order_type, lot, live_price);
+      m_cached_sl   = sl;   // store historical-anchor SL for use by ExecuteTrade
+      double adjusted_lots = AdjustLotForMargin(order_type, lot, live_price);
+      m_cached_lots = adjusted_lots;
+      m_cached_risk = ComputeRiskPercent(adjusted_lots, MathAbs(ref_price - sl));
+      return adjusted_lots;
    }
 
    bool EvaluateRC(int direction, double lots) {
@@ -1112,7 +1124,7 @@ public:
       CountMyPositions(buy_count, sell_count);
    
       if((direction == 1 && buy_count > 0 && sell_count == 0) || (direction == -1 && sell_count > 0 && buy_count == 0)) {
-         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
+         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "ALREADY_IN_POSITION"; return;
       }
    
       if((buy_count + sell_count) > 0) {
@@ -1130,11 +1142,33 @@ public:
       double entry_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
       double sl = 0, tp = 0;
 
-      sl = CalcEntrySL(isBuy, entry_price);
+      // Use pre-computed historical SL anchor (from EvaluateCM — bar-close reference)
+      // This prevents live bid/ask from invalidating the PSAR/swing anchor geometry
+      if(m_cached_sl > 0.0) {
+         sl = m_cached_sl;
+         // Apply broker minimum stop distance against live entry — always WIDEN, never block
+         double pipSize = GetPipSize();
+         long stops_pts = 0;
+         SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_pts);
+         double broker_min = (double)stops_pts * _Point + pipSize;
+         double user_min   = m_settings.SL_MinPips * pipSize;
+         double min_dist   = MathMax(user_min, broker_min);
+         double actual_dist = MathAbs(entry_price - sl);
+         if(actual_dist < min_dist) {
+            double old_sl = sl;
+            sl = isBuy ? (entry_price - min_dist) : (entry_price + min_dist);
+            PrintFormat("⚠️ [ExecuteTrade] SL widened: %.5f → %.5f (min %.1f pips vs actual %.1f pips)",
+                        old_sl, sl, min_dist / pipSize, actual_dist / pipSize);
+         }
+      } else {
+         // Fallback: CalcEntrySL with live price (should not reach here in normal flow)
+         sl = CalcEntrySL(isBuy, entry_price);
+      }
       if(sl == 0.0) {
-         Print("🚫 [ExecuteTrade] SL calculation returned 0 (minimum-distance policy) — trade blocked");
+         Print("🚫 [ExecuteTrade] SL is zero after anchor + widen — trade blocked");
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
          m_last_te_result = "BLOCKED";
+         m_last_te_reason = "SL_ZERO";
          return;
       }
 
@@ -1183,6 +1217,10 @@ public:
 
    int EvaluateTE(int ts_direction) {
       if(ts_direction == 0) return 0;
+      m_cached_sl   = 0.0;
+      m_cached_lots = 0.0;
+      m_cached_risk = 0.0;
+      // Cache is populated by EvaluateCM() below, then consumed by ExecuteTrade()
       m_te_veto_reason = "OK";
       string te_reject_reason = "";
 
