@@ -568,7 +568,8 @@ void SEA_UI_UpdateCockpit(
    double current_risk_money,
    string config_trail_method,
    string last_te_result = "",
-   string last_te_veto   = ""
+   string last_te_veto   = "",
+   bool   ts_pending     = false
 ) {
    if(!Inp_UI_ShowCockpitPanel) { 
       SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
@@ -715,7 +716,10 @@ void SEA_UI_UpdateCockpit(
    else if(last_te_result == "BLOCKED" || last_te_result == "VETO")
    {
       string veto_label = (last_te_veto != "" && last_te_veto != "OK") ? last_te_veto : "BLOCKED";
-      AddLine(StringFormat("STATE:  TE_BLOCKED [%s]", veto_label), Settings.clr_Fail, lines, line_clrs);
+      if(ts_pending)
+         AddLine(StringFormat("STATE:  TE_PENDING [%s]", veto_label), Settings.clr_Warn, lines, line_clrs);
+      else
+         AddLine(StringFormat("STATE:  TE_BLOCKED [%s]", veto_label), Settings.clr_Fail, lines, line_clrs);
    }
    else
    {
