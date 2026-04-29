@@ -73,6 +73,10 @@ int      g_ts_bias   = 0;
 int      g_ts_votes  = 0;
 string   g_ts_reason = "";
 
+// --- TS carry-forward (pending TE retry when prior TE was vetoed)
+bool g_ts_active  = false;   // true when a TS=1 signal is pending TE execution
+int  g_ts_carried = 0;       // direction of the pending signal (+1 BUY / -1 SELL)
+
 // TS snapshot — SL/Lots/Risk computed at shift=0 bar open from historical anchors
 double g_ts_sl   = 0.0;
 double g_ts_lots = 0.0;
@@ -678,7 +682,13 @@ void OrchestrateTick()
    int vote_snap_count = 0;
 
    // 7. TS: Trade Setup evaluation on bar close (shift=1)
-   if(!drawdown_blocked)
+   if(drawdown_blocked)
+   {
+      // Clear any pending carry-forward when drawdown protection is active
+      g_ts_active  = false;
+      g_ts_carried = 0;
+   }
+   else
    {
       // Reset TE state each new bar so stale results from prior bar don't persist
       g_last_te_result = "";
@@ -696,6 +706,17 @@ void OrchestrateTick()
 
       if(ts != 0)
       {
+         // If a new signal fires in the OPPOSITE direction, clear the old carry
+         if(g_ts_active && ts != g_ts_carried)
+         {
+            g_ts_active  = false;
+            g_ts_carried = 0;
+         }
+
+         // Arm the carry-forward with this bar's signal
+         g_ts_active  = true;
+         g_ts_carried = ts;
+
          g_ts_time   = iTime(_Symbol, PERIOD_CURRENT, 1);
          g_ts_dir    = ts;
          g_ts_bias   = snap_bias;
@@ -704,10 +725,21 @@ void OrchestrateTick()
 
          if(Settings.DrawEntryLines)
             SEA_DrawEntrySignalLine(g_ts_time, ts, snap_reason);
+      }
+      else 
+      {
+         // Persist reason for 0/5 display
+         g_ts_reason = snap_reason;
+         g_ts_votes  = snap_votes;
+         g_ts_bias   = snap_bias;
+      }
 
-          // 8. TE: Evaluate Trade Entry (shift=0)
-         bool te_news_blocked = (Settings.UseNews ? Signal.IsNewsBlocked() : false);
-         int te = Executor.EvaluateTE(ts, te_news_blocked);
+      // 8. TE: Attempt Trade Entry if a signal is armed (fresh this bar OR carried from prior bar)
+      if(g_ts_active)
+      {
+         // Issue 3 fix: IsNewsBlocked() already returns false when UseNews=false
+         bool te_news_blocked = Signal.IsNewsBlocked();
+         int te = Executor.EvaluateTE(g_ts_carried, te_news_blocked);
 
          // Capture pre-computed SL/lots/risk (anchored to shift=1 historical data)
          g_ts_sl   = Executor.LastCachedSL();
@@ -721,15 +753,16 @@ void OrchestrateTick()
          // Log TE outcome for diagnostics
          string veto = Executor.LastVetoReason();
          PrintFormat("📋 [TE RESULT] dir=%s | te=%d | SL=%.5f | lots=%.2f | risk=%.2f%% | veto=%s",
-                     (ts > 0 ? "BUY" : "SELL"), te, g_ts_sl, g_ts_lots, g_ts_risk,
+                     (g_ts_carried > 0 ? "BUY" : "SELL"), te, g_ts_sl, g_ts_lots, g_ts_risk,
                      (veto != "" ? veto : "OK"));
-      }
-      else 
-      {
-         // Persist reason for 0/5 display
-         g_ts_reason = snap_reason;
-         g_ts_votes  = snap_votes;
-         g_ts_bias   = snap_bias;
+
+         if(te == 1)
+         {
+            // Trade entered — clear carry-forward
+            g_ts_active  = false;
+            g_ts_carried = 0;
+         }
+         // If te == 0 (VETO_*): leave g_ts_active=true so next bar retries TE
       }
    }
 
@@ -781,7 +814,8 @@ void OrchestrateTick()
       current_risk_money,
       EnumToString(Settings.TrailMode),
       g_last_te_result,
-      g_last_te_veto
+      g_last_te_veto,
+      g_ts_active
    );
    
    FlowLog("Bar pipeline complete");
