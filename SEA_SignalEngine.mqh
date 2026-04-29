@@ -1620,10 +1620,11 @@ private:
     //| Check_DPI: Inline TSI-based Dynamic Price Indicator voter       |
     //| Computes True Strength Index (Ergodic Oscillator) inline.       |
     //| Vote logic:                                                      |
-    //|   BUY  when MainLine > 0 AND SignalLine > 0 (green visible)    |
-    //|   SELL when MainLine < 0 AND SignalLine < 0 (green visible)    |
-    //|   FAIL (abstain) when lines straddle zero (green absent)        |
-    //|         — overbought/oversold / Shark Trade setup signal        |
+    //|   BUY  when MainLine > SignalLine AND no nested histogram        |
+    //|   SELL when MainLine < SignalLine AND no nested histogram        |
+    //|   FAIL (abstain) when nested histogram present (active pullback) |
+    //|         or when both lines are near zero (no momentum)          |
+    //| Nested histogram: faster TSI (R=5, S=3) inside main histogram.  |
     //| No static locals, no lambdas — safe for MQL5 on macOS/Wine.     |
     //+------------------------------------------------------------------+
    bool Check_DPI(int bias, int v_shift)
@@ -1636,6 +1637,8 @@ private:
       int R     = m_settings.DPI_TSI_R;
       int S     = m_settings.DPI_TSI_S;
       int U     = m_settings.DPI_TSI_U;
+      int FastR = m_settings.DPI_TSI_FastR;
+      int FastS = m_settings.DPI_TSI_FastS;
 
       // Minimum bars required: warmup (R+S+U) + target shift + safety buffer
       int bars_needed = R + S + U + v_shift + 5;
@@ -1650,12 +1653,16 @@ private:
       double alphaR  = 2.0 / (double)(R     + 1);
       double alphaS  = 2.0 / (double)(S     + 1);
       double alphaU  = 2.0 / (double)(U     + 1);
+      double alphaFR = 2.0 / (double)(FastR + 1);
+      double alphaFS = 2.0 / (double)(FastS + 1);
 
       // EMA running state — seeded to zero at oldest bar
       double e1m  = 0.0, e2m  = 0.0, e1a  = 0.0, e2a  = 0.0;
       double sig  = 0.0;
+      double fe1m = 0.0, fe2m = 0.0, fe1a = 0.0, fe2a = 0.0;
 
       double main_line = 0.0;
+      double fast_line = 0.0;
 
       // Iterate from oldest bar (bars_needed-1) toward the target bar (v_shift),
       // updating EMA state at each step.
@@ -1676,72 +1683,53 @@ private:
 
          // Signal line: EMA of main line
          sig = alphaU * main_line + (1.0 - alphaU) * sig;
+
+         // Fast TSI: double EMA smoothing with FastR then FastS
+         fe1m = alphaFR * mom     + (1.0 - alphaFR) * fe1m;
+         fe1a = alphaFR * abs_mom + (1.0 - alphaFR) * fe1a;
+         fe2m = alphaFS * fe1m    + (1.0 - alphaFS) * fe2m;
+         fe2a = alphaFS * fe1a    + (1.0 - alphaFS) * fe2a;
+         fast_line = (fe2a != 0.0) ? (fe2m / fe2a) : 0.0;
       }
 
       double signal_line = sig;
+      double main_hist   = main_line - signal_line;
+      double nested_hist = fast_line - main_line;
 
-      // ABSTAIN: lines straddle zero (green nested histogram absent)
-      // — overbought/oversold or Shark Trade setup: do not enter
-      bool same_side = (main_line > 0.0 && signal_line > 0.0) ||
-                       (main_line < 0.0 && signal_line < 0.0);
-      if(!same_side)
+      bool nested_present = (main_hist != 0.0 && MathAbs(nested_hist) < MathAbs(main_hist));
+
+      // ABSTAIN: active pullback (green nested histogram visible)
+      if(nested_present)
       {
          m_ind_cache.cached_bias = bias;
          m_ind_cache.dpi_result = 0;
          if(m_settings.DebugFlow)
-            DebugLog(StringFormat("[IND_DPI] ABSTAIN: lines straddle zero (main=%.5f sig=%.5f)",
-                                  main_line, signal_line));
+            DebugLog(StringFormat("[IND_DPI] ABSTAIN: nested pullback present (main=%.5f sig=%.5f fast=%.5f)",
+                                  main_line, signal_line, fast_line));
          return false;
       }
 
-      // Directional vote: BUY when both lines > 0; SELL when both lines < 0
-      bool result = (bias > 0) ? (main_line > 0.0) : (main_line < 0.0);
+      // ABSTAIN: no momentum (both lines essentially at zero)
+      if(MathAbs(main_line) < 0.001 && MathAbs(signal_line) < 0.001)
+      {
+         m_ind_cache.cached_bias = bias;
+         m_ind_cache.dpi_result = 0;
+         if(m_settings.DebugFlow)
+            DebugLog("[IND_DPI] ABSTAIN: both lines near zero (no trend momentum)");
+         return false;
+      }
+
+      // Directional vote
+      bool result = (bias > 0) ? (main_line > signal_line) : (main_line < signal_line);
       m_ind_cache.cached_bias = bias;
       m_ind_cache.dpi_result = result ? 1 : 0;
 
       if(m_settings.DebugFlow)
-         DebugLog(StringFormat("[IND_DPI] bias=%d main=%.5f sig=%.5f → %s",
-                               bias, main_line, signal_line, result ? "PASS" : "FAIL"));
+         DebugLog(StringFormat("[IND_DPI] bias=%d main=%.5f sig=%.5f hist=%.5f nested=%d → %s",
+                               bias, main_line, signal_line, main_hist,
+                               nested_present ? 1 : 0, result ? "PASS" : "FAIL"));
       return result;
    }
-
-//+------------------------------------------------------------------+
-//| RESERVED — Original Check_DPI FastLine voter logic              |
-//| (Inactive. Preserved for reference / future research.)           |
-//|                                                                  |
-//| The variables below were used when Check_DPI used a second       |
-//| (faster) TSI computed with FastR/FastS periods (5 and 3).       |
-//|                                                                  |
-//|   int FastR = m_settings.DPI_TSI_FastR;                         |
-//|   int FastS = m_settings.DPI_TSI_FastS;                         |
-//|   double alphaFR = 2.0 / (double)(FastR + 1);                   |
-//|   double alphaFS = 2.0 / (double)(FastS + 1);                   |
-//|   double fe1m = 0.0, fe2m = 0.0, fe1a = 0.0, fe2a = 0.0;       |
-//|   double fast_line = 0.0;                                        |
-//|                                                                  |
-//|   // Inside loop (after signal line update):                     |
-//|   fe1m = alphaFR * mom     + (1.0 - alphaFR) * fe1m;            |
-//|   fe1a = alphaFR * abs_mom + (1.0 - alphaFR) * fe1a;            |
-//|   fe2m = alphaFS * fe1m    + (1.0 - alphaFS) * fe2m;            |
-//|   fe2a = alphaFS * fe1a    + (1.0 - alphaFS) * fe2a;            |
-//|   fast_line = (fe2a != 0.0) ? (fe2m / fe2a) : 0.0;              |
-//|                                                                  |
-//|   // After loop:                                                 |
-//|   double main_hist   = main_line - signal_line;                  |
-//|   double nested_hist = fast_line - main_line;                    |
-//|   bool nested_present = (main_hist != 0.0 &&                     |
-//|                MathAbs(nested_hist) < MathAbs(main_hist));       |
-//|                                                                  |
-//|   // ABSTAIN: active pullback (green nested histogram visible)   |
-//|   if(nested_present) { dpi_result=0; return false; }            |
-//|                                                                  |
-//|   // ABSTAIN: no momentum                                        |
-//|   if(MathAbs(main_line)<0.001 && MathAbs(signal_line)<0.001)    |
-//|      { dpi_result=0; return false; }                             |
-//|                                                                  |
-//|   // Directional vote (same as current active code):             |
-//|   result = (bias>0)?(main_line>signal_line):(main_line<signal_line);|
-//+------------------------------------------------------------------+
 
    //+------------------------------------------------------------------+
 

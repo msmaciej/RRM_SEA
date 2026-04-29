@@ -56,12 +56,14 @@
 #property indicator_type5   DRAW_HISTOGRAM
 #property indicator_color5  clrLime
 #property indicator_style5  STYLE_SOLID
-#property indicator_width5  3
+#property indicator_width5  1
 
 //--- Input parameters
 input int    TSI_R          = 25;       // First EMA period  (slow smoothing)
 input int    TSI_S          = 13;       // Second EMA period (medium smoothing)
 input int    TSI_U          = 7;        // Signal line EMA period
+input int    TSI_FastR      = 5;        // Nested fast first  EMA period
+input int    TSI_FastS      = 3;        // Nested fast second EMA period
 input double ThresholdLevel = 0.00005;  // Reference line offset from zero
 
 //--- Indicator output buffers (registered with SetIndexBuffer)
@@ -79,13 +81,19 @@ double g_EMA2_Mom[];
 double g_EMA1_Abs[];
 double g_EMA2_Abs[];
 
+//--- Fast TSI EMA arrays (for nested histogram — global scope)
+double g_FastEMA1_Mom[];
+double g_FastEMA2_Mom[];
+double g_FastEMA1_Abs[];
+double g_FastEMA2_Abs[];
+
 //+------------------------------------------------------------------+
 //| Indicator initialization                                          |
 //+------------------------------------------------------------------+
 int OnInit()
 {
    // Validate input periods
-   if(TSI_R < 1 || TSI_S < 1 || TSI_U < 1)
+   if(TSI_R < 1 || TSI_S < 1 || TSI_U < 1 || TSI_FastR < 1 || TSI_FastS < 1)
    {
       Print("DPI Error: all period inputs must be >= 1");
       return(INIT_PARAMETERS_INCORRECT);
@@ -117,6 +125,10 @@ int OnInit()
    ArraySetAsSeries(g_EMA2_Mom,     true);
    ArraySetAsSeries(g_EMA1_Abs,     true);
    ArraySetAsSeries(g_EMA2_Abs,     true);
+   ArraySetAsSeries(g_FastEMA1_Mom, true);
+   ArraySetAsSeries(g_FastEMA2_Mom, true);
+   ArraySetAsSeries(g_FastEMA1_Abs, true);
+   ArraySetAsSeries(g_FastEMA2_Abs, true);
 
    // Display name (header reads "DPI [values…]")
    IndicatorSetString(INDICATOR_SHORTNAME, "DPI");
@@ -168,11 +180,17 @@ int OnCalculate(const int rates_total,
    ArrayResize(g_EMA2_Mom,     rates_total);
    ArrayResize(g_EMA1_Abs,     rates_total);
    ArrayResize(g_EMA2_Abs,     rates_total);
+   ArrayResize(g_FastEMA1_Mom, rates_total);
+   ArrayResize(g_FastEMA2_Mom, rates_total);
+   ArrayResize(g_FastEMA1_Abs, rates_total);
+   ArrayResize(g_FastEMA2_Abs, rates_total);
 
    // Pre-compute EMA smoothing multipliers
    double alphaR     = 2.0 / (double)(TSI_R     + 1);
    double alphaS     = 2.0 / (double)(TSI_S     + 1);
    double alphaU     = 2.0 / (double)(TSI_U     + 1);
+   double alphaFastR = 2.0 / (double)(TSI_FastR + 1);
+   double alphaFastS = 2.0 / (double)(TSI_FastS + 1);
 
    // With series=true: index (rates_total-1) = oldest bar, index 0 = newest bar.
    // Seed all arrays at the oldest bar (no prior close available for momentum).
@@ -188,6 +206,10 @@ int OnCalculate(const int rates_total,
    g_HistBull[oldest]     = 0.0;
    g_HistBear[oldest]     = 0.0;
    g_HistNested[oldest]   = 0.0;
+   g_FastEMA1_Mom[oldest] = 0.0;
+   g_FastEMA2_Mom[oldest] = 0.0;
+   g_FastEMA1_Abs[oldest] = 0.0;
+   g_FastEMA2_Abs[oldest] = 0.0;
 
    // Full recalculation: loop from second-oldest bar (rates_total-2) down
    // to bar 0 (newest).  This goes "oldest → newest" in time-series terms.
@@ -223,29 +245,41 @@ int OnCalculate(const int rates_total,
       g_SignalLine[i] = alphaU * mainLine + (1.0 - alphaU) * g_SignalLine[i + 1];
 
       // ------------------------------------------------------------------
-      // Step 4: Main Histogram = MainLine drawn from zero
-      //   Yellow (BullHist) when MainLine >= 0
-      //   Red    (BearHist) when MainLine <  0
+      // Step 4: Fast TSI — double EMA smoothing (FastR then FastS)
       // ------------------------------------------------------------------
-      if(mainLine >= 0.0)
+      g_FastEMA1_Mom[i] = alphaFastR * g_Momentum[i]       + (1.0 - alphaFastR) * g_FastEMA1_Mom[i + 1];
+      g_FastEMA1_Abs[i] = alphaFastR * g_AbsMomentum[i]    + (1.0 - alphaFastR) * g_FastEMA1_Abs[i + 1];
+      g_FastEMA2_Mom[i] = alphaFastS * g_FastEMA1_Mom[i]   + (1.0 - alphaFastS) * g_FastEMA2_Mom[i + 1];
+      g_FastEMA2_Abs[i] = alphaFastS * g_FastEMA1_Abs[i]   + (1.0 - alphaFastS) * g_FastEMA2_Abs[i + 1];
+      double fastLine = 0.0;
+      if(g_FastEMA2_Abs[i] != 0.0)
+         fastLine = g_FastEMA2_Mom[i] / g_FastEMA2_Abs[i];
+
+      // ------------------------------------------------------------------
+      // Step 5: Main Histogram = MainLine - SignalLine
+      //   Yellow (BullHist) when >= 0 → buy confirmation
+      //   Red    (BearHist) when  < 0 → sell confirmation
+      // ------------------------------------------------------------------
+      double mainHist = mainLine - g_SignalLine[i];
+      if(mainHist >= 0.0)
       {
-         g_HistBull[i] = mainLine;
+         g_HistBull[i] = mainHist;
          g_HistBear[i] = 0.0;
       }
       else
       {
          g_HistBull[i] = 0.0;
-         g_HistBear[i] = mainLine;
+         g_HistBear[i] = mainHist;
       }
 
       // ------------------------------------------------------------------
-      // Step 5: Nested Histogram = MainLine - SignalLine
-      //   Shown only when |nested| < |MainLine|, i.e. both lines on the
-      //   same side of zero.  Disappears when lines straddle zero →
-      //   overbought / oversold / Shark Trade entry signal.
+      // Step 6: Nested Histogram = FastLine - MainLine
+      //   Shown only when |nested| < |main|  → visually nested inside.
+      //   This is the Shark Trade / pullback entry trigger; it disappears
+      //   when the trend resumes strongly (fast line rejoins main line).
       // ------------------------------------------------------------------
-      double nestedHist = mainLine - g_SignalLine[i];
-      if(MathAbs(nestedHist) < MathAbs(mainLine))
+      double nestedHist = fastLine - mainLine;
+      if(mainHist != 0.0 && MathAbs(nestedHist) < MathAbs(mainHist))
          g_HistNested[i] = nestedHist;
       else
          g_HistNested[i] = 0.0;
@@ -253,57 +287,3 @@ int OnCalculate(const int rates_total,
 
    return(rates_total);
 }
-//+------------------------------------------------------------------+
-//| RESERVED FOR FUTURE USE — FastLine (Nested TSI) Architecture    |
-//| ----------------------------------------------------------------|
-//| The following arrays and calculation were used in an earlier     |
-//| version of this indicator that computed a second (faster) TSI    |
-//| using TSI_FastR and TSI_FastS periods (default 5 and 3).        |
-//| The fast line was used to generate a "nested" histogram that     |
-//| appeared INSIDE the main histogram and disappeared when the fast |
-//| TSI rejoined the main TSI — the Shark Trade / pullback signal.  |
-//|                                                                  |
-//| This code is INACTIVE (commented out). It compiles cleanly.     |
-//| To re-enable: uncomment, add FastR/FastS inputs, re-add arrays, |
-//| and change Step 4 / Step 5 / Step 6 below accordingly.          |
-//|                                                                  |
-//| ORIGINAL Step 4 — Fast TSI double EMA smoothing:                |
-//|   input int TSI_FastR = 5;  // Nested fast first EMA period     |
-//|   input int TSI_FastS = 3;  // Nested fast second EMA period    |
-//|   double g_FastEMA1_Mom[];                                       |
-//|   double g_FastEMA2_Mom[];                                       |
-//|   double g_FastEMA1_Abs[];                                       |
-//|   double g_FastEMA2_Abs[];                                       |
-//|                                                                  |
-//|   double alphaFastR = 2.0 / (double)(TSI_FastR + 1);            |
-//|   double alphaFastS = 2.0 / (double)(TSI_FastS + 1);            |
-//|                                                                  |
-//|   g_FastEMA1_Mom[i] = alphaFastR * g_Momentum[i]               |
-//|                      + (1.0 - alphaFastR) * g_FastEMA1_Mom[i+1];|
-//|   g_FastEMA1_Abs[i] = alphaFastR * g_AbsMomentum[i]            |
-//|                      + (1.0 - alphaFastR) * g_FastEMA1_Abs[i+1];|
-//|   g_FastEMA2_Mom[i] = alphaFastS * g_FastEMA1_Mom[i]           |
-//|                      + (1.0 - alphaFastS) * g_FastEMA2_Mom[i+1];|
-//|   g_FastEMA2_Abs[i] = alphaFastS * g_FastEMA1_Abs[i]           |
-//|                      + (1.0 - alphaFastS) * g_FastEMA2_Abs[i+1];|
-//|   double fastLine = (g_FastEMA2_Abs[i] != 0.0)                  |
-//|                   ? g_FastEMA2_Mom[i] / g_FastEMA2_Abs[i] : 0.0;|
-//|                                                                  |
-//| ORIGINAL Step 5 — Main Histogram = MainLine - SignalLine:       |
-//|   double mainHist = mainLine - g_SignalLine[i];                  |
-//|   if(mainHist >= 0.0) { g_HistBull[i]=mainHist; g_HistBear[i]=0; }|
-//|   else { g_HistBull[i]=0; g_HistBear[i]=mainHist; }            |
-//|                                                                  |
-//| ORIGINAL Step 6 — Nested Histogram = FastLine - MainLine:       |
-//|   double nestedHist = fastLine - mainLine;                       |
-//|   if(mainHist != 0.0 && MathAbs(nestedHist) < MathAbs(mainHist))|
-//|      g_HistNested[i] = nestedHist;                               |
-//|   else                                                           |
-//|      g_HistNested[i] = 0.0;                                      |
-//|                                                                  |
-//| Vote logic that went with this architecture:                     |
-//|   nested_present = (mainHist!=0.0 &&                             |
-//|                     MathAbs(fastLine-mainLine)<MathAbs(mainHist))|
-//|   ABSTAIN when nested_present (active pullback shown in green)   |
-//|   PASS/FAIL: (bias>0)?(main_line>signal_line):(main_line<signal_line)|
-//+------------------------------------------------------------------+

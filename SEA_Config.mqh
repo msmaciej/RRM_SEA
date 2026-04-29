@@ -379,9 +379,8 @@ struct ST_Settings
    int    DPI_TSI_R;                // TSI R period (slow EMA smoothing)
    int    DPI_TSI_S;                // TSI S period (medium EMA smoothing)
    int    DPI_TSI_U;                // TSI Signal EMA period
-   // --- RESERVED: FastLine nested TSI periods (inactive — see DPI_Indicator.mq5 reserved block) ---
-   int    DPI_TSI_FastR;           // Nested TSI first EMA period (default 5) — NOT used by active voter
-   int    DPI_TSI_FastS;           // Nested TSI second EMA period (default 3) — NOT used by active voter
+   int    DPI_TSI_FastR;           // Nested TSI first EMA period (default 5)
+   int    DPI_TSI_FastS;           // Nested TSI second EMA period (default 3)
    int    VRC_ATR_Period;
    int    VRC_Lookback;
    double VRC_LowThreshold;  // Below this percentile = LOW regime (reject trade)
@@ -912,8 +911,8 @@ input group "   📐 RRM_ORG: DPI TSI Settings                          ";
 input int            Inp_RRM_ORG_TSI_R = 25;  // RRM_ORG: DPI TSI R period (slow EMA)
 input int            Inp_RRM_ORG_TSI_S = 13;  // RRM_ORG: DPI TSI S period (medium EMA)
 input int            Inp_RRM_ORG_TSI_U = 7;   // RRM_ORG: DPI TSI Signal EMA period
-input int            Inp_RRM_ORG_TSI_FastR = 5;  // RRM_ORG: DPI Nested FastR (reserved, not active)
-input int            Inp_RRM_ORG_TSI_FastS = 3;  // RRM_ORG: DPI Nested FastS (reserved, not active)
+input int            Inp_RRM_ORG_TSI_FastR = 5;  // RRM_ORG: DPI Nested TSI FastR period (default 5)
+input int            Inp_RRM_ORG_TSI_FastS = 3;  // RRM_ORG: DPI Nested TSI FastS period (default 3)
 
 input group "_";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1512,8 +1511,8 @@ void InitializeConfig()
    Settings.DPI_TSI_R             = MathMax(1, Inp_RRM_ORG_TSI_R);
    Settings.DPI_TSI_S             = MathMax(1, Inp_RRM_ORG_TSI_S);
    Settings.DPI_TSI_U             = MathMax(1, Inp_RRM_ORG_TSI_U);
-   Settings.DPI_TSI_FastR         = MathMax(1, Inp_RRM_ORG_TSI_FastR);  // Reserved — not used by active voter
-   Settings.DPI_TSI_FastS         = MathMax(1, Inp_RRM_ORG_TSI_FastS);  // Reserved — not used by active voter
+   Settings.DPI_TSI_FastR         = MathMax(1, Inp_RRM_ORG_TSI_FastR);
+   Settings.DPI_TSI_FastS         = MathMax(1, Inp_RRM_ORG_TSI_FastS);
 
    // Choppiness Index
    Settings.CI_Period             = MathMax(5, Inp_CI_Period);
