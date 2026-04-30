@@ -736,6 +736,8 @@ void OrchestrateTick()
          // On short timeframes (M1/M5) allow the carry-forward to survive one
          // flicker bar before discarding it (prevents one noisy bar from killing
          // an otherwise valid pending signal).
+         // M1/M5: 1 miss allowed (indicators flicker on short TFs without invalidating setup)
+         // H1+:   0 misses (strict — indicators are stable on higher TFs)
          int carry_max_miss = (_Period <= PERIOD_M5) ? 1 : 0;
          if(g_ts_active && g_ts_carry_miss_count < carry_max_miss) {
             // Tolerate this miss: keep carry-forward alive
