@@ -1001,9 +1001,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PhaseDetectionEnabled     = true;           // true
       cfg.EnableLayerDetection      = true;           // true
       cfg.BlockUnorderedPhase       = true;           // true
-      cfg.BlockEmergingPhase        = true;           // true — EMERGING not confirmed enough for RRM entry
-      cfg.RequireMinPhaseConfirm    = true;           // true
-      cfg.MinPhaseConfirmBars       = 1;              // ORG: 4
+      // Timeframe-adaptive versions:
+      cfg.BlockEmergingPhase      = (_Period <= PERIOD_M5) ? false : true; // M1: false - EMERGING + Weak/Medium is valid RRM entry
+      cfg.RequireRecoveryMomentum = (_Period <= PERIOD_M5) ? false : true; // M1: No delay needed on M1
+      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;
 
       // Layer permissions per phase (per RRM methodology PNGs):
       //   TRENDING:  Weak + Medium + Strong trades allowed (user-controllable via Inp_RRM_Allow*)
@@ -1017,11 +1018,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Emerging_AllowStrongTrades = false;  // STRONG always blocked in EMERGING per RRM methodology
 
       // ── PULLBACK DETECTION GATES ──────────────────────────────────────
-      cfg.RequireRecoveryMomentum   = true;           // true
+      cfg.RequireRecoveryMomentum   = false;   // Wick-touch recovery valid on M1/M5
 
       cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
       cfg.Gate_Recovery.value       = 1.0;
-      cfg.RRM_Lookback              = (_Period <= PERIOD_M5) ? 5 : 7;
+      cfg.RRM_Lookback              = (_Period <= PERIOD_M1) ? 15 : (_Period <= PERIOD_M5) ? 10 : 12;
 
       cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
       cfg.Gate_EmaDiv.value         = 1.0;
@@ -1238,9 +1239,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PhaseDetectionEnabled     = true;
       cfg.EnableLayerDetection      = true;
       cfg.BlockUnorderedPhase       = true;           // UNORDERED → block all trades
-      cfg.BlockEmergingPhase        = true;           // true — EMERGING not confirmed enough for RRM entry
-      cfg.RequireMinPhaseConfirm    = true;
-      cfg.MinPhaseConfirmBars       = 1;
+      // Timeframe-adaptive versions:
+      cfg.BlockEmergingPhase      = (_Period <= PERIOD_M5) ? false : true; // M1: false - EMERGING + Weak/Medium is valid RRM entry
+      cfg.RequireRecoveryMomentum = (_Period <= PERIOD_M5) ? false : true; // M1: No delay needed on M1
+      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;
 
       // EMERGING phase: WEAK + MEDIUM only; STRONG always blocked per RRM methodology
       cfg.Emerging_AllowWeakTrades   = Inp_RRM_AllowWeak;
@@ -1253,11 +1255,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Trending_AllowStrongTrades = Inp_RRM_AllowStrong;
 
       // ── PULLBACK DETECTION GATES: LOCKED ON ──────────────────────────
-      cfg.RequireRecoveryMomentum   = true;
-
+      cfg.RequireRecoveryMomentum   = false;   // Wick-touch recovery valid on M1/M5
       cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
       cfg.Gate_Recovery.value       = 1.0;
-      cfg.RRM_Lookback              = (_Period <= PERIOD_M5) ? 5 : 7;  // 5 bars for fast TFs (M1-M5), 7 for slower TFs
+      cfg.RRM_Lookback              = (_Period <= PERIOD_M1) ? 15 : (_Period <= PERIOD_M5) ? 10 : 12;
 
       cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
       cfg.Gate_EmaDiv.value         = 1.0;
