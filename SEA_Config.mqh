@@ -709,9 +709,12 @@ input int         Inp_UI_LineSpacingPx       = 28;    // UI SP: Status panel lin
 input string      Inp_UI_PanelFont           = "Arial"; // UI SP: Status panel font
 
 input group "_";
+input group "   🎨 UI: COCKPIT PANEL FREEZE @TS=1";
+input bool        Inp_UI_FreezeCockpitOnTS   = true;  // UI CP: Freeze STRATEGY LOGIC block while TS=1 pending TE
+
+input group "_";
 input group "   🎨 UI: COCKPIT PANEL";
 input bool        Inp_UI_ShowCockpitPanel    = true;  // UI CP: COCKPIT PANEL
-input bool        Inp_UI_FreezeCockpitOnTS   = true;  // UI CP: Freeze STRATEGY LOGIC block while TS=1 pending TE
 input ENUM_BASE_CORNER  Inp_UI_CockpitCorner = CORNER_LEFT_UPPER; // UI CP: corner
 input int         Inp_UI_CockpitX            = 30;    // UI CP: Cockpit panel X (px)
 input int         Inp_UI_CockpitY            = 30;    // UI CP: Cockpit panel Y (px)

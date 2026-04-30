@@ -1002,9 +1002,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EnableLayerDetection      = true;           // true
       cfg.BlockUnorderedPhase       = true;           // true
       // Timeframe-adaptive versions:
-      cfg.BlockEmergingPhase      = (_Period <= PERIOD_M5) ? false : true; // M1: false - EMERGING + Weak/Medium is valid RRM entry
-      cfg.RequireRecoveryMomentum = (_Period <= PERIOD_M5) ? false : true; // M1: No delay needed on M1
-      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;
+      cfg.BlockEmergingPhase      = (_Period <= PERIOD_M5) ? true : false; // M1: false - EMERGING + Weak/Medium is valid RRM entry
+      cfg.RequireRecoveryMomentum = (_Period <= PERIOD_M5) ? true : false; 
+      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;        // M1: No delay needed on M1
 
       // Layer permissions per phase (per RRM methodology PNGs):
       //   TRENDING:  Weak + Medium + Strong trades allowed (user-controllable via Inp_RRM_Allow*)
@@ -1243,9 +1243,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EnableLayerDetection      = true;
       cfg.BlockUnorderedPhase       = true;           // UNORDERED → block all trades
       // Timeframe-adaptive versions:
-      cfg.BlockEmergingPhase      = (_Period <= PERIOD_M5) ? false : true; // M1: false - EMERGING + Weak/Medium is valid RRM entry
-      cfg.RequireRecoveryMomentum = (_Period <= PERIOD_M5) ? false : true; // M1: No delay needed on M1
-      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;
+      cfg.BlockEmergingPhase      = (_Period <= PERIOD_M5) ? true : false; // M1: false - EMERGING + Weak/Medium is valid RRM entry
+      cfg.RequireRecoveryMomentum = (_Period <= PERIOD_M5) ? true : false; 
+      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;        // M1: No delay needed on M1
 
       // EMERGING phase: WEAK + MEDIUM only; STRONG always blocked per RRM methodology
       cfg.Emerging_AllowWeakTrades   = Inp_RRM_AllowWeak;
