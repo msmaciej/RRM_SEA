@@ -1001,8 +1001,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PhaseDetectionEnabled     = true;           // true
       cfg.EnableLayerDetection      = true;           // true
       cfg.BlockUnorderedPhase       = true;           // true
-      // Timeframe-adaptive versions:
-      cfg.BlockEmergingPhase      = (_Period <= PERIOD_M5) ? true : false; // M1: false - EMERGING + Weak/Medium is valid RRM entry
+      cfg.BlockEmergingPhase        = true;           // true: EM phase = no trades; TM phase = trades allowed
       cfg.RequireRecoveryMomentum = (_Period <= PERIOD_M5) ? true : false; 
       cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;        // M1: No delay needed on M1
 
@@ -1093,6 +1092,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
       cfg.AllowReEntryAfterBE       = true;
+
+      // ── POST-TRADE COOLDOWN ───────────────────────────────────────────
+      cfg.MinBarsAfterClose         = 3;
 
       return;
    }
@@ -1242,8 +1244,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PhaseDetectionEnabled     = true;
       cfg.EnableLayerDetection      = true;
       cfg.BlockUnorderedPhase       = true;           // UNORDERED → block all trades
-      // Timeframe-adaptive versions:
-      cfg.BlockEmergingPhase      = (_Period <= PERIOD_M5) ? true : false; // M1: false - EMERGING + Weak/Medium is valid RRM entry
+      cfg.BlockEmergingPhase        = true;           // true: EM phase = no trades; TM phase = trades allowed
       cfg.RequireRecoveryMomentum = (_Period <= PERIOD_M5) ? true : false; 
       cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;        // M1: No delay needed on M1
 
@@ -1333,6 +1334,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
       cfg.AllowReEntryAfterBE       = true;
+
+      // ── POST-TRADE COOLDOWN ───────────────────────────────────────────
+      cfg.MinBarsAfterClose         = 3;
 
       return;
    }
