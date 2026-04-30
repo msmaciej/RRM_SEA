@@ -808,7 +808,7 @@ void OrchestrateTick()
       }
 
       // --- Cockpit freeze: arm when carry-forward becomes active, release when it ends ---
-      if(g_ts_active && !g_cockpit_freeze_active)
+      if(Inp_UI_FreezeCockpitOnTS && g_ts_active && !g_cockpit_freeze_active)
       {
          // First bar the carry-forward is live: capture the signal snapshot
          g_cockpit_freeze_active  = true;
@@ -825,7 +825,7 @@ void OrchestrateTick()
       }
       else if(!g_ts_active && g_cockpit_freeze_active)
       {
-         // Carry-forward was killed (regime change / hard-kill)
+         // Carry-forward was killed (regime change / hard-kill) — always release regardless of toggle
          g_cockpit_freeze_active = false;
          Print("[COCKPIT FREEZE] Released — carry-forward ended");
       }
@@ -914,7 +914,7 @@ void OrchestrateTick()
       g_last_te_result,
       g_last_te_veto,
       g_ts_active,
-      g_cockpit_freeze_active,
+      g_cockpit_freeze_active && Inp_UI_FreezeCockpitOnTS,
       g_cockpit_freeze_ts_time,
       g_cockpit_freeze_dir,
       g_cockpit_freeze_bias,
