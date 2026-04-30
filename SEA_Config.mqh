@@ -582,6 +582,9 @@ struct ST_Settings
    bool          BarClose_Enabled;      // Master enable/disable for bcX check
    EBarCloseMode BarClose_Mode;         // Which EMA to check (see EBarCloseMode)
    EEmaRole      BarClose_DefaultEMA;   // EMA for BC_FIXED_EMA mode (fallback)
+
+   // Re-entry after breakeven
+   bool          AllowReEntryAfterBE;   // When true, bypass ALREADY_IN_POSITION if position is at BE
 };
 
 // Global Configuration Instance
@@ -1575,6 +1578,9 @@ void InitializeConfig()
    Settings.BarClose_Enabled    = Inp_BarClose_Enabled;
    Settings.BarClose_Mode       = Inp_BarClose_Mode;
    Settings.BarClose_DefaultEMA = Inp_BarClose_DefaultEMA;
+
+   // Re-entry after breakeven: disabled by default; enabled by RRM presets
+   Settings.AllowReEntryAfterBE = false;
 
    // === FINAL VALIDATION: BiasMode vs AutoStrat compatibility ===
    if(Settings.BiasEnabled && !ValidateBiasStratCombo(Settings.BiasMode, Settings.AutoStrat))

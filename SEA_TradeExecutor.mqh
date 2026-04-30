@@ -34,6 +34,8 @@ private:
    
    // Telemetry Cache
    datetime    m_last_trade_bar;
+   datetime    m_last_close_bar;   // bar on which the last position was closed (same-bar re-entry guard)
+   ulong       m_last_tracked_ticket; // previous-call ticket for close detection in EvaluateTM
    datetime    m_last_risk_warn;
    ulong       m_rrm_last_ticket;
    bool        m_rrm_trail_frozen;
@@ -694,7 +696,7 @@ private:
    }
 
 public:
-   CTradeExecutor() : m_last_trade_bar(0), m_last_risk_warn(0),
+   CTradeExecutor() : m_last_trade_bar(0), m_last_close_bar(0), m_last_tracked_ticket(0), m_last_risk_warn(0),
                        m_rrm_last_ticket(0), m_rrm_trail_frozen(false),
                        m_rrm_be_reached(false), m_rrm_initial_sl(0.0),
                        m_last_tm_bar(0), m_initial_sl_price(0.0), m_rrm_freeze_time(0),
@@ -1121,15 +1123,27 @@ public:
       if(lots <= 0.0) {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
       }
-      if(m_settings.ma_v_shift == 1 && m_last_trade_bar == iTime(_Symbol, PERIOD_CURRENT, 0)) {
-         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
+      if(m_last_trade_bar == iTime(_Symbol, PERIOD_CURRENT, 0)) {
+         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "SAME_BAR_ENTRY"; return;
+      }
+      if(m_last_close_bar == iTime(_Symbol, PERIOD_CURRENT, 0)) {
+         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "SAME_BAR_CLOSE"; return;
       }
    
       int buy_count=0, sell_count=0;
       CountMyPositions(buy_count, sell_count);
    
       if((direction == 1 && buy_count > 0 && sell_count == 0) || (direction == -1 && sell_count > 0 && buy_count == 0)) {
-         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "ALREADY_IN_POSITION"; return;
+         if(m_settings.AllowReEntryAfterBE) {
+            ulong ticket = GetMyPosition();
+            if(ticket > 0 && IsPositionAtBreakEven(ticket)) {
+               // Fall through: allow new entry alongside existing BE position
+            } else {
+               m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "ALREADY_IN_POSITION"; return;
+            }
+         } else {
+            m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "ALREADY_IN_POSITION"; return;
+         }
       }
    
       if((buy_count + sell_count) > 0) {
@@ -1315,6 +1329,8 @@ public:
             ulong worst_ticket = FindWorstPosition();
             if(worst_ticket > 0) {
                m_trade.PositionClose(worst_ticket);
+               m_last_close_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
+               m_last_tracked_ticket = 0;
                return;
             }
          }
@@ -1324,8 +1340,14 @@ public:
       if(ticket == 0 || !PositionSelectByTicket(ticket)) {
          // Reset initial SL when no position
          m_initial_sl_price = 0.0;
+         // Detect close: if we had a position last call but now we don't, record the close bar
+         if(m_last_tracked_ticket > 0) {
+            m_last_close_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
+            m_last_tracked_ticket = 0;
+         }
          return;
       }
+      m_last_tracked_ticket = ticket;
 
       // Always run excursion tracking (tick-by-tick, no gate)
       UpdatePositionExcursion(ticket);
@@ -1361,6 +1383,8 @@ public:
       if(m_settings.TrailMode == TRAIL_PSAR_FLIP_EXIT || m_settings.TPMode == TP_MODE_PSAR_FLIP) {
          if(CheckPSARFlip(direction, current_price)) {
             m_trade.PositionClose(ticket);
+            m_last_close_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
+            m_last_tracked_ticket = 0;
             return;
          }
          if(m_settings.TrailMode == TRAIL_PSAR_FLIP_EXIT) return;
