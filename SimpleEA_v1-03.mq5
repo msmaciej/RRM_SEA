@@ -76,6 +76,7 @@ string   g_ts_reason = "";
 // --- TS carry-forward (pending TE retry when prior TE was vetoed)
 bool g_ts_active  = false;   // true when a TS=1 signal is pending TE execution
 int  g_ts_carried = 0;       // direction of the pending signal (+1 BUY / -1 SELL)
+int  g_ts_carry_miss_count = 0; // consecutive ts=0 bars tolerated while carry-forward is active
 
 // TS snapshot — SL/Lots/Risk computed at shift=0 bar open from historical anchors
 double g_ts_sl   = 0.0;
@@ -710,8 +711,9 @@ void OrchestrateTick()
          // If a new signal fires in the OPPOSITE direction, clear the old carry
          if(g_ts_active && ts != g_ts_carried)
          {
-            g_ts_active  = false;
-            g_ts_carried = 0;
+            g_ts_active          = false;
+            g_ts_carried         = 0;
+            g_ts_carry_miss_count = 0;
          }
 
          // Arm the carry-forward with this bar's signal
@@ -723,15 +725,29 @@ void OrchestrateTick()
          g_ts_bias   = snap_bias;
          g_ts_votes  = snap_votes;
          g_ts_reason = snap_reason;
+         g_ts_carry_miss_count = 0;  // reset miss counter on fresh signal
 
          if(Settings.DrawEntryLines)
             SEA_DrawEntrySignalLine(g_ts_time, ts, snap_reason);
       }
       else 
       {
-         // TS=0 on current bar — invalidate any carry-forward
-         g_ts_active  = false;
-         g_ts_carried = 0;
+         // TS=0 on current bar
+         // On short timeframes (M1/M5) allow the carry-forward to survive one
+         // flicker bar before discarding it (prevents one noisy bar from killing
+         // an otherwise valid pending signal).
+         // M1/M5: 1 miss allowed (indicators flicker on short TFs without invalidating setup)
+         // H1+:   0 misses (strict — indicators are stable on higher TFs)
+         int carry_max_miss = (_Period <= PERIOD_M5) ? 1 : 0;
+         if(g_ts_active && g_ts_carry_miss_count < carry_max_miss) {
+            // Tolerate this miss: keep carry-forward alive
+            g_ts_carry_miss_count++;
+         } else {
+            // Too many consecutive misses (or H1+ strict mode): invalidate
+            g_ts_active          = false;
+            g_ts_carried         = 0;
+            g_ts_carry_miss_count = 0;
+         }
          // Persist reason for 0/5 display
          g_ts_reason = snap_reason;
          g_ts_votes  = snap_votes;
@@ -763,8 +779,9 @@ void OrchestrateTick()
          if(te == 1)
          {
             // Trade entered — clear carry-forward
-            g_ts_active  = false;
-            g_ts_carried = 0;
+            g_ts_active          = false;
+            g_ts_carried         = 0;
+            g_ts_carry_miss_count = 0;
          }
          // If te == 0 (VETO_*): leave g_ts_active=true so next bar retries TE
       }

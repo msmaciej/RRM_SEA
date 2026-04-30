@@ -988,7 +988,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── CANDLE BODY SETTINGS ──────────────────────────────────────────
       cfg.CandleBody_AvgPeriod   = 15;
       cfg.CandleBody_MaxMult     = 3.5;
-      cfg.CandleBody_CheckBars   = 2;
+      cfg.CandleBody_CheckBars   = (_Period <= PERIOD_M5) ? 1 : 2;
       cfg.CandleBody_RequireDirection = true;
       cfg.Ind_CandleBody_Weight  = 1;
 
@@ -1091,6 +1091,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MinMarginLevel            = op_MinMarginLevel;
       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
 
+      // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
+      cfg.AllowReEntryAfterBE       = true;
+
       return;
    }
    
@@ -1155,7 +1158,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_CandleBody_Weight  = 1;
       cfg.CandleBody_AvgPeriod   = 15;
       cfg.CandleBody_MaxMult     = 3.5;
-      cfg.CandleBody_CheckBars   = 2;
+      cfg.CandleBody_CheckBars   = (_Period <= PERIOD_M5) ? 1 : 2;
       cfg.CandleBody_RequireDirection = true;
 
       // ── ALL OTHER INDICATORS: LOCKED OFF ─────────────────────────────
@@ -1327,6 +1330,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MaxTotalRisk              = op_MaxTotalRisk;
       cfg.MinMarginLevel            = op_MinMarginLevel;
       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
+
+      // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
+      cfg.AllowReEntryAfterBE       = true;
 
       return;
    }
