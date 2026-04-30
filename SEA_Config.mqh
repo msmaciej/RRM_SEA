@@ -9,11 +9,11 @@
 //+------------------------------------------------------------------+
 enum EDebugLevel
 {
-   DEBUG_SILENT,      // DEBUG_SILENT: No per-bar output (statistics only at end)
-   DEBUG_SUMMARY,     // DEBUG_SUMMARY: Per-bar: signal result + rejection reason (1-2 lines)
-   DEBUG_INDICATORS,  // DEBUG_INDICATORS: Per-bar: indicator pass/fail + summary (20-30 lines)
-   DEBUG_FULL,        // DEBUG_FULL: Everything: all internal steps + diagnostics (50+ lines)
-   DEBUG_SIGNALS_ONLY // DEBUG_SIGNALS_ONLY: FULL debug ONLY for confirmed signals (TS≠0)
+   DEBUG_SILENT,           // DEBUG_SILENT: No per-bar output (statistics only at end)
+   DEBUG_SUMMARY,          // DEBUG_SUMMARY: Per-bar: signal result + rejection reason (1-2 lines)
+   DEBUG_INDICATORS,       // DEBUG_INDICATORS: Per-bar: indicator pass/fail + summary (20-30 lines)
+   DEBUG_FULL,             // DEBUG_FULL: Everything: all internal steps + diagnostics (50+ lines)
+   DEBUG_SIGNALS_ONLY      // DEBUG_SIGNALS_ONLY: FULL debug ONLY for confirmed signals (TS≠0)
 };
 enum EStrategyPreset
 {
@@ -26,31 +26,31 @@ enum EStrategyPreset
 };
 enum EEmaStrategy
 {
-   EMA_STRAT_1_PRICE_CROSS,   // EMA_STRAT_1: Buy if Price > EMA1 (Benchmark)
-   EMA_STRAT_2_CROSS_1_2,     // EMA_STRAT_2: Buy if EMA1 > EMA2 (Golden Cross)
-   EMA_STRAT_2_CROSS_3_4,     // EMA_STRAT_2: Buy if EMA3 > EMA4 (Slow Trend)
-   EMA_STRAT_CUSTOM           // EMA_STRAT_CUSTOM: manual: use "Advanced Bias" inputs below
+   EMA_STRAT_1_PRICE_CROSS,// EMA_STRAT_1: Buy if Price > EMA1 (Benchmark)
+   EMA_STRAT_2_CROSS_1_2,  // EMA_STRAT_2: Buy if EMA1 > EMA2 (Golden Cross)
+   EMA_STRAT_2_CROSS_3_4,  // EMA_STRAT_2: Buy if EMA3 > EMA4 (Slow Trend)
+   EMA_STRAT_CUSTOM        // EMA_STRAT_CUSTOM: manual: use "Advanced Bias" inputs below
 };
 enum EMaMethod
 {
-   METHOD_EMA,    // METHOD_EMA: exponential
-   METHOD_SMA     // METHOD_SMA: simple
+   METHOD_EMA,             // METHOD_EMA: exponential
+   METHOD_SMA              // METHOD_SMA: simple
 };
 enum EBiasMode
 {
-   BIAS_MANUAL,   // BIAS_MANUAL: User fixed (Long/Short/Both)
-   BIAS_1EMA,     // BIAS_1EMA: slope only
-   BIAS_2EMA,     // BIAS_2EMAs: cross or pos+slope
-   BIAS_4EMA      // BIAS_4EMAs: phase detection (TRENDING/EMERGING/UNORDERED)
+   BIAS_MANUAL,            // BIAS_MANUAL: User fixed (Long/Short/Both)
+   BIAS_1EMA,              // BIAS_1EMA: slope only
+   BIAS_2EMA,              // BIAS_2EMAs: cross or pos+slope
+   BIAS_4EMA               // BIAS_4EMAs: phase detection (TRENDING/EMERGING/UNORDERED)
 };
 enum EMarketPhase {
-   PHASE_UNORDERED,     // PHASE_UNO: block all trades (TS = 0)
-   PHASE_EMERGING,      // PHASE_EM: Trend forming (EMA4 between EMA2/EMA3)
-   PHASE_TRENDING,      // PHASE_MT: strong established trend
-   PHASE_TRENDING_UP,   // PHASE_MT_UP: trending bullish: slopes up + EMA2>EMA3>EMA4
-   PHASE_TRENDING_DN,   // PHASE_MT_DN: trending bearish: slopes down + EMA2<EMA3<EMA4
-   PHASE_EMERGING_UP,   // PHASE_EM_UP: emerging bullish: slopes up + EMA4 between EMA2 and EMA3
-   PHASE_EMERGING_DN    // PHASE_EM_DN: emerging bearish: slopes down + EMA4 between EMA2 and EMA3
+   PHASE_UNORDERED,        // PHASE_UNO: block all trades (TS = 0)
+   PHASE_EMERGING,         // PHASE_EM: Trend forming (EMA4 between EMA2/EMA3)
+   PHASE_TRENDING,         // PHASE_MT: strong established trend
+   PHASE_TRENDING_UP,      // PHASE_MT_UP: trending bullish: slopes up + EMA2>EMA3>EMA4
+   PHASE_TRENDING_DN,      // PHASE_MT_DN: trending bearish: slopes down + EMA2<EMA3<EMA4
+   PHASE_EMERGING_UP,      // PHASE_EM_UP: emerging bullish: slopes up + EMA4 between EMA2 and EMA3
+   PHASE_EMERGING_DN       // PHASE_EM_DN: emerging bearish: slopes down + EMA4 between EMA2 and EMA3
 };
 // --- ENTRY LAYER: bitfield identifying EMA pullback zone (Layer 1/2/3) ---
 // Each layer is a power-of-2 flag (combinable via OR).
@@ -65,9 +65,9 @@ enum EEntryLayer {
 };
 enum EManualSide
 {
-   SIDE_BOTH,     // SIDE_BOTH ... L-S: Allow both long and short trades
-   SIDE_LONG,     // SIDE_LONG ... L: Long trades only
-   SIDE_SHORT     // SIDE_SHORT ... S: Short trades only
+   SIDE_BOTH,              // SIDE_BOTH ... L-S: Allow both long and short trades
+   SIDE_LONG,              // SIDE_LONG ... L: Long trades only
+   SIDE_SHORT              // SIDE_SHORT ... S: Short trades only
 };
 enum EAutoStrategy
 {
@@ -79,10 +79,10 @@ enum EAutoStrategy
 };
 enum EEmaRole
 {
-   ROLE_EMA1,     // ROLE_EMA1: Fast EMA (5-period default) - L1_WEAK layer
-   ROLE_EMA2,     // ROLE_EMA2: Medium-fast EMA (13-period default) - L2_MEDIUM layer
-   ROLE_EMA3,     // ROLE_EMA3: Medium-slow EMA (34-period default) - L3_STRONG layer
-   ROLE_EMA4      // ROLE_EMA4: Slow EMA (144-period default) - Trend filter
+   ROLE_EMA1,              // ROLE_EMA1: Fast EMA (5-period default) - L1_WEAK layer
+   ROLE_EMA2,              // ROLE_EMA2: Medium-fast EMA (13-period default) - L2_MEDIUM layer
+   ROLE_EMA3,              // ROLE_EMA3: Medium-slow EMA (34-period default) - L3_STRONG layer
+   ROLE_EMA4               // ROLE_EMA4: Slow EMA (144-period default) - Trend filter
 };
 
 //+------------------------------------------------------------------+
@@ -91,62 +91,62 @@ enum EEmaRole
 //+------------------------------------------------------------------+
 enum EBarCloseMode
 {
-   BC_DISABLED    = 0,  // BC_Disabled: always returns 1 (skip bar close check)
-   BC_FIXED_EMA   = 1,  // BC_Fixed_EMA: always check vs BarClose_DefaultEMA
-   BC_LAYER_AWARE = 2,  // BC_Layer_Aware: bcW=EMA1, bcM=EMA2, bcS=EMA3
-   BC_BIAS_FAST   = 3   // BC_Bias_Fast: ID EMA
+   BC_DISABLED    = 0,     // BC_Disabled: always returns 1 (skip bar close check)
+   BC_FIXED_EMA   = 1,     // BC_Fixed_EMA: always check vs BarClose_DefaultEMA
+   BC_LAYER_AWARE = 2,     // BC_Layer_Aware: bcW=EMA1, bcM=EMA2, bcS=EMA3
+   BC_BIAS_FAST   = 3      // BC_Bias_Fast: ID EMA
 };
 
 //+------------------------------------------------------------------+
 //| Indicator Modes
 //+------------------------------------------------------------------+
 enum EADXMode {
-   ADX_MODE_STATIC = 0,           // ADX_STATIC: Fixed threshold (current behavior)
-   ADX_MODE_DYNAMIC_PERCENTILE,   // ADX_DYNAMIC: Adaptive threshold based on historical percentile
-   ADX_MODE_PHASE_AWARE           // ADX_PHASE: Phase-specific thresholds
+   ADX_MODE_STATIC = 0,          // ADX_STATIC: Fixed threshold (current behavior)
+   ADX_MODE_DYNAMIC_PERCENTILE,  // ADX_DYNAMIC: Adaptive threshold based on historical percentile
+   ADX_MODE_PHASE_AWARE          // ADX_PHASE: Phase-specific thresholds
 };
 enum EBbMode
 {
-   BB_TREND_FOLLOW,     // BB_TREND_FOLLOW: Price near outer band = trend continuation
-   BB_MEAN_REVERSION,   // BB_MEAN_REVERSION: Price at outer band = reversion to middle
-   BB_WIDENING          // BB_WIDENING: Bands actively expanding (upper-lower gap increasing bar-to-bar)
+   BB_TREND_FOLLOW,        // BB_TREND_FOLLOW: Price near outer band = trend continuation
+   BB_MEAN_REVERSION,      // BB_MEAN_REVERSION: Price at outer band = reversion to middle
+   BB_WIDENING             // BB_WIDENING: Bands actively expanding (upper-lower gap increasing bar-to-bar)
 };
 enum ECciMode
 {
-   CCI_TREND_ZERO,      // CCI_Trend_Zero based on zero line (>0 bull, <0 bear)
-   CCI_IMPULSE_100      // CCI_Impulse_100 (>100 or <-100)
+   CCI_TREND_ZERO,         // CCI_Trend_Zero based on zero line (>0 bull, <0 bear)
+   CCI_IMPULSE_100         // CCI_Impulse_100 (>100 or <-100)
 };
 enum EMacdVoteMode
 {
    // === SINGLE CHECKS (persistent) ===
-   MACD_ZERO_LINE,      // MACD_ZERO_LINE: Main > 0 (bullish momentum zone)
-   MACD_HISTOGRAM,      // MACD_HISTOGRAM: Histogram > 0 (acceleration)
-   MACD_CROSSOVER,      // MACD_CROSSOVER: Main > Signal (momentum shift)
+   MACD_ZERO_LINE,         // MACD_ZERO_LINE: Main > 0 (bullish momentum zone)
+   MACD_HISTOGRAM,         // MACD_HISTOGRAM: Histogram > 0 (acceleration)
+   MACD_CROSSOVER,         // MACD_CROSSOVER: Main > Signal (momentum shift)
 
    // === COMBINATION CHECKS (persistent, strict) ===
-   MACD_ZERO_AND_CROSS, // MACD_ZERO_&_CROSS (RRM default, industry "traditional")
-   MACD_ZERO_AND_HIST,  // MACD_ZERO_&_HIST (strict momentum)
-   MACD_TRIPLE,         // MACD_TRIPLE: Zero+Cross+Histogram (ultra-strict)
+   MACD_ZERO_AND_CROSS,    // MACD_ZERO_&_CROSS (RRM default, industry "traditional")
+   MACD_ZERO_AND_HIST,     // MACD_ZERO_&_HIST (strict momentum)
+   MACD_TRIPLE,            // MACD_TRIPLE: Zero+Cross+Histogram (ultra-strict)
 
    // === TIME-LIMITED (fresh signals only) ===
-   MACD_CROSSOVER_N,    // MACD_CROSS_N: Fresh crossover (within N bars)
-   MACD_ZERO_CROSS_N    // MACD_ZERO_CROSS_N: Fresh zero cross (within N bars)
+   MACD_CROSSOVER_N,       // MACD_CROSS_N: Fresh crossover (within N bars)
+   MACD_ZERO_CROSS_N       // MACD_ZERO_CROSS_N: Fresh zero cross (within N bars)
 };
 enum EMfiMode
 {
-   MFI_ZONE_FILTER,    // MFI_ZONE: Zone-based filtering (>80 overbought, <20 oversold)
-   MFI_TREND_50        // MFI_TREND: Trend following (>50 bullish, <50 bearish)
+   MFI_ZONE_FILTER,        // MFI_ZONE: Zone-based filtering (>80 overbought, <20 oversold)
+   MFI_TREND_50            // MFI_TREND: Trend following (>50 bullish, <50 bearish)
 };
 enum ERsiMode
 {
-   RSI_FILTER_EXTREME,  // RSI_FILTER: Extreme zones only (>70 overbought, <30 oversold)
-   RSI_TREND_ABOVE_50,  // RSI_TREND: Trend following (>50 bullish, <50 bearish)
-   RSI_CROSS_LEVEL      // RSI_CROSS: Cross 50-level signal
+   RSI_FILTER_EXTREME,     // RSI_FILTER: Extreme zones only (>70 overbought, <30 oversold)
+   RSI_TREND_ABOVE_50,     // RSI_TREND: Trend following (>50 bullish, <50 bearish)
+   RSI_CROSS_LEVEL         // RSI_CROSS: Cross 50-level signal
 };
 enum EStochMode
 {
-   STO_CROSS_SIGNAL,    // STO_CROSS: %K crosses %D signal line
-   STO_ZONE_FILTER      // STO_ZONE: Overbought/oversold zones (>80 / <20)
+   STO_CROSS_SIGNAL,       // STO_CROSS: %K crosses %D signal line
+   STO_ZONE_FILTER         // STO_ZONE: Overbought/oversold zones (>80 / <20)
 };
 enum EVolatilityRegime {
    VOLATILITY_LOW = 0,    // Below low threshold (too quiet, likely choppy)
@@ -159,66 +159,66 @@ enum EVolatilityRegime {
 //+------------------------------------------------------------------+
 enum EPsarTrailCushionMode
 {
-   PSAR_CUSHION_PIPS    // PSAR: Fixed pips cushion
+   PSAR_CUSHION_PIPS       // PSAR: Fixed pips cushion
 };
 enum ETrailTrigger
 {
-   TRIGGER_IMMEDIATE,       // TRIGGER_IMMEDIATE: Tr from entry (default)
-   TRIGGER_BREAKEVEN,       // TRIGGER_BREAKEVEN: Tr after breakeven threshold reached
-   TRIGGER_PROFIT_PIPS,     // TRIGGER_PROFIT_PIPS: Tr after X pips profit (TrailDistancePips)
-   TRIGGER_PROFIT_PERCENT,  // TRIGGER_PROFIT_PERCENT: Tr after X% profit (TrailProfitPercent)
-   TRIGGER_PSAR_ALIGN       // TRIGGER_PSAR_ALIGN: Tr when PSAR aligns with position direction
+   TRIGGER_IMMEDIATE,      // TRIGGER_IMMEDIATE: Tr from entry (default)
+   TRIGGER_BREAKEVEN,      // TRIGGER_BREAKEVEN: Tr after breakeven threshold reached
+   TRIGGER_PROFIT_PIPS,    // TRIGGER_PROFIT_PIPS: Tr after X pips profit (TrailDistancePips)
+   TRIGGER_PROFIT_PERCENT, // TRIGGER_PROFIT_PERCENT: Tr after X% profit (TrailProfitPercent)
+   TRIGGER_PSAR_ALIGN      // TRIGGER_PSAR_ALIGN: Tr when PSAR aligns with position direction
 };
 enum ETrailingMode
 {
-   TRAIL_BREAKEVEN,       // TRAIL_BREAKEVEN: move to breakeven then trail fixed pips
-   TRAIL_FIXED_PIPS,      // TRAIL_FIXED_PIPS: fixed pip distance trailing
-   TRAIL_FRACTAL,         // TRAIL_FRACTAL: fractal-based trailing
-   TRAIL_NONE,            // TRAIL_NONE: no trailing stop
-   TRAIL_PROFIT_PERCENT,  // TRAIL_PROFIT_PERCENT: trail after profit % threshold reached
-   TRAIL_PSAR,            // TRAIL_PSAR: dot trailing
-   TRAIL_PSAR_FLIP_EXIT   // TRAIL_PSAR_FLIP_EXIT: close position on PSAR flip
+   TRAIL_BREAKEVEN,        // TRAIL_BREAKEVEN: move to breakeven then trail fixed pips
+   TRAIL_FIXED_PIPS,       // TRAIL_FIXED_PIPS: fixed pip distance trailing
+   TRAIL_FRACTAL,          // TRAIL_FRACTAL: fractal-based trailing
+   TRAIL_NONE,             // TRAIL_NONE: no trailing stop
+   TRAIL_PROFIT_PERCENT,   // TRAIL_PROFIT_PERCENT: trail after profit % threshold reached
+   TRAIL_PSAR,             // TRAIL_PSAR: dot trailing
+   TRAIL_PSAR_FLIP_EXIT    // TRAIL_PSAR_FLIP_EXIT: close position on PSAR flip
 };
 enum ESLMode
 {
-   SL_MODE_FIXED_PIPS,  // SL_MODE_FIXED_PIPS: Fixed pips (default)
-   SL_MODE_FRACTAL,     // SL_MODE_FRACTAL: Last fractal level (Bill Williams)
-   SL_MODE_PERCENT,     // SL_MODE_PERCENT: Percentage of entry price
-   SL_MODE_SWING,       // SL_MODE_SWING: Recent swing high/low (SwingLookback bars)
-   SL_MODE_PSAR_DOT     // SL_MODE_PSAR_DOT: PSAR dot position
+   SL_MODE_FIXED_PIPS,     // SL_MODE_FIXED_PIPS: Fixed pips (default)
+   SL_MODE_FRACTAL,        // SL_MODE_FRACTAL: Last fractal level (Bill Williams)
+   SL_MODE_PERCENT,        // SL_MODE_PERCENT: Percentage of entry price
+   SL_MODE_SWING,          // SL_MODE_SWING: Recent swing high/low (SwingLookback bars)
+   SL_MODE_PSAR_DOT        // SL_MODE_PSAR_DOT: PSAR dot position
 };
 enum ETPMode
 {
-   TP_MODE_FIXED_PIPS,  // TP_MODE_FIXED_PIPS: (default)
-   TP_MODE_RR,          // TP_MODE_RR: (TP = SL distance × RRRatio)
-   TP_MODE_FRACTAL,     // TP_MODE_FRACTAL: Next fractal level as TP target
-   TP_MODE_PSAR_FLIP,   // TP_MODE_PSAR_FLIP: Exit when PSAR flips (TP handled by TM)
-   TP_MODE_NONE         // TP_MODE_NONE: No TP, rely on trailing stop only
+   TP_MODE_FIXED_PIPS,     // TP_MODE_FIXED_PIPS: (default)
+   TP_MODE_RR,             // TP_MODE_RR: (TP = SL distance × RRRatio)
+   TP_MODE_FRACTAL,        // TP_MODE_FRACTAL: Next fractal level as TP target
+   TP_MODE_PSAR_FLIP,      // TP_MODE_PSAR_FLIP: Exit when PSAR flips (TP handled by TM)
+   TP_MODE_NONE            // TP_MODE_NONE: No TP, rely on trailing stop only
 };
 enum EBeMode
 {
-   BE_MODE_OFF,                // BE_MODE_OFF: Breakeven disabled (default)
-   BE_MODE_TP_PROGRESS_PCT,    // BE_MODE_TP_PROGRESS_PCT: BE triggers at % progress toward TP (used with TP enabled)
-   BE_MODE_R_MULTIPLE          // BE_MODE_R_MULTIPLE: BE triggers at k*R multiple (used when TP is disabled)
+   BE_MODE_OFF,            // BE_MODE_OFF: Breakeven disabled (default)
+   BE_MODE_TP_PROGRESS_PCT,// BE_MODE_TP_PROGRESS_PCT: BE triggers at % progress toward TP (used with TP enabled)
+   BE_MODE_R_MULTIPLE      // BE_MODE_R_MULTIPLE: BE triggers at k*R multiple (used when TP is disabled)
 };
 enum EExitProfile
 {
-   EXIT_PROFILE_NONE,   // EXIT_PROFILE_NONE: No exit profile (manual management)
-   EXIT_PROFILE_SIMPLE, // EXIT_PROFILE_SIMPLE: Simple: Fixed SL/TP, basic trailing
-   EXIT_PROFILE_RRM     // EXIT_PROFILE_RRM: RRM: Swing-based SL, PSAR trail, no ATR multipliers
+   EXIT_PROFILE_NONE,      // EXIT_PROFILE_NONE: No exit profile (manual management)
+   EXIT_PROFILE_SIMPLE,    // EXIT_PROFILE_SIMPLE: Simple: Fixed SL/TP, basic trailing
+   EXIT_PROFILE_RRM        // EXIT_PROFILE_RRM: RRM: Swing-based SL, PSAR trail, no ATR multipliers
 };
 
 
 enum EGateScaleMode
 {
-   GATE_SCALE_OFF,        // GATE_OFF: Gate disabled
-   GATE_SCALE_FIXED,      // GATE_FIXED: Use fixed pip value
-   GATE_SCALE_AUTO_TF     // GATE_AUTO: Auto-scale by timeframe/pair
+   GATE_SCALE_OFF,         // GATE_OFF: Gate disabled
+   GATE_SCALE_FIXED,       // GATE_FIXED: Use fixed pip value
+   GATE_SCALE_AUTO_TF      // GATE_AUTO: Auto-scale by timeframe/pair
 };
 enum EVoteMode
 {
-   VOTE_MODE_THRESHOLD,   // VOTE_THRESHOLD: minimum weighted votes required (default)
-   VOTE_MODE_ALL          // VOTE_ALL: every enabled indicator must agree
+   VOTE_MODE_THRESHOLD,    // VOTE_THRESHOLD: minimum weighted votes required (default)
+   VOTE_MODE_ALL           // VOTE_ALL: every enabled indicator must agree
 };
 enum EPairType
 {
@@ -231,9 +231,9 @@ enum EPairType
 };
 enum EUIFrameMode
 {
-   UI_FRAME_BG,              // UI: Rectangle background (default)
-   UI_FRAME_NONE,            // UI: Text only (no rectangle)
-   UI_FRAME_TEXT_BOUNDS      // UI: Text bounds markers (BEGIN/END), no rectangle
+   UI_FRAME_BG,            // UI: Rectangle background (default)
+   UI_FRAME_NONE,          // UI: Text only (no rectangle)
+   UI_FRAME_TEXT_BOUNDS    // UI: Text bounds markers (BEGIN/END), no rectangle
 };
 //+------------------------------------------------------------------+
 //| STRUCTURES
@@ -252,7 +252,7 @@ struct ST_AdaptiveSettings
 struct SGateConfig
 {
    EGateScaleMode mode;
-   double         value;  // Fixed pips or TF scaling factor
+   double         value;   // Fixed pips or TF scaling factor
 };
 struct SNewsEvent
 {
@@ -262,11 +262,11 @@ struct SNewsEvent
 };
 struct SVoteSnapshot
 {
-   string name;        // "MACD", "PSAR", etc.
-   string state;       // "BUY", "SELL", "FLAT", "PASS"
-   string reason;      // Brief explanation
-   bool   enabled;     // Is this vote enabled in config?
-   int    vote_result; // +1 = pass (matches bias), 0 = fail
+   string name;            // "MACD", "PSAR", etc.
+   string state;           // "BUY", "SELL", "FLAT", "PASS"
+   string reason;          // Brief explanation
+   bool   enabled;         // Is this vote enabled in config?
+   int    vote_result;     // +1 = pass (matches bias), 0 = fail
 };
 
 // Single settings struct used across the EA
@@ -296,19 +296,19 @@ struct ST_Settings
 
    // Risk
    double RiskPercent;
-   double MaxTotalRisk;       // Max % of account at risk simultaneously (e.g., 4.0)
-   int    MaxOpenTrades;      // Max number of concurrent trades (0 = no limit)
-   bool   CountBEasZeroRisk;  // If true, trades at breakeven don't count toward risk
-   double MarginUsageLimit;   // Max % of free margin allowed per trade (0 = use 100%)
-   double MinMarginLevel;     // Block new entries if margin level (%) is below this threshold (0 = disabled)
-   double EmergencyMarginLevel; // Emergency TM threshold (%) to cut worst position (0 = disabled)
+   double MaxTotalRisk;          // Max % of account at risk simultaneously (e.g., 4.0)
+   int    MaxOpenTrades;         // Max number of concurrent trades (0 = no limit)
+   bool   CountBEasZeroRisk;     // If true, trades at breakeven don't count toward risk
+   double MarginUsageLimit;      // Max % of free margin allowed per trade (0 = use 100%)
+   double MinMarginLevel;        // Block new entries if margin level (%) is below this threshold (0 = disabled)
+   double EmergencyMarginLevel;  // Emergency TM threshold (%) to cut worst position (0 = disabled)
    double MaxSpread;
-   bool   UseSpread;          // Enable spread filter (false = bypass spread gate)
+   bool   UseSpread;             // Enable spread filter (false = bypass spread gate)
 
    // Candle Body Overextension Indicator (voting)
-   int    CandleBody_AvgPeriod;   // Bars used to compute average body size
-   double CandleBody_MaxMult;     // Block if body > avg * multiplier
-   int    CandleBody_CheckBars;   // Number of recent closed candles to check
+   int    CandleBody_AvgPeriod;        // Bars used to compute average body size
+   double CandleBody_MaxMult;          // Block if body > avg * multiplier
+   int    CandleBody_CheckBars;        // Number of recent closed candles to check
    bool   CandleBody_RequireDirection; // CandleBody: Require signal bar to close in trade direction
    
    // MT5 Moving Average benchmark compatibility
@@ -379,11 +379,11 @@ struct ST_Settings
    int    DPI_TSI_R;                // TSI R period (slow EMA smoothing)
    int    DPI_TSI_S;                // TSI S period (medium EMA smoothing)
    int    DPI_TSI_U;                // TSI Signal EMA period
-   int    DPI_TSI_FastR;           // Nested TSI first EMA period (default 5)
-   int    DPI_TSI_FastS;           // Nested TSI second EMA period (default 3)
+   int    DPI_TSI_FastR;            // Nested TSI first EMA period (default 5)
+   int    DPI_TSI_FastS;            // Nested TSI second EMA period (default 3)
    int    VRC_ATR_Period;
    int    VRC_Lookback;
-   double VRC_LowThreshold;  // Below this percentile = LOW regime (reject trade)
+   double VRC_LowThreshold;         // Below this percentile = LOW regime (reject trade)
 
    // Indicators (Periods)
    int    P_Ema1;
@@ -422,8 +422,8 @@ struct ST_Settings
    double P_PsarMax;
    double T_MfiOB;
    double T_MfiOS;
-   double ATR_VoteMinPips; // ATR voting threshold: minimum pips
-   double ATR_VoteMaxPips; // ATR voting threshold: maximum pips
+   double ATR_VoteMinPips;       // ATR voting threshold: minimum pips
+   double ATR_VoteMaxPips;       // ATR voting threshold: maximum pips
 
    // Modes
    EMacdVoteMode MacdVoteMode;          // MACD base vote mode
@@ -471,24 +471,24 @@ struct ST_Settings
    bool     SL_WidenToMinimum;   // If true widen too-close SL, otherwise block trade (return 0.0)
    
    // SL/TP Strategy Configuration
-   ESLMode  SLMode;           // How to calculate SL distance
-   ETPMode  TPMode;           // How to calculate TP distance
-   double   FixedTPPips;      // Fixed TP distance in pips (TP_MODE_FIXED_PIPS)
-   double   SLPercent;        // SL as % of entry price (SL_MODE_PERCENT, e.g. 0.5 = 0.5%)
-   double   RRRatio;          // Risk:Reward ratio (TP_MODE_RR, e.g. 2.0 = 1:2)
-   int      SwingLookback;    // Bars to look back for swing high/low (SL_MODE_SWING)
+   ESLMode  SLMode;              // How to calculate SL distance
+   ETPMode  TPMode;              // How to calculate TP distance
+   double   FixedTPPips;         // Fixed TP distance in pips (TP_MODE_FIXED_PIPS)
+   double   SLPercent;           // SL as % of entry price (SL_MODE_PERCENT, e.g. 0.5 = 0.5%)
+   double   RRRatio;             // Risk:Reward ratio (TP_MODE_RR, e.g. 2.0 = 1:2)
+   int      SwingLookback;       // Bars to look back for swing high/low (SL_MODE_SWING)
 
    // === Fractal Settings (NEW: Phase 2.2) ===
-   int      FractalPeriod;    // Fractal indicator period (default: 5)
-   int      TPFractalOffset;  // How many fractals ahead for TP (default: 1)
+   int      FractalPeriod;       // Fractal indicator period (default: 5)
+   int      TPFractalOffset;     // How many fractals ahead for TP (default: 1)
 
    // Advanced Trailing Settings
-   ETrailTrigger TrailTrigger;      // When to begin trailing (default: TRIGGER_IMMEDIATE)
-   double   BEThresholdPips;        // Profit pips required before moving to breakeven
-   double   TrailDistancePips;      // Fixed trail distance in pips (TRAIL_FIXED_PIPS / trigger threshold)
-   double   TrailProfitPercent;     // Profit % threshold for TRIGGER_PROFIT_PERCENT
-   double   TrailStepPips;          // Minimum pips movement before updating SL
-   bool     TrailLockProfit;        // Lock in profit (never move SL backwards)
+   ETrailTrigger TrailTrigger;   // When to begin trailing (default: TRIGGER_IMMEDIATE)
+   double   BEThresholdPips;     // Profit pips required before moving to breakeven
+   double   TrailDistancePips;   // Fixed trail distance in pips (TRAIL_FIXED_PIPS / trigger threshold)
+   double   TrailProfitPercent;  // Profit % threshold for TRIGGER_PROFIT_PERCENT
+   double   TrailStepPips;       // Minimum pips movement before updating SL
+   bool     TrailLockProfit;     // Lock in profit (never move SL backwards)
 
    // TS - Trailing SL / TP / BE
    ETrailingMode       TrailMode;
@@ -560,14 +560,15 @@ struct ST_Settings
    bool     AllowLayer3_Entries;          // Allow Layer 3 (EMA3/EMA4 touch) entries
 
    // Diagnostics: statistics configuration
-   bool Stats_TrackRejections;  // Track rejection counts per indicator
-   bool Stats_TrackPasses;      // Track pass counts (positive stats)
-   bool Stats_FullEvaluation;   // Evaluate ALL indicators per bar (no early exit)
+   bool Stats_TrackRejections;      // Track rejection counts per indicator
+   bool Stats_TrackPasses;          // Track pass counts (positive stats)
+   bool Stats_FullEvaluation;       // Evaluate ALL indicators per bar (no early exit)
+
    // Targeted bar evaluation debug (force-print window or pinpoint, independent of TS outcome)
-   datetime    DebugEvalFrom;     // Force debug output from this bar time (0=disabled)
-   datetime    DebugEvalTo;       // Force debug output up to this bar time (0=disabled; paired with From)
-   datetime    DebugEvalAt;       // Force debug output at this exact bar time (0=disabled)
-   EDebugLevel DebugEvalMode;     // Debug level to apply during forced printing (default: DEBUG_FULL)
+   datetime    DebugEvalFrom;       // Force debug output from this bar time (0=disabled)
+   datetime    DebugEvalTo;         // Force debug output up to this bar time (0=disabled; paired with From)
+   datetime    DebugEvalAt;         // Force debug output at this exact bar time (0=disabled)
+   EDebugLevel DebugEvalMode;       // Debug level to apply during forced printing (default: DEBUG_FULL)
 
    // ================================================================
    // SLOPE CALCULATION CONFIGURATION
@@ -646,14 +647,6 @@ string GetMACDModeDescription(EMacdVoteMode mode, bool has_slope, bool has_div, 
 //| INPUT PARAMETERS                                                 |
 //+------------------------------------------------------------------+
 
-
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "  🎯 PRESET";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-
-input ulong           Inp_MagicNum              = 12345;      // Magic number (trade identifier)
-input EStrategyPreset InpPreset                 = PRESET_TEST;// Strategy preset
-
 //input group "╔════════════════════════════════════════════════════════╗";
 //input group "║  📖 NAVIGATION GUIDE (Scroll to find your section)     ║";
 //input group "╠════════════════════════════════════════════════════════╣";
@@ -662,104 +655,113 @@ input EStrategyPreset InpPreset                 = PRESET_TEST;// Strategy preset
 //input group "║     └─ ZONE 3A.9: EXIT MANAGEMENT ← START HERE         ║";
 //input group "╚════════════════════════════════════════════════════════╝";
 
+input group "_";
+input ulong        Inp_MagicNum              = 12345;      // Magic number (trade identifier)
 
 input group "_";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "  ✅ FILTERS | UI | DEBUG";
-//input group "    (Works in ALL presets)";
+input group "  🎯 PRESET";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+
+input group "_";
+input EStrategyPreset InpPreset              = PRESET_TEST;// Strategy preset
+
+input group "_";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "  ✅ FILTERS | UI | DEBUG (works in ALL presets)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 
 input group "_";
 //input group "╔════════════════════════════════════════════════════════╗";
 input group "   🚫 FILTER: SPREAD";
 //input group "╚════════════════════════════════════════════════════════╝";
-input bool           Inp_UseSpread              = false; // Spread: Enablefilter
-input double         Inp_MaxSpreadPips          = 3.0;   // Spread: Max (pips; ignored if UseSpread=false)
+input bool        Inp_UseSpread              = false; // Spread: Enablefilter
+input double      Inp_MaxSpreadPips          = 3.0;   // Spread: Max (pips; ignored if UseSpread=false)
 
 input group "_";
 input group "   ⏰ FILTER: SESSION TIME";
-input bool           Inp_UseTime                = false; // Session: Enable time filter
-input int            Inp_StartHour              = 8;     // Session: Start hour (broker time)
-input int            Inp_EndHour                = 20;    // Session: End hour (broker time)
+input bool        Inp_UseTime                = false; // Session: Enable time filter
+input int         Inp_StartHour              = 8;     // Session: Start hour (broker time)
+input int         Inp_EndHour                = 20;    // Session: End hour (broker time)
 
 input group "_";
 input group "   📰 FILTER: NEWS";
-input bool           Inp_UseNews                = false; // News: Enable news filter (CSV calendar)
-input string         Inp_NewsFile               = "calendar_statement.csv"; // News: CSV filename
-input int            Inp_NewsPre                = 60;    // News: Minutes before news to block entries
-input int            Inp_NewsPost               = 60;    // NEws: Minutes after news to block entries
+input bool        Inp_UseNews                = false; // News: Enable news filter (CSV calendar)
+input string      Inp_NewsFile               = "calendar_statement.csv"; // News: CSV filename
+input int         Inp_NewsPre                = 60;    // News: Minutes before news to block entries
+input int         Inp_NewsPost               = 60;    // NEws: Minutes after news to block entries
 
 input group "_";
 input group "   📈 FILTER: HTF";
-input bool           Inp_UseHTF                 = false; // HTF: Enable HTF trend filter
-input ENUM_TIMEFRAMES Inp_HtfPeriod             = PERIOD_H4; // HTF: timeframe
-input int            Inp_HtfEmaPeriod           = 89;    // HTF: EMA period
+input bool        Inp_UseHTF                 = false; // HTF: Enable HTF trend filter
+input ENUM_TIMEFRAMES Inp_HtfPeriod          = PERIOD_H4; // HTF: timeframe
+input int         Inp_HtfEmaPeriod           = 89;    // HTF: EMA period
 
 input group "_";
 input group "   🎨 UI: STATUS PANEL";
-input bool           Inp_UI_ShowStatusPanel     = false; // UI SP: STATUS PANEL
-input bool           Inp_UI_ManageChartIndicators = false; // UI SP: Auto-add/remove chart indicators
-input ENUM_BASE_CORNER Inp_UI_PanelCorner       = CORNER_LEFT_UPPER; // UI SP: Status panel corner
-input int            Inp_UI_PanelX              = 30;    // UI SP: Status panel X (px)
-input int            Inp_UI_PanelY              = 30;    // UI SP: Status panel Y (px)
-input int            Inp_UI_PanelFontSize       = 10;    // UI SP: Status panel font size
-input int            Inp_UI_LineSpacingPx       = 28;    // UI SP: Status panel line spacing (px)
-input string         Inp_UI_PanelFont           = "Arial"; // UI SP: Status panel font
+input bool        Inp_UI_ShowStatusPanel     = false; // UI SP: STATUS PANEL
+input bool        Inp_UI_ManageChartIndicators = false; // UI SP: Auto-add/remove chart indicators
+input ENUM_BASE_CORNER Inp_UI_PanelCorner    = CORNER_LEFT_UPPER; // UI SP: Status panel corner
+input int         Inp_UI_PanelX              = 30;    // UI SP: Status panel X (px)
+input int         Inp_UI_PanelY              = 30;    // UI SP: Status panel Y (px)
+input int         Inp_UI_PanelFontSize       = 10;    // UI SP: Status panel font size
+input int         Inp_UI_LineSpacingPx       = 28;    // UI SP: Status panel line spacing (px)
+input string      Inp_UI_PanelFont           = "Arial"; // UI SP: Status panel font
 
 input group "_";
 input group "   🎨 UI: COCKPIT PANEL";
-input bool           Inp_UI_ShowCockpitPanel    = true;  // UI CP: COCKPIT PANEL
-input bool           Inp_UI_FreezeCockpitOnTS   = true;  // UI CP: Freeze STRATEGY LOGIC block while TS=1 pending TE
-input ENUM_BASE_CORNER  Inp_UI_CockpitCorner    = CORNER_LEFT_UPPER; // UI CP: corner
-input int            Inp_UI_CockpitX            = 30;    // UI CP: Cockpit panel X (px)
-input int            Inp_UI_CockpitY            = 30;    // UI CP: Cockpit panel Y (px)
-input int            Inp_UI_CockpitFontSize     = 10;    // UI CP: Cockpit panel font size
-input int            Inp_UI_CockpitLineSpacingPx = 28;   // UI CP: Cockpit panel line spacing (px)
-input string         Inp_UI_CockpitFont         = "Arial";// UI CP: Cockpit panel font
+input bool        Inp_UI_ShowCockpitPanel    = true;  // UI CP: COCKPIT PANEL
+input bool        Inp_UI_FreezeCockpitOnTS   = true;  // UI CP: Freeze STRATEGY LOGIC block while TS=1 pending TE
+input ENUM_BASE_CORNER  Inp_UI_CockpitCorner = CORNER_LEFT_UPPER; // UI CP: corner
+input int         Inp_UI_CockpitX            = 30;    // UI CP: Cockpit panel X (px)
+input int         Inp_UI_CockpitY            = 30;    // UI CP: Cockpit panel Y (px)
+input int         Inp_UI_CockpitFontSize     = 10;    // UI CP: Cockpit panel font size
+input int         Inp_UI_CockpitLineSpacingPx = 28;   // UI CP: Cockpit panel line spacing (px)
+input string      Inp_UI_CockpitFont         = "Arial";// UI CP: Cockpit panel font
 
 input group "_";
 input group "   🎨 UI: COCKPIT PANEL - COLOR                          ";
-input color          Inp_UI_clr_Header          = clrGold;       // UI CP: Header Text Color
-input color          Inp_UI_clr_Value           = clrWhite;      // UI CP: Market Data Color
-input color          Inp_UI_clr_Pass            = clrLimeGreen;  // UI CP: Logic PASS Color
-input color          Inp_UI_clr_Fail            = clrOrangeRed;  // UI CP: Logic FAIL Color
-input color          Inp_UI_clr_Disabled        = clrGray;       // UI CP: Logic DISABLED Color
+input color       Inp_UI_clr_Header          = clrGold;       // UI CP: Header Text Color
+input color       Inp_UI_clr_Value           = clrWhite;      // UI CP: Market Data Color
+input color       Inp_UI_clr_Pass            = clrLimeGreen;  // UI CP: Logic PASS Color
+input color       Inp_UI_clr_Fail            = clrOrangeRed;  // UI CP: Logic FAIL Color
+input color       Inp_UI_clr_Disabled        = clrGray;       // UI CP: Logic DISABLED Color
 
 input group "_";
 input group "   🎨 UI: SIGNAL MARKERS & COLORS                        ";
-input EUIFrameMode   Inp_UI_FrameMode           = UI_FRAME_NONE; // UI: Panel frame mode
-input bool           Inp_DrawEntryLines         = true; // UI: Draw entry marker lines
-input bool           Inp_DrawTradeLines         = true; // UI: Draw trade management lines
-input bool           Inp_UI_UseCustomColors     = true; // UI: Use custom panel colors
-input color          Inp_UI_FontColor           = clrYellow; // UI: font color
-input int            Inp_UI_PanelBgAlpha        = 110;  // UI: Panel background alpha (0..255)
-input int            Inp_UI_FramePadPx          = 6;    // UI: Panel padding (px)
+input EUIFrameMode Inp_UI_FrameMode          = UI_FRAME_NONE; // UI: Panel frame mode
+input bool        Inp_DrawEntryLines         = true; // UI: Draw entry marker lines
+input bool        Inp_DrawTradeLines         = true; // UI: Draw trade management lines
+input bool        Inp_UI_UseCustomColors     = true; // UI: Use custom panel colors
+input color       Inp_UI_FontColor           = clrYellow; // UI: font color
+input int         Inp_UI_PanelBgAlpha        = 110;  // UI: Panel background alpha (0..255)
+input int         Inp_UI_FramePadPx          = 6;    // UI: Panel padding (px)
 
 input group "_";
 input group "   🔍 DEBUG: DIAGNOSTICS                                 ";
-input EDebugLevel    Inp_DebugLevel             = DEBUG_SILENT; // Debug: Level
-input bool           Inp_DebugFlow              = true; // Debug: Print OnInit/OnTick/OnDeinit flow ... have to be true with DEBUG_SIGNALS_ONLY
-input bool           Inp_PrintEffectiveConfig   = true; // Debug: Print effective config on init
+input EDebugLevel Inp_DebugLevel             = DEBUG_SILENT; // Debug: Level
+input bool        Inp_DebugFlow              = true; // Debug: Print OnInit/OnTick/OnDeinit flow ... have to be true with DEBUG_SIGNALS_ONLY
+input bool        Inp_PrintEffectiveConfig   = true; // Debug: Print effective config on init
 
 input group "_";
 input group "   🔍 DEBUG: DIAGNOSTICS: STATISTICS                     ";
-input bool           Inp_Stats_TrackRejections  = true;  // Stats: Track rejection counts
-input bool           Inp_Stats_TrackPasses      = true;  // Stats: Track pass counts
-input bool           Inp_Stats_FullEvaluation   = true;  // Stats: Evaluate ALL indicators per bar
-//input string         Inp_Stats_Info1            = "FullEvaluation=false: waterfall (stop at first fail)";
-//input string         Inp_Stats_Info2            = "FullEvaluation=true: evaluate all, identify true bottlenecks";
+input bool        Inp_Stats_TrackRejections  = true;  // Stats: Track rejection counts
+input bool        Inp_Stats_TrackPasses      = true;  // Stats: Track pass counts
+input bool        Inp_Stats_FullEvaluation   = true;  // Stats: Evaluate ALL indicators per bar
+//input string    Inp_Stats_Info1            = "FullEvaluation=false: waterfall (stop at first fail)";
+//input string    Inp_Stats_Info2            = "FullEvaluation=true: evaluate all, identify true bottlenecks";
 
 input group "_";
 input group "   🔬 DEBUG: TARGETED BAR EVALUATION                     ";
-input EDebugLevel    Inp_DebugEvalMode          = DEBUG_FULL;  // Forced eval: debug level to apply
-input datetime       Inp_DebugEvalFrom          = 0;           // Debug window: force eval print from (0=off)
-input datetime       Inp_DebugEvalTo            = 0;           // Debug window: force eval print to (0=off; use with From)
-input datetime       Inp_DebugEvalAt            = 0;           // Debug pinpoint: force eval at exact bar time (0=off)
+input EDebugLevel Inp_DebugEvalMode          = DEBUG_FULL;  // Forced eval: debug level to apply
+input datetime    Inp_DebugEvalFrom          = 0;           // Debug window: force eval print from (0=off)
+input datetime    Inp_DebugEvalTo            = 0;           // Debug window: force eval print to (0=off; use with From)
+input datetime    Inp_DebugEvalAt            = 0;           // Debug pinpoint: force eval at exact bar time (0=off)
 
 input group "_";
 input group "   🔍 DEBUG: REPORTING                                   ";
-input bool           Inp_ExportCSV              = false; // Report: Export CSV reporting
-input bool           Inp_ExportUseCommonFiles   = false; // Report: Use terminal Common Files folder
+input bool        Inp_ExportCSV              = false; // Report: Export CSV reporting
+input bool        Inp_ExportUseCommonFiles   = false; // Report: Use terminal Common Files folder
 
 
 input group "_";
@@ -771,10 +773,10 @@ input group "_";
 //input group "╔════════════════════════════════════════════════════════╗";
 input group "   🛑 MT5 Moving Average Benchmark";
 //input group "╚════════════════════════════════════════════════════════╝";
-input double         Inp_MA_MaximumRiskPct      = 0.02; // (PRESET_MA only) Max risk (%)
-input double         Inp_MA_DecreaseFactor      = 3.0; // (PRESET_MA only) Lot decrease factor
-input int            Inp_MA_Period              = 12; // (PRESET_MA only) MA period
-input int            Inp_MA_Shift               = 6; // (PRESET_MA only) MA shift
+input double      Inp_MA_MaximumRiskPct      = 0.02; // (PRESET_MA only) Max risk (%)
+input double      Inp_MA_DecreaseFactor      = 3.0; // (PRESET_MA only) Lot decrease factor
+input int         Inp_MA_Period              = 12; // (PRESET_MA only) MA period
+input int         Inp_MA_Shift               = 6; // (PRESET_MA only) MA shift
 
 
 input group "_";
@@ -784,36 +786,36 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 
 input group "_";
 //input group "╔════════════════════════════════════════════════════════╗";
-input group "   📐 FPM: (SL) Stop Loss Settings";
+input group "   📐 FPM: (TP) Take Profit Settings";
 //input group "╚════════════════════════════════════════════════════════╝";
+input ETPMode     Inp_FPM_TPMode          = TP_MODE_FIXED_PIPS; // FPM TP mode: FIXED_PIPS=TF-based cheat sheet pips; RR=user ratio
+input double      Inp_FPM_RRRatio         = 1.0;                // FPM R:R ratio (used with TP_MODE_RR, e.g. 1.5, 2.0, 3.0)
+
+input group "_";
+input group "   📐 FPM: (SL) Stop Loss Settings";
 input ESLMode     Inp_FPM_SLMode          = SL_MODE_SWING;  // FPM SL mode: SWING (recent high/low) or FIXED_PIPS
 input int         Inp_FPM_SwingLookback   = 5;              // FPM SL swing lookback bars (SL_MODE_SWING only)
 input double      Inp_FPM_SLFixedPips     = 15.0;           // FPM SL fixed distance in pips (SL_MODE_FIXED_PIPS only)
 
 input group "_";
-input group "   📐 FPM: (TP) Take Profit Settings";
-input ETPMode     Inp_FPM_TPMode          = TP_MODE_FIXED_PIPS; // FPM TP mode: FIXED_PIPS=TF-based cheat sheet pips; RR=user ratio
-input double      Inp_FPM_RRRatio         = 2.0;                // FPM R:R ratio (used with TP_MODE_RR, e.g. 1.5, 2.0, 3.0)
-
-input group "_";
 input group "   📐 FPM: (TS) Trailing Stop (Optional)";
-input bool        Inp_FPM_UseTrailing      = true;  // FPM: Enable optional trailing stop
-input double      Inp_FPM_TrailDistancePips = 15.0; // FPM: Trailing distance in pips (15 = cheat sheet default)
+input bool        Inp_FPM_UseTrailing     = true;           // FPM: Enable optional trailing stop
+input double      Inp_FPM_TrailDistancePips = 15.0;         // FPM: Trailing distance in pips (15 = cheat sheet default)
 
 input group "_";
 input group "   📐 FPM: MACD Settings";
-input int         Inp_FPM_MacdFast        = 12;   // FPM MACD Fast period
-input int         Inp_FPM_MacdSlow        = 26;   // FPM MACD Slow period
-input int         Inp_FPM_MacdSig         = 9;    // FPM MACD Signal period
+input int         Inp_FPM_MacdFast        = 12;             // FPM MACD Fast period
+input int         Inp_FPM_MacdSlow        = 26;             // FPM MACD Slow period
+input int         Inp_FPM_MacdSig         = 9;              // FPM MACD Signal period
 
 input group "_";
 input group "   📐 FPM: PSAR Settings";
-input double      Inp_FPM_PsarStep        = 0.02; // FPM PSAR Step
-input double      Inp_FPM_PsarMax         = 0.2;  // FPM PSAR Max
+input double      Inp_FPM_PsarStep        = 0.02;           // FPM PSAR Step
+input double      Inp_FPM_PsarMax         = 0.2;            // FPM PSAR Max
 
 input group "_";
 input group "   📊 FPM: SMA Convergence";
-input bool        Inp_Ind_SmaConverge_Enabled = false; // [SmaConv] Enable SMA convergence vote (FPM Condition 4)
+input bool        Inp_Ind_SmaConverge_Enabled = false;      // [SmaConv] Enable SMA convergence vote (FPM Condition 4)
 
 
 input group "_";
@@ -825,21 +827,21 @@ input group "_";
 //input group "╔════════════════════════════════════════════════════════╗";
 input group "   📐 RRM: (RR) Risk Reward";
 //input group "╚════════════════════════════════════════════════════════╝";
-input ETPMode    Inp_RRM_TPMode           = TP_MODE_RR;  // RRM TP mode
-input double     Inp_RRM_RRRatio          = 1.0;         // RRM R:R ratio (used with TP_MODE_RR)
+input ETPMode    Inp_RRM_TPMode           = TP_MODE_RR;     // RRM TP mode
+input double     Inp_RRM_RRRatio          = 1.0;            // RRM R:R ratio (used with TP_MODE_RR)
 
 input group "_";
 input group "   🛑 RRM: (BE) Breakeven (% Progress)";
-input double      Inp_RRM_BE_ProgressPct  = 10.0;        // BE at % to TP
-input double      Inp_RRM_BE_RMultiple    = 1.0;         // BE at R-multiple
+input double      Inp_RRM_BE_ProgressPct  = 10.0;           // BE at % to TP
+input double      Inp_RRM_BE_RMultiple    = 1.0;            // BE at R-multiple
 // input string         Inp_RRM_BE_Buffer_Note     = "BE buffer auto-set by timeframe (M15=5, H1=10, H4=20 pips)";
 // input string         Inp_RRM_BE_Example         = "Example: SL=10, TP=30 (3:1), BE@33% → triggers at +10 pips; SL locks at entry + TF-cushion";
 
 input group "_";
 input group "   📐 RRM: Layer Filter (sub-markets)";
-input bool        Inp_RRM_AllowWeak       = true;        // RRM: Allow WEAK   trades (L1 EMA1/EMA2)
-input bool        Inp_RRM_AllowMedium     = true;        // RRM: Allow MEDIUM trades (L2 EMA2/EMA3)
-input bool        Inp_RRM_AllowStrong     = true;        // RRM: Allow STRONG trades (L3 EMA3/EMA4, TRENDING only)
+input bool        Inp_RRM_AllowWeak       = true;           // RRM: Allow WEAK   trades (L1 EMA1/EMA2)
+input bool        Inp_RRM_AllowMedium     = true;           // RRM: Allow MEDIUM trades (L2 EMA2/EMA3)
+input bool        Inp_RRM_AllowStrong     = true;           // RRM: Allow STRONG trades (L3 EMA3/EMA4, TRENDING only)
 
 input group "_";
 input group "   🔧 RRM: (DP) Drawdown Protection";
@@ -850,12 +852,12 @@ input double      Inp_RRM_MaxDailyDrawdownPct        = 3.0;    // RRM: Max daily
 
 input group "_";
 input group "   📐 RRM: (SL) Stop Loss";
-input ESLMode    Inp_RRM_SLMode        = SL_MODE_SWING;  // RRM SL placement mode
-input int        Inp_RRM_SwingLookback = 20;             // RRM Swing lookback bars (used with SL_MODE_SWING)
+input ESLMode    Inp_RRM_SLMode        = SL_MODE_SWING;     // RRM SL placement mode
+input int        Inp_RRM_SwingLookback = 20;                // RRM Swing lookback bars (used with SL_MODE_SWING)
 
 input group "_";
 input group "   📐 RRM: (TS) Trailing Stop";
-input ETrailingMode Inp_RRM_TrailMode  = TRAIL_PSAR;     // RRM Trailing stop mode
+input ETrailingMode Inp_RRM_TrailMode  = TRAIL_PSAR;        // RRM Trailing stop mode
 
 input group "_";
 input group "   🛑 RRM: (TS) PSAR Trailing Stop";
@@ -948,23 +950,23 @@ input group " ";
 //input group "╔════════════════════════════════════════════════════════╗";
 input group "   🔧 STEP 1: Bias (Major Trend Direction)";
 //input group "╚════════════════════════════════════════════════════════╝";
-input EBiasMode      Inp_BiasMode            = BIAS_2EMA; // Bias: Mode: Manual, 2-EMA, or 4-EMA (CUSTOM; presets override)
-input EManualSide    Inp_ManualSide          = SIDE_BOTH; // Bias Side (CUSTOM; presets override)
-input bool           Inp_BiasEnabled         = true; // Bias Enabled (CUSTOM; presets override)
-input int            Inp_BiasFastID          = 2; // Bias Fast ID (CUSTOM; presets override)
-input int            Inp_BiasSlowID          = 3; // Bias Slow ID (CUSTOM; presets override)
+input EBiasMode      Inp_BiasMode            = BIAS_2EMA;   // Bias: Mode: Manual, 2-EMA, or 4-EMA (CUSTOM; presets override)
+input EManualSide    Inp_ManualSide          = SIDE_BOTH;   // Bias Side (CUSTOM; presets override)
+input bool           Inp_BiasEnabled         = true;        // Bias Enabled (CUSTOM; presets override)
+input int            Inp_BiasFastID          = 2;           // Bias Fast ID (CUSTOM; presets override)
+input int            Inp_BiasSlowID          = 3;           // Bias Slow ID (CUSTOM; presets override)
 
 input group " ";
 //input group "╔════════════════════════════════════════════════════════╗";
 input group "   🔧 STEP 2: MA | EMA                                 ";
 //input group "╚════════════════════════════════════════════════════════╝";
-input EMaMethod      Inp_MaType              = METHOD_EMA; // MA (CUSTOM; presets override)
-input int            Inp_MaHorShift          = 1; // MA Hor Shift (CUSTOM; presets override)
-input int            Inp_MaVerShift          = 1; // MA Ver Shift (CUSTOM; presets override)
-input int            InpEma1Period           = 5; // EMA1 Period (CUSTOM; presets override)
-input int            InpEma2Period           = 13; // EMA2 Period (CUSTOM; presets override)
-input int            InpEma3Period           = 34; // EMA3 Period (CUSTOM; presets override)
-input int            InpEma4Period           = 89; // Ema4 Period (CUSTOM; presets override)
+input EMaMethod      Inp_MaType              = METHOD_EMA;  // MA (CUSTOM; presets override)
+input int            Inp_MaHorShift          = 1;           // MA Hor Shift (CUSTOM; presets override)
+input int            Inp_MaVerShift          = 1;           // MA Ver Shift (CUSTOM; presets override)
+input int            InpEma1Period           = 5;           // EMA1 Period (CUSTOM; presets override)
+input int            InpEma2Period           = 13;          // EMA2 Period (CUSTOM; presets override)
+input int            InpEma3Period           = 34;          // EMA3 Period (CUSTOM; presets override)
+input int            InpEma4Period           = 89;          // Ema4 Period (CUSTOM; presets override)
 
 input group "_";
 //input group "╔════════════════════════════════════════════════════════╗";
