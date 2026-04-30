@@ -721,6 +721,14 @@ public:
    double   LastCachedRisk() const { return m_cached_risk; }
    string   LastVetoReason() const { return m_te_veto_reason; }
 
+   int CooldownBarsRemaining() const
+   {
+      if(m_settings.MinBarsAfterClose <= 0 || m_last_close_bar == 0) return 0;
+      int bars_since = Bars(_Symbol, PERIOD_CURRENT, m_last_close_bar, iTime(_Symbol, PERIOD_CURRENT, 0));
+      int remaining = m_settings.MinBarsAfterClose - bars_since;
+      return (remaining > 0) ? remaining : 0;
+   }
+
    void Init(ulong magic, ST_Settings &sets) {
       m_magic = magic;
       m_settings = sets;
@@ -1128,6 +1136,17 @@ public:
       }
       if(m_last_close_bar == iTime(_Symbol, PERIOD_CURRENT, 0)) {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "SAME_BAR_CLOSE"; return;
+      }
+      if(m_settings.MinBarsAfterClose > 0 && m_last_close_bar > 0)
+      {
+         int bars_since = Bars(_Symbol, PERIOD_CURRENT, m_last_close_bar, iTime(_Symbol, PERIOD_CURRENT, 0));
+         if(bars_since < m_settings.MinBarsAfterClose)
+         {
+            m_last_te_time   = iTime(_Symbol, PERIOD_CURRENT, 0);
+            m_last_te_result = "BLOCKED";
+            m_last_te_reason = StringFormat("POST_TRADE_COOLDOWN_%d/%d", bars_since, m_settings.MinBarsAfterClose);
+            return;
+         }
       }
    
       int buy_count=0, sell_count=0;

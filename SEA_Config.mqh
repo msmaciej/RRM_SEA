@@ -586,6 +586,9 @@ struct ST_Settings
 
    // Re-entry after breakeven
    bool          AllowReEntryAfterBE;   // When true, bypass ALREADY_IN_POSITION if position is at BE
+
+   // Post-trade cooldown
+   int           MinBarsAfterClose;     // bars to wait after trade close before new entry (0 = off)
 };
 
 // Global Configuration Instance
@@ -877,6 +880,10 @@ input group "   🔧 RRM: (Pullback)";
 input bool        Inp_Gate_RequireRecoveryMomentum = false; // RRM Gate (CUSTOM; presets override)
 input int         Inp_RRM_Lookback                 = 5;     // RRM Lookback (CUSTOM; presets override)
 input double      Inp_RRM_MinDivPips               = 0.5;   // RRM MinDivPips (CUSTOM; presets override)
+
+input group "_";
+input group "   🛡️ TE: POST-TRADE PROTECTION";
+input int         Inp_MinBarsAfterClose             = 0;    // TE: Min bars cooldown after trade close (0=off)
 
 
 input group "_";
@@ -1587,6 +1594,9 @@ void InitializeConfig()
 
    // Re-entry after breakeven: disabled by default; enabled by RRM presets
    Settings.AllowReEntryAfterBE = false;
+
+   // Post-trade cooldown: disabled by default; presets may override
+   Settings.MinBarsAfterClose = Inp_MinBarsAfterClose;
 
    // === FINAL VALIDATION: BiasMode vs AutoStrat compatibility ===
    if(Settings.BiasEnabled && !ValidateBiasStratCombo(Settings.BiasMode, Settings.AutoStrat))

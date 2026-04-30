@@ -605,7 +605,18 @@ int OrchestrateInit()
          Settings.RiskPercent,
          0.0, // current_risk_pct
          0.0, // current_risk_money
-         EnumToString(Settings.TrailMode)
+         EnumToString(Settings.TrailMode),
+         "",   // last_te_result
+         "",   // last_te_veto
+         false, // ts_pending
+         false, // freeze_active
+         0,     // freeze_ts_time
+         0,     // freeze_dir
+         0,     // freeze_bias
+         0,     // freeze_votes
+         "",    // freeze_reason
+         PHASE_UNORDERED, // freeze_phase
+         Executor.CooldownBarsRemaining()
       );
    }
 
@@ -920,7 +931,8 @@ void OrchestrateTick()
       g_cockpit_freeze_bias,
       g_cockpit_freeze_votes,
       g_cockpit_freeze_reason,
-      g_cockpit_freeze_phase
+      g_cockpit_freeze_phase,
+      Executor.CooldownBarsRemaining()
    );
    
    FlowLog("Bar pipeline complete");

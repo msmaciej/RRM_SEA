@@ -576,7 +576,8 @@ void SEA_UI_UpdateCockpit(
    int          freeze_bias     = 0,
    int          freeze_votes    = 0,
    string       freeze_reason   = "",
-   EMarketPhase freeze_phase    = PHASE_UNORDERED
+   EMarketPhase freeze_phase    = PHASE_UNORDERED,
+   int          cooldown_bars_remaining = 0
 ) {
    if(!Inp_UI_ShowCockpitPanel) { 
       SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
@@ -746,6 +747,11 @@ void SEA_UI_UpdateCockpit(
    {
       AddLine("STATE:  MONITORING", v_clr, lines, line_clrs);
    }
+
+   if(cooldown_bars_remaining > 0)
+      AddLine(StringFormat("COOLDOWN: %d bars", cooldown_bars_remaining), clrGold, lines, line_clrs);
+   else if(Settings.MinBarsAfterClose > 0)
+      AddLine("COOLDOWN: ready", v_clr, lines, line_clrs);
 
    AddLine("", (color)0, lines, line_clrs);
 
