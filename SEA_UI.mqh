@@ -616,7 +616,7 @@ void SEA_UI_UpdateCockpit(
    // Freeze banner: shown while TS=1 carry-forward is armed and awaiting TE
    if(freeze_active)
    {
-      string freeze_time_str = TimeToString(freeze_ts_time, TIME_MINUTES);
+      string freeze_time_str = TimeToString(freeze_ts_time, TIME_DATE|TIME_MINUTES);
       AddLine(StringFormat("*** FROZEN @ %s - TS=1 AWAITING TE ***", freeze_time_str), clrGold, lines, line_clrs);
    }
 
@@ -628,8 +628,9 @@ void SEA_UI_UpdateCockpit(
    EMarketPhase disp_phase = freeze_active ? freeze_phase : (EMarketPhase)ts_telemetry.phase;
 
    // 1. Standardized Equation: TS = B * P * L * I * F
+   int    disp_phase_val = (int)disp_phase;
    string b_eq = (disp_bias  > 0) ? "+" : ((disp_bias  < 0) ? "-" : ".");
-   string p_eq = ((int)disp_phase > 0) ? "+" : (((int)disp_phase < 0) ? "-" : ".");
+   string p_eq = (disp_phase_val > 0) ? "+" : ((disp_phase_val < 0) ? "-" : ".");
    string l_eq = (ts_telemetry.layer > 0) ? "+" : ((ts_telemetry.layer < 0) ? "-" : ".");
    string i_eq = (disp_votes > 0) ? "+" : ".";
    bool filter_rejected = (StringFind(ts_telemetry.rejection_reason, "HTF")    >= 0 ||
