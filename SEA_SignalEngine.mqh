@@ -3137,18 +3137,32 @@ public:
       Print("News: Loaded ", m_news_count, " events from ", filename);
    }
 
+   // --- CANDLE DIRECTION GATE (hard gate, always active when CandleBody_RequireDirection=true) ---
+   // Checks that the signal bar (shift=1) closed in the trade direction.
+   // This is a binary 0/1 multiplication factor independent of the overextension voter.
+   bool CheckCandleDirectionGate(int bias) {
+      if(!m_settings.CandleBody_RequireDirection) return true;   // gate disabled
+      if(bias == 0)                               return true;   // no directional bias to check
+
+      double o = iOpen(m_symbol, PERIOD_CURRENT, 1);
+      double c = iClose(m_symbol, PERIOD_CURRENT, 1);
+
+      if(bias == 1  && c <= o) {   // BUY: reject unless close strictly above open (bullish bar)
+         if(m_settings.DebugFlow)
+            DebugLog("[GATE] CandleDir: bar not in trade direction (BUY needs bullish close)");
+         return false;
+      }
+      if(bias == -1 && c >= o) {   // SELL: reject unless close strictly below open (bearish bar)
+         if(m_settings.DebugFlow)
+            DebugLog("[GATE] CandleDir: bar not in trade direction (SELL needs bearish close)");
+         return false;
+      }
+      return true;
+   }
+
    // --- 9b. CANDLE BODY OVEREXTENSION INDICATOR (voting) ---
    bool CheckCandleBodyIndicator(int bias) {
       if(!m_settings.Ind_CandleBody_Enabled) return true;
-
-      // Direction check: signal bar must close in trade direction
-      if(m_settings.CandleBody_RequireDirection && bias != 0)
-      {
-         double o = iOpen(m_symbol, PERIOD_CURRENT, 1);
-         double c = iClose(m_symbol, PERIOD_CURRENT, 1);
-         if(bias == 1  && c <= o) return false;  // BUY requires bullish bar (close > open)
-         if(bias == -1 && c >= o) return false;  // SELL requires bearish bar (close < open)
-      }
 
       // Calculate average body over past N bars (starting at shift 2 to exclude current bar)
       double sum_body = 0.0;
@@ -4336,6 +4350,16 @@ public:
       // COMPONENT 4: bcX — Bar close confirmation (hard gate)
       int bcX = EvaluateBcX(v_shift, bias);
       if(bcX == 0) {
+         UpdateTelemetry(0);
+         FlushOrClearDebugBuffer(0);
+         RestoreForcedDebug();
+         return 0;
+      }
+
+      // COMPONENT 4b: CandleDirectionGate — signal bar must close in trade direction (hard gate)
+      // Runs independently of whether the CandleBody overextension voter is enabled.
+      if(!CheckCandleDirectionGate(bias)) {
+         m_diag_last_reason = "CandleDir: bar not in trade direction";
          UpdateTelemetry(0);
          FlushOrClearDebugBuffer(0);
          RestoreForcedDebug();
