@@ -677,9 +677,10 @@ void OrchestrateTick()
    }
 
    // --- LOCAL DATA HOLDERS ---
-   int snap_bias = 0;
-   int snap_votes = 0;
-   string snap_reason = "";
+   int          snap_bias   = 0;
+   int          snap_votes  = 0;
+   string       snap_reason = "";
+   EMarketPhase snap_phase  = PHASE_UNORDERED;
    SVoteSnapshot vote_snaps[];
    int vote_snap_count = 0;
 
@@ -704,6 +705,7 @@ void OrchestrateTick()
       snap_bias   = Signal.LastBias();
       snap_votes  = Signal.LastVotes();
       snap_reason = Signal.LastReason();
+      snap_phase  = Signal.GetLastDetectedPhase();
       Signal.CaptureVoteSnapshots(vote_snaps, vote_snap_count, snap_bias);
 
       if(ts != 0)
@@ -733,22 +735,58 @@ void OrchestrateTick()
       else 
       {
          // TS=0 on current bar
-         // On short timeframes (M1/M5) allow the carry-forward to survive one
-         // flicker bar before discarding it (prevents one noisy bar from killing
-         // an otherwise valid pending signal).
-         // M1/M5: 1 miss allowed (indicators flicker on short TFs without invalidating setup)
-         // H1+:   0 misses (strict — indicators are stable on higher TFs)
-         int carry_max_miss = (_Period <= PERIOD_M5) ? 1 : 0;
-         if(g_ts_active && g_ts_carry_miss_count < carry_max_miss) {
-            // Tolerate this miss: keep carry-forward alive
-            g_ts_carry_miss_count++;
-         } else {
-            // Too many consecutive misses (or H1+ strict mode): invalidate
-            g_ts_active          = false;
-            g_ts_carried         = 0;
+         // First check hard-kill conditions that indicate a genuine regime change —
+         // these discard the carry-forward immediately, regardless of flicker tolerance.
+         bool hard_kill = false;
+
+         if(g_ts_active)
+         {
+            // Hard-kill 1: UNORDERED phase — market has no clear structure, never trade
+            if(snap_phase == PHASE_UNORDERED)
+               hard_kill = true;
+
+            // Hard-kill 2: EMERGING phase is explicitly blocked by preset/setting
+            else if(Settings.BlockEmergingPhase &&
+               (snap_phase == PHASE_EMERGING || snap_phase == PHASE_EMERGING_UP || snap_phase == PHASE_EMERGING_DN))
+               hard_kill = true;
+
+            // Hard-kill 3: bias no longer supports the carry direction.
+            // snap_bias: +1 = bullish, -1 = bearish, 0 = neutral.
+            // All three cases (opposite direction OR neutral) mean the bias that armed the
+            // carry-forward is gone — this is a genuine regime change, not a 1-bar flicker.
+            else if(snap_bias != g_ts_carried)
+               hard_kill = true;
+
+            // Hard-kill 4: zero indicator votes — genuine regime collapse, not a 1-bar flicker
+            else if(snap_votes == 0)
+               hard_kill = true;
+         }
+
+         if(hard_kill)
+         {
+            // Genuine regime change — discard carry-forward immediately
+            g_ts_active           = false;
+            g_ts_carried          = 0;
             g_ts_carry_miss_count = 0;
          }
-         // Persist reason for 0/5 display
+         else
+         {
+            // No hard-kill: apply flicker tolerance (still valid for genuine 1-bar noise).
+            // M1/M5: 1 miss allowed (indicators flicker on short TFs without invalidating setup)
+            // H1+:   0 misses (strict — indicators are stable on higher TFs)
+            int carry_max_miss = (_Period <= PERIOD_M5) ? 1 : 0;
+            if(g_ts_active && g_ts_carry_miss_count < carry_max_miss) {
+               // Tolerate this miss: keep carry-forward alive
+               g_ts_carry_miss_count++;
+            } else {
+               // Too many consecutive misses (or H1+ strict mode): invalidate
+               g_ts_active           = false;
+               g_ts_carried          = 0;
+               g_ts_carry_miss_count = 0;
+            }
+         }
+
+         // Persist reason for 0/5 display (always)
          g_ts_reason = snap_reason;
          g_ts_votes  = snap_votes;
          g_ts_bias   = snap_bias;
