@@ -87,6 +87,15 @@ double g_ts_risk = 0.0;
 string g_last_te_result = "";   // "ENTERED", "BLOCKED", or "" (no signal this bar)
 string g_last_te_veto   = "";   // "SL_ZERO", "VETO_RISK_CONTROL", "OK", or ""
 
+// --- Cockpit freeze state (panel locked while TS=1 carry-forward is pending TE)
+bool     g_cockpit_freeze_active  = false;   // true while carry-forward is armed
+datetime g_cockpit_freeze_ts_time = 0;       // bar time when TS=1 fired (for banner)
+int      g_cockpit_freeze_dir     = 0;       // +1 BUY / -1 SELL
+int      g_cockpit_freeze_bias    = 0;
+int      g_cockpit_freeze_votes   = 0;
+string   g_cockpit_freeze_reason  = "";
+EMarketPhase g_cockpit_freeze_phase = PHASE_UNORDERED;
+
 // Global tracking for RRM drawdown protection
 int      g_consecutive_losses     = 0;
 int      g_trades_today           = 0;
@@ -690,6 +699,11 @@ void OrchestrateTick()
       // Clear any pending carry-forward when drawdown protection is active
       g_ts_active  = false;
       g_ts_carried = 0;
+      if(g_cockpit_freeze_active)
+      {
+         g_cockpit_freeze_active = false;
+         Print("[COCKPIT FREEZE] Released — drawdown protection active");
+      }
    }
    else
    {
@@ -710,12 +724,13 @@ void OrchestrateTick()
 
       if(ts != 0)
       {
-         // If a new signal fires in the OPPOSITE direction, clear the old carry
+         // If a new signal fires in the OPPOSITE direction, clear the old carry and freeze
          if(g_ts_active && ts != g_ts_carried)
          {
-            g_ts_active          = false;
-            g_ts_carried         = 0;
-            g_ts_carry_miss_count = 0;
+            g_ts_active             = false;
+            g_ts_carried            = 0;
+            g_ts_carry_miss_count   = 0;
+            g_cockpit_freeze_active = false;  // direction changed: old freeze is stale
          }
 
          // Arm the carry-forward with this bar's signal
@@ -792,6 +807,29 @@ void OrchestrateTick()
          g_ts_bias   = snap_bias;
       }
 
+      // --- Cockpit freeze: arm when carry-forward becomes active, release when it ends ---
+      if(g_ts_active && !g_cockpit_freeze_active)
+      {
+         // First bar the carry-forward is live: capture the signal snapshot
+         g_cockpit_freeze_active  = true;
+         g_cockpit_freeze_ts_time = g_ts_time;
+         g_cockpit_freeze_dir     = g_ts_carried;
+         g_cockpit_freeze_bias    = snap_bias;
+         g_cockpit_freeze_votes   = snap_votes;
+         g_cockpit_freeze_reason  = snap_reason;
+         g_cockpit_freeze_phase   = snap_phase;
+         PrintFormat("[COCKPIT FREEZE] Armed at %s dir=%s bias=%d votes=%d reason=%s",
+                     TimeToString(g_cockpit_freeze_ts_time, TIME_DATE|TIME_MINUTES),
+                     (g_cockpit_freeze_dir > 0 ? "BUY" : "SELL"),
+                     g_cockpit_freeze_bias, g_cockpit_freeze_votes, g_cockpit_freeze_reason);
+      }
+      else if(!g_ts_active && g_cockpit_freeze_active)
+      {
+         // Carry-forward was killed (regime change / hard-kill)
+         g_cockpit_freeze_active = false;
+         Print("[COCKPIT FREEZE] Released — carry-forward ended");
+      }
+
       // 8. TE: Attempt Trade Entry if a signal is armed (fresh this bar OR carried from prior bar)
       if(g_ts_active)
       {
@@ -816,10 +854,11 @@ void OrchestrateTick()
 
          if(te == 1)
          {
-            // Trade entered — clear carry-forward
-            g_ts_active          = false;
-            g_ts_carried         = 0;
-            g_ts_carry_miss_count = 0;
+            // Trade entered — clear carry-forward and unfreeze cockpit
+            g_ts_active             = false;
+            g_ts_carried            = 0;
+            g_ts_carry_miss_count   = 0;
+            g_cockpit_freeze_active = false;
          }
          // If te == 0 (VETO_*): leave g_ts_active=true so next bar retries TE
       }
@@ -874,7 +913,14 @@ void OrchestrateTick()
       EnumToString(Settings.TrailMode),
       g_last_te_result,
       g_last_te_veto,
-      g_ts_active
+      g_ts_active,
+      g_cockpit_freeze_active,
+      g_cockpit_freeze_ts_time,
+      g_cockpit_freeze_dir,
+      g_cockpit_freeze_bias,
+      g_cockpit_freeze_votes,
+      g_cockpit_freeze_reason,
+      g_cockpit_freeze_phase
    );
    
    FlowLog("Bar pipeline complete");
