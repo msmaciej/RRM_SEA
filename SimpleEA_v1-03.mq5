@@ -746,17 +746,19 @@ void OrchestrateTick()
                hard_kill = true;
 
             // Hard-kill 2: EMERGING phase is explicitly blocked by preset/setting
-            if(!hard_kill && Settings.BlockEmergingPhase &&
+            else if(Settings.BlockEmergingPhase &&
                (snap_phase == PHASE_EMERGING || snap_phase == PHASE_EMERGING_UP || snap_phase == PHASE_EMERGING_DN))
                hard_kill = true;
 
-            // Hard-kill 3: bias has flipped against the carry direction
-            // snap_bias: +1 = bullish, -1 = bearish, 0 = neutral (which also means flipped)
-            if(!hard_kill && snap_bias != g_ts_carried)
+            // Hard-kill 3: bias no longer supports the carry direction.
+            // snap_bias: +1 = bullish, -1 = bearish, 0 = neutral.
+            // All three cases (opposite direction OR neutral) mean the bias that armed the
+            // carry-forward is gone — this is a genuine regime change, not a 1-bar flicker.
+            else if(snap_bias != g_ts_carried)
                hard_kill = true;
 
             // Hard-kill 4: zero indicator votes — genuine regime collapse, not a 1-bar flicker
-            if(!hard_kill && snap_votes == 0)
+            else if(snap_votes == 0)
                hard_kill = true;
          }
 
