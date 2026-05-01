@@ -4770,47 +4770,36 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| 260304_PR1: Detect Market Phase Based on 3-Layer EMA Voting     |
-   //| Checks all 4 EMAs across 3 layers; requires majority agreement  |
-   //| Returns directional phases (UP/DN) for direct bias mapping      |
+   //| Detect Market Phase by pure EMA2/EMA3/EMA4 positional check    |
+   //| EMA1 is ignored entirely. No slopes. No voting.                 |
+   //|                                                                  |
+   //| TM (Trending):                                                   |
+   //|   Bullish: EMA2 > EMA3 > EMA4  (ascending stack)               |
+   //|   Bearish: EMA4 > EMA3 > EMA2  (descending stack)              |
+   //| EM (Emerging — EMA4 sandwiched):                                |
+   //|   Bullish: EMA2 > EMA4 > EMA3                                   |
+   //|   Bearish: EMA3 > EMA4 > EMA2                                   |
+   //| UNO (Unordered — EMA2 sandwiched or other): NO TRADE           |
    //+------------------------------------------------------------------+
    EMarketPhase DetectMarketPhase(const int shift = 1)
    {
-      double ema1 = GetMAVal(h_ema1, shift, 0);
       double ema2 = GetMAVal(h_ema2, shift, 0);
       double ema3 = GetMAVal(h_ema3, shift, 0);
       double ema4 = GetMAVal(h_ema4, shift, 0);
       
-      if(ema1 == EMPTY_VALUE || ema2 == EMPTY_VALUE || 
-         ema3 == EMPTY_VALUE || ema4 == EMPTY_VALUE)
+      if(ema2 == EMPTY_VALUE || ema3 == EMPTY_VALUE || ema4 == EMPTY_VALUE)
          return PHASE_UNORDERED;
       
-      int slope1 = GetSlope(h_ema1, shift);
-      int slope2 = GetSlope(h_ema2, shift);
-      int slope3 = GetSlope(h_ema3, shift);
-      int slope4 = GetSlope(h_ema4, shift);
+      // TM: perfect ascending/descending stack
+      if(ema2 > ema3 && ema3 > ema4) return PHASE_TRENDING_UP;
+      if(ema4 > ema3 && ema3 > ema2) return PHASE_TRENDING_DN;
       
-      int layer1 = ValidateLayer(ema1, ema2, slope1, slope2, "L1_WEAK");
-      int layer2 = ValidateLayer(ema2, ema3, slope2, slope3, "L2_MEDIUM");
-      int layer3 = ValidateLayer(ema3, ema4, slope3, slope4, "L3_STRONG");
+      // EM: EMA4 (slowest) sandwiched between EMA2 and EMA3
+      if(ema2 > ema4 && ema4 > ema3) return PHASE_EMERGING_UP;
+      if(ema3 > ema4 && ema4 > ema2) return PHASE_EMERGING_DN;
       
-      int long_votes = 0;
-      int short_votes = 0;
-
-      // Phase determined by VOTE COUNT across all 3 layers
-      if(layer1 == 1) long_votes++;
-      if(layer1 == -1) short_votes++;
-      if(layer2 == 1) long_votes++;
-      if(layer2 == -1) short_votes++;
-      if(layer3 == 1) long_votes++;
-      if(layer3 == -1) short_votes++;
-      
-      if(long_votes == 3) return PHASE_TRENDING_UP;   // all 3 agree
-      if(short_votes == 3) return PHASE_TRENDING_DN;  // all 3 agree
-      if(long_votes == 2) return PHASE_EMERGING_UP;   // 2 of 3 agree
-      if(short_votes == 2) return PHASE_EMERGING_DN;  // 2 of 3 agree
-      
-      return PHASE_UNORDERED; // <2 agree
+      // UNO: EMA2 sandwiched or any other arrangement
+      return PHASE_UNORDERED;
    }
    
    //+------------------------------------------------------------------+

@@ -1027,18 +1027,31 @@ public:
 
    double GetTakeProfitPips(int direction) {
       double tp_pips = 0.0;
+      double ref_price = iClose(_Symbol, PERIOD_CURRENT, 1);
       switch(m_settings.TPMode) {
          case TP_MODE_FIXED_PIPS: 
             tp_pips = m_settings.FixedTPPips; 
             break;
          case TP_MODE_RR: {
-            double sl_pips = GetStopLossPips(direction);
-            tp_pips = (sl_pips > 0.0 && m_settings.RRRatio > 0.0) ? sl_pips * m_settings.RRRatio : m_settings.FixedTPPips;
+            double sl_pips = (m_cached_sl > 0.0 && ref_price > 0.0)
+                             ? MathAbs(ref_price - m_cached_sl) / GetPipSize()
+                             : 0.0;
+            if(sl_pips > 0.0 && m_settings.RRRatio > 0.0)
+               tp_pips = sl_pips * m_settings.RRRatio;
+            else {
+               PrintFormat("⚠️ [TP_RR] Cannot compute TP: cached_sl=%.5f ref=%.5f RR=%.2f — TP=0. Check SL configuration and ensure EvaluateCM() ran before GetTakeProfitPips().", m_cached_sl, ref_price, m_settings.RRRatio);
+               tp_pips = 0.0;
+            }
             break;
          }
          case TP_MODE_FRACTAL: {
             tp_pips = GetFractalTP(direction);
-            if(tp_pips <= 0.0) tp_pips = (GetStopLossPips(direction) > 0.0) ? GetStopLossPips(direction) * m_settings.RRRatio : m_settings.FixedTPPips;
+            if(tp_pips <= 0.0) {
+               double sl_pips = (m_cached_sl > 0.0 && ref_price > 0.0)
+                                ? MathAbs(ref_price - m_cached_sl) / GetPipSize()
+                                : 0.0;
+               tp_pips = (sl_pips > 0.0 && m_settings.RRRatio > 0.0) ? sl_pips * m_settings.RRRatio : 0.0;
+            }
             break;
          }
          case TP_MODE_PSAR_FLIP:

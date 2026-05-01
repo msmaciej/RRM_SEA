@@ -6,25 +6,122 @@ SimpleEA is a professional-grade Expert Advisor for MetaTrader 5 implementing a 
 
 ---
 
-## 📊 Signal Evaluation Formula
+## 📊 TS Equation — Signal Evaluation Formula
 
-The EA uses a strict multiplicative formula:
 ```
-TS = Bias × (LayerW × bcW OR LayerM × bcM OR LayerS × bcS) × Indicators × Filters
+TS = B × P × L × I × F
 ```
 
-When using **BIAS_4EMA**, the system can detect **3 types of trade setups**:
-- **LayerW (Weak/Ribbon)**: Shallow pullback to EMA1/2 zone
-- **LayerM (Medium/Ghost)**: Medium pullback to EMA2/3 zone  
-- **LayerS (Strong/Shark)**: Deep pullback to EMA3/4 zone
+Every factor is multiplicative. Any factor = 0 → TS = 0 → NO TRADE.
 
-Only **ONE** layer needs to be active and confirmed for a trade signal.
+| Factor | Name | Purpose |
+|--------|------|---------|
+| **B** | Bias | Market direction: LONG (+1), SHORT (-1), or NONE (0) |
+| **P** | Phase / Market Type | Structural quality of the trend — permits or blocks trading |
+| **L** | Layer / Sub-market | Entry timing via pullback-recovery detection |
+| **I** | Indicators | Technical confirmations (all enabled must agree) |
+| **F** | Filters | Execution conditions: spread, session time, news |
 
-**Bias Modes:**
-- **BIAS_MANUAL:** Fixed operator direction (Long/Short/Both)
-- **BIAS_1EMA:** Single EMA slope direction only
-- **BIAS_2EMA:** Two EMAs — crossover or position+slope
-- **BIAS_4EMA:** Four EMAs — Phase detection (TRENDING/EMERGING/UNORDERED)
+---
+
+### B — Bias
+
+Direction is always determined by the **slowest available EMA pair's position** (or slope if only 1 EMA):
+
+| EMA count | Method | Rule |
+|-----------|--------|------|
+| 1 EMA | Slope of that EMA | Rising → LONG, Falling → SHORT |
+| 2 EMAs | Position: fast vs slow | fast > slow → LONG, fast < slow → SHORT |
+| 3 EMAs | Position: slowest pair (EMA3 vs EMA2) | same positional rule |
+| 4 EMAs | Position: slowest pair (EMA4 vs EMA3) | same positional rule |
+
+The slowest pair is always the most structurally stable signal. Slopes are only used when a single EMA is configured.
+
+---
+
+### P — Phase (Market Type)
+
+Evaluated using **EMA2, EMA3, EMA4 position only**. EMA1 is ignored. No slopes.
+
+| Phase | Bullish condition | Bearish condition | Trade allowed? |
+|-------|-------------------|-------------------|----------------|
+| **TM** (Trending) | EMA2 > EMA3 > EMA4 | EMA4 > EMA3 > EMA2 | ✅ Always |
+| **EM** (Emerging) | EMA2 > **EMA4** > EMA3 | EMA3 > **EMA4** > EMA2 | ✅ If configured |
+| **UNO** (Unordered) | any other arrangement | any other arrangement | ❌ Never |
+
+Key: EM is identified by EMA4 (slowest) being sandwiched between EMA2 and EMA3. UNO is identified by EMA2 (fast) being sandwiched — or any arrangement not matching TM or EM.
+
+---
+
+### L — Layer (Sub-market)
+
+Three sub-markets exist within each bias direction. Each is evaluated independently using its own EMA pair.
+
+| Layer | EMA Pair | Nickname | Priority |
+|-------|----------|----------|----------|
+| **L3** Strong / Shark | EMA3 – EMA4 | Deep pullback | **Highest** (used first) |
+| **L2** Medium / Ghost | EMA2 – EMA3 | Medium pullback | Medium |
+| **L1** Weak / Ribbon | EMA1 – EMA2 | Shallow pullback | Lowest |
+
+**Priority rule**: If multiple layers are valid, take L3 first, then L2, then L1.
+
+**Why L3 is highest probability**: The slowest EMA pair reflects the strongest structural support/resistance. A pullback to EMA3-EMA4 and recovery is the most reliable setup.
+
+**Layer Sub-Equation** (per layer):
+
+```
+L_x = pos_x × slope_x × BC_x × BD_x
+```
+
+Where:
+- **pos_x** — EMA_fast correctly positioned relative to EMA_slow (above for LONG, below for SHORT)
+- **slope_x** — Pullback detected (fast EMA slope flattened/moved toward slow), then recovery (fast EMA slope resumed bias direction)
+- **BC_x** (Bar Close) — Close price is beyond the fast EMA of this layer in bias direction. LONG: close > fast EMA. SHORT: close < fast EMA. Checks the closing price level regardless of wick or body size.
+- **BD_x** (Bar Direction) — Bar closed in bias direction. LONG: close > open (bullish bar). SHORT: close < open (bearish bar). A doji or opposite bar = 0 even if close is beyond the EMA.
+
+**BC and BD are independent**: A bar can close above EMA1 (BC=1) but be bearish (BD=0) → L=0. This correctly rejects uncertainty and market indecision even when price is at the right level.
+
+**Layer independence**: Each layer is evaluated on its own. If EMA1 crosses below EMA2 (L1 invalid), L2 may still be valid if EMA2 slope is pulling toward EMA3 and price closes above EMA2. The BC check is the key discriminator — it determines which layer boundary price actually respected.
+
+---
+
+### I — Indicators
+
+All enabled technical indicators evaluated at bar close (shift=1). All must pass (VOTE_MODE_ALL):
+
+```
+I = MACD × PSAR × RSI × CCI × ADX × MFI × Stoch × BB × CandleBody × ...
+```
+
+**CandleBody** belongs here — it checks whether the bar is a spike (body > N × average body → reject). This is different from BD (which checks direction) and BC (which checks close level).
+
+Disabled indicators contribute 1 (neutral — they do not block).
+
+---
+
+### F — Filters
+
+Execution-moment conditions checked at bar open (shift=0) during TE evaluation:
+- Spread ≤ MaxSpread
+- Session time within configured window
+- No high-impact news imminent
+
+---
+
+### Full TS Flow
+
+```
+Bar N closes (shift=1):
+  B → direction determined
+  P → market type confirmed (UNO = stop)
+  L = pos × slope × BC × BD  (L3 checked first, then L2, then L1)
+  I → all indicators must agree
+  → TS=1: signal armed
+
+Bar N+1 opens (shift=0):
+  F → spread / session / news check
+  → TE=1: trade executed
+```
 
 ---
 
