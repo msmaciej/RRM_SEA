@@ -6,7 +6,7 @@
 // SAVE AS UTF-16 LE WITH BOM
 #property strict
 
-#define SEA_MOD_UI_103001 1
+#define SEA_MOD_UI_103002 1
 
 // -----------------------------------
 // Internal state (no static locals)

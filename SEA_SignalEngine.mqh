@@ -36,11 +36,11 @@
 #property strict
 
 // --- Anti-stale build lock (MQL5-safe: no #if, no #error)
-#ifndef SEA_BUILD_TOKEN_103001
-enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103001 = SEA_BUILD_TOKEN_103001 };
+#ifndef SEA_BUILD_TOKEN_103002
+enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103002 = SEA_BUILD_TOKEN_103002 };
 #endif
 
-#define SEA_MOD_SIGNALENGINE_103001 1
+#define SEA_MOD_SIGNALENGINE_103002 1
 
 
 #include <RRMS\SEA_Config.mqh>
@@ -140,6 +140,7 @@ private:
    int         m_diag_layer_w;       // Last evaluated LayerW result (0/1)
    int         m_diag_layer_m;       // Last evaluated LayerM result (0/1)
    int         m_diag_layer_s;       // Last evaluated LayerS result (0/1)
+   int         m_last_layer;         // Active layer that won (1=Weak, 2=Medium, 3=Strong, 0=none)
 
    // --- 2d. REJECTION STATISTICS ---
    int         m_bars_evaluated;     // Total bars evaluated by EvaluateTS()
@@ -2100,6 +2101,7 @@ public:
       m_diag_layer_w      = 0;
       m_diag_layer_m      = 0;
       m_diag_layer_s      = 0;
+      m_last_layer        = 0;
 
       m_bars_evaluated    = 0;
       m_signals_generated = 0;
@@ -4220,37 +4222,297 @@ public:
       }
    }
 
-   //==========================================================================
-   // === EvaluateTS: BEGIN ===
-   //==========================================================================
-   // This function implements the 9-step signal validation pipeline.
-   // Each step must pass before moving to the next.
-   // If any step fails, the function returns 0 (no trade).
+   // ─────────────────────────────────────────────────────────────────────────
+   // GetBias_4EMA_Direction — Internal helper for EvaluateB (BIAS_4EMA only)
+   // Returns market direction from phase WITHOUT applying phase-gate blocking.
+   // Phase blocking is the responsibility of EvaluateP, not this function.
+   // Returns: +1 (LONG), -1 (SHORT), 0 (UNORDERED — no clear direction)
+   // ─────────────────────────────────────────────────────────────────────────
+   int GetBias_4EMA_Direction(const int v_shift = 1)
+   {
+      if(!m_settings.PhaseDetectionEnabled) return 0;
+
+      EMarketPhase phase = DetectMarketPhase(v_shift);
+      m_diag_last_phase = phase;
+
+      if(m_settings.RequireMinPhaseConfirm && m_settings.MinPhaseConfirmBars > 0)
+         if(!ConfirmPhaseStability(phase, m_settings.MinPhaseConfirmBars)) return 0;
+
+      switch(phase)
+      {
+         case PHASE_TRENDING_UP:
+         case PHASE_EMERGING_UP:  return 1;
+         case PHASE_TRENDING_DN:
+         case PHASE_EMERGING_DN:  return -1;
+         case PHASE_TRENDING:
+         case PHASE_EMERGING: {
+            double ema2 = GetMAVal(h_ema2, v_shift, 0);
+            double ema4 = GetMAVal(h_ema4, v_shift, 0);
+            double tol  = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+            if(ema2 > ema4 + tol) return 1;
+            if(ema4 > ema2 + tol) return -1;
+            return 0;
+         }
+         case PHASE_UNORDERED:
+         default: return 0;
+      }
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
+   // EvaluateB — Bias (TS equation factor B)
+   // Returns +1 (LONG), -1 (SHORT), or 0 (no directional bias → blocked).
    //
-   // PROCESS FLOW:
-   // 1. PRE-FILTERS: Spread, time checks
-   // 2. MARKET BIAS: Check EMA position and slopes
-   //    - SINGLE_SLOPE: EMA rising/falling (when BiasFastID == BiasSlowID)
-   //    - PAIR: Fast > Slow AND both rising (LONG) or Fast < Slow AND both falling (SHORT)
-   //    - NEUTRAL: Neither condition met -> REJECT
-   // 3. AUTOSTRAT: Generate entry signal based on strategy
-   //    - STRAT_1EMA_SLOPE: Single EMA direction
-   //    - STRAT_2EMA_CROSS_PRICE: Price vs EMA
-   //    - STRAT_2EMA_CROSS_EMA: EMA crossover
-   // 4. SIGNAL VALIDATION: Entry signal must match bias
-   // 5. HTF FILTER: Higher timeframe must agree with bias
-   // 6. RRM GATES: Check pullback/divergence if enabled
-   // 7. VOTING BYPASS: Skip voting if threshold <= 1
-   // 8. INDICATOR VOTING: Count indicator confirmations
-   // 9. FINAL DECISION: Accept if votes >= threshold
+   // For BIAS_4EMA: uses slowest EMA pair (EMA3/EMA4) via phase classification.
+   //   Direction is returned WITHOUT phase-gate blocking; EvaluateP handles that.
+   // For all other modes: delegates to the existing EvaluateBias() implementation.
+   // ─────────────────────────────────────────────────────────────────────────
+   int EvaluateB(int v_shift)
+   {
+      if(m_settings.BiasMode != BIAS_4EMA)
+         return EvaluateBias(v_shift);  // Non-4EMA: existing logic unchanged
+
+      // ── BIAS_4EMA path: direction from phase, no phase-gate blocking ──
+      if(!m_settings.BiasEnabled) {
+         m_diag_last_reason = "BIAS_DISABLED";
+         m_reject_bias++;
+         m_stats.rejected_bias++;
+         m_eval_str_B = "0";
+         m_ts_status_string = "B[-] | P[-] | L[-] | I[-]";
+         return 0;
+      }
+
+      int bias = GetBias_4EMA_Direction(v_shift);
+      m_eval_str_B = (bias != 0) ? "+" : "POS";
+
+      if(m_settings.DebugFlow) {
+         datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+         DebugLog(StringFormat("EvaluateB[%s]: BIAS_4EMA phase=%s → bias=%d",
+                               TimeToString(bar_time), EnumToString(m_diag_last_phase), bias));
+      }
+
+      if(bias == 0) {
+         m_diag_last_reason = "BIAS_ZERO";
+         m_reject_bias++;
+         m_stats.rejected_bias++;
+         if(!m_settings.Stats_FullEvaluation) {
+            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+            m_diag_last_bias = 0;
+            return 0;
+         }
+         if(m_eval_first_failure == "") m_eval_first_failure = "BIAS_ZERO";
+         m_eval_any_failure = true;
+      } else {
+         m_stats.passed_bias++;
+         // HTF filter (same as in EvaluateBias for BIAS_4EMA mode)
+         if(m_settings.UseHTF) {
+            double curr = GetMAVal(h_htf_ema, 1);
+            double prev = GetMAVal(h_htf_ema, 2);
+            int htf_dir = (curr > prev) ? 1 : -1;
+            if(bias != htf_dir) {
+               m_diag_last_reason = "HTF_VETO";
+               m_reject_gate++;
+               if(m_settings.DebugFlow) {
+                  datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+                  DebugLog(StringFormat("EvaluateB[%s]: HTF VETO bias=%d htf=%d",
+                                        TimeToString(bar_time), bias, htf_dir));
+               }
+               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+               m_diag_last_bias = 0;
+               return 0;
+            }
+         }
+      }
+
+      m_diag_last_bias = bias;
+      return bias;
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
+   // EvaluateP — Phase (TS equation factor P)
+   // Returns 1 (phase allows trading) or 0 (phase blocks trading).
    //
-   // RETURNS: 1 (LONG), -1 (SHORT), 0 (NO TRADE)
-   //==========================================================================
-   // EvaluateTS() - Main Signal Processing Pipeline (WITH DIAGNOSTICS & TELEMETRY)
-   // Evaluates strictly on the closed candle (shift=1)
-   //==========================================================================
-   int EvaluateTS() 
-   {   
+   // Only meaningful for BiasMode == BIAS_4EMA with PhaseDetectionEnabled.
+   // For all other configurations returns 1 (not applicable, pass through).
+   //
+   //   PHASE_UNORDERED  → always 0 (no market structure)
+   //   PHASE_EMERGING_* → 0 if BlockEmergingPhase=true, else 1
+   //   PHASE_TRENDING_* → 1 (fully aligned market structure)
+   // ─────────────────────────────────────────────────────────────────────────
+   int EvaluateP(int v_shift, int bias)
+   {
+      if(m_settings.BiasMode != BIAS_4EMA || !m_settings.PhaseDetectionEnabled)
+         return 1;  // Not applicable for non-4EMA modes → pass
+
+      // m_diag_last_phase was set by GetBias_4EMA_Direction inside EvaluateB
+      EMarketPhase phase = m_diag_last_phase;
+
+      if(m_settings.DebugFlow) {
+         datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+         DebugLog(StringFormat("EvaluateP[%s]: phase=%s bias=%d",
+                               TimeToString(bar_time), EnumToString(phase), bias));
+      }
+
+      // UNORDERED: no clear market structure → block when BlockUnorderedPhase=true.
+      // Note: GetBias_4EMA_Direction() already returns 0 for UNORDERED (no direction
+      // is possible when EMA stack is chaotic), so EvaluateB returns B=0 in this case.
+      // EvaluateP always runs this check; in non-full_eval mode EvaluateTS will have
+      // already returned early when B=0, so this check mainly applies in full_eval mode
+      // for complete per-factor stat attribution.
+      if(phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase) {
+         m_diag_last_reason = "PHASE_UNORDERED";
+         m_reject_gate++;
+         if(m_settings.DebugFlow) Print("[EvaluateP] UNORDERED phase → no market structure");
+         if(!m_settings.Stats_FullEvaluation) {
+            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+            return 0;
+         }
+         if(m_eval_first_failure == "") m_eval_first_failure = "PHASE_UNORDERED";
+         m_eval_any_failure = true;
+         return 0;
+      }
+
+      // EMERGING: trend forming — configurable gate
+      bool is_emerging = (phase == PHASE_EMERGING_UP || phase == PHASE_EMERGING_DN ||
+                          phase == PHASE_EMERGING);
+      if(is_emerging && m_settings.BlockEmergingPhase) {
+         m_diag_last_reason = "PHASE_EMERGING";
+         m_reject_gate++;
+         if(m_settings.DebugFlow) Print("[EvaluateP] EMERGING phase blocked (BlockEmergingPhase=true)");
+         if(!m_settings.Stats_FullEvaluation) {
+            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+            return 0;
+         }
+         if(m_eval_first_failure == "") m_eval_first_failure = "PHASE_EMERGING";
+         m_eval_any_failure = true;
+         return 0;
+      }
+
+      return 1;  // TRENDING or allowed EMERGING → pass
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
+   // EvaluateL — Layer (TS equation factor L)
+   // Evaluates pullback-recovery timing via EMA pair alignment with L3→L2→L1 priority.
+   //
+   // Per-layer sub-equation: L_x = pos_x × slope_x × BC_x × BD_x
+   //   pos   = fast EMA correctly above/below slow EMA for bias direction
+   //   slope = both EMAs slope in bias direction (recovery confirmed)
+   //   BC    = bar close price beyond fast EMA of that layer (no wicks)
+   //   BD    = bar direction matches bias (close > open LONG / close < open SHORT)
+   //
+   // Priority: L3 (Strong/EMA3-EMA4) → L2 (Medium/EMA2-EMA3) → L1 (Weak/EMA1-EMA2)
+   // First layer passing ALL 4 checks wins; active layer stored in m_last_layer.
+   //
+   // Returns 1 if any layer passes, 0 if none.
+   // If EnableLayerDetection=false or BiasMode!=BIAS_4EMA → returns 1 (N/A, pass).
+   // ─────────────────────────────────────────────────────────────────────────
+   int EvaluateL(int v_shift, int bias)
+   {
+      if(!m_settings.EnableLayerDetection || m_settings.BiasMode != BIAS_4EMA)
+      {
+         m_eval_layer_w = 1; m_eval_layer_m = 1; m_eval_layer_s = 1;
+         m_diag_layer_w = 1; m_diag_layer_m = 1; m_diag_layer_s = 1;
+         m_last_layer   = 0;
+         if(m_settings.DebugFlow) DebugLog("EvaluateL: Disabled/N/A (non-4EMA mode) → PASS");
+         return 1;
+      }
+
+      // Step 1: pos × slope alignment check for all three layers
+      m_eval_layer_w = CheckLayerPairAlign(bias, 1);
+      m_eval_layer_m = CheckLayerPairAlign(bias, 2);
+      m_eval_layer_s = CheckLayerPairAlign(bias, 3);
+      m_diag_layer_w = m_eval_layer_w;
+      m_diag_layer_m = m_eval_layer_m;
+      m_diag_layer_s = m_eval_layer_s;
+
+      if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
+         DebugLog(StringFormat("[EvaluateL] LayerW=%d LayerM=%d LayerS=%d (bias=%d)",
+                               m_eval_layer_w, m_eval_layer_m, m_eval_layer_s, bias));
+      }
+
+      // Step 2: BD (Bar Direction) — same bar, applies equally to all layers
+      bool bd_pass = CheckCandleDirectionGate(bias);
+
+      // Step 3: Priority walk L3 → L2 → L1; each layer also needs BC and BD
+      if(m_eval_layer_s == 1) {
+         int bc_s = Eval_BarClose(v_shift, bias, LAYER_3_STRONG);
+         if(bc_s == 1 && bd_pass) {
+            m_last_layer = 3;
+            if(m_settings.DebugFlow) DebugLog("EvaluateL: L3 (Strong/EMA3-EMA4) PASS → L=1");
+            return 1;
+         }
+      }
+
+      if(m_eval_layer_m == 1) {
+         int bc_m = Eval_BarClose(v_shift, bias, LAYER_2_MEDIUM);
+         if(bc_m == 1 && bd_pass) {
+            m_last_layer = 2;
+            if(m_settings.DebugFlow) DebugLog("EvaluateL: L2 (Medium/EMA2-EMA3) PASS → L=1");
+            return 1;
+         }
+      }
+
+      if(m_eval_layer_w == 1) {
+         int bc_w = Eval_BarClose(v_shift, bias, LAYER_1_WEAK);
+         if(bc_w == 1 && bd_pass) {
+            m_last_layer = 1;
+            if(m_settings.DebugFlow) DebugLog("EvaluateL: L1 (Weak/EMA1-EMA2) PASS → L=1");
+            return 1;
+         }
+      }
+
+      // No layer passed all checks
+      m_last_layer = 0;
+      if(m_eval_layer_w == 0 && m_eval_layer_m == 0 && m_eval_layer_s == 0)
+         m_diag_last_reason = "LAYER_NONE_ALIGNED";
+      else if(!bd_pass)
+         m_diag_last_reason = "CandleDir: bar not in trade direction";
+      else
+         m_diag_last_reason = "BC_NOT_CONFIRMED";
+
+      m_reject_gate++;
+      if(m_settings.DebugFlow) DebugLog(StringFormat("EvaluateL: REJECT (%s)", m_diag_last_reason));
+      if(!m_settings.Stats_FullEvaluation) {
+         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+         return 0;
+      }
+      if(m_eval_first_failure == "") m_eval_first_failure = m_diag_last_reason;
+      m_eval_any_failure = true;
+      return 0;
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
+   // EvaluateI — Indicators (TS equation factor I)
+   // Thin wrapper: all indicator voting logic, diagnostics, and counters are
+   // preserved exactly as in EvaluateIndicatorX.
+   // Returns +bias (all enabled indicators pass) or 0 (consensus not reached).
+   // ─────────────────────────────────────────────────────────────────────────
+   int EvaluateI(int v_shift, int bias)
+   {
+      return EvaluateIndicatorX(v_shift, bias);
+   }
+
+   // ══════════════════════════════════════════════════════════════════════
+   // SIGNAL EVALUATION — TS/TE EQUATION
+   //
+   // TS = B × P × L × I        (bar close, shift=1)
+   // TE = F                     (bar open, shift=0)
+   //
+   // B  Bias:       Direction from slowest EMA pair (+1 LONG / -1 SHORT / 0 block)
+   // P  Phase:      Market type — TM/EM allowed, UNO always blocks
+   //                Evaluated via EMA2/EMA3/EMA4 position only (no slopes)
+   // L  Layer:      Pullback-recovery timing (L3 > L2 > L1 priority)
+   //                Per layer: pos × slope × BC × BD
+   //                  BC = bar close beyond fast EMA (close price vs EMA, no wicks)
+   //                  BD = bar direction in bias (close > open LONG / close < open SHORT)
+   // I  Indicators: All enabled must agree (MACD, PSAR, RSI, CCI, ADX, ...)
+   //                CandleBody (spike filter) belongs here, not in L
+   // F  Filters:    Spread × session × news (execution-moment, TE only)
+   //
+   // Any factor = 0 → whole equation = 0 → NO TRADE
+   // ══════════════════════════════════════════════════════════════════════
+   int EvaluateTS()
+   {
       int v_shift = m_settings.Vote_EvalShift;
       m_debug_buffer_size = 0;
       ArrayResize(m_debug_buffer, 0);
@@ -4274,7 +4536,7 @@ public:
       UpdatePhaseDiagnostics(m_settings.ma_v_shift);
 
       // ═══════════════════════════════════════════════════════════════
-      // Reset diagnostics, telemetry, and KISS evaluation state
+      // Reset diagnostics, telemetry, and evaluation state
       // ═══════════════════════════════════════════════════════════════
       m_diag_last_bias   = 0;
       m_diag_last_votes  = 0;
@@ -4291,7 +4553,7 @@ public:
       m_bars_evaluated++;
       m_stats.total_bars++;
 
-      // Reset KISS evaluation state (shared between component functions)
+      // Reset evaluation state (shared between named component functions)
       m_eval_any_failure   = false;
       m_eval_first_failure = "";
       m_eval_str_F         = "OK";
@@ -4302,6 +4564,7 @@ public:
       m_eval_layer_s       = 0;
       m_eval_vote_weight   = 0.0;
       m_eval_all_pass      = false;
+      m_last_layer         = 0;
 
       // Bar-close diagnostic banner
       if(m_settings.DebugFlow) {
@@ -4312,14 +4575,11 @@ public:
          DebugLog("[EVAL_START] ===========================================");
       }
 
-      // ════════════════════════════════════════════════════════════
-      // KISS FORMULA: TS = Bias × LayerX × bcX × IndicatorX × FilterX
-      // Each component returns 0 (fail/block) or 1/±bias (pass)
-      // ════════════════════════════════════════════════════════════
+      bool full_eval = m_settings.Stats_FullEvaluation;
 
-      // COMPONENT 1: FilterX — Non-directional gates (time, news, spread)
-      int filterX = EvaluateFilterX(v_shift);
-      if(filterX == 0 && !m_settings.Stats_FullEvaluation) {
+      // ── B: Bias ──────────────────────────────────────────────────
+      int B = EvaluateB(v_shift);
+      if(B == 0 && !full_eval) {
          m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
          UpdateTelemetry(0);
          FlushOrClearDebugBuffer(0);
@@ -4327,65 +4587,52 @@ public:
          return 0;
       }
 
-      // COMPONENT 2: Bias — Directional market condition
-      int bias = EvaluateBias(v_shift);
-      if(bias == 0 && !m_settings.Stats_FullEvaluation) {
+      // ── P: Phase ─────────────────────────────────────────────────
+      int P = EvaluateP(v_shift, B);
+      if(P == 0 && !full_eval) {
          m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
          UpdateTelemetry(0);
          FlushOrClearDebugBuffer(0);
          RestoreForcedDebug();
          return 0;
       }
-      m_diag_last_bias = bias;
 
-      // COMPONENT 3: LayerX — EMA pair structural alignment (hard gate)
-      int layerX = EvaluateLayerX(v_shift, bias);
-      if(layerX == 0) {
+      // ── L: Layer ─────────────────────────────────────────────────
+      int L = EvaluateL(v_shift, B);
+      if(L == 0 && !full_eval) {
+         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
          UpdateTelemetry(0);
          FlushOrClearDebugBuffer(0);
          RestoreForcedDebug();
          return 0;
       }
 
-      // COMPONENT 4: bcX — Bar close confirmation (hard gate)
-      int bcX = EvaluateBcX(v_shift, bias);
-      if(bcX == 0) {
-         UpdateTelemetry(0);
-         FlushOrClearDebugBuffer(0);
-         RestoreForcedDebug();
-         return 0;
-      }
-
-      // COMPONENT 4b: CandleDirectionGate — signal bar must close in trade direction (hard gate)
-      // Runs independently of whether the CandleBody overextension voter is enabled.
-      if(!CheckCandleDirectionGate(bias)) {
-         m_diag_last_reason = "CandleDir: bar not in trade direction";
-         UpdateTelemetry(0);
-         FlushOrClearDebugBuffer(0);
-         RestoreForcedDebug();
-         return 0;
-      }
-
-      // COMPONENT 5: IndicatorX — Voting consensus
-      int indicatorX = EvaluateIndicatorX(v_shift, bias);
+      // ── I: Indicators ─────────────────────────────────────────────
+      int I = EvaluateI(v_shift, B);
 
       // ════════════════════════════════════════════════════════════
-      // FINAL DECISION
+      // FINAL DECISION: TS = B × P × L × I
       // ════════════════════════════════════════════════════════════
       int final_signal = 0;
 
       if(m_eval_any_failure) {
-         // FullEval mode: accumulated failure from FilterX or EvaluateBias
+         // Stats_FullEvaluation mode: accumulated failure from B, P, or L
          if(m_diag_last_reason == "") m_diag_last_reason = m_eval_first_failure;
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
       }
-      else if(indicatorX == 0) {
-         // Indicator voting failed (reason already set by EvaluateIndicatorX)
+      else if(I == 0) {
+         // Indicator voting failed (reason already set by EvaluateI/EvaluateIndicatorX)
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
       }
       else {
-         // All components passed → signal confirmed
-         final_signal = bias;
+         // All factors passed → signal confirmed
+         final_signal = B;
+         // Note: m_diag_last_bias was already set by EvaluateB; update for consistency
+         m_diag_last_bias = B;
+         m_ts_status_string = StringFormat("B[%s] | P[%s] | L[L%d] | I[OK]",
+                                            (B > 0 ? "L" : (B < 0 ? "S" : "0")),
+                                            EnumToString(m_diag_last_phase),
+                                            m_last_layer);
          if(m_settings.DebugFlow && final_signal != 0)
             DebugLog(StringFormat("[RESULT] TS=%d (Votes: %.2f)", final_signal, m_eval_vote_weight));
       }
@@ -4397,9 +4644,6 @@ public:
       // ===== TS PIPELINE SUMMARY =====
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
          datetime sum_bar_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.ma_v_shift);
-         // Re-read spread for summary
-         double spread_pips = SpreadPips();
-         bool spread_pass = !(m_settings.UseSpread && m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread);
          DebugLog("════════════════════════════════════════════════════════════");
          DebugLog(StringFormat("[TS_SUMMARY] Bar: %s (shift=%d)",
                                TimeToString(sum_bar_time, TIME_DATE|TIME_MINUTES),
@@ -4407,24 +4651,19 @@ public:
          DebugLog("════════════════════════════════════════════════════════════");
          DebugLog("");
 
-         // GATES SECTION
-         DebugLog("GATES:");
-         if(m_settings.UseSpread && m_settings.MaxSpread > 0.0) {
-            DebugLog(StringFormat("  %s Spread: %.1f / %.1f pips max",
-                                  spread_pass ? "✅" : "❌", spread_pips, m_settings.MaxSpread));
-         } else {
-            DebugLog("  ⏭️  Spread: disabled");
-         }
-         DebugLog("  ⏭️  Time window: " + (m_settings.UseTime ? "active" : "disabled"));
-         DebugLog("  ⏭️  News filter: " + (m_settings.UseNews ? "active" : "disabled"));
+         // F (FILTERS) NOTE — evaluated at TE (bar open), not at TS (bar close)
+         DebugLog("F (FILTERS) — evaluated at TE execution moment, not here:");
+         DebugLog("  ⏭️  Spread: checked at TE (" + (m_settings.UseSpread ? "enabled" : "disabled") + ")");
+         DebugLog("  ⏭️  Time window: checked at TE (" + (m_settings.UseTime ? "active" : "disabled") + ")");
+         DebugLog("  ⏭️  News filter: checked at TE (" + (m_settings.UseNews ? "active" : "disabled") + ")");
          DebugLog("");
 
          // BIAS & STRUCTURE SECTION
          DebugLog("BIAS & STRUCTURE:");
-         if(bias == 0) {
-            DebugLog(StringFormat("  ❌ Bias: NEUTRAL (%s)", m_diag_last_reason));
+         if(B == 0) {
+            DebugLog(StringFormat("  ❌ Bias (B): NEUTRAL (%s)", m_diag_last_reason));
          } else {
-            DebugLog(StringFormat("  ✅ Bias: %s (EMAs aligned)", bias > 0 ? "LONG" : "SHORT"));
+            DebugLog(StringFormat("  ✅ Bias (B): %s (EMAs aligned)", B > 0 ? "LONG" : "SHORT"));
          }
          if(m_settings.PhaseDetectionEnabled) {
             string phase_str = EnumToString(m_diag_last_phase);
@@ -4433,17 +4672,18 @@ public:
                                       m_diag_last_phase == PHASE_EMERGING);
             bool phase_blocked = (m_diag_last_phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase) ||
                                  (is_emerging_phase && m_settings.BlockEmergingPhase);
-            DebugLog(StringFormat("  %s Phase: %s%s",
+            DebugLog(StringFormat("  %s Phase (P): %s%s",
                                   phase_blocked ? "❌" : "✅", phase_str,
                                   phase_blocked ? " (blocked)" : ""));
          } else {
-            DebugLog("  ⏭️  Phase: disabled");
+            DebugLog("  ⏭️  Phase (P): disabled");
          }
          if(m_settings.EnableLayerDetection && m_settings.BiasMode == BIAS_4EMA) {
-            DebugLog(StringFormat("  └ KISS Layers: W=%d M=%d S=%d",
-                                  m_diag_layer_w, m_diag_layer_m, m_diag_layer_s));
+            DebugLog(StringFormat("  %s Layer (L): W=%d M=%d S=%d → active=L%d",
+                                  (L == 1) ? "✅" : "❌",
+                                  m_diag_layer_w, m_diag_layer_m, m_diag_layer_s, m_last_layer));
          } else {
-            DebugLog("  └  Layer: disabled (non-4EMA mode)");
+            DebugLog("  └  Layer (L): disabled (non-4EMA mode)");
          }
          DebugLog("");
 
@@ -4567,7 +4807,7 @@ public:
       }
 
       // 2. Bias Interrogation
-      if(bias != 0) {
+      if(B != 0) {
          m_eval_str_B = "+";
       } else {
          double f_val = GetMAVal(BiasFastHandle(), v_shift);
