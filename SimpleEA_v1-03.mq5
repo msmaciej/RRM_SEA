@@ -735,16 +735,20 @@ void OrchestrateTick()
 
       if(ts != 0)
       {
-         // If a new signal fires in the OPPOSITE direction, clear the old carry and freeze
+         // Only draw a line when this is a genuinely NEW signal
+         // (carry was NOT already active in the same direction)
+         bool is_fresh_signal = (!g_ts_active || ts != g_ts_carried);
+
+         // If a new signal fires in the OPPOSITE direction, clear old carry and freeze
          if(g_ts_active && ts != g_ts_carried)
          {
             g_ts_active             = false;
             g_ts_carried            = 0;
             g_ts_carry_miss_count   = 0;
-            g_cockpit_freeze_active = false;  // direction changed: old freeze is stale
+            g_cockpit_freeze_active = false;
          }
 
-         // Arm the carry-forward with this bar's signal
+         // Arm signal state
          g_ts_active  = true;
          g_ts_carried = ts;
 
@@ -753,66 +757,21 @@ void OrchestrateTick()
          g_ts_bias   = snap_bias;
          g_ts_votes  = snap_votes;
          g_ts_reason = snap_reason;
-         g_ts_carry_miss_count = 0;  // reset miss counter on fresh signal
+         g_ts_carry_miss_count = 0;
 
-         if(Settings.DrawEntryLines)
+         // Only draw the entry line for a fresh (new) signal
+         if(Settings.DrawEntryLines && is_fresh_signal)
             SEA_DrawEntrySignalLine(g_ts_time, ts, snap_reason);
       }
-      else 
+      else
       {
-         // TS=0 on current bar
-         // First check hard-kill conditions that indicate a genuine regime change —
-         // these discard the carry-forward immediately, regardless of flicker tolerance.
-         bool hard_kill = false;
+         // TS=0 this bar: discard any pending signal immediately.
+         // No carry-forward, no flicker tolerance — each bar is evaluated fresh.
+         g_ts_active           = false;
+         g_ts_carried          = 0;
+         g_ts_carry_miss_count = 0;
 
-         if(g_ts_active)
-         {
-            // Hard-kill 1: UNORDERED phase — market has no clear structure, never trade
-            if(snap_phase == PHASE_UNORDERED)
-               hard_kill = true;
-
-            // Hard-kill 2: EMERGING phase is explicitly blocked by preset/setting
-            else if(Settings.BlockEmergingPhase &&
-               (snap_phase == PHASE_EMERGING || snap_phase == PHASE_EMERGING_UP || snap_phase == PHASE_EMERGING_DN))
-               hard_kill = true;
-
-            // Hard-kill 3: bias no longer supports the carry direction.
-            // snap_bias: +1 = bullish, -1 = bearish, 0 = neutral.
-            // All three cases (opposite direction OR neutral) mean the bias that armed the
-            // carry-forward is gone — this is a genuine regime change, not a 1-bar flicker.
-            else if(snap_bias != g_ts_carried)
-               hard_kill = true;
-
-            // Hard-kill 4: zero indicator votes — genuine regime collapse, not a 1-bar flicker
-            else if(snap_votes == 0)
-               hard_kill = true;
-         }
-
-         if(hard_kill)
-         {
-            // Genuine regime change — discard carry-forward immediately
-            g_ts_active           = false;
-            g_ts_carried          = 0;
-            g_ts_carry_miss_count = 0;
-         }
-         else
-         {
-            // No hard-kill: apply flicker tolerance (still valid for genuine 1-bar noise).
-            // M1/M5: 1 miss allowed (indicators flicker on short TFs without invalidating setup)
-            // H1+:   0 misses (strict — indicators are stable on higher TFs)
-            int carry_max_miss = (_Period <= PERIOD_M5) ? 1 : 0;
-            if(g_ts_active && g_ts_carry_miss_count < carry_max_miss) {
-               // Tolerate this miss: keep carry-forward alive
-               g_ts_carry_miss_count++;
-            } else {
-               // Too many consecutive misses (or H1+ strict mode): invalidate
-               g_ts_active           = false;
-               g_ts_carried          = 0;
-               g_ts_carry_miss_count = 0;
-            }
-         }
-
-         // Persist reason for 0/5 display (always)
+         // Persist reason for cockpit display
          g_ts_reason = snap_reason;
          g_ts_votes  = snap_votes;
          g_ts_bias   = snap_bias;
@@ -865,13 +824,21 @@ void OrchestrateTick()
 
          if(te == 1)
          {
-            // Trade entered — clear carry-forward and unfreeze cockpit
+            // Trade entered — clear signal and unfreeze cockpit
             g_ts_active             = false;
             g_ts_carried            = 0;
             g_ts_carry_miss_count   = 0;
             g_cockpit_freeze_active = false;
          }
-         // If te == 0 (VETO_*): leave g_ts_active=true so next bar retries TE
+         else
+         {
+            // TE vetoed — discard signal. Do NOT carry forward.
+            // Next bar will evaluate TS fresh; if still valid, TE will be attempted again.
+            g_ts_active             = false;
+            g_ts_carried            = 0;
+            g_ts_carry_miss_count   = 0;
+            // cockpit freeze is released by the !g_ts_active check in the freeze logic below
+         }
       }
    }
 
