@@ -50,6 +50,7 @@ private:
    double      m_cached_sl;    // SL pre-computed from historical anchor (EvaluateCM)
    double      m_cached_lots;  // Lots from m_cached_sl (EvaluateCM)
    double      m_cached_risk;  // Risk % (EvaluateCM)
+   int         m_spread_block_bars;  // consecutive new-bar EvaluateTE calls blocked by VETO_SPREAD
    
    // Position excursion tracking
    struct SPositionExcursion {
@@ -700,6 +701,7 @@ public:
                        m_last_tm_bar(0), m_initial_sl_price(0.0), m_rrm_freeze_time(0),
                        m_last_te_time(0), m_last_te_result(""), m_last_te_reason(""),
                        m_cached_sl(0.0), m_cached_lots(0.0), m_cached_risk(0.0),
+                       m_spread_block_bars(0),
                        m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE) // CACHED HANDLES
    {
       m_excursion.ticket = 0; m_excursion.entry_time = 0; m_excursion.entry_price = 0.0;
@@ -718,6 +720,7 @@ public:
    double   LastCachedLots() const { return m_cached_lots; }
    double   LastCachedRisk() const { return m_cached_risk; }
    string   LastVetoReason() const { return m_te_veto_reason; }
+   int      SpreadBlockBars() const { return m_spread_block_bars; }
 
    int CooldownBarsRemaining() const
    {
@@ -1387,6 +1390,32 @@ public:
       int F = EvaluateF(news_blocked_override);
       if(F == 0) {
          te_reject_reason = m_te_veto_reason;
+         // Spread retry cap: track consecutive spread-blocked bars
+         if(m_te_veto_reason == "VETO_SPREAD")
+         {
+            m_spread_block_bars++;
+            if(m_settings.MaxSpreadRetryBars > 0 &&
+               m_spread_block_bars >= m_settings.MaxSpreadRetryBars)
+            {
+               double pip = GlobalPipSize(m_symbol);
+               double ask = SymbolInfoDouble(m_symbol, SYMBOL_ASK);
+               double bid = SymbolInfoDouble(m_symbol, SYMBOL_BID);
+               double spread_pips = (pip > 0.0) ? (ask - bid) / pip : 0.0;
+               PrintFormat("⚠️ [TE] VETO_SPREAD_TIMEOUT after %d bars. Killing carry. spread=%.1f > max=%.1f",
+                           m_spread_block_bars, spread_pips, m_settings.MaxSpread);
+               m_te_veto_reason = "VETO_SPREAD_TIMEOUT";
+               te_reject_reason = "VETO_SPREAD_TIMEOUT";
+               m_spread_block_bars = 0;
+            }
+         }
+         else
+         {
+            m_spread_block_bars = 0;  // reset counter on any non-spread veto
+         }
+      }
+      else
+      {
+         m_spread_block_bars = 0;  // reset counter when filters pass
       }
 
       double te_lots = 0;

@@ -1096,10 +1096,27 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── POST-TRADE COOLDOWN ───────────────────────────────────────────
       cfg.MinBarsAfterClose         = 3;
 
+      // ── SPREAD RETRY CAP ─────────────────────────────────────────────
+      cfg.MaxSpreadRetryBars        = 3;
+
+      // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────────
+      // EmaFanMaxTotalPips=25.0 is an empirically chosen starting point for
+      // M1/M5 charts with the standard EMA5/13/34/89 fan. It represents the
+      // approximate fan width at which trend exhaustion typically begins on
+      // major FX pairs (e.g. EURUSD, GBPUSD). Adjust per instrument and TF:
+      //   M15/H1: consider 40–60 pips; H4+: 80–120 pips.
+      // JPY pairs: GlobalPipSize() returns the correct pip unit automatically.
+      cfg.EmaFanFilterEnabled       = true;
+      cfg.EmaFanMaxTotalPips        = 25.0;
+
+      // ── DPI DECELERATION FILTER ────────────────────────────────────────
+      // DPI voter not enabled in PRESET_RRM base; filter stays inactive.
+      cfg.DpiDecelFilterEnabled     = false;
+
       return;
    }
-   
-   
+
+
    if(preset == PRESET_RRM_ORG)
    {
       // ================================================================
@@ -1338,12 +1355,25 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── POST-TRADE COOLDOWN ───────────────────────────────────────────
       cfg.MinBarsAfterClose         = 3;
 
+      // ── SPREAD RETRY CAP ─────────────────────────────────────────────
+      cfg.MaxSpreadRetryBars        = 3;
+
+      // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────────
+      // EmaFanMaxTotalPips=25.0 is an empirically chosen starting point for
+      // M1/M5 charts with the standard EMA5/13/34/89 fan. It represents the
+      // approximate fan width at which trend exhaustion typically begins on
+      // major FX pairs (e.g. EURUSD, GBPUSD). Adjust per instrument and TF:
+      //   M15/H1: consider 40–60 pips; H4+: 80–120 pips.
+      // JPY pairs: GlobalPipSize() returns the correct pip unit automatically.
+      cfg.EmaFanFilterEnabled       = true;
+      cfg.EmaFanMaxTotalPips        = 25.0;
+
+      // ── DPI DECELERATION FILTER ────────────────────────────────────────
+      // DPI voter is enabled in PRESET_RRM_ORG — decel filter is active.
+      cfg.DpiDecelFilterEnabled     = true;
+
       return;
    }
-   
-   
-   //+------------------------------------------------------------------+
-   //| PRESET_TEST: Indicator & Component Testing Harness               |
    //+------------------------------------------------------------------+
    // PURPOSE:
    //   Sandbox environment for testing individual indicators, voting

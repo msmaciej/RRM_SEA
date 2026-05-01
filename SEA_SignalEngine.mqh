@@ -4492,6 +4492,58 @@ public:
       return EvaluateIndicatorX(v_shift, bias);
    }
 
+   // ─────────────────────────────────────────────────────────────────────────
+   // ComputeDPIMainHist — Inline TSI histogram computation for deceleration check
+   // Computes main_hist (main_line - signal_line) at two consecutive shifts:
+   //   out_hist_cur  = histogram value at v_shift   (current bar)
+   //   out_hist_prev = histogram value at v_shift+1 (previous bar)
+   // Returns false if insufficient bars, DPI not enabled, or computation fails.
+   // Used by the DPI deceleration pre-filter in EvaluateTS.
+   // ─────────────────────────────────────────────────────────────────────────
+   bool ComputeDPIMainHist(int v_shift, double &out_hist_cur, double &out_hist_prev)
+   {
+      if(!m_settings.Ind_Dpi_Enabled) return false;
+
+      int R     = m_settings.DPI_TSI_R;
+      int S     = m_settings.DPI_TSI_S;
+      int U     = m_settings.DPI_TSI_U;
+
+      // Need one extra bar beyond normal warmup to capture hist at v_shift+1
+      int bars_needed = R + S + U + v_shift + 6;
+      if(iBars(m_symbol, PERIOD_CURRENT) <= bars_needed) return false;
+
+      double alphaR = 2.0 / (double)(R + 1);
+      double alphaS = 2.0 / (double)(S + 1);
+      double alphaU = 2.0 / (double)(U + 1);
+
+      double e1m = 0.0, e2m = 0.0, e1a = 0.0, e2a = 0.0, sig = 0.0;
+      double main_line = 0.0;
+
+      out_hist_cur  = 0.0;
+      out_hist_prev = 0.0;
+
+      // Iterate from oldest bar toward v_shift, capturing histogram at v_shift+1 en route
+      for(int i = bars_needed - 1; i >= v_shift; i--)
+      {
+         double close_i    = iClose(m_symbol, PERIOD_CURRENT, i);
+         double close_prev = iClose(m_symbol, PERIOD_CURRENT, i + 1);
+         double mom        = close_i - close_prev;
+         double abs_mom    = MathAbs(mom);
+
+         e1m = alphaR * mom     + (1.0 - alphaR) * e1m;
+         e1a = alphaR * abs_mom + (1.0 - alphaR) * e1a;
+         e2m = alphaS * e1m     + (1.0 - alphaS) * e2m;
+         e2a = alphaS * e1a     + (1.0 - alphaS) * e2a;
+         main_line = (e2a != 0.0) ? (e2m / e2a) : 0.0;
+         sig = alphaU * main_line + (1.0 - alphaU) * sig;
+
+         if(i == v_shift + 1)
+            out_hist_prev = main_line - sig;  // capture at v_shift+1
+      }
+      out_hist_cur = main_line - sig;  // final value at v_shift
+      return true;
+   }
+
    // ══════════════════════════════════════════════════════════════════════
    // SIGNAL EVALUATION — TS/TE EQUATION
    //
@@ -4605,6 +4657,89 @@ public:
          FlushOrClearDebugBuffer(0);
          RestoreForcedDebug();
          return 0;
+      }
+
+      // ══════════════════════════════════════════════════════════════════
+      // PRE-FILTER: EMA Fan Overextension
+      // Block when EMA1–EMA4 spread > threshold AND still expanding.
+      // Avoids chasing overextended trend runs.
+      // EmaFanMaxTotalPips=25.0 is a starting default for M1/M5; review per TF.
+      // JPY pairs (~3-digit pricing): GlobalPipSize() already returns the correct
+      // pip unit so the comparison works without special-casing.
+      // ══════════════════════════════════════════════════════════════════
+      if(m_settings.EmaFanFilterEnabled && m_settings.EmaFanMaxTotalPips > 0.0)
+      {
+         double pip  = GlobalPipSize(m_symbol);
+         double e1_1 = GetMAVal(h_ema1, v_shift);
+         double e4_1 = GetMAVal(h_ema4, v_shift);
+         double e1_2 = GetMAVal(h_ema1, v_shift + 1);
+         double e4_2 = GetMAVal(h_ema4, v_shift + 1);
+
+         if(e1_1 > 0.0 && e4_1 > 0.0 && e1_2 > 0.0 && e4_2 > 0.0 && pip > 0.0)
+         {
+            double gap_now  = MathAbs(e1_1 - e4_1) / pip;
+            double gap_prev = MathAbs(e1_2 - e4_2) / pip;
+
+            if(gap_now > m_settings.EmaFanMaxTotalPips && gap_now > gap_prev)
+            {
+               if(m_settings.DebugFlow)
+                  PrintFormat("[TS_PREFILTER] EMA_FAN: gap_now=%.1f pips > max=%.1f (prev=%.1f) → TS=0",
+                              gap_now, m_settings.EmaFanMaxTotalPips, gap_prev);
+               m_diag_last_reason = "EMA_OVEREXT";
+               m_reject_filter++;
+               if(!full_eval) {
+                  m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+                  UpdateTelemetry(0);
+                  FlushOrClearDebugBuffer(0);
+                  RestoreForcedDebug();
+                  return 0;
+               }
+               if(m_eval_first_failure == "") m_eval_first_failure = "EMA_OVEREXT";
+               m_eval_any_failure = true;
+            }
+         }
+      }
+
+      // ══════════════════════════════════════════════════════════════════
+      // PRE-FILTER: DPI Momentum Deceleration
+      // Block when the directionally-aligned DPI histogram is shrinking
+      // bar-over-bar (momentum loss). Only active when DpiDecelFilterEnabled=true
+      // AND Ind_Dpi_Enabled=true. Silently passes if histogram data unavailable.
+      // ══════════════════════════════════════════════════════════════════
+      if(m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
+      {
+         double hist_cur = 0.0, hist_prev = 0.0;
+         if(ComputeDPIMainHist(v_shift, hist_cur, hist_prev))
+         {
+            // For BUY bias: histogram should be positive and growing (main_hist > 0 and increasing)
+            // For SELL bias: histogram should be negative and decreasing (main_hist < 0 and more negative)
+            // Deceleration: aligned magnitude shrinking (|hist_cur| < |hist_prev|)
+            double mag_cur  = MathAbs(hist_cur);
+            double mag_prev = MathAbs(hist_prev);
+
+            bool aligned_cur  = (B > 0) ? (hist_cur  > 0.0) : (hist_cur  < 0.0);
+            bool aligned_prev = (B > 0) ? (hist_prev > 0.0) : (hist_prev < 0.0);
+
+            // Only check deceleration when both bars show momentum in the same direction.
+            // The aligned_X checks ensure same-sign (no histogram flip between bars).
+            if(aligned_cur && aligned_prev && mag_cur > 0.0 && mag_prev > 0.0 && mag_cur < mag_prev)
+            {
+               if(m_settings.DebugFlow)
+                  PrintFormat("[TS_PREFILTER] DPI_DECEL: histogram shrinking cur=%.5f < prev=%.5f → TS=0",
+                              mag_cur, mag_prev);
+               m_diag_last_reason = "DPI_DECEL";
+               m_reject_filter++;
+               if(!full_eval) {
+                  m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+                  UpdateTelemetry(0);
+                  FlushOrClearDebugBuffer(0);
+                  RestoreForcedDebug();
+                  return 0;
+               }
+               if(m_eval_first_failure == "") m_eval_first_failure = "DPI_DECEL";
+               m_eval_any_failure = true;
+            }
+         }
       }
 
       // ── I: Indicators ─────────────────────────────────────────────
