@@ -6,11 +6,11 @@
 //+------------------------------------------------------------------+
 #property strict
 
-#ifndef SEA_BUILD_TOKEN_103001
-enum { __SEA_BUILD_TOKEN_MISSING_TRADEEXEC_103001 = SEA_BUILD_TOKEN_103001 };
+#ifndef SEA_BUILD_TOKEN_103002
+enum { __SEA_BUILD_TOKEN_MISSING_TRADEEXEC_103002 = SEA_BUILD_TOKEN_103002 };
 #endif
 
-#define SEA_MOD_TRADEEXEC_103001 1
+#define SEA_MOD_TRADEEXEC_103002 1
 #define SEA_LARGE_LOT_EQUITY_BLOCK_USD 10000.0
 #define SEA_LARGE_LOT_PER_EQUITY_BLOCK 10.0
 #define SEA_MARGIN_LEVEL_UNLIMITED 999999.0
@@ -1266,23 +1266,35 @@ public:
       }
    }
 
-   int EvaluateTE(int ts_direction, bool news_blocked = false) {
-      if(ts_direction == 0) return 0;
-      m_cached_sl   = 0.0;
-      m_cached_lots = 0.0;
-      m_cached_risk = 0.0;
-      // Cache is populated by EvaluateCM() below, then consumed by ExecuteTrade()
-      m_te_veto_reason = "OK";
-      string te_reject_reason = "";
+   // ══════════════════════════════════════════════════════════════════════
+   // SIGNAL EVALUATION — TS/TE EQUATION
+   //
+   // TS = B × P × L × I        (bar close, shift=1)
+   // TE = F                     (bar open, shift=0)
+   //
+   // B  Bias:       Direction from slowest EMA pair (+1 LONG / -1 SHORT / 0 block)
+   // P  Phase:      Market type — TM/EM allowed, UNO always blocks
+   //                Evaluated via EMA2/EMA3/EMA4 position only (no slopes)
+   // L  Layer:      Pullback-recovery timing (L3 > L2 > L1 priority)
+   //                Per layer: pos × slope × BC × BD
+   //                  BC = bar close beyond fast EMA (close price vs EMA, no wicks)
+   //                  BD = bar direction in bias (close > open LONG / close < open SHORT)
+   // I  Indicators: All enabled must agree (MACD, PSAR, RSI, CCI, ADX, ...)
+   //                CandleBody (spike filter) belongs here, not in L
+   // F  Filters:    Spread × session × news (execution-moment, TE only)
+   //
+   // Any factor = 0 → whole equation = 0 → NO TRADE
+   // ══════════════════════════════════════════════════════════════════════
 
-      // Log the reference prices being used for diagnostics
-      bool isBuy = (ts_direction > 0);
-      double ref_price  = iClose(_Symbol, PERIOD_CURRENT, 1);
-      double live_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      PrintFormat("📋 [TE] %s | ref_price(barClose)=%.5f | live_price=%.5f | spread_offset=%.5f",
-                  _Symbol, ref_price, live_price, MathAbs(live_price - ref_price));
-
-      // --- TE Gate 1: Spread check ---
+   // ─────────────────────────────────────────────────────────────────────────
+   // EvaluateF — Filters (TE equation factor F)
+   // Checks execution-moment conditions: spread, session time, and news.
+   // Called at bar open (shift=0) before placing a trade.
+   // Returns 1 if all filters pass, 0 if any filter blocks execution.
+   // ─────────────────────────────────────────────────────────────────────────
+   int EvaluateF(bool news_blocked_override = false)
+   {
+      // F Gate 1: Spread check
       if(m_settings.UseSpread && m_settings.MaxSpread > 0.0)
       {
          double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
@@ -1293,13 +1305,14 @@ public:
          if(spread_pips > m_settings.MaxSpread)
          {
             if(m_settings.DebugFlow)
-               PrintFormat("[TE_GATE] Spread BLOCKED: %.1f pips > MaxSpread %.1f pips", spread_pips, m_settings.MaxSpread);
-            te_reject_reason = "VETO_SPREAD";
+               PrintFormat("[F_GATE] Spread BLOCKED: %.1f pips > MaxSpread %.1f pips", spread_pips, m_settings.MaxSpread);
+            m_te_veto_reason = "VETO_SPREAD";
+            return 0;
          }
       }
 
-      // --- TE Gate 2: Time window check ---
-      if(te_reject_reason == "" && m_settings.UseTime)
+      // F Gate 2: Session time check
+      if(m_settings.UseTime)
       {
          MqlDateTime dt;
          TimeCurrent(dt);
@@ -1309,34 +1322,68 @@ public:
          if(!time_pass)
          {
             if(m_settings.DebugFlow)
-               PrintFormat("[TE_GATE] Time BLOCKED: hour=%d outside window [%d-%d]", dt.hour, m_settings.StartHr, m_settings.EndHr);
-            te_reject_reason = "VETO_TIME";
+               PrintFormat("[F_GATE] Time BLOCKED: hour=%d outside window [%d-%d]", dt.hour, m_settings.StartHr, m_settings.EndHr);
+            m_te_veto_reason = "VETO_TIME";
+            return 0;
          }
       }
 
-      // --- TE Gate 3: News check ---
-      if(te_reject_reason == "" && m_settings.UseNews && news_blocked)
+      // F Gate 3: News check
+      if(m_settings.UseNews && news_blocked_override)
       {
          if(m_settings.DebugFlow)
-            Print("[TE_GATE] News BLOCKED: high-impact event active");
-         te_reject_reason = "VETO_NEWS";
+            Print("[F_GATE] News BLOCKED: high-impact event active");
+         m_te_veto_reason = "VETO_NEWS";
+         return 0;
+      }
+
+      return 1;  // All execution-moment filters pass
+   }
+
+   int EvaluateTE(int direction, bool news_blocked_override = false) {
+      // ══════════════════════════════════════════════════════════════
+      // TE = F
+      //
+      // F = Filters (spread × session × news)
+      // TE does NOT re-evaluate signal logic (B/P/L/I).
+      // It only checks if RIGHT NOW is a valid moment to execute.
+      // ══════════════════════════════════════════════════════════════
+
+      if(direction == 0) return 0;
+      m_cached_sl   = 0.0;
+      m_cached_lots = 0.0;
+      m_cached_risk = 0.0;
+      m_te_veto_reason = "OK";
+      string te_reject_reason = "";
+
+      // Log the reference prices being used for diagnostics
+      bool isBuy = (direction > 0);
+      double ref_price  = iClose(_Symbol, PERIOD_CURRENT, 1);
+      double live_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      PrintFormat("📋 [TE] %s | ref_price(barClose)=%.5f | live_price=%.5f | spread_offset=%.5f",
+                  _Symbol, ref_price, live_price, MathAbs(live_price - ref_price));
+
+      // ── F: Filters (spread × session × news) ──
+      int F = EvaluateF(news_blocked_override);
+      if(F == 0) {
+         te_reject_reason = m_te_veto_reason;
       }
 
       double te_lots = 0;
       if(te_reject_reason == "") {
-         te_lots = EvaluateCM(ts_direction);
+         te_lots = EvaluateCM(direction);
          if(te_lots <= 0) te_reject_reason = "VETO_INVALID_LOTS";
       }
 
-      if(te_reject_reason == "") { if(!EvaluateRC(ts_direction, te_lots)) te_reject_reason = "VETO_RISK_CONTROL"; }
+      if(te_reject_reason == "") { if(!EvaluateRC(direction, te_lots)) te_reject_reason = "VETO_RISK_CONTROL"; }
 
       int result = 0;
       if(te_reject_reason == "") {
-         ExecuteTrade(ts_direction, te_lots);
+         ExecuteTrade(direction, te_lots);
          result = (m_last_te_result == "ENTERED") ? 1 : 0;
          if(result == 0) te_reject_reason = m_last_te_reason;
       }
-      
+
       m_te_veto_reason = (te_reject_reason == "") ? "OK" : te_reject_reason;
       return result;
    }

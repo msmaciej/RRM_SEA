@@ -5,14 +5,14 @@
 // SAVE AS UTF-16 LE WITH BOM
 //+------------------------------------------------------------------+
 #property copyright "SimpleEA_v1.03"
-#property version   "103.001"
+#property version   "103.002"
 #property strict
 
 // --- Anti-stale build lock
-#define SEA_BUILD_TOKEN_103001 1
+#define SEA_BUILD_TOKEN_103002 1
 
-#define SEA_BUILD_NUM 103001
-#define SEA_BUILD_STR "1.03.001"
+#define SEA_BUILD_NUM 103002
+#define SEA_BUILD_STR "1.03.002"
 
 //+------------------------------------------------------------------+
 //| FORWARD DECLARATIONS                                             |
@@ -30,14 +30,14 @@ void SEA_DrawTradeExecLine(datetime event_time, int direction, double price, con
 #include <RRMS\SEA_UI.mqh>
 #include <RRMS\SEA_Reporting.mqh>
 
-#ifndef SEA_MOD_SIGNALENGINE_103001
-enum { __SEA_STALE_SEA_MOD_SIGNALENGINE_103001__ = SEA_MOD_SIGNALENGINE_103001 };
+#ifndef SEA_MOD_SIGNALENGINE_103002
+enum { __SEA_STALE_SEA_MOD_SIGNALENGINE_103002__ = SEA_MOD_SIGNALENGINE_103002 };
 #endif
-#ifndef SEA_MOD_TRADEEXEC_103001
-enum { __SEA_STALE_SEA_MOD_TRADEEXEC_103001__ = SEA_MOD_TRADEEXEC_103001 };
+#ifndef SEA_MOD_TRADEEXEC_103002
+enum { __SEA_STALE_SEA_MOD_TRADEEXEC_103002__ = SEA_MOD_TRADEEXEC_103002 };
 #endif
-#ifndef SEA_MOD_UI_103001
-enum { __SEA_STALE_SEA_MOD_UI_103001__ = SEA_MOD_UI_103001 };
+#ifndef SEA_MOD_UI_103002
+enum { __SEA_STALE_SEA_MOD_UI_103002__ = SEA_MOD_UI_103002 };
 #endif
 #ifndef SEA_MOD_REPORTING_103001
 enum { __SEA_STALE_SEA_MOD_REPORTING_103001__ = SEA_MOD_REPORTING_103001 };
