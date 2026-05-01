@@ -650,6 +650,55 @@ void OrchestrateTick()
    // 3. Excursion tracking runs every tick (MAE/MFE price tracking)
    Executor.UpdateExcursionOnly();
 
+   // ── EVERY-TICK TE RETRY ──────────────────────────────────────────────────
+   // Architecture fix: TE must retry on every non-new-bar tick while a carry
+   // is active. This way a spread spike at bar open (tick 1) does not delay
+   // entry by a full bar — ticks 2, 3, 4... catch the spread clearing.
+   // Design: TS=1 was already confirmed at shift=1. EvaluateTE() here only
+   // re-checks the F-filters (spread / session / news). No signal re-eval.
+   if(!is_new_bar && g_ts_active)
+   {
+      bool te_news_blocked = Signal.IsNewsBlocked();
+      int  te              = Executor.EvaluateTE(g_ts_carried, te_news_blocked);
+
+      g_ts_sl          = Executor.LastCachedSL();
+      g_ts_lots        = Executor.LastCachedLots();
+      g_ts_risk        = Executor.LastCachedRisk();
+      g_last_te_result = Executor.LastTEResult();
+      g_last_te_veto   = Executor.LastVetoReason();
+
+      if(Settings.DebugFlow)
+         PrintFormat("[TE_TICK_RETRY] dir=%s te=%d veto=%s",
+                     (g_ts_carried > 0 ? "BUY" : "SELL"), te,
+                     (g_last_te_veto != "" ? g_last_te_veto : "OK"));
+
+      if(te == 1)
+      {
+         // Trade entered on mid-bar tick — signal cleared, freeze released
+         g_ts_active             = false;
+         g_ts_carried            = 0;
+         g_ts_carry_bar_count    = 0;
+         g_ts_signal_price       = 0.0;
+         g_ts_carry_miss_count   = 0;
+         g_cockpit_freeze_active = false;
+         if(Settings.DebugFlow)
+            Print("[TE_TICK_RETRY] Trade entered on mid-bar tick retry — timing corrected");
+      }
+      else if(Executor.LastVetoReason() == "VETO_SPREAD_TIMEOUT")
+      {
+         // Spread persistently wide — kill carry
+         Print("[TE_TICK_RETRY] VETO_SPREAD_TIMEOUT — carry killed on mid-bar tick");
+         g_ts_active             = false;
+         g_ts_carried            = 0;
+         g_ts_carry_bar_count    = 0;
+         g_ts_signal_price       = 0.0;
+         g_ts_carry_miss_count   = 0;
+         g_cockpit_freeze_active = false;
+      }
+      // Vetoed (non-timeout): keep carry alive, retry next tick or next bar
+      return; // Non-new-bar ticks: TE retry only; skip new-bar pipeline
+   }
+
    // 4. New-bar pipeline: runs only once per bar
    if(!is_new_bar) return;
 
