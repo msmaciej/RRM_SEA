@@ -793,13 +793,6 @@ void OrchestrateTick()
                      (g_cockpit_freeze_dir > 0 ? "BUY" : "SELL"),
                      g_cockpit_freeze_bias, g_cockpit_freeze_votes, g_cockpit_freeze_reason);
       }
-      else if(!g_ts_active && g_cockpit_freeze_active)
-      {
-         // Carry-forward was killed (regime change / hard-kill) — always release regardless of toggle
-         g_cockpit_freeze_active = false;
-         Print("[COCKPIT FREEZE] Released — carry-forward ended");
-      }
-
       // 8. TE: Attempt Trade Entry if a signal is armed (fresh this bar OR carried from prior bar)
       if(g_ts_active)
       {
@@ -837,8 +830,16 @@ void OrchestrateTick()
             g_ts_active             = false;
             g_ts_carried            = 0;
             g_ts_carry_miss_count   = 0;
-            // cockpit freeze is released by the !g_ts_active check in the freeze logic below
+            g_cockpit_freeze_active = false;
          }
+      }
+
+      // --- Cockpit freeze release: check post-TE state so TE veto path is observed ---
+      if(!g_ts_active && g_cockpit_freeze_active)
+      {
+         // Carry-forward was killed (regime change / hard-kill / TE veto) — always release regardless of toggle
+         g_cockpit_freeze_active = false;
+         Print("[COCKPIT FREEZE] Released — carry-forward ended");
       }
    }
 

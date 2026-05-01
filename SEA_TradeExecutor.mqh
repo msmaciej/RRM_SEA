@@ -137,9 +137,7 @@ private:
    //+------------------------------------------------------------------+
    
    double GetPipSize() const {
-      int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
-      if(digits == 3 || digits == 5) return _Point * 10.0;
-      return _Point;
+      return GlobalPipSize(m_symbol);
    }
 
    double GetPSARAnchor(int shift=1) {
@@ -1249,6 +1247,12 @@ public:
    
       ENUM_ORDER_TYPE type = isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
       string comment = StringFormat("SEA_%s", EnumToString(m_settings.SLMode));
+
+      if(m_settings.TP_Enabled && tp == 0.0)
+      {
+         PrintFormat("⚠️ [ExecuteTrade] WARNING: TP_Enabled=true but tp=0 at submission — SL=%.5f entry=%.5f dir=%s",
+                     sl, entry_price, isBuy ? "BUY" : "SELL");
+      }
 
       if(!ValidateStopLevels(entry_price, sl, tp)) {
          m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
