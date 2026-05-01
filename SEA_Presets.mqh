@@ -1100,8 +1100,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MaxSpreadRetryBars        = 3;
 
       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────────
-      // EmaFanMaxTotalPips=25.0 is calibrated for M1/M5 with EMA5/13/34/89.
-      // Review per timeframe: higher TFs (H1+) may need larger values.
+      // EmaFanMaxTotalPips=25.0 is an empirically chosen starting point for
+      // M1/M5 charts with the standard EMA5/13/34/89 fan. It represents the
+      // approximate fan width at which trend exhaustion typically begins on
+      // major FX pairs (e.g. EURUSD, GBPUSD). Adjust per instrument and TF:
+      //   M15/H1: consider 40–60 pips; H4+: 80–120 pips.
       // JPY pairs: GlobalPipSize() returns the correct pip unit automatically.
       cfg.EmaFanFilterEnabled       = true;
       cfg.EmaFanMaxTotalPips        = 25.0;
@@ -1356,8 +1359,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MaxSpreadRetryBars        = 3;
 
       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────────
-      // EmaFanMaxTotalPips=25.0 is calibrated for M1/M5 with EMA5/13/34/89.
-      // Review per timeframe: higher TFs (H1+) may need larger values.
+      // EmaFanMaxTotalPips=25.0 is an empirically chosen starting point for
+      // M1/M5 charts with the standard EMA5/13/34/89 fan. It represents the
+      // approximate fan width at which trend exhaustion typically begins on
+      // major FX pairs (e.g. EURUSD, GBPUSD). Adjust per instrument and TF:
+      //   M15/H1: consider 40–60 pips; H4+: 80–120 pips.
       // JPY pairs: GlobalPipSize() returns the correct pip unit automatically.
       cfg.EmaFanFilterEnabled       = true;
       cfg.EmaFanMaxTotalPips        = 25.0;

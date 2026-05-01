@@ -806,7 +806,10 @@ void OrchestrateTick()
          g_ts_active  = true;
          g_ts_carried = ts;
 
-         // Capture signal reference price only on the first arm (not on carry refreshes)
+         // Capture signal reference price only on the first arm (not on carry refreshes).
+         // g_ts_carry_bar_count is 0 on the first arm because the carry guard only
+         // increments it when g_ts_active was ALREADY true at the start of the bar.
+         // On subsequent bars (carry refreshes), bar_count >= 1, so price is not recaptured.
          if(g_ts_carry_bar_count == 0)
             g_ts_signal_price = iClose(_Symbol, PERIOD_CURRENT, 1);
 

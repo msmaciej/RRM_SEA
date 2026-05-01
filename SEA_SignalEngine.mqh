@@ -4720,7 +4720,8 @@ public:
             bool aligned_cur  = (B > 0) ? (hist_cur  > 0.0) : (hist_cur  < 0.0);
             bool aligned_prev = (B > 0) ? (hist_prev > 0.0) : (hist_prev < 0.0);
 
-            // Only check deceleration when both bars show aligned momentum
+            // Only check deceleration when both bars show momentum in the same direction.
+            // The aligned_X checks ensure same-sign (no histogram flip between bars).
             if(aligned_cur && aligned_prev && mag_cur > 0.0 && mag_prev > 0.0 && mag_cur < mag_prev)
             {
                if(m_settings.DebugFlow)

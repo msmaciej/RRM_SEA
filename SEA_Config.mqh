@@ -594,8 +594,9 @@ struct ST_Settings
    int    MaxSpreadRetryBars;
 
    // EMA fan overextension filter — block TS=1 when EMA1–EMA4 gap is wide AND still expanding
-   // Note: EmaFanMaxTotalPips=25.0 is a starting default for M1/M5.
-   // Review per timeframe: JPY pairs need ~250 equivalent; GlobalPipSize() handles this correctly.
+   // EmaFanMaxTotalPips=25.0 is an empirically chosen starting point for M1/M5 with EMA5/13/34/89.
+   // Adjust per timeframe: M15/H1 consider 40–60 pips; H4+ consider 80–120 pips.
+   // JPY pairs (~3-digit): GlobalPipSize() returns the correct pip unit; no special-casing needed.
    bool   EmaFanFilterEnabled;
    double EmaFanMaxTotalPips;
 
@@ -691,7 +692,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 //input group "╔════════════════════════════════════════════════════════╗";
 input group "-----   🚫 FILTER: SPREAD";
 //input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_UseSpread              = false; // Spread: Enablefilter
+input bool        Inp_UseSpread              = false; // Spread: Enable filter
 input double      Inp_MaxSpreadPips          = 3.0;   // Spread: Max (pips; ignored if UseSpread=false)
 input int         Inp_MaxSpreadRetryBars     = 3;     // Spread: Kill carry after N bars of spread blocking (0=unlimited)
 
