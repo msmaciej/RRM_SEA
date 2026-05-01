@@ -4277,7 +4277,7 @@ public:
          m_reject_bias++;
          m_stats.rejected_bias++;
          m_eval_str_B = "0";
-         m_ts_status_string = StringFormat("B[-] | I[-] | F[%s]", m_eval_str_F);
+         m_ts_status_string = "B[-] | P[-] | L[-] | I[-]";
          return 0;
       }
 
@@ -4352,8 +4352,12 @@ public:
                                TimeToString(bar_time), EnumToString(phase), bias));
       }
 
-      // UNORDERED: no market structure → always block
-      if(phase == PHASE_UNORDERED) {
+      // UNORDERED: no clear market structure → always block.
+      // Note: GetBias_4EMA_Direction() already returns 0 for UNORDERED (no direction
+      // is possible when EMA stack is chaotic), so EvaluateB returns B=0 in this case.
+      // BlockUnorderedPhase is respected here for full_eval stat attribution; in normal
+      // operation B=0 causes EvaluateTS to return before EvaluateP is called.
+      if(phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase) {
          m_diag_last_reason = "PHASE_UNORDERED";
          m_reject_gate++;
          if(m_settings.DebugFlow) Print("[EvaluateP] UNORDERED phase → no market structure");
@@ -4622,9 +4626,10 @@ public:
       else {
          // All factors passed → signal confirmed
          final_signal = B;
+         // Note: m_diag_last_bias was already set by EvaluateB; update for consistency
          m_diag_last_bias = B;
          m_ts_status_string = StringFormat("B[%s] | P[%s] | L[L%d] | I[OK]",
-                                            (B > 0 ? "L" : "S"),
+                                            (B > 0 ? "L" : (B < 0 ? "S" : "0")),
                                             EnumToString(m_diag_last_phase),
                                             m_last_layer);
          if(m_settings.DebugFlow && final_signal != 0)
