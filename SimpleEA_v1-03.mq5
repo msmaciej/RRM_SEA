@@ -39,8 +39,8 @@ enum { __SEA_STALE_SEA_MOD_TRADEEXEC_103002__ = SEA_MOD_TRADEEXEC_103002 };
 #ifndef SEA_MOD_UI_103002
 enum { __SEA_STALE_SEA_MOD_UI_103002__ = SEA_MOD_UI_103002 };
 #endif
-#ifndef SEA_MOD_REPORTING_103001
-enum { __SEA_STALE_SEA_MOD_REPORTING_103001__ = SEA_MOD_REPORTING_103001 };
+#ifndef SEA_MOD_REPORTING_103002
+enum { __SEA_STALE_SEA_MOD_REPORTING_103002__ = SEA_MOD_REPORTING_103002 };
 #endif
 
 //+------------------------------------------------------------------+
