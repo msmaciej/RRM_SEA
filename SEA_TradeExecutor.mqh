@@ -84,7 +84,7 @@ private:
    ulong GetMyPosition() {
       for(int i = PositionsTotal() - 1; i >= 0; i--) {
          ulong ticket = PositionGetTicket(i);
-         if(PositionGetString(POSITION_SYMBOL) == _Symbol && 
+         if(PositionGetString(POSITION_SYMBOL) == m_symbol && 
             PositionGetInteger(POSITION_MAGIC) == m_magic) {
             return ticket;
          }
@@ -98,7 +98,7 @@ private:
       for(int i = PositionsTotal() - 1; i >= 0; i--) {
          ulong ticket = PositionGetTicket(i);
          if(ticket == 0 || !PositionSelectByTicket(ticket)) continue;
-         if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+         if(PositionGetString(POSITION_SYMBOL) != m_symbol) continue;
          if((ulong)PositionGetInteger(POSITION_MAGIC) != m_magic) continue;
          double profit = PositionGetDouble(POSITION_PROFIT);
          if(worst_ticket == 0 || profit < worst_profit) {
@@ -114,7 +114,7 @@ private:
       for(int i = PositionsTotal() - 1; i >= 0; i--) {
          ulong ticket = PositionGetTicket(i);
          if(ticket == 0) continue;
-         if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+         if(PositionGetString(POSITION_SYMBOL) != m_symbol) continue;
          if((ulong)PositionGetInteger(POSITION_MAGIC) != m_magic) continue;
          long type = PositionGetInteger(POSITION_TYPE);
          if(type == POSITION_TYPE_BUY)  buy_count++;
@@ -126,7 +126,7 @@ private:
       for(int i = PositionsTotal() - 1; i >= 0; i--) {
          ulong ticket = PositionGetTicket(i);
          if(ticket == 0) continue;
-         if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+         if(PositionGetString(POSITION_SYMBOL) != m_symbol) continue;
          if((ulong)PositionGetInteger(POSITION_MAGIC) != m_magic) continue;
          m_trade.PositionClose(ticket);
       }
@@ -164,19 +164,19 @@ private:
       ResetLastError();
       
       if(direction > 0) { 
-         int idx = iLowest(_Symbol, PERIOD_CURRENT, MODE_LOW, lb, 1);
+         int idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, lb, 1);
          if(idx < 0) {
             PrintFormat("⚠️ [DEBUG SL] iLowest failed! Error: %d", GetLastError());
             return 0.0;
          }
-         return iLow(_Symbol, PERIOD_CURRENT, idx);
+         return iLow(m_symbol, PERIOD_CURRENT, idx);
       } else { 
-         int idx = iHighest(_Symbol, PERIOD_CURRENT, MODE_HIGH, lb, 1);
+         int idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, lb, 1);
          if(idx < 0) {
             PrintFormat("⚠️ [DEBUG SL] iHighest failed! Error: %d", GetLastError());
             return 0.0;
          }
-         return iHigh(_Symbol, PERIOD_CURRENT, idx);
+         return iHigh(m_symbol, PERIOD_CURRENT, idx);
       }
    }
 
@@ -219,7 +219,7 @@ private:
       }
       if(fractal_level <= 0.0) return 0.0;
 
-      double current_price = (direction > 0) ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double current_price = (direction > 0) ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
       bool valid_side = (direction > 0 && fractal_level > current_price) || (direction < 0 && fractal_level < current_price);
       if(!valid_side) return 0.0;
 
@@ -255,9 +255,9 @@ private:
 
    double NormalizeVolume(double vol) {
       double vmin=0.0, vmax=0.0, vstep=0.0;
-      if(!SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN, vmin))  vmin = 0.01;
-      if(!SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX, vmax))  vmax = 100.0;
-      if(!SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP, vstep)) vstep = vmin;
+      if(!SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN, vmin))  vmin = 0.01;
+      if(!SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MAX, vmax))  vmax = 100.0;
+      if(!SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_STEP, vstep)) vstep = vmin;
       if(vstep <= 0.0) vstep = vmin;
 
       vol = MathMax(vmin, MathMin(vmax, vol));
@@ -277,7 +277,7 @@ private:
    }
 
    bool ValidateStopLevels(double entryPrice, double slPrice, double tpPrice) {
-      long stops_level_pts = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL);
+      long stops_level_pts = SymbolInfoInteger(m_symbol, SYMBOL_TRADE_STOPS_LEVEL);
       double minStopDist = stops_level_pts * _Point;
       if(slPrice > 0.0) {
          double slDistance = MathAbs(entryPrice - slPrice);
@@ -306,9 +306,9 @@ private:
       double risk_money = equity * (m_settings.RiskPercent / 100.0);
       if(risk_money <= 0.0) return 0.0;
       double tick_size=0.0, tick_value=0.0;
-      if(!SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE, tick_size) || tick_size <= 0.0) return 0.0;
-      if(!SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS, tick_value) || tick_value <= 0.0) {
-         SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE, tick_value);
+      if(!SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE, tick_size) || tick_size <= 0.0) return 0.0;
+      if(!SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS, tick_value) || tick_value <= 0.0) {
+         SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE, tick_value);
       }
       if(tick_value <= 0.0) return 0.0;
       double loss_per_lot = (stop_dist / tick_size) * tick_value;
@@ -322,7 +322,7 @@ private:
                      raw_lot, stop_dist / pip_size, equity);
       }
       PrintFormat("📊 [LOT CALC] %s | stop=%.5f | tick_sz=%.5f | tick_val=%.5f | loss_per_lot=%.4f | risk=$%.2f | raw_lot=%.4f | final_lot=%.4f",
-                  _Symbol,
+                  m_symbol,
                   stop_dist,
                   tick_size,
                   tick_value,
@@ -348,7 +348,7 @@ private:
       for(int i = total - 1; i >= 0 && losses < 100; i--) {
          ulong deal = HistoryDealGetTicket(i);
          if(deal == 0) continue;
-         if(HistoryDealGetString(deal, DEAL_SYMBOL) != _Symbol) continue;
+         if(HistoryDealGetString(deal, DEAL_SYMBOL) != m_symbol) continue;
          if((ulong)HistoryDealGetInteger(deal, DEAL_MAGIC) != m_magic) continue;
          
          long entry = HistoryDealGetInteger(deal, DEAL_ENTRY);
@@ -368,9 +368,9 @@ private:
       double mr = m_settings.MA_MaximumRiskPct;
       if(mr <= 0.0) return 0.0;
       double price = 0.0;
-      if(!SymbolInfoDouble(_Symbol, SYMBOL_ASK, price)) return 0.0;
+      if(!SymbolInfoDouble(m_symbol, SYMBOL_ASK, price)) return 0.0;
       double margin = 0.0;
-      if(!OrderCalcMargin(ORDER_TYPE_BUY, _Symbol, 1.0, price, margin)) return 0.0;
+      if(!OrderCalcMargin(ORDER_TYPE_BUY, m_symbol, 1.0, price, margin)) return 0.0;
       if(margin <= 0.0) return 0.0;
       double free = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
       if(free <= 0.0) return 0.0;
@@ -388,10 +388,10 @@ private:
       double free = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
       if(free <= 0.0) return 0.0;
       double margin_per_lot = 0.0;
-      if(!OrderCalcMargin(type, _Symbol, 1.0, price, margin_per_lot) || margin_per_lot <= 0.0) {
+      if(!OrderCalcMargin(type, m_symbol, 1.0, price, margin_per_lot) || margin_per_lot <= 0.0) {
          // Broker/symbol can occasionally fail 1-lot probing; fall back to direct requested-volume check.
          double margin = 0.0;
-         if(!OrderCalcMargin(type, _Symbol, vol, price, margin) || margin <= 0.0) return vol;
+         if(!OrderCalcMargin(type, m_symbol, vol, price, margin) || margin <= 0.0) return vol;
          return (margin <= free) ? vol : 0.0;
       }
 
@@ -416,7 +416,7 @@ private:
       }
 
       double vmin = 0.0;
-      if(!SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN, vmin) || vmin <= 0.0) vmin = 0.01;
+      if(!SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN, vmin) || vmin <= 0.0) vmin = 0.01;
       if(vol < vmin) return 0.0;
       return vol;
    }
@@ -467,7 +467,7 @@ private:
       // Broker minimum distance is in points; add one full pip as an extra buffer.
       double user_min_dist = m_settings.SL_MinPips * pipSize;
       long stops_level_points = 0;
-      if(!SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_level_points)) {
+      if(!SymbolInfoInteger(m_symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_level_points)) {
          Print("⚠️ [SL] Failed to read SYMBOL_TRADE_STOPS_LEVEL; using 0 points + 1 pip buffer fallback");
          stops_level_points = 0;
       }
@@ -579,10 +579,10 @@ private:
       ENUM_POSITION_TYPE pos_type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
       bool   isBuy     = (pos_type == POSITION_TYPE_BUY);
       double entry     = PositionGetDouble(POSITION_PRICE_OPEN);
-      double cur_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_BID) : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      double cur_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_BID) : SymbolInfoDouble(m_symbol, SYMBOL_ASK);
       double cur_sl    = PositionGetDouble(POSITION_SL);
       double cur_tp    = PositionGetDouble(POSITION_TP);
-      int    digits    = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+      int    digits    = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
       double pipSize   = GetPipSize();
 
       double R = (m_rrm_initial_sl > 0.0) ? MathAbs(entry - m_rrm_initial_sl) : 0.0;
@@ -608,7 +608,7 @@ private:
                if(m_trade.PositionModify(ticket, be_sl, cur_tp)) { 
                   m_rrm_be_reached = true; 
                   cur_sl = be_sl; 
-                  if(m_settings.DebugFlow) PrintFormat("RRM Strict BE: SL -> %.5f (%s)", be_sl, _Symbol);
+                  if(m_settings.DebugFlow) PrintFormat("RRM Strict BE: SL -> %.5f (%s)", be_sl, m_symbol);
                }
             }
          }
@@ -628,15 +628,15 @@ private:
       if(psar_flipped) {
          if(m_settings.RRM_FreezeTrailOnFlip && !m_rrm_trail_frozen) {
             m_rrm_trail_frozen = true; m_rrm_freeze_time = TimeCurrent();
-            if(m_settings.DebugFlow) PrintFormat("RRM Strict trail frozen (PSAR flip): %s | PSAR=%.5f Price=%.5f", _Symbol, psar, cur_price);
+            if(m_settings.DebugFlow) PrintFormat("RRM Strict trail frozen (PSAR flip): %s | PSAR=%.5f Price=%.5f", m_symbol, psar, cur_price);
          }
          return;
       } else if(m_rrm_trail_frozen) {
          int min_freeze_bars = 2;
-         int bars_frozen = (m_rrm_freeze_time > 0) ? Bars(_Symbol, PERIOD_CURRENT, m_rrm_freeze_time, TimeCurrent()) : 0;
+         int bars_frozen = (m_rrm_freeze_time > 0) ? Bars(m_symbol, PERIOD_CURRENT, m_rrm_freeze_time, TimeCurrent()) : 0;
          if(bars_frozen >= min_freeze_bars) {
             m_rrm_trail_frozen = false;
-            if(m_settings.DebugFlow) PrintFormat("RRM Strict trail UNFROZEN (PSAR corrected): %s | PSAR=%.5f Price=%.5f", _Symbol, psar, cur_price);
+            if(m_settings.DebugFlow) PrintFormat("RRM Strict trail UNFROZEN (PSAR corrected): %s | PSAR=%.5f Price=%.5f", m_symbol, psar, cur_price);
          }
          else return;
       }
@@ -729,6 +729,7 @@ public:
 
    void Init(ulong magic, ST_Settings &sets) {
       m_magic = magic;
+      m_symbol = _Symbol;
       m_settings = sets;
       m_trade.SetExpertMagicNumber(m_magic);
       m_trade.SetDeviationInPoints(10);
@@ -1023,21 +1024,21 @@ public:
       return (sl > 0.0) ? MathAbs(price - sl) / GetPipSize() : 0.0;
    }
 
-   double GetTakeProfitPips(int direction) {
+   double GetTakeProfitPips(int direction, double actual_sl_price) {
       double tp_pips = 0.0;
-      double ref_price = iClose(_Symbol, PERIOD_CURRENT, 1);
+      double ref_price = iClose(m_symbol, PERIOD_CURRENT, 1);
       switch(m_settings.TPMode) {
          case TP_MODE_FIXED_PIPS: 
             tp_pips = m_settings.FixedTPPips; 
             break;
          case TP_MODE_RR: {
-            double sl_pips = (m_cached_sl > 0.0 && ref_price > 0.0)
-                             ? MathAbs(ref_price - m_cached_sl) / GetPipSize()
+            double sl_pips = (actual_sl_price > 0.0 && ref_price > 0.0)
+                             ? MathAbs(ref_price - actual_sl_price) / GetPipSize()
                              : 0.0;
             if(sl_pips > 0.0 && m_settings.RRRatio > 0.0)
                tp_pips = sl_pips * m_settings.RRRatio;
             else {
-               PrintFormat("⚠️ [TP_RR] Cannot compute TP: cached_sl=%.5f ref=%.5f RR=%.2f — TP=0. Check SL configuration and ensure EvaluateCM() ran before GetTakeProfitPips().", m_cached_sl, ref_price, m_settings.RRRatio);
+               PrintFormat("⚠️ [TP_RR] Cannot compute TP: actual_sl=%.5f ref=%.5f RR=%.2f — TP=0.", actual_sl_price, ref_price, m_settings.RRRatio);
                tp_pips = 0.0;
             }
             break;
@@ -1045,8 +1046,8 @@ public:
          case TP_MODE_FRACTAL: {
             tp_pips = GetFractalTP(direction);
             if(tp_pips <= 0.0) {
-               double sl_pips = (m_cached_sl > 0.0 && ref_price > 0.0)
-                                ? MathAbs(ref_price - m_cached_sl) / GetPipSize()
+               double sl_pips = (actual_sl_price > 0.0 && ref_price > 0.0)
+                                ? MathAbs(ref_price - actual_sl_price) / GetPipSize()
                                 : 0.0;
                tp_pips = (sl_pips > 0.0 && m_settings.RRRatio > 0.0) ? sl_pips * m_settings.RRRatio : 0.0;
             }
@@ -1067,10 +1068,10 @@ public:
       if(direction == 0) return 0.0;
       bool isBuy = (direction == 1);
       // SL geometry and lot sizing anchored to bar-N close price (same data TS=1 was confirmed on)
-      double ref_price = iClose(_Symbol, PERIOD_CURRENT, 1);
+      double ref_price = iClose(m_symbol, PERIOD_CURRENT, 1);
       double sl = CalcEntrySL(isBuy, ref_price);
       
-      double lot = NormalizeVolume(SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN));
+      double lot = NormalizeVolume(SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN));
       if(m_settings.UseMACompatSizer) {
          double ma_lot = CalcLotMACompat();
          if(ma_lot > 0.0) lot = ma_lot;
@@ -1081,7 +1082,7 @@ public:
 
       // Margin adjustment uses live price — margin is a live broker value (correct)
       ENUM_ORDER_TYPE order_type = isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
-      double live_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double live_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
       m_cached_sl   = sl;   // store historical-anchor SL for use by ExecuteTrade
       double adjusted_lots = AdjustLotForMargin(order_type, lot, live_price);
       m_cached_lots = adjusted_lots;
@@ -1092,8 +1093,8 @@ public:
    bool EvaluateRC(int direction, double lots) {
       bool isBuy = (direction > 0);
       // Anchor reference price to bar-N close (same data TS=1 confirmed on)
-      double ref_price = iClose(_Symbol, PERIOD_CURRENT, 1);
-      double live_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double ref_price = iClose(m_symbol, PERIOD_CURRENT, 1);
+      double live_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
 
       if(m_settings.MinMarginLevel > 0.0) {
          ENUM_ORDER_TYPE order_type = isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
@@ -1101,7 +1102,7 @@ public:
          double current_margin = AccountInfoDouble(ACCOUNT_MARGIN);
          double equity = AccountInfoDouble(ACCOUNT_EQUITY);
          if(equity <= 0.0) equity = AccountInfoDouble(ACCOUNT_BALANCE);
-         if(OrderCalcMargin(order_type, _Symbol, lots, live_price, new_trade_margin) && new_trade_margin > 0.0) {
+         if(OrderCalcMargin(order_type, m_symbol, lots, live_price, new_trade_margin) && new_trade_margin > 0.0) {
             double projected_margin = current_margin + new_trade_margin;
             double projected_level = (projected_margin > 0.0) ? (equity / projected_margin * 100.0) : SEA_MARGIN_LEVEL_UNLIMITED;
             if(projected_level < m_settings.MinMarginLevel) {
@@ -1116,7 +1117,7 @@ public:
          for(int i = PositionsTotal() - 1; i >= 0; i--) {
             ulong ticket = PositionGetTicket(i);
             if(ticket == 0 || !PositionSelectByTicket(ticket)) continue;
-            if(PositionGetString(POSITION_SYMBOL) != _Symbol || PositionGetInteger(POSITION_MAGIC) != (long)m_magic) continue;
+            if(PositionGetString(POSITION_SYMBOL) != m_symbol || PositionGetInteger(POSITION_MAGIC) != (long)m_magic) continue;
             open_count++;
          }
          if(open_count >= m_settings.MaxOpenTrades) return false;
@@ -1140,20 +1141,20 @@ public:
 
    void ExecuteTrade(int direction, double lots) {
       if(lots <= 0.0) {
-         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
+         m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
       }
-      if(m_last_trade_bar == iTime(_Symbol, PERIOD_CURRENT, 0)) {
-         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "SAME_BAR_ENTRY"; return;
+      if(m_last_trade_bar == iTime(m_symbol, PERIOD_CURRENT, 0)) {
+         m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "SAME_BAR_ENTRY"; return;
       }
-      if(m_last_close_bar == iTime(_Symbol, PERIOD_CURRENT, 0)) {
-         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "SAME_BAR_CLOSE"; return;
+      if(m_last_close_bar == iTime(m_symbol, PERIOD_CURRENT, 0)) {
+         m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "SAME_BAR_CLOSE"; return;
       }
       if(m_settings.MinBarsAfterClose > 0 && m_last_close_bar > 0)
       {
-         int bars_since = Bars(_Symbol, PERIOD_CURRENT, m_last_close_bar, iTime(_Symbol, PERIOD_CURRENT, 0));
+         int bars_since = Bars(m_symbol, PERIOD_CURRENT, m_last_close_bar, iTime(m_symbol, PERIOD_CURRENT, 0));
          if(bars_since < m_settings.MinBarsAfterClose)
          {
-            m_last_te_time   = iTime(_Symbol, PERIOD_CURRENT, 0);
+            m_last_te_time   = iTime(m_symbol, PERIOD_CURRENT, 0);
             m_last_te_result = "BLOCKED";
             m_last_te_reason = StringFormat("POST_TRADE_COOLDOWN_%d/%d", bars_since, m_settings.MinBarsAfterClose);
             return;
@@ -1169,26 +1170,26 @@ public:
             if(ticket > 0 && IsPositionAtBreakEven(ticket)) {
                // Fall through: allow new entry alongside existing BE position
             } else {
-               m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "ALREADY_IN_POSITION"; return;
+               m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "ALREADY_IN_POSITION"; return;
             }
          } else {
-            m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "ALREADY_IN_POSITION"; return;
+            m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "ALREADY_IN_POSITION"; return;
          }
       }
    
       if((buy_count + sell_count) > 0) {
          if(direction != 0 && m_settings.CloseOnReverse) {
             CloseAllMyPositions();
-            m_last_trade_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
-            if(m_settings.MABenchmarkStrict) { m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return; }
+            m_last_trade_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
+            if(m_settings.MABenchmarkStrict) { m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return; }
          } else {
-            m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
+            m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
          }
       }
    
       if(direction == 0) return;
       bool isBuy = (direction == 1);
-      double entry_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double entry_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
       double sl = 0, tp = 0;
 
       // Use pre-computed historical SL anchor (from EvaluateCM — bar-close reference)
@@ -1198,7 +1199,7 @@ public:
          // Apply broker minimum stop distance against live entry — always WIDEN, never block
          double pipSize = GetPipSize();
          long stops_pts = 0;
-         SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_pts);
+         SymbolInfoInteger(m_symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_pts);
          double broker_min = (double)stops_pts * _Point + pipSize;
          double user_min   = m_settings.SL_MinPips * pipSize;
          double min_dist   = MathMax(user_min, broker_min);
@@ -1215,10 +1216,25 @@ public:
       }
       if(sl == 0.0) {
          Print("🚫 [ExecuteTrade] SL is zero after anchor + widen — trade blocked");
-         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0);
+         m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0);
          m_last_te_result = "BLOCKED";
          m_last_te_reason = "SL_ZERO";
          return;
+      }
+
+      // Recalculate lots if actual SL differs from the cached SL used in EvaluateCM
+      // (can happen when live price drifts from bar-close ref, or SL_WidenToMinimum fires)
+      if(!m_settings.UseMACompatSizer && sl > 0.0 && MathAbs(sl - m_cached_sl) > _Point)
+      {
+         double recalc_lots = CalcLotByRisk(entry_price, sl);
+         if(recalc_lots > 0.0)
+         {
+            PrintFormat("📊 [ExecuteTrade] SL adjusted (%.5f→%.5f): recalculating lots (%.4f→%.4f)",
+                        m_cached_sl, sl, lots, recalc_lots);
+            lots = recalc_lots;
+            // Re-apply margin safety with the new lot size
+            lots = AdjustLotForMargin(isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, entry_price);
+         }
       }
 
       if(m_settings.ExitProfile == EXIT_PROFILE_RRM) {
@@ -1241,7 +1257,7 @@ public:
          }
       }
       
-      int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+      int digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
       if(sl > 0) sl = NormalizeDouble(sl, digits);
       if(tp > 0) tp = NormalizeDouble(tp, digits);
    
@@ -1255,18 +1271,18 @@ public:
       }
 
       if(!ValidateStopLevels(entry_price, sl, tp)) {
-         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
+         m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
       }
 
-      if(m_trade.PositionOpen(_Symbol, type, lots, entry_price, sl, tp, comment)) {
-         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "ENTERED";
-         m_last_trade_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
+      if(m_trade.PositionOpen(m_symbol, type, lots, entry_price, sl, tp, comment)) {
+         m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "ENTERED";
+         m_last_trade_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
          m_initial_sl_price = sl;
          if(m_settings.ExitProfile == EXIT_PROFILE_RRM) {
             m_rrm_initial_sl = sl; m_rrm_be_reached = false; m_rrm_trail_frozen = false; m_rrm_last_ticket = 0;
          }
       } else {
-         m_last_te_time = iTime(_Symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED";
+         m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED";
       }
    }
 
@@ -1301,9 +1317,9 @@ public:
       // F Gate 1: Spread check
       if(m_settings.UseSpread && m_settings.MaxSpread > 0.0)
       {
-         double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-         double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-         int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+         double ask = SymbolInfoDouble(m_symbol, SYMBOL_ASK);
+         double bid = SymbolInfoDouble(m_symbol, SYMBOL_BID);
+         int digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
          double pip = (digits == 3 || digits == 5) ? _Point * 10.0 : _Point;
          double spread_pips = (ask - bid) / pip;
          if(spread_pips > m_settings.MaxSpread)
@@ -1412,7 +1428,7 @@ public:
             ulong worst_ticket = FindWorstPosition();
             if(worst_ticket > 0) {
                m_trade.PositionClose(worst_ticket);
-               m_last_close_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
+               m_last_close_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
                m_last_tracked_ticket = 0;
                return;
             }
@@ -1425,7 +1441,7 @@ public:
          m_initial_sl_price = 0.0;
          // Detect close: if we had a position last call but now we don't, record the close bar
          if(m_last_tracked_ticket > 0) {
-            m_last_close_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
+            m_last_close_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
             m_last_tracked_ticket = 0;
          }
          return;
@@ -1436,7 +1452,7 @@ public:
       UpdatePositionExcursion(ticket);
 
       // Gate SL/BE modifications to once per bar
-      datetime current_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
+      datetime current_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
       if(current_bar == m_last_tm_bar) return;
       m_last_tm_bar = current_bar;
 
@@ -1466,7 +1482,7 @@ public:
       if(m_settings.TrailMode == TRAIL_PSAR_FLIP_EXIT || m_settings.TPMode == TP_MODE_PSAR_FLIP) {
          if(CheckPSARFlip(direction, current_price)) {
             m_trade.PositionClose(ticket);
-            m_last_close_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
+            m_last_close_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
             m_last_tracked_ticket = 0;
             return;
          }
@@ -1511,7 +1527,7 @@ public:
       }
 
       if(new_sl != 0.0) {
-         int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+         int digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
          new_sl = NormalizeDouble(new_sl, digits);
          bool modify = false;
          
