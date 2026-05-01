@@ -451,7 +451,8 @@ private:
             if(psar > 0.0) {
                bool valid = isBuy ? (psar < price) : (psar > price);
                if(!valid) {
-                  PrintFormat("⚠️ [RRM SL] PSAR anchor on wrong side. Using Fixed Pips.");
+                  PrintFormat("⚠️ [RRM SL] PSAR anchor on wrong side. psar=%.5f entry=%.5f dir=%s — Using Fixed Pips.",
+                              psar, price, isBuy ? "BUY" : "SELL");
                   break;
                }
                double cushion_price = m_settings.SL_PsarPipsCushion * pipSize;
@@ -1073,6 +1074,14 @@ public:
       // SL geometry and lot sizing anchored to bar-N close price (same data TS=1 was confirmed on)
       double ref_price = iClose(m_symbol, PERIOD_CURRENT, 1);
       double sl = CalcEntrySL(isBuy, ref_price);
+      if(sl <= 0.0) {
+         PrintFormat("[CM VETO] SL=0 returned by CalcEntrySL for %s dir=%s — SL mode=%s — trade blocked",
+                     m_symbol, isBuy ? "BUY" : "SELL", EnumToString(m_settings.SLMode));
+         m_cached_sl   = 0.0;
+         m_cached_lots = 0.0;
+         m_cached_risk = 0.0;
+         return 0.0;  // triggers VETO_INVALID_LOTS in EvaluateTE
+      }
       
       double lot = NormalizeVolume(SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN));
       if(m_settings.UseMACompatSizer) {
@@ -1311,8 +1320,7 @@ public:
          double spread_pips = (ask - bid) / pip;
          if(spread_pips > m_settings.MaxSpread)
          {
-            if(m_settings.DebugFlow)
-               PrintFormat("[F_GATE] Spread BLOCKED: %.1f pips > MaxSpread %.1f pips", spread_pips, m_settings.MaxSpread);
+            PrintFormat("[TE VETO] VETO_SPREAD | spread=%.1f pips > MaxSpread=%.1f pips", spread_pips, m_settings.MaxSpread);
             m_te_veto_reason = "VETO_SPREAD";
             return 0;
          }
@@ -1328,8 +1336,7 @@ public:
                           (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
          if(!time_pass)
          {
-            if(m_settings.DebugFlow)
-               PrintFormat("[F_GATE] Time BLOCKED: hour=%d outside window [%d-%d]", dt.hour, m_settings.StartHr, m_settings.EndHr);
+            PrintFormat("[TE VETO] VETO_TIME | hour=%d outside window [%d-%d]", dt.hour, m_settings.StartHr, m_settings.EndHr);
             m_te_veto_reason = "VETO_TIME";
             return 0;
          }
@@ -1338,8 +1345,7 @@ public:
       // F Gate 3: News check
       if(m_settings.UseNews && news_blocked_override)
       {
-         if(m_settings.DebugFlow)
-            Print("[F_GATE] News BLOCKED: high-impact event active");
+         Print("[TE VETO] VETO_NEWS | high-impact event active");
          m_te_veto_reason = "VETO_NEWS";
          return 0;
       }
@@ -1405,10 +1411,18 @@ public:
       double te_lots = 0;
       if(te_reject_reason == "") {
          te_lots = EvaluateCM(direction);
-         if(te_lots <= 0) te_reject_reason = "VETO_INVALID_LOTS";
+         if(te_lots <= 0) {
+            te_reject_reason = "VETO_INVALID_LOTS";
+            PrintFormat("[TE VETO] VETO_INVALID_LOTS | sl=%.5f invalid_lots=%.2f", m_cached_sl, te_lots);
+         }
       }
 
-      if(te_reject_reason == "") { if(!EvaluateRC(direction, te_lots)) te_reject_reason = "VETO_RISK_CONTROL"; }
+      if(te_reject_reason == "") {
+         if(!EvaluateRC(direction, te_lots)) {
+            te_reject_reason = "VETO_RISK_CONTROL";
+            PrintFormat("[TE VETO] VETO_RISK_CONTROL | lots=%.2f risk=%.2f%%", te_lots, m_cached_risk);
+         }
+      }
 
       int result = 0;
       if(te_reject_reason == "") {
@@ -1418,6 +1432,10 @@ public:
       }
 
       m_te_veto_reason = (te_reject_reason == "") ? "OK" : te_reject_reason;
+      if(te_reject_reason != "" && m_last_te_result != "ENTERED") {
+         m_last_te_result = "BLOCKED";
+         m_last_te_time   = iTime(m_symbol, PERIOD_CURRENT, 0);
+      }
       return result;
    }
 
