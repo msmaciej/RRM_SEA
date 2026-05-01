@@ -26,32 +26,34 @@ This document defines the **operating rules** for maintaining and modifying Simp
 
 ### TE (Trade Entry) Execution
 - **shift=0 (new candle open):** Execution-moment validation only
-- **Function**: `EvaluateTE()` in `SEA_SignalEngine.mqh`
+- **Function**: `EvaluateTE()` in `SEA_TradeExecutor.mqh`
 - **Evaluates**: Spread, time window, news events (NO signal re-validation)
-- **When**: First tick after TS=1 (if `g_ts_active == true`)
-- **Output**: TE=1 (execute trade) or TE=0 (reject, clear TS)
+- **When**: Once per bar, immediately after TS=1 is confirmed
+- **Output**: TE=1 (execute trade) or TE=0 (veto — signal discarded, no retry)
 
 ### Flow
 ```
-1. Bar N closes → TS evaluated at shift=1 → If TS=1, store signal
-2. Bar N+1 opens → TE evaluated at shift=0 → If TE=1, execute trade
-3. 1-bar delay ensures entry confirmation
-4. If TE=0, system continues evaluating TS on subsequent bar closes
+1. Bar N closes → TS evaluated at shift=1 → If TS=1, store signal direction in g_ts_dir
+2. Bar N+1 opens → TE attempted once at shift=0 → If TE=1, execute trade; if TE=0, discard signal
+3. If TE=0 (vetoed for any reason), signal is discarded. TS re-evaluates on the next bar close.
+4. No retry, no carry-forward. One TS evaluation → one TE attempt → done.
 ```
 
-**No signal evaluation on forming bars. No trade entries without TS→TE validation.**
+**No signal evaluation on forming bars. No trade entries without TS→TE validation. No carry-forward.**
 
-### Implementation Details (PR #53)
-- Global state: `g_ts_active`, `g_ts_direction`, `g_ts_bar_time`
+### Implementation Details
+- Global state: `g_ts_dir` (signal direction, 0 = no pending signal)
+- `g_ts_dir` is set by TS=1 on bar close, cleared immediately after TE runs (success or veto)
 - TS uses `Vote_EvalShift` (default=1, forced in presets)
 - All presets use `VOTE_MODE_ALL` (unanimous voting)
 - PSAR flip-count validation when `Vote_AllowPsarFlip=true`
+- Carry-forward globals (`g_ts_active`, `g_ts_carried`, `g_ts_carry_bar_count`, `g_ts_signal_price`) have been **removed**
 
 ### Critical Timing Rules
 
 1. **TS evaluated once at bar close** (shift=1)
-2. **TE evaluated once at next bar open** (shift=0)
-3. **Bar where TE executes is SKIPPED for next TS** (no premature re-evaluation)
+2. **TE attempted once at next bar open** (shift=0) — immediately after TS=1
+3. **If TE=0 (vetoed), signal is discarded** — TS re-evaluates on the next bar close
 4. **PSAR checked once at TS**, not re-checked at TE
 5. **Risk management gates TE**, not TS (signal can be valid but blocked by risk)
 
@@ -75,7 +77,7 @@ TE execution requires BOTH:
    - `open_trades < MaxOpenTrades` (position count)
    - BE trades count as 0% risk if `CountBEasZeroRisk=true`
 
-If risk limits block TE, signal is discarded (TS evaluation resumes next bar).
+If risk limits block TE, signal is discarded (TS evaluation resumes next bar close).
 
 ## 3) Preset policy (anti-confusion, Model A)
 To avoid misleading behavior and user confusion, presets are defined as **fully authoritative**.

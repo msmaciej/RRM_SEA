@@ -446,6 +446,15 @@ string SEA_UI_BuildVoteBreakdown(const ST_Settings &cfg, const SVoteSnapshot &vo
 // -----------------------------------
 void SEA_UI_Init(const ulong magic)
 {
+   // Purge ALL stale SEA_UI_* objects from any previous instance before creating new panels.
+   // All SEA UI chart objects use the "SEA_UI_" prefix (enforced by g_sea_ui_base_name).
+   for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
+   {
+      string obj_name = ObjectName(0, i);
+      if(StringFind(obj_name, "SEA_UI_") == 0)
+         ObjectDelete(0, obj_name);
+   }
+
    g_sea_ui_magic     = magic;
    g_sea_ui_base_name = StringFormat("SEA_UI_%I64d_%I64u", (long)ChartID(), g_sea_ui_magic);
    g_sea_ui_settings_name = g_sea_ui_base_name + "_SET";
@@ -460,6 +469,15 @@ void SEA_UI_DestroyAll()
    // Clean up dedicated Master Telemetry Objects
    ObjectDelete(0, "SEA_UI_TS_MASTER");
    ObjectDelete(0, "SEA_UI_TE_MASTER");
+
+   // Prefix scan: delete any remaining SEA_UI_* objects from any instance (ghost panel cleanup).
+   // All SEA UI chart objects use the "SEA_UI_" prefix (enforced by g_sea_ui_base_name).
+   for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
+   {
+      string obj_name = ObjectName(0, i);
+      if(StringFind(obj_name, "SEA_UI_") == 0)
+         ObjectDelete(0, obj_name);
+   }
    
    g_sea_ui_last_settings_txt = "";
    g_sea_ui_last_cockpit_txt  = "";
@@ -571,15 +589,7 @@ void SEA_UI_UpdateCockpit(
    string config_trail_method,
    string last_te_result  = "",
    string last_te_veto    = "",
-   bool   ts_pending      = false,
-   bool         freeze_active   = false,
-   datetime     freeze_ts_time  = 0,
-   int          freeze_dir      = 0,
-   int          freeze_bias     = 0,
-   int          freeze_votes    = 0,
-   string       freeze_reason   = "",
-   EMarketPhase freeze_phase    = PHASE_UNORDERED,
-   int          cooldown_bars_remaining = 0
+   int    cooldown_bars_remaining = 0
 ) {
    if(!Inp_UI_ShowCockpitPanel) { 
       SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
@@ -616,19 +626,12 @@ void SEA_UI_UpdateCockpit(
    // --- STRATEGY LOGIC (The Institutional Grid) ---
    AddLine("--- STRATEGY LOGIC ---", h_clr, lines, line_clrs);
 
-   // Freeze banner: shown while TS=1 carry-forward is armed and awaiting TE
-   if(freeze_active)
-   {
-      string freeze_time_str = TimeToString(freeze_ts_time, TIME_DATE|TIME_MINUTES);
-      AddLine(StringFormat("*** FROZEN @ %s - TS=1 AWAITING TE ***", freeze_time_str), clrGold, lines, line_clrs);
-   }
-
    AddLine(StringFormat("PRESET:    %s", GetPresetContractWording(InpPreset)), h_clr, lines, line_clrs);
 
-   // Effective display values: frozen snapshot or live telemetry
-   int          disp_bias  = freeze_active ? freeze_bias  : ts_telemetry.bias;
-   int          disp_votes = freeze_active ? freeze_votes : ts_telemetry.votes_for;
-   EMarketPhase disp_phase = freeze_active ? freeze_phase : (EMarketPhase)ts_telemetry.phase;
+   // Effective display values: always use live telemetry (no carry-forward freeze state)
+   int          disp_bias  = ts_telemetry.bias;
+   int          disp_votes = ts_telemetry.votes_for;
+   EMarketPhase disp_phase = (EMarketPhase)ts_telemetry.phase;
 
    // 1. Standardized Equation: TS = B * P * L * I * F
    int    disp_phase_val = (int)disp_phase;
@@ -740,10 +743,7 @@ void SEA_UI_UpdateCockpit(
    else if(last_te_result == "BLOCKED" || last_te_result == "VETO")
    {
       string veto_label = (last_te_veto != "" && last_te_veto != "OK") ? last_te_veto : "BLOCKED";
-      if(ts_pending)
-         AddLine(StringFormat("STATE:  TE_PENDING [%s]", veto_label), clrGold, lines, line_clrs);
-      else
-         AddLine(StringFormat("STATE:  TE_BLOCKED [%s]", veto_label), clrRed, lines, line_clrs);
+      AddLine(StringFormat("STATE:  TE_BLOCKED [%s]", veto_label), clrRed, lines, line_clrs);
    }
    else
    {

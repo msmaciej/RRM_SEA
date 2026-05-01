@@ -73,30 +73,14 @@ int      g_ts_bias   = 0;
 int      g_ts_votes  = 0;
 string   g_ts_reason = "";
 
-// --- TS carry-forward (pending TE retry when prior TE was vetoed)
-bool g_ts_active  = false;   // true when a TS=1 signal is pending TE execution
-int  g_ts_carried = 0;       // direction of the pending signal (+1 BUY / -1 SELL)
-int  g_ts_carry_miss_count = 0; // consecutive ts=0 bars tolerated while carry-forward is active
-int  g_ts_carry_bar_count  = 0; // bars elapsed since carry was first armed
-double g_ts_signal_price   = 0.0; // iClose of the bar where TS=1 first fired (signal reference price)
-
-// TS snapshot — SL/Lots/Risk computed at shift=0 bar open from historical anchors
+// TS snapshot — SL/Lots/Risk captured after TE runs (for diagnostics)
 double g_ts_sl   = 0.0;
 double g_ts_lots = 0.0;
 double g_ts_risk = 0.0;
 
-// Last TE execution result (reset each new bar before TS evaluation)
-string g_last_te_result = "";   // "ENTERED", "BLOCKED", or "" (no signal this bar)
+// Last TE execution result — persists until TE runs again (not reset each bar)
+string g_last_te_result = "";   // "ENTERED", "BLOCKED", or "" (no TE this session)
 string g_last_te_veto   = "";   // "SL_ZERO", "VETO_RISK_CONTROL", "OK", or ""
-
-// --- Cockpit freeze state (panel locked while TS=1 carry-forward is pending TE)
-bool     g_cockpit_freeze_active  = false;   // true while carry-forward is armed
-datetime g_cockpit_freeze_ts_time = 0;       // bar time when TS=1 fired (for banner)
-int      g_cockpit_freeze_dir     = 0;       // +1 BUY / -1 SELL
-int      g_cockpit_freeze_bias    = 0;
-int      g_cockpit_freeze_votes   = 0;
-string   g_cockpit_freeze_reason  = "";
-EMarketPhase g_cockpit_freeze_phase = PHASE_UNORDERED;
 
 // Global tracking for RRM drawdown protection
 int      g_consecutive_losses     = 0;
@@ -610,14 +594,6 @@ int OrchestrateInit()
          EnumToString(Settings.TrailMode),
          "",   // last_te_result
          "",   // last_te_veto
-         false, // ts_pending
-         false, // freeze_active
-         0,     // freeze_ts_time
-         0,     // freeze_dir
-         0,     // freeze_bias
-         0,     // freeze_votes
-         "",    // freeze_reason
-         PHASE_UNORDERED, // freeze_phase
          Executor.CooldownBarsRemaining()
       );
    }
@@ -709,71 +685,11 @@ void OrchestrateTick()
    // 7. TS: Trade Setup evaluation on bar close (shift=1)
    if(drawdown_blocked)
    {
-      // Clear any pending carry-forward when drawdown protection is active
-      g_ts_active          = false;
-      g_ts_carried         = 0;
-      g_ts_carry_bar_count = 0;
-      g_ts_signal_price    = 0.0;
-      if(g_cockpit_freeze_active)
-      {
-         g_cockpit_freeze_active = false;
-         Print("[COCKPIT FREEZE] Released — drawdown protection active");
-      }
+      // Clear any pending signal when drawdown protection is active
+      g_ts_dir = 0;
    }
    else
    {
-      // ── Carry-forward guard: expire stale signals ──────────────────────
-      // Runs BEFORE TS evaluation so an aged/drifted carry is killed before
-      // TS is re-evaluated this bar.
-      if(g_ts_active)
-      {
-         g_ts_carry_bar_count++;
-
-         bool carry_expired = false;
-         string expire_reason = "";
-
-         // Age guard: kill carry if too many bars have passed since the signal bar
-         if(Inp_CarryMaxBars > 0 && g_ts_carry_bar_count > Inp_CarryMaxBars)
-         {
-            carry_expired  = true;
-            expire_reason  = StringFormat("CARRY_EXPIRED_AGE(%d bars)", g_ts_carry_bar_count);
-         }
-
-         // Price deviation guard: kill carry if market moved too far from the signal bar
-         if(!carry_expired && Inp_CarryMaxPips > 0.0 && g_ts_signal_price > 0.0)
-         {
-            double pip      = GlobalPipSize(_Symbol);
-            double live     = (g_ts_carried > 0)
-                              ? SymbolInfoDouble(_Symbol, SYMBOL_ASK)
-                              : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-            double dev_pips = (pip > 0.0) ? MathAbs(live - g_ts_signal_price) / pip : 0.0;
-            if(dev_pips > Inp_CarryMaxPips)
-            {
-               carry_expired = true;
-               expire_reason = StringFormat("CARRY_EXPIRED_PRICE(dev=%.1f pips > %.1f)", dev_pips, Inp_CarryMaxPips);
-            }
-         }
-
-         if(carry_expired)
-         {
-            PrintFormat("[CARRY_GUARD] %s — carry killed. dir=%s bars=%d signal_price=%.5f",
-                        expire_reason,
-                        (g_ts_carried > 0 ? "BUY" : "SELL"),
-                        g_ts_carry_bar_count,
-                        g_ts_signal_price);
-            g_ts_active             = false;
-            g_ts_carried            = 0;
-            g_ts_carry_bar_count    = 0;
-            g_ts_signal_price       = 0.0;
-            g_ts_carry_miss_count   = 0;
-            g_cockpit_freeze_active = false;
-         }
-      }
-
-      // Reset TE state each new bar so stale results from prior bar don't persist
-      g_last_te_result = "";
-      g_last_te_veto   = "";
-
       FlowLog("Step B: Compute direction signal (TS evaluation at shift=1)");
       int ts = Signal.EvaluateTS(); 
 
@@ -787,52 +703,20 @@ void OrchestrateTick()
 
       if(ts != 0)
       {
-         // Only draw a line when this is a genuinely NEW signal
-         // (carry was NOT already active in the same direction)
-         bool is_fresh_signal = (!g_ts_active || ts != g_ts_carried);
-
-         // If a new signal fires in the OPPOSITE direction, clear old carry and freeze
-         if(g_ts_active && ts != g_ts_carried)
-         {
-            g_ts_active             = false;
-            g_ts_carried            = 0;
-            g_ts_carry_bar_count    = 0;
-            g_ts_signal_price       = 0.0;
-            g_ts_carry_miss_count   = 0;
-            g_cockpit_freeze_active = false;
-         }
-
-         // Arm signal state
-         g_ts_active  = true;
-         g_ts_carried = ts;
-
-         // Capture signal reference price only on the first arm (not on carry refreshes).
-         // g_ts_carry_bar_count is 0 on the first arm because the carry guard only
-         // increments it when g_ts_active was ALREADY true at the start of the bar.
-         // On subsequent bars (carry refreshes), bar_count >= 1, so price is not recaptured.
-         if(g_ts_carry_bar_count == 0)
-            g_ts_signal_price = iClose(_Symbol, PERIOD_CURRENT, 1);
-
          g_ts_time   = iTime(_Symbol, PERIOD_CURRENT, 1);
          g_ts_dir    = ts;
          g_ts_bias   = snap_bias;
          g_ts_votes  = snap_votes;
          g_ts_reason = snap_reason;
-         g_ts_carry_miss_count = 0;
 
-         // Only draw the entry line for a fresh (new) signal
-         if(Settings.DrawEntryLines && is_fresh_signal)
+         if(Settings.DrawEntryLines)
             SEA_DrawEntrySignalLine(g_ts_time, ts, snap_reason);
       }
       else
       {
-         // TS=0 this bar: discard any pending carry-forward immediately.
-         // Price or momentum conditions are no longer met — abandon the signal.
-         g_ts_active           = false;
-         g_ts_carried          = 0;
-         g_ts_carry_bar_count  = 0;
-         g_ts_signal_price     = 0.0;
-         g_ts_carry_miss_count = 0;
+         // TS=0 this bar: discard any pending signal immediately.
+         // Per rule §2: if TE=0 (vetoed), signal is discarded — no retry, no carry.
+         g_ts_dir = 0;
 
          // Persist reason for cockpit display
          g_ts_reason = snap_reason;
@@ -840,28 +724,15 @@ void OrchestrateTick()
          g_ts_bias   = snap_bias;
       }
 
-      // --- Cockpit freeze: arm when carry-forward becomes active, release when it ends ---
-      if(Inp_UI_FreezeCockpitOnTS && g_ts_active && !g_cockpit_freeze_active)
+      // 8. TE: Attempt Trade Entry once if a signal is pending from this bar's TS=1
+      if(g_ts_dir != 0)
       {
-         // First bar the carry-forward is live: capture the signal snapshot
-         g_cockpit_freeze_active  = true;
-         g_cockpit_freeze_ts_time = g_ts_time;
-         g_cockpit_freeze_dir     = g_ts_carried;
-         g_cockpit_freeze_bias    = snap_bias;
-         g_cockpit_freeze_votes   = snap_votes;
-         g_cockpit_freeze_reason  = snap_reason;
-         g_cockpit_freeze_phase   = snap_phase;
-         PrintFormat("[COCKPIT FREEZE] Armed at %s dir=%s bias=%d votes=%d reason=%s",
-                     TimeToString(g_cockpit_freeze_ts_time, TIME_DATE|TIME_MINUTES),
-                     (g_cockpit_freeze_dir > 0 ? "BUY" : "SELL"),
-                     g_cockpit_freeze_bias, g_cockpit_freeze_votes, g_cockpit_freeze_reason);
-      }
-      // 8. TE: Attempt Trade Entry if a signal is armed (fresh this bar OR carried from prior bar)
-      if(g_ts_active)
-      {
-         // Issue 3 fix: IsNewsBlocked() already returns false when UseNews=false
+         // Reset TE state just before TE runs so stale results don't bleed into this attempt
+         g_last_te_result = "";
+         g_last_te_veto   = "";
+
          bool te_news_blocked = Signal.IsNewsBlocked();
-         int te = Executor.EvaluateTE(g_ts_carried, te_news_blocked);
+         int te = Executor.EvaluateTE(g_ts_dir, te_news_blocked);
 
          // Capture pre-computed SL/lots/risk (anchored to shift=1 historical data)
          g_ts_sl   = Executor.LastCachedSL();
@@ -875,47 +746,11 @@ void OrchestrateTick()
          // Log TE outcome for diagnostics
          string veto = Executor.LastVetoReason();
          PrintFormat("📋 [TE RESULT] dir=%s | te=%d | SL=%.5f | lots=%.2f | risk=%.2f%% | veto=%s",
-                     (g_ts_carried > 0 ? "BUY" : "SELL"), te, g_ts_sl, g_ts_lots, g_ts_risk,
+                     (g_ts_dir > 0 ? "BUY" : "SELL"), te, g_ts_sl, g_ts_lots, g_ts_risk,
                      (veto != "" ? veto : "OK"));
 
-         if(te == 1)
-         {
-            // Trade entered — clear signal and unfreeze cockpit
-            g_ts_active             = false;
-            g_ts_carried            = 0;
-            g_ts_carry_bar_count    = 0;
-            g_ts_signal_price       = 0.0;
-            g_ts_carry_miss_count   = 0;
-            g_cockpit_freeze_active = false;
-         }
-         else
-         {
-            // TE vetoed — carry signal forward for retry next bar.
-            // The carry guard (above, at top of new-bar block) will expire the carry
-            // if it gets too old (Inp_CarryMaxBars) or price drifts too far (Inp_CarryMaxPips).
-            // g_ts_active and g_ts_carried remain set; freeze stays active.
-            g_ts_carry_miss_count = 0; // legacy var preserved for UI compatibility
-
-            // Special case: spread was persistently wide — kill carry explicitly
-            if(Executor.LastVetoReason() == "VETO_SPREAD_TIMEOUT")
-            {
-               Print("[CARRY_GUARD] VETO_SPREAD_TIMEOUT — spread was persistently wide. Carry killed.");
-               g_ts_active             = false;
-               g_ts_carried            = 0;
-               g_ts_carry_bar_count    = 0;
-               g_ts_signal_price       = 0.0;
-               g_ts_carry_miss_count   = 0;
-               g_cockpit_freeze_active = false;
-            }
-         }
-      }
-
-      // --- Cockpit freeze release: check post-TE state so TE veto path is observed ---
-      if(!g_ts_active && g_cockpit_freeze_active)
-      {
-         // Carry-forward was killed (regime change / hard-kill / TE veto) — always release regardless of toggle
-         g_cockpit_freeze_active = false;
-         Print("[COCKPIT FREEZE] Released — carry-forward ended");
+         // Whether TE succeeded or was vetoed, discard the signal — no retry, no carry.
+         g_ts_dir = 0;
       }
    }
 
@@ -968,14 +803,6 @@ void OrchestrateTick()
       EnumToString(Settings.TrailMode),
       g_last_te_result,
       g_last_te_veto,
-      g_ts_active,
-      g_cockpit_freeze_active && Inp_UI_FreezeCockpitOnTS,
-      g_cockpit_freeze_ts_time,
-      g_cockpit_freeze_dir,
-      g_cockpit_freeze_bias,
-      g_cockpit_freeze_votes,
-      g_cockpit_freeze_reason,
-      g_cockpit_freeze_phase,
       Executor.CooldownBarsRemaining()
    );
    
