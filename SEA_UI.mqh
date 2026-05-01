@@ -6,6 +6,8 @@
 // SAVE AS UTF-16 LE WITH BOM
 #property strict
 
+#define SEA_UI_MAX_PANEL_LINES 75
+
 #define SEA_MOD_UI_103002 1
 
 // -----------------------------------
@@ -194,7 +196,7 @@ void SEA_UI_DestroyPanel(const string panel_name)
 
    string bg = panel_name + "_BG";
    ObjectDelete(0, bg);
-   for(int i=0; i<70; i++)
+   for(int i=0; i<SEA_UI_MAX_PANEL_LINES; i++)
    {
       string ln = panel_name + StringFormat("_L%02d", i);
       ObjectDelete(0, ln);
@@ -230,7 +232,7 @@ void SEA_UI_RenderPanel(
    }
 
    // Dynamic Line Rendering
-   for(int i=0; i<75; i++) {
+   for(int i=0; i<SEA_UI_MAX_PANEL_LINES; i++) {
       string ln = panel_name + StringFormat("_L%02d", i);
       
       if(i < n) {
@@ -256,7 +258,7 @@ void SEA_UI_RenderPanel(
    }
    
    // Cleanup unused lines
-   for(int i=n; i<75; i++) ObjectDelete(0, panel_name + StringFormat("_L%02d", i));
+   for(int i=n; i<SEA_UI_MAX_PANEL_LINES; i++) ObjectDelete(0, panel_name + StringFormat("_L%02d", i));
 }
 
 //+------------------------------------------------------------------+
