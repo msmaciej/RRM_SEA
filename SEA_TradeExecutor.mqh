@@ -722,7 +722,7 @@ public:
    int CooldownBarsRemaining() const
    {
       if(m_settings.MinBarsAfterClose <= 0 || m_last_close_bar == 0) return 0;
-      int bars_since = Bars(_Symbol, PERIOD_CURRENT, m_last_close_bar, iTime(_Symbol, PERIOD_CURRENT, 0));
+      int bars_since = Bars(m_symbol, PERIOD_CURRENT, m_last_close_bar, iTime(m_symbol, PERIOD_CURRENT, 0));
       int remaining = m_settings.MinBarsAfterClose - bars_since;
       return (remaining > 0) ? remaining : 0;
    }
@@ -755,7 +755,7 @@ public:
          ulong ticket = PositionGetTicket(i);
          if(ticket == 0) continue;
          if(PositionGetInteger(POSITION_MAGIC) != (long)m_magic) continue;
-         if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+         if(PositionGetString(POSITION_SYMBOL) != m_symbol) continue;
          
          ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
          double entry = PositionGetDouble(POSITION_PRICE_OPEN);
@@ -774,9 +774,9 @@ public:
          double risk_amount = 0.0;
          if(sl > 0.0) {
             double stop_dist = MathAbs(entry - sl);
-            double tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
-            double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-            if(tick_value <= 0.0) tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+            double tick_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
+            double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+            if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
             if(tick_size > 0.0 && tick_value > 0.0) risk_amount = (stop_dist / tick_size) * tick_value * lots;
          }
 
@@ -817,7 +817,7 @@ public:
       for(int i = PositionsTotal() - 1; i >= 0; i--) {
          ulong ticket = PositionGetTicket(i);
          if(ticket == 0 || !PositionSelectByTicket(ticket)) continue;
-         if(PositionGetString(POSITION_SYMBOL) != _Symbol || PositionGetInteger(POSITION_MAGIC) != (long)m_magic) continue;
+         if(PositionGetString(POSITION_SYMBOL) != m_symbol || PositionGetInteger(POSITION_MAGIC) != (long)m_magic) continue;
          if(m_settings.CountBEasZeroRisk && IsPositionAtBreakEven(ticket)) continue;
          total_risk += CalculatePositionRisk(ticket);
       }
@@ -839,9 +839,9 @@ public:
       if(sl == 0.0) return 0.0;
 
       double stop_dist = MathAbs(open_price - sl);
-      double tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
-      double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-      if(tick_value <= 0.0) tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+      double tick_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
+      double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+      if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
       if(tick_size == 0.0 || tick_value == 0.0) return 0.0;
       
       double account_equity = AccountInfoDouble(ACCOUNT_EQUITY);
@@ -852,9 +852,9 @@ public:
    double ComputeRiskPercent(double volume, double stop_dist) {
       if(volume <= 0.0 || stop_dist <= 0.0) return 0.0;
 
-      double tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
-      double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-      if(tick_value <= 0.0) tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+      double tick_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
+      double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+      if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
       if(tick_size <= 0.0 || tick_value <= 0.0) return 0.0;
 
       double account_equity = AccountInfoDouble(ACCOUNT_EQUITY);
@@ -868,7 +868,7 @@ public:
    ulong FindPositionByMagic(ulong magic) const {
       for(int i = PositionsTotal() - 1; i >= 0; i--) {
          ulong ticket = PositionGetTicket(i);
-         if(ticket > 0 && PositionGetString(POSITION_SYMBOL) == _Symbol && (ulong)PositionGetInteger(POSITION_MAGIC) == magic) {
+         if(ticket > 0 && PositionGetString(POSITION_SYMBOL) == m_symbol && (ulong)PositionGetInteger(POSITION_MAGIC) == magic) {
             return ticket;
          }
       }
@@ -932,9 +932,9 @@ public:
          if(sl == 0.0) return 0.0;
          double open = PositionGetDouble(POSITION_PRICE_OPEN);
          double volume = PositionGetDouble(POSITION_VOLUME);
-         double tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
-         double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+         double tick_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
+         double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
          if(tick_size > 0.0 && tick_value > 0.0) {
             return (MathAbs(open - sl) / tick_size) * tick_value * volume;
          }
@@ -948,9 +948,9 @@ public:
       if(ticket > 0 && PositionSelectByTicket(ticket) && m_initial_sl_price > 0.0) {
          double open       = PositionGetDouble(POSITION_PRICE_OPEN);
          double volume     = PositionGetDouble(POSITION_VOLUME);
-         double tick_size  = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
-         double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+         double tick_size  = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
+         double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
          if(tick_size > 0.0 && tick_value > 0.0)
             return (MathAbs(open - m_initial_sl_price) / tick_size) * tick_value * volume;
       }
@@ -964,9 +964,9 @@ public:
          if(tp == 0.0) return 0.0;
          double open = PositionGetDouble(POSITION_PRICE_OPEN);
          double volume = PositionGetDouble(POSITION_VOLUME);
-         double tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
-         double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_PROFIT);
-         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+         double tick_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
+         double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_PROFIT);
+         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
          if(tick_size > 0.0 && tick_value > 0.0) {
             return (MathAbs(tp - open) / tick_size) * tick_value * volume;
          }
@@ -982,9 +982,9 @@ public:
          double open       = PositionGetDouble(POSITION_PRICE_OPEN);
          double volume     = PositionGetDouble(POSITION_VOLUME);
          double equity     = AccountInfoDouble(ACCOUNT_EQUITY);
-         double tick_size  = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
-         double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+         double tick_size  = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
+         double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
          if(sl > 0.0 && tick_size > 0.0 && tick_value > 0.0 && equity > 0.0)
             return ((MathAbs(open - sl) / tick_size) * tick_value * volume / equity) * 100.0;
       }
@@ -998,9 +998,9 @@ public:
          double sl         = PositionGetDouble(POSITION_SL);
          double open       = PositionGetDouble(POSITION_PRICE_OPEN);
          double volume     = PositionGetDouble(POSITION_VOLUME);
-         double tick_size  = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
-         double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+         double tick_size  = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
+         double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
          if(sl > 0.0 && tick_size > 0.0 && tick_value > 0.0)
             return (MathAbs(open - sl) / tick_size) * tick_value * volume;
       }
@@ -1019,7 +1019,7 @@ public:
 
    double GetStopLossPips(int direction) {
       bool isBuy = (direction > 0);
-      double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
       double sl = CalcEntrySL(isBuy, price);
       return (sl > 0.0) ? MathAbs(price - sl) / GetPipSize() : 0.0;
    }
@@ -1378,10 +1378,10 @@ public:
 
       // Log the reference prices being used for diagnostics
       bool isBuy = (direction > 0);
-      double ref_price  = iClose(_Symbol, PERIOD_CURRENT, 1);
-      double live_price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double ref_price  = iClose(m_symbol, PERIOD_CURRENT, 1);
+      double live_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
       PrintFormat("📋 [TE] %s | ref_price(barClose)=%.5f | live_price=%.5f | spread_offset=%.5f",
-                  _Symbol, ref_price, live_price, MathAbs(live_price - ref_price));
+                  m_symbol, ref_price, live_price, MathAbs(live_price - ref_price));
 
       // ── F: Filters (spread × session × news) ──
       int F = EvaluateF(news_blocked_override);
