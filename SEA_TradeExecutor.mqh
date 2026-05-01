@@ -1086,7 +1086,7 @@ public:
       // Margin adjustment uses live price — margin is a live broker value (correct)
       ENUM_ORDER_TYPE order_type = isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
       double live_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
-      m_cached_sl   = sl;   // store historical-anchor SL for use by ExecuteTrade
+      m_cached_sl   = sl;   // store historical-anchor SL for cockpit display (Orig column); NOT used as placed SL
       double adjusted_lots = AdjustLotForMargin(order_type, lot, live_price);
       m_cached_lots = adjusted_lots;
       m_cached_risk = ComputeRiskPercent(adjusted_lots, MathAbs(ref_price - sl));
@@ -1195,28 +1195,11 @@ public:
       double entry_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
       double sl = 0, tp = 0;
 
-      // Use pre-computed historical SL anchor (from EvaluateCM — bar-close reference)
-      // This prevents live bid/ask from invalidating the PSAR/swing anchor geometry
-      if(m_cached_sl > 0.0) {
-         sl = m_cached_sl;
-         // Apply broker minimum stop distance against live entry — always WIDEN, never block
-         double pipSize = GetPipSize();
-         long stops_pts = 0;
-         SymbolInfoInteger(m_symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_pts);
-         double broker_min = (double)stops_pts * _Point + pipSize;
-         double user_min   = m_settings.SL_MinPips * pipSize;
-         double min_dist   = MathMax(user_min, broker_min);
-         double actual_dist = MathAbs(entry_price - sl);
-         if(actual_dist < min_dist) {
-            double old_sl = sl;
-            sl = isBuy ? (entry_price - min_dist) : (entry_price + min_dist);
-            PrintFormat("⚠️ [ExecuteTrade] SL widened: %.5f → %.5f (min %.1f pips vs actual %.1f pips)",
-                        old_sl, sl, min_dist / pipSize, actual_dist / pipSize);
-         }
-      } else {
-         // Fallback: CalcEntrySL with live price (should not reach here in normal flow)
-         sl = CalcEntrySL(isBuy, entry_price);
-      }
+      // Compute SL fresh from actual entry price at TE time (Fix 3: not cached historical anchor).
+      // This ensures PSAR/swing SL distance is correct relative to the actual entry price,
+      // not the signal bar close price from the previous bar.
+      // m_cached_sl (from EvaluateCM) is preserved for display/pre-check purposes only.
+      sl = CalcEntrySL(isBuy, entry_price);
       if(sl == 0.0) {
          Print("🚫 [ExecuteTrade] SL is zero after anchor + widen — trade blocked");
          m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0);
@@ -1225,15 +1208,16 @@ public:
          return;
       }
 
-      // Recalculate lots if actual SL differs from the cached SL used in EvaluateCM
-      // (can happen when live price drifts from bar-close ref, or SL_WidenToMinimum fires)
-      if(!m_settings.UseMACompatSizer && sl > 0.0 && MathAbs(sl - m_cached_sl) > _Point)
+      // Recalculate lots from the freshly computed SL and actual entry price.
+      // Since SL is now computed at TE time from actual entry price (not from cached bar-close anchor),
+      // we always recalculate here to ensure lot sizing matches the placed SL.
+      if(!m_settings.UseMACompatSizer && sl > 0.0)
       {
          double recalc_lots = CalcLotByRisk(entry_price, sl);
          if(recalc_lots > 0.0)
          {
-            PrintFormat("📊 [ExecuteTrade] SL adjusted (%.5f→%.5f): recalculating lots (%.4f→%.4f)",
-                        m_cached_sl, sl, lots, recalc_lots);
+            PrintFormat("📊 [ExecuteTrade] Lots from fresh SL (%.5f): %.4f→%.4f",
+                        sl, lots, recalc_lots);
             lots = recalc_lots;
             // Re-apply margin safety with the new lot size
             lots = AdjustLotForMargin(isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, entry_price);

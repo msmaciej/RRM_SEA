@@ -716,14 +716,6 @@ input ENUM_TIMEFRAMES Inp_HtfPeriod          = PERIOD_H4; // HTF: timeframe
 input int         Inp_HtfEmaPeriod           = 89;    // HTF: EMA period
 
 //input group "-";
-input group "-----   🎨 UI: COCKPIT PANEL FREEZE @TS=1";
-input bool        Inp_UI_FreezeCockpitOnTS   = true;  // UI CP: Freeze STRATEGY LOGIC block while TS=1 pending TE
-
-input group "-----   🛡️ SIGNAL: CARRY GUARD";
-input int         Inp_CarryMaxBars           = 3;     // Kill carry after N bars if TE still blocked (0=unlimited)
-input double      Inp_CarryMaxPips           = 5.0;   // Kill carry if price moves >N pips from signal bar close (0=disabled)
-
-//input group "-";
 input group "   🎨 UI: COCKPIT PANEL";
 input bool        Inp_UI_ShowCockpitPanel    = true;  // UI CP: COCKPIT PANEL
 input ENUM_BASE_CORNER  Inp_UI_CockpitCorner = CORNER_LEFT_UPPER; // UI CP: corner
