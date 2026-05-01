@@ -682,19 +682,34 @@ void OrchestrateTick()
    SVoteSnapshot vote_snaps[];
    int vote_snap_count = 0;
 
-   // 7. TS: Trade Setup evaluation on bar close (shift=1)
-   if(drawdown_blocked)
+   // --- STEP 1: TE — consume signal from PREVIOUS bar ---
+   if(g_ts_dir != 0)
    {
-      // Clear any pending signal when drawdown protection is active
-      g_ts_dir = 0;
-   }
-   else
-   {
-      FlowLog("Step B: Compute direction signal (TS evaluation at shift=1)");
-      int ts = Signal.EvaluateTS(); 
+      g_last_te_result = "";
+      g_last_te_veto   = "";
 
-      // --- CRITICAL DATA SYNC ---
-      // We capture these values while Signal Engine holds the state of shift=1
+      bool te_news_blocked = Signal.IsNewsBlocked();
+      int te = Executor.EvaluateTE(g_ts_dir, te_news_blocked);
+
+      g_ts_sl   = Executor.LastCachedSL();
+      g_ts_lots = Executor.LastCachedLots();
+      g_ts_risk = Executor.LastCachedRisk();
+
+      g_last_te_result = Executor.LastTEResult();
+      g_last_te_veto   = Executor.LastVetoReason();
+
+      PrintFormat("📋 [TE RESULT] dir=%s | te=%d | SL=%.5f | lots=%.2f | risk=%.2f%% | veto=%s",
+                  (g_ts_dir > 0 ? "BUY" : "SELL"), te, g_ts_sl, g_ts_lots, g_ts_risk,
+                  (g_last_te_veto != "" ? g_last_te_veto : "OK"));
+
+      g_ts_dir = 0; // signal consumed — regardless of TE result, no retry
+   }
+
+   // --- STEP 2: TS — evaluate current bar close, store for NEXT bar ---
+   if(!drawdown_blocked)
+   {
+      int ts = Signal.EvaluateTS();
+
       snap_bias   = Signal.LastBias();
       snap_votes  = Signal.LastVotes();
       snap_reason = Signal.LastReason();
@@ -714,44 +729,24 @@ void OrchestrateTick()
       }
       else
       {
-         // TS=0 this bar: discard any pending signal immediately.
-         // Per rule §2: if TE=0 (vetoed), signal is discarded — no retry, no carry.
-         g_ts_dir = 0;
-
-         // Persist reason for cockpit display
+         g_ts_dir    = 0;
          g_ts_reason = snap_reason;
          g_ts_votes  = snap_votes;
          g_ts_bias   = snap_bias;
       }
 
-      // 8. TE: Attempt Trade Entry once if a signal is pending from this bar's TS=1
+      // Pre-compute SL/lots/risk for cockpit display using the newly stored signal direction
       if(g_ts_dir != 0)
       {
-         // Reset TE state just before TE runs so stale results don't bleed into this attempt
-         g_last_te_result = "";
-         g_last_te_veto   = "";
-
-         bool te_news_blocked = Signal.IsNewsBlocked();
-         int te = Executor.EvaluateTE(g_ts_dir, te_news_blocked);
-
-         // Capture pre-computed SL/lots/risk (anchored to shift=1 historical data)
+         Executor.EvaluateCM(g_ts_dir);
          g_ts_sl   = Executor.LastCachedSL();
          g_ts_lots = Executor.LastCachedLots();
          g_ts_risk = Executor.LastCachedRisk();
-
-         // Capture TE result for cockpit STATE display
-         g_last_te_result = Executor.LastTEResult();
-         g_last_te_veto   = Executor.LastVetoReason();
-
-         // Log TE outcome for diagnostics
-         string veto = Executor.LastVetoReason();
-         PrintFormat("📋 [TE RESULT] dir=%s | te=%d | SL=%.5f | lots=%.2f | risk=%.2f%% | veto=%s",
-                     (g_ts_dir > 0 ? "BUY" : "SELL"), te, g_ts_sl, g_ts_lots, g_ts_risk,
-                     (veto != "" ? veto : "OK"));
-
-         // Whether TE succeeded or was vetoed, discard the signal — no retry, no carry.
-         g_ts_dir = 0;
       }
+   }
+   else
+   {
+      g_ts_dir = 0;
    }
 
    // 9. Build Display Snapshots 
