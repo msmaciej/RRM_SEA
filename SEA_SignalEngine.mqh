@@ -4352,11 +4352,12 @@ public:
                                TimeToString(bar_time), EnumToString(phase), bias));
       }
 
-      // UNORDERED: no clear market structure → always block.
+      // UNORDERED: no clear market structure → block when BlockUnorderedPhase=true.
       // Note: GetBias_4EMA_Direction() already returns 0 for UNORDERED (no direction
       // is possible when EMA stack is chaotic), so EvaluateB returns B=0 in this case.
-      // BlockUnorderedPhase is respected here for full_eval stat attribution; in normal
-      // operation B=0 causes EvaluateTS to return before EvaluateP is called.
+      // EvaluateP always runs this check; in non-full_eval mode EvaluateTS will have
+      // already returned early when B=0, so this check mainly applies in full_eval mode
+      // for complete per-factor stat attribution.
       if(phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase) {
          m_diag_last_reason = "PHASE_UNORDERED";
          m_reject_gate++;
@@ -4669,7 +4670,7 @@ public:
             bool is_emerging_phase = (m_diag_last_phase == PHASE_EMERGING_UP ||
                                       m_diag_last_phase == PHASE_EMERGING_DN ||
                                       m_diag_last_phase == PHASE_EMERGING);
-            bool phase_blocked = (m_diag_last_phase == PHASE_UNORDERED) ||
+            bool phase_blocked = (m_diag_last_phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase) ||
                                  (is_emerging_phase && m_settings.BlockEmergingPhase);
             DebugLog(StringFormat("  %s Phase (P): %s%s",
                                   phase_blocked ? "❌" : "✅", phase_str,
