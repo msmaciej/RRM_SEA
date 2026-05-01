@@ -44,13 +44,13 @@ enum EBiasMode
    BIAS_4EMA               // BIAS_4EMAs: phase detection (TRENDING/EMERGING/UNORDERED)
 };
 enum EMarketPhase {
-   PHASE_UNORDERED,        // PHASE_UNO: block all trades (TS = 0)
-   PHASE_EMERGING,         // PHASE_EM: Trend forming (EMA4 between EMA2/EMA3)
-   PHASE_TRENDING,         // PHASE_MT: strong established trend
-   PHASE_TRENDING_UP,      // PHASE_MT_UP: trending bullish: slopes up + EMA2>EMA3>EMA4
-   PHASE_TRENDING_DN,      // PHASE_MT_DN: trending bearish: slopes down + EMA2<EMA3<EMA4
-   PHASE_EMERGING_UP,      // PHASE_EM_UP: emerging bullish: slopes up + EMA4 between EMA2 and EMA3
-   PHASE_EMERGING_DN       // PHASE_EM_DN: emerging bearish: slopes down + EMA4 between EMA2 and EMA3
+   PHASE_UNORDERED,        // PHASE_UNO: block all trades (TS = 0) — EMA2 sandwiched or no clear arrangement
+   PHASE_EMERGING,         // PHASE_EM: legacy non-directional emerging (use EMERGING_UP/DN)
+   PHASE_TRENDING,         // PHASE_TM: legacy non-directional trending (use TRENDING_UP/DN)
+   PHASE_TRENDING_UP,      // PHASE_TM_UP: EMA2 > EMA3 > EMA4 (ascending stack, bullish)
+   PHASE_TRENDING_DN,      // PHASE_TM_DN: EMA4 > EMA3 > EMA2 (descending stack, bearish)
+   PHASE_EMERGING_UP,      // PHASE_EM_UP: EMA2 > EMA4 > EMA3 (EMA4 sandwiched, bullish emerging)
+   PHASE_EMERGING_DN       // PHASE_EM_DN: EMA3 > EMA4 > EMA2 (EMA4 sandwiched, bearish emerging)
 };
 // --- ENTRY LAYER: bitfield identifying EMA pullback zone (Layer 1/2/3) ---
 // Each layer is a power-of-2 flag (combinable via OR).

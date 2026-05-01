@@ -97,13 +97,15 @@ Function: GetBias_2EMA() with GetAdaptiveThresholdPips()
 
 **Option 2: `BIAS_AUTO_PHASE` (Market Phase method)**
 ```
-Uses: 4 EMAs (EMA1, EMA2, EMA3, EMA4) 3-layer hierarchical validation
+Uses: 4 EMAs (EMA2, EMA3, EMA4) — EMA1 ignored entirely, no slopes
 Logic:
-1. Validate Layer 1 (EMA1-EMA2): position + slope agreement
-2. Validate Layer 2 (EMA2-EMA3): position + slope agreement
-3. Validate Layer 3 (EMA3-EMA4): position + slope agreement
-4. Count layer votes: 3=TRENDING, 2=EMERGING, <2=UNORDERED
-5. Extract Bias direction from phase result
+  Pure positional check:
+    TM (Trending):   EMA2>EMA3>EMA4 → PHASE_TRENDING_UP
+                     EMA4>EMA3>EMA2 → PHASE_TRENDING_DN
+    EM (Emerging):   EMA2>EMA4>EMA3 → PHASE_EMERGING_UP  (EMA4 sandwiched)
+                     EMA3>EMA4>EMA2 → PHASE_EMERGING_DN
+    UNO (Unordered): all other arrangements → no trade
+Extract Bias direction from phase result
 Special: UNORDERED phase forces Bias = 0 → blocks all trades
 ```
 
@@ -165,14 +167,13 @@ The TS evaluation follows this exact order:
 │ │      • UNORDERED → bias = 0                         │    │
 │ │                                                     │    │
 │ │   Phase Detection Logic:                            │    │
-│ │   DetectMarketPhase():                              │    │
-│ │     1. Validate Layer 1 (EMA1-EMA2): pos+slopes     │    │
-│ │     2. Validate Layer 2 (EMA2-EMA3): pos+slopes     │    │
-│ │     3. Validate Layer 3 (EMA3-EMA4): pos+slopes     │    │
-│ │     4. Count layer votes:                           │    │
-│ │        • 3 of 3 agree → TRENDING                    │    │
-│ │        • 2 of 3 agree → EMERGING                    │    │
-│ │        • < 2 agree → UNORDERED                      │    │
+│ │   DetectMarketPhase() — pure EMA2/EMA3/EMA4 pos:   │    │
+│ │     TM:  EMA2>EMA3>EMA4 → TRENDING_UP              │    │
+│ │          EMA4>EMA3>EMA2 → TRENDING_DN              │    │
+│ │     EM:  EMA2>EMA4>EMA3 → EMERGING_UP (EMA4 sandw) │    │
+│ │          EMA3>EMA4>EMA2 → EMERGING_DN              │    │
+│ │     UNO: any other arrangement → UNORDERED         │    │
+│ │     (EMA1 ignored — no slopes used)                │    │
 │ └─────────────────────────────────────────────────────┘    │
 │                                                             │
 │   → If bias = 0 → return 0 (unless Stats_FullEvaluation)   │
@@ -225,89 +226,61 @@ The TS evaluation follows this exact order:
 
 ### Market Phase
 
-Market Phase is **only** evaluated when `BiasMode = BIAS_AUTO_PHASE`. It uses **3-layer hierarchical validation** across all 4 EMAs.
+Market Phase is **only** evaluated when `BiasMode = BIAS_AUTO_PHASE`. It uses **pure positional check of EMA2, EMA3, EMA4 only**. EMA1 is ignored entirely. No slopes.
 
-**`PHASE_TRENDING`**
+**`PHASE_TRENDING_UP` / `PHASE_TRENDING_DN`**
 ```
-├─ All 3 layers confirm same direction (3 of 3 votes agree)
-├─ Each layer: fast EMA above slow AND both slopes aligned
-└─ Result: Allow trades, Bias = 1 or -1
+├─ Bullish (TM_UP): EMA2 > EMA3 > EMA4  — perfect ascending stack
+├─ Bearish (TM_DN): EMA4 > EMA3 > EMA2  — perfect descending stack
+└─ Result: Allow all trades, Bias = ±1
 ```
 
-**`PHASE_EMERGING`**
+**`PHASE_EMERGING_UP` / `PHASE_EMERGING_DN`**
 ```
-├─ 2 of 3 layers confirm same direction
-├─ Trend is forming — partial alignment
-└─ Result: Allow trades (but block L3), Bias = 1 or -1
+├─ Bullish (EM_UP): EMA2 > EMA4 > EMA3  — EMA4 (slowest) sandwiched between EMA2 and EMA3
+├─ Bearish (EM_DN): EMA3 > EMA4 > EMA2  — EMA4 (slowest) sandwiched between EMA2 and EMA3
+└─ Result: Allow trades if configured, Bias = ±1
 ```
 
 **`PHASE_UNORDERED`**
 ```
-├─ Fewer than 2 layers agree on direction
+├─ EMA2 (fast) is sandwiched between EMA3 and EMA4, or any other arrangement
 ├─ No clear trend structure
 └─ Result: Block ALL trades (TS = 0), Bias forced to 0
 ```
 
-### Phase Detection: 3-Layer Hierarchical Validation
+### Phase Detection: Pure EMA2/EMA3/EMA4 Positional Check
 
-When `BiasMode = BIAS_AUTO_PHASE`, phase detection evaluates **3 interwired sub-markets** simultaneously.
+When `BiasMode = BIAS_AUTO_PHASE`, phase detection evaluates only the **position** of EMA2, EMA3, EMA4. EMA1 is not read. No slopes are computed.
 
-Each layer checks **two conditions**:
-1. **Position**: Which EMA is on top?
-2. **Slopes**: Do both EMAs' slopes agree with the position?
+**Phase Determination by EMA Position:**
 
-**Layer 1 (WEAK) - EMA1 vs EMA2:**
-```
-LONG:  EMA1 > EMA2, slope1=UP, slope2=UP   → Layer 1 votes LONG
-SHORT: EMA2 > EMA1, slope1=DN, slope2=DN   → Layer 1 votes SHORT
-Other: Any mismatch between pos and slopes  → INVALID (no vote)
-```
-
-**Layer 2 (MEDIUM) - EMA2 vs EMA3:**
-Same validation logic using EMA2 and EMA3 values/slopes.
-
-**Layer 3 (STRONG) - EMA3 vs EMA4:**
-Same validation logic using EMA3 and EMA4 values/slopes.
-
-**Phase Determination by Layer Votes:**
-
-| Long Votes | Short Votes | Phase Result       | Bias |
-|------------|-------------|-------------------|------|
-| 3          | 0           | PHASE_TRENDING_UP  | +1   |
-| 0          | 3           | PHASE_TRENDING_DN  | -1   |
-| 2          | 0           | PHASE_EMERGING_UP  | +1   |
-| 0          | 2           | PHASE_EMERGING_DN  | -1   |
-| < 2        | < 2         | PHASE_UNORDERED    | 0    |
-
-**Debug output example** (when `DebugFlow = true`):
-```
-[LAYER L1_WEAK]   LONG confirmed: FastEMA > SlowEMA, slopes both UP
-[LAYER L2_MEDIUM] LONG confirmed: FastEMA > SlowEMA, slopes both UP
-[LAYER L3_STRONG] INVALID: pos=F>S, slopeF=+1, slopeS=0
-[260304_PHASE]    Layer votes: LONG=2 SHORT=0 (L1=1 L2=1 L3=0)
-[260304_PHASE]    EMERGING_UP: 2 LONG votes
-[260304_BIAS]     EMERGING_UP → LONG bias (trend forming)
-```
+| EMA2 vs EMA3 vs EMA4 | Phase Result | Bias |
+|---|---|---|
+| EMA2 > EMA3 > EMA4 | PHASE_TRENDING_UP | +1 |
+| EMA4 > EMA3 > EMA2 | PHASE_TRENDING_DN | -1 |
+| EMA2 > EMA4 > EMA3 | PHASE_EMERGING_UP (EMA4 sandwiched) | +1 |
+| EMA3 > EMA4 > EMA2 | PHASE_EMERGING_DN (EMA4 sandwiched) | -1 |
+| any other | PHASE_UNORDERED (EMA2 sandwiched or jumbled) | 0 |
 
 **Market Phase Determination Flow:**
 ```mermaid
 graph TD
-    A[Get all 4 EMA values<br/>and slopes at shift] --> B[ValidateLayer L1<br/>EMA1 vs EMA2]
-    B --> C[ValidateLayer L2<br/>EMA2 vs EMA3]
-    C --> D[ValidateLayer L3<br/>EMA3 vs EMA4]
-    D --> E{Count votes}
+    A[Get EMA2, EMA3, EMA4 values at shift<br/>EMA1 ignored] --> B{EMA2 > EMA3 > EMA4?}
+    B -->|Yes| C[PHASE_TRENDING_UP ✅]
+    B -->|No| D{EMA4 > EMA3 > EMA2?}
+    D -->|Yes| E[PHASE_TRENDING_DN ✅]
+    D -->|No| F{EMA2 > EMA4 > EMA3?}
+    F -->|Yes| G[PHASE_EMERGING_UP ✅]
+    F -->|No| H{EMA3 > EMA4 > EMA2?}
+    H -->|Yes| I[PHASE_EMERGING_DN ✅]
+    H -->|No| J[PHASE_UNORDERED ❌]
 
-    E -->|3 LONG votes| F[PHASE_TRENDING_UP]
-    E -->|3 SHORT votes| G[PHASE_TRENDING_DN]
-    E -->|2 LONG votes| H[PHASE_EMERGING_UP]
-    E -->|2 SHORT votes| I[PHASE_EMERGING_DN]
-    E -->|< 2 agree| J[PHASE_UNORDERED]
-
-    F --> K[✅ Bias = +1]
-    G --> L[✅ Bias = -1]
-    H --> K
+    C --> K[Bias = +1]
+    E --> L[Bias = -1]
+    G --> K
     I --> L
-    J --> M[❌ Bias = 0]
+    J --> M[Bias = 0]
 ```
 
 ---
@@ -316,25 +289,38 @@ graph TD
 
 Entry Layer detects a **pullback-recovery pattern** to time entries. It can be used with **any** Bias mode and is independent of Market Phase.
 
-Three layers represent different pullback depths:
+Three layers represent different pullback depths. Each is evaluated independently:
 
-| Layer | EMA Pair | Nickname | Depth | Risk/Reward |
-|---|---|---|---|---|
-| `LAYER_1_WEAK` | EMA1 – EMA2 | "Ribbon" | Shallow | Lower risk, lower reward |
-| `LAYER_2_MEDIUM` | EMA2 – EMA3 | "Ghost" | Medium | Balanced |
-| `LAYER_3_STRONG` | EMA3 – EMA4 | "Shark" | Deep | Higher risk, higher reward |
+| Layer | EMA Pair | Nickname | Priority |
+|-------|----------|----------|----------|
+| **L3** `LAYER_3_STRONG` | EMA3 – EMA4 | "Shark" | **Highest** (used first) |
+| **L2** `LAYER_2_MEDIUM` | EMA2 – EMA3 | "Ghost" | Medium |
+| **L1** `LAYER_1_WEAK` | EMA1 – EMA2 | "Ribbon" | Lowest |
 
-**Pullback-Recovery Detection Pattern:**
+**Priority rule**: If multiple layers are valid, take L3 first, then L2, then L1.
 
-1. **Pullback Phase:** EMA_fast slope moves toward EMA_slow (or flattens)
-2. **Flat Phase:** EMA_fast slope becomes flat (brief consolidation)
-3. **Recovery Phase:** EMA_fast slope resumes trend direction
-4. **Confirmation:** Price candle body closes beyond EMA_fast (in bias direction)
+**Why L3 is highest probability**: The slowest EMA pair reflects the strongest structural support/resistance. A pullback to EMA3-EMA4 and recovery is the most reliable setup.
+
+**Layer Sub-Equation** (per layer):
+
+```
+L_x = pos_x × slope_x × BC_x × BD_x
+```
+
+Where:
+- **pos_x** — EMA_fast correctly positioned relative to EMA_slow (above for LONG, below for SHORT)
+- **slope_x** — Pullback detected (fast EMA slope flattened/moved toward slow), then recovery (fast EMA slope resumed bias direction)
+- **BC_x** (Bar Close) — Close price is beyond the fast EMA of this layer in bias direction. LONG: close > fast EMA. SHORT: close < fast EMA. Checks the closing price level regardless of wick or body size.
+- **BD_x** (Bar Direction) — Bar closed in bias direction. LONG: close > open (bullish bar). SHORT: close < open (bearish bar). A doji or opposite bar = 0 even if close is beyond the EMA.
+
+**BC and BD are independent**: A bar can close above EMA1 (BC=1) but be bearish (BD=0) → L=0. This correctly rejects uncertainty and market indecision.
+
+**Layer independence**: Each layer runs its own full sub-equation. If EMA1 crosses below EMA2 (L1 pos fails), L2 may still be valid if EMA2 slope is pulling toward EMA3 and price closes above EMA2. The BC check is the key discriminator — it determines which layer boundary price actually respected.
 
 **Return values from layer check:**
-- `1` = Recovery detected, matches bias direction → **PASS**
-- `0` = No recovery detected → **FAIL**
-- `-1` = Recovery contradicts bias direction → **FAIL**
+- `1` = PASS — Recovery confirmed, bias direction matched
+- `0` = FAIL — No recovery or BC/BD failed
+- `-1` = FAIL — Recovery contradicts bias direction
 
 **Pullback-Recovery Sequence:**
 ```mermaid
@@ -356,44 +342,19 @@ sequenceDiagram
     Note over Price,EMA_slow: ✅ Entry signal confirmed
 ```
 
-### Visual: 3-Layer Phase Detection Flow
+### Visual: Phase Detection Flow (EMA Position Only)
 
 ```mermaid
 graph TD
-    A[Get EMA Values & Slopes<br>at shift=1] --> B1[ValidateLayer L1<br>EMA1 vs EMA2]
-    A --> B2[ValidateLayer L2<br>EMA2 vs EMA3]
-    A --> B3[ValidateLayer L3<br>EMA3 vs EMA4]
-
-    B1 --> C1{Position & Slopes<br>Agree?}
-    C1 -->|Yes LONG| D1[L1 Vote: +1]
-    C1 -->|Yes SHORT| D2[L1 Vote: -1]
-    C1 -->|No| D3[L1 Vote: 0]
-
-    B2 --> E1{Position & Slopes<br>Agree?}
-    E1 -->|Yes LONG| F1[L2 Vote: +1]
-    E1 -->|Yes SHORT| F2[L2 Vote: -1]
-    E1 -->|No| F3[L2 Vote: 0]
-
-    B3 --> G1{Position & Slopes<br>Agree?}
-    G1 -->|Yes LONG| H1[L3 Vote: +1]
-    G1 -->|Yes SHORT| H2[L3 Vote: -1]
-    G1 -->|No| H3[L3 Vote: 0]
-
-    D1 --> I[Count Votes]
-    D2 --> I
-    D3 --> I
-    F1 --> I
-    F2 --> I
-    F3 --> I
-    H1 --> I
-    H2 --> I
-    H3 --> I
-
-    I -->|3 LONG| J1[PHASE_TRENDING_UP<br>Bias = +1]
-    I -->|3 SHORT| J2[PHASE_TRENDING_DN<br>Bias = -1]
-    I -->|2 LONG| K1[PHASE_EMERGING_UP<br>Bias = +1]
-    I -->|2 SHORT| K2[PHASE_EMERGING_DN<br>Bias = -1]
-    I -->|< 2 agree| L[PHASE_UNORDERED<br>Bias = 0]
+    A[Read EMA2, EMA3, EMA4 at shift<br>EMA1 ignored — no slopes] --> B{EMA2 > EMA3 > EMA4?}
+    B -->|Yes| TU[PHASE_TRENDING_UP<br>Bias = +1 ✅]
+    B -->|No| C{EMA4 > EMA3 > EMA2?}
+    C -->|Yes| TD[PHASE_TRENDING_DN<br>Bias = -1 ✅]
+    C -->|No| D{EMA2 > EMA4 > EMA3?<br>EMA4 sandwiched}
+    D -->|Yes| EU[PHASE_EMERGING_UP<br>Bias = +1 ✅]
+    D -->|No| E{EMA3 > EMA4 > EMA2?<br>EMA4 sandwiched}
+    E -->|Yes| ED[PHASE_EMERGING_DN<br>Bias = -1 ✅]
+    E -->|No| UNO[PHASE_UNORDERED<br>Bias = 0 ❌]
 ```
 
 ### Visual: Multi-Layer Signal Detection
