@@ -589,6 +589,19 @@ struct ST_Settings
 
    // Post-trade cooldown
    int           MinBarsAfterClose;     // bars to wait after trade close before new entry (0 = off)
+
+   // Spread retry cap — kill carry after N consecutive spread-blocked TE attempts (0=unlimited)
+   int    MaxSpreadRetryBars;
+
+   // EMA fan overextension filter — block TS=1 when EMA1–EMA4 gap is wide AND still expanding
+   // Note: EmaFanMaxTotalPips=25.0 is a starting default for M1/M5.
+   // Review per timeframe: JPY pairs need ~250 equivalent; GlobalPipSize() handles this correctly.
+   bool   EmaFanFilterEnabled;
+   double EmaFanMaxTotalPips;
+
+   // DPI momentum deceleration filter — block TS=1 when directionally-aligned DPI histogram shrinks
+   // Only activates when DpiDecelFilterEnabled=true AND Ind_Dpi_Enabled=true.
+   bool   DpiDecelFilterEnabled;
 };
 
 // Global Configuration Instance
@@ -680,6 +693,7 @@ input group "-----   🚫 FILTER: SPREAD";
 //input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_UseSpread              = false; // Spread: Enablefilter
 input double      Inp_MaxSpreadPips          = 3.0;   // Spread: Max (pips; ignored if UseSpread=false)
+input int         Inp_MaxSpreadRetryBars     = 3;     // Spread: Kill carry after N bars of spread blocking (0=unlimited)
 
 //input group "-";
 input group "-----   ⏰ FILTER: SESSION TIME";
@@ -703,6 +717,10 @@ input int         Inp_HtfEmaPeriod           = 89;    // HTF: EMA period
 //input group "-";
 input group "-----   🎨 UI: COCKPIT PANEL FREEZE @TS=1";
 input bool        Inp_UI_FreezeCockpitOnTS   = true;  // UI CP: Freeze STRATEGY LOGIC block while TS=1 pending TE
+
+input group "-----   🛡️ SIGNAL: CARRY GUARD";
+input int         Inp_CarryMaxBars           = 3;     // Kill carry after N bars if TE still blocked (0=unlimited)
+input double      Inp_CarryMaxPips           = 5.0;   // Kill carry if price moves >N pips from signal bar close (0=disabled)
 
 //input group "-";
 input group "   🎨 UI: COCKPIT PANEL";
@@ -949,6 +967,11 @@ input int          Inp_RRM_ORG_TSI_S      = 13;    // RRM_ORG: DPI TSI S period 
 input int          Inp_RRM_ORG_TSI_U      = 7;     // RRM_ORG: DPI TSI Signal EMA period
 input int          Inp_RRM_ORG_TSI_FastR  = 5;     // RRM_ORG: DPI Nested TSI FastR period (default 5)
 input int          Inp_RRM_ORG_TSI_FastS  = 3;     // RRM_ORG: DPI Nested TSI FastS period (default 3)
+
+input group "-----   📐 RRM: EMA Fan & DPI Filters                        ";
+input bool         Inp_EmaFanFilterEnabled  = false;  // RRM: Block entry on overextended EMA fan
+input double       Inp_EmaFanMaxTotalPips   = 0.0;    // RRM: EMA1–EMA4 max total gap pips (0=disabled; M1/M5 start: 25.0)
+input bool         Inp_DpiDecelFilterEnabled = false; // RRM: Block entry on DPI histogram deceleration
 
 
 input group "-";
@@ -1597,6 +1620,16 @@ void InitializeConfig()
 
    // Post-trade cooldown: disabled by default; presets may override
    Settings.MinBarsAfterClose = Inp_MinBarsAfterClose;
+
+   // Spread retry cap: kill carry after N consecutive spread-blocked bars (0=unlimited)
+   Settings.MaxSpreadRetryBars    = Inp_MaxSpreadRetryBars;
+
+   // EMA fan overextension filter: disabled by default (presets override)
+   Settings.EmaFanFilterEnabled   = Inp_EmaFanFilterEnabled;
+   Settings.EmaFanMaxTotalPips    = Inp_EmaFanMaxTotalPips;
+
+   // DPI momentum deceleration filter: disabled by default (presets override)
+   Settings.DpiDecelFilterEnabled = Inp_DpiDecelFilterEnabled;
 
    // === FINAL VALIDATION: BiasMode vs AutoStrat compatibility ===
    if(Settings.BiasEnabled && !ValidateBiasStratCombo(Settings.BiasMode, Settings.AutoStrat))

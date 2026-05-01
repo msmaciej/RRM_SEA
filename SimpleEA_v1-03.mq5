@@ -77,6 +77,8 @@ string   g_ts_reason = "";
 bool g_ts_active  = false;   // true when a TS=1 signal is pending TE execution
 int  g_ts_carried = 0;       // direction of the pending signal (+1 BUY / -1 SELL)
 int  g_ts_carry_miss_count = 0; // consecutive ts=0 bars tolerated while carry-forward is active
+int  g_ts_carry_bar_count  = 0; // bars elapsed since carry was first armed
+double g_ts_signal_price   = 0.0; // iClose of the bar where TS=1 first fired (signal reference price)
 
 // TS snapshot — SL/Lots/Risk computed at shift=0 bar open from historical anchors
 double g_ts_sl   = 0.0;
@@ -708,8 +710,10 @@ void OrchestrateTick()
    if(drawdown_blocked)
    {
       // Clear any pending carry-forward when drawdown protection is active
-      g_ts_active  = false;
-      g_ts_carried = 0;
+      g_ts_active          = false;
+      g_ts_carried         = 0;
+      g_ts_carry_bar_count = 0;
+      g_ts_signal_price    = 0.0;
       if(g_cockpit_freeze_active)
       {
          g_cockpit_freeze_active = false;
@@ -718,6 +722,54 @@ void OrchestrateTick()
    }
    else
    {
+      // ── Carry-forward guard: expire stale signals ──────────────────────
+      // Runs BEFORE TS evaluation so an aged/drifted carry is killed before
+      // TS is re-evaluated this bar.
+      if(g_ts_active)
+      {
+         g_ts_carry_bar_count++;
+
+         bool carry_expired = false;
+         string expire_reason = "";
+
+         // Age guard: kill carry if too many bars have passed since the signal bar
+         if(Inp_CarryMaxBars > 0 && g_ts_carry_bar_count > Inp_CarryMaxBars)
+         {
+            carry_expired  = true;
+            expire_reason  = StringFormat("CARRY_EXPIRED_AGE(%d bars)", g_ts_carry_bar_count);
+         }
+
+         // Price deviation guard: kill carry if market moved too far from the signal bar
+         if(!carry_expired && Inp_CarryMaxPips > 0.0 && g_ts_signal_price > 0.0)
+         {
+            double pip      = GlobalPipSize(_Symbol);
+            double live     = (g_ts_carried > 0)
+                              ? SymbolInfoDouble(_Symbol, SYMBOL_ASK)
+                              : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+            double dev_pips = (pip > 0.0) ? MathAbs(live - g_ts_signal_price) / pip : 0.0;
+            if(dev_pips > Inp_CarryMaxPips)
+            {
+               carry_expired = true;
+               expire_reason = StringFormat("CARRY_EXPIRED_PRICE(dev=%.1f pips > %.1f)", dev_pips, Inp_CarryMaxPips);
+            }
+         }
+
+         if(carry_expired)
+         {
+            PrintFormat("[CARRY_GUARD] %s — carry killed. dir=%s bars=%d signal_price=%.5f",
+                        expire_reason,
+                        (g_ts_carried > 0 ? "BUY" : "SELL"),
+                        g_ts_carry_bar_count,
+                        g_ts_signal_price);
+            g_ts_active             = false;
+            g_ts_carried            = 0;
+            g_ts_carry_bar_count    = 0;
+            g_ts_signal_price       = 0.0;
+            g_ts_carry_miss_count   = 0;
+            g_cockpit_freeze_active = false;
+         }
+      }
+
       // Reset TE state each new bar so stale results from prior bar don't persist
       g_last_te_result = "";
       g_last_te_veto   = "";
@@ -744,6 +796,8 @@ void OrchestrateTick()
          {
             g_ts_active             = false;
             g_ts_carried            = 0;
+            g_ts_carry_bar_count    = 0;
+            g_ts_signal_price       = 0.0;
             g_ts_carry_miss_count   = 0;
             g_cockpit_freeze_active = false;
          }
@@ -751,6 +805,10 @@ void OrchestrateTick()
          // Arm signal state
          g_ts_active  = true;
          g_ts_carried = ts;
+
+         // Capture signal reference price only on the first arm (not on carry refreshes)
+         if(g_ts_carry_bar_count == 0)
+            g_ts_signal_price = iClose(_Symbol, PERIOD_CURRENT, 1);
 
          g_ts_time   = iTime(_Symbol, PERIOD_CURRENT, 1);
          g_ts_dir    = ts;
@@ -765,10 +823,12 @@ void OrchestrateTick()
       }
       else
       {
-         // TS=0 this bar: discard any pending signal immediately.
-         // No carry-forward, no flicker tolerance — each bar is evaluated fresh.
+         // TS=0 this bar: discard any pending carry-forward immediately.
+         // Price or momentum conditions are no longer met — abandon the signal.
          g_ts_active           = false;
          g_ts_carried          = 0;
+         g_ts_carry_bar_count  = 0;
+         g_ts_signal_price     = 0.0;
          g_ts_carry_miss_count = 0;
 
          // Persist reason for cockpit display
@@ -820,17 +880,30 @@ void OrchestrateTick()
             // Trade entered — clear signal and unfreeze cockpit
             g_ts_active             = false;
             g_ts_carried            = 0;
+            g_ts_carry_bar_count    = 0;
+            g_ts_signal_price       = 0.0;
             g_ts_carry_miss_count   = 0;
             g_cockpit_freeze_active = false;
          }
          else
          {
-            // TE vetoed — discard signal. Do NOT carry forward.
-            // Next bar will evaluate TS fresh; if still valid, TE will be attempted again.
-            g_ts_active             = false;
-            g_ts_carried            = 0;
-            g_ts_carry_miss_count   = 0;
-            g_cockpit_freeze_active = false;
+            // TE vetoed — carry signal forward for retry next bar.
+            // The carry guard (above, at top of new-bar block) will expire the carry
+            // if it gets too old (Inp_CarryMaxBars) or price drifts too far (Inp_CarryMaxPips).
+            // g_ts_active and g_ts_carried remain set; freeze stays active.
+            g_ts_carry_miss_count = 0; // legacy var preserved for UI compatibility
+
+            // Special case: spread was persistently wide — kill carry explicitly
+            if(Executor.LastVetoReason() == "VETO_SPREAD_TIMEOUT")
+            {
+               Print("[CARRY_GUARD] VETO_SPREAD_TIMEOUT — spread was persistently wide. Carry killed.");
+               g_ts_active             = false;
+               g_ts_carried            = 0;
+               g_ts_carry_bar_count    = 0;
+               g_ts_signal_price       = 0.0;
+               g_ts_carry_miss_count   = 0;
+               g_cockpit_freeze_active = false;
+            }
          }
       }
 
