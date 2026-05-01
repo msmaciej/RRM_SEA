@@ -446,7 +446,8 @@ string SEA_UI_BuildVoteBreakdown(const ST_Settings &cfg, const SVoteSnapshot &vo
 // -----------------------------------
 void SEA_UI_Init(const ulong magic)
 {
-   // Purge ALL stale SEA_UI_* objects from any previous instance before creating new panels
+   // Purge ALL stale SEA_UI_* objects from any previous instance before creating new panels.
+   // All SEA UI chart objects use the "SEA_UI_" prefix (enforced by g_sea_ui_base_name).
    for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
    {
       string obj_name = ObjectName(0, i);
@@ -469,7 +470,8 @@ void SEA_UI_DestroyAll()
    ObjectDelete(0, "SEA_UI_TS_MASTER");
    ObjectDelete(0, "SEA_UI_TE_MASTER");
 
-   // Prefix scan: delete any remaining SEA_UI_* objects from any instance (ghost panel cleanup)
+   // Prefix scan: delete any remaining SEA_UI_* objects from any instance (ghost panel cleanup).
+   // All SEA UI chart objects use the "SEA_UI_" prefix (enforced by g_sea_ui_base_name).
    for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
    {
       string obj_name = ObjectName(0, i);

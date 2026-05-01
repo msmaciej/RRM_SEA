@@ -1086,7 +1086,7 @@ public:
       // Margin adjustment uses live price — margin is a live broker value (correct)
       ENUM_ORDER_TYPE order_type = isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
       double live_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
-      m_cached_sl   = sl;   // store historical-anchor SL for cockpit display (Orig column); NOT used as placed SL
+      m_cached_sl   = sl;   // store historical-anchor SL for pre-check diagnostics; NOT used as placed SL (see ExecuteTrade Fix 3)
       double adjusted_lots = AdjustLotForMargin(order_type, lot, live_price);
       m_cached_lots = adjusted_lots;
       m_cached_risk = ComputeRiskPercent(adjusted_lots, MathAbs(ref_price - sl));
