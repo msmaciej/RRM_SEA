@@ -1191,13 +1191,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Vote_AllowPsarFlip     = true;
       cfg.Vote_PsarFlipDelay     = -1;   // Persistent: evaluate dot position on every bar
 
-      // ── CANDLE BODY: LOCKED ON (bullish/bearish candle gate) ──────────
-      cfg.Ind_CandleBody_Enabled = true;
+      // ── CANDLE BODY: LOCKED OFF (PSAR-flip entry bar may be doji/mixed) ─
+      cfg.Ind_CandleBody_Enabled = false;
       cfg.Ind_CandleBody_Weight  = 1;
       cfg.CandleBody_AvgPeriod   = 15;
       cfg.CandleBody_MaxMult     = 3.5;
       cfg.CandleBody_CheckBars   = (_Period <= PERIOD_M5) ? 1 : 2;
-      cfg.CandleBody_RequireDirection = true;
+      cfg.CandleBody_RequireDirection = false;
 
       // ── ALL OTHER INDICATORS: LOCKED OFF ─────────────────────────────
       cfg.Ind_Adx_Enabled        = false;
@@ -1384,8 +1384,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // major FX pairs (e.g. EURUSD, GBPUSD). Adjust per instrument and TF:
       //   M15/H1: consider 40–60 pips; H4+: 80–120 pips.
       // JPY pairs: GlobalPipSize() returns the correct pip unit automatically.
-      cfg.EmaFanFilterEnabled       = true;
-      cfg.EmaFanMaxTotalPips        = 25.0;
+      cfg.EmaFanFilterEnabled       = false;
+      cfg.EmaFanMaxTotalPips        = 25.0;   // value retained for reference, filter is off
 
       // ── DPI DECELERATION FILTER ────────────────────────────────────────
       // DPI voter is enabled in PRESET_RRM_ORG — decel filter is active.
