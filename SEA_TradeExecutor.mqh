@@ -334,7 +334,8 @@ private:
       return NormalizeVolume(raw_lot);
    }
 
-   int CountConsecutiveLosses(){
+   // BUG FIX: Renamed from CountConsecutiveLosses() — daily scope for DrawdownProtection
+   int CountConsecutiveLossesToday(){
       datetime to = TimeCurrent();
       
       // FIX: Calculate midnight (start of the current server day)
@@ -365,6 +366,26 @@ private:
       return losses;
    }
 
+   // BUG FIX: Full-history version for MA lot sizing (matches MetaQuotes MA EA behaviour)
+   int CountConsecutiveLossesTotal(){
+      datetime to = TimeCurrent();
+      HistorySelect(0, to);
+      int losses = 0;
+      int total = HistoryDealsTotal();
+      for(int i = total - 1; i >= 0 && losses < 100; i--) {
+         ulong deal = HistoryDealGetTicket(i);
+         if(deal == 0) continue;
+         if(HistoryDealGetString(deal, DEAL_SYMBOL) != m_symbol) continue;
+         if((ulong)HistoryDealGetInteger(deal, DEAL_MAGIC) != m_magic) continue;
+         long entry = HistoryDealGetInteger(deal, DEAL_ENTRY);
+         if(entry != DEAL_ENTRY_OUT) continue;
+         double profit = HistoryDealGetDouble(deal, DEAL_PROFIT);
+         if(profit < 0.0) { losses++; continue; }
+         break;
+      }
+      return losses;
+   }
+
    double CalcLotMACompat() {
       double mr = m_settings.MA_MaximumRiskPct;
       if(mr <= 0.0) return 0.0;
@@ -376,7 +397,8 @@ private:
       double free = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
       if(free <= 0.0) return 0.0;
       double lot = NormalizeDouble(free * mr / margin, 2);
-      int losses = CountConsecutiveLosses();
+      // BUG FIX: Use full-history loss count (matches MetaQuotes MA EA) instead of daily-only count
+      int losses = CountConsecutiveLossesTotal();
       double df = m_settings.MA_DecreaseFactor;
       if(losses > 1 && df > 0.0) {
          lot = NormalizeDouble(lot - lot * losses / df, 1);
@@ -723,6 +745,9 @@ public:
    string   LastVetoReason() const { return m_te_veto_reason; }
    int      SpreadBlockBars() const { return m_spread_block_bars; }
 
+   // BUG FIX: Public wrapper so OrchestrateInit() can restore g_consecutive_losses from history
+   int GetConsecutiveLossesToday() { return CountConsecutiveLossesToday(); }
+
    int CooldownBarsRemaining() const
    {
       if(m_settings.MinBarsAfterClose <= 0 || m_last_close_bar == 0) return 0;
@@ -832,7 +857,9 @@ public:
       if(!PositionSelectByTicket(ticket)) return false;
       double sl = PositionGetDouble(POSITION_SL);
       double open_price = PositionGetDouble(POSITION_PRICE_OPEN);
-      return (sl != 0.0 && MathAbs(sl - open_price) <= 2.0 * GetPipSize());
+      // BUG FIX: Use RRM_BE_BufferPips + 2.0 tolerance instead of hardcoded 2.0 pips
+      double tolerance_pips = m_settings.RRM_BE_BufferPips + 2.0;
+      return (sl != 0.0 && MathAbs(sl - open_price) <= tolerance_pips * GetPipSize());
    }
 
    double CalculatePositionRisk(ulong ticket) {
