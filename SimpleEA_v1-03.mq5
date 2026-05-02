@@ -130,8 +130,6 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
                         const MqlTradeRequest& request,
                         const MqlTradeResult& result)
 {
-   Print("OnTradeTransaction fired: type=", EnumToString(trans.type)); // ✅ Test
-
    // Only process deal transactions (position close events)
    if(trans.type != TRADE_TRANSACTION_DEAL_ADD) return;
    
@@ -323,8 +321,8 @@ void UpdateRRMDrawdownTracking(bool was_profitable)
 {
    if(!Settings.RRM_EnableDrawdownProtection) return;
    
-   g_trades_today++;  // Increment daily trade counter
-   
+   // BUG FIX: g_trades_today++ removed from here — now incremented at trade ENTRY in OrchestrateTick()
+
    if(was_profitable)
       g_consecutive_losses = 0;  // Reset on win
    else
@@ -568,6 +566,15 @@ int OrchestrateInit()
    FlowLog("Step F: Init Trade Executor");
    Executor.Init(Inp_MagicNum, Settings);
 
+   // BUG FIX: Restore g_consecutive_losses from history on (re-)init so DrawdownProtection
+   // is not bypassed after an EA restart (crash, parameter change, broker disconnect, etc.)
+   if(Settings.RRM_EnableDrawdownProtection)
+   {
+      g_consecutive_losses = Executor.GetConsecutiveLossesToday();
+      if(Settings.DebugFlow)
+         PrintFormat("[RRM_DD_INIT] Restored consecutive losses from history: %d", g_consecutive_losses);
+   }
+
    FlowLog("Step G: Load News calendar (optional)");
    if(Settings.UseNews)
       Signal.LoadNews(Inp_NewsFile);
@@ -604,6 +611,9 @@ int OrchestrateInit()
    // Capture starting balance for end-of-test system analysis report
    g_starting_balance = AccountInfoDouble(ACCOUNT_BALANCE);
    g_peak_equity      = g_starting_balance;
+
+   // BUG FIX: Reset flag so OnTick() re-manages chart indicators after every (re-)init
+   g_chart_indicators_managed = false;
 
    return INIT_SUCCEEDED;
 }
@@ -690,6 +700,10 @@ void OrchestrateTick()
 
       bool te_news_blocked = Signal.IsNewsBlocked();
       int te = Executor.EvaluateTE(g_ts_dir, te_news_blocked);
+
+      // BUG FIX: Count daily trades at ENTRY (not at close) for correct MaxTradesPerDay enforcement
+      if(te > 0 && Settings.RRM_EnableDrawdownProtection)
+         g_trades_today++;
 
       g_ts_sl   = Executor.LastCachedSL();
       g_ts_lots = Executor.LastCachedLots();
