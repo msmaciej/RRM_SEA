@@ -381,6 +381,7 @@ struct ST_Settings
    int    DPI_TSI_U;                // TSI Signal EMA period
    int    DPI_TSI_FastR;            // Nested TSI first EMA period (default 5)
    int    DPI_TSI_FastS;            // Nested TSI second EMA period (default 3)
+   double DPI_GreenThreshold;       // MainLine threshold for green histogram (overbought/oversold marker)
    int    VRC_ATR_Period;
    int    VRC_Lookback;
    double VRC_LowThreshold;         // Below this percentile = LOW regime (reject trade)
@@ -1427,6 +1428,7 @@ void InitializeConfig()
    Settings.DPI_TSI_U             = MathMax(1, Inp_RRM_ORG_TSI_U);
    Settings.DPI_TSI_FastR         = MathMax(1, Inp_RRM_ORG_TSI_FastR);
    Settings.DPI_TSI_FastS         = MathMax(1, Inp_RRM_ORG_TSI_FastS);
+   Settings.DPI_GreenThreshold    = 0.00005;  // default; can be overridden by presets
 
    // Choppiness Index
    Settings.CI_Period             = MathMax(5, Inp_CI_Period);

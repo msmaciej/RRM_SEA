@@ -4497,10 +4497,11 @@ public:
    // Computes main_hist (main_line - signal_line) at two consecutive shifts:
    //   out_hist_cur  = histogram value at v_shift   (current bar)
    //   out_hist_prev = histogram value at v_shift+1 (previous bar)
+   //   out_green     = true when |mainLine_cur| > DPI_GreenThreshold (overbought/oversold exhaustion)
    // Returns false if insufficient bars, DPI not enabled, or computation fails.
    // Used by the DPI deceleration pre-filter in EvaluateTS.
    // ─────────────────────────────────────────────────────────────────────────
-   bool ComputeDPIMainHist(int v_shift, double &out_hist_cur, double &out_hist_prev)
+   bool ComputeDPIMainHist(int v_shift, double &out_hist_cur, double &out_hist_prev, bool &out_green)
    {
       if(!m_settings.Ind_Dpi_Enabled) return false;
 
@@ -4521,6 +4522,7 @@ public:
 
       out_hist_cur  = 0.0;
       out_hist_prev = 0.0;
+      out_green     = false;
 
       // Iterate from oldest bar toward v_shift, capturing histogram at v_shift+1 en route
       for(int i = bars_needed - 1; i >= v_shift; i--)
@@ -4541,6 +4543,7 @@ public:
             out_hist_prev = main_line - sig;  // capture at v_shift+1
       }
       out_hist_cur = main_line - sig;  // final value at v_shift
+      out_green    = (MathAbs(main_line) > m_settings.DPI_GreenThreshold);
       return true;
    }
 
@@ -4704,7 +4707,8 @@ public:
       if(m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
       {
          double hist_cur = 0.0, hist_prev = 0.0;
-         if(ComputeDPIMainHist(v_shift, hist_cur, hist_prev))
+         bool   green_dummy = false;
+         if(ComputeDPIMainHist(v_shift, hist_cur, hist_prev, green_dummy))
          {
             // For BUY bias: histogram should be positive and growing (main_hist > 0 and increasing)
             // For SELL bias: histogram should be negative and decreasing (main_hist < 0 and more negative)
