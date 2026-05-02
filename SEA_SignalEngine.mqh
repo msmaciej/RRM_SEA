@@ -4497,30 +4497,38 @@ public:
    // Computes main_hist (main_line - signal_line) at two consecutive shifts:
    //   out_hist_cur  = histogram value at v_shift   (current bar)
    //   out_hist_prev = histogram value at v_shift+1 (previous bar)
+   //   out_green     = true when fast histogram has reversed against main histogram
+   //                   (exhaustion signal: opposite signs AND nested inside)
    // Returns false if insufficient bars, DPI not enabled, or computation fails.
    // Used by the DPI deceleration pre-filter in EvaluateTS.
    // ─────────────────────────────────────────────────────────────────────────
-   bool ComputeDPIMainHist(int v_shift, double &out_hist_cur, double &out_hist_prev)
+   bool ComputeDPIMainHist(int v_shift, double &out_hist_cur, double &out_hist_prev, bool &out_green)
    {
       if(!m_settings.Ind_Dpi_Enabled) return false;
 
       int R     = m_settings.DPI_TSI_R;
       int S     = m_settings.DPI_TSI_S;
       int U     = m_settings.DPI_TSI_U;
+      int FastR = m_settings.DPI_TSI_FastR;
+      int FastS = m_settings.DPI_TSI_FastS;
 
       // Need one extra bar beyond normal warmup to capture hist at v_shift+1
       int bars_needed = R + S + U + v_shift + 6;
       if(iBars(m_symbol, PERIOD_CURRENT) <= bars_needed) return false;
 
-      double alphaR = 2.0 / (double)(R + 1);
-      double alphaS = 2.0 / (double)(S + 1);
-      double alphaU = 2.0 / (double)(U + 1);
+      double alphaR  = 2.0 / (double)(R  + 1);
+      double alphaS  = 2.0 / (double)(S  + 1);
+      double alphaU  = 2.0 / (double)(U  + 1);
+      double alphaFR = 2.0 / (double)(FastR + 1);
+      double alphaFS = 2.0 / (double)(FastS + 1);
 
       double e1m = 0.0, e2m = 0.0, e1a = 0.0, e2a = 0.0, sig = 0.0;
+      double fe1m = 0.0, fe2m = 0.0, fe1a = 0.0, fe2a = 0.0;
       double main_line = 0.0;
 
       out_hist_cur  = 0.0;
       out_hist_prev = 0.0;
+      out_green     = false;
 
       // Iterate from oldest bar toward v_shift, capturing histogram at v_shift+1 en route
       for(int i = bars_needed - 1; i >= v_shift; i--)
@@ -4537,10 +4545,26 @@ public:
          main_line = (e2a != 0.0) ? (e2m / e2a) : 0.0;
          sig = alphaU * main_line + (1.0 - alphaU) * sig;
 
+         fe1m = alphaFR * mom     + (1.0 - alphaFR) * fe1m;
+         fe1a = alphaFR * abs_mom + (1.0 - alphaFR) * fe1a;
+         fe2m = alphaFS * fe1m    + (1.0 - alphaFS) * fe2m;
+         fe2a = alphaFS * fe1a    + (1.0 - alphaFS) * fe2a;
+
          if(i == v_shift + 1)
             out_hist_prev = main_line - sig;  // capture at v_shift+1
       }
       out_hist_cur = main_line - sig;  // final value at v_shift
+
+      double fast_line   = (fe2a != 0.0) ? (fe2m / fe2a) : 0.0;
+      double nested_hist = fast_line - main_line;
+
+      // out_green = true when fast histogram has reversed against main histogram (exhaustion signal)
+      // nestedHist = fastLine - mainLine; mainHist = mainLine - signalLine
+      // Green when: opposite signs AND nested inside
+      out_green = (out_hist_cur != 0.0 && nested_hist != 0.0 &&
+                   (nested_hist * out_hist_cur < 0.0) &&
+                   MathAbs(nested_hist) < MathAbs(out_hist_cur));
+
       return true;
    }
 
@@ -4704,7 +4728,8 @@ public:
       if(m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
       {
          double hist_cur = 0.0, hist_prev = 0.0;
-         if(ComputeDPIMainHist(v_shift, hist_cur, hist_prev))
+         bool   dpi_green = false;
+         if(ComputeDPIMainHist(v_shift, hist_cur, hist_prev, dpi_green))
          {
             // For BUY bias: histogram should be positive and growing (main_hist > 0 and increasing)
             // For SELL bias: histogram should be negative and decreasing (main_hist < 0 and more negative)
