@@ -794,13 +794,13 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 FPM: (TP) Take Profit Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-input ETPMode     Inp_FPM_TPMode             = TP_MODE_FIXED_PIPS; // FPM TP mode: FIXED_PIPS=TF-based cheat sheet pips; RR=user ratio
-input double      Inp_FPM_RRRatio            = 1.0;                // FPM R:R ratio (used with TP_MODE_RR, e.g. 1.5, 2.0, 3.0)
+input ETPMode     Inp_FPM_TPMode             = TP_MODE_RR;         // FPM TP mode: RR=derive TP from SL distance (recommended); FIXED_PIPS=TF-based cheat sheet pips
+input double      Inp_FPM_RRRatio            = 2.0;                // FPM R:R ratio (used with TP_MODE_RR, e.g. 1.5, 2.0, 3.0)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 FPM: (SL) Stop Loss Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input ESLMode     Inp_FPM_SLMode             = SL_MODE_SWING;  // FPM SL mode: SWING (recent high/low) or FIXED_PIPS
-input int         Inp_FPM_SwingLookback      = 5;              // FPM SL swing lookback bars (SL_MODE_SWING only)
+input int         Inp_FPM_SwingLookback      = 20;             // FPM SL swing lookback bars — advisory; PRESET_FPM uses GetFPMSwingLookback() internally
 input double      Inp_FPM_SLFixedPips        = 15.0;           // FPM SL fixed distance in pips (SL_MODE_FIXED_PIPS only)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 FPM: (TS) Trailing Stop (Optional)";
