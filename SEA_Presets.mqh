@@ -1384,8 +1384,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // major FX pairs (e.g. EURUSD, GBPUSD). Adjust per instrument and TF:
       //   M15/H1: consider 40–60 pips; H4+: 80–120 pips.
       // JPY pairs: GlobalPipSize() returns the correct pip unit automatically.
-      cfg.EmaFanFilterEnabled       = true;
-      cfg.EmaFanMaxTotalPips        = 25.0;
+      cfg.EmaFanFilterEnabled       = false;
+      cfg.EmaFanMaxTotalPips        = 25.0;   // value retained for reference, filter is off
 
       // ── DPI DECELERATION FILTER ────────────────────────────────────────
       // DPI voter is enabled in PRESET_RRM_ORG — decel filter is active.
