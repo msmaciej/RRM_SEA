@@ -319,14 +319,16 @@ bool ValidateEffectiveSettings()
 // When a trade closes, update consecutive loss counter and daily trade count
 void UpdateRRMDrawdownTracking(bool was_profitable)
 {
-   if(!Settings.RRM_EnableDrawdownProtection) return;
-   
-   // BUG FIX: g_trades_today++ removed from here — now incremented at trade ENTRY in OrchestrateTick()
-
+   // FIX Bug5: always update g_consecutive_losses for accurate [RRM_DD_TRACK] logging,
+   // regardless of whether DrawdownProtection is enabled.
+   // g_trades_today is tracked at trade ENTRY in OrchestrateTick().
    if(was_profitable)
       g_consecutive_losses = 0;  // Reset on win
    else
       g_consecutive_losses++;    // Increment on loss
+
+   // Bail out early if protection is disabled — counters above are still updated for display.
+   if(!Settings.RRM_EnableDrawdownProtection) return;
 }
 
 
@@ -701,8 +703,9 @@ void OrchestrateTick()
       bool te_news_blocked = Signal.IsNewsBlocked();
       int te = Executor.EvaluateTE(g_ts_dir, te_news_blocked);
 
-      // BUG FIX: Count daily trades at ENTRY (not at close) for correct MaxTradesPerDay enforcement
-      if(te > 0 && Settings.RRM_EnableDrawdownProtection)
+      // Always count trades at ENTRY for accurate daily tracking (used by DrawdownProtection when enabled)
+      // FIX Bug5: removed RRM_EnableDrawdownProtection gate so g_trades_today is always accurate for logging
+      if(te > 0)
          g_trades_today++;
 
       g_ts_sl   = Executor.LastCachedSL();
