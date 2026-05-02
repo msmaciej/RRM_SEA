@@ -57,6 +57,22 @@ double GetTFBasedCushion(ENUM_TIMEFRAMES tf)
    else                       return isJPY ? 25.0 : 15.0;    // Covers H6, D1, W1, MN1
 }
 
+// TF-based swing lookback for FPM preset — prevents anchor landing on wrong side
+// FIX: replaces hardcoded Inp_FPM_SwingLookback=5 which was too short (5 bars on H1 = 5 hours)
+int GetFPMSwingLookback()
+{
+   switch(_Period) {
+      case PERIOD_M1:  return 10;
+      case PERIOD_M5:  return 12;
+      case PERIOD_M15: return 15;
+      case PERIOD_M30: return 18;
+      case PERIOD_H1:  return 20;
+      case PERIOD_H4:  return 30;
+      case PERIOD_D1:  return 10;
+      default:         return 20;
+   }
+}
+
 // TF-based TP pips for FPM preset (midpoints of cheat sheet ranges)
 double GetFPMFixedTpPips()
 {
@@ -519,10 +535,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── EXIT STRATEGY ─────────────────────────────────────────────────
       cfg.ExitProfile               = EXIT_PROFILE_SIMPLE;
 
-      // SL: User-selected mode — swing (recent high/low) or fixed pips
-      // Both are fully user-controlled via Zone 3C inputs; no hardcoded cap.
-      cfg.SLMode                    = Inp_FPM_SLMode;
-      cfg.SwingLookback             = Inp_FPM_SwingLookback;
+      // SL: Hardcode SL_MODE_SWING — swing is the FPM methodology; Inp_FPM_SLMode is kept for PRESET_CUSTOM only
+      // FIX: was cfg.SLMode = Inp_FPM_SLMode — user could accidentally switch to non-swing mode
+      cfg.SLMode                    = SL_MODE_SWING;
+      // FIX: was Inp_FPM_SwingLookback (default 5) — too short; use TF-aware helper instead
+      cfg.SwingLookback             = GetFPMSwingLookback();
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
       cfg.SL_FixedPips              = Inp_FPM_SLFixedPips;
@@ -533,7 +550,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TPMode                    = Inp_FPM_TPMode;
       cfg.TP_Enabled                = true;
       cfg.FixedTPPips               = (Inp_FPM_TPMode == TP_MODE_FIXED_PIPS) ? GetFPMFixedTpPips() : 0.0;
-      cfg.RRRatio                   = (Inp_FPM_TPMode == TP_MODE_RR)         ? Inp_FPM_RRRatio      : 0.0;
+      // FIX: was 0.0 when TP_MODE_FIXED_PIPS — ExecuteTrade TP chain skipped all branches → tp=0
+      // Always set a non-zero RRRatio so the RRRatio>0 branch in ExecuteTrade fires as fallback
+      cfg.RRRatio                   = (Inp_FPM_TPMode == TP_MODE_RR)         ? Inp_FPM_RRRatio      : 2.0;
       cfg.SLPercent                 = 0.0;
 
       // BE: Move to breakeven after 10 pips profit

@@ -535,8 +535,18 @@ private:
             if(anchor > 0.0) {
                bool valid = isBuy ? (anchor < price) : (anchor > price);
                if(!valid) {
-                  PrintFormat("⚠️ [SL] Swing anchor (%.5f) on wrong side of entry (%.5f) for %s — fallback to Fixed Pips", anchor, price, isBuy ? "BUY" : "SELL");
-                  anchor = 0.0;
+                  // FIX: was silently falling through to fixed pips — now tries PSAR as secondary fallback
+                  PrintFormat("⚠️ [SL] Swing anchor (%.5f) on wrong side of entry (%.5f) for %s — trying PSAR fallback", anchor, price, isBuy ? "BUY" : "SELL");
+                  double psar_anchor = GetPSARAnchor(1);
+                  bool psar_valid = (psar_anchor > 0.0) && (isBuy ? (psar_anchor < price) : (psar_anchor > price));
+                  if(psar_valid) {
+                     anchor       = psar_anchor;
+                     cushion_pips = m_settings.SL_PsarPipsCushion;
+                     PrintFormat("✅ [SL] PSAR fallback used: %.5f", anchor);
+                  } else {
+                     PrintFormat("⚠️ [SL] PSAR also invalid — using fixed pips (%.1f)", m_settings.SL_FixedPips);
+                     anchor = 0.0;
+                  }
                }
             }
             break;
@@ -1296,8 +1306,17 @@ public:
 
       if(m_settings.TP_Enabled && tp == 0.0)
       {
-         PrintFormat("⚠️ [ExecuteTrade] WARNING: TP_Enabled=true but tp=0 at submission — SL=%.5f entry=%.5f dir=%s",
-                     sl, entry_price, isBuy ? "BUY" : "SELL");
+         // FIX: emergency fallback — derive TP from SL distance × RRRatio (or 2.0) so TP is never 0 when SL>0
+         if(sl > 0.0) {
+            double fallback_rr  = (m_settings.RRRatio > 0.0) ? m_settings.RRRatio : 2.0;
+            double sl_dist      = MathAbs(entry_price - sl);
+            tp = isBuy ? (entry_price + sl_dist * fallback_rr) : (entry_price - sl_dist * fallback_rr);
+            PrintFormat("⚠️ [TP FALLBACK] TP was 0 — computed from SL dist (%.1f pips) × RR=%.1f → TP=%.5f",
+                        sl_dist / GetPipSize(), fallback_rr, tp);
+         } else {
+            PrintFormat("⚠️ [ExecuteTrade] WARNING: TP_Enabled=true but tp=0 at submission — SL=%.5f entry=%.5f dir=%s",
+                        sl, entry_price, isBuy ? "BUY" : "SELL");
+         }
       }
 
       if(!ValidateStopLevels(entry_price, sl, tp)) {
