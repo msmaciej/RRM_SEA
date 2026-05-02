@@ -4649,15 +4649,10 @@ public:
          return 0;
       }
 
-      // ── L: Layer ─────────────────────────────────────────────────
-      int L = EvaluateL(v_shift, B);
-      if(L == 0 && !full_eval) {
-         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-         UpdateTelemetry(0);
-         FlushOrClearDebugBuffer(0);
-         RestoreForcedDebug();
-         return 0;
-      }
+      // ══════════════════════════════════════════════════════════════════
+      // FIX Bug6: TS_PREFILTER blocks (EMA_FAN, DPI_DECEL) moved BEFORE EvaluateL
+      // so cheap guards abort the pipeline before the expensive 4-EMA LayerAlign scan.
+      // ══════════════════════════════════════════════════════════════════
 
       // ══════════════════════════════════════════════════════════════════
       // PRE-FILTER: EMA Fan Overextension
@@ -4742,6 +4737,15 @@ public:
          }
       }
 
+      // ── L: Layer ─────────────────────────────────────────────────
+      int L = EvaluateL(v_shift, B);
+      if(L == 0 && !full_eval) {
+         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+         UpdateTelemetry(0);
+         FlushOrClearDebugBuffer(0);
+         RestoreForcedDebug();
+         return 0;
+      }
       // ── I: Indicators ─────────────────────────────────────────────
       int I = EvaluateI(v_shift, B);
 

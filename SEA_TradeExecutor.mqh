@@ -228,7 +228,8 @@ private:
    }
 
    bool CheckPSARFlip(int direction, double current_price) {
-      double psar = GetPSARAnchor(0);
+      // FIX Bug2: use shift=1 (last confirmed closed bar) instead of shift=0 (still-forming bar)
+      double psar = GetPSARAnchor(1);
       if(psar <= 0.0) return false;
       return (direction > 0 && psar > current_price) || (direction < 0 && psar < current_price);
    }
@@ -246,7 +247,8 @@ private:
             return (profit_percent >= m_settings.TrailProfitPercent);
          }
          case TRIGGER_PSAR_ALIGN: {
-            double psar = GetPSARAnchor(0);
+            // FIX Bug2: use shift=1 (last confirmed closed bar) instead of shift=0 (still-forming bar)
+            double psar = GetPSARAnchor(1);
             if(psar <= 0.0) return false;
             return (direction > 0 && psar < current_price) || (direction < 0 && psar > current_price);
          }
@@ -766,8 +768,9 @@ public:
       m_trade.LogLevel(LOG_LEVEL_ERRORS);
       
       ReleaseHandles();
-      m_h_psar = iSAR(_Symbol, PERIOD_CURRENT, m_settings.P_PsarStep, m_settings.P_PsarMax);
-      m_h_fractals = iFractals(_Symbol, PERIOD_CURRENT);
+      // FIX Bug4: use m_symbol instead of _Symbol for multi-symbol correctness
+      m_h_psar = iSAR(m_symbol, PERIOD_CURRENT, m_settings.P_PsarStep, m_settings.P_PsarMax);
+      m_h_fractals = iFractals(m_symbol, PERIOD_CURRENT);
    }
    
    void UpdateSettings(ST_Settings &sets) { 
@@ -775,7 +778,8 @@ public:
       m_settings = sets; 
       if (recreate_psar) {
          if (m_h_psar != INVALID_HANDLE) IndicatorRelease(m_h_psar);
-         m_h_psar = iSAR(_Symbol, PERIOD_CURRENT, m_settings.P_PsarStep, m_settings.P_PsarMax);
+         // FIX Bug4: use m_symbol instead of _Symbol for multi-symbol correctness
+         m_h_psar = iSAR(m_symbol, PERIOD_CURRENT, m_settings.P_PsarStep, m_settings.P_PsarMax);
       }
    }
 
@@ -1257,6 +1261,9 @@ public:
             lots = recalc_lots;
             // Re-apply margin safety with the new lot size
             lots = AdjustLotForMargin(isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, entry_price);
+            // FIX Bug1: update cached lots/risk to reflect final value sent to broker
+            m_cached_lots = lots;
+            m_cached_risk = ComputeRiskPercent(lots, MathAbs(entry_price - sl));
          }
       }
 
