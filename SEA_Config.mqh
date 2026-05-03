@@ -379,8 +379,8 @@ struct ST_Settings
    int    DPI_TSI_R;                // TSI R period (slow EMA smoothing)
    int    DPI_TSI_S;                // TSI S period (medium EMA smoothing)
    int    DPI_TSI_U;                // TSI Signal EMA period
-   int    DPI_TSI_FastR;            // Nested TSI first EMA period (default 5)
-   int    DPI_TSI_FastS;            // Nested TSI second EMA period (default 3)
+   int    DPI_TSI_FastR;            // Nested TSI first EMA period (Lead, original DPI default 8)
+   int    DPI_TSI_FastS;            // Nested TSI second EMA period (Follow, original DPI default 13)
    int    VRC_ATR_Period;
    int    VRC_Lookback;
    double VRC_LowThreshold;         // Below this percentile = LOW regime (reject trade)
@@ -940,8 +940,8 @@ input group "╚═════════════════════�
 input int         Inp_RRM_ORG_TSI_R         = 25;    // RRM_ORG: DPI TSI R period (slow EMA)
 input int         Inp_RRM_ORG_TSI_S         = 13;    // RRM_ORG: DPI TSI S period (medium EMA)
 input int         Inp_RRM_ORG_TSI_U         = 7;     // RRM_ORG: DPI TSI Signal EMA period
-input int         Inp_RRM_ORG_TSI_FastR     = 5;     // RRM_ORG: DPI Nested TSI FastR period (default 5)
-input int         Inp_RRM_ORG_TSI_FastS     = 3;     // RRM_ORG: DPI Nested TSI FastS period (default 3)
+input int         Inp_RRM_ORG_TSI_FastR     = 8;     // RRM_ORG: DPI Nested TSI FastR period (Lead, original DPI default)
+input int         Inp_RRM_ORG_TSI_FastS     = 13;    // RRM_ORG: DPI Nested TSI FastS period (Follow, original DPI default)
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️  PRESETS OVERRIDES! (Step1-5)";

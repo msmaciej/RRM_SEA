@@ -13,8 +13,8 @@
 #property strict
 
 #property indicator_separate_window
-#property indicator_buffers 5
-#property indicator_plots   5
+#property indicator_buffers 6
+#property indicator_plots   6
 
 // Reference levels -------------------------------------------------------
 #property indicator_level1     0.0       // Zero line
@@ -58,12 +58,19 @@
 #property indicator_style5  STYLE_SOLID
 #property indicator_width5  1
 
+// Plot 5 — Green Histogram (Green — healthy trend momentum; absent = overbought/oversold)
+#property indicator_label6  "GreenHist"
+#property indicator_type6   DRAW_HISTOGRAM
+#property indicator_color6  clrGreen
+#property indicator_style6  STYLE_SOLID
+#property indicator_width6  3
+
 //--- Input parameters
 input int    TSI_R          = 25;       // First EMA period  (slow smoothing)
 input int    TSI_S          = 13;       // Second EMA period (medium smoothing)
 input int    TSI_U          = 7;        // Signal line EMA period
-input int    TSI_FastR      = 5;        // Nested fast first  EMA period
-input int    TSI_FastS      = 3;        // Nested fast second EMA period
+input int    TSI_FastR      = 8;        // Lead period (original DPI default)
+input int    TSI_FastS      = 13;       // Follow period (original DPI default)
 input double ThresholdLevel = 0.00005;  // Reference line offset from zero
 
 //--- Indicator output buffers (registered with SetIndexBuffer)
@@ -72,6 +79,7 @@ double g_SignalLine[];  // Buffer 1: Blue  slow signal line
 double g_HistBull[];    // Buffer 2: Yellow bullish histogram
 double g_HistBear[];    // Buffer 3: Red   bearish histogram
 double g_HistNested[];  // Buffer 4: Lime  nested histogram
+double g_HistGreen[];   // Buffer 5: Green healthy-trend histogram
 
 //--- EMA intermediate arrays (global scope — no static locals)
 double g_Momentum[];
@@ -105,11 +113,13 @@ int OnInit()
    SetIndexBuffer(2, g_HistBull,   INDICATOR_DATA);
    SetIndexBuffer(3, g_HistBear,   INDICATOR_DATA);
    SetIndexBuffer(4, g_HistNested, INDICATOR_DATA);
+   SetIndexBuffer(5, g_HistGreen,  INDICATOR_DATA);
 
    // Histograms: treat 0.0 as "no bar" (zero-height bar is invisible)
    PlotIndexSetDouble(2, PLOT_EMPTY_VALUE, 0.0);
    PlotIndexSetDouble(3, PLOT_EMPTY_VALUE, 0.0);
    PlotIndexSetDouble(4, PLOT_EMPTY_VALUE, 0.0);
+   PlotIndexSetDouble(5, PLOT_EMPTY_VALUE, 0.0);
 
    // Set indicator buffers as series: index 0 = newest bar
    ArraySetAsSeries(g_MainLine,   true);
@@ -117,6 +127,7 @@ int OnInit()
    ArraySetAsSeries(g_HistBull,   true);
    ArraySetAsSeries(g_HistBear,   true);
    ArraySetAsSeries(g_HistNested, true);
+   ArraySetAsSeries(g_HistGreen,  true);
 
    // Set calculation arrays as series
    ArraySetAsSeries(g_Momentum,     true);
@@ -206,6 +217,7 @@ int OnCalculate(const int rates_total,
    g_HistBull[oldest]     = 0.0;
    g_HistBear[oldest]     = 0.0;
    g_HistNested[oldest]   = 0.0;
+   g_HistGreen[oldest]    = 0.0;
    g_FastEMA1_Mom[oldest] = 0.0;
    g_FastEMA2_Mom[oldest] = 0.0;
    g_FastEMA1_Abs[oldest] = 0.0;
@@ -283,6 +295,21 @@ int OnCalculate(const int rates_total,
          g_HistNested[i] = nestedHist;
       else
          g_HistNested[i] = 0.0;
+
+      // ------------------------------------------------------------------
+      // Step 7: Green Histogram = main histogram coloured green at bars
+      //         where the nested (lime) histogram is active.
+      // Green PRESENT:  FastLine nested inside MainLine (|nested| < |main|)
+      //                 → healthy trend momentum
+      // Green ABSENT:   FastLine outside MainLine
+      //                 → overbought/oversold extreme, expect pullback or
+      //                   trend resumption decision
+      // No sign check needed — nesting condition is sufficient.
+      // ------------------------------------------------------------------
+      if(mainHist != 0.0 && nestedHist != 0.0 && MathAbs(nestedHist) < MathAbs(mainHist))
+         g_HistGreen[i] = mainHist;
+      else
+         g_HistGreen[i] = 0.0;
    }
 
    return(rates_total);
