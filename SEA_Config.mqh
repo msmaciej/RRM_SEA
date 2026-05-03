@@ -1434,7 +1434,7 @@ void InitializeConfig()
    Settings.DPI_TSI_FastR         = MathMax(1, Inp_RRM_ORG_TSI_FastR);
    Settings.DPI_TSI_FastS         = MathMax(1, Inp_RRM_ORG_TSI_FastS);
    Settings.DPI_MACD_Fast         = MathMax(1, Inp_RRM_ORG_MACD_Fast);
-   Settings.DPI_MACD_Slow         = MathMax(2, Inp_RRM_ORG_MACD_Slow);
+   Settings.DPI_MACD_Slow         = MathMax(1, Inp_RRM_ORG_MACD_Slow);
    Settings.DPI_MACD_Signal       = MathMax(1, Inp_RRM_ORG_MACD_Signal);
 
    // Choppiness Index

@@ -4518,7 +4518,9 @@ public:
       int MSlow    = m_settings.DPI_MACD_Slow;
       int MSig     = m_settings.DPI_MACD_Signal;
 
-      // Need one extra bar beyond normal warmup to capture hist at v_shift+1
+      // Need one extra bar beyond normal warmup to capture hist at v_shift+1.
+      // bars_needed = R+S+U (TSI warmup) + MSlow+MSig (MACD warmup) + v_shift (target)
+      // + 6 (1 seed bar + 1 prev-bar capture + 1 safety + 3 buffer for earliest iClose access)
       int bars_needed = R + S + U + MSlow + MSig + v_shift + 6;
       if(iBars(m_symbol, PERIOD_CURRENT) <= bars_needed) return false;
 
