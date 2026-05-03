@@ -381,6 +381,9 @@ struct ST_Settings
    int    DPI_TSI_U;                // TSI Signal EMA period
    int    DPI_TSI_FastR;            // Nested TSI first EMA period (Lead, original DPI default 8)
    int    DPI_TSI_FastS;            // Nested TSI second EMA period (Follow, original DPI default 13)
+   int    DPI_MACD_Fast;            // MACD fast EMA period (default 8)
+   int    DPI_MACD_Slow;            // MACD slow EMA period (default 13)
+   int    DPI_MACD_Signal;          // MACD signal EMA period (default 5)
    int    VRC_ATR_Period;
    int    VRC_Lookback;
    double VRC_LowThreshold;         // Below this percentile = LOW regime (reject trade)
@@ -942,6 +945,9 @@ input int         Inp_RRM_ORG_TSI_S         = 13;    // RRM_ORG: DPI TSI S perio
 input int         Inp_RRM_ORG_TSI_U         = 7;     // RRM_ORG: DPI TSI Signal EMA period
 input int         Inp_RRM_ORG_TSI_FastR     = 8;     // RRM_ORG: DPI Nested TSI FastR period (Lead, original DPI default)
 input int         Inp_RRM_ORG_TSI_FastS     = 13;    // RRM_ORG: DPI Nested TSI FastS period (Follow, original DPI default)
+input int         Inp_RRM_ORG_MACD_Fast     = 8;     // RRM_ORG: DPI MACD fast EMA period
+input int         Inp_RRM_ORG_MACD_Slow     = 13;    // RRM_ORG: DPI MACD slow EMA period
+input int         Inp_RRM_ORG_MACD_Signal   = 5;     // RRM_ORG: DPI MACD signal EMA period
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️  PRESETS OVERRIDES! (Step1-5)";
@@ -1427,6 +1433,9 @@ void InitializeConfig()
    Settings.DPI_TSI_U             = MathMax(1, Inp_RRM_ORG_TSI_U);
    Settings.DPI_TSI_FastR         = MathMax(1, Inp_RRM_ORG_TSI_FastR);
    Settings.DPI_TSI_FastS         = MathMax(1, Inp_RRM_ORG_TSI_FastS);
+   Settings.DPI_MACD_Fast         = MathMax(1, Inp_RRM_ORG_MACD_Fast);
+   Settings.DPI_MACD_Slow         = MathMax(1, Inp_RRM_ORG_MACD_Slow);
+   Settings.DPI_MACD_Signal       = MathMax(1, Inp_RRM_ORG_MACD_Signal);
 
    // Choppiness Index
    Settings.CI_Period             = MathMax(5, Inp_CI_Period);

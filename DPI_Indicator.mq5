@@ -30,7 +30,7 @@
 #property indicator_style1  STYLE_SOLID
 #property indicator_width1  2
 
-// Plot 1 — Signal Line (Blue EMA of MainLine, U=7 period) ----------------
+// Plot 1 — Signal Line (Blue MACD Signal = EMA(MACD_Signal, macdLine)) ---
 #property indicator_label2  "SignalLine"
 #property indicator_type2   DRAW_LINE
 #property indicator_color2  clrDodgerBlue
@@ -58,7 +58,7 @@
 #property indicator_style5  STYLE_SOLID
 #property indicator_width5  1
 
-// Plot 5 — Green Histogram (Green — healthy trend momentum; absent = overbought/oversold)
+// Plot 5 — Green Histogram (Green — broad TSI crossover zone; always at mainHist height)
 #property indicator_label6  "GreenHist"
 #property indicator_type6   DRAW_HISTOGRAM
 #property indicator_color6  clrGreen
@@ -72,14 +72,17 @@ input int    TSI_U          = 7;        // Signal line EMA period
 input int    TSI_FastR      = 8;        // Lead period (original DPI default)
 input int    TSI_FastS      = 13;       // Follow period (original DPI default)
 input double ThresholdLevel = 0.00005;  // Reference line offset from zero
+input int    MACD_Fast      = 8;        // MACD fast EMA period
+input int    MACD_Slow      = 13;       // MACD slow EMA period
+input int    MACD_Signal    = 5;        // MACD signal EMA period
 
 //--- Indicator output buffers (registered with SetIndexBuffer)
-double g_MainLine[];    // Buffer 0: Red   fast TSI line
-double g_SignalLine[];  // Buffer 1: Blue  slow signal line
-double g_HistBull[];    // Buffer 2: Yellow bullish histogram
-double g_HistBear[];    // Buffer 3: Red   bearish histogram
+double g_MainLine[];    // Buffer 0: Red   TSI MainLine (R=25, S=13)
+double g_SignalLine[];  // Buffer 1: Blue  MACD Signal = EMA(MACD_Signal, macdLine)
+double g_HistBull[];    // Buffer 2: Yellow bullish histogram (mainHist>0 AND macdHist>0)
+double g_HistBear[];    // Buffer 3: Red   bearish histogram  (mainHist<0 AND macdHist<0)
 double g_HistNested[];  // Buffer 4: Lime  nested histogram
-double g_HistGreen[];   // Buffer 5: Green healthy-trend histogram
+double g_HistGreen[];   // Buffer 5: Green broad TSI crossover zone (mainHist sign)
 
 //--- EMA intermediate arrays (global scope — no static locals)
 double g_Momentum[];
@@ -95,6 +98,13 @@ double g_FastEMA2_Mom[];
 double g_FastEMA1_Abs[];
 double g_FastEMA2_Abs[];
 
+//--- MACD and TSI Signal arrays (global scope — no static locals)
+double g_EMA_Fast[];     // EMA(MACD_Fast) of close price
+double g_EMA_Slow[];     // EMA(MACD_Slow) of close price
+double g_MACDLine[];     // EMA_Fast - EMA_Slow
+double g_MACDSig[];      // EMA(MACD_Signal) of MACDLine = MT4 blue line
+double g_TSISignal[];    // EMA(TSI_U) of MainLine — internal only, not a buffer
+
 //+------------------------------------------------------------------+
 //| Indicator initialization                                          |
 //+------------------------------------------------------------------+
@@ -104,6 +114,11 @@ int OnInit()
    if(TSI_R < 1 || TSI_S < 1 || TSI_U < 1 || TSI_FastR < 1 || TSI_FastS < 1)
    {
       Print("DPI Error: all period inputs must be >= 1");
+      return(INIT_PARAMETERS_INCORRECT);
+   }
+   if(MACD_Fast < 1 || MACD_Slow <= MACD_Fast || MACD_Signal < 1)
+   {
+      Print("DPI Error: MACD_Fast>=1, MACD_Slow>MACD_Fast, MACD_Signal>=1 required");
       return(INIT_PARAMETERS_INCORRECT);
    }
 
@@ -140,6 +155,11 @@ int OnInit()
    ArraySetAsSeries(g_FastEMA2_Mom, true);
    ArraySetAsSeries(g_FastEMA1_Abs, true);
    ArraySetAsSeries(g_FastEMA2_Abs, true);
+   ArraySetAsSeries(g_EMA_Fast,     true);
+   ArraySetAsSeries(g_EMA_Slow,     true);
+   ArraySetAsSeries(g_MACDLine,     true);
+   ArraySetAsSeries(g_MACDSig,      true);
+   ArraySetAsSeries(g_TSISignal,    true);
 
    // Display name (header reads "DPI [values…]")
    IndicatorSetString(INDICATOR_SHORTNAME, "DPI");
@@ -174,10 +194,9 @@ int OnCalculate(const int rates_total,
                 const long     &volume[],
                 const int      &spread[])
 {
-   // Need at least (R + S + U + 2) bars: R+S bars for the double-EMA chain
-   // to produce meaningful values, U bars for the signal EMA warm-up, plus
-   // 1 seed bar (oldest has no prior close) and 1 safety margin.
-   if(rates_total < TSI_R + TSI_S + TSI_U + 2)
+   // Need at least (R + S + U + MACD_Slow + MACD_Signal + 2) bars for all EMA chains
+   // to produce meaningful values, plus 1 seed bar and 1 safety margin.
+   if(rates_total < TSI_R + TSI_S + TSI_U + MACD_Slow + MACD_Signal + 2)
       return(0);
 
    // Align close[] to series ordering: index 0 = newest bar
@@ -195,13 +214,21 @@ int OnCalculate(const int rates_total,
    ArrayResize(g_FastEMA2_Mom, rates_total);
    ArrayResize(g_FastEMA1_Abs, rates_total);
    ArrayResize(g_FastEMA2_Abs, rates_total);
+   ArrayResize(g_EMA_Fast,     rates_total);
+   ArrayResize(g_EMA_Slow,     rates_total);
+   ArrayResize(g_MACDLine,     rates_total);
+   ArrayResize(g_MACDSig,      rates_total);
+   ArrayResize(g_TSISignal,    rates_total);
 
    // Pre-compute EMA smoothing multipliers
-   double alphaR     = 2.0 / (double)(TSI_R     + 1);
-   double alphaS     = 2.0 / (double)(TSI_S     + 1);
-   double alphaU     = 2.0 / (double)(TSI_U     + 1);
-   double alphaFastR = 2.0 / (double)(TSI_FastR + 1);
-   double alphaFastS = 2.0 / (double)(TSI_FastS + 1);
+   double alphaR       = 2.0 / (double)(TSI_R     + 1);
+   double alphaS       = 2.0 / (double)(TSI_S     + 1);
+   double alphaU       = 2.0 / (double)(TSI_U     + 1);
+   double alphaFastR   = 2.0 / (double)(TSI_FastR + 1);
+   double alphaFastS   = 2.0 / (double)(TSI_FastS + 1);
+   double alphaFast    = 2.0 / (double)(MACD_Fast   + 1);
+   double alphaSlow    = 2.0 / (double)(MACD_Slow   + 1);
+   double alphaMACDSig = 2.0 / (double)(MACD_Signal + 1);
 
    // With series=true: index (rates_total-1) = oldest bar, index 0 = newest bar.
    // Seed all arrays at the oldest bar (no prior close available for momentum).
@@ -222,6 +249,11 @@ int OnCalculate(const int rates_total,
    g_FastEMA2_Mom[oldest] = 0.0;
    g_FastEMA1_Abs[oldest] = 0.0;
    g_FastEMA2_Abs[oldest] = 0.0;
+   g_EMA_Fast[oldest]     = 0.0;
+   g_EMA_Slow[oldest]     = 0.0;
+   g_MACDLine[oldest]     = 0.0;
+   g_MACDSig[oldest]      = 0.0;
+   g_TSISignal[oldest]    = 0.0;
 
    // Full recalculation: loop from second-oldest bar (rates_total-2) down
    // to bar 0 (newest).  This goes "oldest → newest" in time-series terms.
@@ -251,10 +283,10 @@ int OnCalculate(const int rates_total,
       g_MainLine[i] = mainLine;
 
       // ------------------------------------------------------------------
-      // Step 3: Signal Line = EMA of MainLine (U-period)
-      //         g_SignalLine[i+1] carries the prior EMA state
+      // Step 3: TSI Signal Line — internal only for mainHist computation.
+      //         NOT stored in g_SignalLine[] buffer (that now holds MACD Signal).
       // ------------------------------------------------------------------
-      g_SignalLine[i] = alphaU * mainLine + (1.0 - alphaU) * g_SignalLine[i + 1];
+      g_TSISignal[i] = alphaU * mainLine + (1.0 - alphaU) * g_TSISignal[i + 1];
 
       // ------------------------------------------------------------------
       // Step 4: Fast TSI — double EMA smoothing (FastR then FastS)
@@ -268,50 +300,67 @@ int OnCalculate(const int rates_total,
          fastLine = g_FastEMA2_Mom[i] / g_FastEMA2_Abs[i];
 
       // ------------------------------------------------------------------
-      // Step 5: Main Histogram — crossover gate uses mainHist sign,
-      //   but yellow/red bars are drawn at mainLine height → broader
-      //   MT4-equivalent buy/sell zones (full TSI body, not crossover slice).
-      //   Yellow (BullHist) when mainHist >= 0 → buy zone at mainLine height
-      //   Red    (BearHist) when mainHist  < 0 → sell zone at mainLine height
+      // Step 5: MACD computation (price EMA differential)
+      //   macdLine = EMA(MACD_Fast, close) - EMA(MACD_Slow, close)
+      //   macdSig  = EMA(MACD_Signal, macdLine)  <- MT4 DPI blue line
+      //   macdHist = macdLine - macdSig
+      // Blue line buffer = MACD Signal (replaces EMA-of-TSI display)
       // ------------------------------------------------------------------
-      double mainHist = mainLine - g_SignalLine[i];
-      if(mainHist >= 0.0)
+      g_EMA_Fast[i]  = alphaFast    * close[i]       + (1.0 - alphaFast)    * g_EMA_Fast[i + 1];
+      g_EMA_Slow[i]  = alphaSlow    * close[i]       + (1.0 - alphaSlow)    * g_EMA_Slow[i + 1];
+      g_MACDLine[i]  = g_EMA_Fast[i] - g_EMA_Slow[i];
+      g_MACDSig[i]   = alphaMACDSig * g_MACDLine[i] + (1.0 - alphaMACDSig) * g_MACDSig[i + 1];
+      double macdHist = g_MACDLine[i] - g_MACDSig[i];
+
+      // Store MACD Signal as the displayed blue line
+      g_SignalLine[i] = g_MACDSig[i];
+
+      // ------------------------------------------------------------------
+      // Step 6: TSI crossover differential (mainHist) — gate for all histograms
+      // ------------------------------------------------------------------
+      double mainHist = mainLine - g_TSISignal[i];
+
+      // ------------------------------------------------------------------
+      // Step 7: Green histogram = broad TSI crossover zone (always at mainHist
+      //         height regardless of MACD — this is the MT4 DPI green equivalent)
+      // ------------------------------------------------------------------
+      if(mainHist != 0.0)
+         g_HistGreen[i] = mainHist;
+      else
+         g_HistGreen[i] = 0.0;
+
+      // ------------------------------------------------------------------
+      // Step 8: Yellow/Red = TSI crossover AND MACD histogram agree (intersection)
+      //   Yellow when mainHist >= 0 AND macdHist >= 0 → draw at mainHist height
+      //   Red    when mainHist <  0 AND macdHist <  0 → draw at mainHist height
+      //   TSI/MACD disagree → no yellow or red bar (transition/divergence zone)
+      // ------------------------------------------------------------------
+      if(mainHist >= 0.0 && macdHist >= 0.0)
       {
-         g_HistBull[i] = mainLine;   // draw at full TSI body height, not crossover slice
+         g_HistBull[i] = mainHist;
          g_HistBear[i] = 0.0;
+      }
+      else if(mainHist < 0.0 && macdHist < 0.0)
+      {
+         g_HistBull[i] = 0.0;
+         g_HistBear[i] = mainHist;
       }
       else
       {
+         // TSI and MACD disagree — no yellow or red bar
          g_HistBull[i] = 0.0;
-         g_HistBear[i] = mainLine;   // draw at full TSI body height (mainLine is negative here)
+         g_HistBear[i] = 0.0;
       }
 
       // ------------------------------------------------------------------
-      // Step 6: Nested Histogram = FastLine - MainLine
-      //   Gate nesting against mainLine body (not mainHist slice) — matches
-      //   MT4 visual. Shown only when |nested| < |mainLine| → nested inside.
-      //   This is the Shark Trade / pullback entry trigger; it disappears
-      //   when the trend resumes strongly (fast line rejoins main line).
+      // Step 9: Lime nested = v2 gate (mainHist, not mainLine)
+      //   Pullback entry trigger: shown when |fastLine - mainLine| < |mainHist|
       // ------------------------------------------------------------------
       double nestedHist = fastLine - mainLine;
-      if(mainLine != 0.0 && MathAbs(nestedHist) < MathAbs(mainLine))
+      if(mainHist != 0.0 && MathAbs(nestedHist) < MathAbs(mainHist))
          g_HistNested[i] = nestedHist;
       else
          g_HistNested[i] = 0.0;
-
-      // ------------------------------------------------------------------
-      // Step 7: Green Histogram drawn at mainLine height, gated against
-      //         mainLine body — matches MT4 overlay.
-      // Green PRESENT:  FastLine nested inside MainLine (|nested| < |mainLine|)
-      //                 → healthy trend momentum
-      // Green ABSENT:   FastLine outside MainLine
-      //                 → overbought/oversold extreme, expect pullback or
-      //                   trend resumption decision
-      // ------------------------------------------------------------------
-      if(mainLine != 0.0 && nestedHist != 0.0 && MathAbs(nestedHist) < MathAbs(mainLine))
-         g_HistGreen[i] = mainLine;
-      else
-         g_HistGreen[i] = 0.0;
    }
 
    return(rates_total);
