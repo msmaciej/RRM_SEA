@@ -197,8 +197,9 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("    Stoch:   ", (cfg.Ind_Sto_Enabled ? "✓" : "✗"));
    Print("    SmaConv: ", (cfg.Ind_SmaConverge_Enabled ? "✓" : "✗"));
    Print("    DPI:     ", (cfg.Ind_Dpi_Enabled ? "✓" : "✗"),
-         (cfg.Ind_Dpi_Enabled ? StringFormat(" (TSI R=%d S=%d U=%d FastR=%d FastS=%d)",
-          cfg.DPI_TSI_R, cfg.DPI_TSI_S, cfg.DPI_TSI_U, cfg.DPI_TSI_FastR, cfg.DPI_TSI_FastS) : ""));
+         (cfg.Ind_Dpi_Enabled ? StringFormat(" (TSI R=%d S=%d U=%d FastR=%d FastS=%d MACD=%d/%d/%d)",
+          cfg.DPI_TSI_R, cfg.DPI_TSI_S, cfg.DPI_TSI_U, cfg.DPI_TSI_FastR, cfg.DPI_TSI_FastS,
+          cfg.DPI_MACD_Fast, cfg.DPI_MACD_Slow, cfg.DPI_MACD_Signal) : ""));
    Print("");
 
    Print("💰 RISK MANAGEMENT:");
@@ -1183,6 +1184,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.DPI_TSI_U              = Inp_RRM_ORG_TSI_U;       // default 7
       cfg.DPI_TSI_FastR          = Inp_RRM_ORG_TSI_FastR;   // default 8 (Lead, original DPI)
       cfg.DPI_TSI_FastS          = Inp_RRM_ORG_TSI_FastS;   // default 13 (Follow, original DPI)
+      cfg.DPI_MACD_Fast          = 8;
+      cfg.DPI_MACD_Slow          = 13;
+      cfg.DPI_MACD_Signal        = 5;
 
       // ── PSAR: LOCKED ON (timing/direction confirmation) ───────────────
       cfg.Ind_Psar_Enabled       = true;
