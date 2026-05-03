@@ -4558,10 +4558,10 @@ public:
 
       // out_green = true when fast TSI nested inside main TSI (healthy momentum)
       // out_green = false when fast TSI outside main TSI = overbought/oversold
-      double mainHist   = out_hist_cur;
+      // Gate uses mainLine body (not mainHist slice) — matches MT4 DPI overlay visual.
       double nestedHist = fast_line - main_line;
-      out_green = (mainHist != 0.0 && nestedHist != 0.0 &&
-                   MathAbs(nestedHist) < MathAbs(mainHist));
+      out_green = (main_line != 0.0 && nestedHist != 0.0 &&
+                   MathAbs(nestedHist) < MathAbs(main_line));
 
       return true;
    }

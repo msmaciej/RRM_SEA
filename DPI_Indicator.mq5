@@ -268,46 +268,48 @@ int OnCalculate(const int rates_total,
          fastLine = g_FastEMA2_Mom[i] / g_FastEMA2_Abs[i];
 
       // ------------------------------------------------------------------
-      // Step 5: Main Histogram = MainLine - SignalLine
-      //   Yellow (BullHist) when >= 0 → buy confirmation
-      //   Red    (BearHist) when  < 0 → sell confirmation
+      // Step 5: Main Histogram — crossover gate uses mainHist sign,
+      //   but yellow/red bars are drawn at mainLine height → broader
+      //   MT4-equivalent buy/sell zones (full TSI body, not crossover slice).
+      //   Yellow (BullHist) when mainHist >= 0 → buy zone at mainLine height
+      //   Red    (BearHist) when mainHist  < 0 → sell zone at mainLine height
       // ------------------------------------------------------------------
       double mainHist = mainLine - g_SignalLine[i];
       if(mainHist >= 0.0)
       {
-         g_HistBull[i] = mainHist;
+         g_HistBull[i] = mainLine;   // draw at full TSI body height, not crossover slice
          g_HistBear[i] = 0.0;
       }
       else
       {
          g_HistBull[i] = 0.0;
-         g_HistBear[i] = mainHist;
+         g_HistBear[i] = mainLine;   // draw at full TSI body height (mainLine is negative here)
       }
 
       // ------------------------------------------------------------------
       // Step 6: Nested Histogram = FastLine - MainLine
-      //   Shown only when |nested| < |main|  → visually nested inside.
+      //   Gate nesting against mainLine body (not mainHist slice) — matches
+      //   MT4 visual. Shown only when |nested| < |mainLine| → nested inside.
       //   This is the Shark Trade / pullback entry trigger; it disappears
       //   when the trend resumes strongly (fast line rejoins main line).
       // ------------------------------------------------------------------
       double nestedHist = fastLine - mainLine;
-      if(mainHist != 0.0 && MathAbs(nestedHist) < MathAbs(mainHist))
+      if(mainLine != 0.0 && MathAbs(nestedHist) < MathAbs(mainLine))
          g_HistNested[i] = nestedHist;
       else
          g_HistNested[i] = 0.0;
 
       // ------------------------------------------------------------------
-      // Step 7: Green Histogram = main histogram coloured green at bars
-      //         where the nested (lime) histogram is active.
-      // Green PRESENT:  FastLine nested inside MainLine (|nested| < |main|)
+      // Step 7: Green Histogram drawn at mainLine height, gated against
+      //         mainLine body — matches MT4 overlay.
+      // Green PRESENT:  FastLine nested inside MainLine (|nested| < |mainLine|)
       //                 → healthy trend momentum
       // Green ABSENT:   FastLine outside MainLine
       //                 → overbought/oversold extreme, expect pullback or
       //                   trend resumption decision
-      // No sign check needed — nesting condition is sufficient.
       // ------------------------------------------------------------------
-      if(mainHist != 0.0 && nestedHist != 0.0 && MathAbs(nestedHist) < MathAbs(mainHist))
-         g_HistGreen[i] = mainHist;
+      if(mainLine != 0.0 && nestedHist != 0.0 && MathAbs(nestedHist) < MathAbs(mainLine))
+         g_HistGreen[i] = mainLine;
       else
          g_HistGreen[i] = 0.0;
    }
