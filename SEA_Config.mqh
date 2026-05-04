@@ -943,8 +943,8 @@ input group "╚═════════════════════�
 input int         Inp_RRM_ORG_TSI_R         = 25;    // RRM_ORG: DPI TSI R period (slow EMA)
 input int         Inp_RRM_ORG_TSI_S         = 13;    // RRM_ORG: DPI TSI S period (medium EMA)
 input int         Inp_RRM_ORG_TSI_U         = 7;     // RRM_ORG: DPI TSI Signal EMA period
-input int         Inp_RRM_ORG_TSI_FastR     = 8;     // RRM_ORG: DPI Nested TSI FastR period (Lead, original DPI default)
-input int         Inp_RRM_ORG_TSI_FastS     = 13;    // RRM_ORG: DPI Nested TSI FastS period (Follow, original DPI default)
+input int         Inp_RRM_ORG_TSI_FastR     = 3;     // RRM_ORG: DPI Nested fast EMA period (Nested_Fast)
+input int         Inp_RRM_ORG_TSI_FastS     = 5;     // RRM_ORG: DPI Nested slow EMA period (Nested_Slow)
 input int         Inp_RRM_ORG_MACD_Fast     = 8;     // RRM_ORG: DPI MACD fast EMA period
 input int         Inp_RRM_ORG_MACD_Slow     = 13;    // RRM_ORG: DPI MACD slow EMA period
 input int         Inp_RRM_ORG_MACD_Signal   = 5;     // RRM_ORG: DPI MACD signal EMA period

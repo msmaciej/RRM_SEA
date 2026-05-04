@@ -1623,14 +1623,16 @@ private:
    }
 
     //+------------------------------------------------------------------+
-    //| Check_DPI: Inline TSI-based Dynamic Price Indicator voter       |
-    //| Computes True Strength Index (Ergodic Oscillator) inline.       |
+    //| Check_DPI: Inline MACD-based Dynamic Price Indicator voter      |
+    //| Computes pure MACD architecture inline (correct reverse-eng).   |
     //| Vote logic:                                                      |
     //|   BUY  when MainLine > SignalLine AND no nested histogram        |
     //|   SELL when MainLine < SignalLine AND no nested histogram        |
     //|   FAIL (abstain) when nested histogram present (active pullback) |
     //|         or when both lines are near zero (no momentum)          |
-    //| Nested histogram: faster TSI (R=5, S=3) inside main histogram.  |
+    //| Main:   red  = EMA(Fast,close) - EMA(Slow,close)  (MACD line)  |
+    //| Signal: blue = EMA(Signal, MainLine)               (MACD signal)|
+    //| Nested: EMA(NF,close) - EMA(NS,close)  vs MainLine              |
     //| No static locals, no lambdas — safe for MQL5 on macOS/Wine.     |
     //+------------------------------------------------------------------+
    bool Check_DPI(int bias, int v_shift)
@@ -1640,32 +1642,34 @@ private:
       if(IsCacheValidForShift(v_shift) && m_ind_cache.cached_bias == bias && m_ind_cache.dpi_result != -1)
          return (m_ind_cache.dpi_result == 1);
 
-      int R     = m_settings.DPI_TSI_R;
-      int S     = m_settings.DPI_TSI_S;
-      int U     = m_settings.DPI_TSI_U;
-      int FastR = m_settings.DPI_TSI_FastR;
-      int FastS = m_settings.DPI_TSI_FastS;
+      int MFast  = m_settings.DPI_MACD_Fast;
+      int MSlow  = m_settings.DPI_MACD_Slow;
+      int MSig   = m_settings.DPI_MACD_Signal;
+      int NFast  = m_settings.DPI_TSI_FastR;   // repurposed: Nested_Fast period
+      int NSlow  = m_settings.DPI_TSI_FastS;   // repurposed: Nested_Slow period
 
-      // Minimum bars required: warmup (R+S+U) + target shift + safety buffer
-      int bars_needed = R + S + U + v_shift + 5;
-      // Need bars_needed+1 total bars: oldest close_prev (shift=bars_needed) is accessed
-      // at the first loop iteration when i = bars_needed-1.
+      // Minimum bars required: warmup (MSlow + MSig) + target shift + safety buffer
+      int bars_needed = MSlow + MSig + v_shift + 5;
       if(iBars(m_symbol, PERIOD_CURRENT) <= bars_needed)
       {
          m_ind_cache.dpi_result = 0;
          return false;
       }
 
-      double alphaR  = 2.0 / (double)(R     + 1);
-      double alphaS  = 2.0 / (double)(S     + 1);
-      double alphaU  = 2.0 / (double)(U     + 1);
-      double alphaFR = 2.0 / (double)(FastR + 1);
-      double alphaFS = 2.0 / (double)(FastS + 1);
+      double alphaFast  = 2.0 / (double)(MFast + 1);
+      double alphaSlow  = 2.0 / (double)(MSlow + 1);
+      double alphaSig   = 2.0 / (double)(MSig  + 1);
+      double alphaNFast = 2.0 / (double)(NFast + 1);
+      double alphaNSlow = 2.0 / (double)(NSlow + 1);
 
-      // EMA running state — seeded to zero at oldest bar
-      double e1m  = 0.0, e2m  = 0.0, e1a  = 0.0, e2a  = 0.0;
-      double sig  = 0.0;
-      double fe1m = 0.0, fe2m = 0.0, fe1a = 0.0, fe2a = 0.0;
+      // EMA running state — seeded to first close at oldest bar.
+      // ema_fast and ema_slow start equal → initial main_line = 0.0, so sig = 0.0 is consistent.
+      double close_seed = iClose(m_symbol, PERIOD_CURRENT, bars_needed);
+      double ema_fast   = close_seed;
+      double ema_slow   = close_seed;
+      double sig        = 0.0;   // consistent: initial main_line = ema_fast - ema_slow = 0.0
+      double nest_fast  = close_seed;
+      double nest_slow  = close_seed;
 
       double main_line = 0.0;
       double fast_line = 0.0;
@@ -1675,48 +1679,44 @@ private:
       // iClose(symbol, tf, shift): shift=0 is newest, shift=N is N bars ago.
       for(int i = bars_needed - 1; i >= v_shift; i--)
       {
-         double close_i    = iClose(m_symbol, PERIOD_CURRENT, i);
-         double close_prev = iClose(m_symbol, PERIOD_CURRENT, i + 1);
-         double mom        = close_i - close_prev;
-         double abs_mom    = MathAbs(mom);
+         double cl = iClose(m_symbol, PERIOD_CURRENT, i);
 
-         // Main TSI: double EMA smoothing of momentum
-         e1m = alphaR * mom     + (1.0 - alphaR) * e1m;
-         e1a = alphaR * abs_mom + (1.0 - alphaR) * e1a;
-         e2m = alphaS * e1m     + (1.0 - alphaS) * e2m;
-         e2a = alphaS * e1a     + (1.0 - alphaS) * e2a;
-         main_line = (e2a != 0.0) ? (e2m / e2a) : 0.0;
+         // Main MACD line: EMA(Fast,close) - EMA(Slow,close)
+         ema_fast  = alphaFast  * cl + (1.0 - alphaFast)  * ema_fast;
+         ema_slow  = alphaSlow  * cl + (1.0 - alphaSlow)  * ema_slow;
+         main_line = ema_fast - ema_slow;
 
-         // Signal line: EMA of main line
-         sig = alphaU * main_line + (1.0 - alphaU) * sig;
+         // MACD signal line: EMA(Signal) of main_line
+         sig = alphaSig * main_line + (1.0 - alphaSig) * sig;
 
-         // Fast TSI: double EMA smoothing with FastR then FastS
-         fe1m = alphaFR * mom     + (1.0 - alphaFR) * fe1m;
-         fe1a = alphaFR * abs_mom + (1.0 - alphaFR) * fe1a;
-         fe2m = alphaFS * fe1m    + (1.0 - alphaFS) * fe2m;
-         fe2a = alphaFS * fe1a    + (1.0 - alphaFS) * fe2a;
-         fast_line = (fe2a != 0.0) ? (fe2m / fe2a) : 0.0;
+         // Nested fast MACD: EMA(NFast,close) - EMA(NSlow,close)
+         nest_fast = alphaNFast * cl + (1.0 - alphaNFast) * nest_fast;
+         nest_slow = alphaNSlow * cl + (1.0 - alphaNSlow) * nest_slow;
+         fast_line = nest_fast - nest_slow;
       }
 
-      double signal_line = sig;
-      double main_hist   = main_line - signal_line;
-      double nested_hist = fast_line - main_line;
+      double signal_line  = sig;
+      double main_hist    = main_line - signal_line;
+      double nested_hist  = fast_line - main_line;
 
       bool nested_present = (main_hist != 0.0 && MathAbs(nested_hist) < MathAbs(main_hist));
 
-      // ABSTAIN: active pullback (green nested histogram visible)
+      // ABSTAIN: active pullback (lime nested histogram visible)
       if(nested_present)
       {
          m_ind_cache.cached_bias = bias;
          m_ind_cache.dpi_result = 0;
          if(m_settings.DebugFlow)
-            DebugLog(StringFormat("[IND_DPI] ABSTAIN: nested pullback present (main=%.5f sig=%.5f fast=%.5f)",
+            DebugLog(StringFormat("[IND_DPI] ABSTAIN: nested pullback present (main=%.6f sig=%.6f fast=%.6f)",
                                   main_line, signal_line, fast_line));
          return false;
       }
 
-      // ABSTAIN: no momentum (both lines essentially at zero)
-      if(MathAbs(main_line) < 0.001 && MathAbs(signal_line) < 0.001)
+      // ABSTAIN: no momentum (both lines mathematically at zero — only happens during seed/warmup
+      // or when price has been perfectly flat for the entire warmup window).
+      // Threshold 1e-10 is well below any realistic MACD value on any instrument
+      // (even 1 pip on USDJPY ~150 gives ~3e-6 after one EMA step), catching only the zero-seed state.
+      if(MathAbs(main_line) < 1e-10 && MathAbs(signal_line) < 1e-10)
       {
          m_ind_cache.cached_bias = bias;
          m_ind_cache.dpi_result = 0;
@@ -1731,7 +1731,7 @@ private:
       m_ind_cache.dpi_result = result ? 1 : 0;
 
       if(m_settings.DebugFlow)
-         DebugLog(StringFormat("[IND_DPI] bias=%d main=%.5f sig=%.5f hist=%.5f nested=%d → %s",
+         DebugLog(StringFormat("[IND_DPI] bias=%d main=%.6f sig=%.6f hist=%.6f nested=%d → %s",
                                bias, main_line, signal_line, main_hist,
                                nested_present ? 1 : 0, result ? "PASS" : "FAIL"));
       return result;
@@ -2867,15 +2867,15 @@ public:
          count++;
       }
 
-      // DPI (inline TSI momentum voter – directional vote)
+      // DPI (inline MACD momentum voter – directional vote)
       if(m_settings.Ind_Dpi_Enabled)
       {
          bool b = Check_DPI( 1, v_shift);
          bool s = Check_DPI(-1, v_shift);
          out[count].name    = "DPI";
          out[count].enabled = true;
-         if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(R=%d S=%d U=%d BUY)", m_settings.DPI_TSI_R, m_settings.DPI_TSI_S, m_settings.DPI_TSI_U); }
-         else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(R=%d S=%d U=%d SELL)", m_settings.DPI_TSI_R, m_settings.DPI_TSI_S, m_settings.DPI_TSI_U); }
+         if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(F=%d S=%d Sig=%d BUY)", m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_MACD_Signal); }
+         else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(F=%d S=%d Sig=%d SELL)", m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_MACD_Signal); }
          else             { out[count].state = "FLAT"; out[count].reason = "(nested pullback or no momentum)"; }
          out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
@@ -4152,8 +4152,8 @@ public:
             } else DebugLog("[IND] RossHook: DISABLED → SKIP");
 
             if(m_settings.Ind_Dpi_Enabled) {
-               DebugLog(StringFormat("[IND] DPI: R=%d S=%d U=%d → %s (w=%d)",
-                                     m_settings.DPI_TSI_R, m_settings.DPI_TSI_S, m_settings.DPI_TSI_U,
+               DebugLog(StringFormat("[IND] DPI: F=%d S=%d Sig=%d → %s (w=%d)",
+                                     m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_MACD_Signal,
                                      _res_dpi ? "PASS" : "FAIL", m_settings.Ind_Dpi_Weight));
             } else DebugLog("[IND] DPI: DISABLED → SKIP");
 
