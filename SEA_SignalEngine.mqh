@@ -1662,11 +1662,12 @@ private:
       double alphaNFast = 2.0 / (double)(NFast + 1);
       double alphaNSlow = 2.0 / (double)(NSlow + 1);
 
-      // EMA running state — seeded to first close at oldest bar
+      // EMA running state — seeded to first close at oldest bar.
+      // ema_fast and ema_slow start equal → initial main_line = 0.0, so sig = 0.0 is consistent.
       double close_seed = iClose(m_symbol, PERIOD_CURRENT, bars_needed);
       double ema_fast   = close_seed;
       double ema_slow   = close_seed;
-      double sig        = 0.0;
+      double sig        = 0.0;   // consistent: initial main_line = ema_fast - ema_slow = 0.0
       double nest_fast  = close_seed;
       double nest_slow  = close_seed;
 
@@ -1711,7 +1712,10 @@ private:
          return false;
       }
 
-      // ABSTAIN: no momentum (both lines essentially at zero — warmup / flat market)
+      // ABSTAIN: no momentum (both lines mathematically at zero — only happens during seed/warmup
+      // or when price has been perfectly flat for the entire warmup window).
+      // Threshold 1e-10 is well below any realistic MACD value on any instrument
+      // (even 1 pip on USDJPY ~150 gives ~3e-6 after one EMA step), catching only the zero-seed state.
       if(MathAbs(main_line) < 1e-10 && MathAbs(signal_line) < 1e-10)
       {
          m_ind_cache.cached_bias = bias;

@@ -246,7 +246,7 @@ int OnCalculate(const int rates_total,
       // ------------------------------------------------------------------
       // Step 4: Green histogram (broad crossover zone — mainHist always)
       // ------------------------------------------------------------------
-      g_HistGreen[i] = (mainHist != 0.0) ? mainHist : 0.0;
+      g_HistGreen[i] = mainHist;
 
       // ------------------------------------------------------------------
       // Step 5: Yellow/Red histograms (split by sign)
