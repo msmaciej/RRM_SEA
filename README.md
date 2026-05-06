@@ -239,7 +239,7 @@ SimpleEA automatically outputs comprehensive performance metrics directly to the
 
 ### Overview
 
-The EA's internal DPI is now **v31-equivalent**, matching `DPI_v31_CLEAN_22_OK_FINAL_WORKING.mq5` bar-for-bar (same histogram sign, same green/yellow/red zone logic).
+The EA's internal DPI is **v31-equivalent** (MACD+CCI core), matching `DPI_mc_main.mq5` bar-for-bar (same histogram sign, same green/yellow/red zone logic).
 
 ### Architecture
 
@@ -265,21 +265,17 @@ DPI now participates in the TS equation `I` factor as a first-class voting indic
 **Vote logic:**
 1. **Direction**: `hist > 0` → LONG pass; `hist < 0` → SHORT pass
 2. **CCI filter** (when `DPI_UseCCIReset = true`): requires `sign(hist) == sign(CCI)` — no CCI reset warning
-3. **GREEN momentum** (when `DPI_UseGreenHist = true`): requires Blue and hist on the same side of zero (strength confirmation)
 
-All three checks must pass. Any failure → DPI vote fails → TS = 0 (in `VOTE_MODE_ALL`).
-
-### v29-Equivalent Behavior
-
-Set `Inp_RRM_ORG_DPI_UseGreenHist = false` to disable the GREEN overlay (reproduces DPI v29 behavior). CCI reset remains independently toggleable.
+The DPI vote is driven by **ribbon color** (yellow → Long, red → Short), with optional CCI-reset confirmation (`DPI_UseCCIReset`). The GREEN momentum overlay is **visualization only** and does **not** gate the vote. Enabling or disabling GREEN (`DPI_UseGreenHist`) affects only the standalone indicator's chart appearance; the EA vote condition is unchanged.
 
 ### Standalone Indicators (Chart Visualization)
 
-The following files remain at repo root for direct chart use and A/B comparison:
-- `DPI_v29_OK_CLEAN.mq5` — v29 reference (MACD core + CCI reset, no GREEN)
-- `DPI_v31_CLEAN_22_OK_FINAL_WORKING.mq5` — v31 reference (MACD core + CCI reset + GREEN)
-- `DPI_v31_CLEAN_22_DOCUMENTATION.md` — full parameter reference
+The following files are at repo root for direct chart use and A/B comparison:
+- `DPI_mc_simple.mq5` — MACD+CCI core, no GREEN overlay (renamed from `DPI_v29_OK_CLEAN.mq5`)
+- `DPI_mc_main.mq5`   — MACD+CCI core with GREEN toggle (renamed from `DPI_v31_CLEAN_22_OK_FINAL_WORKING.mq5`); includes GREEN-off visual fix so `InpEnableGreen=false` renders a clean single-color `0→Blue` ribbon matching MT4 reference behavior
+- `DPI_tm_simple.mq5` — TSI+MACD math family (William Blau Ergodic); copied from `Legacy/DPI_Indicator.mq5` for A/B comparison
+- `DPI_mc_main_DOCUMENTATION.md` — full parameter reference
 
 ### Legacy
 
-`DPI_Indicator.mq5` (TSI-based) and `DPI_Indicator_v7.mq5` have been moved to `Legacy/` and are no longer maintained. The EA's internal DPI logic is now v31-equivalent and supersedes both.
+`Legacy/DPI_Indicator.mq5` (TSI-based), `Legacy/DPI_Indicator_v7.mq5`, `Legacy/DPI_v29_OK_CLEAN.mq5`, and `Legacy/DPI_v31_CLEAN_22_OK_FINAL_WORKING.mq5` are kept as historical reference. See `Legacy/README.md` for the full file-mapping table.

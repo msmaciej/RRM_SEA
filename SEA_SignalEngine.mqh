@@ -1627,8 +1627,8 @@ private:
     //| Blue(i) = EMA(Fast,close)(i) − EMA(Slow,close)(i)               |
     //| Red(i)  = EMA(RedSignalType, Blue)(i)  [or double-smooth]        |
     //| hist(i) = Blue(i) − Red(i)                                       |
-    //| Vote: dir agrees with bias AND (if UseCCIReset) CCI confirms      |
-    //|       AND (if UseGreenHist) Blue/hist aligned same side of zero   |
+    //| Vote: dir agrees with bias AND (if UseCCIReset) CCI confirms     |
+    //| GREEN is visualization only — not a vote gate.                   |
     //| No static locals, no lambdas — safe for MQL5 on macOS/Wine.      |
     //+------------------------------------------------------------------+
    bool Check_DPI(int bias, int v_shift)
@@ -1654,9 +1654,9 @@ private:
 
       bool dir_ok  = (dir == bias);
       bool cci_ok  = (!m_settings.DPI_UseCCIReset  || dpi_macd_agree);
-      bool green_ok= (!m_settings.DPI_UseGreenHist  || dpi_green);
-
-      bool result  = dir_ok && cci_ok && green_ok;
+      // GREEN is visualization only — it is NOT a vote gate.
+      // dpi_green is still computed (for telemetry / future exit logic) but does not block the vote.
+      bool result  = dir_ok && cci_ok;
 
       m_ind_cache.cached_bias = bias;
       m_ind_cache.dpi_result  = result ? 1 : 0;
@@ -1666,7 +1666,6 @@ private:
          string sub = "";
          if(!dir_ok)   sub = sub + "DIR_MISMATCH ";
          if(!cci_ok)   sub = sub + "CCI_RESET ";
-         if(!green_ok) sub = sub + "NO_GREEN ";
          DebugLog(StringFormat("[IND_DPI] bias=%d hist=%.6f dir=%d green=%d cciagreed=%d → %s%s",
                                bias, hist_cur, dir,
                                dpi_green ? 1 : 0, dpi_macd_agree ? 1 : 0,
