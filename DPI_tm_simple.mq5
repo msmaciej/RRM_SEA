@@ -341,7 +341,13 @@ int OnCalculate(const int rates_total,
       // Step 7: Green histogram = broad TSI crossover zone (always at mainHist
       //         height regardless of MACD — this is the MT4 DPI green equivalent)
       // ------------------------------------------------------------------
-      if(mainHist != 0.0)
+      // GREEN = "broad TSI zone" — only where yellow/red are NOT drawn.
+      // Yellow/red are drawn when (mainHist & macdHist) agree in sign;
+      // elsewhere (TSI/MACD disagree) green fills the gap at mainHist height.
+      bool tsi_macd_agree = (mainHist >= 0.0 && macdHist >= 0.0) ||
+                            (mainHist <  0.0 && macdHist <  0.0);
+
+      if(mainHist != 0.0 && !tsi_macd_agree)
          g_HistGreen[i] = mainHist;
       else
          g_HistGreen[i] = 0.0;
