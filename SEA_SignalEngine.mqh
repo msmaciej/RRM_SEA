@@ -1623,17 +1623,13 @@ private:
    }
 
     //+------------------------------------------------------------------+
-    //| Check_DPI: Inline MACD-based Dynamic Price Indicator voter      |
-    //| Computes pure MACD architecture inline (correct reverse-eng).   |
-    //| Vote logic:                                                      |
-    //|   BUY  when MainLine > SignalLine AND no nested histogram        |
-    //|   SELL when MainLine < SignalLine AND no nested histogram        |
-    //|   FAIL (abstain) when nested histogram present (active pullback) |
-    //|         or when both lines are near zero (no momentum)          |
-    //| Main:   red  = EMA(Fast,close) - EMA(Slow,close)  (MACD line)  |
-    //| Signal: blue = EMA(Signal, MainLine)               (MACD signal)|
-    //| Nested: EMA(NF,close) - EMA(NS,close)  vs MainLine              |
-    //| No static locals, no lambdas — safe for MQL5 on macOS/Wine.     |
+    //| Check_DPI: DPI v31 voter — MACD-core Blue/Red/hist architecture  |
+    //| Blue(i) = EMA(Fast,close)(i) − EMA(Slow,close)(i)               |
+    //| Red(i)  = EMA(RedSignalType, Blue)(i)  [or double-smooth]        |
+    //| hist(i) = Blue(i) − Red(i)                                       |
+    //| Vote: dir agrees with bias AND (if UseCCIReset) CCI confirms      |
+    //|       AND (if UseGreenHist) Blue/hist aligned same side of zero   |
+    //| No static locals, no lambdas — safe for MQL5 on macOS/Wine.      |
     //+------------------------------------------------------------------+
    bool Check_DPI(int bias, int v_shift)
    {
@@ -1642,98 +1638,41 @@ private:
       if(IsCacheValidForShift(v_shift) && m_ind_cache.cached_bias == bias && m_ind_cache.dpi_result != -1)
          return (m_ind_cache.dpi_result == 1);
 
-      int MFast  = m_settings.DPI_MACD_Fast;
-      int MSlow  = m_settings.DPI_MACD_Slow;
-      int MSig   = m_settings.DPI_MACD_Signal;
-      int NFast  = m_settings.DPI_TSI_FastR;   // repurposed: Nested_Fast period
-      int NSlow  = m_settings.DPI_TSI_FastS;   // repurposed: Nested_Slow period
-
-      // Minimum bars required: warmup (MSlow + MSig) + target shift + safety buffer
-      int bars_needed = MSlow + MSig + v_shift + 5;
-      if(iBars(m_symbol, PERIOD_CURRENT) <= bars_needed)
+      double hist_cur = 0.0, hist_prev = 0.0;
+      bool   dpi_green = false, dpi_macd_agree = false;
+      if(!ComputeDPIMainHist(v_shift, hist_cur, hist_prev, dpi_green, dpi_macd_agree))
       {
-         m_ind_cache.dpi_result = 0;
-         return false;
-      }
-
-      double alphaFast  = 2.0 / (double)(MFast + 1);
-      double alphaSlow  = 2.0 / (double)(MSlow + 1);
-      double alphaSig   = 2.0 / (double)(MSig  + 1);
-      double alphaNFast = 2.0 / (double)(NFast + 1);
-      double alphaNSlow = 2.0 / (double)(NSlow + 1);
-
-      // EMA running state — seeded to first close at oldest bar.
-      // ema_fast and ema_slow start equal → initial main_line = 0.0, so sig = 0.0 is consistent.
-      double close_seed = iClose(m_symbol, PERIOD_CURRENT, bars_needed);
-      double ema_fast   = close_seed;
-      double ema_slow   = close_seed;
-      double sig        = 0.0;   // consistent: initial main_line = ema_fast - ema_slow = 0.0
-      double nest_fast  = close_seed;
-      double nest_slow  = close_seed;
-
-      double main_line = 0.0;
-      double fast_line = 0.0;
-
-      // Iterate from oldest bar (bars_needed-1) toward the target bar (v_shift),
-      // updating EMA state at each step.
-      // iClose(symbol, tf, shift): shift=0 is newest, shift=N is N bars ago.
-      for(int i = bars_needed - 1; i >= v_shift; i--)
-      {
-         double cl = iClose(m_symbol, PERIOD_CURRENT, i);
-
-         // Main MACD line: EMA(Fast,close) - EMA(Slow,close)
-         ema_fast  = alphaFast  * cl + (1.0 - alphaFast)  * ema_fast;
-         ema_slow  = alphaSlow  * cl + (1.0 - alphaSlow)  * ema_slow;
-         main_line = ema_fast - ema_slow;
-
-         // MACD signal line: EMA(Signal) of main_line
-         sig = alphaSig * main_line + (1.0 - alphaSig) * sig;
-
-         // Nested fast MACD: EMA(NFast,close) - EMA(NSlow,close)
-         nest_fast = alphaNFast * cl + (1.0 - alphaNFast) * nest_fast;
-         nest_slow = alphaNSlow * cl + (1.0 - alphaNSlow) * nest_slow;
-         fast_line = nest_fast - nest_slow;
-      }
-
-      double signal_line  = sig;
-      double main_hist    = main_line - signal_line;
-      double nested_hist  = fast_line - main_line;
-
-      bool nested_present = (main_hist != 0.0 && MathAbs(nested_hist) < MathAbs(main_hist));
-
-      // ABSTAIN: active pullback (lime nested histogram visible)
-      if(nested_present)
-      {
+         // Insufficient bars — DPI passes silently (neither counted as pass nor fail).
+         // In VOTE_MODE_ALL this ensures DPI does not block trades when warmup data is missing.
          m_ind_cache.cached_bias = bias;
-         m_ind_cache.dpi_result = 0;
-         if(m_settings.DebugFlow)
-            DebugLog(StringFormat("[IND_DPI] ABSTAIN: nested pullback present (main=%.6f sig=%.6f fast=%.6f)",
-                                  main_line, signal_line, fast_line));
-         return false;
+         m_ind_cache.dpi_result  = 1;
+         return true;
       }
 
-      // ABSTAIN: no momentum (both lines mathematically at zero — only happens during seed/warmup
-      // or when price has been perfectly flat for the entire warmup window).
-      // Threshold 1e-10 is well below any realistic MACD value on any instrument
-      // (even 1 pip on USDJPY ~150 gives ~3e-6 after one EMA step), catching only the zero-seed state.
-      if(MathAbs(main_line) < 1e-10 && MathAbs(signal_line) < 1e-10)
-      {
-         m_ind_cache.cached_bias = bias;
-         m_ind_cache.dpi_result = 0;
-         if(m_settings.DebugFlow)
-            DebugLog("[IND_DPI] ABSTAIN: both lines near zero (no trend momentum)");
-         return false;
-      }
+      // Direction: sign of histogram
+      int dir = (hist_cur > 0.0) ? 1 : ((hist_cur < 0.0) ? -1 : 0);
 
-      // Directional vote
-      bool result = (bias > 0) ? (main_line > signal_line) : (main_line < signal_line);
+      bool dir_ok  = (dir == bias);
+      bool cci_ok  = (!m_settings.DPI_UseCCIReset  || dpi_macd_agree);
+      bool green_ok= (!m_settings.DPI_UseGreenHist  || dpi_green);
+
+      bool result  = dir_ok && cci_ok && green_ok;
+
       m_ind_cache.cached_bias = bias;
-      m_ind_cache.dpi_result = result ? 1 : 0;
+      m_ind_cache.dpi_result  = result ? 1 : 0;
 
       if(m_settings.DebugFlow)
-         DebugLog(StringFormat("[IND_DPI] bias=%d main=%.6f sig=%.6f hist=%.6f nested=%d → %s",
-                               bias, main_line, signal_line, main_hist,
-                               nested_present ? 1 : 0, result ? "PASS" : "FAIL"));
+      {
+         string sub = "";
+         if(!dir_ok)   sub = sub + "DIR_MISMATCH ";
+         if(!cci_ok)   sub = sub + "CCI_RESET ";
+         if(!green_ok) sub = sub + "NO_GREEN ";
+         DebugLog(StringFormat("[IND_DPI] bias=%d hist=%.6f dir=%d green=%d cciagreed=%d → %s%s",
+                               bias, hist_cur, dir,
+                               dpi_green ? 1 : 0, dpi_macd_agree ? 1 : 0,
+                               result ? "PASS" : "FAIL ",
+                               result ? "" : ("(" + sub + ")")));
+      }
       return result;
    }
 
@@ -2874,9 +2813,9 @@ public:
          bool s = Check_DPI(-1, v_shift);
          out[count].name    = "DPI";
          out[count].enabled = true;
-         if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(F=%d S=%d Sig=%d BUY)", m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_MACD_Signal); }
-         else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(F=%d S=%d Sig=%d SELL)", m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_MACD_Signal); }
-         else             { out[count].state = "FLAT"; out[count].reason = "(nested pullback or no momentum)"; }
+         if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(F=%d S=%d RedT=%d BUY)", m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_RedSignalType); }
+         else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(F=%d S=%d RedT=%d SELL)", m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_RedSignalType); }
+         else             { out[count].state = "FLAT"; out[count].reason = "(no momentum or conditions not met)"; }
          out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
@@ -4152,8 +4091,10 @@ public:
             } else DebugLog("[IND] RossHook: DISABLED → SKIP");
 
             if(m_settings.Ind_Dpi_Enabled) {
-               DebugLog(StringFormat("[IND] DPI: F=%d S=%d Sig=%d → %s (w=%d)",
-                                     m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_MACD_Signal,
+               DebugLog(StringFormat("[IND] DPI v31: F=%d S=%d RedType=%d CCI=%d Green=%d → %s (w=%d)",
+                                     m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_RedSignalType,
+                                     m_settings.DPI_UseCCIReset ? m_settings.DPI_CCI_Period : 0,
+                                     m_settings.DPI_UseGreenHist ? 1 : 0,
                                      _res_dpi ? "PASS" : "FAIL", m_settings.Ind_Dpi_Weight));
             } else DebugLog("[IND] DPI: DISABLED → SKIP");
 
@@ -4493,97 +4434,122 @@ public:
    }
 
    // ───────────────────────────────────────────────────────────────────────────
-   // ComputeDPIMainHist — Inline TSI+MACD histogram computation for deceleration check
-   // Computes main_hist (mainLine - TSISignal) at two consecutive shifts:
-   //   out_hist_cur   = TSI crossover differential at v_shift   (current bar)
-   //   out_hist_prev  = TSI crossover differential at v_shift+1 (previous bar)
-   //   out_green      = true when TSI crossover is active (mainHist != 0) at v_shift
-   //                    (broad TSI zone; false = TSI lines converged)
-   //   out_macd_agree = true when TSI and MACD histograms agree in sign at v_shift
-   //                    (yellow/red zone active; false = transition/divergence zone)
+   // ComputeDPIMainHist — DPI v31 inline histogram computation
+   // Architecture (mirrors DPI_v31_CLEAN_22_OK_FINAL_WORKING.mq5):
+   //   Blue(i) = EMA(DPI_MACD_Fast, close)(i) − EMA(DPI_MACD_Slow, close)(i)
+   //   Red(i)  = EMA(RedSignalType, Blue)(i)   [or double-smooth of Blue]
+   //   hist(i) = Blue(i) − Red(i)
+   //
+   //   out_hist_cur   = hist at v_shift   (current bar)
+   //   out_hist_prev  = hist at v_shift+1 (previous bar)
+   //   out_green      = (DPI_UseGreenHist) ? Blue and hist on same side of zero : false
+   //   out_macd_agree = (DPI_UseCCIReset)  ? hist sign agrees with CCI sign     : (hist >= 0)
+   //
    // Returns false if insufficient bars, DPI not enabled, or computation fails.
-   // Used by the DPI deceleration pre-filter in EvaluateTS.
+   // Used by: DPI deceleration pre-filter in EvaluateTS, and Check_DPI voter.
+   // No static locals, no lambdas — safe for MQL5 on macOS/Wine.
    // ───────────────────────────────────────────────────────────────────────────
    bool ComputeDPIMainHist(int v_shift, double &out_hist_cur, double &out_hist_prev,
                            bool &out_green, bool &out_macd_agree)
    {
       if(!m_settings.Ind_Dpi_Enabled) return false;
 
-      int R        = m_settings.DPI_TSI_R;
-      int S        = m_settings.DPI_TSI_S;
-      int U        = m_settings.DPI_TSI_U;
-      int FastR    = m_settings.DPI_TSI_FastR;
-      int FastS    = m_settings.DPI_TSI_FastS;
-      int MFast    = m_settings.DPI_MACD_Fast;
-      int MSlow    = m_settings.DPI_MACD_Slow;
-      int MSig     = m_settings.DPI_MACD_Signal;
+      int MFast  = m_settings.DPI_MACD_Fast;
+      int MSlow  = m_settings.DPI_MACD_Slow;
+      int RST    = m_settings.DPI_RedSignalType;
 
-      // Need one extra bar beyond normal warmup to capture hist at v_shift+1.
-      // bars_needed = R+S+U (TSI warmup) + MSlow+MSig (MACD warmup) + v_shift (target)
-      // + 6 (1 seed bar + 1 prev-bar capture + 1 safety + 3 buffer for earliest iClose access)
-      int bars_needed = R + S + U + MSlow + MSig + v_shift + 6;
+      // Determine Red-EMA period(s) based on signal type
+      int redPer1 = 1;  // primary EMA period for Red line
+      int redPer2 = 1;  // secondary EMA period (only used when RST == 5 double-smooth)
+      switch(RST)
+      {
+         case 1: redPer1 = m_settings.DPI_RedEMA_A;           redPer2 = redPer1; break;
+         case 2: redPer1 = m_settings.DPI_RedEMA_B;           redPer2 = redPer1; break;
+         case 3: redPer1 = m_settings.DPI_RedEMA_C;           redPer2 = redPer1; break;
+         case 4: redPer1 = m_settings.DPI_RedEMA_D;           redPer2 = redPer1; break;
+         case 5: redPer1 = m_settings.DPI_DoubleSmoothFirst;  redPer2 = m_settings.DPI_DoubleSmoothSecond; break;
+         default: redPer1 = m_settings.DPI_RedEMA_C;          redPer2 = redPer1; break;
+      }
+
+      // bars_needed: Slow-EMA warmup + max(Red EMA) + 1 prev-bar capture + v_shift + 5 safety
+      int maxRed = MathMax(redPer1, redPer2);
+      int bars_needed = MSlow + maxRed + v_shift + 7;
       if(iBars(m_symbol, PERIOD_CURRENT) <= bars_needed) return false;
 
-      double alphaR   = 2.0 / (double)(R     + 1);
-      double alphaS   = 2.0 / (double)(S     + 1);
-      double alphaU   = 2.0 / (double)(U     + 1);
-      double alphaFR  = 2.0 / (double)(FastR + 1);
-      double alphaFS  = 2.0 / (double)(FastS + 1);
-      double alphaMF  = 2.0 / (double)(MFast + 1);
-      double alphaMS  = 2.0 / (double)(MSlow + 1);
-      double alphaMSg = 2.0 / (double)(MSig  + 1);
+      double alphaFast  = 2.0 / (double)(MFast  + 1);
+      double alphaSlow  = 2.0 / (double)(MSlow  + 1);
+      double alphaRed1  = 2.0 / (double)(redPer1 + 1);
+      double alphaRed2  = 2.0 / (double)(redPer2 + 1);
 
-      double e1m = 0.0, e2m = 0.0, e1a = 0.0, e2a = 0.0, sig = 0.0;
-      double fe1m = 0.0, fe2m = 0.0, fe1a = 0.0, fe2a = 0.0;
-      double main_line = 0.0, fast_line = 0.0;
-      double ema_fast = 0.0, ema_slow = 0.0, macd_line = 0.0, macd_sig = 0.0;
+      double ema_fast = 0.0, ema_slow = 0.0;
+      double blue     = 0.0;
+      double red1     = 0.0, red2 = 0.0;  // red2 only used for double-smooth
+      double hist     = 0.0;
 
       out_hist_cur   = 0.0;
       out_hist_prev  = 0.0;
       out_green      = false;
       out_macd_agree = false;
 
-      // Iterate from oldest bar toward v_shift, capturing histogram at v_shift+1 en route
+      // Seed EMAs at the oldest bar so that initial Blue = 0 (fast = slow = seed price).
+      double seed = iClose(m_symbol, PERIOD_CURRENT, bars_needed);
+      ema_fast = seed;
+      ema_slow = seed;
+      // Blue starts at 0 → Red EMA(s) start at 0 for consistency.
+      red1 = 0.0;
+      red2 = 0.0;
+
+      // Iterate from oldest bar toward v_shift (capturing hist at v_shift+1 en route).
       for(int i = bars_needed - 1; i >= v_shift; i--)
       {
-         double close_i    = iClose(m_symbol, PERIOD_CURRENT, i);
-         double close_prev = iClose(m_symbol, PERIOD_CURRENT, i + 1);
-         double mom        = close_i - close_prev;
-         double abs_mom    = MathAbs(mom);
+         double cl = iClose(m_symbol, PERIOD_CURRENT, i);
 
-         // Main TSI
-         e1m = alphaR * mom     + (1.0 - alphaR) * e1m;
-         e1a = alphaR * abs_mom + (1.0 - alphaR) * e1a;
-         e2m = alphaS * e1m     + (1.0 - alphaS) * e2m;
-         e2a = alphaS * e1a     + (1.0 - alphaS) * e2a;
-         main_line = (e2a != 0.0) ? (e2m / e2a) : 0.0;
-         sig = alphaU * main_line + (1.0 - alphaU) * sig;
+         // Blue line = EMA(Fast, close) − EMA(Slow, close)
+         ema_fast = alphaFast * cl   + (1.0 - alphaFast) * ema_fast;
+         ema_slow = alphaSlow * cl   + (1.0 - alphaSlow) * ema_slow;
+         blue     = ema_fast - ema_slow;
 
-         // Fast TSI
-         fe1m = alphaFR * mom     + (1.0 - alphaFR) * fe1m;
-         fe1a = alphaFR * abs_mom + (1.0 - alphaFR) * fe1a;
-         fe2m = alphaFS * fe1m    + (1.0 - alphaFS) * fe2m;
-         fe2a = alphaFS * fe1a    + (1.0 - alphaFS) * fe2a;
-         fast_line = (fe2a != 0.0) ? (fe2m / fe2a) : 0.0;
-
-         // MACD (price EMA differential)
-         ema_fast  = alphaMF  * close_i   + (1.0 - alphaMF)  * ema_fast;
-         ema_slow  = alphaMS  * close_i   + (1.0 - alphaMS)  * ema_slow;
-         macd_line = ema_fast - ema_slow;
-         macd_sig  = alphaMSg * macd_line + (1.0 - alphaMSg) * macd_sig;
+         // Red signal line
+         if(RST == 5)
+         {
+            // Double-smooth: EMA(DoubleSmoothFirst, Blue) then EMA(DoubleSmoothSecond, that)
+            red1 = alphaRed1 * blue + (1.0 - alphaRed1) * red1;
+            red2 = alphaRed2 * red1 + (1.0 - alphaRed2) * red2;
+            hist = blue - red2;
+         }
+         else
+         {
+            // Single EMA of Blue
+            red1 = alphaRed1 * blue + (1.0 - alphaRed1) * red1;
+            hist = blue - red1;
+         }
 
          if(i == v_shift + 1)
-            out_hist_prev = main_line - sig;  // capture TSI crossover diff at v_shift+1
+            out_hist_prev = hist;
       }
-      out_hist_cur = main_line - sig;  // final TSI crossover diff at v_shift
+      out_hist_cur = hist;
 
-      // out_green: TSI crossover is active (broad TSI zone present)
-      out_green = (out_hist_cur != 0.0);
+      // out_green: Blue and hist on the same side of zero (momentum alignment)
+      if(m_settings.DPI_UseGreenHist)
+         out_green = ((blue > 0.0 && hist > 0.0) || (blue < 0.0 && hist < 0.0));
+      else
+         out_green = false;
 
-      // out_macd_agree: TSI and MACD histograms agree in sign (yellow/red zone)
-      double macd_hist = macd_line - macd_sig;
-      out_macd_agree = (out_hist_cur >= 0.0 && macd_hist >= 0.0) ||
-                       (out_hist_cur < 0.0  && macd_hist < 0.0);
+      // out_macd_agree: trend filter flag — dual-use:
+      //   DPI_UseCCIReset=true  → true when hist sign agrees with CCI sign (no CCI reset warning)
+      //   DPI_UseCCIReset=false → true when hist >= 0 (pass-through; caller uses for decel filter)
+      if(m_settings.DPI_UseCCIReset)
+      {
+         double cci_v = iCCI(m_symbol, PERIOD_CURRENT,
+                             m_settings.DPI_CCI_Period,
+                             (ENUM_APPLIED_PRICE)m_settings.DPI_CCI_AppliedPrice,
+                             v_shift);
+         out_macd_agree = ((hist >= 0.0 && cci_v >= 0.0) || (hist < 0.0 && cci_v < 0.0));
+      }
+      else
+      {
+         out_macd_agree = (hist >= 0.0);
+      }
 
       return true;
    }
