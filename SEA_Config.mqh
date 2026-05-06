@@ -374,16 +374,21 @@ struct ST_Settings
    // VRC (Volatility Regime Classifier)
    bool   Ind_VRC_Enabled;
    bool   Ind_SmaConverge_Enabled;  // SMA Convergence vote (gap narrowing = pullback signal)
-   bool   Ind_Dpi_Enabled;          // DPI vote (inline TSI momentum indicator)
+   bool   Ind_Dpi_Enabled;          // DPI vote (inline v31 MACD-core momentum indicator)
    int    Ind_Dpi_Weight;           // DPI vote weight
-   int    DPI_TSI_R;                // TSI R period (slow EMA smoothing)
-   int    DPI_TSI_S;                // TSI S period (medium EMA smoothing)
-   int    DPI_TSI_U;                // TSI Signal EMA period
-   int    DPI_TSI_FastR;            // Nested TSI first EMA period (Lead, original DPI default 8)
-   int    DPI_TSI_FastS;            // Nested TSI second EMA period (Follow, original DPI default 13)
    int    DPI_MACD_Fast;            // MACD fast EMA period (default 8)
    int    DPI_MACD_Slow;            // MACD slow EMA period (default 13)
-   int    DPI_MACD_Signal;          // MACD signal EMA period (default 5)
+   int    DPI_RedSignalType;        // Red signal line type: 1=EMA_A 2=EMA_B 3=EMA_C 4=EMA_D 5=Double
+   int    DPI_RedEMA_A;             // EMA period for type 1 (default 5)
+   int    DPI_RedEMA_B;             // EMA period for type 2 (default 8)
+   int    DPI_RedEMA_C;             // EMA period for type 3 (default 13)
+   int    DPI_RedEMA_D;             // EMA period for type 4 (default 21)
+   int    DPI_DoubleSmoothFirst;    // First EMA in double-smooth path (default 5)
+   int    DPI_DoubleSmoothSecond;   // Second EMA in double-smooth path (default 8)
+   bool   DPI_UseCCIReset;          // Enable CCI trend filter (default true)
+   int    DPI_CCI_Period;           // CCI period (default 13)
+   int    DPI_CCI_AppliedPrice;     // CCI price type ENUM_APPLIED_PRICE (default PRICE_TYPICAL)
+   bool   DPI_UseGreenHist;         // Enable GREEN momentum overlay (false = v29-equivalent)
    int    VRC_ATR_Period;
    int    VRC_Lookback;
    double VRC_LowThreshold;         // Below this percentile = LOW regime (reject trade)
@@ -938,16 +943,23 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "    📐 PRESET: RRM_ORG";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: DPI TSI Settings";
+input group "║   📐 RRM_ORG: DPI v31 Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_RRM_ORG_TSI_R         = 25;    // RRM_ORG: DPI TSI R period (slow EMA)
-input int         Inp_RRM_ORG_TSI_S         = 13;    // RRM_ORG: DPI TSI S period (medium EMA)
-input int         Inp_RRM_ORG_TSI_U         = 7;     // RRM_ORG: DPI TSI Signal EMA period
-input int         Inp_RRM_ORG_TSI_FastR     = 3;     // RRM_ORG: DPI Nested fast EMA period (Nested_Fast)
-input int         Inp_RRM_ORG_TSI_FastS     = 5;     // RRM_ORG: DPI Nested slow EMA period (Nested_Slow)
-input int         Inp_RRM_ORG_MACD_Fast     = 8;     // RRM_ORG: DPI MACD fast EMA period
-input int         Inp_RRM_ORG_MACD_Slow     = 13;    // RRM_ORG: DPI MACD slow EMA period
-input int         Inp_RRM_ORG_MACD_Signal   = 5;     // RRM_ORG: DPI MACD signal EMA period
+input bool        Inp_Ind_Dpi_Enabled         = false;  // DPI: Enable DPI vote in TS equation
+input int         Inp_Ind_Dpi_Weight          = 1;      // DPI: Vote weight
+input int         Inp_RRM_ORG_MACD_Fast       = 8;      // RRM_ORG: DPI MACD fast EMA period
+input int         Inp_RRM_ORG_MACD_Slow       = 13;     // RRM_ORG: DPI MACD slow EMA period
+input int         Inp_RRM_ORG_DPI_RedSignalType    = 3; // DPI: Red line type (1=EMA_A 2=EMA_B 3=EMA_C 4=EMA_D 5=Double)
+input int         Inp_RRM_ORG_DPI_RedEMA_A         = 5; // DPI: Red EMA period A (type 1)
+input int         Inp_RRM_ORG_DPI_RedEMA_B         = 8; // DPI: Red EMA period B (type 2)
+input int         Inp_RRM_ORG_DPI_RedEMA_C         = 13;// DPI: Red EMA period C (type 3, default)
+input int         Inp_RRM_ORG_DPI_RedEMA_D         = 21;// DPI: Red EMA period D (type 4)
+input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst  = 5;// DPI: Double-smooth first EMA
+input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond = 8;// DPI: Double-smooth second EMA
+input bool        Inp_RRM_ORG_DPI_UseCCIReset      = true; // DPI: Enable CCI trend filter
+input int         Inp_RRM_ORG_DPI_CCI_Period        = 13;  // DPI: CCI period
+input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price  = PRICE_TYPICAL; // DPI: CCI applied price
+input bool        Inp_RRM_ORG_DPI_UseGreenHist      = true; // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️  PRESETS OVERRIDES! (Step1-5)";
@@ -1425,17 +1437,22 @@ void InitializeConfig()
    Settings.Ind_VRC_Weight        = Inp_Ind_VRC_Weight;
    Settings.Ind_SmaConverge_Weight = Inp_Ind_SmaConverge_Weight;
 
-   // DPI (disabled by default; enabled and parameterised by PRESET_RRM_ORG)
-   Settings.Ind_Dpi_Enabled       = false;
-   Settings.Ind_Dpi_Weight        = 1;
-   Settings.DPI_TSI_R             = MathMax(1, Inp_RRM_ORG_TSI_R);
-   Settings.DPI_TSI_S             = MathMax(1, Inp_RRM_ORG_TSI_S);
-   Settings.DPI_TSI_U             = MathMax(1, Inp_RRM_ORG_TSI_U);
-   Settings.DPI_TSI_FastR         = MathMax(1, Inp_RRM_ORG_TSI_FastR);
-   Settings.DPI_TSI_FastS         = MathMax(1, Inp_RRM_ORG_TSI_FastS);
-   Settings.DPI_MACD_Fast         = MathMax(1, Inp_RRM_ORG_MACD_Fast);
-   Settings.DPI_MACD_Slow         = MathMax(1, Inp_RRM_ORG_MACD_Slow);
-   Settings.DPI_MACD_Signal       = MathMax(1, Inp_RRM_ORG_MACD_Signal);
+   // DPI v31 (disabled by default; enabled and parameterised by PRESET_RRM_ORG)
+   Settings.Ind_Dpi_Enabled             = Inp_Ind_Dpi_Enabled;
+   Settings.Ind_Dpi_Weight              = Inp_Ind_Dpi_Weight;
+   Settings.DPI_MACD_Fast               = MathMax(1, Inp_RRM_ORG_MACD_Fast);
+   Settings.DPI_MACD_Slow               = MathMax(1, Inp_RRM_ORG_MACD_Slow);
+   Settings.DPI_RedSignalType           = MathMax(1, MathMin(5, Inp_RRM_ORG_DPI_RedSignalType));
+   Settings.DPI_RedEMA_A                = MathMax(1, Inp_RRM_ORG_DPI_RedEMA_A);
+   Settings.DPI_RedEMA_B                = MathMax(1, Inp_RRM_ORG_DPI_RedEMA_B);
+   Settings.DPI_RedEMA_C                = MathMax(1, Inp_RRM_ORG_DPI_RedEMA_C);
+   Settings.DPI_RedEMA_D                = MathMax(1, Inp_RRM_ORG_DPI_RedEMA_D);
+   Settings.DPI_DoubleSmoothFirst       = MathMax(1, Inp_RRM_ORG_DPI_DoubleSmoothFirst);
+   Settings.DPI_DoubleSmoothSecond      = MathMax(1, Inp_RRM_ORG_DPI_DoubleSmoothSecond);
+   Settings.DPI_UseCCIReset             = Inp_RRM_ORG_DPI_UseCCIReset;
+   Settings.DPI_CCI_Period              = MathMax(1, Inp_RRM_ORG_DPI_CCI_Period);
+   Settings.DPI_CCI_AppliedPrice        = (int)Inp_RRM_ORG_DPI_CCI_Price;
+   Settings.DPI_UseGreenHist            = Inp_RRM_ORG_DPI_UseGreenHist;
 
    // Choppiness Index
    Settings.CI_Period             = MathMax(5, Inp_CI_Period);

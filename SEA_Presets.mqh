@@ -197,9 +197,10 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("    Stoch:   ", (cfg.Ind_Sto_Enabled ? "✓" : "✗"));
    Print("    SmaConv: ", (cfg.Ind_SmaConverge_Enabled ? "✓" : "✗"));
    Print("    DPI:     ", (cfg.Ind_Dpi_Enabled ? "✓" : "✗"),
-         (cfg.Ind_Dpi_Enabled ? StringFormat(" (MACD Fast=%d Slow=%d Signal=%d NestF=%d NestS=%d)",
-          cfg.DPI_MACD_Fast, cfg.DPI_MACD_Slow, cfg.DPI_MACD_Signal,
-          cfg.DPI_TSI_FastR, cfg.DPI_TSI_FastS) : ""));
+         (cfg.Ind_Dpi_Enabled ? StringFormat(" (v31 MACD Fast=%d Slow=%d RedType=%d CCI=%d Green=%d)",
+          cfg.DPI_MACD_Fast, cfg.DPI_MACD_Slow, cfg.DPI_RedSignalType,
+          cfg.DPI_UseCCIReset ? cfg.DPI_CCI_Period : 0,
+          cfg.DPI_UseGreenHist ? 1 : 0) : ""));
    Print("");
 
    Print("💰 RISK MANAGEMENT:");
@@ -1176,14 +1177,22 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Ema3                 = 34;
       cfg.P_Ema4                 = 89;
 
-      // ── DPI (inline MACD): LOCKED ON — only momentum voter ───────────
-      cfg.Ind_Dpi_Enabled        = true;
-      cfg.Ind_Dpi_Weight         = 1;
-      cfg.DPI_MACD_Fast          = Inp_RRM_ORG_MACD_Fast;     // default 8
-      cfg.DPI_MACD_Slow          = Inp_RRM_ORG_MACD_Slow;     // default 13
-      cfg.DPI_MACD_Signal        = Inp_RRM_ORG_MACD_Signal;   // default 5
-      cfg.DPI_TSI_FastR          = Inp_RRM_ORG_TSI_FastR;     // default 3 (nested fast)
-      cfg.DPI_TSI_FastS          = Inp_RRM_ORG_TSI_FastS;     // default 5 (nested slow)
+      // ── DPI v31: opt-in voting indicator (user enables via Inp_Ind_Dpi_Enabled) ──
+      cfg.Ind_Dpi_Enabled          = false;          // opt-in; user enables via Inp_Ind_Dpi_Enabled
+      cfg.Ind_Dpi_Weight           = 1;
+      cfg.DPI_MACD_Fast            = Inp_RRM_ORG_MACD_Fast;              // default 8
+      cfg.DPI_MACD_Slow            = Inp_RRM_ORG_MACD_Slow;              // default 13
+      cfg.DPI_RedSignalType        = Inp_RRM_ORG_DPI_RedSignalType;      // default 3 (EMA13)
+      cfg.DPI_RedEMA_A             = Inp_RRM_ORG_DPI_RedEMA_A;           // default 5
+      cfg.DPI_RedEMA_B             = Inp_RRM_ORG_DPI_RedEMA_B;           // default 8
+      cfg.DPI_RedEMA_C             = Inp_RRM_ORG_DPI_RedEMA_C;           // default 13
+      cfg.DPI_RedEMA_D             = Inp_RRM_ORG_DPI_RedEMA_D;           // default 21
+      cfg.DPI_DoubleSmoothFirst    = Inp_RRM_ORG_DPI_DoubleSmoothFirst;  // default 5
+      cfg.DPI_DoubleSmoothSecond   = Inp_RRM_ORG_DPI_DoubleSmoothSecond; // default 8
+      cfg.DPI_UseCCIReset          = Inp_RRM_ORG_DPI_UseCCIReset;        // default true
+      cfg.DPI_CCI_Period           = Inp_RRM_ORG_DPI_CCI_Period;         // default 13
+      cfg.DPI_CCI_AppliedPrice     = (int)Inp_RRM_ORG_DPI_CCI_Price;     // default PRICE_TYPICAL
+      cfg.DPI_UseGreenHist         = Inp_RRM_ORG_DPI_UseGreenHist;       // default true
 
       // ── PSAR: LOCKED ON (timing/direction confirmation) ───────────────
       cfg.Ind_Psar_Enabled       = true;

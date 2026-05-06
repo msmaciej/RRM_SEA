@@ -233,3 +233,53 @@ SimpleEA automatically outputs comprehensive performance metrics directly to the
 3.  **Risk Analysis:** Maximum Absolute/Relative Drawdown, Recovery Factor, and Risk-Reward ratio profiling.
 
 *Use the `Inp_DebugLevel` (Zone 2) to control per-tick log verbosity (DEBUG_SILENT, SUMMARY, INDICATORS, FULL).*
+---
+
+## 📐 DPI — Dynamic Price Indicator (v31)
+
+### Overview
+
+The EA's internal DPI is now **v31-equivalent**, matching `DPI_v31_CLEAN_22_OK_FINAL_WORKING.mq5` bar-for-bar (same histogram sign, same green/yellow/red zone logic).
+
+### Architecture
+
+```
+Blue(i) = EMA(DPI_MACD_Fast, close)(i) − EMA(DPI_MACD_Slow, close)(i)
+Red(i)  = EMA(RedSignalType, Blue)(i)                 [or double-smooth]
+hist(i) = Blue(i) − Red(i)
+```
+
+**Red signal line types** (`DPI_RedSignalType`):
+| Type | Method | Default period |
+|------|--------|---------------|
+| 1 | EMA_A | 5 |
+| 2 | EMA_B | 8 |
+| **3** | **EMA_C** (default) | **13** |
+| 4 | EMA_D | 21 |
+| 5 | Double-smooth (First → Second EMA) | 5 → 8 |
+
+### DPI as a Voting Indicator
+
+DPI now participates in the TS equation `I` factor as a first-class voting indicator (on par with MACD, CCI, RSI, etc.). Enable with `Inp_Ind_Dpi_Enabled = true`.
+
+**Vote logic:**
+1. **Direction**: `hist > 0` → LONG pass; `hist < 0` → SHORT pass
+2. **CCI filter** (when `DPI_UseCCIReset = true`): requires `sign(hist) == sign(CCI)` — no CCI reset warning
+3. **GREEN momentum** (when `DPI_UseGreenHist = true`): requires Blue and hist on the same side of zero (strength confirmation)
+
+All three checks must pass. Any failure → DPI vote fails → TS = 0 (in `VOTE_MODE_ALL`).
+
+### v29-Equivalent Behavior
+
+Set `Inp_RRM_ORG_DPI_UseGreenHist = false` to disable the GREEN overlay (reproduces DPI v29 behavior). CCI reset remains independently toggleable.
+
+### Standalone Indicators (Chart Visualization)
+
+The following files remain at repo root for direct chart use and A/B comparison:
+- `DPI_v29_OK_CLEAN.mq5` — v29 reference (MACD core + CCI reset, no GREEN)
+- `DPI_v31_CLEAN_22_OK_FINAL_WORKING.mq5` — v31 reference (MACD core + CCI reset + GREEN)
+- `DPI_v31_CLEAN_22_DOCUMENTATION.md` — full parameter reference
+
+### Legacy
+
+`DPI_Indicator.mq5` (TSI-based) and `DPI_Indicator_v7.mq5` have been moved to `Legacy/` and are no longer maintained. The EA's internal DPI logic is now v31-equivalent and supersedes both.
