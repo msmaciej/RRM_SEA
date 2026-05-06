@@ -14,10 +14,14 @@
 //|   Yellow ribbon -> DPI=1 for Bias=Long                            |
 //|   GREEN is visualization only (momentum strength), not a vote.    |
 //|                                                                   |
-//| (*) When InpEnableGreen=false, GREEN plot is painted CLR_NONE       |
-//|     (transparent). Buffer values are still computed for telemetry.  |
-//|     Ribbon (yellow/red between Red Contour and Blue) renders        |
-//|     identically with green ON or OFF — matches MT4 reference.       |
+//| (*) When InpEnableGreen=false, GREEN plot is painted with the       |
+//|     chart background color so bars are invisible against the chart  |
+//|     while still masking yellow/red below them — preserving the      |
+//|     ribbon-only look (yellow/red between Red Contour and Blue).     |
+//|     OnChartEvent re-applies the background color if the user        |
+//|     changes the chart theme.                                        |
+//|     User histogram/line colors are now fully editable via the       |
+//|     Colors tab (input color parameters removed).                    |
 //+------------------------------------------------------------------+
 //+------------------------------------------------------------------+
 //|                      DPI_v31_FINAL_WORKING.mq5                    |
@@ -129,11 +133,6 @@ input ENUM_CCI_PRICE InpCCIPrice = CCI_PRICE_TYPICAL;   // CCI price calculation
 
 input bool InpEnableGreen   = true;                     // Enable GREEN momentum histogram
 
-// Histogram color settings
-input color InpColorBullish = clrYellow;                // Bullish histogram color
-input color InpColorBearish = clrRed;                   // Bearish histogram color
-input color InpColorGreen   = clrLime;                  // GREEN overlay color
-
 //+------------------------------------------------------------------+
 //| INDICATOR BUFFERS                                                 |
 //+------------------------------------------------------------------+
@@ -152,6 +151,9 @@ double g_HistGreen[];       // GREEN histogram overlay
 double g_Fast[];            // Fast EMA
 double g_Slow[];            // Slow EMA
 double g_CCI[];             // CCI values
+
+// Cached chart background color (used for GREEN masking when InpEnableGreen=false)
+color g_LastBgColor = CLR_NONE;
 
 //+------------------------------------------------------------------+
 //| HELPER FUNCTIONS                                                  |
@@ -330,12 +332,17 @@ int OnInit()
    PlotIndexSetDouble(6, PLOT_EMPTY_VALUE, EMPTY_VALUE);
    PlotIndexSetDouble(7, PLOT_EMPTY_VALUE, EMPTY_VALUE);
    
-   // Apply user-selected colors
-   PlotIndexSetInteger(3, PLOT_LINE_COLOR, InpColorBearish);
-   PlotIndexSetInteger(4, PLOT_LINE_COLOR, InpColorBearish);
-   PlotIndexSetInteger(5, PLOT_LINE_COLOR, InpColorBullish);
-   PlotIndexSetInteger(6, PLOT_LINE_COLOR, InpColorBullish);
-   PlotIndexSetInteger(7, PLOT_LINE_COLOR, InpEnableGreen ? InpColorGreen : CLR_NONE);
+   // GREEN visibility:
+   //   InpEnableGreen=true  → leave plot 7's color as user-set (editable in Colors tab,
+   //                          default clrLime from #property indicator_color8)
+   //   InpEnableGreen=false → paint plot 7 in chart background color so bars are
+   //                          invisible BUT still mask yellow/red below them, preserving
+   //                          the ribbon-only look (matches MT4 reference behavior).
+   if(!InpEnableGreen)
+   {
+      g_LastBgColor = (color)ChartGetInteger(0, CHART_COLOR_BACKGROUND);
+      PlotIndexSetInteger(7, PLOT_LINE_COLOR, g_LastBgColor);
+   }
    
    string red_name[] = {"EMA5", "EMA8", "EMA13", "EMA21", "Double"};
    string red_label = red_name[InpRedLineType - 1];
@@ -494,7 +501,7 @@ int OnCalculate(const int rates_total,
       }
       
       // GREEN buffer always populated when Blue and hist aligned same side.
-      // Visual visibility controlled by plot color (CLR_NONE when InpEnableGreen=false).
+      // Visual visibility controlled by plot color (chart background color when InpEnableGreen=false).
       if(both_above_zero)
          g_HistGreen[i] = MathMin(g_BlueCore[i], hist);
       else if(both_below_zero)
@@ -591,5 +598,21 @@ int OnCalculate(const int rates_total,
    }
 
    return rates_total;
+}
+//+------------------------------------------------------------------+
+//| Chart event handler — re-apply background masking when chart      |
+//| theme/colors change, but only when GREEN is disabled.             |
+//+------------------------------------------------------------------+
+void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
+{
+   if(id == CHARTEVENT_CHART_CHANGE && !InpEnableGreen)
+   {
+      color bg = (color)ChartGetInteger(0, CHART_COLOR_BACKGROUND);
+      if(bg != g_LastBgColor)
+      {
+         g_LastBgColor = bg;
+         PlotIndexSetInteger(7, PLOT_LINE_COLOR, g_LastBgColor);
+      }
+   }
 }
 //+------------------------------------------------------------------+
