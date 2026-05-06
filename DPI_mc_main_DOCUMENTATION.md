@@ -1,11 +1,16 @@
-# DPI v31 - Complete Documentation
+# DPI mc_main - Complete Documentation
+
+> **File:** `DPI_mc_main.mq5`
+> **Renamed from:** `DPI_v31_CLEAN_22_OK_FINAL_WORKING.mq5` (logic unchanged, plus GREEN-off visual fix)
+> **Naming:** `mc` = MACD + CCI core; `main` = with GREEN momentum overlay (toggleable)
 
 ## Overview
-DPI (Divergence Price Indicator) v31 is a complete MT4→MT5 conversion with all features working:
+DPI mc_main (`DPI_mc_main.mq5`) is a complete MT4→MT5 conversion of the DPI indicator with all features working:
 - ✅ Continuous histogram ribbon (no gaps between red-contour and Blue line)
 - ✅ CCI color resets (histogram changes color based on CCI trend filter)
-- ✅ GREEN momentum overlay (visible when Blue and histogram aligned)
+- ✅ GREEN momentum overlay (visible when Blue and histogram aligned; toggleable via `InpEnableGreen`)
 - ✅ Customizable colors via input parameters
+- ✅ **GREEN-OFF visual fix**: when `InpEnableGreen=false` the histogram renders as a clean single-color `0→Blue` ribbon on Blue's side only — matches MT4 reference behavior (no opposite-side bars, no artifacts)
 
 ## Components
 
@@ -182,17 +187,18 @@ if(is_yellow && is_green) {
 
 ## Version History
 
-- **v29** - CCI resets working, gaps present, no GREEN
+- **mc_simple / v29** - CCI resets working, gaps present, no GREEN
 - **v30_14** - Continuous ribbon, GREEN correct, no CCI resets
 - **v30_16** - Attempted fix, still had issues
 - **v31_18** - Four buffers, CCI logic bug
 - **v31_20** - CCI logic fixed, GREEN not plotting (plots=7 bug)
-- **v31_25** - **FINAL WORKING** - All features operational
+- **v31_25** - All features operational (base for `DPI_mc_main.mq5`)
+- **mc_main** - GREEN-off visual fix applied (clean `0→Blue` ribbon when `InpEnableGreen=false`)
 
 ## Files Structure
 
 ```
-DPI_v31_CLEAN_22_FINAL_WORKING.mq5
+DPI_mc_main.mq5
 ├── Plot 0: Blue_MACD_Core (Blue line)
 ├── Plot 1: Red_Signal (Red signal line)
 ├── Plot 2: Red_Contour (Histogram value line)
@@ -203,9 +209,19 @@ DPI_v31_CLEAN_22_FINAL_WORKING.mq5
 └── Plot 7: Hist_Green (GREEN overlay)
 ```
 
-## Credits
+**Related files:**
+- `DPI_mc_simple.mq5` — simplified variant (no GREEN, renamed from `DPI_v29_OK_CLEAN.mq5`)
+- `DPI_tm_simple.mq5` — TSI+MACD math family (William Blau Ergodic)
+- `Legacy/DPI_v31_CLEAN_22_OK_FINAL_WORKING.mq5` — original pre-rename (historical reference)
 
-MT4 → MT5 conversion solving the fundamental rendering difference:
-- MT4: Can apply multiple colors to single histogram natively
-- MT5: Requires separate buffer per color per side
-- Solution: Four histogram buffers + GREEN overlay = Perfect replication
+## GREEN-OFF Visual Fix
+
+When `InpEnableGreen = false` (GREEN overlay disabled), the histogram now renders as a **clean single-color `0→Blue` ribbon** on Blue's side only — this matches MT4 reference behavior.
+
+**Before fix (bug):** Disabling GREEN left the base layer still computing `max(Blue, hist)` extents and opposite-side bars, producing yellow/red artifacts in the region where GREEN used to appear.
+
+**After fix:** The `OnCalculate` loop splits into two rendering paths:
+- `InpEnableGreen = true` — existing composite rendering (unchanged): base layer fills to `max(Blue, hist)` on dominant side, plus opposite-side bars when Blue/hist disagree
+- `InpEnableGreen = false` — simple MT4-equivalent: fills `0→Blue` on Blue's side only, single ribbon color (`hist_wants_yellow` still drives yellow vs red), no opposite-side bars, no GREEN buffer
+
+**Vote note:** GREEN state does **not** affect the EA's DPI vote. The vote is driven by ribbon color (yellow → Long, red → Short) with optional CCI-reset confirmation only.
