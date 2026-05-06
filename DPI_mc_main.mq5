@@ -14,8 +14,10 @@
 //|   Yellow ribbon -> DPI=1 for Bias=Long                            |
 //|   GREEN is visualization only (momentum strength), not a vote.    |
 //|                                                                   |
-//| (*) DPI_mc_main.mq5 contains a visual fix for GREEN-OFF rendering |
-//|     to match MT4 reference behavior -- see OnCalculate notes.     |
+//| (*) When InpEnableGreen=false, GREEN plot is painted CLR_NONE       |
+//|     (transparent). Buffer values are still computed for telemetry.  |
+//|     Ribbon (yellow/red between Red Contour and Blue) renders        |
+//|     identically with green ON or OFF — matches MT4 reference.       |
 //+------------------------------------------------------------------+
 //+------------------------------------------------------------------+
 //|                      DPI_v31_FINAL_WORKING.mq5                    |
@@ -333,7 +335,7 @@ int OnInit()
    PlotIndexSetInteger(4, PLOT_LINE_COLOR, InpColorBearish);
    PlotIndexSetInteger(5, PLOT_LINE_COLOR, InpColorBullish);
    PlotIndexSetInteger(6, PLOT_LINE_COLOR, InpColorBullish);
-   PlotIndexSetInteger(7, PLOT_LINE_COLOR, InpColorGreen);
+   PlotIndexSetInteger(7, PLOT_LINE_COLOR, InpEnableGreen ? InpColorGreen : CLR_NONE);
    
    string red_name[] = {"EMA5", "EMA8", "EMA13", "EMA21", "Double"};
    string red_label = red_name[InpRedLineType - 1];
@@ -442,7 +444,6 @@ int OnCalculate(const int rates_total,
       // Determine GREEN condition
       bool both_above_zero = (g_BlueCore[i] > 0.0 && hist > 0.0);
       bool both_below_zero = (g_BlueCore[i] < 0.0 && hist < 0.0);
-      bool green_condition = InpEnableGreen && (both_above_zero || both_below_zero);
       
       // CCI color logic
       bool hist_wants_yellow;
@@ -455,197 +456,136 @@ int OnCalculate(const int rates_total,
          hist_wants_yellow = (InpEnableCCI && g_CCI[i] >= 0.0);
       }
       
-      if(InpEnableGreen)
+      // ── Composite rendering ─────────────────────────────────────────
+      // Determine sides
+      bool blue_positive = (g_BlueCore[i] > 0.0);
+      bool hist_positive = (hist > 0.0);
+      bool opposite_sides = (blue_positive != hist_positive);
+      
+      // Calculate extents
+      double positive_extent = 0.0;
+      double negative_extent = 0.0;
+      
+      if(opposite_sides)
       {
-         // ── GREEN-ON: existing composite rendering ──────────────────────
-         // Determine sides
-         bool blue_positive = (g_BlueCore[i] > 0.0);
-         bool hist_positive = (hist > 0.0);
-         bool opposite_sides = (blue_positive != hist_positive);
-         
-         // Calculate extents
-         double positive_extent = 0.0;
-         double negative_extent = 0.0;
-         
-         if(opposite_sides)
+         if(blue_positive)
          {
-            if(blue_positive)
-            {
-               positive_extent = g_BlueCore[i];
-               negative_extent = hist;
-            }
-            else
-            {
-               positive_extent = hist;
-               negative_extent = g_BlueCore[i];
-            }
+            positive_extent = g_BlueCore[i];
+            negative_extent = hist;
          }
          else
          {
-            if(blue_positive && hist_positive)
-            {
-               positive_extent = MathMax(g_BlueCore[i], hist);
-               negative_extent = 0.0;
-            }
-            else if(!blue_positive && !hist_positive)
-            {
-               positive_extent = 0.0;
-               negative_extent = MathMin(g_BlueCore[i], hist);
-            }
-         }
-         
-         // GREEN overlay (fills from 0 to minimum when same side)
-         if(green_condition)
-         {
-            if(both_above_zero)
-            {
-               g_HistGreen[i] = MathMin(g_BlueCore[i], hist);
-            }
-            else if(both_below_zero)
-            {
-               g_HistGreen[i] = MathMax(g_BlueCore[i], hist);
-            }
-         }
-         else
-         {
-            g_HistGreen[i] = EMPTY_VALUE;
-         }
-         
-         // Draw base layer
-         if(opposite_sides)
-         {
-            // Positive side
-            if(positive_extent > 0.0)
-            {
-               if(hist_wants_yellow)
-               {
-                  g_HistYellowPos[i] = positive_extent;
-                  g_HistRedPos[i] = EMPTY_VALUE;
-               }
-               else
-               {
-                  g_HistYellowPos[i] = EMPTY_VALUE;
-                  g_HistRedPos[i] = positive_extent;
-               }
-            }
-            else
-            {
-               g_HistYellowPos[i] = EMPTY_VALUE;
-               g_HistRedPos[i] = EMPTY_VALUE;
-            }
-            
-            // Negative side
-            if(negative_extent < 0.0)
-            {
-               if(hist_wants_yellow)
-               {
-                  g_HistYellowNeg[i] = negative_extent;
-                  g_HistRedNeg[i] = EMPTY_VALUE;
-               }
-               else
-               {
-                  g_HistYellowNeg[i] = EMPTY_VALUE;
-                  g_HistRedNeg[i] = negative_extent;
-               }
-            }
-            else
-            {
-               g_HistYellowNeg[i] = EMPTY_VALUE;
-               g_HistRedNeg[i] = EMPTY_VALUE;
-            }
-         }
-         else
-         {
-            // SAME SIDE
-            if(positive_extent > 0.0)
-            {
-               if(hist_wants_yellow)
-               {
-                  g_HistYellowPos[i] = positive_extent;
-                  g_HistRedPos[i] = EMPTY_VALUE;
-               }
-               else
-               {
-                  g_HistYellowPos[i] = EMPTY_VALUE;
-                  g_HistRedPos[i] = positive_extent;
-               }
-               
-               g_HistYellowNeg[i] = EMPTY_VALUE;
-               g_HistRedNeg[i] = EMPTY_VALUE;
-            }
-            else if(negative_extent < 0.0)
-            {
-               if(hist_wants_yellow)
-               {
-                  g_HistYellowNeg[i] = negative_extent;
-                  g_HistRedNeg[i] = EMPTY_VALUE;
-               }
-               else
-               {
-                  g_HistYellowNeg[i] = EMPTY_VALUE;
-                  g_HistRedNeg[i] = negative_extent;
-               }
-               
-               g_HistYellowPos[i] = EMPTY_VALUE;
-               g_HistRedPos[i] = EMPTY_VALUE;
-            }
-            else
-            {
-               g_HistYellowPos[i] = EMPTY_VALUE;
-               g_HistRedPos[i] = EMPTY_VALUE;
-               g_HistYellowNeg[i] = EMPTY_VALUE;
-               g_HistRedNeg[i] = EMPTY_VALUE;
-            }
+            positive_extent = hist;
+            negative_extent = g_BlueCore[i];
          }
       }
       else
       {
-         // ── GREEN-OFF: MT4-equivalent simple rendering ───────────────────
-         // When GREEN is disabled the histogram renders as a clean 0→Blue
-         // ribbon on Blue's side only (single color per ribbon-color rule).
-         // No opposite-side bars, no green-shaped artifacts — matches MT4
-         // reference behavior when the GREEN overlay is switched off.
-         g_HistGreen[i]     = EMPTY_VALUE;
-
-         if(g_BlueCore[i] > 0.0)
+         if(blue_positive && hist_positive)
          {
-            // Bars on POSITIVE side only, fill 0 → Blue
+            positive_extent = MathMax(g_BlueCore[i], hist);
+            negative_extent = 0.0;
+         }
+         else if(!blue_positive && !hist_positive)
+         {
+            positive_extent = 0.0;
+            negative_extent = MathMin(g_BlueCore[i], hist);
+         }
+      }
+      
+      // GREEN buffer always populated when Blue and hist aligned same side.
+      // Visual visibility controlled by plot color (CLR_NONE when InpEnableGreen=false).
+      if(both_above_zero)
+         g_HistGreen[i] = MathMin(g_BlueCore[i], hist);
+      else if(both_below_zero)
+         g_HistGreen[i] = MathMax(g_BlueCore[i], hist);
+      else
+         g_HistGreen[i] = EMPTY_VALUE;
+      
+      // Draw base layer
+      if(opposite_sides)
+      {
+         // Positive side
+         if(positive_extent > 0.0)
+         {
             if(hist_wants_yellow)
             {
-               g_HistYellowPos[i] = g_BlueCore[i];
-               g_HistRedPos[i]    = EMPTY_VALUE;
+               g_HistYellowPos[i] = positive_extent;
+               g_HistRedPos[i] = EMPTY_VALUE;
             }
             else
             {
                g_HistYellowPos[i] = EMPTY_VALUE;
-               g_HistRedPos[i]    = g_BlueCore[i];
+               g_HistRedPos[i] = positive_extent;
             }
-            g_HistYellowNeg[i] = EMPTY_VALUE;
-            g_HistRedNeg[i]    = EMPTY_VALUE;
          }
-         else if(g_BlueCore[i] < 0.0)
+         else
          {
-            // Bars on NEGATIVE side only, fill 0 → Blue
+            g_HistYellowPos[i] = EMPTY_VALUE;
+            g_HistRedPos[i] = EMPTY_VALUE;
+         }
+         
+         // Negative side
+         if(negative_extent < 0.0)
+         {
             if(hist_wants_yellow)
             {
-               g_HistYellowNeg[i] = g_BlueCore[i];
-               g_HistRedNeg[i]    = EMPTY_VALUE;
+               g_HistYellowNeg[i] = negative_extent;
+               g_HistRedNeg[i] = EMPTY_VALUE;
             }
             else
             {
                g_HistYellowNeg[i] = EMPTY_VALUE;
-               g_HistRedNeg[i]    = g_BlueCore[i];
+               g_HistRedNeg[i] = negative_extent;
             }
-            g_HistYellowPos[i] = EMPTY_VALUE;
-            g_HistRedPos[i]    = EMPTY_VALUE;
          }
          else
          {
-            // Blue exactly zero → no bars
-            g_HistYellowPos[i] = EMPTY_VALUE;
-            g_HistRedPos[i]    = EMPTY_VALUE;
             g_HistYellowNeg[i] = EMPTY_VALUE;
-            g_HistRedNeg[i]    = EMPTY_VALUE;
+            g_HistRedNeg[i] = EMPTY_VALUE;
+         }
+      }
+      else
+      {
+         // SAME SIDE
+         if(positive_extent > 0.0)
+         {
+            if(hist_wants_yellow)
+            {
+               g_HistYellowPos[i] = positive_extent;
+               g_HistRedPos[i] = EMPTY_VALUE;
+            }
+            else
+            {
+               g_HistYellowPos[i] = EMPTY_VALUE;
+               g_HistRedPos[i] = positive_extent;
+            }
+            
+            g_HistYellowNeg[i] = EMPTY_VALUE;
+            g_HistRedNeg[i] = EMPTY_VALUE;
+         }
+         else if(negative_extent < 0.0)
+         {
+            if(hist_wants_yellow)
+            {
+               g_HistYellowNeg[i] = negative_extent;
+               g_HistRedNeg[i] = EMPTY_VALUE;
+            }
+            else
+            {
+               g_HistYellowNeg[i] = EMPTY_VALUE;
+               g_HistRedNeg[i] = negative_extent;
+            }
+            
+            g_HistYellowPos[i] = EMPTY_VALUE;
+            g_HistRedPos[i] = EMPTY_VALUE;
+         }
+         else
+         {
+            g_HistYellowPos[i] = EMPTY_VALUE;
+            g_HistRedPos[i] = EMPTY_VALUE;
+            g_HistYellowNeg[i] = EMPTY_VALUE;
+            g_HistRedNeg[i] = EMPTY_VALUE;
          }
       }
    }
