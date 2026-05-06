@@ -14,14 +14,16 @@
 //|   Yellow ribbon -> DPI=1 for Bias=Long                            |
 //|   GREEN is visualization only (momentum strength), not a vote.    |
 //|                                                                   |
-//| (*) When InpEnableGreen=false, GREEN plot is painted with the       |
-//|     chart background color so bars are invisible against the chart  |
-//|     while still masking yellow/red below them — preserving the      |
-//|     ribbon-only look (yellow/red between Red Contour and Blue).     |
-//|     OnChartEvent re-applies the background color if the user        |
-//|     changes the chart theme.                                        |
-//|     User histogram/line colors are now fully editable via the       |
-//|     Colors tab (input color parameters removed).                    |
+//| (*) Colors: 5 input color parameters (Inputs tab) drive all plot       |
+//|     colors — works reliably on macOS/Wine and Windows. The Colors tab  |
+//|     still shows plot rows but runtime overrides reflect Inputs values  |
+//|     on every load. To change a color: edit the corresponding input.    |
+//|                                                                        |
+//|     When InpEnableGreen=false, GREEN plot is painted with the chart    |
+//|     background color so bars are invisible BUT still mask yellow/red   |
+//|     below them, preserving the ribbon-only look (matches MT4 ref).     |
+//|     OnChartEvent re-applies the background color if the user changes   |
+//|     the chart theme while GREEN is disabled.                           |
 //+------------------------------------------------------------------+
 //+------------------------------------------------------------------+
 //|                      DPI_v31_FINAL_WORKING.mq5                    |
@@ -132,6 +134,13 @@ input int  InpCCIPeriod     = 13;                       // CCI period
 input ENUM_CCI_PRICE InpCCIPrice = CCI_PRICE_TYPICAL;   // CCI price calculation
 
 input bool InpEnableGreen   = true;                     // Enable GREEN momentum histogram
+
+// User-editable colors (Inputs tab — reliable on macOS/Wine)
+input color InpColorBlueLine = clrDodgerBlue;  // Blue MACD core line
+input color InpColorRedLine  = clrRed;         // Red signal & contour lines
+input color InpColorBullish  = clrYellow;      // Bullish (yellow) histogram color
+input color InpColorBearish  = clrRed;         // Bearish (red) histogram color
+input color InpColorGreen    = clrLime;        // GREEN momentum overlay color
 
 //+------------------------------------------------------------------+
 //| INDICATOR BUFFERS                                                 |
@@ -332,13 +341,26 @@ int OnInit()
    PlotIndexSetDouble(6, PLOT_EMPTY_VALUE, EMPTY_VALUE);
    PlotIndexSetDouble(7, PLOT_EMPTY_VALUE, EMPTY_VALUE);
    
+   // Apply user-editable colors (Inputs tab) to all plots.
+   PlotIndexSetInteger(0, PLOT_LINE_COLOR, InpColorBlueLine);
+   PlotIndexSetInteger(1, PLOT_LINE_COLOR, InpColorRedLine);
+   PlotIndexSetInteger(2, PLOT_LINE_COLOR, InpColorRedLine);
+   PlotIndexSetInteger(3, PLOT_LINE_COLOR, InpColorBearish);
+   PlotIndexSetInteger(4, PLOT_LINE_COLOR, InpColorBearish);
+   PlotIndexSetInteger(5, PLOT_LINE_COLOR, InpColorBullish);
+   PlotIndexSetInteger(6, PLOT_LINE_COLOR, InpColorBullish);
+
    // GREEN visibility:
-   //   InpEnableGreen=true  → leave plot 7's color as user-set (editable in Colors tab,
-   //                          default clrLime from #property indicator_color8)
+   //   InpEnableGreen=true  → paint plot 7 with user-selected InpColorGreen.
    //   InpEnableGreen=false → paint plot 7 in chart background color so bars are
-   //                          invisible BUT still mask yellow/red below them, preserving
-   //                          the ribbon-only look (matches MT4 reference behavior).
-   if(!InpEnableGreen)
+   //                          invisible BUT still mask yellow/red below them,
+   //                          preserving the ribbon-only look (matches MT4 reference).
+   if(InpEnableGreen)
+   {
+      PlotIndexSetInteger(7, PLOT_LINE_COLOR, InpColorGreen);
+      g_LastBgColor = CLR_NONE;
+   }
+   else
    {
       g_LastBgColor = (color)ChartGetInteger(0, CHART_COLOR_BACKGROUND);
       PlotIndexSetInteger(7, PLOT_LINE_COLOR, g_LastBgColor);
