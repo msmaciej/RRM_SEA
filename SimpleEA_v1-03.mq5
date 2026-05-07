@@ -676,6 +676,7 @@ void OrchestrateTick()
 
    // 6. TM: Trail/BE modifications — bar-close only
    Executor.EvaluateTM();
+   Executor.UpdateChartMarkers();
 
    FlowLog("OnTick -> NewBar detected -> begin bar pipeline");
 
@@ -1214,6 +1215,7 @@ void OrchestrateDeinit(const int reason)
    if(Settings.ExportCSV)
       SEA_Report_Generate();
 
+   Executor.RemoveAllMarkers();
    SEA_UI_DestroyAll();
    FlowLog(StringFormat("EA stop -> OnDeinit(reason=%d)", reason));
 
