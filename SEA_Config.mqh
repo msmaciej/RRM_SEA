@@ -685,7 +685,7 @@ input ulong     Inp_MagicNum                 = 12345;      // Magic number (trad
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🎯 PRESET";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input EStrategyPreset InpPreset              = PRESET_TEST;// Strategy preset
+input EStrategyPreset InpPreset              = PRESET_RRM_ORG;// Strategy preset
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ✅✅ FILTERS | UI | DEBUG (works in ALL presets)";
@@ -945,7 +945,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI v31 Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Ind_Dpi_Enabled         = false;  // DPI: Enable DPI vote in TS equation
+input bool        Inp_Ind_Dpi_Enabled         = true;  // DPI: Enable DPI vote in TS equation
 input int         Inp_Ind_Dpi_Weight          = 1;      // DPI: Vote weight
 input int         Inp_RRM_ORG_MACD_Fast       = 8;      // RRM_ORG: DPI MACD fast EMA period
 input int         Inp_RRM_ORG_MACD_Slow       = 13;     // RRM_ORG: DPI MACD slow EMA period
@@ -959,7 +959,7 @@ input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond = 8;// DPI: Double-smooth s
 input bool        Inp_RRM_ORG_DPI_UseCCIReset      = true; // DPI: Enable CCI trend filter
 input int         Inp_RRM_ORG_DPI_CCI_Period        = 13;  // DPI: CCI period
 input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price  = PRICE_TYPICAL; // DPI: CCI applied price
-input bool        Inp_RRM_ORG_DPI_UseGreenHist      = true; // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
+input bool        Inp_RRM_ORG_DPI_UseGreenHist      = false; // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️  PRESETS OVERRIDES! (Step1-5)";

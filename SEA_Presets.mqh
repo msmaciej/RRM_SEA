@@ -1196,8 +1196,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── PSAR: LOCKED ON (timing/direction confirmation) ───────────────
       cfg.Ind_Psar_Enabled       = true;
-      cfg.P_PsarStep             = 0.02;
-      cfg.P_PsarMax              = 0.2;
+      cfg.P_PsarStep             = 0.05;
+      cfg.P_PsarMax              = 0.5;
       cfg.Vote_AllowPsarFlip     = true;
       cfg.Vote_PsarFlipDelay     = -1;   // Persistent: evaluate dot position on every bar
 
@@ -1206,7 +1206,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_CandleBody_Weight  = 1;
       cfg.CandleBody_AvgPeriod   = 15;
       cfg.CandleBody_MaxMult     = 3.5;
-      cfg.CandleBody_CheckBars   = (_Period <= PERIOD_M5) ? 1 : 2;
+      cfg.CandleBody_CheckBars   = (_Period <= PERIOD_M5) ? 3 : 5;
       cfg.CandleBody_RequireDirection = false;
 
       // ── ALL OTHER INDICATORS: LOCKED OFF ─────────────────────────────

@@ -777,6 +777,87 @@ private:
       return result;
    }
    
+      //+------------------------------------------------------------------+
+   //| ComputeDPI_CCI — inline CCI matching DPI_mc_main.mq5             |
+   //|                                                                   |
+   //| Bit-identical to CalculateCCI() in DPI_mc_main.mq5 so the EA's   |
+   //| CCI vote matches the on-chart ribbon color exactly.              |
+   //|                                                                   |
+   //| Formula: CCI = (price - SMA) / (0.015 * mean_deviation)          |
+   //|   price = applied price selected via DPI_CCI_AppliedPrice         |
+   //|   SMA   = simple moving average over DPI_CCI_Period bars         |
+   //|                                                                   |
+   //| Returns CCI value at v_shift, or 0.0 if insufficient bars.       |
+   //| No handles, no CopyBuffer — safe under MQL5 on macOS/Wine.       |
+   //+------------------------------------------------------------------+
+   double ComputeDPI_CCI(const int v_shift)
+   {
+      const int period = MathMax(1, m_settings.DPI_CCI_Period);
+      const int ap     = m_settings.DPI_CCI_AppliedPrice;
+
+      // Need v_shift + period bars available
+      if(Bars(m_symbol, PERIOD_CURRENT) < v_shift + period + 1)
+         return 0.0;
+
+      // Pull period prices starting at v_shift (working back into history)
+      double prices[];
+      ArrayResize(prices, period);
+
+      double sum = 0.0;
+      for(int i = 0; i < period; i++)
+      {
+         int idx = v_shift + i;
+         double p = GetDPI_CCI_Price(idx, ap);
+         prices[i] = p;
+         sum += p;
+      }
+
+      double sma = sum / (double)period;
+
+      double mean_deviation = 0.0;
+      for(int i = 0; i < period; i++)
+         mean_deviation += MathAbs(prices[i] - sma);
+      mean_deviation /= (double)period;
+
+      if(mean_deviation == 0.0)
+         return 0.0;
+
+      double current_price = GetDPI_CCI_Price(v_shift, ap);
+      return (current_price - sma) / (0.015 * mean_deviation);
+   }
+
+   //+------------------------------------------------------------------+
+   //| GetDPI_CCI_Price — applied-price selector matching DPI_mc_main   |
+   //|                                                                   |
+   //| Mapping (matches ENUM_CCI_PRICE in DPI_mc_main.mq5):             |
+   //|   0 = TYPICAL  (H+L+C)/3                                         |
+   //|   1 = CLOSE                                                       |
+   //|   2 = OPEN                                                        |
+   //|   3 = HIGH                                                        |
+   //|   4 = LOW                                                         |
+   //|   5 = MEDIAN   (H+L)/2                                           |
+   //|   6 = WEIGHTED (H+L+C+C)/4                                       |
+   //+------------------------------------------------------------------+
+   double GetDPI_CCI_Price(const int shift, const int applied_price)
+   {
+      double h = iHigh (m_symbol, PERIOD_CURRENT, shift);
+      double l = iLow  (m_symbol, PERIOD_CURRENT, shift);
+      double c = iClose(m_symbol, PERIOD_CURRENT, shift);
+      double o = iOpen (m_symbol, PERIOD_CURRENT, shift);
+
+      switch(applied_price)
+      {
+         case 0: return (h + l + c) / 3.0;          // TYPICAL
+         case 1: return c;                           // CLOSE
+         case 2: return o;                           // OPEN
+         case 3: return h;                           // HIGH
+         case 4: return l;                           // LOW
+         case 5: return (h + l) / 2.0;              // MEDIAN
+         case 6: return (h + l + c + c) / 4.0;      // WEIGHTED
+         default: return (h + l + c) / 3.0;
+      }
+   }
+   
    //+------------------------------------------------------------------+
    // CalculateCI: Calculate Choppiness Index for given shift
    //+------------------------------------------------------------------+
@@ -1627,8 +1708,8 @@ private:
     //| Blue(i) = EMA(Fast,close)(i) − EMA(Slow,close)(i)               |
     //| Red(i)  = EMA(RedSignalType, Blue)(i)  [or double-smooth]        |
     //| hist(i) = Blue(i) − Red(i)                                       |
-    //| Vote: dir agrees with bias AND (if UseCCIReset) CCI confirms     |
-    //| GREEN is visualization only — not a vote gate.                   |
+    //| Vote: dir agrees with bias AND (if UseCCIReset) CCI confirms      |
+    //|       AND (if UseGreenHist) Blue/hist aligned same side of zero   |
     //| No static locals, no lambdas — safe for MQL5 on macOS/Wine.      |
     //+------------------------------------------------------------------+
    bool Check_DPI(int bias, int v_shift)
@@ -1654,9 +1735,9 @@ private:
 
       bool dir_ok  = (dir == bias);
       bool cci_ok  = (!m_settings.DPI_UseCCIReset  || dpi_macd_agree);
-      // GREEN is visualization only — it is NOT a vote gate.
-      // dpi_green is still computed (for telemetry / future exit logic) but does not block the vote.
-      bool result  = dir_ok && cci_ok;
+      bool green_ok= (!m_settings.DPI_UseGreenHist  || dpi_green);
+
+      bool result  = dir_ok && cci_ok && green_ok;
 
       m_ind_cache.cached_bias = bias;
       m_ind_cache.dpi_result  = result ? 1 : 0;
@@ -1666,6 +1747,7 @@ private:
          string sub = "";
          if(!dir_ok)   sub = sub + "DIR_MISMATCH ";
          if(!cci_ok)   sub = sub + "CCI_RESET ";
+         if(!green_ok) sub = sub + "NO_GREEN ";
          DebugLog(StringFormat("[IND_DPI] bias=%d hist=%.6f dir=%d green=%d cciagreed=%d → %s%s",
                                bias, hist_cur, dir,
                                dpi_green ? 1 : 0, dpi_macd_agree ? 1 : 0,
@@ -4539,10 +4621,8 @@ public:
       //   DPI_UseCCIReset=false → true when hist >= 0 (pass-through; caller uses for decel filter)
       if(m_settings.DPI_UseCCIReset)
       {
-         double cci_v = iCCI(m_symbol, PERIOD_CURRENT,
-                             m_settings.DPI_CCI_Period,
-                             (ENUM_APPLIED_PRICE)m_settings.DPI_CCI_AppliedPrice,
-                             v_shift);
+         // FIXED — inline CCI, bit-identical to DPI_mc_main.mq5:
+         double cci_v = ComputeDPI_CCI(v_shift);
          out_macd_agree = ((hist >= 0.0 && cci_v >= 0.0) || (hist < 0.0 && cci_v < 0.0));
       }
       else
