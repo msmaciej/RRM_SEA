@@ -45,6 +45,7 @@ private:
    datetime    m_last_tm_bar;      // last bar on which EvaluateTM ran (gate)
    double      m_initial_sl_price; // SL price captured at trade entry (never changes)
    datetime    m_rrm_freeze_time;
+   datetime    m_last_marker_update;
    datetime    m_last_te_time;
    string      m_last_te_result;
    string      m_last_te_reason;
@@ -134,9 +135,147 @@ private:
       }
    }
 
-   //+------------------------------------------------------------------+
-   //| REFACTORED PRICE MATH & BULLETPROOF INDICATOR HELPERS            |
-   //+------------------------------------------------------------------+
+   int GetMarkerBarsToScan() const
+   {
+      int total_bars = Bars(m_symbol, PERIOD_CURRENT);
+      if(total_bars <= 1) return 0;
+      if(m_settings.MarkerLookback <= 0) return total_bars - 1;
+      return MathMin(m_settings.MarkerLookback, total_bars - 1);
+   }
+
+   void DrawMarker(const string prefix,
+                   datetime time,
+                   double price,
+                   bool isHigh,
+                   int bar,
+                   color high_color,
+                   color low_color,
+                   int width,
+                   int high_arrow_code,
+                   int low_arrow_code)
+   {
+      string side = isHigh ? "HIGH" : "LOW";
+      string name = StringFormat("%s_%s_%d_%I64d", prefix, side, bar, (long)time);
+      if(ObjectFind(0, name) >= 0) return;
+
+      if(!ObjectCreate(0, name, OBJ_ARROW, 0, time, price)) return;
+
+      color marker_color = isHigh ? high_color : low_color;
+      ObjectSetInteger(0, name, OBJPROP_ARROWCODE, isHigh ? high_arrow_code : low_arrow_code);
+      ObjectSetInteger(0, name, OBJPROP_COLOR, marker_color);
+      ObjectSetInteger(0, name, OBJPROP_WIDTH, width);
+      ObjectSetInteger(0, name, OBJPROP_BACK, StringFind(prefix, "Swing") == 0);
+      ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, name, OBJPROP_HIDDEN, true);
+
+      string marker_type = (StringFind(prefix, "Swing") == 0) ? "Swing" : "Fractal";
+      ObjectSetString(0, name, OBJPROP_TOOLTIP,
+                      StringFormat("%s %s: %.5f", marker_type, isHigh ? "High" : "Low", price));
+
+      if(!m_settings.ShowMarkerLabels) return;
+
+      string label_prefix = (StringFind(prefix, "Swing") == 0) ? "SwingLabel" : "FractalLabel";
+      string label_name = StringFormat("%s_%s_%d_%I64d", label_prefix, side, bar, (long)time);
+      if(!ObjectCreate(0, label_name, OBJ_TEXT, 0, time, price)) return;
+
+      ObjectSetString(0, label_name, OBJPROP_TEXT,
+                      StringFormat("%s%.5f", (StringFind(prefix, "Swing") == 0) ? "S:" : "F:", price));
+      ObjectSetInteger(0, label_name, OBJPROP_COLOR, marker_color);
+      ObjectSetInteger(0, label_name, OBJPROP_FONTSIZE, (StringFind(prefix, "Swing") == 0) ? 7 : 8);
+      ObjectSetInteger(0, label_name, OBJPROP_ANCHOR, isHigh ? ANCHOR_BOTTOM : ANCHOR_TOP);
+      ObjectSetInteger(0, label_name, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, label_name, OBJPROP_HIDDEN, true);
+   }
+
+   void DrawSwingMarkers()
+   {
+      int bars_to_scan = GetMarkerBarsToScan();
+      int swing_lookback = (m_settings.SwingLookback > 0) ? m_settings.SwingLookback : 20;
+      int total_bars = Bars(m_symbol, PERIOD_CURRENT);
+      int last_bar = MathMin(bars_to_scan, total_bars - swing_lookback);
+      if(last_bar < swing_lookback) return;
+
+      for(int i = swing_lookback; i <= last_bar; i++)
+      {
+         int high_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, swing_lookback, i);
+         if(high_idx == i)
+         {
+            DrawMarker("SwingSL",
+                       iTime(m_symbol, PERIOD_CURRENT, i),
+                       iHigh(m_symbol, PERIOD_CURRENT, i),
+                       true,
+                       i,
+                       m_settings.SwingHighColor,
+                       m_settings.SwingLowColor,
+                       m_settings.SwingMarkerSize,
+                       234,
+                       233);
+         }
+
+         int low_idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, swing_lookback, i);
+         if(low_idx == i)
+         {
+            DrawMarker("SwingSL",
+                       iTime(m_symbol, PERIOD_CURRENT, i),
+                       iLow(m_symbol, PERIOD_CURRENT, i),
+                       false,
+                       i,
+                       m_settings.SwingHighColor,
+                       m_settings.SwingLowColor,
+                       m_settings.SwingMarkerSize,
+                       234,
+                       233);
+         }
+      }
+   }
+
+   void DrawFractalMarkers()
+   {
+      if(m_h_fractals == INVALID_HANDLE) return;
+
+      int bars_to_scan = GetMarkerBarsToScan();
+      int start_bar = (m_settings.FractalPeriod > 0) ? m_settings.FractalPeriod : 5;
+      if(bars_to_scan < start_bar) return;
+
+      double upper[1], lower[1];
+
+      for(int i = start_bar; i <= bars_to_scan; i++)
+      {
+         if(CopyBuffer(m_h_fractals, 0, i, 1, upper) > 0 &&
+            upper[0] != EMPTY_VALUE && upper[0] != DBL_MAX && upper[0] > 0.0)
+         {
+            DrawMarker("FractalSL",
+                       iTime(m_symbol, PERIOD_CURRENT, i),
+                       upper[0],
+                       true,
+                       i,
+                       m_settings.FractalHighColor,
+                       m_settings.FractalLowColor,
+                       m_settings.FractalMarkerSize,
+                       242,
+                       241);
+         }
+
+         if(CopyBuffer(m_h_fractals, 1, i, 1, lower) > 0 &&
+            lower[0] != EMPTY_VALUE && lower[0] != DBL_MAX && lower[0] > 0.0)
+         {
+            DrawMarker("FractalSL",
+                       iTime(m_symbol, PERIOD_CURRENT, i),
+                       lower[0],
+                       false,
+                       i,
+                       m_settings.FractalHighColor,
+                       m_settings.FractalLowColor,
+                       m_settings.FractalMarkerSize,
+                       242,
+                       241);
+         }
+      }
+   }
+
+    //+------------------------------------------------------------------+
+    //| REFACTORED PRICE MATH & BULLETPROOF INDICATOR HELPERS            |
+    //+------------------------------------------------------------------+
    
    double GetPipSize() const {
       return GlobalPipSize(m_symbol);
@@ -734,7 +873,7 @@ public:
    CTradeExecutor() : m_last_trade_bar(0), m_last_close_bar(0), m_last_tracked_ticket(0), m_last_risk_warn(0),
                        m_rrm_last_ticket(0), m_rrm_trail_frozen(false),
                        m_rrm_be_reached(false), m_rrm_initial_sl(0.0),
-                       m_last_tm_bar(0), m_initial_sl_price(0.0), m_rrm_freeze_time(0),
+                       m_last_tm_bar(0), m_initial_sl_price(0.0), m_rrm_freeze_time(0), m_last_marker_update(0),
                        m_last_te_time(0), m_last_te_result(""), m_last_te_reason(""),
                        m_cached_sl(0.0), m_cached_lots(0.0), m_cached_risk(0.0),
                        m_spread_block_bars(0), m_rc_veto_reason(""),
@@ -761,6 +900,28 @@ public:
    // BUG FIX: Public wrapper so OrchestrateInit() can restore g_consecutive_losses from history
    int GetConsecutiveLossesToday() { return CountConsecutiveLossesToday(); }
 
+   void UpdateChartMarkers()
+   {
+      datetime current_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
+      if(current_bar == m_last_marker_update) return;
+      m_last_marker_update = current_bar;
+
+      RemoveAllMarkers();
+
+      if(m_settings.ShowSwingMarkers)
+         DrawSwingMarkers();
+      if(m_settings.ShowFractalMarkers)
+         DrawFractalMarkers();
+   }
+
+   void RemoveAllMarkers()
+   {
+      ObjectsDeleteAll(0, "SwingSL_");
+      ObjectsDeleteAll(0, "FractalSL_");
+      ObjectsDeleteAll(0, "SwingLabel_");
+      ObjectsDeleteAll(0, "FractalLabel_");
+   }
+
    int CooldownBarsRemaining() const
    {
       if(m_settings.MinBarsAfterClose <= 0 || m_last_close_bar == 0) return 0;
@@ -773,6 +934,7 @@ public:
       m_magic = magic;
       m_symbol = _Symbol;
       m_settings = sets;
+      m_last_marker_update = 0;
       m_trade.SetExpertMagicNumber(m_magic);
       m_trade.SetDeviationInPoints(10);
       m_trade.SetTypeFilling(ORDER_FILLING_IOC);

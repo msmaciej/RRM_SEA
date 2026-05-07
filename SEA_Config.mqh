@@ -489,6 +489,18 @@ struct ST_Settings
    // === Fractal Settings (NEW: Phase 2.2) ===
    int      FractalPeriod;       // Fractal indicator period (default: 5)
    int      TPFractalOffset;     // How many fractals ahead for TP (default: 1)
+   
+   // Visual markers
+   bool     ShowSwingMarkers;
+   bool     ShowFractalMarkers;
+   int      MarkerLookback;
+   bool     ShowMarkerLabels;
+   color    SwingHighColor;
+   color    SwingLowColor;
+   int      SwingMarkerSize;
+   color    FractalHighColor;
+   color    FractalLowColor;
+   int      FractalMarkerSize;
 
    // Advanced Trailing Settings
    ETrailTrigger TrailTrigger;   // When to begin trailing (default: TRIGGER_IMMEDIATE)
@@ -1169,6 +1181,19 @@ input group "║   🛑 (SL) FRACTAL-SL: used with SL_FRACTAL & SL_PSAR_DOT";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_FractalPeriod          = 5;                 // Fractal period for SL/TP
 input int         Inp_TPFractalOffset        = 1;                 // Fractal offset for TP
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🎨 VISUAL MARKERS: SL Level Visualization";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_ShowSwingMarkers       = true;              // Show Swing High/Low markers
+input bool        Inp_ShowFractalMarkers     = true;              // Show Fractal SL markers
+input int         Inp_MarkerLookback         = 50;                // Bars to show markers (0 = all history)
+input bool        Inp_ShowMarkerLabels       = true;              // Show price labels on markers
+input color       Inp_SwingHighColor         = clrCrimson;        // Swing High color
+input color       Inp_SwingLowColor          = clrDodgerBlue;     // Swing Low color
+input int         Inp_SwingMarkerSize        = 2;                 // Swing marker width (1-5)
+input color       Inp_FractalHighColor       = clrOrangeRed;      // Fractal High color
+input color       Inp_FractalLowColor        = clrLimeGreen;      // Fractal Low color
+input int         Inp_FractalMarkerSize      = 3;                 // Fractal marker width (1-5)
 // input group "--- SL Configuration Examples ---";
 // input string   Inp_Ex1_Header             = "Example 1 - Simple Fixed SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_SL_FixedPips=20";
 // input string   Inp_Ex2_Header             = "Example 2 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20";
@@ -1475,6 +1500,16 @@ void InitializeConfig()
    Settings.SwingLookback        = Inp_SwingLookback;
    Settings.FractalPeriod        = Inp_FractalPeriod;
    Settings.TPFractalOffset      = Inp_TPFractalOffset;
+   Settings.ShowSwingMarkers     = Inp_ShowSwingMarkers;
+   Settings.ShowFractalMarkers   = Inp_ShowFractalMarkers;
+   Settings.MarkerLookback       = MathMax(0, Inp_MarkerLookback);
+   Settings.ShowMarkerLabels     = Inp_ShowMarkerLabels;
+   Settings.SwingHighColor       = Inp_SwingHighColor;
+   Settings.SwingLowColor        = Inp_SwingLowColor;
+   Settings.SwingMarkerSize      = MathMax(1, MathMin(5, Inp_SwingMarkerSize));
+   Settings.FractalHighColor     = Inp_FractalHighColor;
+   Settings.FractalLowColor      = Inp_FractalLowColor;
+   Settings.FractalMarkerSize    = MathMax(1, MathMin(5, Inp_FractalMarkerSize));
 
    Settings.TrailTrigger         = Inp_TrailTrigger;
    Settings.TrailDistancePips    = Inp_TrailDistancePips;
