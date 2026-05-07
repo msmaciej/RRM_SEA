@@ -208,8 +208,8 @@ private:
                        m_settings.SwingHighColor,
                        m_settings.SwingLowColor,
                        m_settings.SwingMarkerSize,
-                       234,
-                       233);
+                       217,
+                       218);
          }
 
          int low_idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, swing_lookback, i);
@@ -223,8 +223,8 @@ private:
                        m_settings.SwingHighColor,
                        m_settings.SwingLowColor,
                        m_settings.SwingMarkerSize,
-                       234,
-                       233);
+                       217,
+                       218);
          }
       }
    }
@@ -252,8 +252,8 @@ private:
                        m_settings.FractalHighColor,
                        m_settings.FractalLowColor,
                        m_settings.FractalMarkerSize,
-                       242,
-                       241);
+                       217,
+                       218);
          }
 
          if(CopyBuffer(m_h_fractals, 1, i, 1, lower) > 0 &&
@@ -267,8 +267,8 @@ private:
                        m_settings.FractalHighColor,
                        m_settings.FractalLowColor,
                        m_settings.FractalMarkerSize,
-                       242,
-                       241);
+                       217,
+                       218);
          }
       }
    }
