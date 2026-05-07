@@ -403,25 +403,27 @@ int OnCalculate(const int rates_total,
    ArraySetAsSeries(open,  true);
 
    static double ema_a[], ema_b[], ema_c[], ema_d[], double_stage1[], double_final[];
-   static bool buffers_initialized = false;
-   
-   if(!buffers_initialized)
+
+   // Grow internal EMA buffers on demand. ArrayResize is a no-op when the
+   // requested size equals the current size, so this is cheap to call every tick.
+   // FIX: previously these arrays were sized once on first OnCalculate via a
+   // `buffers_initialized` flag, which caused writes past array bounds as
+   // new bars arrived → Red_Signal collapsed → ribbon flattened over time.
+   if(ArraySize(ema_a) < rates_total)
    {
-      ArrayResize(ema_a, rates_total);
-      ArrayResize(ema_b, rates_total);
-      ArrayResize(ema_c, rates_total);
-      ArrayResize(ema_d, rates_total);
+      ArrayResize(ema_a,         rates_total);
+      ArrayResize(ema_b,         rates_total);
+      ArrayResize(ema_c,         rates_total);
+      ArrayResize(ema_d,         rates_total);
       ArrayResize(double_stage1, rates_total);
-      ArrayResize(double_final, rates_total);
-      
-      ArraySetAsSeries(ema_a, true);
-      ArraySetAsSeries(ema_b, true);
-      ArraySetAsSeries(ema_c, true);
-      ArraySetAsSeries(ema_d, true);
+      ArrayResize(double_final,  rates_total);
+
+      ArraySetAsSeries(ema_a,         true);
+      ArraySetAsSeries(ema_b,         true);
+      ArraySetAsSeries(ema_c,         true);
+      ArraySetAsSeries(ema_d,         true);
       ArraySetAsSeries(double_stage1, true);
-      ArraySetAsSeries(double_final, true);
-      
-      buffers_initialized = true;
+      ArraySetAsSeries(double_final,  true);
    }
 
    const double aFast = _alpha(InpFastEMA);
