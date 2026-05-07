@@ -27,6 +27,7 @@ private:
    int         m_news_count;
    string      m_symbol;
    string      m_te_veto_reason;
+   string      m_rc_veto_reason; // specific veto label set by EvaluateRC(), read by EvaluateTE()
    
    // Indicator Handles (Fixes Asynchronous CopyBuffer failures)
    int         m_h_psar;
@@ -736,7 +737,7 @@ public:
                        m_last_tm_bar(0), m_initial_sl_price(0.0), m_rrm_freeze_time(0),
                        m_last_te_time(0), m_last_te_result(""), m_last_te_reason(""),
                        m_cached_sl(0.0), m_cached_lots(0.0), m_cached_risk(0.0),
-                       m_spread_block_bars(0),
+                       m_spread_block_bars(0), m_rc_veto_reason(""),
                        m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE) // CACHED HANDLES
    {
       m_excursion.ticket = 0; m_excursion.entry_time = 0; m_excursion.entry_price = 0.0;
@@ -1144,9 +1145,8 @@ public:
    }
 
    bool EvaluateRC(int direction, double lots) {
+      m_rc_veto_reason = "";
       bool isBuy = (direction > 0);
-      // Anchor reference price to bar-N close (same data TS=1 confirmed on)
-      double ref_price = iClose(m_symbol, PERIOD_CURRENT, 1);
       double live_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
 
       if(m_settings.MinMarginLevel > 0.0) {
@@ -1160,6 +1160,7 @@ public:
             double projected_level = (projected_margin > 0.0) ? (equity / projected_margin * 100.0) : SEA_MARGIN_LEVEL_UNLIMITED;
             if(projected_level < m_settings.MinMarginLevel) {
                PrintFormat("🚫 [RC] Projected margin level %.1f%% < MinMarginLevel %.1f%% -- trade blocked", projected_level, m_settings.MinMarginLevel);
+               m_rc_veto_reason = "VETO_RC_MARGIN_LEVEL";
                return false;
             }
          }
@@ -1173,20 +1174,31 @@ public:
             if(PositionGetString(POSITION_SYMBOL) != m_symbol || PositionGetInteger(POSITION_MAGIC) != (long)m_magic) continue;
             open_count++;
          }
-         if(open_count >= m_settings.MaxOpenTrades) return false;
+         if(open_count >= m_settings.MaxOpenTrades) {
+            PrintFormat("🚫 [RC] Open trades %d >= MaxOpenTrades %d -- trade blocked", open_count, m_settings.MaxOpenTrades);
+            m_rc_veto_reason = "VETO_RC_MAX_OPEN_TRADES";
+            return false;
+         }
       }
       if(m_settings.MaxTotalRisk > 0.0) {
-         double sl = CalcEntrySL(isBuy, ref_price);   // anchored to bar-N close
-         if(sl <= 0.0) {
-            // SL could not be computed (indicator not yet ready) — skip MaxTotalRisk check
-            // this bar rather than blocking the trade. Risk guard is also enforced inside
-            // ExecuteTrade() via the SL=0 hard block and ValidateStopLevels(), so this is safe.
-            PrintFormat("⚠️ [RC] CalcEntrySL returned 0.0 — skipping MaxTotalRisk pre-check, ExecuteTrade will validate SL");
+         // Reuse m_cached_sl and m_cached_risk computed by EvaluateCM — avoids independent
+         // CalcEntrySL() re-computation that could differ due to indicator-state or floating-point
+         // variance, causing false-positive MaxTotalRisk blocks (Issue C fix).
+         if(m_cached_sl <= 0.0) {
+            PrintFormat("⚠️ [RC] m_cached_sl=0 — skipping MaxTotalRisk pre-check, ExecuteTrade will validate SL");
          }
          else
          {
-            double new_trade_risk = ComputeRiskPercent(lots, MathAbs(ref_price - sl));
-            if(CalculateActiveRisk() + new_trade_risk > m_settings.MaxTotalRisk) return false;
+            double new_trade_risk = m_cached_risk;   // already computed in EvaluateCM
+            // +1e-6 epsilon (0.0001% in percentage terms) prevents a false block when the
+            // user sets RiskPercent == MaxTotalRisk (e.g. both at 2.0%) and floating-point
+            // rounding causes the computed risk to exceed the limit by a sub-micropercentage.
+            if(CalculateActiveRisk() + new_trade_risk > m_settings.MaxTotalRisk + 1e-6) {
+               PrintFormat("🚫 [RC] Active risk %.4f%% + new trade risk %.4f%% > MaxTotalRisk %.4f%% -- trade blocked",
+                           CalculateActiveRisk(), new_trade_risk, m_settings.MaxTotalRisk);
+               m_rc_veto_reason = "VETO_RC_MAX_TOTAL_RISK";
+               return false;
+            }
          }
       }
       return true;
@@ -1306,16 +1318,21 @@ public:
 
       if(m_settings.TP_Enabled && tp == 0.0)
       {
-         // FIX: emergency fallback — derive TP from SL distance × RRRatio (or 2.0) so TP is never 0 when SL>0
-         if(sl > 0.0) {
-            double fallback_rr  = (m_settings.RRRatio > 0.0) ? m_settings.RRRatio : 2.0;
+         // FIX D3: when TP_Enabled=true but TP could not be derived, either compute from
+         // SL distance × RRRatio (if both are valid) or block the trade rather than silently
+         // substituting a hardcoded 2.0 RR that the user did not configure.
+         if(sl > 0.0 && m_settings.RRRatio > 0.0) {
             double sl_dist      = MathAbs(entry_price - sl);
-            tp = isBuy ? (entry_price + sl_dist * fallback_rr) : (entry_price - sl_dist * fallback_rr);
-            PrintFormat("⚠️ [TP FALLBACK] TP was 0 — computed from SL dist (%.1f pips) × RR=%.1f → TP=%.5f",
-                        sl_dist / GetPipSize(), fallback_rr, tp);
+            tp = isBuy ? (entry_price + sl_dist * m_settings.RRRatio) : (entry_price - sl_dist * m_settings.RRRatio);
+            PrintFormat("⚠️ [TP FALLBACK] TP was 0 — computed from SL dist (%.1f pips) × RR=%.2f → TP=%.5f",
+                        sl_dist / GetPipSize(), m_settings.RRRatio, tp);
          } else {
-            PrintFormat("⚠️ [ExecuteTrade] WARNING: TP_Enabled=true but tp=0 at submission — SL=%.5f entry=%.5f dir=%s",
-                        sl, entry_price, isBuy ? "BUY" : "SELL");
+            PrintFormat("🚫 [TP FALLBACK] TP=0 and cannot derive: sl=%.5f RRRatio=%.2f — BLOCKING TRADE",
+                        sl, m_settings.RRRatio);
+            m_last_te_time   = iTime(m_symbol, PERIOD_CURRENT, 0);
+            m_last_te_result = "BLOCKED";
+            m_last_te_reason = "TP_ZERO_NO_FALLBACK";
+            return;
          }
       }
 
@@ -1472,8 +1489,8 @@ public:
 
       if(te_reject_reason == "") {
          if(!EvaluateRC(direction, te_lots)) {
-            te_reject_reason = "VETO_RISK_CONTROL";
-            PrintFormat("[TE VETO] VETO_RISK_CONTROL | lots=%.2f risk=%.2f%%", te_lots, m_cached_risk);
+            te_reject_reason = m_rc_veto_reason;
+            PrintFormat("[TE VETO] %s | lots=%.2f risk=%.2f%%", te_reject_reason, te_lots, m_cached_risk);
          }
       }
 

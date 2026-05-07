@@ -638,17 +638,48 @@ void OrchestrateTick()
    // 3. Excursion tracking runs every tick (MAE/MFE price tracking)
    Executor.UpdateExcursionOnly();
 
-   // 4. New-bar pipeline: runs only once per bar
+   // 4. TE consumption — fires on every tick as soon as a pending TS signal exists,
+   //    so TE executes intra-bar rather than waiting for the next new-bar event.
+   //    Same-bar re-entry is still prevented by the guards inside ExecuteTrade()
+   //    (m_last_trade_bar and m_last_close_bar checks).
+   if(g_ts_dir != 0)
+   {
+      g_last_te_result = "";
+      g_last_te_veto   = "";
+
+      bool te_news_blocked = Signal.IsNewsBlocked();
+      int te = Executor.EvaluateTE(g_ts_dir, te_news_blocked);
+
+      // Always count trades at ENTRY for accurate daily tracking (used by DrawdownProtection when enabled)
+      // FIX Bug5: removed RRM_EnableDrawdownProtection gate so g_trades_today is always accurate for logging
+      if(te > 0)
+         g_trades_today++;
+
+      g_ts_sl   = Executor.LastCachedSL();
+      g_ts_lots = Executor.LastCachedLots();
+      g_ts_risk = Executor.LastCachedRisk();
+
+      g_last_te_result = Executor.LastTEResult();
+      g_last_te_veto   = Executor.LastVetoReason();
+
+      PrintFormat("📋 [TE RESULT] dir=%s | te=%d | SL=%.5f | lots=%.2f | risk=%.2f%% | veto=%s",
+                  (g_ts_dir > 0 ? "BUY" : "SELL"), te, g_ts_sl, g_ts_lots, g_ts_risk,
+                  (g_last_te_veto != "" ? g_last_te_veto : "OK"));
+
+      g_ts_dir = 0; // signal consumed — regardless of TE result, no retry
+   }
+
+   // 5. New-bar pipeline: runs only once per bar
    if(!is_new_bar) return;
 
    g_last_bar_time = current_bar;
 
-   // 5. TM: Trail/BE modifications — bar-close only
+   // 6. TM: Trail/BE modifications — bar-close only
    Executor.EvaluateTM();
 
    FlowLog("OnTick -> NewBar detected -> begin bar pipeline");
 
-   // 6. RRM Drawdown Protection Filter
+   // 7. RRM Drawdown Protection Filter
    bool drawdown_blocked = false;
    if(Settings.RRM_EnableDrawdownProtection)
    {
@@ -693,34 +724,6 @@ void OrchestrateTick()
    EMarketPhase snap_phase  = PHASE_UNORDERED;
    SVoteSnapshot vote_snaps[];
    int vote_snap_count = 0;
-
-   // --- STEP 1: TE — consume signal from PREVIOUS bar ---
-   if(g_ts_dir != 0)
-   {
-      g_last_te_result = "";
-      g_last_te_veto   = "";
-
-      bool te_news_blocked = Signal.IsNewsBlocked();
-      int te = Executor.EvaluateTE(g_ts_dir, te_news_blocked);
-
-      // Always count trades at ENTRY for accurate daily tracking (used by DrawdownProtection when enabled)
-      // FIX Bug5: removed RRM_EnableDrawdownProtection gate so g_trades_today is always accurate for logging
-      if(te > 0)
-         g_trades_today++;
-
-      g_ts_sl   = Executor.LastCachedSL();
-      g_ts_lots = Executor.LastCachedLots();
-      g_ts_risk = Executor.LastCachedRisk();
-
-      g_last_te_result = Executor.LastTEResult();
-      g_last_te_veto   = Executor.LastVetoReason();
-
-      PrintFormat("📋 [TE RESULT] dir=%s | te=%d | SL=%.5f | lots=%.2f | risk=%.2f%% | veto=%s",
-                  (g_ts_dir > 0 ? "BUY" : "SELL"), te, g_ts_sl, g_ts_lots, g_ts_risk,
-                  (g_last_te_veto != "" ? g_last_te_veto : "OK"));
-
-      g_ts_dir = 0; // signal consumed — regardless of TE result, no retry
-   }
 
    // --- STEP 2: TS — evaluate current bar close, store for NEXT bar ---
    if(!drawdown_blocked)
