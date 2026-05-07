@@ -1190,8 +1190,9 @@ public:
          else
          {
             double new_trade_risk = m_cached_risk;   // already computed in EvaluateCM
-            // +1e-6 epsilon prevents floating-point boundary case where RiskPercent==MaxTotalRisk
-            // (e.g. both 2.0%) from triggering a false block due to rounding.
+            // +1e-6 epsilon (0.0001% in percentage terms) prevents a false block when the
+            // user sets RiskPercent == MaxTotalRisk (e.g. both at 2.0%) and floating-point
+            // rounding causes the computed risk to exceed the limit by a sub-micropercentage.
             if(CalculateActiveRisk() + new_trade_risk > m_settings.MaxTotalRisk + 1e-6) {
                PrintFormat("🚫 [RC] Active risk %.4f%% + new trade risk %.4f%% > MaxTotalRisk %.4f%% -- trade blocked",
                            CalculateActiveRisk(), new_trade_risk, m_settings.MaxTotalRisk);

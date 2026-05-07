@@ -669,17 +669,17 @@ void OrchestrateTick()
       g_ts_dir = 0; // signal consumed — regardless of TE result, no retry
    }
 
-   // === NEW-BAR WORK ONLY BELOW ===
+   // 5. New-bar pipeline: runs only once per bar
    if(!is_new_bar) return;
 
    g_last_bar_time = current_bar;
 
-   // 5. TM: Trail/BE modifications — bar-close only
+   // 6. TM: Trail/BE modifications — bar-close only
    Executor.EvaluateTM();
 
    FlowLog("OnTick -> NewBar detected -> begin bar pipeline");
 
-   // 6. RRM Drawdown Protection Filter
+   // 7. RRM Drawdown Protection Filter
    bool drawdown_blocked = false;
    if(Settings.RRM_EnableDrawdownProtection)
    {
