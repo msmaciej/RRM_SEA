@@ -241,7 +241,8 @@ private:
 
       for(int i = start_bar; i <= bars_to_scan; i++)
       {
-         if(CopyBuffer(m_h_fractals, 0, i, 1, upper) > 0 && upper[0] != DBL_MAX && upper[0] > 0.0)
+         if(CopyBuffer(m_h_fractals, 0, i, 1, upper) > 0 &&
+            upper[0] != EMPTY_VALUE && upper[0] != DBL_MAX && upper[0] > 0.0)
          {
             DrawMarker("FractalSL",
                        iTime(m_symbol, PERIOD_CURRENT, i),
@@ -255,7 +256,8 @@ private:
                        241);
          }
 
-         if(CopyBuffer(m_h_fractals, 1, i, 1, lower) > 0 && lower[0] != DBL_MAX && lower[0] > 0.0)
+         if(CopyBuffer(m_h_fractals, 1, i, 1, lower) > 0 &&
+            lower[0] != EMPTY_VALUE && lower[0] != DBL_MAX && lower[0] > 0.0)
          {
             DrawMarker("FractalSL",
                        iTime(m_symbol, PERIOD_CURRENT, i),
