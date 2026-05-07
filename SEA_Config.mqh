@@ -490,6 +490,12 @@ struct ST_Settings
    int      FractalPeriod;       // Fractal indicator period (default: 5)
    int      TPFractalOffset;     // How many fractals ahead for TP (default: 1)
 
+   // === Visual Marker Settings ===
+   bool  ShowSwingMarkers;    // Show Swing High/Low arrow markers on chart
+   bool  ShowFractalMarkers;  // Show Fractal SL arrow markers on chart
+   int   MarkerLookback;      // Number of bars to show markers for (0 = all)
+   bool  ShowMarkerLabels;    // Show price labels next to markers
+
    // Advanced Trailing Settings
    ETrailTrigger TrailTrigger;   // When to begin trailing (default: TRIGGER_IMMEDIATE)
    double   BEThresholdPips;     // Profit pips required before moving to breakeven
@@ -1174,6 +1180,13 @@ input int         Inp_TPFractalOffset        = 1;                 // Fractal off
 // input string   Inp_Ex2_Header             = "Example 2 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20";
 // input string   Inp_Ex3_Header             = "Example 3 - Fractal SL:      Inp_SLMode=SL_MODE_FRACTAL, Inp_FractalPeriod=5, Inp_TPFractalOffset=1";
 input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🎨 VISUAL MARKERS: SL Level Visualization";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_ShowSwingMarkers      = true;  // Show Swing High/Low markers
+input bool        Inp_ShowFractalMarkers    = true;  // Show Fractal SL markers
+input int         Inp_MarkerLookback        = 50;    // Bars to show markers for (0 = all)
+input bool        Inp_ShowMarkerLabels      = true;  // Show price labels on markers
+input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📈 (TS) TRAILING-STOP Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETrailingMode  Inp_TrailMode           = TRAIL_PSAR; // Trailing method
@@ -1475,6 +1488,11 @@ void InitializeConfig()
    Settings.SwingLookback        = Inp_SwingLookback;
    Settings.FractalPeriod        = Inp_FractalPeriod;
    Settings.TPFractalOffset      = Inp_TPFractalOffset;
+
+   Settings.ShowSwingMarkers     = Inp_ShowSwingMarkers;
+   Settings.ShowFractalMarkers   = Inp_ShowFractalMarkers;
+   Settings.MarkerLookback       = MathMax(0, Inp_MarkerLookback);
+   Settings.ShowMarkerLabels     = Inp_ShowMarkerLabels;
 
    Settings.TrailTrigger         = Inp_TrailTrigger;
    Settings.TrailDistancePips    = Inp_TrailDistancePips;

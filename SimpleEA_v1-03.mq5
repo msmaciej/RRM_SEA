@@ -29,6 +29,7 @@ void SEA_DrawTradeExecLine(datetime event_time, int direction, double price, con
 #include <RRMS\SEA_TradeExecutor.mqh>
 #include <RRMS\SEA_UI.mqh>
 #include <RRMS\SEA_Reporting.mqh>
+#include <RRMS\SEA_ChartMarkers.mqh>
 
 #ifndef SEA_MOD_SIGNALENGINE_103002
 enum { __SEA_STALE_SEA_MOD_SIGNALENGINE_103002__ = SEA_MOD_SIGNALENGINE_103002 };
@@ -49,6 +50,7 @@ enum { __SEA_STALE_SEA_MOD_REPORTING_103002__ = SEA_MOD_REPORTING_103002 };
 
 CSignalEngine  Signal;
 CTradeExecutor Executor;
+CChartMarkers  g_chart_markers;
 
 // --- UI/Reporting compatibility globals (previously built in old presets logic)
 EEmaStrategy g_effectiveEmaStrategy = EMA_STRAT_1_PRICE_CROSS;
@@ -568,6 +570,10 @@ int OrchestrateInit()
    FlowLog("Step F: Init Trade Executor");
    Executor.Init(Inp_MagicNum, Settings);
 
+   FlowLog("Step F1: Init Chart Markers");
+   g_chart_markers.Init(_Symbol, Settings.ShowSwingMarkers, Settings.ShowFractalMarkers,
+                        Settings.MarkerLookback, Settings.ShowMarkerLabels);
+
    // BUG FIX: Restore g_consecutive_losses from history on (re-)init so DrawdownProtection
    // is not bypassed after an EA restart (crash, parameter change, broker disconnect, etc.)
    if(Settings.RRM_EnableDrawdownProtection)
@@ -673,6 +679,9 @@ void OrchestrateTick()
    if(!is_new_bar) return;
 
    g_last_bar_time = current_bar;
+
+   // Update chart markers on every new bar
+   g_chart_markers.Update(Settings.SwingLookback);
 
    // 6. TM: Trail/BE modifications — bar-close only
    Executor.EvaluateTM();
@@ -1214,6 +1223,7 @@ void OrchestrateDeinit(const int reason)
    if(Settings.ExportCSV)
       SEA_Report_Generate();
 
+   g_chart_markers.RemoveAll();
    SEA_UI_DestroyAll();
    FlowLog(StringFormat("EA stop -> OnDeinit(reason=%d)", reason));
 
