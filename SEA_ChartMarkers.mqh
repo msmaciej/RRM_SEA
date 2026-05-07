@@ -35,6 +35,8 @@ public:
 
       if(show_fractal) {
          m_h_fractals = iFractals(m_symbol, PERIOD_CURRENT);
+         if(m_h_fractals == INVALID_HANDLE)
+            Print("[ChartMarkers] WARNING: iFractals() failed (error=", GetLastError(), "). Fractal markers disabled.");
       }
    }
 
@@ -97,19 +99,25 @@ public:
 
    void DrawSwingMarkers(int swing_lookback) {
       if(swing_lookback < 1) swing_lookback = 1;
+      int half = MathMax(1, swing_lookback / 2);
       int bars_to_scan = (m_lookback > 0) ? m_lookback : 100;
 
-      for(int i = swing_lookback; i < bars_to_scan; i++) {
-         // Find swing high: bar i is the highest in the window
-         int high_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, swing_lookback, i);
+      // Use a symmetric window [i-half, i+half] to find confirmed swing highs/lows.
+      // Bar i is a swing high if it is the highest in the full window around it.
+      for(int i = half + 1; i < bars_to_scan - half; i++) {
+         int win_start = i - half;   // newer end of the window (lower bar index = more recent)
+         int win_count = 2 * half + 1;
+
+         // Swing high: bar i is the highest bar in the symmetric window
+         int high_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, win_count, win_start);
          if(high_idx == i) {
             double price = iHigh(m_symbol, PERIOD_CURRENT, i);
             datetime time = iTime(m_symbol, PERIOD_CURRENT, i);
             DrawSwingMarker(time, price, true, i);
          }
 
-         // Find swing low: bar i is the lowest in the window
-         int low_idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, swing_lookback, i);
+         // Swing low: bar i is the lowest bar in the symmetric window
+         int low_idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, win_count, win_start);
          if(low_idx == i) {
             double price = iLow(m_symbol, PERIOD_CURRENT, i);
             datetime time = iTime(m_symbol, PERIOD_CURRENT, i);
@@ -133,7 +141,7 @@ public:
                       StringFormat("Swing %s: %.5f", isHigh ? "High" : "Low", price));
 
       if(m_show_labels) {
-         string label_name = "SwingLabel_" + IntegerToString(bar);
+         string label_name = StringFormat("SwingLabel_%d_%s", bar, TimeToString(time, TIME_DATE|TIME_MINUTES));
          if(ObjectCreate(0, label_name, OBJ_TEXT, 0, time, price)) {
             ObjectSetString(0, label_name, OBJPROP_TEXT,     StringFormat("S:%.5f", price));
             ObjectSetInteger(0, label_name, OBJPROP_COLOR,   isHigh ? clrCrimson : clrDodgerBlue);
@@ -152,7 +160,7 @@ public:
          // Upper fractals (highs) — buffer 0
          double upper[1];
          if(CopyBuffer(m_h_fractals, 0, i, 1, upper) > 0) {
-            if(upper[0] != DBL_MAX && upper[0] > 0.0) {
+            if(upper[0] != EMPTY_VALUE && upper[0] > 0.0) {
                datetime time = iTime(m_symbol, PERIOD_CURRENT, i);
                DrawFractalMarker(time, upper[0], true, i);
             }
@@ -161,7 +169,7 @@ public:
          // Lower fractals (lows) — buffer 1
          double lower[1];
          if(CopyBuffer(m_h_fractals, 1, i, 1, lower) > 0) {
-            if(lower[0] != DBL_MAX && lower[0] > 0.0) {
+            if(lower[0] != EMPTY_VALUE && lower[0] > 0.0) {
                datetime time = iTime(m_symbol, PERIOD_CURRENT, i);
                DrawFractalMarker(time, lower[0], false, i);
             }
@@ -184,7 +192,7 @@ public:
                       StringFormat("Fractal %s: %.5f", isHigh ? "High" : "Low", price));
 
       if(m_show_labels) {
-         string label_name = "FractalLabel_" + IntegerToString(bar);
+         string label_name = StringFormat("FractalLabel_%d_%s", bar, TimeToString(time, TIME_DATE|TIME_MINUTES));
          if(ObjectCreate(0, label_name, OBJ_TEXT, 0, time, price)) {
             ObjectSetString(0, label_name, OBJPROP_TEXT,     StringFormat("F:%.5f", price));
             ObjectSetInteger(0, label_name, OBJPROP_COLOR,   isHigh ? clrOrangeRed : clrLimeGreen);
