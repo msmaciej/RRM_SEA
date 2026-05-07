@@ -803,7 +803,7 @@ input group "╔═════════════════════�
 input group "║   📐 FPM: (TP) Take Profit Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETPMode     Inp_FPM_TPMode             = TP_MODE_RR;         // FPM TP mode: RR=derive TP from SL distance (recommended); FIXED_PIPS=TF-based cheat sheet pips
-input double      Inp_FPM_RRRatio            = 2.0;                // FPM R:R ratio (used with TP_MODE_RR, e.g. 1.5, 2.0, 3.0)
+input double      Inp_FPM_RRRatio            = 1.5;                // FPM R:R ratio (used with TP_MODE_RR, e.g. 1.5, 2.0, 3.0)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 FPM: (SL) Stop Loss Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1187,11 +1187,11 @@ input group "╔═════════════════════�
 input group "║   💰 (RM) Risk Management";
 input group "╚════════════════════════════════════════════════════════╝";
 input double      Inp_RiskPercent            = 2.0; // Risk per trade (%)
-input int         Inp_MaxOpenTrades          = 3;   // Max concurrent trades (0 = unlimited)
+input int         Inp_MaxOpenTrades          = 4;   // Max concurrent trades (0 = unlimited)
 input double      Inp_MaxTotalRisk           = 6.0; // Max total active risk (%; 0 = unlimited)
 input double      Inp_MarginUsageLimit       = 80.0; // Max % of free margin per trade (0 = use 100%)
-input double      Inp_MinMarginLevel         = 200.0; // Min margin level (%) required to allow new entries (0 = disabled)
-input double      Inp_EmergencyMarginLevel   = 120.0; // Emergency margin level (%) to force-close worst position (0 = disabled)
+input double      Inp_MinMarginLevel         = 100.0; // Min margin level (%) required to allow new entries (0 = disabled)
+input double      Inp_EmergencyMarginLevel   = 80.0; // Emergency margin level (%) to force-close worst position (0 = disabled)
 // input string   Inp_Step9_Ref1             = "Risk per trade applies to all presets unless overridden by Admin Override";
 // input string   Inp_Step9_Ref2             = "To adjust exits under a strict preset: use PRESET_CUSTOM mode";
 input group "╔════════════════════════════════════════════════════════╗";
