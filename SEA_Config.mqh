@@ -1190,10 +1190,10 @@ input int         Inp_MarkerLookback         = 50;                // Bars to sho
 input bool        Inp_ShowMarkerLabels       = true;              // Show price labels on markers
 input color       Inp_SwingHighColor         = clrCrimson;        // Swing High color
 input color       Inp_SwingLowColor          = clrDodgerBlue;     // Swing Low color
-input int         Inp_SwingMarkerSize        = 2;                 // Swing marker width (1-5)
+input int         Inp_SwingMarkerSize        = 1;                 // Swing marker width (1-5) - tiny like built-in Fractals
 input color       Inp_FractalHighColor       = clrOrangeRed;      // Fractal High color
 input color       Inp_FractalLowColor        = clrLimeGreen;      // Fractal Low color
-input int         Inp_FractalMarkerSize      = 3;                 // Fractal marker width (1-5)
+input int         Inp_FractalMarkerSize      = 1;                 // Fractal marker width (1-5) - tiny like built-in Fractals
 // input group "--- SL Configuration Examples ---";
 // input string   Inp_Ex1_Header             = "Example 1 - Simple Fixed SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_SL_FixedPips=20";
 // input string   Inp_Ex2_Header             = "Example 2 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20";
