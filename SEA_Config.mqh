@@ -611,6 +611,18 @@ struct ST_Settings
    // DPI momentum deceleration filter — block TS=1 when directionally-aligned DPI histogram shrinks
    // Only activates when DpiDecelFilterEnabled=true AND Ind_Dpi_Enabled=true.
    bool   DpiDecelFilterEnabled;
+
+   // Visual markers — swing and fractal SL level visualization
+   bool  ShowSwingMarkers;       // Toggle swing high/low markers on chart
+   bool  ShowFractalMarkers;     // Toggle fractal markers on chart
+   int   MarkerLookback;         // Bars to display markers (0 = all visible)
+   bool  ShowMarkerLabels;       // Show price labels on markers
+   color SwingHighColor;         // Swing High marker color
+   color SwingLowColor;          // Swing Low marker color
+   int   SwingMarkerSize;        // Swing marker width (1-5)
+   color FractalHighColor;       // Fractal High marker color
+   color FractalLowColor;        // Fractal Low marker color
+   int   FractalMarkerSize;      // Fractal marker width (1-5)
 };
 
 // Global Configuration Instance
@@ -1174,6 +1186,19 @@ input int         Inp_TPFractalOffset        = 1;                 // Fractal off
 // input string   Inp_Ex2_Header             = "Example 2 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20";
 // input string   Inp_Ex3_Header             = "Example 3 - Fractal SL:      Inp_SLMode=SL_MODE_FRACTAL, Inp_FractalPeriod=5, Inp_TPFractalOffset=1";
 input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🎨 VISUAL MARKERS: SL Level Visualization";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool    Inp_ShowSwingMarkers      = true;           // Show Swing High/Low markers
+input bool    Inp_ShowFractalMarkers    = true;           // Show Fractal markers
+input int     Inp_MarkerLookback        = 50;             // Bars to display (0 = all visible)
+input bool    Inp_ShowMarkerLabels      = true;           // Show price labels
+input color   Inp_SwingHighColor        = clrCrimson;     // Swing High color
+input color   Inp_SwingLowColor         = clrDodgerBlue;  // Swing Low color
+input int     Inp_SwingMarkerSize       = 2;              // Swing marker width (1-5)
+input color   Inp_FractalHighColor      = clrOrangeRed;   // Fractal High color
+input color   Inp_FractalLowColor       = clrLimeGreen;   // Fractal Low color
+input int     Inp_FractalMarkerSize     = 3;              // Fractal marker width (1-5)
+input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📈 (TS) TRAILING-STOP Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETrailingMode  Inp_TrailMode           = TRAIL_PSAR; // Trailing method
@@ -1475,6 +1500,18 @@ void InitializeConfig()
    Settings.SwingLookback        = Inp_SwingLookback;
    Settings.FractalPeriod        = Inp_FractalPeriod;
    Settings.TPFractalOffset      = Inp_TPFractalOffset;
+
+   // Visual markers
+   Settings.ShowSwingMarkers     = Inp_ShowSwingMarkers;
+   Settings.ShowFractalMarkers   = Inp_ShowFractalMarkers;
+   Settings.MarkerLookback       = Inp_MarkerLookback;
+   Settings.ShowMarkerLabels     = Inp_ShowMarkerLabels;
+   Settings.SwingHighColor       = Inp_SwingHighColor;
+   Settings.SwingLowColor        = Inp_SwingLowColor;
+   Settings.SwingMarkerSize      = MathMax(1, MathMin(5, Inp_SwingMarkerSize));
+   Settings.FractalHighColor     = Inp_FractalHighColor;
+   Settings.FractalLowColor      = Inp_FractalLowColor;
+   Settings.FractalMarkerSize    = MathMax(1, MathMin(5, Inp_FractalMarkerSize));
 
    Settings.TrailTrigger         = Inp_TrailTrigger;
    Settings.TrailDistancePips    = Inp_TrailDistancePips;

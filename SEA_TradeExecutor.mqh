@@ -52,6 +52,7 @@ private:
    double      m_cached_lots;  // Lots from m_cached_sl (EvaluateCM)
    double      m_cached_risk;  // Risk % (EvaluateCM)
    int         m_spread_block_bars;  // consecutive new-bar EvaluateTE calls blocked by VETO_SPREAD
+   datetime    m_last_marker_update; // Track when chart markers were last updated
    
    // Position excursion tracking
    struct SPositionExcursion {
@@ -730,6 +731,142 @@ private:
       }
    }
 
+   //+------------------------------------------------------------------+
+   //| Clean old markers beyond lookback period                         |
+   //+------------------------------------------------------------------+
+   void CleanOldMarkers() {
+      if(m_settings.MarkerLookback <= 0) return; // Keep all markers
+
+      datetime cutoff_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.MarkerLookback);
+
+      // Clean arrow markers
+      int total = ObjectsTotal(0, 0, OBJ_ARROW);
+      for(int i = total - 1; i >= 0; i--) {
+         string name = ObjectName(0, i, 0, OBJ_ARROW);
+         if(StringFind(name, "SwingSL_") == 0 || StringFind(name, "FractalSL_") == 0) {
+            datetime obj_time = (datetime)ObjectGetInteger(0, name, OBJPROP_TIME);
+            if(obj_time < cutoff_time)
+               ObjectDelete(0, name);
+         }
+      }
+
+      // Clean text labels
+      total = ObjectsTotal(0, 0, OBJ_TEXT);
+      for(int i = total - 1; i >= 0; i--) {
+         string name = ObjectName(0, i, 0, OBJ_TEXT);
+         if(StringFind(name, "SwingLabel_") == 0 || StringFind(name, "FractalLabel_") == 0) {
+            datetime obj_time = (datetime)ObjectGetInteger(0, name, OBJPROP_TIME);
+            if(obj_time < cutoff_time)
+               ObjectDelete(0, name);
+         }
+      }
+   }
+
+   //+------------------------------------------------------------------+
+   //| Draw single swing marker                                         |
+   //+------------------------------------------------------------------+
+   void DrawSwingMarker(datetime time, double price, bool isHigh, int bar) {
+      string name = StringFormat("SwingSL_%d_%s", bar, TimeToString(time, TIME_DATE|TIME_MINUTES));
+      if(ObjectFind(0, name) >= 0) return; // Already exists
+
+      if(!ObjectCreate(0, name, OBJ_ARROW, 0, time, price)) return;
+
+      ObjectSetInteger(0, name, OBJPROP_ARROWCODE, isHigh ? 234 : 233);
+      ObjectSetInteger(0, name, OBJPROP_COLOR, isHigh ? m_settings.SwingHighColor : m_settings.SwingLowColor);
+      ObjectSetInteger(0, name, OBJPROP_WIDTH, m_settings.SwingMarkerSize);
+      ObjectSetInteger(0, name, OBJPROP_BACK, true); // Behind price bars (swing = background layer)
+      ObjectSetString(0, name, OBJPROP_TOOLTIP, StringFormat("Swing %s: %.5f", isHigh ? "High" : "Low", price));
+
+      if(m_settings.ShowMarkerLabels) {
+         string label_name = StringFormat("SwingLabel_%d_%s", bar, TimeToString(time, TIME_DATE|TIME_MINUTES));
+         if(ObjectCreate(0, label_name, OBJ_TEXT, 0, time, price)) {
+            ObjectSetString(0, label_name, OBJPROP_TEXT, StringFormat("S:%.5f", price));
+            ObjectSetInteger(0, label_name, OBJPROP_COLOR, isHigh ? m_settings.SwingHighColor : m_settings.SwingLowColor);
+            ObjectSetInteger(0, label_name, OBJPROP_FONTSIZE, 7);
+            ObjectSetInteger(0, label_name, OBJPROP_ANCHOR, isHigh ? ANCHOR_BOTTOM : ANCHOR_TOP);
+         }
+      }
+   }
+
+   //+------------------------------------------------------------------+
+   //| Draw swing high/low markers                                      |
+   //+------------------------------------------------------------------+
+   void DrawSwingMarkers() {
+      int swing_lookback = (m_settings.SwingLookback > 0) ? m_settings.SwingLookback : 20;
+      int bars_to_scan   = (m_settings.MarkerLookback > 0) ? m_settings.MarkerLookback : 100;
+
+      for(int i = swing_lookback; i < bars_to_scan; i++) {
+         int high_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, swing_lookback, i);
+         if(high_idx == i) {
+            double price = iHigh(m_symbol, PERIOD_CURRENT, i);
+            datetime time = iTime(m_symbol, PERIOD_CURRENT, i);
+            DrawSwingMarker(time, price, true, i);
+         }
+
+         int low_idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, swing_lookback, i);
+         if(low_idx == i) {
+            double price = iLow(m_symbol, PERIOD_CURRENT, i);
+            datetime time = iTime(m_symbol, PERIOD_CURRENT, i);
+            DrawSwingMarker(time, price, false, i);
+         }
+      }
+   }
+
+   //+------------------------------------------------------------------+
+   //| Draw single fractal marker                                       |
+   //+------------------------------------------------------------------+
+   void DrawFractalMarker(datetime time, double price, bool isHigh, int bar) {
+      string name = StringFormat("FractalSL_%d_%s", bar, TimeToString(time, TIME_DATE|TIME_MINUTES));
+      if(ObjectFind(0, name) >= 0) return; // Already exists
+
+      if(!ObjectCreate(0, name, OBJ_ARROW, 0, time, price)) return;
+
+      ObjectSetInteger(0, name, OBJPROP_ARROWCODE, isHigh ? 242 : 241);
+      ObjectSetInteger(0, name, OBJPROP_COLOR, isHigh ? m_settings.FractalHighColor : m_settings.FractalLowColor);
+      ObjectSetInteger(0, name, OBJPROP_WIDTH, m_settings.FractalMarkerSize);
+      ObjectSetInteger(0, name, OBJPROP_BACK, false); // In front of price bars (fractal = foreground, more prominent)
+      ObjectSetString(0, name, OBJPROP_TOOLTIP, StringFormat("Fractal %s: %.5f", isHigh ? "High" : "Low", price));
+
+      if(m_settings.ShowMarkerLabels) {
+         string label_name = StringFormat("FractalLabel_%d_%s", bar, TimeToString(time, TIME_DATE|TIME_MINUTES));
+         if(ObjectCreate(0, label_name, OBJ_TEXT, 0, time, price)) {
+            ObjectSetString(0, label_name, OBJPROP_TEXT, StringFormat("F:%.5f", price));
+            ObjectSetInteger(0, label_name, OBJPROP_COLOR, isHigh ? m_settings.FractalHighColor : m_settings.FractalLowColor);
+            ObjectSetInteger(0, label_name, OBJPROP_FONTSIZE, 8);
+            ObjectSetInteger(0, label_name, OBJPROP_ANCHOR, isHigh ? ANCHOR_BOTTOM : ANCHOR_TOP);
+         }
+      }
+   }
+
+   //+------------------------------------------------------------------+
+   //| Draw fractal markers                                             |
+   //+------------------------------------------------------------------+
+   void DrawFractalMarkers() {
+      if(m_h_fractals == INVALID_HANDLE) return;
+
+      int bars_to_scan  = (m_settings.MarkerLookback > 0) ? m_settings.MarkerLookback : 100;
+      // Fractals require at least FractalPeriod bars to form; start scanning from there
+      int fractal_start = (m_settings.FractalPeriod > 0) ? m_settings.FractalPeriod : 5;
+
+      for(int i = fractal_start; i < bars_to_scan; i++) {
+         double upper[1];
+         if(CopyBuffer(m_h_fractals, 0, i, 1, upper) > 0) {
+            if(upper[0] != DBL_MAX && upper[0] > 0.0) {
+               datetime time = iTime(m_symbol, PERIOD_CURRENT, i);
+               DrawFractalMarker(time, upper[0], true, i);
+            }
+         }
+
+         double lower[1];
+         if(CopyBuffer(m_h_fractals, 1, i, 1, lower) > 0) {
+            if(lower[0] != DBL_MAX && lower[0] > 0.0) {
+               datetime time = iTime(m_symbol, PERIOD_CURRENT, i);
+               DrawFractalMarker(time, lower[0], false, i);
+            }
+         }
+      }
+   }
+
 public:
    CTradeExecutor() : m_last_trade_bar(0), m_last_close_bar(0), m_last_tracked_ticket(0), m_last_risk_warn(0),
                        m_rrm_last_ticket(0), m_rrm_trail_frozen(false),
@@ -738,7 +875,8 @@ public:
                        m_last_te_time(0), m_last_te_result(""), m_last_te_reason(""),
                        m_cached_sl(0.0), m_cached_lots(0.0), m_cached_risk(0.0),
                        m_spread_block_bars(0), m_rc_veto_reason(""),
-                       m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE) // CACHED HANDLES
+                       m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), // CACHED HANDLES
+                       m_last_marker_update(0)
    {
       m_excursion.ticket = 0; m_excursion.entry_time = 0; m_excursion.entry_price = 0.0;
       m_excursion.mae_pips = 0.0; m_excursion.mfe_pips = 0.0; m_excursion.current_pips = 0.0;
@@ -767,6 +905,35 @@ public:
       int bars_since = Bars(m_symbol, PERIOD_CURRENT, m_last_close_bar, iTime(m_symbol, PERIOD_CURRENT, 0));
       int remaining = m_settings.MinBarsAfterClose - bars_since;
       return (remaining > 0) ? remaining : 0;
+   }
+
+   //+------------------------------------------------------------------+
+   //| Update chart markers on new bar                                  |
+   //+------------------------------------------------------------------+
+   void UpdateChartMarkers() {
+      if(!m_settings.ShowSwingMarkers && !m_settings.ShowFractalMarkers) return;
+
+      datetime current_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
+      if(current_bar == m_last_marker_update) return; // Already updated this bar
+      m_last_marker_update = current_bar;
+
+      CleanOldMarkers();
+
+      if(m_settings.ShowSwingMarkers)
+         DrawSwingMarkers();
+
+      if(m_settings.ShowFractalMarkers)
+         DrawFractalMarkers();
+   }
+
+   //+------------------------------------------------------------------+
+   //| Remove all markers (called on EA shutdown)                       |
+   //+------------------------------------------------------------------+
+   void RemoveAllMarkers() {
+      ObjectsDeleteAll(0, "SwingSL_");
+      ObjectsDeleteAll(0, "FractalSL_");
+      ObjectsDeleteAll(0, "SwingLabel_");
+      ObjectsDeleteAll(0, "FractalLabel_");
    }
 
    void Init(ulong magic, ST_Settings &sets) {

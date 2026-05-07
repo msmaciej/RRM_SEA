@@ -677,6 +677,9 @@ void OrchestrateTick()
    // 6. TM: Trail/BE modifications — bar-close only
    Executor.EvaluateTM();
 
+   // Update chart markers for swing and fractal SL levels (new bar only)
+   Executor.UpdateChartMarkers();
+
    FlowLog("OnTick -> NewBar detected -> begin bar pipeline");
 
    // 7. RRM Drawdown Protection Filter
@@ -1214,6 +1217,7 @@ void OrchestrateDeinit(const int reason)
    if(Settings.ExportCSV)
       SEA_Report_Generate();
 
+   Executor.RemoveAllMarkers();
    SEA_UI_DestroyAll();
    FlowLog(StringFormat("EA stop -> OnDeinit(reason=%d)", reason));
 
