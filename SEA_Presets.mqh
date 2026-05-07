@@ -1201,14 +1201,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Vote_AllowPsarFlip     = true;
       cfg.Vote_PsarFlipDelay     = -1;   // Persistent: evaluate dot position on every bar
 
-      // ── CANDLE BODY: LOCKED OFF (PSAR-flip entry bar may be doji/mixed) ─
-      cfg.Ind_CandleBody_Enabled = false;
-      cfg.Ind_CandleBody_Weight  = 1;
-      cfg.CandleBody_AvgPeriod   = 15;
-      cfg.CandleBody_MaxMult     = 3.5;
-      cfg.CandleBody_CheckBars   = (_Period <= PERIOD_M5) ? 3 : 5;
-      cfg.CandleBody_RequireDirection = false;
-
+      // ── CANDLE BODY ───────────────────────────────────────────────────
+      cfg.Ind_CandleBody_Enabled      = Inp_Ind_CandleBody_Enabled;
+      cfg.Ind_CandleBody_Weight       = 1;
+      cfg.CandleBody_AvgPeriod        = Inp_Ind_CandleBody_AvgPeriod;
+      cfg.CandleBody_MaxMult          = Inp_Ind_CandleBody_MaxMult;
+      cfg.CandleBody_CheckBars        = Inp_Ind_CandleBody_CheckBars;
+      // cfg.CandleBody_CheckBars   = (_Period <= PERIOD_M5) ? 3 : 5;
+      cfg.CandleBody_RequireDirection = Inp_Ind_CandleBody_RequireDirection;
+      
       // ── ALL OTHER INDICATORS: LOCKED OFF ─────────────────────────────
       cfg.Ind_Adx_Enabled        = false;
       cfg.Ind_Atr_Enabled        = false;
@@ -1241,9 +1242,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ATR_VoteMaxPips        = 50.0;
 
       // ── MACD SETTINGS: safe defaults (disabled) ───────────────────────
-      cfg.P_MacdFast             = 12;
-      cfg.P_MacdSlow             = 26;
-      cfg.P_MacdSig              = 9;
+      cfg.P_MacdFast             = 8;  // 12
+      cfg.P_MacdSlow             = 13; // 26
+      cfg.P_MacdSig              = 5;  //  9
       cfg.MacdVoteMode           = MACD_HISTOGRAM;
       cfg.MacdRequireSlope       = false;
       cfg.MacdRequireDivergence  = false;
@@ -1292,7 +1293,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BlockUnorderedPhase       = true;           // UNORDERED → block all trades
       cfg.BlockEmergingPhase        = true;           // true: EM phase = no trades; TM phase = trades allowed
       cfg.RequireRecoveryMomentum = (_Period <= PERIOD_M5) ? true : false; 
-      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;        // M1: No delay needed on M1
+      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 0;        // M1: No delay needed on M1
 
       // EMERGING phase: WEAK + MEDIUM only; STRONG always blocked per RRM methodology
       cfg.Emerging_AllowWeakTrades   = Inp_RRM_AllowWeak;
@@ -1346,7 +1347,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TrailDistancePips         = GetTFBasedCushion(tfOrg);
       cfg.BEThresholdPips           = GetTFBasedCushion(tfOrg);
       cfg.TrailLockProfit           = true;
-      cfg.TrailProfitPercent        = 2.0;
+      cfg.TrailProfitPercent        = 50.0;
       cfg.TrailStepPips             = 5.0;
 
       cfg.FractalPeriod             = 5;
