@@ -40,7 +40,7 @@
 enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103002 = SEA_BUILD_TOKEN_103002 };
 #endif
 
-#define SEA_MOD_SIGNALENGINE_103002 1
+#define SEA_MOD_SIGNALENGINE_103003 1
 
 
 #include <RRMS\SEA_Config.mqh>
@@ -96,6 +96,17 @@ struct SRejectionStats {
    int passed_ross,    rejected_ross;
    int passed_sma_converge, rejected_sma_converge;
    int passed_dpi,          rejected_dpi;
+
+   // ── PHASE A.1: Pre-filter quality gates (TS=1 hardening) ──────────────
+   int passed_emafan,     rejected_emafan;     // EMA fan overextension
+   int passed_dpi_decel,  rejected_dpi_decel;  // DPI histogram deceleration
+   int passed_phase_age,  rejected_phase_age;  // MinPhaseConfirmBars not met
+   int passed_htf_align,  rejected_htf_align;  // HTF EMA slope disagrees with bias
+
+   // ── PHASE A.1: TE-side gates (incremented from SEA_TradeExecutor via AddTeStats) ──
+   int passed_te_open_delay,    rejected_te_open_delay;
+   int passed_te_bc_recheck,    rejected_te_bc_recheck;
+   int passed_te_spread_median, rejected_te_spread_median;
 
    int signals_confirmed;
 };
@@ -413,6 +424,29 @@ private:
    // Version 2: With validity checking via MQL5 reference parameter
    double GetMAVal(const int handle, const int shift, const int buffer_num, bool &out_valid) {
       return GetVal(handle, shift, buffer_num, out_valid);
+   }
+
+   // ── PHASE A.1 ─────────────────────────────────────────────────────────
+   // HTF bias from the higher-timeframe EMA (h_htf_ema must be valid).
+   // Returns +1 if HTF EMA is rising, -1 if falling, 0 if flat / no data.
+   // The "rising/falling" check uses a 3-bar lookback to filter noise.
+   // Required by the HTF_BLOCKED pre-filter in EvaluateTS.
+   int GetHtfBias()
+   {
+      if(h_htf_ema == INVALID_HANDLE) return 0;
+      double e0[];
+      ArraySetAsSeries(e0, true);
+      if(CopyBuffer(h_htf_ema, 0, 0, 3, e0) != 3) return 0;
+      // e0[0] = current bar; e0[2] = 2 bars ago
+      double diff = e0[0] - e0[2];
+      double pip  = GlobalPipSize(m_symbol);
+      if(pip <= 0.0) return 0;
+      // Require at least 0.5 pip of slope per bar to count as directional;
+      // below that, treat as flat / no signal.
+      double slope_pips_per_bar = (diff / pip) / 2.0;
+      if(slope_pips_per_bar >  0.5) return +1;
+      if(slope_pips_per_bar < -0.5) return -1;
+      return 0;
    }
 
    // Version 1: No error reporting (backward compatible)
@@ -2268,6 +2302,21 @@ public:
    // Return by value instead of reference
    SRejectionStats GetStats() const { return m_stats; }
 
+   // ── PHASE A.1: aggregate TE-side counters into m_stats before reporting ─
+   // Called from SimpleEA OnDeinit() to bridge counters maintained on
+   // CTradeExecutor into the engine's m_stats so PrintEnhancedStatistics
+   // can include them in the per-gate breakdown.
+   void AddTeStats(int rej_open_delay, int rej_bc_recheck, int rej_spread_median,
+                   int pass_open_delay, int pass_bc_recheck, int pass_spread_median)
+   {
+      m_stats.rejected_te_open_delay     += rej_open_delay;
+      m_stats.rejected_te_bc_recheck     += rej_bc_recheck;
+      m_stats.rejected_te_spread_median  += rej_spread_median;
+      m_stats.passed_te_open_delay       += pass_open_delay;
+      m_stats.passed_te_bc_recheck       += pass_bc_recheck;
+      m_stats.passed_te_spread_median    += pass_spread_median;
+   }
+
    // Returns the number of currently enabled indicator votes.
    int CountEnabledIndicators() const
    {
@@ -2346,7 +2395,7 @@ public:
 
       // Build sortable array of reason/count pairs
       struct SReason { string name; int count; double pct; };
-      SReason reasons[27];
+      SReason reasons[34];   // PHASE A.1: was [27], +7 for new gates
       int idx = 0;
 
       reasons[idx].name = "Phase=UNORDERED";
@@ -2441,6 +2490,35 @@ public:
       reasons[idx].count = m_stats.rejected_dpi;
       reasons[idx++].pct = m_stats.rejected_dpi * 100.0 / m_stats.total_bars;
 
+      // ── PHASE A.1: new pre-filter gates ───────────────────────────────
+      reasons[idx].name = "EMA Overext";
+      reasons[idx].count = m_stats.rejected_emafan;
+      reasons[idx++].pct = m_stats.rejected_emafan * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "DPI Decel";
+      reasons[idx].count = m_stats.rejected_dpi_decel;
+      reasons[idx++].pct = m_stats.rejected_dpi_decel * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "Phase Age";
+      reasons[idx].count = m_stats.rejected_phase_age;
+      reasons[idx++].pct = m_stats.rejected_phase_age * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "HTF Block";
+      reasons[idx].count = m_stats.rejected_htf_align;
+      reasons[idx++].pct = m_stats.rejected_htf_align * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "TE Open Delay";
+      reasons[idx].count = m_stats.rejected_te_open_delay;
+      reasons[idx++].pct = m_stats.rejected_te_open_delay * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "TE BC Stale";
+      reasons[idx].count = m_stats.rejected_te_bc_recheck;
+      reasons[idx++].pct = m_stats.rejected_te_bc_recheck * 100.0 / m_stats.total_bars;
+
+      reasons[idx].name = "TE Spread Median";
+      reasons[idx].count = m_stats.rejected_te_spread_median;
+      reasons[idx++].pct = m_stats.rejected_te_spread_median * 100.0 / m_stats.total_bars;
+
       // Bubble sort descending by count
       for(int i = 0; i < idx - 1; i++) {
          for(int j = i + 1; j < idx; j++) {
@@ -2495,6 +2573,65 @@ public:
       PrintGateStat("News Filter", m_settings.UseNews,     m_stats.passed_news,          m_stats.rejected_news,         m_settings.UseNews  ? StringFormat("%dm pre/post", m_settings.NewsPre) : "(disabled)");
       Print("----------------------------------------------------------------");
       PrintFormat("Gates blocked: %d bars", m_stats.rejected_spread + m_stats.rejected_time + m_stats.rejected_news);
+      Print("");
+      Print("================================================================");
+      Print("1b. PRE-FILTER QUALITY GATES (Phase A.1 — TS=1 hardening)");
+      Print("================================================================");
+      PrintFormat("%-18s %-8s %7s %7s %7s   %s", "Gate", "Status", "Passed", "Failed", "Pass%", "Impact");
+      Print("----------------------------------------------------------------");
+      PrintGateStat("EMA Fan",
+                    m_settings.EmaFanFilterEnabled,
+                    m_stats.passed_emafan,
+                    m_stats.rejected_emafan,
+                    m_settings.EmaFanFilterEnabled
+                       ? StringFormat("%.1f pips max", m_settings.EmaFanMaxTotalPips)
+                       : "(disabled)");
+      PrintGateStat("DPI Decel",
+                    (m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled),
+                    m_stats.passed_dpi_decel,
+                    m_stats.rejected_dpi_decel,
+                    (m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
+                       ? "histogram shrinking"
+                       : (!m_settings.Ind_Dpi_Enabled ? "(DPI off)" : "(disabled)"));
+      PrintGateStat("Phase Age",
+                    (m_settings.MinPhaseConfirmBars > 0),
+                    m_stats.passed_phase_age,
+                    m_stats.rejected_phase_age,
+                    (m_settings.MinPhaseConfirmBars > 0)
+                       ? StringFormat(">=%d bars", m_settings.MinPhaseConfirmBars)
+                       : "(disabled)");
+      PrintGateStat("HTF Align",
+                    m_settings.UseHTF,
+                    m_stats.passed_htf_align,
+                    m_stats.rejected_htf_align,
+                    m_settings.UseHTF
+                       ? StringFormat("%s EMA%d slope", EnumToString(m_settings.HtfPeriod), m_settings.P_HtfEma)
+                       : "(disabled)");
+      PrintGateStat("TE Open Delay",
+                    (m_settings.TE_OpenDelaySeconds > 0),
+                    m_stats.passed_te_open_delay,
+                    m_stats.rejected_te_open_delay,
+                    (m_settings.TE_OpenDelaySeconds > 0)
+                       ? StringFormat("%d sec defer", m_settings.TE_OpenDelaySeconds)
+                       : "(disabled)");
+      PrintGateStat("TE BC Recheck",
+                    m_settings.TE_RecheckBarClose,
+                    m_stats.passed_te_bc_recheck,
+                    m_stats.rejected_te_bc_recheck,
+                    m_settings.TE_RecheckBarClose ? "shift=1 BC vs live" : "(disabled)");
+      PrintGateStat("TE Spread Med",
+                    (m_settings.TE_SpreadMedianTicks > 0),
+                    m_stats.passed_te_spread_median,
+                    m_stats.rejected_te_spread_median,
+                    (m_settings.TE_SpreadMedianTicks > 0)
+                       ? StringFormat("median over %d ticks", m_settings.TE_SpreadMedianTicks)
+                       : "(disabled)");
+      Print("----------------------------------------------------------------");
+      PrintFormat("Pre-filter blocks: %d bars (TS), %d (TE)",
+                  m_stats.rejected_emafan + m_stats.rejected_dpi_decel +
+                  m_stats.rejected_phase_age + m_stats.rejected_htf_align,
+                  m_stats.rejected_te_open_delay + m_stats.rejected_te_bc_recheck +
+                  m_stats.rejected_te_spread_median);
       Print("");
       Print("================================================================");
       Print("2. BIAS & LAYER DETECTION");
@@ -4771,6 +4908,7 @@ public:
                               gap_now, m_settings.EmaFanMaxTotalPips, gap_prev);
                m_diag_last_reason = "EMA_OVEREXT";
                m_reject_filter++;
+               m_stats.rejected_emafan++;       // PHASE A.1
                if(!full_eval) {
                   m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
                   UpdateTelemetry(0);
@@ -4814,6 +4952,7 @@ public:
                               mag_cur, mag_prev);
                m_diag_last_reason = "DPI_DECEL";
                m_reject_filter++;
+               m_stats.rejected_dpi_decel++;    // PHASE A.1
                if(!full_eval) {
                   m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
                   UpdateTelemetry(0);
@@ -4826,6 +4965,75 @@ public:
             }
          }
       }
+
+      // ══════════════════════════════════════════════════════════════════
+      // PRE-FILTER (PHASE A.1): Phase-age confirmation
+      // Reject when MinPhaseConfirmBars > 0 and the current phase has not
+      // persisted for at least that many bars. Catches single-bar TM
+      // flickers (Pattern D in 100-trades analysis).
+      // ══════════════════════════════════════════════════════════════════
+      if(m_settings.MinPhaseConfirmBars > 0 &&
+         m_diag_phase_confirm_bars < m_settings.MinPhaseConfirmBars)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[TS_PREFILTER] PHASE_AGE: bars=%d < required=%d → TS=0",
+                        m_diag_phase_confirm_bars, m_settings.MinPhaseConfirmBars);
+         m_diag_last_reason = "PHASE_AGE";
+         m_reject_filter++;
+         m_stats.rejected_phase_age++;
+         if(!full_eval) {
+            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+            UpdateTelemetry(0);
+            FlushOrClearDebugBuffer(0);
+            RestoreForcedDebug();
+            return 0;
+         }
+         if(m_eval_first_failure == "") m_eval_first_failure = "PHASE_AGE";
+         m_eval_any_failure = true;
+      }
+
+      // ══════════════════════════════════════════════════════════════════
+      // PRE-FILTER (PHASE A.1): HTF alignment
+      // Reject when UseHTF=true and the higher-timeframe EMA slope at
+      // shift=0 disagrees with entry bias. Catches Pattern C trades like
+      // #075 (USDJPY M5 LONG into the H1/H4 down-leg).
+      // ══════════════════════════════════════════════════════════════════
+      if(m_settings.UseHTF && h_htf_ema != INVALID_HANDLE)
+      {
+         int htf_bias = GetHtfBias();
+         if(htf_bias != 0 && htf_bias != B)
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[TS_PREFILTER] HTF_BLOCKED: htf=%+d vs bias=%+d → TS=0",
+                           htf_bias, B);
+            m_diag_last_reason = "HTF_BLOCKED";
+            m_reject_filter++;
+            m_stats.rejected_htf_align++;
+            if(!full_eval) {
+               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+               UpdateTelemetry(0);
+               FlushOrClearDebugBuffer(0);
+               RestoreForcedDebug();
+               return 0;
+            }
+            if(m_eval_first_failure == "") m_eval_first_failure = "HTF_BLOCKED";
+            m_eval_any_failure = true;
+         }
+         else if(htf_bias != 0)
+         {
+            m_stats.passed_htf_align++;
+         }
+      }
+
+      // ── PHASE A.1: Increment passed_* counters for active gates that survived ──
+      // We only increment when the gate was actually evaluated (enable flag on)
+      // so the Pass% column reflects accuracy among bars where the gate fired.
+      if(m_settings.EmaFanFilterEnabled && m_settings.EmaFanMaxTotalPips > 0.0)
+         m_stats.passed_emafan++;
+      if(m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
+         m_stats.passed_dpi_decel++;
+      if(m_settings.MinPhaseConfirmBars > 0)
+         m_stats.passed_phase_age++;
 
       // ── L: Layer ─────────────────────────────────────────────────
       int L = EvaluateL(v_shift, B);

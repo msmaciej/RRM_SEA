@@ -9,10 +9,10 @@
 #property strict
 
 // --- Anti-stale build lock
-#define SEA_BUILD_TOKEN_103002 1
+#define SEA_BUILD_TOKEN_103003 1
 
-#define SEA_BUILD_NUM 103002
-#define SEA_BUILD_STR "1.03.002"
+#define SEA_BUILD_NUM 103003
+#define SEA_BUILD_STR "1.03.003"
 
 //+------------------------------------------------------------------+
 //| FORWARD DECLARATIONS                                             |
@@ -30,11 +30,11 @@ void SEA_DrawTradeExecLine(datetime event_time, int direction, double price, con
 #include <RRMS\SEA_UI.mqh>
 #include <RRMS\SEA_Reporting.mqh>
 
-#ifndef SEA_MOD_SIGNALENGINE_103002
-enum { __SEA_STALE_SEA_MOD_SIGNALENGINE_103002__ = SEA_MOD_SIGNALENGINE_103002 };
+#ifndef SEA_MOD_SIGNALENGINE_103003
+enum { __SEA_STALE_SEA_MOD_SIGNALENGINE_103003__ = SEA_MOD_SIGNALENGINE_103003 };
 #endif
-#ifndef SEA_MOD_TRADEEXEC_103002
-enum { __SEA_STALE_SEA_MOD_TRADEEXEC_103002__ = SEA_MOD_TRADEEXEC_103002 };
+#ifndef SEA_MOD_TRADEEXEC_103003
+enum { __SEA_STALE_SEA_MOD_TRADEEXEC_103003__ = SEA_MOD_TRADEEXEC_103003 };
 #endif
 #ifndef SEA_MOD_UI_103002
 enum { __SEA_STALE_SEA_MOD_UI_103002__ = SEA_MOD_UI_103002 };
@@ -1208,6 +1208,15 @@ void PrintSystemAnalysisReport()
 //+------------------------------------------------------------------+
 void OrchestrateDeinit(const int reason)
 {
+   // ── PHASE A.1: Bridge TE-side counters from Executor into Signal.m_stats
+   //              before reporting, so the new "1b. PRE-FILTER QUALITY GATES"
+   //              section shows correct TE Open Delay / BC Recheck / Spread
+   //              Median rejection counts. Must run BEFORE any Print* calls.
+   Signal.AddTeStats(
+      Executor.RejOpenDelay(),  Executor.RejBCRecheck(),  Executor.RejSpreadMedian(),
+      Executor.PassOpenDelay(), Executor.PassBCRecheck(), Executor.PassSpreadMedian()
+   );
+
    Signal.PrintRejectionStatistics();
    Signal.PrintEnhancedStatistics();
    PrintSystemAnalysisReport();

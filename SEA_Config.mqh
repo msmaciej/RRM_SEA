@@ -623,6 +623,11 @@ struct ST_Settings
    // DPI momentum deceleration filter — block TS=1 when directionally-aligned DPI histogram shrinks
    // Only activates when DpiDecelFilterEnabled=true AND Ind_Dpi_Enabled=true.
    bool   DpiDecelFilterEnabled;
+
+   // ── PHASE B: TE-side hardening (read by SEA_TradeExecutor::EvaluateTE) ──
+   bool   TE_RecheckBarClose;       // Re-confirm bar-close BC vs live bid at shift=0
+   int    TE_OpenDelaySeconds;      // Defer EvaluateTE() by N sec after new bar
+   int    TE_SpreadMedianTicks;     // Median spread over last N ticks (0=disabled)
 };
 
 // Global Configuration Instance
@@ -972,6 +977,37 @@ input bool        Inp_RRM_ORG_DPI_UseCCIReset      = true; // DPI: Enable CCI tr
 input int         Inp_RRM_ORG_DPI_CCI_Period        = 13;  // DPI: CCI period
 input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price  = PRICE_TYPICAL; // DPI: CCI applied price
 input bool        Inp_RRM_ORG_DPI_UseGreenHist      = false; // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: Phase A Quality Gates (TS=1 / TE=1)";
+input group "╚════════════════════════════════════════════════════════╝";
+
+// ── TS-side gates (signal evaluation, shift=1) ────────────────────────────
+input bool   Inp_RRM_ORG_ForceDpiOn          = true;   // RRM_ORG: Force DPI voter ON (matches reference methodology)
+input bool   Inp_RRM_ORG_EmaFanFilter        = true;   // RRM_ORG: Block entry on overextended EMA fan
+input double Inp_RRM_ORG_EmaFan_M5Pips       = 25.0;   // RRM_ORG: Fan max pips on M1–M5
+input double Inp_RRM_ORG_EmaFan_M30Pips      = 40.0;   // RRM_ORG: Fan max pips on M6–M30
+input double Inp_RRM_ORG_EmaFan_H1Pips       = 60.0;   // RRM_ORG: Fan max pips on H1
+input double Inp_RRM_ORG_EmaFan_H4Pips       = 100.0;  // RRM_ORG: Fan max pips on H4
+input double Inp_RRM_ORG_EmaFan_DailyPips    = 180.0;  // RRM_ORG: Fan max pips on D1+
+input int    Inp_RRM_ORG_PhaseConfirmM5      = 1;      // RRM_ORG: MinPhaseConfirmBars on M1–M5
+input int    Inp_RRM_ORG_PhaseConfirmM30     = 2;      // RRM_ORG: MinPhaseConfirmBars on M6–M30
+input int    Inp_RRM_ORG_PhaseConfirmH1plus  = 3;      // RRM_ORG: MinPhaseConfirmBars on H1 and above
+input bool   Inp_RRM_ORG_RequireRecoveryIntraday = true;  // RRM_ORG: Require recovery momentum on M15-and-down
+input double Inp_RRM_ORG_JpyGateMultiplier   = 1.3;    // RRM_ORG: Recovery+EmaDiv gate scale for JPY pairs (1.0=disabled)
+input bool   Inp_RRM_ORG_HtfFilter           = true;   // RRM_ORG: Force HTF trend filter ON
+input int    Inp_RRM_ORG_HtfEmaPeriod        = 89;     // RRM_ORG: HTF EMA period (0=use Inp_HtfEmaPeriod)
+input bool   Inp_RRM_ORG_DpiDecelFilter      = true;   // RRM_ORG: Block entry on DPI histogram deceleration
+input bool   Inp_RRM_ORG_ForceDDProtection   = true;   // RRM_ORG: Force drawdown protection ON
+input int    Inp_RRM_ORG_DDMaxConsecLosses   = 4;      // RRM_ORG: Override max consecutive losses (0=use Inp_RRM_*)
+input double Inp_RRM_ORG_DDMaxDailyPct       = 2.0;    // RRM_ORG: Override max daily DD % (0=use Inp_RRM_*)
+
+// ── TE-side gates (execution evaluation, shift=0) ─────────────────────────
+input bool   Inp_RRM_ORG_TE_RecheckBarClose  = true;   // RRM_ORG: At TE, re-confirm shift=1 BC vs current bid
+input int    Inp_RRM_ORG_TE_OpenDelaySecsM5  = 10;     // RRM_ORG: Defer TE by N sec at new bar (M1–M5)
+input int    Inp_RRM_ORG_TE_OpenDelaySecsM30 = 5;      // RRM_ORG: Defer TE by N sec at new bar (M6–M30)
+input int    Inp_RRM_ORG_TE_OpenDelaySecsHi  = 0;      // RRM_ORG: Defer TE by N sec at new bar (H1+)
+input int    Inp_RRM_ORG_TE_SpreadMedianTicks = 8;     // RRM_ORG: Median spread over last N ticks (0=disabled)
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️  PRESETS OVERRIDES! (Step1-5)";
@@ -1598,6 +1634,11 @@ void InitializeConfig()
 
    // DPI momentum deceleration filter: disabled by default (presets override)
    Settings.DpiDecelFilterEnabled = Inp_DpiDecelFilterEnabled;
+
+   // ── PHASE B: TE-side gate defaults (off; PRESET_RRM_ORG turns them on) ──
+   Settings.TE_RecheckBarClose    = false;
+   Settings.TE_OpenDelaySeconds   = 0;
+   Settings.TE_SpreadMedianTicks  = 0;
 
    // === FINAL VALIDATION: BiasMode vs AutoStrat compatibility ===
    if(Settings.BiasEnabled && !ValidateBiasStratCombo(Settings.BiasMode, Settings.AutoStrat))

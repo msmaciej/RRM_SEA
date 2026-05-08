@@ -1156,6 +1156,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // LOCKED: DPI (inline MACD), PSAR, CandleBody, phase structure,
       //         recovery gates, bar close mode.
       // FLEXIBLE: MACD periods (via Zone 3D inputs), SL/TP/Trail modes.
+      //
+      // ── PHASE A QUALITY PATCH (TS=1 hardening, 2026-05) ──────────────
+      // Targets four failure modes seen in 100-trades reference set:
+      //   (B) EM→TM flicker entries → MinPhaseConfirmBars TF-scaled > 0
+      //   (C) Late-trend / overextended fan entries → EmaFanFilterEnabled
+      //       turned on with TF-scaled threshold (mirrors PRESET_RRM)
+      //   (C) DPI deceleration leaks → DPI voter forced ON (was opt-in,
+      //       which silently disabled the already-coded decel pre-filter)
+      //   (D) Tangled-ribbon false TM → MinPhaseConfirmBars + recovery
+      // Also fixes a duplicate-write bug on RequireRecoveryMomentum where
+      // line 1309 (now removed) was unconditionally overwriting line 1295.
       // ================================================================
 
       // ── SIGNAL ARCHITECTURE: locked ──────────────────────────────────
@@ -1177,8 +1188,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Ema3                 = 34;
       cfg.P_Ema4                 = 89;
 
-      // ── DPI v31: opt-in voting indicator (user enables via Inp_Ind_Dpi_Enabled) ──
-      cfg.Ind_Dpi_Enabled          = false;          // opt-in; user enables via Inp_Ind_Dpi_Enabled
+      // ── DPI v31: LOCKED ON in RRM_ORG (input-overridable via Inp_RRM_ORG_ForceDpiOn) ──
+      // PHASE A: was opt-in (false). The "ORG" suffix marks the original
+      // Russ Horn methodology, which uses DPI as the primary momentum
+      // voter — every entry shown in /100-trades/*.{jpg,png} has DPI in
+      // the subwindow. Forcing it on also activates the DPI deceleration
+      // pre-filter (line 4793 of SEA_SignalEngine.mqh) which was dead-code
+      // until now because that filter requires Ind_Dpi_Enabled=true.
+      cfg.Ind_Dpi_Enabled          = Inp_RRM_ORG_ForceDpiOn;
       cfg.Ind_Dpi_Weight           = 1;
       cfg.DPI_MACD_Fast            = Inp_RRM_ORG_MACD_Fast;              // default 8
       cfg.DPI_MACD_Slow            = Inp_RRM_ORG_MACD_Slow;              // default 13
@@ -1292,8 +1309,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EnableLayerDetection      = true;
       cfg.BlockUnorderedPhase       = true;           // UNORDERED → block all trades
       cfg.BlockEmergingPhase        = true;           // true: EM phase = no trades; TM phase = trades allowed
-      cfg.RequireRecoveryMomentum = (_Period <= PERIOD_M5) ? true : false; 
-      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 0;        // M1: No delay needed on M1
+
+      // PHASE A: TF-scaled phase-age confirmation. The previous setting
+      // (0 on every TF) lets a single bar that flickers into TM after UNO
+      // qualify as a setup — see trade #095 (EURJPY M5) and #075 (USDJPY
+      // M5) where the entry bar is the first/second TM bar after a
+      // tangled-ribbon zone and price reverses immediately. Requiring
+      // 1–3 bars of phase persistence kills these flickers cheaply.
+      // Operator-tunable via Inp_RRM_ORG_PhaseConfirm* (Phase B).
+      cfg.MinPhaseConfirmBars       = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_PhaseConfirmM5
+                                    : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_PhaseConfirmM30
+                                    :                           Inp_RRM_ORG_PhaseConfirmH1plus;
 
       // EMERGING phase: WEAK + MEDIUM only; STRONG always blocked per RRM methodology
       cfg.Emerging_AllowWeakTrades   = Inp_RRM_AllowWeak;
@@ -1306,13 +1332,27 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Trending_AllowStrongTrades = Inp_RRM_AllowStrong;
 
       // ── PULLBACK DETECTION GATES: LOCKED ON ──────────────────────────
-      cfg.RequireRecoveryMomentum   = false;   // Wick-touch recovery valid on M1/M5
+      // PHASE A: require recovery momentum on M15-and-down. The original
+      // code set it true on M5 then immediately overwrote with `false` on
+      // a second line — duplicate-write bug. Wick-touch recoveries are
+      // the dominant noise mode on intraday, see trade #095.
+      // Operator-tunable via Inp_RRM_ORG_RequireRecoveryIntraday.
+      cfg.RequireRecoveryMomentum   = Inp_RRM_ORG_RequireRecoveryIntraday && (_Period <= PERIOD_M15);
+
       cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
-      cfg.Gate_Recovery.value       = 1.0;
+      // PHASE A: JPY pairs run ~1.3× the natural noise vs majors at the
+      // same TF. Loosen recovery distance proportionally so we don't chop
+      // out of legitimate setups (#001 USDJPY, #060 GBPJPY, #100 EURJPY).
+      // Operator-tunable via Inp_RRM_ORG_JpyGateMultiplier (1.0=disabled).
+      {
+         bool isJpyOrg = (StringFind(_Symbol, "JPY") >= 0);
+         double jpyMul = (Inp_RRM_ORG_JpyGateMultiplier > 0.0) ? Inp_RRM_ORG_JpyGateMultiplier : 1.0;
+         cfg.Gate_Recovery.value = isJpyOrg ? jpyMul : 1.0;
+         cfg.Gate_EmaDiv.value   = isJpyOrg ? jpyMul : 1.0;
+      }
       cfg.RRM_Lookback              = (_Period <= PERIOD_M1) ? 15 : (_Period <= PERIOD_M5) ? 10 : 12;
 
       cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
-      cfg.Gate_EmaDiv.value         = 1.0;
       cfg.RRM_MinDivPips            = 1.5;
 
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
@@ -1354,10 +1394,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TPFractalOffset           = 1;
 
       // ── DRAWDOWN PROTECTION ───────────────────────────────────────────
-      cfg.RRM_EnableDrawdownProtection = Inp_RRM_EnableDrawdownProtection;
-      cfg.RRM_MaxConsecutiveLosses  = Inp_RRM_MaxConsecutiveLosses;
+      // PHASE A: force-on for ORG (a "quality-first" preset). User can
+      // still tune the thresholds via Inp_RRM_ORG_DD* and Inp_RRM_Max* inputs.
+      cfg.RRM_EnableDrawdownProtection = Inp_RRM_ORG_ForceDDProtection || Inp_RRM_EnableDrawdownProtection;
+      cfg.RRM_MaxConsecutiveLosses  = (Inp_RRM_ORG_DDMaxConsecLosses > 0)
+                                          ? Inp_RRM_ORG_DDMaxConsecLosses
+                                          : (Inp_RRM_MaxConsecutiveLosses > 0 ? Inp_RRM_MaxConsecutiveLosses : 4);
       cfg.RRM_MaxTradesPerDay       = Inp_RRM_MaxTradesPerDay;
-      cfg.RRM_MaxDailyDrawdownPct   = Inp_RRM_MaxDailyDrawdownPct;
+      cfg.RRM_MaxDailyDrawdownPct   = (Inp_RRM_ORG_DDMaxDailyPct > 0.0)
+                                          ? Inp_RRM_ORG_DDMaxDailyPct
+                                          : (Inp_RRM_MaxDailyDrawdownPct > 0.0 ? Inp_RRM_MaxDailyDrawdownPct : 2.0);
 
       // ── SLOPE CALCULATION ─────────────────────────────────────────────
       cfg.SlopeLookbackBars         = 1;
@@ -1379,6 +1425,20 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MinMarginLevel            = op_MinMarginLevel;
       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
 
+      // PHASE A: HTF trend filter ON by default. Trades like #075
+      // (USDJPY M5 LONG against the H1/H4 picture) are exactly what an
+      // HTF gate is meant to suppress. Operator-tunable via
+      // Inp_RRM_ORG_HtfFilter (default true) and Inp_UseHTF as a fallback.
+      cfg.UseHTF                    = Inp_RRM_ORG_HtfFilter || Inp_UseHTF;
+      cfg.HtfPeriod                 = (Inp_HtfPeriod != PERIOD_CURRENT) ? Inp_HtfPeriod
+                                    : ((_Period <= PERIOD_M5)  ? PERIOD_M30
+                                    :  (_Period <= PERIOD_M30) ? PERIOD_H1
+                                    :  (_Period <= PERIOD_H1)  ? PERIOD_H4
+                                    :                            PERIOD_D1);
+      cfg.P_HtfEma                  = (Inp_RRM_ORG_HtfEmaPeriod > 0)
+                                          ? Inp_RRM_ORG_HtfEmaPeriod
+                                          : (Inp_HtfEmaPeriod > 0 ? Inp_HtfEmaPeriod : 89);
+
       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
       cfg.AllowReEntryAfterBE       = true;
 
@@ -1389,18 +1449,33 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MaxSpreadRetryBars        = 3;
 
       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────────
-      // EmaFanMaxTotalPips=25.0 is an empirically chosen starting point for
-      // M1/M5 charts with the standard EMA5/13/34/89 fan. It represents the
-      // approximate fan width at which trend exhaustion typically begins on
-      // major FX pairs (e.g. EURUSD, GBPUSD). Adjust per instrument and TF:
-      //   M15/H1: consider 40–60 pips; H4+: 80–120 pips.
-      // JPY pairs: GlobalPipSize() returns the correct pip unit automatically.
-      cfg.EmaFanFilterEnabled       = false;
-      cfg.EmaFanMaxTotalPips        = 25.0;   // value retained for reference, filter is off
+      // PHASE A: turned ON with TF-scaled threshold. The previous setting
+      // (false / 25 pips) silently disabled the filter entirely. The 25-pip
+      // value is correct only for M1/M5; H4 and Daily fan widths in the
+      // dataset routinely exceed 80–150 pips on legitimate trends, so a
+      // single hardcoded threshold can't work across the TF range we see.
+      // The engine logic at SEA_SignalEngine.mqh:4754 only rejects when
+      // `gap_now > max && gap_now > gap_prev` (i.e. still expanding), so
+      // late-trend chases like #075 are blocked while fresh impulses pass.
+      // Operator-tunable via Inp_RRM_ORG_EmaFanFilter and Inp_RRM_ORG_EmaFan_*.
+      cfg.EmaFanFilterEnabled       = Inp_RRM_ORG_EmaFanFilter;
+      cfg.EmaFanMaxTotalPips        = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_EmaFan_M5Pips
+                                    : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_EmaFan_M30Pips
+                                    : (_Period <= PERIOD_H1)  ? Inp_RRM_ORG_EmaFan_H1Pips
+                                    : (_Period <= PERIOD_H4)  ? Inp_RRM_ORG_EmaFan_H4Pips
+                                    :                           Inp_RRM_ORG_EmaFan_DailyPips;
 
       // ── DPI DECELERATION FILTER ────────────────────────────────────────
-      // DPI voter is enabled in PRESET_RRM_ORG — decel filter is active.
-      cfg.DpiDecelFilterEnabled     = true;
+      // PHASE A: now actually active because Ind_Dpi_Enabled is true above.
+      // Operator-tunable via Inp_RRM_ORG_DpiDecelFilter.
+      cfg.DpiDecelFilterEnabled     = Inp_RRM_ORG_DpiDecelFilter;
+
+      // ── PHASE B: TE-side hardening (input-driven) ─────────────────────
+      cfg.TE_RecheckBarClose        = Inp_RRM_ORG_TE_RecheckBarClose;
+      cfg.TE_OpenDelaySeconds       = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_TE_OpenDelaySecsM5
+                                    : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_TE_OpenDelaySecsM30
+                                    :                           Inp_RRM_ORG_TE_OpenDelaySecsHi;
+      cfg.TE_SpreadMedianTicks      = Inp_RRM_ORG_TE_SpreadMedianTicks;
 
       return;
    }

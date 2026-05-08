@@ -1,0 +1,868 @@
+
+--- a/SEA_Config.mqh
++++ b/SEA_Config.mqh
+@@ -487,20 +487,20 @@
+    int      SwingLookback;       // Bars to look back for swing high/low (SL_MODE_SWING)
+ 
+    // === Fractal Settings (NEW: Phase 2.2) ===
+-   int      FractalPeriod;       // Fractal indicator period (default: 5)
+-   int      TPFractalOffset;     // How many fractals ahead for TP (default: 1)
+-   
+-   // Visual markers
+-   bool     ShowSwingMarkers;
+-   bool     ShowFractalMarkers;
+-   int      MarkerLookback;
+-   bool     ShowMarkerLabels;
+-   color    SwingHighColor;
+-   color    SwingLowColor;
+-   int      SwingMarkerSize;
+-   color    FractalHighColor;
+-   color    FractalLowColor;
+-   int      FractalMarkerSize;
++   int      FractalPeriod;       // Fractal indicator period (default: 5)
++   int      TPFractalOffset;     // How many fractals ahead for TP (default: 1)
++   
++   // Visual markers
++   bool     ShowSwingMarkers;
++   bool     ShowFractalMarkers;
++   int      MarkerLookback;
++   bool     ShowMarkerLabels;
++   color    SwingHighColor;
++   color    SwingLowColor;
++   int      SwingMarkerSize;
++   color    FractalHighColor;
++   color    FractalLowColor;
++   int      FractalMarkerSize;
+ 
+    // Advanced Trailing Settings
+    ETrailTrigger TrailTrigger;   // When to begin trailing (default: TRIGGER_IMMEDIATE)
+@@ -623,6 +623,11 @@
+    // DPI momentum deceleration filter — block TS=1 when directionally-aligned DPI histogram shrinks
+    // Only activates when DpiDecelFilterEnabled=true AND Ind_Dpi_Enabled=true.
+    bool   DpiDecelFilterEnabled;
++
++   // ── PHASE B: TE-side hardening (read by SEA_TradeExecutor::EvaluateTE) ──
++   bool   TE_RecheckBarClose;       // Re-confirm bar-close BC vs live bid at shift=0
++   int    TE_OpenDelaySeconds;      // Defer EvaluateTE() by N sec after new bar
++   int    TE_SpreadMedianTicks;     // Median spread over last N ticks (0=disabled)
+ };
+ 
+ // Global Configuration Instance
+@@ -973,6 +978,37 @@
+ input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price  = PRICE_TYPICAL; // DPI: CCI applied price
+ input bool        Inp_RRM_ORG_DPI_UseGreenHist      = false; // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
+ 
++input group "╔════════════════════════════════════════════════════════╗";
++input group "║   📐 RRM_ORG: Phase A Quality Gates (TS=1 / TE=1)";
++input group "╚════════════════════════════════════════════════════════╝";
++
++// ── TS-side gates (signal evaluation, shift=1) ────────────────────────────
++input bool   Inp_RRM_ORG_ForceDpiOn          = true;   // RRM_ORG: Force DPI voter ON (matches reference methodology)
++input bool   Inp_RRM_ORG_EmaFanFilter        = true;   // RRM_ORG: Block entry on overextended EMA fan
++input double Inp_RRM_ORG_EmaFan_M5Pips       = 25.0;   // RRM_ORG: Fan max pips on M1–M5
++input double Inp_RRM_ORG_EmaFan_M30Pips      = 40.0;   // RRM_ORG: Fan max pips on M6–M30
++input double Inp_RRM_ORG_EmaFan_H1Pips       = 60.0;   // RRM_ORG: Fan max pips on H1
++input double Inp_RRM_ORG_EmaFan_H4Pips       = 100.0;  // RRM_ORG: Fan max pips on H4
++input double Inp_RRM_ORG_EmaFan_DailyPips    = 180.0;  // RRM_ORG: Fan max pips on D1+
++input int    Inp_RRM_ORG_PhaseConfirmM5      = 1;      // RRM_ORG: MinPhaseConfirmBars on M1–M5
++input int    Inp_RRM_ORG_PhaseConfirmM30     = 2;      // RRM_ORG: MinPhaseConfirmBars on M6–M30
++input int    Inp_RRM_ORG_PhaseConfirmH1plus  = 3;      // RRM_ORG: MinPhaseConfirmBars on H1 and above
++input bool   Inp_RRM_ORG_RequireRecoveryIntraday = true;  // RRM_ORG: Require recovery momentum on M15-and-down
++input double Inp_RRM_ORG_JpyGateMultiplier   = 1.3;    // RRM_ORG: Recovery+EmaDiv gate scale for JPY pairs (1.0=disabled)
++input bool   Inp_RRM_ORG_HtfFilter           = true;   // RRM_ORG: Force HTF trend filter ON
++input int    Inp_RRM_ORG_HtfEmaPeriod        = 89;     // RRM_ORG: HTF EMA period (0=use Inp_HtfEmaPeriod)
++input bool   Inp_RRM_ORG_DpiDecelFilter      = true;   // RRM_ORG: Block entry on DPI histogram deceleration
++input bool   Inp_RRM_ORG_ForceDDProtection   = true;   // RRM_ORG: Force drawdown protection ON
++input int    Inp_RRM_ORG_DDMaxConsecLosses   = 4;      // RRM_ORG: Override max consecutive losses (0=use Inp_RRM_*)
++input double Inp_RRM_ORG_DDMaxDailyPct       = 2.0;    // RRM_ORG: Override max daily DD % (0=use Inp_RRM_*)
++
++// ── TE-side gates (execution evaluation, shift=0) ─────────────────────────
++input bool   Inp_RRM_ORG_TE_RecheckBarClose  = true;   // RRM_ORG: At TE, re-confirm shift=1 BC vs current bid
++input int    Inp_RRM_ORG_TE_OpenDelaySecsM5  = 10;     // RRM_ORG: Defer TE by N sec at new bar (M1–M5)
++input int    Inp_RRM_ORG_TE_OpenDelaySecsM30 = 5;      // RRM_ORG: Defer TE by N sec at new bar (M6–M30)
++input int    Inp_RRM_ORG_TE_OpenDelaySecsHi  = 0;      // RRM_ORG: Defer TE by N sec at new bar (H1+)
++input int    Inp_RRM_ORG_TE_SpreadMedianTicks = 8;     // RRM_ORG: Median spread over last N ticks (0=disabled)
++
+ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+ input group "    ⚠️  PRESETS OVERRIDES! (Step1-5)";
+ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+@@ -1177,27 +1213,27 @@
+ input int         Inp_SwingLookback          = 20;                // Swing lookback (bars; for SL_MODE_SWING)
+ input double      Inp_SLPercent              = 0.5;               // SL as % of entry
+ input group "╔════════════════════════════════════════════════════════╗";
+-input group "║   🛑 (SL) FRACTAL-SL: used with SL_FRACTAL & SL_PSAR_DOT";
+-input group "╚════════════════════════════════════════════════════════╝";
+-input int         Inp_FractalPeriod          = 5;                 // Fractal period for SL/TP
+-input int         Inp_TPFractalOffset        = 1;                 // Fractal offset for TP
+-input group "╔════════════════════════════════════════════════════════╗";
+-input group "║   🎨 VISUAL MARKERS: SL Level Visualization";
+-input group "╚════════════════════════════════════════════════════════╝";
+-input bool        Inp_ShowSwingMarkers       = true;              // Show Swing High/Low markers
+-input bool        Inp_ShowFractalMarkers     = true;              // Show Fractal SL markers
+-input int         Inp_MarkerLookback         = 50;                // Bars to show markers (0 = all history)
+-input bool        Inp_ShowMarkerLabels       = true;              // Show price labels on markers
+-input color       Inp_SwingHighColor         = clrCrimson;        // Swing High color
+-input color       Inp_SwingLowColor          = clrDodgerBlue;     // Swing Low color
+-input int         Inp_SwingMarkerSize        = 1;                 // Swing marker width (1-5) - tiny like built-in Fractals
+-input color       Inp_FractalHighColor       = clrOrangeRed;      // Fractal High color
+-input color       Inp_FractalLowColor        = clrLimeGreen;      // Fractal Low color
+-input int         Inp_FractalMarkerSize      = 1;                 // Fractal marker width (1-5) - tiny like built-in Fractals
+-// input group "--- SL Configuration Examples ---";
+-// input string   Inp_Ex1_Header             = "Example 1 - Simple Fixed SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_SL_FixedPips=20";
+-// input string   Inp_Ex2_Header             = "Example 2 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20";
+-// input string   Inp_Ex3_Header             = "Example 3 - Fractal SL:      Inp_SLMode=SL_MODE_FRACTAL, Inp_FractalPeriod=5, Inp_TPFractalOffset=1";
++input group "║   🛑 (SL) FRACTAL-SL: used with SL_FRACTAL & SL_PSAR_DOT";
++input group "╚════════════════════════════════════════════════════════╝";
++input int         Inp_FractalPeriod          = 5;                 // Fractal period for SL/TP
++input int         Inp_TPFractalOffset        = 1;                 // Fractal offset for TP
++input group "╔════════════════════════════════════════════════════════╗";
++input group "║   🎨 VISUAL MARKERS: SL Level Visualization";
++input group "╚════════════════════════════════════════════════════════╝";
++input bool        Inp_ShowSwingMarkers       = true;              // Show Swing High/Low markers
++input bool        Inp_ShowFractalMarkers     = true;              // Show Fractal SL markers
++input int         Inp_MarkerLookback         = 50;                // Bars to show markers (0 = all history)
++input bool        Inp_ShowMarkerLabels       = true;              // Show price labels on markers
++input color       Inp_SwingHighColor         = clrCrimson;        // Swing High color
++input color       Inp_SwingLowColor          = clrDodgerBlue;     // Swing Low color
++input int         Inp_SwingMarkerSize        = 1;                 // Swing marker width (1-5) - tiny like built-in Fractals
++input color       Inp_FractalHighColor       = clrOrangeRed;      // Fractal High color
++input color       Inp_FractalLowColor        = clrLimeGreen;      // Fractal Low color
++input int         Inp_FractalMarkerSize      = 1;                 // Fractal marker width (1-5) - tiny like built-in Fractals
++// input group "--- SL Configuration Examples ---";
++// input string   Inp_Ex1_Header             = "Example 1 - Simple Fixed SL: Inp_SLMode=SL_MODE_FIXED_PIPS, Inp_SL_FixedPips=20";
++// input string   Inp_Ex2_Header             = "Example 2 - Swing Structure: Inp_SLMode=SL_MODE_SWING, Inp_SwingLookback=20";
++// input string   Inp_Ex3_Header             = "Example 3 - Fractal SL:      Inp_SLMode=SL_MODE_FRACTAL, Inp_FractalPeriod=5, Inp_TPFractalOffset=1";
+ input group "╔════════════════════════════════════════════════════════╗";
+ input group "║   📈 (TS) TRAILING-STOP Settings";
+ input group "╚════════════════════════════════════════════════════════╝";
+@@ -1497,21 +1533,21 @@
+    Settings.FixedTPPips          = Inp_FixedTPPips;
+    Settings.SLPercent            = Inp_SLPercent;
+    Settings.RRRatio              = Inp_RRRatio;
+-   Settings.SwingLookback        = Inp_SwingLookback;
+-   Settings.FractalPeriod        = Inp_FractalPeriod;
+-   Settings.TPFractalOffset      = Inp_TPFractalOffset;
+-   Settings.ShowSwingMarkers     = Inp_ShowSwingMarkers;
+-   Settings.ShowFractalMarkers   = Inp_ShowFractalMarkers;
+-   Settings.MarkerLookback       = MathMax(0, Inp_MarkerLookback);
+-   Settings.ShowMarkerLabels     = Inp_ShowMarkerLabels;
+-   Settings.SwingHighColor       = Inp_SwingHighColor;
+-   Settings.SwingLowColor        = Inp_SwingLowColor;
+-   Settings.SwingMarkerSize      = MathMax(1, MathMin(5, Inp_SwingMarkerSize));
+-   Settings.FractalHighColor     = Inp_FractalHighColor;
+-   Settings.FractalLowColor      = Inp_FractalLowColor;
+-   Settings.FractalMarkerSize    = MathMax(1, MathMin(5, Inp_FractalMarkerSize));
+-
+-   Settings.TrailTrigger         = Inp_TrailTrigger;
++   Settings.SwingLookback        = Inp_SwingLookback;
++   Settings.FractalPeriod        = Inp_FractalPeriod;
++   Settings.TPFractalOffset      = Inp_TPFractalOffset;
++   Settings.ShowSwingMarkers     = Inp_ShowSwingMarkers;
++   Settings.ShowFractalMarkers   = Inp_ShowFractalMarkers;
++   Settings.MarkerLookback       = MathMax(0, Inp_MarkerLookback);
++   Settings.ShowMarkerLabels     = Inp_ShowMarkerLabels;
++   Settings.SwingHighColor       = Inp_SwingHighColor;
++   Settings.SwingLowColor        = Inp_SwingLowColor;
++   Settings.SwingMarkerSize      = MathMax(1, MathMin(5, Inp_SwingMarkerSize));
++   Settings.FractalHighColor     = Inp_FractalHighColor;
++   Settings.FractalLowColor      = Inp_FractalLowColor;
++   Settings.FractalMarkerSize    = MathMax(1, MathMin(5, Inp_FractalMarkerSize));
++
++   Settings.TrailTrigger         = Inp_TrailTrigger;
+    Settings.TrailDistancePips    = Inp_TrailDistancePips;
+    Settings.BEThresholdPips      = Inp_BEThresholdPips;
+    Settings.TrailProfitPercent   = Inp_TrailProfitPercent;
+@@ -1599,6 +1635,11 @@
+    // DPI momentum deceleration filter: disabled by default (presets override)
+    Settings.DpiDecelFilterEnabled = Inp_DpiDecelFilterEnabled;
+ 
++   // ── PHASE B: TE-side gate defaults (off; PRESET_RRM_ORG turns them on) ──
++   Settings.TE_RecheckBarClose    = false;
++   Settings.TE_OpenDelaySeconds   = 0;
++   Settings.TE_SpreadMedianTicks  = 0;
++
+    // === FINAL VALIDATION: BiasMode vs AutoStrat compatibility ===
+    if(Settings.BiasEnabled && !ValidateBiasStratCombo(Settings.BiasMode, Settings.AutoStrat))
+    {
+--- a/SEA_Presets.mqh
++++ b/SEA_Presets.mqh
+@@ -1156,6 +1156,17 @@
+       // LOCKED: DPI (inline MACD), PSAR, CandleBody, phase structure,
+       //         recovery gates, bar close mode.
+       // FLEXIBLE: MACD periods (via Zone 3D inputs), SL/TP/Trail modes.
++      //
++      // ── PHASE A QUALITY PATCH (TS=1 hardening, 2026-05) ──────────────
++      // Targets four failure modes seen in 100-trades reference set:
++      //   (B) EM→TM flicker entries → MinPhaseConfirmBars TF-scaled > 0
++      //   (C) Late-trend / overextended fan entries → EmaFanFilterEnabled
++      //       turned on with TF-scaled threshold (mirrors PRESET_RRM)
++      //   (C) DPI deceleration leaks → DPI voter forced ON (was opt-in,
++      //       which silently disabled the already-coded decel pre-filter)
++      //   (D) Tangled-ribbon false TM → MinPhaseConfirmBars + recovery
++      // Also fixes a duplicate-write bug on RequireRecoveryMomentum where
++      // line 1309 (now removed) was unconditionally overwriting line 1295.
+       // ================================================================
+ 
+       // ── SIGNAL ARCHITECTURE: locked ──────────────────────────────────
+@@ -1177,8 +1188,14 @@
+       cfg.P_Ema3                 = 34;
+       cfg.P_Ema4                 = 89;
+ 
+-      // ── DPI v31: opt-in voting indicator (user enables via Inp_Ind_Dpi_Enabled) ──
+-      cfg.Ind_Dpi_Enabled          = false;          // opt-in; user enables via Inp_Ind_Dpi_Enabled
++      // ── DPI v31: LOCKED ON in RRM_ORG (input-overridable via Inp_RRM_ORG_ForceDpiOn) ──
++      // PHASE A: was opt-in (false). The "ORG" suffix marks the original
++      // Russ Horn methodology, which uses DPI as the primary momentum
++      // voter — every entry shown in /100-trades/*.{jpg,png} has DPI in
++      // the subwindow. Forcing it on also activates the DPI deceleration
++      // pre-filter (line 4793 of SEA_SignalEngine.mqh) which was dead-code
++      // until now because that filter requires Ind_Dpi_Enabled=true.
++      cfg.Ind_Dpi_Enabled          = Inp_RRM_ORG_ForceDpiOn;
+       cfg.Ind_Dpi_Weight           = 1;
+       cfg.DPI_MACD_Fast            = Inp_RRM_ORG_MACD_Fast;              // default 8
+       cfg.DPI_MACD_Slow            = Inp_RRM_ORG_MACD_Slow;              // default 13
+@@ -1292,8 +1309,17 @@
+       cfg.EnableLayerDetection      = true;
+       cfg.BlockUnorderedPhase       = true;           // UNORDERED → block all trades
+       cfg.BlockEmergingPhase        = true;           // true: EM phase = no trades; TM phase = trades allowed
+-      cfg.RequireRecoveryMomentum = (_Period <= PERIOD_M5) ? true : false; 
+-      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 0;        // M1: No delay needed on M1
++
++      // PHASE A: TF-scaled phase-age confirmation. The previous setting
++      // (0 on every TF) lets a single bar that flickers into TM after UNO
++      // qualify as a setup — see trade #095 (EURJPY M5) and #075 (USDJPY
++      // M5) where the entry bar is the first/second TM bar after a
++      // tangled-ribbon zone and price reverses immediately. Requiring
++      // 1–3 bars of phase persistence kills these flickers cheaply.
++      // Operator-tunable via Inp_RRM_ORG_PhaseConfirm* (Phase B).
++      cfg.MinPhaseConfirmBars       = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_PhaseConfirmM5
++                                    : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_PhaseConfirmM30
++                                    :                           Inp_RRM_ORG_PhaseConfirmH1plus;
+ 
+       // EMERGING phase: WEAK + MEDIUM only; STRONG always blocked per RRM methodology
+       cfg.Emerging_AllowWeakTrades   = Inp_RRM_AllowWeak;
+@@ -1306,13 +1332,27 @@
+       cfg.Trending_AllowStrongTrades = Inp_RRM_AllowStrong;
+ 
+       // ── PULLBACK DETECTION GATES: LOCKED ON ──────────────────────────
+-      cfg.RequireRecoveryMomentum   = false;   // Wick-touch recovery valid on M1/M5
++      // PHASE A: require recovery momentum on M15-and-down. The original
++      // code set it true on M5 then immediately overwrote with `false` on
++      // a second line — duplicate-write bug. Wick-touch recoveries are
++      // the dominant noise mode on intraday, see trade #095.
++      // Operator-tunable via Inp_RRM_ORG_RequireRecoveryIntraday.
++      cfg.RequireRecoveryMomentum   = Inp_RRM_ORG_RequireRecoveryIntraday && (_Period <= PERIOD_M15);
++
+       cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
+-      cfg.Gate_Recovery.value       = 1.0;
++      // PHASE A: JPY pairs run ~1.3× the natural noise vs majors at the
++      // same TF. Loosen recovery distance proportionally so we don't chop
++      // out of legitimate setups (#001 USDJPY, #060 GBPJPY, #100 EURJPY).
++      // Operator-tunable via Inp_RRM_ORG_JpyGateMultiplier (1.0=disabled).
++      {
++         bool isJpyOrg = (StringFind(_Symbol, "JPY") >= 0);
++         double jpyMul = (Inp_RRM_ORG_JpyGateMultiplier > 0.0) ? Inp_RRM_ORG_JpyGateMultiplier : 1.0;
++         cfg.Gate_Recovery.value = isJpyOrg ? jpyMul : 1.0;
++         cfg.Gate_EmaDiv.value   = isJpyOrg ? jpyMul : 1.0;
++      }
+       cfg.RRM_Lookback              = (_Period <= PERIOD_M1) ? 15 : (_Period <= PERIOD_M5) ? 10 : 12;
+ 
+       cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
+-      cfg.Gate_EmaDiv.value         = 1.0;
+       cfg.RRM_MinDivPips            = 1.5;
+ 
+       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
+@@ -1354,10 +1394,16 @@
+       cfg.TPFractalOffset           = 1;
+ 
+       // ── DRAWDOWN PROTECTION ───────────────────────────────────────────
+-      cfg.RRM_EnableDrawdownProtection = Inp_RRM_EnableDrawdownProtection;
+-      cfg.RRM_MaxConsecutiveLosses  = Inp_RRM_MaxConsecutiveLosses;
++      // PHASE A: force-on for ORG (a "quality-first" preset). User can
++      // still tune the thresholds via Inp_RRM_ORG_DD* and Inp_RRM_Max* inputs.
++      cfg.RRM_EnableDrawdownProtection = Inp_RRM_ORG_ForceDDProtection || Inp_RRM_EnableDrawdownProtection;
++      cfg.RRM_MaxConsecutiveLosses  = (Inp_RRM_ORG_DDMaxConsecLosses > 0)
++                                          ? Inp_RRM_ORG_DDMaxConsecLosses
++                                          : (Inp_RRM_MaxConsecutiveLosses > 0 ? Inp_RRM_MaxConsecutiveLosses : 4);
+       cfg.RRM_MaxTradesPerDay       = Inp_RRM_MaxTradesPerDay;
+-      cfg.RRM_MaxDailyDrawdownPct   = Inp_RRM_MaxDailyDrawdownPct;
++      cfg.RRM_MaxDailyDrawdownPct   = (Inp_RRM_ORG_DDMaxDailyPct > 0.0)
++                                          ? Inp_RRM_ORG_DDMaxDailyPct
++                                          : (Inp_RRM_MaxDailyDrawdownPct > 0.0 ? Inp_RRM_MaxDailyDrawdownPct : 2.0);
+ 
+       // ── SLOPE CALCULATION ─────────────────────────────────────────────
+       cfg.SlopeLookbackBars         = 1;
+@@ -1379,6 +1425,20 @@
+       cfg.MinMarginLevel            = op_MinMarginLevel;
+       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
+ 
++      // PHASE A: HTF trend filter ON by default. Trades like #075
++      // (USDJPY M5 LONG against the H1/H4 picture) are exactly what an
++      // HTF gate is meant to suppress. Operator-tunable via
++      // Inp_RRM_ORG_HtfFilter (default true) and Inp_UseHTF as a fallback.
++      cfg.UseHTF                    = Inp_RRM_ORG_HtfFilter || Inp_UseHTF;
++      cfg.HtfPeriod                 = (Inp_HtfPeriod != PERIOD_CURRENT) ? Inp_HtfPeriod
++                                    : ((_Period <= PERIOD_M5)  ? PERIOD_M30
++                                    :  (_Period <= PERIOD_M30) ? PERIOD_H1
++                                    :  (_Period <= PERIOD_H1)  ? PERIOD_H4
++                                    :                            PERIOD_D1);
++      cfg.P_HtfEma                  = (Inp_RRM_ORG_HtfEmaPeriod > 0)
++                                          ? Inp_RRM_ORG_HtfEmaPeriod
++                                          : (Inp_HtfEmaPeriod > 0 ? Inp_HtfEmaPeriod : 89);
++
+       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
+       cfg.AllowReEntryAfterBE       = true;
+ 
+@@ -1389,18 +1449,33 @@
+       cfg.MaxSpreadRetryBars        = 3;
+ 
+       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────────
+-      // EmaFanMaxTotalPips=25.0 is an empirically chosen starting point for
+-      // M1/M5 charts with the standard EMA5/13/34/89 fan. It represents the
+-      // approximate fan width at which trend exhaustion typically begins on
+-      // major FX pairs (e.g. EURUSD, GBPUSD). Adjust per instrument and TF:
+-      //   M15/H1: consider 40–60 pips; H4+: 80–120 pips.
+-      // JPY pairs: GlobalPipSize() returns the correct pip unit automatically.
+-      cfg.EmaFanFilterEnabled       = false;
+-      cfg.EmaFanMaxTotalPips        = 25.0;   // value retained for reference, filter is off
++      // PHASE A: turned ON with TF-scaled threshold. The previous setting
++      // (false / 25 pips) silently disabled the filter entirely. The 25-pip
++      // value is correct only for M1/M5; H4 and Daily fan widths in the
++      // dataset routinely exceed 80–150 pips on legitimate trends, so a
++      // single hardcoded threshold can't work across the TF range we see.
++      // The engine logic at SEA_SignalEngine.mqh:4754 only rejects when
++      // `gap_now > max && gap_now > gap_prev` (i.e. still expanding), so
++      // late-trend chases like #075 are blocked while fresh impulses pass.
++      // Operator-tunable via Inp_RRM_ORG_EmaFanFilter and Inp_RRM_ORG_EmaFan_*.
++      cfg.EmaFanFilterEnabled       = Inp_RRM_ORG_EmaFanFilter;
++      cfg.EmaFanMaxTotalPips        = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_EmaFan_M5Pips
++                                    : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_EmaFan_M30Pips
++                                    : (_Period <= PERIOD_H1)  ? Inp_RRM_ORG_EmaFan_H1Pips
++                                    : (_Period <= PERIOD_H4)  ? Inp_RRM_ORG_EmaFan_H4Pips
++                                    :                           Inp_RRM_ORG_EmaFan_DailyPips;
+ 
+       // ── DPI DECELERATION FILTER ────────────────────────────────────────
+-      // DPI voter is enabled in PRESET_RRM_ORG — decel filter is active.
+-      cfg.DpiDecelFilterEnabled     = true;
++      // PHASE A: now actually active because Ind_Dpi_Enabled is true above.
++      // Operator-tunable via Inp_RRM_ORG_DpiDecelFilter.
++      cfg.DpiDecelFilterEnabled     = Inp_RRM_ORG_DpiDecelFilter;
++
++      // ── PHASE B: TE-side hardening (input-driven) ─────────────────────
++      cfg.TE_RecheckBarClose        = Inp_RRM_ORG_TE_RecheckBarClose;
++      cfg.TE_OpenDelaySeconds       = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_TE_OpenDelaySecsM5
++                                    : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_TE_OpenDelaySecsM30
++                                    :                           Inp_RRM_ORG_TE_OpenDelaySecsHi;
++      cfg.TE_SpreadMedianTicks      = Inp_RRM_ORG_TE_SpreadMedianTicks;
+ 
+       return;
+    }
+--- a/SEA_SignalEngine.mqh
++++ b/SEA_SignalEngine.mqh
+@@ -40,7 +40,7 @@
+ enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103002 = SEA_BUILD_TOKEN_103002 };
+ #endif
+ 
+-#define SEA_MOD_SIGNALENGINE_103002 1
++#define SEA_MOD_SIGNALENGINE_103003 1
+ 
+ 
+ #include <RRMS\SEA_Config.mqh>
+@@ -97,6 +97,17 @@
+    int passed_sma_converge, rejected_sma_converge;
+    int passed_dpi,          rejected_dpi;
+ 
++   // ── PHASE A.1: Pre-filter quality gates (TS=1 hardening) ──────────────
++   int passed_emafan,     rejected_emafan;     // EMA fan overextension
++   int passed_dpi_decel,  rejected_dpi_decel;  // DPI histogram deceleration
++   int passed_phase_age,  rejected_phase_age;  // MinPhaseConfirmBars not met
++   int passed_htf_align,  rejected_htf_align;  // HTF EMA slope disagrees with bias
++
++   // ── PHASE A.1: TE-side gates (incremented from SEA_TradeExecutor via AddTeStats) ──
++   int passed_te_open_delay,    rejected_te_open_delay;
++   int passed_te_bc_recheck,    rejected_te_bc_recheck;
++   int passed_te_spread_median, rejected_te_spread_median;
++
+    int signals_confirmed;
+ };
+ 
+@@ -415,6 +426,29 @@
+       return GetVal(handle, shift, buffer_num, out_valid);
+    }
+ 
++   // ── PHASE A.1 ─────────────────────────────────────────────────────────
++   // HTF bias from the higher-timeframe EMA (h_htf_ema must be valid).
++   // Returns +1 if HTF EMA is rising, -1 if falling, 0 if flat / no data.
++   // The "rising/falling" check uses a 3-bar lookback to filter noise.
++   // Required by the HTF_BLOCKED pre-filter in EvaluateTS.
++   int GetHtfBias()
++   {
++      if(h_htf_ema == INVALID_HANDLE) return 0;
++      double e0[];
++      ArraySetAsSeries(e0, true);
++      if(CopyBuffer(h_htf_ema, 0, 0, 3, e0) != 3) return 0;
++      // e0[0] = current bar; e0[2] = 2 bars ago
++      double diff = e0[0] - e0[2];
++      double pip  = GlobalPipSize(m_symbol);
++      if(pip <= 0.0) return 0;
++      // Require at least 0.5 pip of slope per bar to count as directional;
++      // below that, treat as flat / no signal.
++      double slope_pips_per_bar = (diff / pip) / 2.0;
++      if(slope_pips_per_bar >  0.5) return +1;
++      if(slope_pips_per_bar < -0.5) return -1;
++      return 0;
++   }
++
+    // Version 1: No error reporting (backward compatible)
+    bool GetBuf(int handle, int buf_idx, int shift, double &arr[]) {
+       int ignored_error = 0;
+@@ -2268,6 +2302,21 @@
+    // Return by value instead of reference
+    SRejectionStats GetStats() const { return m_stats; }
+ 
++   // ── PHASE A.1: aggregate TE-side counters into m_stats before reporting ─
++   // Called from SimpleEA OnDeinit() to bridge counters maintained on
++   // CTradeExecutor into the engine's m_stats so PrintEnhancedStatistics
++   // can include them in the per-gate breakdown.
++   void AddTeStats(int rej_open_delay, int rej_bc_recheck, int rej_spread_median,
++                   int pass_open_delay, int pass_bc_recheck, int pass_spread_median)
++   {
++      m_stats.rejected_te_open_delay     += rej_open_delay;
++      m_stats.rejected_te_bc_recheck     += rej_bc_recheck;
++      m_stats.rejected_te_spread_median  += rej_spread_median;
++      m_stats.passed_te_open_delay       += pass_open_delay;
++      m_stats.passed_te_bc_recheck       += pass_bc_recheck;
++      m_stats.passed_te_spread_median    += pass_spread_median;
++   }
++
+    // Returns the number of currently enabled indicator votes.
+    int CountEnabledIndicators() const
+    {
+@@ -2346,7 +2395,7 @@
+ 
+       // Build sortable array of reason/count pairs
+       struct SReason { string name; int count; double pct; };
+-      SReason reasons[27];
++      SReason reasons[34];   // PHASE A.1: was [27], +7 for new gates
+       int idx = 0;
+ 
+       reasons[idx].name = "Phase=UNORDERED";
+@@ -2441,6 +2490,35 @@
+       reasons[idx].count = m_stats.rejected_dpi;
+       reasons[idx++].pct = m_stats.rejected_dpi * 100.0 / m_stats.total_bars;
+ 
++      // ── PHASE A.1: new pre-filter gates ───────────────────────────────
++      reasons[idx].name = "EMA Overext";
++      reasons[idx].count = m_stats.rejected_emafan;
++      reasons[idx++].pct = m_stats.rejected_emafan * 100.0 / m_stats.total_bars;
++
++      reasons[idx].name = "DPI Decel";
++      reasons[idx].count = m_stats.rejected_dpi_decel;
++      reasons[idx++].pct = m_stats.rejected_dpi_decel * 100.0 / m_stats.total_bars;
++
++      reasons[idx].name = "Phase Age";
++      reasons[idx].count = m_stats.rejected_phase_age;
++      reasons[idx++].pct = m_stats.rejected_phase_age * 100.0 / m_stats.total_bars;
++
++      reasons[idx].name = "HTF Block";
++      reasons[idx].count = m_stats.rejected_htf_align;
++      reasons[idx++].pct = m_stats.rejected_htf_align * 100.0 / m_stats.total_bars;
++
++      reasons[idx].name = "TE Open Delay";
++      reasons[idx].count = m_stats.rejected_te_open_delay;
++      reasons[idx++].pct = m_stats.rejected_te_open_delay * 100.0 / m_stats.total_bars;
++
++      reasons[idx].name = "TE BC Stale";
++      reasons[idx].count = m_stats.rejected_te_bc_recheck;
++      reasons[idx++].pct = m_stats.rejected_te_bc_recheck * 100.0 / m_stats.total_bars;
++
++      reasons[idx].name = "TE Spread Median";
++      reasons[idx].count = m_stats.rejected_te_spread_median;
++      reasons[idx++].pct = m_stats.rejected_te_spread_median * 100.0 / m_stats.total_bars;
++
+       // Bubble sort descending by count
+       for(int i = 0; i < idx - 1; i++) {
+          for(int j = i + 1; j < idx; j++) {
+@@ -2497,6 +2575,65 @@
+       PrintFormat("Gates blocked: %d bars", m_stats.rejected_spread + m_stats.rejected_time + m_stats.rejected_news);
+       Print("");
+       Print("================================================================");
++      Print("1b. PRE-FILTER QUALITY GATES (Phase A.1 — TS=1 hardening)");
++      Print("================================================================");
++      PrintFormat("%-18s %-8s %7s %7s %7s   %s", "Gate", "Status", "Passed", "Failed", "Pass%", "Impact");
++      Print("----------------------------------------------------------------");
++      PrintGateStat("EMA Fan",
++                    m_settings.EmaFanFilterEnabled,
++                    m_stats.passed_emafan,
++                    m_stats.rejected_emafan,
++                    m_settings.EmaFanFilterEnabled
++                       ? StringFormat("%.1f pips max", m_settings.EmaFanMaxTotalPips)
++                       : "(disabled)");
++      PrintGateStat("DPI Decel",
++                    (m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled),
++                    m_stats.passed_dpi_decel,
++                    m_stats.rejected_dpi_decel,
++                    (m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
++                       ? "histogram shrinking"
++                       : (!m_settings.Ind_Dpi_Enabled ? "(DPI off)" : "(disabled)"));
++      PrintGateStat("Phase Age",
++                    (m_settings.MinPhaseConfirmBars > 0),
++                    m_stats.passed_phase_age,
++                    m_stats.rejected_phase_age,
++                    (m_settings.MinPhaseConfirmBars > 0)
++                       ? StringFormat(">=%d bars", m_settings.MinPhaseConfirmBars)
++                       : "(disabled)");
++      PrintGateStat("HTF Align",
++                    m_settings.UseHTF,
++                    m_stats.passed_htf_align,
++                    m_stats.rejected_htf_align,
++                    m_settings.UseHTF
++                       ? StringFormat("%s EMA%d slope", EnumToString(m_settings.HtfPeriod), m_settings.P_HtfEma)
++                       : "(disabled)");
++      PrintGateStat("TE Open Delay",
++                    (m_settings.TE_OpenDelaySeconds > 0),
++                    m_stats.passed_te_open_delay,
++                    m_stats.rejected_te_open_delay,
++                    (m_settings.TE_OpenDelaySeconds > 0)
++                       ? StringFormat("%d sec defer", m_settings.TE_OpenDelaySeconds)
++                       : "(disabled)");
++      PrintGateStat("TE BC Recheck",
++                    m_settings.TE_RecheckBarClose,
++                    m_stats.passed_te_bc_recheck,
++                    m_stats.rejected_te_bc_recheck,
++                    m_settings.TE_RecheckBarClose ? "shift=1 BC vs live" : "(disabled)");
++      PrintGateStat("TE Spread Med",
++                    (m_settings.TE_SpreadMedianTicks > 0),
++                    m_stats.passed_te_spread_median,
++                    m_stats.rejected_te_spread_median,
++                    (m_settings.TE_SpreadMedianTicks > 0)
++                       ? StringFormat("median over %d ticks", m_settings.TE_SpreadMedianTicks)
++                       : "(disabled)");
++      Print("----------------------------------------------------------------");
++      PrintFormat("Pre-filter blocks: %d bars (TS), %d (TE)",
++                  m_stats.rejected_emafan + m_stats.rejected_dpi_decel +
++                  m_stats.rejected_phase_age + m_stats.rejected_htf_align,
++                  m_stats.rejected_te_open_delay + m_stats.rejected_te_bc_recheck +
++                  m_stats.rejected_te_spread_median);
++      Print("");
++      Print("================================================================");
+       Print("2. BIAS & LAYER DETECTION");
+       Print("================================================================");
+       PrintFormat("%-20s %-8s %7s %7s %7s   %s", "Component", "Status", "Passed", "Failed", "Pass%", "Impact");
+@@ -4771,6 +4908,7 @@
+                               gap_now, m_settings.EmaFanMaxTotalPips, gap_prev);
+                m_diag_last_reason = "EMA_OVEREXT";
+                m_reject_filter++;
++               m_stats.rejected_emafan++;       // PHASE A.1
+                if(!full_eval) {
+                   m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+                   UpdateTelemetry(0);
+@@ -4814,6 +4952,7 @@
+                               mag_cur, mag_prev);
+                m_diag_last_reason = "DPI_DECEL";
+                m_reject_filter++;
++               m_stats.rejected_dpi_decel++;    // PHASE A.1
+                if(!full_eval) {
+                   m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+                   UpdateTelemetry(0);
+@@ -4827,6 +4966,75 @@
+          }
+       }
+ 
++      // ══════════════════════════════════════════════════════════════════
++      // PRE-FILTER (PHASE A.1): Phase-age confirmation
++      // Reject when MinPhaseConfirmBars > 0 and the current phase has not
++      // persisted for at least that many bars. Catches single-bar TM
++      // flickers (Pattern D in 100-trades analysis).
++      // ══════════════════════════════════════════════════════════════════
++      if(m_settings.MinPhaseConfirmBars > 0 &&
++         m_diag_phase_confirm_bars < m_settings.MinPhaseConfirmBars)
++      {
++         if(m_settings.DebugFlow)
++            PrintFormat("[TS_PREFILTER] PHASE_AGE: bars=%d < required=%d → TS=0",
++                        m_diag_phase_confirm_bars, m_settings.MinPhaseConfirmBars);
++         m_diag_last_reason = "PHASE_AGE";
++         m_reject_filter++;
++         m_stats.rejected_phase_age++;
++         if(!full_eval) {
++            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
++            UpdateTelemetry(0);
++            FlushOrClearDebugBuffer(0);
++            RestoreForcedDebug();
++            return 0;
++         }
++         if(m_eval_first_failure == "") m_eval_first_failure = "PHASE_AGE";
++         m_eval_any_failure = true;
++      }
++
++      // ══════════════════════════════════════════════════════════════════
++      // PRE-FILTER (PHASE A.1): HTF alignment
++      // Reject when UseHTF=true and the higher-timeframe EMA slope at
++      // shift=0 disagrees with entry bias. Catches Pattern C trades like
++      // #075 (USDJPY M5 LONG into the H1/H4 down-leg).
++      // ══════════════════════════════════════════════════════════════════
++      if(m_settings.UseHTF && h_htf_ema != INVALID_HANDLE)
++      {
++         int htf_bias = GetHtfBias();
++         if(htf_bias != 0 && htf_bias != B)
++         {
++            if(m_settings.DebugFlow)
++               PrintFormat("[TS_PREFILTER] HTF_BLOCKED: htf=%+d vs bias=%+d → TS=0",
++                           htf_bias, B);
++            m_diag_last_reason = "HTF_BLOCKED";
++            m_reject_filter++;
++            m_stats.rejected_htf_align++;
++            if(!full_eval) {
++               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
++               UpdateTelemetry(0);
++               FlushOrClearDebugBuffer(0);
++               RestoreForcedDebug();
++               return 0;
++            }
++            if(m_eval_first_failure == "") m_eval_first_failure = "HTF_BLOCKED";
++            m_eval_any_failure = true;
++         }
++         else if(htf_bias != 0)
++         {
++            m_stats.passed_htf_align++;
++         }
++      }
++
++      // ── PHASE A.1: Increment passed_* counters for active gates that survived ──
++      // We only increment when the gate was actually evaluated (enable flag on)
++      // so the Pass% column reflects accuracy among bars where the gate fired.
++      if(m_settings.EmaFanFilterEnabled && m_settings.EmaFanMaxTotalPips > 0.0)
++         m_stats.passed_emafan++;
++      if(m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
++         m_stats.passed_dpi_decel++;
++      if(m_settings.MinPhaseConfirmBars > 0)
++         m_stats.passed_phase_age++;
++
+       // ── L: Layer ─────────────────────────────────────────────────
+       int L = EvaluateL(v_shift, B);
+       if(L == 0 && !full_eval) {
+--- a/SEA_TradeExecutor.mqh
++++ b/SEA_TradeExecutor.mqh
+@@ -10,7 +10,7 @@
+ enum { __SEA_BUILD_TOKEN_MISSING_TRADEEXEC_103002 = SEA_BUILD_TOKEN_103002 };
+ #endif
+ 
+-#define SEA_MOD_TRADEEXEC_103002 1
++#define SEA_MOD_TRADEEXEC_103003 1
+ #define SEA_LARGE_LOT_EQUITY_BLOCK_USD 10000.0
+ #define SEA_LARGE_LOT_PER_EQUITY_BLOCK 10.0
+ #define SEA_MARGIN_LEVEL_UNLIMITED 999999.0
+@@ -53,6 +53,19 @@
+    double      m_cached_lots;  // Lots from m_cached_sl (EvaluateCM)
+    double      m_cached_risk;  // Risk % (EvaluateCM)
+    int         m_spread_block_bars;  // consecutive new-bar EvaluateTE calls blocked by VETO_SPREAD
++
++   // ── PHASE A.1: TE-side rejection counters (read by SEA_SignalEngine via AddTeStats) ──
++   int         m_te_rej_open_delay;
++   int         m_te_rej_bc_recheck;
++   int         m_te_rej_spread_median;
++   int         m_te_pass_open_delay;
++   int         m_te_pass_bc_recheck;
++   int         m_te_pass_spread_median;
++
++   // ── PHASE B: median-spread ring buffer for TE_SpreadMedianTicks gate ──
++   double      m_spread_history[32];   // sized for max plausible TE_SpreadMedianTicks
++   int         m_spread_history_count;
++   int         m_spread_history_idx;
+    
+    // Position excursion tracking
+    struct SPositionExcursion {
+@@ -877,11 +890,15 @@
+                        m_last_te_time(0), m_last_te_result(""), m_last_te_reason(""),
+                        m_cached_sl(0.0), m_cached_lots(0.0), m_cached_risk(0.0),
+                        m_spread_block_bars(0), m_rc_veto_reason(""),
++                       m_te_rej_open_delay(0), m_te_rej_bc_recheck(0), m_te_rej_spread_median(0),
++                       m_te_pass_open_delay(0), m_te_pass_bc_recheck(0), m_te_pass_spread_median(0),
++                       m_spread_history_count(0), m_spread_history_idx(0),
+                        m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE) // CACHED HANDLES
+    {
+       m_excursion.ticket = 0; m_excursion.entry_time = 0; m_excursion.entry_price = 0.0;
+       m_excursion.mae_pips = 0.0; m_excursion.mfe_pips = 0.0; m_excursion.current_pips = 0.0;
+       m_excursion.be_reached = false; m_excursion.trail_active = false; m_excursion.trail_type = "OFF";
++      ArrayInitialize(m_spread_history, 0.0);
+    }
+ 
+    ~CTradeExecutor() {
+@@ -897,6 +914,15 @@
+    string   LastVetoReason() const { return m_te_veto_reason; }
+    int      SpreadBlockBars() const { return m_spread_block_bars; }
+ 
++   // ── PHASE A.1: TE-side rejection counter getters ──────────────────
++   // Used by SimpleEA OnDeinit to bridge counters into Signal.AddTeStats()
++   int      RejOpenDelay()     const { return m_te_rej_open_delay;     }
++   int      RejBCRecheck()     const { return m_te_rej_bc_recheck;     }
++   int      RejSpreadMedian()  const { return m_te_rej_spread_median;  }
++   int      PassOpenDelay()    const { return m_te_pass_open_delay;    }
++   int      PassBCRecheck()    const { return m_te_pass_bc_recheck;    }
++   int      PassSpreadMedian() const { return m_te_pass_spread_median; }
++
+    // BUG FIX: Public wrapper so OrchestrateInit() can restore g_consecutive_losses from history
+    int GetConsecutiveLossesToday() { return CountConsecutiveLossesToday(); }
+ 
+@@ -1549,11 +1575,42 @@
+          double bid = SymbolInfoDouble(m_symbol, SYMBOL_BID);
+          int digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
+          double pip = (digits == 3 || digits == 5) ? _Point * 10.0 : _Point;
+-         double spread_pips = (ask - bid) / pip;
++         double spread_inst = (ask - bid) / pip;
++         double spread_pips = spread_inst;
++
++         // ── PHASE B: optional median-spread smoothing ───────────────
++         // When TE_SpreadMedianTicks > 0, replace the instant spread with
++         // the median of the last N ticks. Filters single-tick spikes at
++         // session boundaries while still rejecting sustained widening.
++         int N = m_settings.TE_SpreadMedianTicks;
++         if(N > 0 && N <= 32) {
++            m_spread_history[m_spread_history_idx % N] = spread_inst;
++            m_spread_history_idx++;
++            if(m_spread_history_count < N) m_spread_history_count++;
++            if(m_spread_history_count == N) {
++               // Insertion sort copy and pick median (N is small, this is cheap)
++               double tmp[32];
++               for(int i = 0; i < N; i++) tmp[i] = m_spread_history[i];
++               for(int i = 1; i < N; i++) {
++                  double key = tmp[i]; int j = i - 1;
++                  while(j >= 0 && tmp[j] > key) { tmp[j+1] = tmp[j]; j--; }
++                  tmp[j+1] = key;
++               }
++               spread_pips = (N % 2 == 1) ? tmp[N/2] : 0.5 * (tmp[N/2 - 1] + tmp[N/2]);
++            }
++         }
++
+          if(spread_pips > m_settings.MaxSpread)
+          {
+-            PrintFormat("[TE VETO] VETO_SPREAD | spread=%.1f pips > MaxSpread=%.1f pips", spread_pips, m_settings.MaxSpread);
+-            m_te_veto_reason = "VETO_SPREAD";
++            if(N > 0) {
++               PrintFormat("[TE VETO] VETO_SPREAD_MEDIAN | median=%.1f (inst=%.1f) > MaxSpread=%.1f pips",
++                           spread_pips, spread_inst, m_settings.MaxSpread);
++               m_te_veto_reason = "VETO_SPREAD_MEDIAN";
++               m_te_rej_spread_median++;
++            } else {
++               PrintFormat("[TE VETO] VETO_SPREAD | spread=%.1f pips > MaxSpread=%.1f pips", spread_pips, m_settings.MaxSpread);
++               m_te_veto_reason = "VETO_SPREAD";
++            }
+             return 0;
+          }
+       }
+@@ -1608,6 +1665,52 @@
+       PrintFormat("📋 [TE] %s | ref_price(barClose)=%.5f | live_price=%.5f | spread_offset=%.5f",
+                   m_symbol, ref_price, live_price, MathAbs(live_price - ref_price));
+ 
++      // ══════════════════════════════════════════════════════════════
++      // PHASE B GATE 1: Open-tick delay (TE_OpenDelaySeconds)
++      // Defer TE by N seconds after a new bar opens. Bid/ask spreads
++      // spike hardest at the bar boundary (esp. M1/M5 around session
++      // opens). Skipping TE in the first N seconds lets the spike
++      // resolve. No-op when TE_OpenDelaySeconds <= 0.
++      // ══════════════════════════════════════════════════════════════
++      if(m_settings.TE_OpenDelaySeconds > 0) {
++         datetime bar0_open = (datetime)SeriesInfoInteger(m_symbol, PERIOD_CURRENT, SERIES_LASTBAR_DATE);
++         long age_sec       = (long)(TimeCurrent() - bar0_open);
++         if(age_sec >= 0 && age_sec < m_settings.TE_OpenDelaySeconds) {
++            m_te_veto_reason = "VETO_OPEN_DELAY";
++            m_te_rej_open_delay++;
++            if(m_settings.DebugFlow)
++               PrintFormat("[TE] VETO_OPEN_DELAY: bar age=%d sec < %d sec required",
++                           (int)age_sec, m_settings.TE_OpenDelaySeconds);
++            return 0;
++         }
++      }
++
++      // ══════════════════════════════════════════════════════════════
++      // PHASE B GATE 2: Bar-close BC re-check (TE_RecheckBarClose)
++      // The TS=1 setup was confirmed at shift=1 close. By the time TE
++      // fires at shift=0, price may have gapped through the layer EMA
++      // in the wrong direction. Re-check that the last bar's close is
++      // still on the correct side of bid within a 2-pip noise tolerance.
++      // ══════════════════════════════════════════════════════════════
++      if(m_settings.TE_RecheckBarClose) {
++         double close1   = iClose(m_symbol, PERIOD_CURRENT, 1);
++         double bid_now  = SymbolInfoDouble(m_symbol, SYMBOL_BID);
++         double pip      = GlobalPipSize(m_symbol);
++         // Drift in pips against bias direction:
++         //   for LONG:  drift > 0  ⇒  bid is BELOW close1 (bad)
++         //   for SHORT: drift > 0  ⇒  bid is ABOVE close1 (bad)
++         double drift_pips = isBuy ? (close1 - bid_now) / pip : (bid_now - close1) / pip;
++         double max_drift_pips = 2.0;
++         if(pip > 0.0 && drift_pips > max_drift_pips) {
++            m_te_veto_reason = "VETO_BC_STALE";
++            m_te_rej_bc_recheck++;
++            if(m_settings.DebugFlow)
++               PrintFormat("[TE] VETO_BC_STALE: drift=%.1f pips > %.1f (close1=%.5f bid=%.5f)",
++                           drift_pips, max_drift_pips, close1, bid_now);
++            return 0;
++         }
++      }
++
+       // ── F: Filters (spread × session × news) ──
+       int F = EvaluateF(news_blocked_override);
+       if(F == 0) {
+@@ -1668,6 +1771,14 @@
+          m_last_te_result = "BLOCKED";
+          m_last_te_time   = iTime(m_symbol, PERIOD_CURRENT, 0);
+       }
++
++      // ── PHASE A.1: Increment passed_* counters for active TE gates that survived ──
++      if(result == 1) {
++         if(m_settings.TE_OpenDelaySeconds > 0)   m_te_pass_open_delay++;
++         if(m_settings.TE_RecheckBarClose)         m_te_pass_bc_recheck++;
++         if(m_settings.TE_SpreadMedianTicks > 0)   m_te_pass_spread_median++;
++      }
++
+       return result;
+    }
+ 
+--- a/SimpleEA_v1-03.mq5
++++ b/SimpleEA_v1-03.mq5
+@@ -9,10 +9,10 @@
+ #property strict
+ 
+ // --- Anti-stale build lock
+-#define SEA_BUILD_TOKEN_103002 1
++#define SEA_BUILD_TOKEN_103003 1
+ 
+-#define SEA_BUILD_NUM 103002
+-#define SEA_BUILD_STR "1.03.002"
++#define SEA_BUILD_NUM 103003
++#define SEA_BUILD_STR "1.03.003"
+ 
+ //+------------------------------------------------------------------+
+ //| FORWARD DECLARATIONS                                             |
+@@ -30,11 +30,11 @@
+ #include <RRMS\SEA_UI.mqh>
+ #include <RRMS\SEA_Reporting.mqh>
+ 
+-#ifndef SEA_MOD_SIGNALENGINE_103002
+-enum { __SEA_STALE_SEA_MOD_SIGNALENGINE_103002__ = SEA_MOD_SIGNALENGINE_103002 };
++#ifndef SEA_MOD_SIGNALENGINE_103003
++enum { __SEA_STALE_SEA_MOD_SIGNALENGINE_103003__ = SEA_MOD_SIGNALENGINE_103003 };
+ #endif
+-#ifndef SEA_MOD_TRADEEXEC_103002
+-enum { __SEA_STALE_SEA_MOD_TRADEEXEC_103002__ = SEA_MOD_TRADEEXEC_103002 };
++#ifndef SEA_MOD_TRADEEXEC_103003
++enum { __SEA_STALE_SEA_MOD_TRADEEXEC_103003__ = SEA_MOD_TRADEEXEC_103003 };
+ #endif
+ #ifndef SEA_MOD_UI_103002
+ enum { __SEA_STALE_SEA_MOD_UI_103002__ = SEA_MOD_UI_103002 };
+@@ -1208,6 +1208,15 @@
+ //+------------------------------------------------------------------+
+ void OrchestrateDeinit(const int reason)
+ {
++   // ── PHASE A.1: Bridge TE-side counters from Executor into Signal.m_stats
++   //              before reporting, so the new "1b. PRE-FILTER QUALITY GATES"
++   //              section shows correct TE Open Delay / BC Recheck / Spread
++   //              Median rejection counts. Must run BEFORE any Print* calls.
++   Signal.AddTeStats(
++      Executor.RejOpenDelay(),  Executor.RejBCRecheck(),  Executor.RejSpreadMedian(),
++      Executor.PassOpenDelay(), Executor.PassBCRecheck(), Executor.PassSpreadMedian()
++   );
++
+    Signal.PrintRejectionStatistics();
+    Signal.PrintEnhancedStatistics();
+    PrintSystemAnalysisReport();
