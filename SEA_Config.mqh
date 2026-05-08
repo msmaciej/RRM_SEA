@@ -352,20 +352,20 @@ struct ST_Settings
    // Per-indicator weights (1 = standard; only used in VOTE_MODE_THRESHOLD for weighted sum)
    // In VOTE_MODE_ALL, weights are ignored — all enabled indicators must simply agree.
    int Ind_Adx_Weight;
-   int Ind_Macd_Weight;
-   int Ind_Rsi_Weight;
-   int Ind_Cci_Weight;
-   int Ind_Mfi_Weight;
-   int Ind_Sto_Weight;
+   int Ind_Atr_Weight;
    int Ind_Bb_Weight;
+   int Ind_CandleBody_Weight;
+   int Ind_Cci_Weight;
+   int Ind_CI_Weight;
+   int Ind_Mfi_Weight;
+   int Ind_Macd_Weight;
    int Ind_Psar_Weight;
    int Ind_P123_Weight;
    int Ind_Ross_Weight;
-   int Ind_Atr_Weight;
-   int Ind_CandleBody_Weight;
-   int Ind_CI_Weight;
+   int Ind_Rsi_Weight;
+   int Ind_SmaConverge_Weight;  // Weight for VOTE_MODE_THRESHOLD
+   int Ind_Sto_Weight;
    int Ind_VRC_Weight;
-   int  Ind_SmaConverge_Weight;  // Weight for VOTE_MODE_THRESHOLD
 
    // Choppiness Index
    int    CI_Period;
@@ -906,6 +906,7 @@ input bool        Inp_RRM_Use_Adx            = false;          // RRM: ADX vote 
 input bool        Inp_RRM_Use_Bb             = false;          // RRM: Bollinger Bands vote enabled
 input bool        Inp_RRM_Use_CandleBody     = true;           // RRM: Candle body vote enabled
 input bool        Inp_RRM_Use_Cci            = false;          // RRM: CCI vote enabled
+input bool        Inp_RRM_Use_CI             = false;          // RRM: CI vote ranging market filter
 input bool        Inp_RRM_Use_Macd           = true;           // RRM: MACD vote enabled
 input bool        Inp_RRM_Use_Mfi            = false;          // RRM: MFI vote enabled
 input bool        Inp_RRM_Use_Psar           = true;           // RRM: PSAR vote enabled
@@ -921,6 +922,11 @@ input group "║   📐 RRM: CCI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input ECciMode    Inp_RRM_CciMode            = CCI_TREND_ZERO; // RRM CCI Mode
 input int         Inp_RRM_CciPeriod          = 14;             // RRM CCI Period
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM: CI Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_CiPeriod           = 14;             // RRM CI Period
+input double      Inp_RRM_CiRangingThreshold = 61.8;           // RRM CI Ranging Threshold
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: EMA Periods";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -979,7 +985,6 @@ input bool        Inp_RRM_ORG_DPI_UseGreenHist     = false;       // DPI: Enable
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Phase A Quality Gates (TS=1 / TE=1)";
 input group "╚════════════════════════════════════════════════════════╝";
-
 // ── TS-side gates (signal evaluation, shift=1) ────────────────────────────
 input bool        Inp_RRM_ORG_ForceDpiOn          = true;         // RRM_ORG: Force DPI voter ON (matches reference methodology)
 input bool        Inp_RRM_ORG_EmaFanFilter        = true;         // RRM_ORG: Block entry on overextended EMA fan

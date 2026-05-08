@@ -1183,10 +1183,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.VoteMode               = VOTE_MODE_ALL;
 
       // ── EMA PERIODS: locked to RRM standard ──────────────────────────
-      cfg.P_Ema1                 = 5;
-      cfg.P_Ema2                 = 13;
-      cfg.P_Ema3                 = 34;
-      cfg.P_Ema4                 = 89;
+      cfg.P_Ema1                 = Inp_RRM_Ema1Period;
+      cfg.P_Ema2                 = Inp_RRM_Ema2Period;
+      cfg.P_Ema3                 = Inp_RRM_Ema3Period;
+      cfg.P_Ema4                 = Inp_RRM_Ema4Period;
 
       // ── DPI v31: LOCKED ON in RRM_ORG (input-overridable via Inp_RRM_ORG_ForceDpiOn) ──
       // PHASE A: was opt-in (false). The "ORG" suffix marks the original
@@ -1214,11 +1214,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── PSAR: LOCKED ON (timing/direction confirmation) ───────────────
       cfg.Ind_Psar_Enabled          = true;
       cfg.Vote_AllowPsarFlip        = true;
-      cfg.P_PsarStep                = 0.05;
-      cfg.P_PsarMax                 = 0.5;
-      // Vote -1 = persistent: evaluate dot position on every bar, 
+      cfg.P_PsarStep                = Inp_RRM_PsarStep;
+      cfg.P_PsarMax                 = Inp_RRM_PsarMax;
+      // Vote -1 = persistent: evaluate dot position on every bar,
       // Vote 0,1,2,3...= allowable delay over N-candles
-      cfg.Vote_PsarFlipDelay        = -1;   
+      cfg.Vote_PsarFlipDelay        = -1;
 
       // ── CANDLE BODY ───────────────────────────────────────────────────
       cfg.Ind_CandleBody_Enabled    = Inp_Ind_CandleBody_Enabled;
@@ -1229,22 +1229,24 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // cfg.CandleBody_CheckBars      = (_Period <= PERIOD_M5) ? 3 : 5;
       cfg.CandleBody_RequireDirection  = Inp_Ind_CandleBody_RequireDirection;
       
-      // ── ALL OTHER INDICATORS: LOCKED OFF ─────────────────────────────
-      cfg.Ind_Adx_Enabled           = false;
-      cfg.Ind_Atr_Enabled           = false;
-      cfg.Ind_Bb_Enabled            = false;
-      cfg.Ind_CI_Enabled            = false;
-      cfg.Ind_VRC_Enabled           = false;
-      cfg.Ind_Cci_Enabled           = false;
-      cfg.Ind_Macd_Enabled          = false;
-      cfg.Ind_Mfi_Enabled           = false;
-      cfg.Ind_P123_Enabled          = false;
-      cfg.Ind_Ross_Enabled          = false;
-      cfg.Ind_Rsi_Enabled           = false;
-      cfg.Ind_Sto_Enabled           = false;
+      // ── INDICATOR TOGGLES: flexible via Inp_RRM_* ────────────────────
+      cfg.Ind_Adx_Enabled        = Inp_RRM_Use_Adx;
+      cfg.Ind_Atr_Enabled        = false;             // ATR VRC - Always off in RRM (not part of RRM methodology):
+      cfg.Ind_Bb_Enabled         = Inp_RRM_Use_Bb;
+      cfg.Ind_CandleBody_Enabled = Inp_RRM_Use_CandleBody;
+      cfg.Ind_Cci_Enabled        = Inp_RRM_Use_Cci;
+      cfg.Ind_CI_Enabled         = Inp_RRM_Use_CI;    // CI toggle for RRM
+      cfg.Ind_Macd_Enabled       = Inp_RRM_Use_Macd;
+      cfg.Ind_Mfi_Enabled        = Inp_RRM_Use_Mfi;
+      cfg.Ind_Psar_Enabled       = Inp_RRM_Use_Psar;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Ross_Enabled       = false;
+      cfg.Ind_Rsi_Enabled        = Inp_RRM_Use_Rsi;
+      cfg.Ind_Sto_Enabled        = Inp_RRM_Use_Stoch;
       cfg.Ind_SmaConverge_Enabled   = false;
       cfg.Ind_SmaConverge_Weight    = Inp_Ind_SmaConverge_Weight;
-
+      cfg.Ind_VRC_Enabled        = false;             // ← CI is now user-controlled, remove from this list
+      
       // ── ADX SETTINGS: safe defaults (disabled) ────────────────────────
       cfg.ADX_Mode                  = ADX_MODE_STATIC;
       cfg.P_Adx                     = 14;
@@ -1275,8 +1277,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CciMode                   = CCI_TREND_ZERO;
       cfg.P_Cci                     = 14;
 
-      cfg.RsiMode                   = RSI_TREND_ABOVE_50;
-      cfg.P_Rsi                     = 14;
+      // ── CI SETTINGS: flexible via Inp_RRM_* ──────────────────────────
+      cfg.CI_Period                 = Inp_RRM_CiPeriod;
+      cfg.CI_RangingThreshold       = Inp_RRM_CiRangingThreshold;
+
+      cfg.RsiMode                   = Inp_RRM_RsiMode;
+      cfg.P_Rsi                     = Inp_RRM_RsiPeriod;
       cfg.T_RsiOB                   = 70.0;
       cfg.T_RsiOS                   = 30.0;
 
@@ -1296,14 +1302,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.T_MfiOB                   = 80.0;
       cfg.T_MfiOS                   = 20.0;
 
-      // ── CI/VRC: safe defaults (disabled) ─────────────────────────────
-      cfg.CI_Period                 = 14;
-      cfg.CI_RangingThreshold       = 61.8;
-      cfg.Ind_CI_Weight             = 1;
+      cfg.Ind_VRC_Weight            = 1;
       cfg.VRC_ATR_Period            = 14;
       cfg.VRC_Lookback              = 100;
       cfg.VRC_LowThreshold          = 33.0;
-      cfg.Ind_VRC_Weight            = 1;
 
       // ── BAR CLOSE (bcX): LOCKED to layer-aware ───────────────────────
       cfg.BarClose_Mode             = BC_LAYER_AWARE;   // bcW=EMA1, bcM=EMA2, bcS=EMA3
