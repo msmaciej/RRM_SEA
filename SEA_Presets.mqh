@@ -1323,6 +1323,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // tangled-ribbon zone and price reverses immediately. Requiring
       // 1–3 bars of phase persistence kills these flickers cheaply.
       // Operator-tunable via Inp_RRM_ORG_PhaseConfirm* (Phase B).
+      cfg.RequireMinPhaseConfirm    = true;  // ✅ ENABLE COUNTER UPDATE
       cfg.MinPhaseConfirmBars       = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_PhaseConfirmM5
                                     : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_PhaseConfirmM30
                                     :                           Inp_RRM_ORG_PhaseConfirmH1plus;

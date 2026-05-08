@@ -988,9 +988,11 @@ input double      Inp_RRM_ORG_EmaFan_M30Pips      = 40.0;         // RRM_ORG: Fa
 input double      Inp_RRM_ORG_EmaFan_H1Pips       = 60.0;         // RRM_ORG: Fan max pips on H1
 input double      Inp_RRM_ORG_EmaFan_H4Pips       = 100.0;        // RRM_ORG: Fan max pips on H4
 input double      Inp_RRM_ORG_EmaFan_DailyPips    = 180.0;        // RRM_ORG: Fan max pips on D1+
+
 input int         Inp_RRM_ORG_PhaseConfirmM5      = 1;            // RRM_ORG: MinPhaseConfirmBars on M1–M5
 input int         Inp_RRM_ORG_PhaseConfirmM30     = 2;            // RRM_ORG: MinPhaseConfirmBars on M6–M30
 input int         Inp_RRM_ORG_PhaseConfirmH1plus  = 3;            // RRM_ORG: MinPhaseConfirmBars on H1 and above
+
 input bool        Inp_RRM_ORG_RequireRecoveryIntraday = true;     // RRM_ORG: Require recovery momentum on M15-and-down
 input double      Inp_RRM_ORG_JpyGateMultiplier   = 1.3;          // RRM_ORG: Recovery+EmaDiv gate scale for JPY pairs (1.0=disabled)
 input bool        Inp_RRM_ORG_HtfFilter           = true;         // RRM_ORG: Force HTF trend filter ON
