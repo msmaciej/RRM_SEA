@@ -1195,114 +1195,120 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // the subwindow. Forcing it on also activates the DPI deceleration
       // pre-filter (line 4793 of SEA_SignalEngine.mqh) which was dead-code
       // until now because that filter requires Ind_Dpi_Enabled=true.
-      cfg.Ind_Dpi_Enabled          = Inp_RRM_ORG_ForceDpiOn;
-      cfg.Ind_Dpi_Weight           = 1;
-      cfg.DPI_MACD_Fast            = Inp_RRM_ORG_MACD_Fast;              // default 8
-      cfg.DPI_MACD_Slow            = Inp_RRM_ORG_MACD_Slow;              // default 13
-      cfg.DPI_RedSignalType        = Inp_RRM_ORG_DPI_RedSignalType;      // default 3 (EMA13)
-      cfg.DPI_RedEMA_A             = Inp_RRM_ORG_DPI_RedEMA_A;           // default 5
-      cfg.DPI_RedEMA_B             = Inp_RRM_ORG_DPI_RedEMA_B;           // default 8
-      cfg.DPI_RedEMA_C             = Inp_RRM_ORG_DPI_RedEMA_C;           // default 13
-      cfg.DPI_RedEMA_D             = Inp_RRM_ORG_DPI_RedEMA_D;           // default 21
-      cfg.DPI_DoubleSmoothFirst    = Inp_RRM_ORG_DPI_DoubleSmoothFirst;  // default 5
-      cfg.DPI_DoubleSmoothSecond   = Inp_RRM_ORG_DPI_DoubleSmoothSecond; // default 8
-      cfg.DPI_UseCCIReset          = Inp_RRM_ORG_DPI_UseCCIReset;        // default true
-      cfg.DPI_CCI_Period           = Inp_RRM_ORG_DPI_CCI_Period;         // default 13
-      cfg.DPI_CCI_AppliedPrice     = (int)Inp_RRM_ORG_DPI_CCI_Price;     // default PRICE_TYPICAL
-      cfg.DPI_UseGreenHist         = Inp_RRM_ORG_DPI_UseGreenHist;       // default true
+      cfg.Ind_Dpi_Enabled           = Inp_RRM_ORG_ForceDpiOn;
+      cfg.Ind_Dpi_Weight            = Inp_Ind_Dpi_Weight;
+      cfg.DPI_MACD_Fast             = Inp_RRM_ORG_MACD_Fast;              // default 8
+      cfg.DPI_MACD_Slow             = Inp_RRM_ORG_MACD_Slow;              // default 13
+      cfg.DPI_RedSignalType         = Inp_RRM_ORG_DPI_RedSignalType;      // default 3 (EMA13)
+      cfg.DPI_RedEMA_A              = Inp_RRM_ORG_DPI_RedEMA_A;           // default 5
+      cfg.DPI_RedEMA_B              = Inp_RRM_ORG_DPI_RedEMA_B;           // default 8
+      cfg.DPI_RedEMA_C              = Inp_RRM_ORG_DPI_RedEMA_C;           // default 13
+      cfg.DPI_RedEMA_D              = Inp_RRM_ORG_DPI_RedEMA_D;           // default 21
+      cfg.DPI_DoubleSmoothFirst     = Inp_RRM_ORG_DPI_DoubleSmoothFirst;  // default 5
+      cfg.DPI_DoubleSmoothSecond    = Inp_RRM_ORG_DPI_DoubleSmoothSecond; // default 8
+      cfg.DPI_UseCCIReset           = Inp_RRM_ORG_DPI_UseCCIReset;        // default true
+      cfg.DPI_CCI_Period            = Inp_RRM_ORG_DPI_CCI_Period;         // default 13
+      cfg.DPI_CCI_AppliedPrice      = (int)Inp_RRM_ORG_DPI_CCI_Price;     // default PRICE_TYPICAL
+      cfg.DPI_UseGreenHist          = Inp_RRM_ORG_DPI_UseGreenHist;       // default true
 
       // ── PSAR: LOCKED ON (timing/direction confirmation) ───────────────
-      cfg.Ind_Psar_Enabled       = true;
-      cfg.P_PsarStep             = 0.05;
-      cfg.P_PsarMax              = 0.5;
-      cfg.Vote_AllowPsarFlip     = true;
-      cfg.Vote_PsarFlipDelay     = -1;   // Persistent: evaluate dot position on every bar
+      cfg.Ind_Psar_Enabled          = true;
+      cfg.Vote_AllowPsarFlip        = true;
+      cfg.P_PsarStep                = 0.05;
+      cfg.P_PsarMax                 = 0.5;
+      // Vote -1 = persistent: evaluate dot position on every bar, 
+      // Vote 0,1,2,3...= allowable delay over N-candles
+      cfg.Vote_PsarFlipDelay        = -1;   
 
       // ── CANDLE BODY ───────────────────────────────────────────────────
-      cfg.Ind_CandleBody_Enabled      = Inp_Ind_CandleBody_Enabled;
-      cfg.Ind_CandleBody_Weight       = 1;
-      cfg.CandleBody_AvgPeriod        = Inp_Ind_CandleBody_AvgPeriod;
-      cfg.CandleBody_MaxMult          = Inp_Ind_CandleBody_MaxMult;
-      cfg.CandleBody_CheckBars        = Inp_Ind_CandleBody_CheckBars;
-      // cfg.CandleBody_CheckBars   = (_Period <= PERIOD_M5) ? 3 : 5;
-      cfg.CandleBody_RequireDirection = Inp_Ind_CandleBody_RequireDirection;
+      cfg.Ind_CandleBody_Enabled    = Inp_Ind_CandleBody_Enabled;
+      cfg.Ind_CandleBody_Weight     = Inp_Ind_CandleBody_Weight;
+      cfg.CandleBody_AvgPeriod      = Inp_Ind_CandleBody_AvgPeriod;
+      cfg.CandleBody_MaxMult        = Inp_Ind_CandleBody_MaxMult;
+      cfg.CandleBody_CheckBars      = Inp_Ind_CandleBody_CheckBars;
+      // cfg.CandleBody_CheckBars      = (_Period <= PERIOD_M5) ? 3 : 5;
+      cfg.CandleBody_RequireDirection  = Inp_Ind_CandleBody_RequireDirection;
       
       // ── ALL OTHER INDICATORS: LOCKED OFF ─────────────────────────────
-      cfg.Ind_Adx_Enabled        = false;
-      cfg.Ind_Atr_Enabled        = false;
-      cfg.Ind_Bb_Enabled         = false;
-      cfg.Ind_CI_Enabled         = false;
-      cfg.Ind_VRC_Enabled        = false;
-      cfg.Ind_Cci_Enabled        = false;
-      cfg.Ind_Macd_Enabled       = false;
-      cfg.Ind_Mfi_Enabled        = false;
-      cfg.Ind_P123_Enabled       = false;
-      cfg.Ind_Ross_Enabled       = false;
-      cfg.Ind_Rsi_Enabled        = false;
-      cfg.Ind_Sto_Enabled        = false;
-      cfg.Ind_SmaConverge_Enabled = false;
-      cfg.Ind_SmaConverge_Weight  = 1;
+      cfg.Ind_Adx_Enabled           = false;
+      cfg.Ind_Atr_Enabled           = false;
+      cfg.Ind_Bb_Enabled            = false;
+      cfg.Ind_CI_Enabled            = false;
+      cfg.Ind_VRC_Enabled           = false;
+      cfg.Ind_Cci_Enabled           = false;
+      cfg.Ind_Macd_Enabled          = false;
+      cfg.Ind_Mfi_Enabled           = false;
+      cfg.Ind_P123_Enabled          = false;
+      cfg.Ind_Ross_Enabled          = false;
+      cfg.Ind_Rsi_Enabled           = false;
+      cfg.Ind_Sto_Enabled           = false;
+      cfg.Ind_SmaConverge_Enabled   = false;
+      cfg.Ind_SmaConverge_Weight    = Inp_Ind_SmaConverge_Weight;
 
       // ── ADX SETTINGS: safe defaults (disabled) ────────────────────────
-      cfg.P_Adx                  = 14;
-      cfg.T_Adx                  = 20.0;
-      cfg.ADX_Mode               = ADX_MODE_STATIC;
-      cfg.ADX_Percentile         = 50.0;
-      cfg.ADX_Lookback           = 100;
-      cfg.ADX_Threshold_Accumulation  = 12.0;
-      cfg.ADX_Threshold_Trending      = 25.0;
-      cfg.ADX_Threshold_Distribution  = 18.0;
+      cfg.ADX_Mode                  = ADX_MODE_STATIC;
+      cfg.P_Adx                     = 14;
+      cfg.T_Adx                     = 20.0;
+      cfg.ADX_Percentile            = 50.0;
+      cfg.ADX_Lookback              = 100;
+      cfg.ADX_Threshold_Accumulation   = 12.0;
+      cfg.ADX_Threshold_Trending       = 25.0;
+      cfg.ADX_Threshold_Distribution   = 18.0;
 
       // ── ATR SETTINGS: safe defaults (disabled) ────────────────────────
-      cfg.P_Atr                  = 14;
-      cfg.ATR_VoteMinPips        = 5.0;
-      cfg.ATR_VoteMaxPips        = 50.0;
+      cfg.P_Atr                     = 14;
+      cfg.ATR_VoteMinPips           = 5.0;
+      cfg.ATR_VoteMaxPips           = 50.0;
 
       // ── MACD SETTINGS: safe defaults (disabled) ───────────────────────
-      cfg.P_MacdFast             = 8;  // 12
-      cfg.P_MacdSlow             = 13; // 26
-      cfg.P_MacdSig              = 5;  //  9
-      cfg.MacdVoteMode           = MACD_HISTOGRAM;
-      cfg.MacdRequireSlope       = false;
-      cfg.MacdRequireDivergence  = false;
-      cfg.MacdRequireHook        = false;
-      cfg.MacdFreshBars          = 3;
-      cfg.MacdSlopeMin           = 0.00001;
+      cfg.MacdVoteMode              = MACD_HISTOGRAM;
+      cfg.MacdRequireSlope          = false;
+      cfg.MacdRequireDivergence     = false;
+      cfg.MacdRequireHook           = false;
+      cfg.P_MacdFast                = 8;  // 12
+      cfg.P_MacdSlow                = 13; // 26
+      cfg.P_MacdSig                 = 5;  //  9
+      cfg.MacdFreshBars             = 3;
+      cfg.MacdSlopeMin              = 0.00001;
 
       // ── CCI/RSI/STOCH/BB/MFI: safe defaults (all disabled) ───────────
-      cfg.P_Cci                  = 14;
-      cfg.CciMode                = CCI_TREND_ZERO;
-      cfg.P_Rsi                  = 14;
-      cfg.T_RsiOB                = 70.0;
-      cfg.T_RsiOS                = 30.0;
-      cfg.RsiMode                = RSI_TREND_ABOVE_50;
-      cfg.P_StoK                 = 5;
-      cfg.P_StoD                 = 3;
-      cfg.P_StoSlow              = 3;
-      cfg.T_StoOB                = 80.0;
-      cfg.T_StoOS                = 20.0;
-      cfg.StoMode                = STO_CROSS_SIGNAL;
-      cfg.P_Bb                   = 20;
-      cfg.P_BbDev                = 2.0;
-      cfg.BbMode                 = BB_TREND_FOLLOW;
-      cfg.P_Mfi                  = 14;
-      cfg.T_MfiOB                = 80.0;
-      cfg.T_MfiOS                = 20.0;
-      cfg.MfiMode                = MFI_ZONE_FILTER;
+      cfg.CciMode                   = CCI_TREND_ZERO;
+      cfg.P_Cci                     = 14;
+
+      cfg.RsiMode                   = RSI_TREND_ABOVE_50;
+      cfg.P_Rsi                     = 14;
+      cfg.T_RsiOB                   = 70.0;
+      cfg.T_RsiOS                   = 30.0;
+
+      cfg.StoMode                   = STO_CROSS_SIGNAL;
+      cfg.P_StoK                    = 5;
+      cfg.P_StoD                    = 3;
+      cfg.P_StoSlow                 = 3;
+      cfg.T_StoOB                   = 80.0;
+      cfg.T_StoOS                   = 20.0;
+
+      cfg.BbMode                    = BB_TREND_FOLLOW;
+      cfg.P_Bb                      = 20;
+      cfg.P_BbDev                   = 2.0;
+
+      cfg.MfiMode                   = MFI_ZONE_FILTER;
+      cfg.P_Mfi                     = 14;
+      cfg.T_MfiOB                   = 80.0;
+      cfg.T_MfiOS                   = 20.0;
 
       // ── CI/VRC: safe defaults (disabled) ─────────────────────────────
-      cfg.CI_Period              = 14;
-      cfg.CI_RangingThreshold    = 61.8;
-      cfg.Ind_CI_Weight          = 1;
-      cfg.VRC_ATR_Period         = 14;
-      cfg.VRC_Lookback           = 100;
-      cfg.VRC_LowThreshold       = 33.0;
-      cfg.Ind_VRC_Weight         = 1;
+      cfg.CI_Period                 = 14;
+      cfg.CI_RangingThreshold       = 61.8;
+      cfg.Ind_CI_Weight             = 1;
+      cfg.VRC_ATR_Period            = 14;
+      cfg.VRC_Lookback              = 100;
+      cfg.VRC_LowThreshold          = 33.0;
+      cfg.Ind_VRC_Weight            = 1;
 
       // ── BAR CLOSE (bcX): LOCKED to layer-aware ───────────────────────
-      cfg.BarClose_Enabled       = true;
-      cfg.BarClose_Mode          = BC_LAYER_AWARE;   // bcW=EMA1, bcM=EMA2, bcS=EMA3
-      cfg.BarClose_DefaultEMA    = ROLE_EMA1;
+      cfg.BarClose_Mode             = BC_LAYER_AWARE;   // bcW=EMA1, bcM=EMA2, bcS=EMA3
+      cfg.BarClose_DefaultEMA       = ROLE_EMA1;
+      cfg.BarClose_Enabled          = true;
 
       // ── PHASE DETECTION & LAYER FILTERING: LOCKED ON ─────────────────
       cfg.PhaseDetectionEnabled     = true;

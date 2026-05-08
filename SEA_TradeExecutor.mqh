@@ -6,7 +6,7 @@
 //+------------------------------------------------------------------+
 #property strict
 
-#ifndef SEA_BUILD_TOKEN_103002
+#ifndef SEA_BUILD_TOKEN_103003
 enum { __SEA_BUILD_TOKEN_MISSING_TRADEEXEC_103003 = SEA_BUILD_TOKEN_103003 };
 #endif
 
