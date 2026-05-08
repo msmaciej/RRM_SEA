@@ -895,12 +895,12 @@ private:
    //+------------------------------------------------------------------+
    // CalculateCI: Calculate Choppiness Index for given shift
    //+------------------------------------------------------------------+
-   // Formula: 100 * log10(Σ TR) / log10(Highest High - Lowest Low)
+   // Formula: 100 * log10(Σ TR) / log10(range)
    // Returns: CI value (0-100), where >61.8 indicates ranging market
    double CalculateCI(int shift)
    {
       int period = m_settings.CI_Period;
-
+   
       // Sum of True Ranges over period
       double sum_tr = 0.0;
       for(int i = shift; i < shift + period; i++)
@@ -908,30 +908,42 @@ private:
          double h = iHigh(m_symbol, PERIOD_CURRENT, i);
          double l = iLow(m_symbol, PERIOD_CURRENT, i);
          double c_prev = iClose(m_symbol, PERIOD_CURRENT, i + 1);
-
+   
          // True Range = max(H-L, |H-C_prev|, |L-C_prev|)
          double tr = MathMax(h - l, MathMax(MathAbs(h - c_prev), MathAbs(l - c_prev)));
          sum_tr += tr;
       }
-
+   
       // Highest high and lowest low over period
       int highest_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, period, shift);
       int lowest_idx  = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, period, shift);
       double highest  = iHigh(m_symbol, PERIOD_CURRENT, highest_idx);
       double lowest   = iLow(m_symbol, PERIOD_CURRENT, lowest_idx);
       double range    = highest - lowest;
-
-      // Avoid division by zero or log of zero (flat / zero-range market = max choppiness)
-      // 0.00001 is sub-pip level: any real price range will exceed this
-      if(range < 0.00001 || sum_tr <= 0.0) return 100.0;
-
-      // Calculate CI using the standard Choppiness Index formula:
-      //   CI = 100 * log10(sum_TR / range) / log10(n)
-      // where n = period, range = highest_high - lowest_low
-      // CI range: 0 (perfect trend) to 100 (maximum choppiness)
-      // Threshold 61.8 = ranging; below 38.2 = strongly trending
-      double ci = 100.0 * MathLog10(sum_tr / range) / MathLog10(period);
-
+   
+      // ══════════════════════════════════════════════════════════════════
+      // SAFETY: Reject invalid data BEFORE taking logarithms
+      // ══════════════════════════════════════════════════════════════════
+      const double min_value = 0.00001;  // 1 pip for 5-digit brokers
+      
+      // Zero or near-zero range = flat market = maximum choppiness
+      if(range < min_value) return 100.0;
+      
+      // Zero or negative sum_tr = invalid data = maximum choppiness
+      if(sum_tr < min_value) return 100.0;
+   
+      // ══════════════════════════════════════════════════════════════════
+      // CORRECTED Choppiness Index Formula (TradingView standard)
+      // ══════════════════════════════════════════════════════════════════
+      // CI = 100 * log10(sum_TR) / log10(range)
+      // Lower values (0-38.2) = strong trend
+      // Higher values (61.8-100) = choppy/ranging market
+      double ci = 100.0 * MathLog10(sum_tr) / MathLog10(range);
+      
+      // Clamp result to valid range [0, 100]
+      if(ci < 0.0) ci = 0.0;
+      if(ci > 100.0) ci = 100.0;
+   
       return ci;
    }
 
