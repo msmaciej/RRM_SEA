@@ -36,8 +36,8 @@
 #property strict
 
 // --- Anti-stale build lock (MQL5-safe: no #if, no #error)
-#ifndef SEA_BUILD_TOKEN_103002
-enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103002 = SEA_BUILD_TOKEN_103002 };
+#ifndef SEA_BUILD_TOKEN_103003
+enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103003 = SEA_BUILD_TOKEN_103003 };
 #endif
 
 #define SEA_MOD_SIGNALENGINE_103003 1

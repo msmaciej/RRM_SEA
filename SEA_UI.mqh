@@ -8,7 +8,7 @@
 
 #define SEA_UI_MAX_PANEL_LINES 75
 
-#define SEA_MOD_UI_103002 1
+#define SEA_MOD_UI_103003 1
 
 // -----------------------------------
 // Internal state (no static locals)
