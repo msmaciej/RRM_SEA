@@ -214,6 +214,14 @@ private:
    EDebugLevel  m_saved_debug_level;     // DebugLevel saved before forced override
    bool         m_saved_debug_flow;      // DebugFlow saved before forced override
 
+   // --- 2L. DPI HISTOGRAM STATE TRACKING ---
+   double   m_dpi_hist_values[10];       // Rolling buffer of last 10 histogram values
+   int      m_dpi_hist_buffer_size;      // Current number of values in buffer
+   double   m_dpi_hist_current;          // Current histogram value
+   int      m_dpi_hist_trend;            // +1 = green (bullish), -1 = red (bearish), 0 = flat
+   bool     m_dpi_hist_decelerating;     // True if momentum is decreasing
+   datetime m_dpi_hist_last_update;      // Last update timestamp
+
    // --- 2k. INDICATOR RESULT CACHE (eliminates duplicate checks per bar) ---
    struct SIndicatorCache {
       int    cached_shift;        // Bar shift that's cached (-1 = invalid)
@@ -858,6 +866,74 @@ private:
 
       double current_price = GetDPI_CCI_Price(v_shift, ap);
       return (current_price - sma) / (0.015 * mean_deviation);
+   }
+
+   //+------------------------------------------------------------------+
+   //| UpdateDPIHistogramState — Track DPI histogram momentum & trend   |
+   //|                                                                   |
+   //| Called once per bar in EvaluateTS() to update histogram state.   |
+   //| Calculates:                                                       |
+   //|   - Current histogram value (from ComputeDPI_CCI)                |
+   //|   - Trend direction (+1 green, -1 red, 0 flat)                   |
+   //|   - Deceleration (momentum decreasing over lookback period)      |
+   //|                                                                   |
+   //| Returns: void (updates internal state only)                      |
+   //+------------------------------------------------------------------+
+   void UpdateDPIHistogramState(const int v_shift)
+   {
+      if(!m_settings.DPI_HistTrackingEnabled) return;
+
+      datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+
+      // Update only once per bar
+      if(m_dpi_hist_last_update == bar_time) return;
+      m_dpi_hist_last_update = bar_time;
+
+      // Calculate current CCI value (histogram proxy)
+      double cci = ComputeDPI_CCI(v_shift);
+      m_dpi_hist_current = cci;
+
+      // Shift rolling buffer (newest at index 0)
+      for(int i = 9; i > 0; i--)
+         m_dpi_hist_values[i] = m_dpi_hist_values[i - 1];
+
+      m_dpi_hist_values[0] = cci;
+      if(m_dpi_hist_buffer_size < 10) m_dpi_hist_buffer_size++;
+
+      // Determine trend direction
+      if(cci > 0.0)      m_dpi_hist_trend = 1;   // Green (bullish)
+      else if(cci < 0.0) m_dpi_hist_trend = -1;  // Red (bearish)
+      else               m_dpi_hist_trend = 0;   // Flat
+
+      // Detect deceleration (momentum decreasing)
+      m_dpi_hist_decelerating = false;
+      if(m_dpi_hist_buffer_size >= m_settings.DPI_HistDecelLookback + 1)
+      {
+         bool is_decelerating = true;
+         for(int i = 1; i < m_settings.DPI_HistDecelLookback; i++)
+         {
+            double delta_current = MathAbs(m_dpi_hist_values[i - 1] - m_dpi_hist_values[i]);
+            double delta_prev    = MathAbs(m_dpi_hist_values[i] - m_dpi_hist_values[i + 1]);
+
+            // If any recent bar shows increasing momentum, not decelerating
+            if(delta_current >= delta_prev)
+            {
+               is_decelerating = false;
+               break;
+            }
+         }
+         m_dpi_hist_decelerating = is_decelerating;
+      }
+
+      // Debug logging
+      if(m_settings.DebugFlow)
+      {
+         DebugLog(StringFormat("[DPI_HIST] CCI=%.2f | Trend=%s | Decel=%s | Buffer=%d/%d",
+                               cci,
+                               (m_dpi_hist_trend == 1 ? "GREEN" : m_dpi_hist_trend == -1 ? "RED" : "FLAT"),
+                               m_dpi_hist_decelerating ? "YES" : "NO",
+                               m_dpi_hist_buffer_size, 10));
+      }
    }
 
    //+------------------------------------------------------------------+
@@ -2252,6 +2328,14 @@ public:
    EMarketPhase GetLastDetectedPhase() const { return m_diag_last_phase; }
    int          GetPhaseConfirmBars() const { return m_diag_phase_confirm_bars; }
 
+   //+------------------------------------------------------------------+
+   //| DPI Histogram Diagnostic Getters                                 |
+   //+------------------------------------------------------------------+
+   double GetDPIHistCurrent()      const { return m_dpi_hist_current; }
+   int    GetDPIHistTrend()        const { return m_dpi_hist_trend; }
+   bool   GetDPIHistDecelerating() const { return m_dpi_hist_decelerating; }
+   int    GetDPIHistBufferSize()   const { return m_dpi_hist_buffer_size; }
+
    // Returns true if the given entry layer is permitted in the given phase.
    // Requires PhaseDetectionEnabled AND EnableLayerDetection to activate filtering.
    //
@@ -3068,6 +3152,14 @@ public:
       m_adxHistorySize     = 0;
       m_cachedADXThreshold = (double)m_settings.T_Adx;
       m_lastADXCalculation = 0;
+
+      // Initialize DPI histogram tracking
+      ArrayInitialize(m_dpi_hist_values, 0.0);
+      m_dpi_hist_buffer_size = 0;
+      m_dpi_hist_current = 0.0;
+      m_dpi_hist_trend = 0;
+      m_dpi_hist_decelerating = false;
+      m_dpi_hist_last_update = 0;
 
       ENUM_MA_METHOD method = (m_settings.MaType == METHOD_SMA) ? MODE_SMA : MODE_EMA;
       int h_shift = m_settings.ma_h_shift;
@@ -4812,6 +4904,9 @@ public:
       ApplyForcedDebug(eval_bar_time);
       if(v_shift != m_ind_cache.cached_shift || eval_bar_time != m_ind_cache.cached_bar_time)
          InvalidateIndicatorCache(v_shift);
+
+      // Update DPI histogram state (once per bar)
+      UpdateDPIHistogramState(v_shift);
 
       if(m_settings.DebugFlow) {
          DebugLog("[DEBUG_TEST] EvaluateTS() CALLED");

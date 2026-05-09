@@ -268,6 +268,22 @@ DPI now participates in the TS equation `I` factor as a first-class voting indic
 
 The DPI vote is driven by **ribbon color** (yellow → Long, red → Short), with optional CCI-reset confirmation (`DPI_UseCCIReset`). The GREEN momentum overlay is **visualization only** and does **not** gate the vote. Enabling or disabling GREEN (`DPI_UseGreenHist`) affects only the standalone indicator's chart appearance; the EA vote condition is unchanged.
 
+### DPI Histogram Tracking
+
+**Purpose:** Monitor DPI indicator momentum for future entry/exit filtering.
+
+**Settings:**
+- `DPI_HistTrackingEnabled` (default: false) — Enable histogram state tracking
+- `DPI_HistMomentumThreshold` (default: 0.0001) — Minimum momentum threshold in pips
+- `DPI_HistDecelLookback` (default: 3) — Bars to analyze for deceleration detection
+
+**State Variables:**
+- `DPIHistCurrent` — Current CCI value (histogram proxy)
+- `DPIHistTrend` — Direction (+1 green, -1 red, 0 flat)
+- `DPIHistDecelerating` — True if momentum is decreasing
+
+**Note:** This adds state-tracking infrastructure only. Filtering logic is unchanged in this step.
+
 ### Standalone Indicators (Chart Visualization)
 
 The following files are at repo root for direct chart use and A/B comparison:
