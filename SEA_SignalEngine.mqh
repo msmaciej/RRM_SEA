@@ -41,6 +41,7 @@ enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103003 = SEA_BUILD_TOKEN_103003 };
 #endif
 
 #define SEA_MOD_SIGNALENGINE_103003 1
+#define SEA_LAYER_SLOPE_EPSILON 0.00000001
 
 
 #include <RRMS\SEA_Config.mqh>
@@ -100,6 +101,7 @@ struct SRejectionStats {
    // ── PHASE A.1: Pre-filter quality gates (TS=1 hardening) ──────────────
    int passed_emafan,     rejected_emafan;     // EMA fan overextension
    int passed_dpi_decel,  rejected_dpi_decel;  // DPI histogram deceleration
+   int exits_dpi_hist;                          // Trades closed by DPI histogram exit
    int passed_phase_age,  rejected_phase_age;  // MinPhaseConfirmBars not met
    int passed_htf_align,  rejected_htf_align;  // HTF EMA slope disagrees with bias
 
@@ -148,15 +150,23 @@ private:
    int          m_diag_phase_confirm_bars; // Number of consecutive bars in current phase
 
    // --- 2c. KISS LAYER DIAGNOSTICS ---
-   int         m_diag_layer_w;       // Last evaluated LayerW result (0/1)
-   int         m_diag_layer_m;       // Last evaluated LayerM result (0/1)
-   int         m_diag_layer_s;       // Last evaluated LayerS result (0/1)
-   int         m_last_layer;         // Active layer that won (1=Weak, 2=Medium, 3=Strong, 0=none)
+    int         m_diag_layer_w;       // Last evaluated LayerW result (0/1)
+    int         m_diag_layer_m;       // Last evaluated LayerM result (0/1)
+    int         m_diag_layer_s;       // Last evaluated LayerS result (0/1)
+    int         m_last_layer;         // Active layer that won (1=Weak, 2=Medium, 3=Strong, 0=none)
+    // --- 2c.1 LAYER PULLBACK-RECOVERY STATE ---
+    ELayerPullbackState m_layer_w_pb_state;   // LayerW pullback state
+    ELayerPullbackState m_layer_m_pb_state;   // LayerM pullback state
+    ELayerPullbackState m_layer_s_pb_state;   // LayerS pullback state
+    double              m_layer_w_baseline;   // LayerW baseline slope
+    double              m_layer_m_baseline;   // LayerM baseline slope
+    double              m_layer_s_baseline;   // LayerS baseline slope
+    datetime            m_layer_pb_last_update; // Last update timestamp
 
-   // --- 2d. REJECTION STATISTICS ---
-   int         m_bars_evaluated;     // Total bars evaluated by EvaluateTS()
-   int         m_signals_generated;  // Signals returned (TS != 0)
-   int         m_reject_filter;      // Rejections at pre-filter step (spread, time, news)
+    // --- 2d. REJECTION STATISTICS ---
+    int         m_bars_evaluated;     // Total bars evaluated by EvaluateTS()
+    int         m_signals_generated;  // Signals returned (TS != 0)
+    int         m_reject_filter;      // Rejections at pre-filter step (spread, time, news)
    int         m_reject_bias;        // Rejections at bias step (no trend, signal mismatch)
    int         m_reject_gate;        // Rejections at gate step (HTF, RRM, structure gates)
    int         m_reject_votes;       // Rejections at vote step
@@ -213,6 +223,16 @@ private:
    bool         m_forced_debug_active;   // True while a forced-debug bar is being evaluated
    EDebugLevel  m_saved_debug_level;     // DebugLevel saved before forced override
    bool         m_saved_debug_flow;      // DebugFlow saved before forced override
+
+   enum { DPI_HIST_BUFFER_CAPACITY = 10 };
+
+   // --- 2j.1 DPI HISTOGRAM STATE TRACKING ---
+   double   m_dpi_hist_values[DPI_HIST_BUFFER_CAPACITY]; // Rolling buffer of histogram values
+   int      m_dpi_hist_buffer_size;      // Current number of values in buffer
+   double   m_dpi_hist_current;          // Current histogram value
+   int      m_dpi_hist_trend;            // +1 = green (bullish), -1 = red (bearish), 0 = flat
+   bool     m_dpi_hist_decelerating;     // True if momentum is decreasing
+   datetime m_dpi_hist_last_update;      // Last update timestamp
 
    // --- 2k. INDICATOR RESULT CACHE (eliminates duplicate checks per bar) ---
    struct SIndicatorCache {
@@ -858,6 +878,181 @@ private:
 
       double current_price = GetDPI_CCI_Price(v_shift, ap);
       return (current_price - sma) / (0.015 * mean_deviation);
+   }
+
+   //+------------------------------------------------------------------+
+   //| UpdateDPIHistogramState — Track DPI histogram momentum & trend   |
+   //|                                                                   |
+   //| Called once per bar in EvaluateTS() to update histogram state.   |
+   //| Calculates:                                                       |
+   //|   - Current histogram value (from ComputeDPI_CCI)                |
+   //|   - Trend direction (+1 green, -1 red, 0 flat)                   |
+   //|   - Deceleration (momentum decreasing over lookback period)      |
+   //|                                                                   |
+   //| Returns: void (updates internal state only)                      |
+   //+------------------------------------------------------------------+
+   void UpdateDPIHistogramState(const int v_shift)
+   {
+      if(!m_settings.DPI_HistTrackingEnabled) return;
+
+      datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+
+      // Update only once per bar
+      if(m_dpi_hist_last_update == bar_time) return;
+      m_dpi_hist_last_update = bar_time;
+
+      // Calculate current CCI value (histogram proxy)
+      double cci = ComputeDPI_CCI(v_shift);
+      m_dpi_hist_current = cci;
+
+      // Shift rolling buffer (newest at index 0)
+      for(int i = DPI_HIST_BUFFER_CAPACITY - 1; i > 0; i--)
+         m_dpi_hist_values[i] = m_dpi_hist_values[i - 1];
+
+      m_dpi_hist_values[0] = cci;
+      if(m_dpi_hist_buffer_size < DPI_HIST_BUFFER_CAPACITY) m_dpi_hist_buffer_size++;
+
+      // Determine trend direction
+      if(cci > 0.0)      m_dpi_hist_trend = 1;   // Green (bullish)
+      else if(cci < 0.0) m_dpi_hist_trend = -1;  // Red (bearish)
+      else               m_dpi_hist_trend = 0;   // Flat
+
+      // Detect deceleration (momentum decreasing)
+      m_dpi_hist_decelerating = false;
+      int lookback_max = DPI_HIST_BUFFER_CAPACITY - 1;
+      int lookback = MathMax(1, MathMin(lookback_max, m_settings.DPI_HistDecelLookback));
+      if(m_dpi_hist_buffer_size >= lookback + 1)
+      {
+         double momentum_threshold = MathMax(0.0, m_settings.DPI_HistMomentumThreshold);
+         bool is_decelerating = true;
+         for(int i = 1; i < lookback; i++)
+         {
+            double delta_newer = MathAbs(m_dpi_hist_values[i - 1] - m_dpi_hist_values[i]);
+            double delta_older = MathAbs(m_dpi_hist_values[i] - m_dpi_hist_values[i + 1]);
+
+            // Ignore tiny momentum changes below configured threshold
+            if(delta_older < momentum_threshold)
+            {
+               is_decelerating = false;
+               break;
+            }
+
+            // If any recent bar shows increasing momentum, not decelerating
+            if(delta_newer + momentum_threshold >= delta_older)
+            {
+               is_decelerating = false;
+               break;
+            }
+         }
+         m_dpi_hist_decelerating = is_decelerating;
+      }
+
+      // Debug logging
+      if(m_settings.DebugFlow)
+      {
+         DebugLog(StringFormat("[DPI_HIST] CCI=%.2f | Trend=%s | Decel=%s | Buffer=%d/%d",
+                               cci,
+                               (m_dpi_hist_trend == 1 ? "GREEN" : m_dpi_hist_trend == -1 ? "RED" : "FLAT"),
+                               m_dpi_hist_decelerating ? "YES" : "NO",
+                               m_dpi_hist_buffer_size, DPI_HIST_BUFFER_CAPACITY));
+      }
+   }
+
+   //+------------------------------------------------------------------+
+   //| CalculateSlopeRatio — Ratio-based slope analysis                 |
+   //+------------------------------------------------------------------+
+   double CalculateSlopeRatio(int ema_handle, int shift, int lookback, double &out_baseline)
+   {
+      out_baseline = 0.0;
+      if(ema_handle == INVALID_HANDLE || lookback < 1)
+         return 0.0;
+
+      double ema_now  = GetMAVal(ema_handle, shift);
+      double ema_then = GetMAVal(ema_handle, shift + lookback);
+      double ema_prev = GetMAVal(ema_handle, shift + 1);
+
+      if(ema_now == EMPTY_VALUE || ema_then == EMPTY_VALUE || ema_prev == EMPTY_VALUE)
+         return 0.0;
+
+      double baseline_slope = (ema_now - ema_then) / (double)lookback;
+      out_baseline = baseline_slope;
+
+      double current_change = ema_now - ema_prev;
+      if(MathAbs(baseline_slope) < SEA_LAYER_SLOPE_EPSILON)
+         return 0.0;
+
+      return current_change / baseline_slope;
+   }
+
+   //+------------------------------------------------------------------+
+   //| UpdateSingleLayerPullback — State machine for one layer          |
+   //+------------------------------------------------------------------+
+   void UpdateSingleLayerPullback(int fast_ema_handle, int v_shift, int lookback,
+                                  ELayerPullbackState &state, double &baseline, string label)
+   {
+      double baseline_slope = 0.0;
+      double ratio = CalculateSlopeRatio(fast_ema_handle, v_shift, lookback, baseline_slope);
+      baseline = baseline_slope;
+      bool baseline_bullish = (baseline_slope > 0.0);
+      bool current_bullish  = (ratio > 0.0);
+
+      // Keep the thresholds separate because users can tune them independently.
+      // If they overlap, either threshold can trigger the pullback state.
+      bool is_weakened = (MathAbs(ratio) < m_settings.LayerPullbackRatio);
+      bool is_flat     = (MathAbs(ratio) < m_settings.LayerFlatRatio);
+      bool is_pullback = (is_weakened || is_flat);
+      if(m_settings.LayerAllowReversalPullback)
+      {
+         if(baseline_bullish != current_bullish)
+            is_pullback = true;
+      }
+
+      bool is_recovery = false;
+      if(state == LAYER_PB_DETECTED)
+      {
+         if(baseline_bullish == current_bullish &&
+            MathAbs(ratio) >= m_settings.LayerRecoveryRatio)
+            is_recovery = true;
+      }
+
+      ELayerPullbackState prev_state = state;
+      if(state == LAYER_PB_NONE && is_pullback)
+         state = LAYER_PB_DETECTED;
+      else if(state == LAYER_PB_DETECTED && is_recovery)
+         state = LAYER_PB_RECOVERED;
+      else if(state == LAYER_PB_RECOVERED && is_pullback)
+         state = LAYER_PB_DETECTED;
+
+      if(m_settings.DebugFlow && state != prev_state)
+      {
+         DebugLog(StringFormat("[%s_PB] State: %s -> %s | Ratio=%.2f | Baseline=%.5f",
+                               label,
+                               EnumToString(prev_state),
+                               EnumToString(state),
+                               ratio,
+                               baseline_slope));
+      }
+   }
+
+   //+------------------------------------------------------------------+
+   //| UpdateLayerPullbackStates — Update pullback state for all layers |
+   //+------------------------------------------------------------------+
+   void UpdateLayerPullbackStates(int v_shift)
+   {
+      if(!m_settings.LayerPullbackEnabled) return;
+
+      datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+      if(m_layer_pb_last_update == bar_time) return;
+      m_layer_pb_last_update = bar_time;
+
+      int lookback = m_settings.LayerBaselineLookback;
+
+      UpdateSingleLayerPullback(h_ema1, v_shift, lookback,
+                                m_layer_w_pb_state, m_layer_w_baseline, "LayerW");
+      UpdateSingleLayerPullback(h_ema2, v_shift, lookback,
+                                m_layer_m_pb_state, m_layer_m_baseline, "LayerM");
+      UpdateSingleLayerPullback(h_ema3, v_shift, lookback,
+                                m_layer_s_pb_state, m_layer_s_baseline, "LayerS");
    }
 
    //+------------------------------------------------------------------+
@@ -1970,11 +2165,13 @@ private:
    int CheckLayerPairAlign(int bias, int layer_type)
    {
       int h_fast = INVALID_HANDLE, h_slow = INVALID_HANDLE;
+      ELayerPullbackState current_state = LAYER_PB_NONE;
+      string layer_label = "";
       switch(layer_type)
       {
-         case 1: h_fast = h_ema1; h_slow = h_ema2; break;
-         case 2: h_fast = h_ema2; h_slow = h_ema3; break;
-         case 3: h_fast = h_ema3; h_slow = h_ema4; break;
+         case 1: h_fast = h_ema1; h_slow = h_ema2; current_state = m_layer_w_pb_state; layer_label = "LayerW"; break;
+         case 2: h_fast = h_ema2; h_slow = h_ema3; current_state = m_layer_m_pb_state; layer_label = "LayerM"; break;
+         case 3: h_fast = h_ema3; h_slow = h_ema4; current_state = m_layer_s_pb_state; layer_label = "LayerS"; break;
          default: return 0;
       }
 
@@ -2028,7 +2225,19 @@ private:
       bool slope_slow_aligned = (bias == 1)  ? (ema_slow > ema_slow_prev) :
                                 (bias == -1) ? (ema_slow < ema_slow_prev) : false;
 
-      bool result = (slope_fast_aligned && slope_slow_aligned);
+      int base_result = (slope_fast_aligned && slope_slow_aligned) ? 1 : 0;
+
+      if(m_settings.LayerPullbackEnabled && base_result == 1)
+      {
+         // NONE and DETECTED stay blocked until a recovery has been observed.
+         if(current_state != LAYER_PB_RECOVERED)
+         {
+            if(m_settings.DebugFlow)
+               DebugLog(StringFormat("[%s] BLOCKED by pullback gate | State=%s (need RECOVERED)",
+                                     layer_label, EnumToString(current_state)));
+            return 0;
+         }
+      }
 
       if(m_settings.DebugFlow)
       {
@@ -2039,11 +2248,11 @@ private:
                      ema_fast, ema_fast_prev, slope_fast_aligned ? "OK" : "FAIL",
                      ema_slow, ema_slow_prev, slope_slow_aligned ? "OK" : "FAIL",
                      position_aligned ? "OK" : "FAIL",
-                     result ? "OK" : "FAIL",
-                     result ? "PASS" : "REJECT");
+                     (base_result == 1) ? "OK" : "FAIL",
+                     (base_result == 1) ? "PASS" : "REJECT");
       }
 
-      return result ? 1 : 0;
+      return base_result;
    }
 
    //==========================================================================
@@ -2252,6 +2461,24 @@ public:
    EMarketPhase GetLastDetectedPhase() const { return m_diag_last_phase; }
    int          GetPhaseConfirmBars() const { return m_diag_phase_confirm_bars; }
 
+   //+------------------------------------------------------------------+
+   //| DPI Histogram Diagnostic Getters                                 |
+   //+------------------------------------------------------------------+
+   double GetDPIHistCurrent()      const { return m_dpi_hist_current; }
+   int    GetDPIHistTrend()        const { return m_dpi_hist_trend; }
+   bool   GetDPIHistDecelerating() const { return m_dpi_hist_decelerating; }
+   int    GetDPIHistBufferSize()   const { return m_dpi_hist_buffer_size; }
+
+   //+------------------------------------------------------------------+
+   //| Layer Pullback-Recovery Diagnostic Getters                       |
+   //+------------------------------------------------------------------+
+   ELayerPullbackState GetLayerWPullbackState() const { return m_layer_w_pb_state; }
+   ELayerPullbackState GetLayerMPullbackState() const { return m_layer_m_pb_state; }
+   ELayerPullbackState GetLayerSPullbackState() const { return m_layer_s_pb_state; }
+   double              GetLayerWBaseline()      const { return m_layer_w_baseline; }
+   double              GetLayerMBaseline()      const { return m_layer_m_baseline; }
+   double              GetLayerSBaseline()      const { return m_layer_s_baseline; }
+
    // Returns true if the given entry layer is permitted in the given phase.
    // Requires PhaseDetectionEnabled AND EnableLayerDetection to activate filtering.
    //
@@ -2327,6 +2554,12 @@ public:
       m_stats.passed_te_open_delay       += pass_open_delay;
       m_stats.passed_te_bc_recheck       += pass_bc_recheck;
       m_stats.passed_te_spread_median    += pass_spread_median;
+   }
+
+   // Bridge DPI histogram exit counter from CTradeExecutor into session stats.
+   void AddDPIExitStats(int exits_dpi_hist)
+   {
+      m_stats.exits_dpi_hist += exits_dpi_hist;
    }
 
    // Returns the number of currently enabled indicator votes.
@@ -2605,6 +2838,13 @@ public:
                     (m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
                        ? "histogram shrinking"
                        : (!m_settings.Ind_Dpi_Enabled ? "(DPI off)" : "(disabled)"));
+      PrintGateStat("DPI Blk Decel",
+                    (m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled),
+                    m_stats.passed_dpi_decel,
+                    m_stats.rejected_dpi_decel,
+                    (m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled)
+                       ? "momentum decelerating"
+                       : "(disabled)");
       PrintGateStat("Phase Age",
                     (m_settings.MinPhaseConfirmBars > 0),
                     m_stats.passed_phase_age,
@@ -2639,11 +2879,12 @@ public:
                        ? StringFormat("median over %d ticks", m_settings.TE_SpreadMedianTicks)
                        : "(disabled)");
       Print("----------------------------------------------------------------");
-      PrintFormat("Pre-filter blocks: %d bars (TS), %d (TE)",
+      PrintFormat("Pre-filter blocks: %d bars (TS), %d (TE), %d exits (DPI Hist)",
                   m_stats.rejected_emafan + m_stats.rejected_dpi_decel +
                   m_stats.rejected_phase_age + m_stats.rejected_htf_align,
                   m_stats.rejected_te_open_delay + m_stats.rejected_te_bc_recheck +
-                  m_stats.rejected_te_spread_median);
+                  m_stats.rejected_te_spread_median,
+                  m_stats.exits_dpi_hist);
       Print("");
       Print("================================================================");
       Print("2. BIAS & LAYER DETECTION");
@@ -3068,6 +3309,21 @@ public:
       m_adxHistorySize     = 0;
       m_cachedADXThreshold = (double)m_settings.T_Adx;
       m_lastADXCalculation = 0;
+
+      // Initialize DPI histogram tracking
+      ArrayInitialize(m_dpi_hist_values, 0.0);
+      m_dpi_hist_buffer_size = 0;
+      m_dpi_hist_current = 0.0;
+      m_dpi_hist_trend = 0;
+      m_dpi_hist_decelerating = false;
+      m_dpi_hist_last_update = 0;
+      m_layer_w_pb_state = LAYER_PB_NONE;
+      m_layer_m_pb_state = LAYER_PB_NONE;
+      m_layer_s_pb_state = LAYER_PB_NONE;
+      m_layer_w_baseline = 0.0;
+      m_layer_m_baseline = 0.0;
+      m_layer_s_baseline = 0.0;
+      m_layer_pb_last_update = 0;
 
       ENUM_MA_METHOD method = (m_settings.MaType == METHOD_SMA) ? MODE_SMA : MODE_EMA;
       int h_shift = m_settings.ma_h_shift;
@@ -4813,6 +5069,9 @@ public:
       if(v_shift != m_ind_cache.cached_shift || eval_bar_time != m_ind_cache.cached_bar_time)
          InvalidateIndicatorCache(v_shift);
 
+      // Update DPI histogram state (once per bar)
+      UpdateDPIHistogramState(v_shift);
+
       if(m_settings.DebugFlow) {
          DebugLog("[DEBUG_TEST] EvaluateTS() CALLED");
          DebugLog(StringFormat("[DEBUG_TEST] m_settings.DebugFlow = %s", m_settings.DebugFlow ? "TRUE" : "FALSE"));
@@ -4979,6 +5238,34 @@ public:
       }
 
       // ══════════════════════════════════════════════════════════════════
+      // PRE-FILTER (PHASE A.1): DPI Histogram Deceleration (PR #3)
+      // Uses m_dpi_hist_decelerating from UpdateDPIHistogramState() (PR #1).
+      // Rejects entries when momentum is decelerating (approaching exhaustion).
+      // ══════════════════════════════════════════════════════════════════
+      if(m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled)
+      {
+         if(m_dpi_hist_decelerating)
+         {
+            if(m_settings.DebugFlow)
+               DebugLog(StringFormat("[FILTER_DPI_DECEL] REJECT | DPI histogram decelerating (approaching exhaustion) | CCI=%.2f | Trend=%s",
+                                     m_dpi_hist_current,
+                                     (m_dpi_hist_trend == 1 ? "GREEN" : m_dpi_hist_trend == -1 ? "RED" : "FLAT")));
+            m_diag_last_reason = "DPI_DECEL";
+            m_reject_filter++;
+            m_stats.rejected_dpi_decel++;
+            if(!full_eval) {
+               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+               UpdateTelemetry(0);
+               FlushOrClearDebugBuffer(0);
+               RestoreForcedDebug();
+               return 0;
+            }
+            if(m_eval_first_failure == "") m_eval_first_failure = "DPI_DECEL";
+            m_eval_any_failure = true;
+         }
+      }
+
+      // ══════════════════════════════════════════════════════════════════
       // PRE-FILTER (PHASE A.1): Phase-age confirmation
       // Reject when MinPhaseConfirmBars > 0 and the current phase has not
       // persisted for at least that many bars. Catches single-bar TM
@@ -5042,10 +5329,14 @@ public:
       // so the Pass% column reflects accuracy among bars where the gate fired.
       if(m_settings.EmaFanFilterEnabled && m_settings.EmaFanMaxTotalPips > 0.0)
          m_stats.passed_emafan++;
-      if(m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
+      if((m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled) ||
+         (m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled))
          m_stats.passed_dpi_decel++;
       if(m_settings.MinPhaseConfirmBars > 0)
          m_stats.passed_phase_age++;
+
+      if(m_settings.BiasMode == BIAS_4EMA)
+         UpdateLayerPullbackStates(v_shift);
 
       // ── L: Layer ─────────────────────────────────────────────────
       int L = EvaluateL(v_shift, B);

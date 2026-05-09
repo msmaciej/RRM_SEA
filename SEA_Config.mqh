@@ -63,6 +63,15 @@ enum EEntryLayer {
    LAYER_2_3         = 6,  // LAYER_2-3: 0b0110 — L2 + L3 active simultaneously
    LAYER_1_2_3       = 7   // LAYER_1-2-3: 0b0111 — All three layers active simultaneously
 };
+//+------------------------------------------------------------------+
+//| Layer Pullback State Machine                                     |
+//+------------------------------------------------------------------+
+enum ELayerPullbackState
+{
+   LAYER_PB_NONE,        // No pullback detected yet (initial trending)
+   LAYER_PB_DETECTED,    // Pullback or flat phase observed
+   LAYER_PB_RECOVERED    // Recovery confirmed (ready to trade)
+};
 enum EManualSide
 {
    SIDE_BOTH,              // SIDE_BOTH ... L-S: Allow both long and short trades
@@ -389,6 +398,14 @@ struct ST_Settings
    int    DPI_CCI_Period;           // CCI period (default 13)
    int    DPI_CCI_AppliedPrice;     // CCI price type ENUM_APPLIED_PRICE (default PRICE_TYPICAL)
    bool   DPI_UseGreenHist;         // Enable GREEN momentum overlay (false = v29-equivalent)
+   // DPI Histogram Tracking
+   double DPI_HistMomentumThreshold; // Momentum threshold for CCI-delta change (dimensionless)
+   int    DPI_HistDecelLookback;     // Bars to analyze for deceleration
+   bool   DPI_HistTrackingEnabled;   // Master enable for histogram tracking
+   // DPI Histogram Entry/Exit Logic
+   bool   DPI_BlockOnDeceleration;  // Block new entries when histogram decelerating
+   bool   DPI_ExitOnHistDisappear;  // Close positions when green histogram vanishes
+   double DPI_ExitThreshold;        // Exit when |CCI| falls below this value
    int    VRC_ATR_Period;
    int    VRC_Lookback;
    double VRC_LowThreshold;         // Below this percentile = LOW regime (reject trade)
@@ -574,15 +591,22 @@ struct ST_Settings
    bool     Trending_AllowStrongTrades;   // TRENDING phase: Allow EMA3/EMA4 entries
 
    // Layer detection settings
-   bool     EnableLayerDetection;         // Master switch for multi-layer pullback detection
-   bool     AllowLayer1_Entries;          // Allow Layer 1 (EMA1/EMA2 touch) entries
-   bool     AllowLayer2_Entries;          // Allow Layer 2 (EMA2/EMA3 touch) entries
-   bool     AllowLayer3_Entries;          // Allow Layer 3 (EMA3/EMA4 touch) entries
+    bool     EnableLayerDetection;         // Master switch for multi-layer pullback detection
+    bool     AllowLayer1_Entries;          // Allow Layer 1 (EMA1/EMA2 touch) entries
+    bool     AllowLayer2_Entries;          // Allow Layer 2 (EMA2/EMA3 touch) entries
+    bool     AllowLayer3_Entries;          // Allow Layer 3 (EMA3/EMA4 touch) entries
+    // Layer Pullback-Recovery Detection
+    bool     LayerPullbackEnabled;         // Master enable for pullback detection
+    int      LayerBaselineLookback;        // Bars for baseline slope calculation
+    double   LayerPullbackRatio;           // Threshold for pullback detection (dimensionless)
+    double   LayerRecoveryRatio;           // Threshold for recovery confirmation (dimensionless)
+    double   LayerFlatRatio;               // Threshold for flat market detection (dimensionless)
+    bool     LayerAllowReversalPullback;   // Allow slope sign reversal as pullback
 
-   // Diagnostics: statistics configuration
-   bool Stats_TrackRejections;      // Track rejection counts per indicator
-   bool Stats_TrackPasses;          // Track pass counts (positive stats)
-   bool Stats_FullEvaluation;       // Evaluate ALL indicators per bar (no early exit)
+    // Diagnostics: statistics configuration
+    bool Stats_TrackRejections;      // Track rejection counts per indicator
+    bool Stats_TrackPasses;          // Track pass counts (positive stats)
+    bool Stats_FullEvaluation;       // Evaluate ALL indicators per bar (no early exit)
 
    // Targeted bar evaluation debug (force-print window or pinpoint, independent of TS outcome)
    datetime    DebugEvalFrom;       // Force debug output from this bar time (0=disabled)
@@ -868,6 +892,15 @@ input bool        Inp_RRM_AllowWeak          = true;           // RRM: Allow WEA
 input bool        Inp_RRM_AllowMedium        = true;           // RRM: Allow MEDIUM trades (L2 EMA2/EMA3)
 input bool        Inp_RRM_AllowStrong        = true;           // RRM: Allow STRONG trades (L3 EMA3/EMA4, TRENDING only)
 input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM: Layer Pullback-Recovery Detection";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_LayerPullbackEnabled   = false;          // Layer PB: Enable pullback-recovery detection
+input int         Inp_LayerBaselineLookback  = 10;             // Layer PB: Baseline slope lookback (bars, recommended 3+)
+input double      Inp_LayerPullbackRatio     = 0.5;            // Layer PB: Pullback threshold ratio (min 0.1)
+input double      Inp_LayerRecoveryRatio     = 0.3;            // Layer PB: Recovery threshold ratio (min 0.1)
+input double      Inp_LayerFlatRatio         = 0.1;            // Layer PB: Flat threshold ratio (min 0.05; independent of pullback ratio)
+input bool        Inp_LayerAllowReversalPullback = true;       // Layer PB: Count slope reversal as pullback
+input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 RRM: (DP) Drawdown Protection";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_EnableDrawdownProtection = false;    // RRM: Enable drawdown protection
@@ -981,6 +1014,13 @@ input bool        Inp_RRM_ORG_DPI_UseCCIReset      = true;        // DPI: Enable
 input int         Inp_RRM_ORG_DPI_CCI_Period       = 13;          // DPI: CCI period
 input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price = PRICE_TYPICAL; // DPI: CCI applied price
 input bool        Inp_RRM_ORG_DPI_UseGreenHist     = false;       // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
+input double      Inp_DPI_HistMomentumThreshold    = 0.0001;      // DPI: Histogram momentum threshold (CCI-delta units)
+input int         Inp_DPI_HistDecelLookback        = 3;           // DPI: Deceleration lookback (bars)
+input bool        Inp_DPI_HistTrackingEnabled      = false;       // DPI: Enable histogram tracking
+input group "═══ DPI Histogram Entry/Exit Logic ═══"
+input bool        Inp_DPI_BlockOnDeceleration     = false;       // DPI: Block entries on momentum deceleration
+input bool        Inp_DPI_ExitOnHistDisappear     = false;       // DPI: Close trades when green histogram vanishes
+input double      Inp_DPI_ExitThreshold           = 0.0;         // DPI: Exit when |CCI| below threshold (0=disable)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Phase A Quality Gates (TS=1 / TE=1)";
@@ -1523,10 +1563,15 @@ void InitializeConfig()
    Settings.DPI_CCI_Period              = MathMax(1, Inp_RRM_ORG_DPI_CCI_Period);
    Settings.DPI_CCI_AppliedPrice        = (int)Inp_RRM_ORG_DPI_CCI_Price;
    Settings.DPI_UseGreenHist            = Inp_RRM_ORG_DPI_UseGreenHist;
-
-   // Choppiness Index
-   Settings.CI_Period             = MathMax(5, Inp_CI_Period);
-   Settings.CI_RangingThreshold   = MathMax(0.0, Inp_CI_RangingThreshold);
+    Settings.DPI_HistMomentumThreshold   = Inp_DPI_HistMomentumThreshold;
+    Settings.DPI_HistDecelLookback       = MathMax(1, MathMin(9, Inp_DPI_HistDecelLookback));
+    Settings.DPI_HistTrackingEnabled     = Inp_DPI_HistTrackingEnabled;
+    Settings.DPI_BlockOnDeceleration     = Inp_DPI_BlockOnDeceleration;
+    Settings.DPI_ExitOnHistDisappear     = Inp_DPI_ExitOnHistDisappear;
+    Settings.DPI_ExitThreshold           = MathMax(0.0, Inp_DPI_ExitThreshold);
+    // Choppiness Index
+    Settings.CI_Period             = MathMax(5, Inp_CI_Period);
+    Settings.CI_RangingThreshold   = MathMax(0.0, Inp_CI_RangingThreshold);
 
    // VRC
    Settings.VRC_ATR_Period        = MathMax(1, Inp_Ind_VRC_ATR_Period);
@@ -1611,20 +1656,26 @@ void InitializeConfig()
    Settings.Trending_AllowMediumTrades   = true;
    Settings.Trending_AllowStrongTrades   = true;
 
-   Settings.EnableLayerDetection         = false;
-   Settings.AllowLayer1_Entries          = true;
-   Settings.AllowLayer2_Entries          = true;
-   Settings.AllowLayer3_Entries          = true;
+    Settings.EnableLayerDetection         = false;
+    Settings.AllowLayer1_Entries          = true;
+    Settings.AllowLayer2_Entries          = true;
+    Settings.AllowLayer3_Entries          = true;
 
-   Settings.RRM_EnableDrawdownProtection = Inp_RRM_EnableDrawdownProtection;
+    Settings.RRM_EnableDrawdownProtection = Inp_RRM_EnableDrawdownProtection;
    Settings.RRM_MaxConsecutiveLosses     = Inp_RRM_MaxConsecutiveLosses;
    Settings.RRM_MaxTradesPerDay          = Inp_RRM_MaxTradesPerDay;
    Settings.RRM_MaxDailyDrawdownPct      = Inp_RRM_MaxDailyDrawdownPct;
 
-   Settings.SlopeLookbackBars      = 1;
+    Settings.SlopeLookbackBars      = 1;
+    Settings.LayerPullbackEnabled        = Inp_LayerPullbackEnabled;
+    Settings.LayerBaselineLookback       = MathMax(3, Inp_LayerBaselineLookback);
+    Settings.LayerPullbackRatio          = MathMax(0.1, Inp_LayerPullbackRatio);
+    Settings.LayerRecoveryRatio          = MathMax(0.1, Inp_LayerRecoveryRatio);
+    Settings.LayerFlatRatio              = MathMax(0.05, Inp_LayerFlatRatio);
+    Settings.LayerAllowReversalPullback  = Inp_LayerAllowReversalPullback;
 
-   // BarClose (bcX) settings
-   Settings.BarClose_Enabled    = Inp_BarClose_Enabled;
+    // BarClose (bcX) settings
+    Settings.BarClose_Enabled    = Inp_BarClose_Enabled;
    Settings.BarClose_Mode       = Inp_BarClose_Mode;
    Settings.BarClose_DefaultEMA = Inp_BarClose_DefaultEMA;
 

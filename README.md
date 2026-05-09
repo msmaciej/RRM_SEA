@@ -83,6 +83,41 @@ Where:
 
 **Layer independence**: Each layer is evaluated on its own. If EMA1 crosses below EMA2 (L1 invalid), L2 may still be valid if EMA2 slope is pulling toward EMA3 and price closes above EMA2. The BC check is the key discriminator — it determines which layer boundary price actually respected.
 
+### Layer Pullback-Recovery Detection
+
+**Purpose:** Ensure trades enter after pullback-recovery pattern, not continuous trending.
+
+**Method:** Ratio-based slope analysis (instrument-agnostic, no pip thresholds)
+
+**Settings:**
+- `LayerPullbackEnabled` (default: false) — Enable pullback-recovery detection
+- `LayerBaselineLookback` (default: 10) — Bars for baseline slope calculation
+- `LayerPullbackRatio` (default: 0.5) — Pullback threshold (0.5 = 50% weaker)
+- `LayerRecoveryRatio` (default: 0.3) — Recovery threshold (0.3 = 30% strength)
+- `LayerFlatRatio` (default: 0.1) — Flat threshold (0.1 = 10% baseline)
+- `LayerAllowReversalPullback` (default: true) — Count slope reversal as pullback
+
+**State Machine:**
+- `LAYER_PB_NONE` → Initial trending (no pullback yet)
+- `LAYER_PB_DETECTED` → Pullback/flat phase observed
+- `LAYER_PB_RECOVERED` → Recovery confirmed (ready to trade)
+
+**Formula:**
+```
+ratio = current_slope / baseline_slope
+```
+
+**Pullback Triggers:**
+- Slope weakened 50%+ (`|ratio| < 0.5`)
+- Slope flattened (`|ratio| < 0.1`)
+- Slope reversed direction (sign changed)
+
+**Recovery Confirmation:**
+- Slope resumed baseline direction
+- Slope strength ≥ 30% of baseline
+
+**Cross-Instrument:** Same ratio thresholds work for EURUSD, XAUUSD, GBPJPY, etc.
+
 ---
 
 ### I — Indicators
@@ -267,6 +302,45 @@ DPI now participates in the TS equation `I` factor as a first-class voting indic
 2. **CCI filter** (when `DPI_UseCCIReset = true`): requires `sign(hist) == sign(CCI)` — no CCI reset warning
 
 The DPI vote is driven by **ribbon color** (yellow → Long, red → Short), with optional CCI-reset confirmation (`DPI_UseCCIReset`). The GREEN momentum overlay is **visualization only** and does **not** gate the vote. Enabling or disabling GREEN (`DPI_UseGreenHist`) affects only the standalone indicator's chart appearance; the EA vote condition is unchanged.
+
+### DPI Histogram Tracking
+
+**Purpose:** Monitor DPI indicator momentum for future entry/exit filtering.
+
+**Settings:**
+- `DPI_HistTrackingEnabled` (default: false) — Enable histogram state tracking
+- `DPI_HistMomentumThreshold` (default: 0.0001) — Minimum momentum threshold for CCI-delta changes
+- `DPI_HistDecelLookback` (default: 3) — Bars to analyze for deceleration detection
+
+**State Variables:**
+- `DPIHistCurrent` — Current CCI value (histogram proxy)
+- `DPIHistTrend` — Direction (+1 green, -1 red, 0 flat)
+- `DPIHistDecelerating` — True if momentum is decreasing
+
+### DPI Histogram Entry/Exit Logic
+
+**Purpose:** Use DPI momentum state for trade filtering and exit management.
+
+**Entry Filtering (TS-Level):**
+- `DPI_BlockOnDeceleration` (default: false) — Reject new entries when histogram decelerating
+  - Prevents entries near overbought/oversold exhaustion points
+  - Detects momentum decay over `DPI_HistDecelLookback` bars
+  - Requires `DPI_HistTrackingEnabled = true`
+
+**Exit Management (TE-Level):**
+- `DPI_ExitOnHistDisappear` (default: false) — Close positions when green histogram vanishes
+  - Exits when DPI trend changes from GREEN to RED/FLAT
+  - Requires `DPI_HistTrackingEnabled = true`
+- `DPI_ExitThreshold` (default: 0.0) — Exit when |CCI| falls below this value (0 = disabled)
+
+**Use Cases:**
+1. **Conservative Entry:** Enable `DPI_BlockOnDeceleration` to avoid peak entries
+2. **Momentum Exit:** Enable `DPI_ExitOnHistDisappear` to close before major reversals
+3. **Threshold Exit:** Set `DPI_ExitThreshold = 20.0` to exit when CCI momentum weakens
+
+**Dependencies:**
+- Requires `DPI_HistTrackingEnabled = true` (histogram tracking infrastructure)
+- Uses DPI histogram state: `m_dpi_hist_current`, `m_dpi_hist_trend`, `m_dpi_hist_decelerating`
 
 ### Standalone Indicators (Chart Visualization)
 
