@@ -3338,9 +3338,19 @@ public:
       bool need_atr = m_settings.Ind_Atr_Enabled;
       h_atr = (need_atr ? iATR(m_symbol, PERIOD_CURRENT, m_settings.P_Atr) : INVALID_HANDLE);
       
-      h_ci  = (m_settings.Ind_CI_Enabled ? iCustom(m_symbol, PERIOD_CURRENT, "ChoppinessIndex", m_settings.CI_Period) : INVALID_HANDLE);
-      h_vrc = (m_settings.Ind_VRC_Enabled ? iCustom(m_symbol, PERIOD_CURRENT, "VRC_Indicator") : INVALID_HANDLE);
-      // ------------------------------------------------------
+      // ChoppinessIndex: only load if enabled to prevent compiler auto-detection
+      if(m_settings.Ind_CI_Enabled) {
+         h_ci = iCustom(m_symbol, PERIOD_CURRENT, "ChoppinessIndex", m_settings.CI_Period);
+      } else {
+         h_ci = INVALID_HANDLE;
+      }
+      
+      // VRC: only load if enabled to prevent compiler auto-detection  
+      if(m_settings.Ind_VRC_Enabled) {
+         h_vrc = iCustom(m_symbol, PERIOD_CURRENT, "VRC_Indicator");
+      } else {
+         h_vrc = INVALID_HANDLE;
+      }
 
       // Optional indicators: create only when used
       h_macd = (m_settings.Ind_Macd_Enabled ? iMACD(m_symbol, PERIOD_CURRENT, m_settings.P_MacdFast, m_settings.P_MacdSlow, m_settings.P_MacdSig, PRICE_CLOSE) : INVALID_HANDLE);
