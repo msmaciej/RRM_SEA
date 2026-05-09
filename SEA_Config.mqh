@@ -390,7 +390,7 @@ struct ST_Settings
    int    DPI_CCI_AppliedPrice;     // CCI price type ENUM_APPLIED_PRICE (default PRICE_TYPICAL)
    bool   DPI_UseGreenHist;         // Enable GREEN momentum overlay (false = v29-equivalent)
    // DPI Histogram Tracking
-   double DPI_HistMomentumThreshold; // Momentum threshold in price units (0.0001≈1 pip non-JPY; JPY pairs use 0.01 pip scale)
+   double DPI_HistMomentumThreshold; // Momentum threshold for CCI-delta change (dimensionless)
    int    DPI_HistDecelLookback;     // Bars to analyze for deceleration
    bool   DPI_HistTrackingEnabled;   // Master enable for histogram tracking
    int    VRC_ATR_Period;
@@ -985,7 +985,7 @@ input bool        Inp_RRM_ORG_DPI_UseCCIReset      = true;        // DPI: Enable
 input int         Inp_RRM_ORG_DPI_CCI_Period       = 13;          // DPI: CCI period
 input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price = PRICE_TYPICAL; // DPI: CCI applied price
 input bool        Inp_RRM_ORG_DPI_UseGreenHist     = false;       // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
-input double      Inp_DPI_HistMomentumThreshold    = 0.0001;      // DPI: Histogram momentum threshold (price units; 0.0001≈1 pip non-JPY)
+input double      Inp_DPI_HistMomentumThreshold    = 0.0001;      // DPI: Histogram momentum threshold (CCI-delta units)
 input int         Inp_DPI_HistDecelLookback        = 3;           // DPI: Deceleration lookback (bars)
 input bool        Inp_DPI_HistTrackingEnabled      = false;       // DPI: Enable histogram tracking
 
