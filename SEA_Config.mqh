@@ -891,10 +891,10 @@ input group "╔═════════════════════�
 input group "║   📐 RRM: Layer Pullback-Recovery Detection";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_LayerPullbackEnabled   = false;          // Layer PB: Enable pullback-recovery detection
-input int         Inp_LayerBaselineLookback  = 10;             // Layer PB: Baseline slope lookback (bars, min 3)
+input int         Inp_LayerBaselineLookback  = 10;             // Layer PB: Baseline slope lookback (bars, recommended 3+)
 input double      Inp_LayerPullbackRatio     = 0.5;            // Layer PB: Pullback threshold ratio (min 0.1)
 input double      Inp_LayerRecoveryRatio     = 0.3;            // Layer PB: Recovery threshold ratio (min 0.1)
-input double      Inp_LayerFlatRatio         = 0.1;            // Layer PB: Flat threshold ratio (min 0.05; independent)
+input double      Inp_LayerFlatRatio         = 0.1;            // Layer PB: Flat threshold ratio (min 0.05; independent of pullback ratio)
 input bool        Inp_LayerAllowReversalPullback = true;       // Layer PB: Count slope reversal as pullback
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 RRM: (DP) Drawdown Protection";

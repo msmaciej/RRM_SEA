@@ -976,11 +976,11 @@ private:
       double baseline_slope = (ema_now - ema_then) / (double)lookback;
       out_baseline = baseline_slope;
 
-      double current_slope = ema_now - ema_prev;
+      double current_change = ema_now - ema_prev;
       if(MathAbs(baseline_slope) < SEA_LAYER_SLOPE_EPSILON)
          return 0.0;
 
-      return current_slope / baseline_slope;
+      return current_change / baseline_slope;
    }
 
    //+------------------------------------------------------------------+
@@ -1002,7 +1002,7 @@ private:
       bool is_pullback = (is_weakened || is_flat);
       if(m_settings.LayerAllowReversalPullback)
       {
-         if(baseline_bullish != current_bullish && MathAbs(baseline_slope) > SEA_LAYER_SLOPE_EPSILON)
+         if(baseline_bullish != current_bullish)
             is_pullback = true;
       }
 
