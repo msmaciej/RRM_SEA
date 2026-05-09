@@ -17,14 +17,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Check if v1-03 branch already exists
-          if gh api repos/${{ github.repository }}/git/ref/heads/v1-03 --silent 2>/dev/null; then
+          TARGET_SHA="fa014040c40fe000232f0f89571ec88998efe8be"
+          # Check if v1-03 branch already exists (look for HTTP 200 response)
+          HTTP_STATUS=$(gh api repos/${{ github.repository }}/git/ref/heads/v1-03 \
+            --jq '.ref' 2>/dev/null && echo "200" || echo "404")
+          if [ "$HTTP_STATUS" = "200" ]; then
             echo "Branch v1-03 already exists, skipping creation."
           else
-            echo "Creating v1-03 branch from commit fa014040c40fe000232f0f89571ec88998efe8be"
+            echo "Creating v1-03 branch from commit $TARGET_SHA"
             gh api repos/${{ github.repository }}/git/refs \
               --method POST \
               --field ref="refs/heads/v1-03" \
-              --field sha="fa014040c40fe000232f0f89571ec88998efe8be"
+              --field sha="$TARGET_SHA"
             echo "Branch v1-03 created successfully!"
           fi
