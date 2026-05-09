@@ -909,14 +909,22 @@ private:
       m_dpi_hist_decelerating = false;
       if(m_dpi_hist_buffer_size >= m_settings.DPI_HistDecelLookback + 1)
       {
+         double momentum_threshold = MathMax(0.0, m_settings.DPI_HistMomentumThreshold);
          bool is_decelerating = true;
          for(int i = 1; i < m_settings.DPI_HistDecelLookback; i++)
          {
             double delta_newer = MathAbs(m_dpi_hist_values[i - 1] - m_dpi_hist_values[i]);
             double delta_older = MathAbs(m_dpi_hist_values[i] - m_dpi_hist_values[i + 1]);
 
+            // Ignore tiny momentum changes below configured threshold
+            if(delta_older < momentum_threshold)
+            {
+               is_decelerating = false;
+               break;
+            }
+
             // If any recent bar shows increasing momentum, not decelerating
-            if(delta_newer >= delta_older)
+            if(delta_newer + momentum_threshold >= delta_older)
             {
                is_decelerating = false;
                break;
