@@ -891,7 +891,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM: Layer Pullback-Recovery Detection";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_LayerPullbackEnabled   = false;          // Layer PB: Enable pullback-recovery detection
-input int         Inp_LayerBaselineLookback  = 10;             // Layer PB: Baseline slope lookback (bars)
+input int         Inp_LayerBaselineLookback  = 10;             // Layer PB: Baseline slope lookback (bars, min 3)
 input double      Inp_LayerPullbackRatio     = 0.5;            // Layer PB: Pullback threshold ratio
 input double      Inp_LayerRecoveryRatio     = 0.3;            // Layer PB: Recovery threshold ratio
 input double      Inp_LayerFlatRatio         = 0.1;            // Layer PB: Flat threshold ratio
@@ -1558,13 +1558,6 @@ void InitializeConfig()
     Settings.DPI_HistMomentumThreshold   = Inp_DPI_HistMomentumThreshold;
     Settings.DPI_HistDecelLookback       = MathMax(1, MathMin(9, Inp_DPI_HistDecelLookback));
     Settings.DPI_HistTrackingEnabled     = Inp_DPI_HistTrackingEnabled;
-    Settings.LayerPullbackEnabled        = Inp_LayerPullbackEnabled;
-    Settings.LayerBaselineLookback       = MathMax(3, Inp_LayerBaselineLookback);
-    Settings.LayerPullbackRatio          = MathMax(0.1, Inp_LayerPullbackRatio);
-    Settings.LayerRecoveryRatio          = MathMax(0.1, Inp_LayerRecoveryRatio);
-    Settings.LayerFlatRatio              = MathMax(0.05, Inp_LayerFlatRatio);
-    Settings.LayerAllowReversalPullback  = Inp_LayerAllowReversalPullback;
-
     // Choppiness Index
     Settings.CI_Period             = MathMax(5, Inp_CI_Period);
     Settings.CI_RangingThreshold   = MathMax(0.0, Inp_CI_RangingThreshold);

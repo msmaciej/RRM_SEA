@@ -991,13 +991,15 @@ private:
       double baseline_slope = 0.0;
       double ratio = CalculateSlopeRatio(fast_ema_handle, v_shift, lookback, baseline_slope);
       baseline = baseline_slope;
+      bool baseline_bullish = (baseline_slope > 0.0);
+      bool current_bullish  = (ratio > 0.0);
 
-      bool is_pullback = (MathAbs(ratio) < m_settings.LayerPullbackRatio ||
-                          MathAbs(ratio) < m_settings.LayerFlatRatio);
+      // Keep the thresholds separate because users can tune them independently.
+      bool is_weakened = (MathAbs(ratio) < m_settings.LayerPullbackRatio);
+      bool is_flat     = (MathAbs(ratio) < m_settings.LayerFlatRatio);
+      bool is_pullback = (is_weakened || is_flat);
       if(m_settings.LayerAllowReversalPullback)
       {
-         bool baseline_bullish = (baseline_slope > 0.0);
-         bool current_bullish  = (ratio > 0.0);
          if(baseline_bullish != current_bullish && MathAbs(baseline_slope) > 0.00000001)
             is_pullback = true;
       }
@@ -1005,8 +1007,6 @@ private:
       bool is_recovery = false;
       if(state == LAYER_PB_DETECTED)
       {
-         bool baseline_bullish = (baseline_slope > 0.0);
-         bool current_bullish  = (ratio > 0.0);
          if(baseline_bullish == current_bullish &&
             MathAbs(ratio) >= m_settings.LayerRecoveryRatio)
             is_recovery = true;
