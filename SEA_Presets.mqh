@@ -1235,7 +1235,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Bb_Enabled         = Inp_RRM_Use_Bb;
       cfg.Ind_CandleBody_Enabled = Inp_RRM_Use_CandleBody;
       cfg.Ind_Cci_Enabled        = Inp_RRM_Use_Cci;
-      cfg.Ind_CI_Enabled         = Inp_RRM_Use_CI;    // CI toggle for RRM
+      cfg.Ind_CI_Enabled         = false;             // CI is not part of original RRM_ORG methodology (DPI momentum voter is used)
       cfg.Ind_Macd_Enabled       = Inp_RRM_Use_Macd;
       cfg.Ind_Mfi_Enabled        = Inp_RRM_Use_Mfi;
       cfg.Ind_Psar_Enabled       = Inp_RRM_Use_Psar;
@@ -1376,20 +1376,20 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── EXIT STRATEGY: flexible (uses RRM profile, SL/TP from inputs) ─
       cfg.ExitProfile               = EXIT_PROFILE_RRM;
-      cfg.SLMode                    = Inp_RRM_SLMode;
-      cfg.TPMode                    = Inp_RRM_TPMode;
-      cfg.TP_Enabled                = (Inp_RRM_TPMode != TP_MODE_NONE);
-      cfg.RRRatio                   = Inp_RRM_RRRatio;
-      cfg.SwingLookback             = Inp_RRM_SwingLookback;
+      cfg.SLMode                    = Inp_SLMode;
+      cfg.TPMode                    = Inp_TPMode;
+      cfg.TP_Enabled                = Inp_TP_Enabled;
+      cfg.RRRatio                   = Inp_RRRatio;
+      cfg.SwingLookback             = Inp_SwingLookback;
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
       cfg.FixedTPPips               = 40.0;
       cfg.SLPercent                 = 0.5;
 
-      cfg.TrailMode                 = Inp_RRM_TrailMode;
+      cfg.TrailMode                 = Inp_TrailMode;
       cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
       cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
-      cfg.BE_Mode                   = BE_MODE_R_MULTIPLE;
+      cfg.BE_Mode                   = Inp_BE_Mode;
 
       ENUM_TIMEFRAMES tfOrg         = (ENUM_TIMEFRAMES)_Period;
       cfg.TrailTrigger              = TRIGGER_BREAKEVEN;
