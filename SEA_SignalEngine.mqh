@@ -907,11 +907,12 @@ private:
 
       // Detect deceleration (momentum decreasing)
       m_dpi_hist_decelerating = false;
-      if(m_dpi_hist_buffer_size >= m_settings.DPI_HistDecelLookback + 1)
+      int lookback = MathMax(1, MathMin(9, m_settings.DPI_HistDecelLookback));
+      if(m_dpi_hist_buffer_size >= lookback + 1)
       {
          double momentum_threshold = MathMax(0.0, m_settings.DPI_HistMomentumThreshold);
          bool is_decelerating = true;
-         for(int i = 1; i < m_settings.DPI_HistDecelLookback; i++)
+         for(int i = 1; i < lookback; i++)
          {
             double delta_newer = MathAbs(m_dpi_hist_values[i - 1] - m_dpi_hist_values[i]);
             double delta_older = MathAbs(m_dpi_hist_values[i] - m_dpi_hist_values[i + 1]);
