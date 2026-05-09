@@ -2,15 +2,15 @@
 //|                                            SEA_TradeExecutor.mqh |
 //|                              MJS Institutional Trading Solutions |
 //| Purpose: Order Execution, Safety, Trailing & Position Management |
-//| Status:  PRODUCTION READY (Cached Handles & Decoupling Fixed)    |
+//| Status:     PRODUCTION READY (Cached Handles & Decoupling Fixed) |
 //+------------------------------------------------------------------+
 #property strict
 
-#ifndef SEA_BUILD_TOKEN_103003
-enum { __SEA_BUILD_TOKEN_MISSING_TRADEEXEC_103003 = SEA_BUILD_TOKEN_103003 };
+#ifndef SEA_BUILD_TOKEN_104001
+enum { __SEA_BUILD_TOKEN_MISSING_TRADEEXEC_104001 = SEA_BUILD_TOKEN_104001 };
 #endif
 
-#define SEA_MOD_TRADEEXEC_103003 1
+#define SEA_MOD_TRADEEXEC_104001 1
 #define SEA_LARGE_LOT_EQUITY_BLOCK_USD 10000.0
 #define SEA_LARGE_LOT_PER_EQUITY_BLOCK 10.0
 #define SEA_MARGIN_LEVEL_UNLIMITED 999999.0

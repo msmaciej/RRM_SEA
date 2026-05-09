@@ -1,18 +1,18 @@
 ﻿//+------------------------------------------------------------------+
-//|                                           SimpleEA_v1-03-001.mq5 |
+//|                                           SimpleEA_v1-04-001.mq5 |
 //| Institutional Trading Solutions RRMS Simple Rapid Results Method |
 //+------------------------------------------------------------------+
 // SAVE AS UTF-16 LE WITH BOM
 //+------------------------------------------------------------------+
-#property copyright "SimpleEA_v1.03"
-#property version   "103.002"
+#property copyright "SimpleEA_v1.04"
+#property version   "104.001"
 #property strict
 
 // --- Anti-stale build lock
-#define SEA_BUILD_TOKEN_103003 1
+#define SEA_BUILD_TOKEN_104001 1
 
-#define SEA_BUILD_NUM 103003
-#define SEA_BUILD_STR "1.03.003"
+#define SEA_BUILD_NUM 104001
+#define SEA_BUILD_STR "1.04.001"
 
 //+------------------------------------------------------------------+
 //| FORWARD DECLARATIONS                                             |
@@ -30,17 +30,17 @@ void SEA_DrawTradeExecLine(datetime event_time, int direction, double price, con
 #include <RRMS\SEA_UI.mqh>
 #include <RRMS\SEA_Reporting.mqh>
 
-#ifndef SEA_MOD_SIGNALENGINE_103003
-enum { __SEA_STALE_SEA_MOD_SIGNALENGINE_103003__ = SEA_MOD_SIGNALENGINE_103003 };
+#ifndef SEA_MOD_SIGNALENGINE_104001
+enum { __SEA_STALE_SEA_MOD_SIGNALENGINE_104001__ = SEA_MOD_SIGNALENGINE_104001 };
 #endif
-#ifndef SEA_MOD_TRADEEXEC_103003
-enum { __SEA_STALE_SEA_MOD_TRADEEXEC_103003__ = SEA_MOD_TRADEEXEC_103003 };
+#ifndef SEA_MOD_TRADEEXEC_104001
+enum { __SEA_STALE_SEA_MOD_TRADEEXEC_104001__ = SEA_MOD_TRADEEXEC_104001 };
 #endif
-#ifndef SEA_MOD_UI_103003
-enum { __SEA_STALE_SEA_MOD_UI_103003__ = SEA_MOD_UI_103003 };
+#ifndef SEA_MOD_UI_104001
+enum { __SEA_STALE_SEA_MOD_UI_104001__ = SEA_MOD_UI_104001 };
 #endif
-#ifndef SEA_MOD_REPORTING_103003
-enum { __SEA_STALE_SEA_MOD_REPORTING_103003__ = SEA_MOD_REPORTING_103003 };
+#ifndef SEA_MOD_REPORTING_104001
+enum { __SEA_STALE_SEA_MOD_REPORTING_104001__ = SEA_MOD_REPORTING_104001 };
 #endif
 
 //+------------------------------------------------------------------+

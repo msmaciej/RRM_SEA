@@ -2,8 +2,8 @@
 //|                                             SEA_SignalEngine.mqh |
 //|                              MJS Institutional Trading Solutions |
 //|                                                                  |
-//| Purpose: Signal Logic, Indicator Management, Voting & Filters    |
-//| Status:  PRODUCTION READY (Revision M: Full Dual Shift Support)  |
+//| Purpose:    Signal Logic, Indicator Management, Voting & Filters |
+//| Status:   PRODUCTION READY (Revision M: Full Dual Shift Support) |
 //+------------------------------------------------------------------+
 // SAVE AS UTF-16 LE WITH BOM
 //+------------------------------------------------------------------+
@@ -36,11 +36,11 @@
 #property strict
 
 // --- Anti-stale build lock (MQL5-safe: no #if, no #error)
-#ifndef SEA_BUILD_TOKEN_103003
-enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103003 = SEA_BUILD_TOKEN_103003 };
+#ifndef SEA_BUILD_TOKEN_104001
+enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_104001 = SEA_BUILD_TOKEN_104001 };
 #endif
 
-#define SEA_MOD_SIGNALENGINE_103003 1
+#define SEA_MOD_SIGNALENGINE_104001 1
 #define SEA_LAYER_SLOPE_EPSILON 0.00000001
 
 

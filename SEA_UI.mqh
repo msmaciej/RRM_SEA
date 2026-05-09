@@ -1,14 +1,14 @@
 //+------------------------------------------------------------------+
-//|                                                     SEA_UI.mqh   |
-//|                                   Copyright 2026, SimpleEA System|
-//| SimpleEA UI Panels (Settings Status + Cockpit)                   |
+//|                                                       SEA_UI.mqh |
+//|                                  Copyright 2026, SimpleEA System |
+//|                   SimpleEA UI Panels (Settings Status + Cockpit) |
 //+------------------------------------------------------------------+
 // SAVE AS UTF-16 LE WITH BOM
 #property strict
 
 #define SEA_UI_MAX_PANEL_LINES 75
 
-#define SEA_MOD_UI_103003 1
+#define SEA_MOD_UI_104001 1
 
 // -----------------------------------
 // Internal state (no static locals)

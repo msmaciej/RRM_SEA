@@ -464,18 +464,19 @@ struct ST_Settings
 
    // Active Votes
    bool Ind_Adx_Enabled;
-   bool Ind_Macd_Enabled;
-   bool Ind_Rsi_Enabled;
-   bool Ind_Cci_Enabled;
-   bool Ind_Mfi_Enabled;
-   bool Ind_Sto_Enabled;
-   bool Ind_Bb_Enabled;
-   bool Ind_Psar_Enabled;
-   bool Ind_P123_Enabled;
-   bool Ind_Ross_Enabled;
    bool Ind_Atr_Enabled;
+   bool Ind_Bb_Enabled;
    bool Ind_CandleBody_Enabled;
+   bool Ind_Cci_Enabled;
    bool Ind_CI_Enabled;
+   bool Ind_Macd_Enabled;
+   bool Ind_Mfi_Enabled;
+   bool Ind_P123_Enabled;
+   bool Ind_Psar_Enabled;
+   bool Ind_Rsi_Enabled;
+   bool Ind_Sto_Enabled;
+   bool Ind_Ross_Enabled;
+   bool Inp_VRC_Enabled;
    
    // MFI mode
    EMfiMode MfiMode;                // MFI vote mode (ZONE_FILTER or TREND_50)
@@ -938,13 +939,14 @@ input group "╚═════════════════════�
 input bool        Inp_RRM_Use_Adx            = false;          // RRM: ADX vote enabled
 input bool        Inp_RRM_Use_Bb             = false;          // RRM: Bollinger Bands vote enabled
 input bool        Inp_RRM_Use_CandleBody     = true;           // RRM: Candle body vote enabled
-input bool        Inp_RRM_Use_Cci            = false;          // RRM: CCI vote enabled
-input bool        Inp_RRM_Use_CI             = true;          // RRM: CI vote ranging market filter
+input bool        Inp_RRM_Use_Cci            = true;          // RRM: CCI vote enabled
+input bool        Inp_RRM_Use_CI             = false;           // RRM: CI vote ranging market filter
 input bool        Inp_RRM_Use_Macd           = true;           // RRM: MACD vote enabled
 input bool        Inp_RRM_Use_Mfi            = false;          // RRM: MFI vote enabled
 input bool        Inp_RRM_Use_Psar           = true;           // RRM: PSAR vote enabled
 input bool        Inp_RRM_Use_Rsi            = false;          // RRM: RSI vote enabled
 input bool        Inp_RRM_Use_Stoch          = false;          // RRM: Stochastic vote enabled
+input bool        Inp_RRM_Use_VRC            = false;          // RRM: VRC vote enabled
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: ADX Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1867,16 +1869,16 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
    if(cfg.Ind_CandleBody_Enabled) count++;
    if(cfg.Ind_CI_Enabled)         count++;
    if(cfg.Ind_Cci_Enabled)        count++;
+   if(cfg.Ind_Dpi_Enabled)        count++;
    if(cfg.Ind_Macd_Enabled)       count++;
    if(cfg.Ind_Mfi_Enabled)        count++;
    if(cfg.Ind_P123_Enabled)       count++;
    if(cfg.Ind_Psar_Enabled)       count++;
    if(cfg.Ind_Ross_Enabled)       count++;
    if(cfg.Ind_Rsi_Enabled)        count++;
+   if(cfg.Ind_SmaConverge_Enabled) count++;
    if(cfg.Ind_Sto_Enabled)        count++;
    if(cfg.Ind_VRC_Enabled)        count++;
-   if(cfg.Ind_SmaConverge_Enabled) count++;
-   if(cfg.Ind_Dpi_Enabled)        count++;
    return count;
 }
 

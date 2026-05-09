@@ -1,8 +1,9 @@
 ﻿//+-------------------------------------------------------------------+
-//|                                                  SEA_Presets.mqh  |
+//|                                                   SEA_Presets.mqh |
 //|                                   Copyright 2026, SimpleEA System |
-//| DESCRIPTION: Preset definitions: overwrite strategy-critical fields|
-//|              on top of already hydrated Settings.                 |
+//| DESCRIPTION:                                                      |
+//| Preset definitions: overwrite strategy-critical                   |
+//| fields on top of already hydrated Settings                        |
 //|                                                                   |
 //| IMPORTANT:                                                        |
 //| - NO input->struct mapping in this file.                          |
@@ -14,7 +15,7 @@
 #property strict
 
 // Preset system version
-#define PRESET_SYSTEM_VERSION "2.1.0"  // Major.Minor.Patch
+#define PRESET_SYSTEM_VERSION "4.0.1"
 
 #include <RRMS\SEA_Config.mqh>
 
@@ -642,19 +643,19 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Bb_Enabled         = false;
       cfg.Ind_CandleBody_Enabled = false;
       cfg.Ind_CI_Enabled         = false;
-      cfg.Ind_VRC_Enabled        = false;
       cfg.Ind_Cci_Enabled        = false;
+      cfg.Ind_Dpi_Enabled        = false;
+      cfg.Ind_Dpi_Weight         = 1;
       cfg.Ind_Macd_Enabled       = false;
       cfg.Ind_Mfi_Enabled        = false;
       cfg.Ind_P123_Enabled       = false;
       cfg.Ind_Psar_Enabled       = false;
       cfg.Ind_Ross_Enabled       = false;
       cfg.Ind_Rsi_Enabled        = false;
-      cfg.Ind_Sto_Enabled        = false;
       cfg.Ind_SmaConverge_Enabled = false;
       cfg.Ind_SmaConverge_Weight  = 1;
-      cfg.Ind_Dpi_Enabled        = false;
-      cfg.Ind_Dpi_Weight         = 1;
+      cfg.Ind_Sto_Enabled        = false;
+      cfg.Ind_VRC_Enabled        = false;
    
       cfg.VoteMode               = VOTE_MODE_ALL;
       
@@ -930,25 +931,25 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MaxSpread = op_MaxSpread;  // Policy A: user spread gate
 
       // ── INDICATOR TOGGLES: flexible via Inp_RRM_* ────────────────────
-      cfg.Ind_Macd_Enabled       = Inp_RRM_Use_Macd;
-      cfg.Ind_Psar_Enabled       = Inp_RRM_Use_Psar;
-      cfg.Ind_CandleBody_Enabled = Inp_RRM_Use_CandleBody;
-      cfg.Ind_Cci_Enabled        = Inp_RRM_Use_Cci;
-      cfg.Ind_Rsi_Enabled        = Inp_RRM_Use_Rsi;
       cfg.Ind_Adx_Enabled        = Inp_RRM_Use_Adx;
-      cfg.Ind_Sto_Enabled        = Inp_RRM_Use_Stoch;
-      cfg.Ind_Bb_Enabled         = Inp_RRM_Use_Bb;
-      cfg.Ind_Mfi_Enabled        = Inp_RRM_Use_Mfi;
       // Always off in RRM (not part of RRM methodology):
       cfg.Ind_Atr_Enabled        = false;
+      cfg.Ind_Bb_Enabled         = Inp_RRM_Use_Bb;
+      cfg.Ind_CandleBody_Enabled = Inp_RRM_Use_CandleBody;
+      cfg.Ind_Cci_Enabled        = Inp_RRM_Use_Cci;
       cfg.Ind_CI_Enabled         = false;
-      cfg.Ind_VRC_Enabled        = false;
-      cfg.Ind_P123_Enabled       = false;
-      cfg.Ind_Ross_Enabled       = false;
-      cfg.Ind_SmaConverge_Enabled = false;
-      cfg.Ind_SmaConverge_Weight  = 1;
       cfg.Ind_Dpi_Enabled        = false;
       cfg.Ind_Dpi_Weight         = 1;
+      cfg.Ind_Macd_Enabled       = Inp_RRM_Use_Macd;
+      cfg.Ind_Mfi_Enabled        = Inp_RRM_Use_Mfi;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Psar_Enabled       = Inp_RRM_Use_Psar;
+      cfg.Ind_Ross_Enabled       = false;
+      cfg.Ind_Rsi_Enabled        = Inp_RRM_Use_Rsi;
+      cfg.Ind_SmaConverge_Enabled = false;
+      cfg.Ind_SmaConverge_Weight  = 1;
+      cfg.Ind_Sto_Enabled        = Inp_RRM_Use_Stoch;
+      cfg.Ind_VRC_Enabled        = false;
 
       // ── MACD SETTINGS: flexible via Inp_RRM_* ────────────────────────
       cfg.P_MacdFast             = Inp_RRM_MacdFast;
@@ -1165,6 +1166,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       //   (C) DPI deceleration leaks → DPI voter forced ON (was opt-in,
       //       which silently disabled the already-coded decel pre-filter)
       //   (D) Tangled-ribbon false TM → MinPhaseConfirmBars + recovery
+      //
       // Also fixes a duplicate-write bug on RequireRecoveryMomentum where
       // line 1309 (now removed) was unconditionally overwriting line 1295.
       // ================================================================
@@ -1242,10 +1244,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_P123_Enabled       = false;
       cfg.Ind_Ross_Enabled       = false;
       cfg.Ind_Rsi_Enabled        = Inp_RRM_Use_Rsi;
+      cfg.Ind_SmaConverge_Enabled = false;
+      cfg.Ind_SmaConverge_Weight = Inp_Ind_SmaConverge_Weight;
       cfg.Ind_Sto_Enabled        = Inp_RRM_Use_Stoch;
-      cfg.Ind_SmaConverge_Enabled   = false;
-      cfg.Ind_SmaConverge_Weight    = Inp_Ind_SmaConverge_Weight;
-      cfg.Ind_VRC_Enabled        = false;             // ← CI is now user-controlled, remove from this list
+      cfg.Ind_VRC_Enabled        = Inp_RRM_Use_VRC;   // ← CI is now user-controlled, remove from this list
       
       // ── ADX SETTINGS: safe defaults (disabled) ────────────────────────
       cfg.ADX_Mode                  = ADX_MODE_STATIC;
@@ -1563,20 +1565,20 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Atr_Enabled           = false;
       cfg.Ind_Bb_Enabled            = false;
       cfg.Ind_CandleBody_Enabled    = true;           // true
-      cfg.Ind_CI_Enabled            = false;
-      cfg.Ind_VRC_Enabled           = false;
       cfg.Ind_Cci_Enabled           = true;           // true
+      cfg.Ind_CI_Enabled            = false;
+      cfg.Ind_Dpi_Enabled           = false;
+      cfg.Ind_Dpi_Weight            = 1;
       cfg.Ind_Macd_Enabled          = true;           // true
       cfg.Ind_Mfi_Enabled           = false;
       cfg.Ind_P123_Enabled          = false;
       cfg.Ind_Psar_Enabled          = true;           // true
       cfg.Ind_Ross_Enabled          = false;
       cfg.Ind_Rsi_Enabled           = false;
-      cfg.Ind_Sto_Enabled           = false;
       cfg.Ind_SmaConverge_Enabled   = false;
       cfg.Ind_SmaConverge_Weight    = 1;
-      cfg.Ind_Dpi_Enabled           = false;
-      cfg.Ind_Dpi_Weight            = 1;
+      cfg.Ind_Sto_Enabled           = false;
+      cfg.Ind_VRC_Enabled           = false;
    
       // BAR CLOSE (bcX) CONFIGURATION
       cfg.BarClose_Enabled          = true;           // true
