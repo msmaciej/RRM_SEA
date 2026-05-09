@@ -274,7 +274,7 @@ The DPI vote is driven by **ribbon color** (yellow → Long, red → Short), wit
 
 **Settings:**
 - `DPI_HistTrackingEnabled` (default: false) — Enable histogram state tracking
-- `DPI_HistMomentumThreshold` (default: 0.0001) — Minimum momentum threshold in price units (~1 pip on most non-JPY FX pairs)
+- `DPI_HistMomentumThreshold` (default: 0.0001) — Minimum momentum threshold in price units (0.0001≈1 pip for non-JPY FX symbols)
 - `DPI_HistDecelLookback` (default: 3) — Bars to analyze for deceleration detection
 
 **State Variables:**

@@ -214,8 +214,10 @@ private:
    EDebugLevel  m_saved_debug_level;     // DebugLevel saved before forced override
    bool         m_saved_debug_flow;      // DebugFlow saved before forced override
 
+   enum { DPI_HIST_BUFFER_CAPACITY = 10 };
+
    // --- 2j.1 DPI HISTOGRAM STATE TRACKING ---
-   double   m_dpi_hist_values[10];       // Rolling buffer of last 10 histogram values
+   double   m_dpi_hist_values[DPI_HIST_BUFFER_CAPACITY]; // Rolling buffer of histogram values
    int      m_dpi_hist_buffer_size;      // Current number of values in buffer
    double   m_dpi_hist_current;          // Current histogram value
    int      m_dpi_hist_trend;            // +1 = green (bullish), -1 = red (bearish), 0 = flat
@@ -894,11 +896,11 @@ private:
       m_dpi_hist_current = cci;
 
       // Shift rolling buffer (newest at index 0)
-      for(int i = 9; i > 0; i--)
+      for(int i = DPI_HIST_BUFFER_CAPACITY - 1; i > 0; i--)
          m_dpi_hist_values[i] = m_dpi_hist_values[i - 1];
 
       m_dpi_hist_values[0] = cci;
-      if(m_dpi_hist_buffer_size < 10) m_dpi_hist_buffer_size++;
+      if(m_dpi_hist_buffer_size < DPI_HIST_BUFFER_CAPACITY) m_dpi_hist_buffer_size++;
 
       // Determine trend direction
       if(cci > 0.0)      m_dpi_hist_trend = 1;   // Green (bullish)
@@ -907,7 +909,8 @@ private:
 
       // Detect deceleration (momentum decreasing)
       m_dpi_hist_decelerating = false;
-      int lookback = MathMax(1, MathMin(9, m_settings.DPI_HistDecelLookback));
+      int lookback_max = DPI_HIST_BUFFER_CAPACITY - 1;
+      int lookback = MathMax(1, MathMin(lookback_max, m_settings.DPI_HistDecelLookback));
       if(m_dpi_hist_buffer_size >= lookback + 1)
       {
          double momentum_threshold = MathMax(0.0, m_settings.DPI_HistMomentumThreshold);
@@ -941,7 +944,7 @@ private:
                                cci,
                                (m_dpi_hist_trend == 1 ? "GREEN" : m_dpi_hist_trend == -1 ? "RED" : "FLAT"),
                                m_dpi_hist_decelerating ? "YES" : "NO",
-                               m_dpi_hist_buffer_size, 10));
+                               m_dpi_hist_buffer_size, DPI_HIST_BUFFER_CAPACITY));
       }
    }
 
