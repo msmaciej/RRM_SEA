@@ -41,6 +41,7 @@ enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103003 = SEA_BUILD_TOKEN_103003 };
 #endif
 
 #define SEA_MOD_SIGNALENGINE_103003 1
+#define SEA_LAYER_SLOPE_EPSILON 0.00000001
 
 
 #include <RRMS\SEA_Config.mqh>
@@ -976,7 +977,7 @@ private:
       out_baseline = baseline_slope;
 
       double current_slope = ema_now - ema_prev;
-      if(MathAbs(baseline_slope) < 0.00000001)
+      if(MathAbs(baseline_slope) < SEA_LAYER_SLOPE_EPSILON)
          return 0.0;
 
       return current_slope / baseline_slope;
@@ -985,7 +986,7 @@ private:
    //+------------------------------------------------------------------+
    //| UpdateSingleLayerPullback — State machine for one layer          |
    //+------------------------------------------------------------------+
-   void UpdateSingleLayerPullback(int fast_ema_handle, int bias, int v_shift, int lookback,
+   void UpdateSingleLayerPullback(int fast_ema_handle, int v_shift, int lookback,
                                   ELayerPullbackState &state, double &baseline, string label)
    {
       double baseline_slope = 0.0;
@@ -995,12 +996,13 @@ private:
       bool current_bullish  = (ratio > 0.0);
 
       // Keep the thresholds separate because users can tune them independently.
+      // If they overlap, either threshold can trigger the pullback state.
       bool is_weakened = (MathAbs(ratio) < m_settings.LayerPullbackRatio);
       bool is_flat     = (MathAbs(ratio) < m_settings.LayerFlatRatio);
       bool is_pullback = (is_weakened || is_flat);
       if(m_settings.LayerAllowReversalPullback)
       {
-         if(baseline_bullish != current_bullish && MathAbs(baseline_slope) > 0.00000001)
+         if(baseline_bullish != current_bullish && MathAbs(baseline_slope) > SEA_LAYER_SLOPE_EPSILON)
             is_pullback = true;
       }
 
@@ -1022,20 +1024,19 @@ private:
 
       if(m_settings.DebugFlow && state != prev_state)
       {
-         DebugLog(StringFormat("[%s_PB] State: %s -> %s | Ratio=%.2f | Baseline=%.5f | Bias=%d",
+         DebugLog(StringFormat("[%s_PB] State: %s -> %s | Ratio=%.2f | Baseline=%.5f",
                                label,
                                EnumToString(prev_state),
                                EnumToString(state),
                                ratio,
-                               baseline_slope,
-                               bias));
+                               baseline_slope));
       }
    }
 
    //+------------------------------------------------------------------+
    //| UpdateLayerPullbackStates — Update pullback state for all layers |
    //+------------------------------------------------------------------+
-   void UpdateLayerPullbackStates(int bias, int v_shift)
+   void UpdateLayerPullbackStates(int v_shift)
    {
       if(!m_settings.LayerPullbackEnabled) return;
 
@@ -1045,11 +1046,11 @@ private:
 
       int lookback = m_settings.LayerBaselineLookback;
 
-      UpdateSingleLayerPullback(h_ema1, bias, v_shift, lookback,
+      UpdateSingleLayerPullback(h_ema1, v_shift, lookback,
                                 m_layer_w_pb_state, m_layer_w_baseline, "LayerW");
-      UpdateSingleLayerPullback(h_ema2, bias, v_shift, lookback,
+      UpdateSingleLayerPullback(h_ema2, v_shift, lookback,
                                 m_layer_m_pb_state, m_layer_m_baseline, "LayerM");
-      UpdateSingleLayerPullback(h_ema3, bias, v_shift, lookback,
+      UpdateSingleLayerPullback(h_ema3, v_shift, lookback,
                                 m_layer_s_pb_state, m_layer_s_baseline, "LayerS");
    }
 
@@ -5291,7 +5292,7 @@ public:
          m_stats.passed_phase_age++;
 
       if(m_settings.BiasMode == BIAS_4EMA)
-         UpdateLayerPullbackStates(B, v_shift);
+         UpdateLayerPullbackStates(v_shift);
 
       // ── L: Layer ─────────────────────────────────────────────────
       int L = EvaluateL(v_shift, B);
