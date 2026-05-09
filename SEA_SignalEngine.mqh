@@ -5329,9 +5329,8 @@ public:
       // so the Pass% column reflects accuracy among bars where the gate fired.
       if(m_settings.EmaFanFilterEnabled && m_settings.EmaFanMaxTotalPips > 0.0)
          m_stats.passed_emafan++;
-      if(m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
-         m_stats.passed_dpi_decel++;
-      if(m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled)
+      if((m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled) ||
+         (m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled))
          m_stats.passed_dpi_decel++;
       if(m_settings.MinPhaseConfirmBars > 0)
          m_stats.passed_phase_age++;
