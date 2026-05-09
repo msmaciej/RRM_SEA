@@ -214,7 +214,7 @@ private:
    EDebugLevel  m_saved_debug_level;     // DebugLevel saved before forced override
    bool         m_saved_debug_flow;      // DebugFlow saved before forced override
 
-   // --- 2L. DPI HISTOGRAM STATE TRACKING ---
+   // --- 2j.1 DPI HISTOGRAM STATE TRACKING ---
    double   m_dpi_hist_values[10];       // Rolling buffer of last 10 histogram values
    int      m_dpi_hist_buffer_size;      // Current number of values in buffer
    double   m_dpi_hist_current;          // Current histogram value
@@ -912,11 +912,11 @@ private:
          bool is_decelerating = true;
          for(int i = 1; i < m_settings.DPI_HistDecelLookback; i++)
          {
-            double delta_current = MathAbs(m_dpi_hist_values[i - 1] - m_dpi_hist_values[i]);
-            double delta_prev    = MathAbs(m_dpi_hist_values[i] - m_dpi_hist_values[i + 1]);
+            double delta_newer = MathAbs(m_dpi_hist_values[i - 1] - m_dpi_hist_values[i]);
+            double delta_older = MathAbs(m_dpi_hist_values[i] - m_dpi_hist_values[i + 1]);
 
             // If any recent bar shows increasing momentum, not decelerating
-            if(delta_current >= delta_prev)
+            if(delta_newer >= delta_older)
             {
                is_decelerating = false;
                break;
