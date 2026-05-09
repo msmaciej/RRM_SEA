@@ -389,6 +389,10 @@ struct ST_Settings
    int    DPI_CCI_Period;           // CCI period (default 13)
    int    DPI_CCI_AppliedPrice;     // CCI price type ENUM_APPLIED_PRICE (default PRICE_TYPICAL)
    bool   DPI_UseGreenHist;         // Enable GREEN momentum overlay (false = v29-equivalent)
+   // DPI Histogram Tracking
+   double DPI_HistMomentumThreshold; // Momentum threshold for CCI-delta change (dimensionless)
+   int    DPI_HistDecelLookback;     // Bars to analyze for deceleration
+   bool   DPI_HistTrackingEnabled;   // Master enable for histogram tracking
    int    VRC_ATR_Period;
    int    VRC_Lookback;
    double VRC_LowThreshold;         // Below this percentile = LOW regime (reject trade)
@@ -981,6 +985,9 @@ input bool        Inp_RRM_ORG_DPI_UseCCIReset      = true;        // DPI: Enable
 input int         Inp_RRM_ORG_DPI_CCI_Period       = 13;          // DPI: CCI period
 input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price = PRICE_TYPICAL; // DPI: CCI applied price
 input bool        Inp_RRM_ORG_DPI_UseGreenHist     = false;       // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
+input double      Inp_DPI_HistMomentumThreshold    = 0.0001;      // DPI: Histogram momentum threshold (CCI-delta units)
+input int         Inp_DPI_HistDecelLookback        = 3;           // DPI: Deceleration lookback (bars)
+input bool        Inp_DPI_HistTrackingEnabled      = false;       // DPI: Enable histogram tracking
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Phase A Quality Gates (TS=1 / TE=1)";
@@ -1523,6 +1530,9 @@ void InitializeConfig()
    Settings.DPI_CCI_Period              = MathMax(1, Inp_RRM_ORG_DPI_CCI_Period);
    Settings.DPI_CCI_AppliedPrice        = (int)Inp_RRM_ORG_DPI_CCI_Price;
    Settings.DPI_UseGreenHist            = Inp_RRM_ORG_DPI_UseGreenHist;
+   Settings.DPI_HistMomentumThreshold   = Inp_DPI_HistMomentumThreshold;
+   Settings.DPI_HistDecelLookback       = MathMax(1, MathMin(9, Inp_DPI_HistDecelLookback));
+   Settings.DPI_HistTrackingEnabled     = Inp_DPI_HistTrackingEnabled;
 
    // Choppiness Index
    Settings.CI_Period             = MathMax(5, Inp_CI_Period);
