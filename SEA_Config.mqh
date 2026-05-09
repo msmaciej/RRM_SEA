@@ -911,8 +911,8 @@ input double      Inp_RRM_MaxDailyDrawdownPct   = 3.0;         // RRM: Max daily
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: (SL) Stop Loss";
 input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode    Inp_RRM_SLMode                 = SL_MODE_SWING; // RRM SL placement mode
-input int        Inp_RRM_SwingLookback          = 20;          // RRM Swing lookback bars (used with SL_MODE_SWING)
+input ESLMode     Inp_RRM_SLMode                = SL_MODE_SWING; // RRM SL placement mode
+input int         Inp_RRM_SwingLookback         = 20;          // RRM Swing lookback bars (used with SL_MODE_SWING)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -937,14 +937,18 @@ input group "╔═════════════════════�
 input group "║   📐 RRM: Indicators — Enable/Disable";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_Use_Adx            = false;          // RRM: ADX vote enabled
+input bool        Inp_RRM_Use_Atr            = false;          // RRM: ATR vote enabled
 input bool        Inp_RRM_Use_Bb             = false;          // RRM: Bollinger Bands vote enabled
 input bool        Inp_RRM_Use_CandleBody     = true;           // RRM: Candle body vote enabled
-input bool        Inp_RRM_Use_Cci            = true;          // RRM: CCI vote enabled
-input bool        Inp_RRM_Use_CI             = false;           // RRM: CI vote ranging market filter
-input bool        Inp_RRM_Use_Macd           = true;           // RRM: MACD vote enabled
+input bool        Inp_RRM_Use_Cci            = false;          // RRM: CCI vote enabled
+input bool        Inp_RRM_Use_CI             = false;          // RRM: CI vote ranging market filter
+input bool        Inp_RRM_Use_Macd           = false;          // RRM: MACD vote enabled
 input bool        Inp_RRM_Use_Mfi            = false;          // RRM: MFI vote enabled
 input bool        Inp_RRM_Use_Psar           = true;           // RRM: PSAR vote enabled
+input bool        Inp_RRM_Use_P123           = false;          // RRM: P123 vote enabled
+input bool        Inp_RRM_Use_Ross           = false;          // RRM: Ross vote enabled
 input bool        Inp_RRM_Use_Rsi            = false;          // RRM: RSI vote enabled
+input bool        Inp_RRM_Use_SmaConverge    = false;          // RRM: SmaConverge vote enabled
 input bool        Inp_RRM_Use_Stoch          = false;          // RRM: Stochastic vote enabled
 input bool        Inp_RRM_Use_VRC            = false;          // RRM: VRC vote enabled
 input group "╔════════════════════════════════════════════════════════╗";
@@ -973,11 +977,12 @@ input group "╔═════════════════════�
 input group "║   📐 RRM: MACD Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input EMacdVoteMode Inp_RRM_MacdMode         = MACD_ZERO_AND_HIST; // RRM MACD vote mode
-input bool        Inp_RRM_MacdSlope          = true;           // RRM MACD require slope
-input bool        Inp_RRM_MacdDiv            = true;           // RRM MACD require divergence
-input int         Inp_RRM_MacdFast           = 12;             // RRM MACD Fast period ORG 12
-input int         Inp_RRM_MacdSlow           = 26;             // RRM MACD Slow period ORG 26
-input int         Inp_RRM_MacdSig            = 9;              // RRM MACD Signal period ORG 9
+input bool        Inp_RRM_MacdSlope          = false;          // RRM MACD require slope
+input bool        Inp_RRM_MacdDiv            = false;          // RRM MACD require divergence
+input bool        Inp_RRM_MacdHook           = false;          // RRM MACD require hook
+input int         Inp_RRM_MacdFast           = 8;              // 12 RRM MACD Fast period ORG 12
+input int         Inp_RRM_MacdSlow           = 13;             // 26 RRM MACD Slow period ORG 26
+input int         Inp_RRM_MacdSig            = 5;              // 9 RRM MACD Signal period ORG 9
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: PSAR Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1658,26 +1663,26 @@ void InitializeConfig()
    Settings.Trending_AllowMediumTrades   = true;
    Settings.Trending_AllowStrongTrades   = true;
 
-    Settings.EnableLayerDetection         = false;
-    Settings.AllowLayer1_Entries          = true;
-    Settings.AllowLayer2_Entries          = true;
-    Settings.AllowLayer3_Entries          = true;
+   Settings.EnableLayerDetection         = false;
+   Settings.AllowLayer1_Entries          = true;
+   Settings.AllowLayer2_Entries          = true;
+   Settings.AllowLayer3_Entries          = true;
 
-    Settings.RRM_EnableDrawdownProtection = Inp_RRM_EnableDrawdownProtection;
+   Settings.RRM_EnableDrawdownProtection = Inp_RRM_EnableDrawdownProtection;
    Settings.RRM_MaxConsecutiveLosses     = Inp_RRM_MaxConsecutiveLosses;
    Settings.RRM_MaxTradesPerDay          = Inp_RRM_MaxTradesPerDay;
    Settings.RRM_MaxDailyDrawdownPct      = Inp_RRM_MaxDailyDrawdownPct;
 
-    Settings.SlopeLookbackBars      = 1;
-    Settings.LayerPullbackEnabled        = Inp_LayerPullbackEnabled;
-    Settings.LayerBaselineLookback       = MathMax(3, Inp_LayerBaselineLookback);
-    Settings.LayerPullbackRatio          = MathMax(0.1, Inp_LayerPullbackRatio);
-    Settings.LayerRecoveryRatio          = MathMax(0.1, Inp_LayerRecoveryRatio);
-    Settings.LayerFlatRatio              = MathMax(0.05, Inp_LayerFlatRatio);
-    Settings.LayerAllowReversalPullback  = Inp_LayerAllowReversalPullback;
+   Settings.SlopeLookbackBars           = 1;
+   Settings.LayerPullbackEnabled        = Inp_LayerPullbackEnabled;
+   Settings.LayerBaselineLookback       = MathMax(3, Inp_LayerBaselineLookback);
+   Settings.LayerPullbackRatio          = MathMax(0.1, Inp_LayerPullbackRatio);
+   Settings.LayerRecoveryRatio          = MathMax(0.1, Inp_LayerRecoveryRatio);
+   Settings.LayerFlatRatio              = MathMax(0.05, Inp_LayerFlatRatio);
+   Settings.LayerAllowReversalPullback  = Inp_LayerAllowReversalPullback;
 
-    // BarClose (bcX) settings
-    Settings.BarClose_Enabled    = Inp_BarClose_Enabled;
+   // BarClose (bcX) settings
+   Settings.BarClose_Enabled    = Inp_BarClose_Enabled;
    Settings.BarClose_Mode       = Inp_BarClose_Mode;
    Settings.BarClose_DefaultEMA = Inp_BarClose_DefaultEMA;
 
