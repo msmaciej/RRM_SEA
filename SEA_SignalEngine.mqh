@@ -148,15 +148,23 @@ private:
    int          m_diag_phase_confirm_bars; // Number of consecutive bars in current phase
 
    // --- 2c. KISS LAYER DIAGNOSTICS ---
-   int         m_diag_layer_w;       // Last evaluated LayerW result (0/1)
-   int         m_diag_layer_m;       // Last evaluated LayerM result (0/1)
-   int         m_diag_layer_s;       // Last evaluated LayerS result (0/1)
-   int         m_last_layer;         // Active layer that won (1=Weak, 2=Medium, 3=Strong, 0=none)
+    int         m_diag_layer_w;       // Last evaluated LayerW result (0/1)
+    int         m_diag_layer_m;       // Last evaluated LayerM result (0/1)
+    int         m_diag_layer_s;       // Last evaluated LayerS result (0/1)
+    int         m_last_layer;         // Active layer that won (1=Weak, 2=Medium, 3=Strong, 0=none)
+    // --- 2c.1 LAYER PULLBACK-RECOVERY STATE ---
+    ELayerPullbackState m_layer_w_pb_state;   // LayerW pullback state
+    ELayerPullbackState m_layer_m_pb_state;   // LayerM pullback state
+    ELayerPullbackState m_layer_s_pb_state;   // LayerS pullback state
+    double              m_layer_w_baseline;   // LayerW baseline slope
+    double              m_layer_m_baseline;   // LayerM baseline slope
+    double              m_layer_s_baseline;   // LayerS baseline slope
+    datetime            m_layer_pb_last_update; // Last update timestamp
 
-   // --- 2d. REJECTION STATISTICS ---
-   int         m_bars_evaluated;     // Total bars evaluated by EvaluateTS()
-   int         m_signals_generated;  // Signals returned (TS != 0)
-   int         m_reject_filter;      // Rejections at pre-filter step (spread, time, news)
+    // --- 2d. REJECTION STATISTICS ---
+    int         m_bars_evaluated;     // Total bars evaluated by EvaluateTS()
+    int         m_signals_generated;  // Signals returned (TS != 0)
+    int         m_reject_filter;      // Rejections at pre-filter step (spread, time, news)
    int         m_reject_bias;        // Rejections at bias step (no trend, signal mismatch)
    int         m_reject_gate;        // Rejections at gate step (HTF, RRM, structure gates)
    int         m_reject_votes;       // Rejections at vote step
@@ -946,6 +954,106 @@ private:
                                m_dpi_hist_decelerating ? "YES" : "NO",
                                m_dpi_hist_buffer_size, DPI_HIST_BUFFER_CAPACITY));
       }
+   }
+
+   //+------------------------------------------------------------------+
+   //| CalculateSlopeRatio — Ratio-based slope analysis                 |
+   //+------------------------------------------------------------------+
+   double CalculateSlopeRatio(int ema_handle, int shift, int lookback, double &out_baseline)
+   {
+      out_baseline = 0.0;
+      if(ema_handle == INVALID_HANDLE || lookback < 1)
+         return 0.0;
+
+      double ema_now  = GetMAVal(ema_handle, shift);
+      double ema_then = GetMAVal(ema_handle, shift + lookback);
+      double ema_prev = GetMAVal(ema_handle, shift + 1);
+
+      if(ema_now == EMPTY_VALUE || ema_then == EMPTY_VALUE || ema_prev == EMPTY_VALUE)
+         return 0.0;
+
+      double baseline_slope = (ema_now - ema_then) / (double)lookback;
+      out_baseline = baseline_slope;
+
+      double current_slope = ema_now - ema_prev;
+      if(MathAbs(baseline_slope) < 0.00000001)
+         return 0.0;
+
+      return current_slope / baseline_slope;
+   }
+
+   //+------------------------------------------------------------------+
+   //| UpdateSingleLayerPullback — State machine for one layer          |
+   //+------------------------------------------------------------------+
+   void UpdateSingleLayerPullback(int fast_ema_handle, int bias, int v_shift, int lookback,
+                                  ELayerPullbackState &state, double &baseline, string label)
+   {
+      double baseline_slope = 0.0;
+      double ratio = CalculateSlopeRatio(fast_ema_handle, v_shift, lookback, baseline_slope);
+      baseline = baseline_slope;
+
+      bool is_pullback = false;
+      if(MathAbs(ratio) < m_settings.LayerPullbackRatio)
+         is_pullback = true;
+      if(MathAbs(ratio) < m_settings.LayerFlatRatio)
+         is_pullback = true;
+      if(m_settings.LayerAllowReversalPullback)
+      {
+         bool baseline_bullish = (baseline_slope > 0.0);
+         bool current_bullish  = (ratio > 0.0);
+         if(baseline_bullish != current_bullish && MathAbs(baseline_slope) > 0.00000001)
+            is_pullback = true;
+      }
+
+      bool is_recovery = false;
+      if(state == LAYER_PB_DETECTED)
+      {
+         bool baseline_bullish = (baseline_slope > 0.0);
+         bool current_bullish  = (ratio > 0.0);
+         if(baseline_bullish == current_bullish &&
+            MathAbs(ratio) >= m_settings.LayerRecoveryRatio)
+            is_recovery = true;
+      }
+
+      ELayerPullbackState prev_state = state;
+      if(state == LAYER_PB_NONE && is_pullback)
+         state = LAYER_PB_DETECTED;
+      else if(state == LAYER_PB_DETECTED && is_recovery)
+         state = LAYER_PB_RECOVERED;
+      else if(state == LAYER_PB_RECOVERED && is_pullback)
+         state = LAYER_PB_DETECTED;
+
+      if(m_settings.DebugFlow && state != prev_state)
+      {
+         DebugLog(StringFormat("[%s_PB] State: %s -> %s | Ratio=%.2f | Baseline=%.5f | Bias=%d",
+                               label,
+                               EnumToString(prev_state),
+                               EnumToString(state),
+                               ratio,
+                               baseline_slope,
+                               bias));
+      }
+   }
+
+   //+------------------------------------------------------------------+
+   //| UpdateLayerPullbackStates — Update pullback state for all layers |
+   //+------------------------------------------------------------------+
+   void UpdateLayerPullbackStates(int bias, int v_shift)
+   {
+      if(!m_settings.LayerPullbackEnabled) return;
+
+      datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+      if(m_layer_pb_last_update == bar_time) return;
+      m_layer_pb_last_update = bar_time;
+
+      int lookback = m_settings.LayerBaselineLookback;
+
+      UpdateSingleLayerPullback(h_ema1, bias, v_shift, lookback,
+                                m_layer_w_pb_state, m_layer_w_baseline, "LayerW");
+      UpdateSingleLayerPullback(h_ema2, bias, v_shift, lookback,
+                                m_layer_m_pb_state, m_layer_m_baseline, "LayerM");
+      UpdateSingleLayerPullback(h_ema3, bias, v_shift, lookback,
+                                m_layer_s_pb_state, m_layer_s_baseline, "LayerS");
    }
 
    //+------------------------------------------------------------------+
@@ -2058,11 +2166,13 @@ private:
    int CheckLayerPairAlign(int bias, int layer_type)
    {
       int h_fast = INVALID_HANDLE, h_slow = INVALID_HANDLE;
+      ELayerPullbackState current_state = LAYER_PB_NONE;
+      string layer_label = "";
       switch(layer_type)
       {
-         case 1: h_fast = h_ema1; h_slow = h_ema2; break;
-         case 2: h_fast = h_ema2; h_slow = h_ema3; break;
-         case 3: h_fast = h_ema3; h_slow = h_ema4; break;
+         case 1: h_fast = h_ema1; h_slow = h_ema2; current_state = m_layer_w_pb_state; layer_label = "LayerW"; break;
+         case 2: h_fast = h_ema2; h_slow = h_ema3; current_state = m_layer_m_pb_state; layer_label = "LayerM"; break;
+         case 3: h_fast = h_ema3; h_slow = h_ema4; current_state = m_layer_s_pb_state; layer_label = "LayerS"; break;
          default: return 0;
       }
 
@@ -2116,7 +2226,18 @@ private:
       bool slope_slow_aligned = (bias == 1)  ? (ema_slow > ema_slow_prev) :
                                 (bias == -1) ? (ema_slow < ema_slow_prev) : false;
 
-      bool result = (slope_fast_aligned && slope_slow_aligned);
+      int base_result = (slope_fast_aligned && slope_slow_aligned) ? 1 : 0;
+
+      if(m_settings.LayerPullbackEnabled && base_result == 1)
+      {
+         if(current_state != LAYER_PB_RECOVERED)
+         {
+            if(m_settings.DebugFlow)
+               DebugLog(StringFormat("[%s] BLOCKED by pullback gate | State=%s (need RECOVERED)",
+                                     layer_label, EnumToString(current_state)));
+            return 0;
+         }
+      }
 
       if(m_settings.DebugFlow)
       {
@@ -2127,11 +2248,11 @@ private:
                      ema_fast, ema_fast_prev, slope_fast_aligned ? "OK" : "FAIL",
                      ema_slow, ema_slow_prev, slope_slow_aligned ? "OK" : "FAIL",
                      position_aligned ? "OK" : "FAIL",
-                     result ? "OK" : "FAIL",
-                     result ? "PASS" : "REJECT");
+                     (base_result == 1) ? "OK" : "FAIL",
+                     (base_result == 1) ? "PASS" : "REJECT");
       }
 
-      return result ? 1 : 0;
+      return base_result;
    }
 
    //==========================================================================
@@ -2347,6 +2468,16 @@ public:
    int    GetDPIHistTrend()        const { return m_dpi_hist_trend; }
    bool   GetDPIHistDecelerating() const { return m_dpi_hist_decelerating; }
    int    GetDPIHistBufferSize()   const { return m_dpi_hist_buffer_size; }
+
+   //+------------------------------------------------------------------+
+   //| Layer Pullback-Recovery Diagnostic Getters                       |
+   //+------------------------------------------------------------------+
+   ELayerPullbackState GetLayerWPullbackState() const { return m_layer_w_pb_state; }
+   ELayerPullbackState GetLayerMPullbackState() const { return m_layer_m_pb_state; }
+   ELayerPullbackState GetLayerSPullbackState() const { return m_layer_s_pb_state; }
+   double              GetLayerWBaseline()      const { return m_layer_w_baseline; }
+   double              GetLayerMBaseline()      const { return m_layer_m_baseline; }
+   double              GetLayerSBaseline()      const { return m_layer_s_baseline; }
 
    // Returns true if the given entry layer is permitted in the given phase.
    // Requires PhaseDetectionEnabled AND EnableLayerDetection to activate filtering.
@@ -3172,6 +3303,13 @@ public:
       m_dpi_hist_trend = 0;
       m_dpi_hist_decelerating = false;
       m_dpi_hist_last_update = 0;
+      m_layer_w_pb_state = LAYER_PB_NONE;
+      m_layer_m_pb_state = LAYER_PB_NONE;
+      m_layer_s_pb_state = LAYER_PB_NONE;
+      m_layer_w_baseline = 0.0;
+      m_layer_m_baseline = 0.0;
+      m_layer_s_baseline = 0.0;
+      m_layer_pb_last_update = 0;
 
       ENUM_MA_METHOD method = (m_settings.MaType == METHOD_SMA) ? MODE_SMA : MODE_EMA;
       int h_shift = m_settings.ma_h_shift;
@@ -5153,6 +5291,9 @@ public:
          m_stats.passed_dpi_decel++;
       if(m_settings.MinPhaseConfirmBars > 0)
          m_stats.passed_phase_age++;
+
+      if(m_settings.BiasMode == BIAS_4EMA)
+         UpdateLayerPullbackStates(B, v_shift);
 
       // ── L: Layer ─────────────────────────────────────────────────
       int L = EvaluateL(v_shift, B);
