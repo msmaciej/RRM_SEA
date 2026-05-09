@@ -1,0 +1,29 @@
+name: Create v1-03 Archive Branch
+
+on:
+  push:
+    branches:
+      - 'copilot/create-v1-03-archive-branch'
+
+permissions:
+  contents: write
+
+jobs:
+  create-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create v1-03 branch from archived commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if v1-03 branch already exists
+          if gh api repos/${{ github.repository }}/git/ref/heads/v1-03 --silent 2>/dev/null; then
+            echo "Branch v1-03 already exists, skipping creation."
+          else
+            echo "Creating v1-03 branch from commit fa014040c40fe000232f0f89571ec88998efe8be"
+            gh api repos/${{ github.repository }}/git/refs \
+              --method POST \
+              --field ref="refs/heads/v1-03" \
+              --field sha="fa014040c40fe000232f0f89571ec88998efe8be"
+            echo "Branch v1-03 created successfully!"
+          fi
