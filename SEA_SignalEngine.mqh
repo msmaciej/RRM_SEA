@@ -992,11 +992,8 @@ private:
       double ratio = CalculateSlopeRatio(fast_ema_handle, v_shift, lookback, baseline_slope);
       baseline = baseline_slope;
 
-      bool is_pullback = false;
-      if(MathAbs(ratio) < m_settings.LayerPullbackRatio)
-         is_pullback = true;
-      if(MathAbs(ratio) < m_settings.LayerFlatRatio)
-         is_pullback = true;
+      bool is_pullback = (MathAbs(ratio) < m_settings.LayerPullbackRatio ||
+                          MathAbs(ratio) < m_settings.LayerFlatRatio);
       if(m_settings.LayerAllowReversalPullback)
       {
          bool baseline_bullish = (baseline_slope > 0.0);
@@ -2230,6 +2227,7 @@ private:
 
       if(m_settings.LayerPullbackEnabled && base_result == 1)
       {
+         // NONE and DETECTED stay blocked until a recovery has been observed.
          if(current_state != LAYER_PB_RECOVERED)
          {
             if(m_settings.DebugFlow)

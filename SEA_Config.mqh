@@ -1656,12 +1656,6 @@ void InitializeConfig()
     Settings.AllowLayer1_Entries          = true;
     Settings.AllowLayer2_Entries          = true;
     Settings.AllowLayer3_Entries          = true;
-    Settings.LayerPullbackEnabled         = false;
-    Settings.LayerBaselineLookback        = 10;
-    Settings.LayerPullbackRatio           = 0.5;
-    Settings.LayerRecoveryRatio           = 0.3;
-    Settings.LayerFlatRatio               = 0.1;
-    Settings.LayerAllowReversalPullback   = true;
 
     Settings.RRM_EnableDrawdownProtection = Inp_RRM_EnableDrawdownProtection;
    Settings.RRM_MaxConsecutiveLosses     = Inp_RRM_MaxConsecutiveLosses;
