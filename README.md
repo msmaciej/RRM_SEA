@@ -317,7 +317,30 @@ The DPI vote is driven by **ribbon color** (yellow → Long, red → Short), wit
 - `DPIHistTrend` — Direction (+1 green, -1 red, 0 flat)
 - `DPIHistDecelerating` — True if momentum is decreasing
 
-**Note:** This adds state-tracking infrastructure only. Filtering logic is unchanged in this step.
+### DPI Histogram Entry/Exit Logic
+
+**Purpose:** Use DPI momentum state for trade filtering and exit management.
+
+**Entry Filtering (TS-Level):**
+- `DPI_BlockOnDeceleration` (default: false) — Reject new entries when histogram decelerating
+  - Prevents entries near overbought/oversold exhaustion points
+  - Detects momentum decay over `DPI_HistDecelLookback` bars
+  - Requires `DPI_HistTrackingEnabled = true`
+
+**Exit Management (TE-Level):**
+- `DPI_ExitOnHistDisappear` (default: false) — Close positions when green histogram vanishes
+  - Exits when DPI trend changes from GREEN to RED/FLAT
+  - Requires `DPI_HistTrackingEnabled = true`
+- `DPI_ExitThreshold` (default: 0.0) — Exit when |CCI| falls below this value (0 = disabled)
+
+**Use Cases:**
+1. **Conservative Entry:** Enable `DPI_BlockOnDeceleration` to avoid peak entries
+2. **Momentum Exit:** Enable `DPI_ExitOnHistDisappear` to close before major reversals
+3. **Threshold Exit:** Set `DPI_ExitThreshold = 20.0` to exit when CCI momentum weakens
+
+**Dependencies:**
+- Requires `DPI_HistTrackingEnabled = true` (histogram tracking infrastructure)
+- Uses DPI histogram state: `m_dpi_hist_current`, `m_dpi_hist_trend`, `m_dpi_hist_decelerating`
 
 ### Standalone Indicators (Chart Visualization)
 

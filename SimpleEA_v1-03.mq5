@@ -675,6 +675,7 @@ void OrchestrateTick()
    g_last_bar_time = current_bar;
 
    // 6. TM: Trail/BE modifications — bar-close only
+   Executor.SetDPIHistogramState(Signal.GetDPIHistCurrent(), Signal.GetDPIHistTrend(), Signal.GetDPIHistDecelerating());
    Executor.EvaluateTM();
    Executor.UpdateChartMarkers();
 
@@ -1216,6 +1217,7 @@ void OrchestrateDeinit(const int reason)
       Executor.RejOpenDelay(),  Executor.RejBCRecheck(),  Executor.RejSpreadMedian(),
       Executor.PassOpenDelay(), Executor.PassBCRecheck(), Executor.PassSpreadMedian()
    );
+   Signal.AddDPIExitStats(Executor.ExitsDpiHist());
 
    Signal.PrintRejectionStatistics();
    Signal.PrintEnhancedStatistics();
