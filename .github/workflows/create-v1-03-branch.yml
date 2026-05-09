@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'copilot/create-v1-03-archive-branch'
+  workflow_dispatch:
 
 permissions:
   contents: write
