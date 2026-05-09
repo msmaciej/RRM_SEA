@@ -62,6 +62,12 @@ private:
    int         m_te_pass_bc_recheck;
    int         m_te_pass_spread_median;
 
+   // ── DPI Histogram Exit: state cached from CSignalEngine each bar ──
+   double      m_dpi_hist_current;       // Current CCI value from DPI tracking
+   int         m_dpi_hist_trend;         // +1 green, -1 red, 0 flat
+   bool        m_dpi_hist_decelerating;  // True if momentum decelerating
+   int         m_exits_dpi_hist;         // Count of positions closed by DPI histogram exit
+
    // ── PHASE B: median-spread ring buffer for TE_SpreadMedianTicks gate ──
    double      m_spread_history[32];   // sized for max plausible TE_SpreadMedianTicks
    int         m_spread_history_count;
@@ -385,6 +391,41 @@ private:
       double psar = GetPSARAnchor(1);
       if(psar <= 0.0) return false;
       return (direction > 0 && psar > current_price) || (direction < 0 && psar < current_price);
+   }
+
+   //+------------------------------------------------------------------+
+   //| CheckDPIHistogramExit — Exit when DPI green histogram vanishes   |
+   //| Returns: true if position should be closed                       |
+   //+------------------------------------------------------------------+
+   bool CheckDPIHistogramExit(ulong ticket)
+   {
+      if(!m_settings.DPI_ExitOnHistDisappear) return false;
+      if(!m_settings.DPI_HistTrackingEnabled) return false;
+
+      // Exit if green histogram disappeared (trend changed to red/flat)
+      bool hist_disappeared = (m_dpi_hist_trend != 1);
+      bool below_threshold  = false;
+
+      if(m_settings.DPI_ExitThreshold > 0.0)
+         below_threshold = (MathAbs(m_dpi_hist_current) < m_settings.DPI_ExitThreshold);
+
+      if(hist_disappeared || below_threshold)
+      {
+         if(m_settings.DebugFlow)
+         {
+            string reason = hist_disappeared
+               ? "Green histogram disappeared"
+               : StringFormat("CCI below threshold (%.2f < %.2f)", MathAbs(m_dpi_hist_current), m_settings.DPI_ExitThreshold);
+            PrintFormat("[DPI_EXIT] Ticket #%I64u | Reason: %s | CCI=%.2f | Trend=%s",
+                        ticket,
+                        reason,
+                        m_dpi_hist_current,
+                        (m_dpi_hist_trend == 1 ? "GREEN" : m_dpi_hist_trend == -1 ? "RED" : "FLAT"));
+         }
+         return true;
+      }
+
+      return false;
    }
 
    bool CheckTrailTrigger(int direction, double profit_pips, double entry_price, double current_price) {
@@ -893,7 +934,9 @@ public:
                        m_te_rej_open_delay(0), m_te_rej_bc_recheck(0), m_te_rej_spread_median(0),
                        m_te_pass_open_delay(0), m_te_pass_bc_recheck(0), m_te_pass_spread_median(0),
                        m_spread_history_count(0), m_spread_history_idx(0),
-                       m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE) // CACHED HANDLES
+                       m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), // CACHED HANDLES
+                       m_dpi_hist_current(0.0), m_dpi_hist_trend(0), m_dpi_hist_decelerating(false),
+                       m_exits_dpi_hist(0)
    {
       m_excursion.ticket = 0; m_excursion.entry_time = 0; m_excursion.entry_price = 0.0;
       m_excursion.mae_pips = 0.0; m_excursion.mfe_pips = 0.0; m_excursion.current_pips = 0.0;
@@ -922,6 +965,17 @@ public:
    int      PassOpenDelay()    const { return m_te_pass_open_delay;    }
    int      PassBCRecheck()    const { return m_te_pass_bc_recheck;    }
    int      PassSpreadMedian() const { return m_te_pass_spread_median; }
+
+   // ── DPI Histogram Exit: state setter & stats getter ──────────────
+   // Called once per bar from main EA before EvaluateTM(), so CheckDPIHistogramExit()
+   // uses the current DPI state computed by CSignalEngine.
+   void SetDPIHistogramState(double current, int trend, bool decelerating)
+   {
+      m_dpi_hist_current      = current;
+      m_dpi_hist_trend        = trend;
+      m_dpi_hist_decelerating = decelerating;
+   }
+   int ExitsDpiHist() const { return m_exits_dpi_hist; }
 
    // BUG FIX: Public wrapper so OrchestrateInit() can restore g_consecutive_losses from history
    int GetConsecutiveLossesToday() { return CountConsecutiveLossesToday(); }
@@ -1833,6 +1887,16 @@ public:
       // Capture initial SL once at first bar of new position
       if(m_initial_sl_price <= 0.0) {
          m_initial_sl_price = PositionGetDouble(POSITION_SL);
+      }
+
+      // ── DPI Histogram Exit: check once per bar before other exit logic ──
+      if(CheckDPIHistogramExit(ticket))
+      {
+         m_trade.PositionClose(ticket);
+         m_last_close_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
+         m_last_tracked_ticket = 0;
+         m_exits_dpi_hist++;
+         return;
       }
 
       if(m_settings.ExitProfile == EXIT_PROFILE_RRM) {

@@ -402,6 +402,10 @@ struct ST_Settings
    double DPI_HistMomentumThreshold; // Momentum threshold for CCI-delta change (dimensionless)
    int    DPI_HistDecelLookback;     // Bars to analyze for deceleration
    bool   DPI_HistTrackingEnabled;   // Master enable for histogram tracking
+   // DPI Histogram Entry/Exit Logic
+   bool   DPI_BlockOnDeceleration;  // Block new entries when histogram decelerating
+   bool   DPI_ExitOnHistDisappear;  // Close positions when green histogram vanishes
+   double DPI_ExitThreshold;        // Exit when |CCI| falls below this value
    int    VRC_ATR_Period;
    int    VRC_Lookback;
    double VRC_LowThreshold;         // Below this percentile = LOW regime (reject trade)
@@ -1013,6 +1017,10 @@ input bool        Inp_RRM_ORG_DPI_UseGreenHist     = false;       // DPI: Enable
 input double      Inp_DPI_HistMomentumThreshold    = 0.0001;      // DPI: Histogram momentum threshold (CCI-delta units)
 input int         Inp_DPI_HistDecelLookback        = 3;           // DPI: Deceleration lookback (bars)
 input bool        Inp_DPI_HistTrackingEnabled      = false;       // DPI: Enable histogram tracking
+input group "═══ DPI Histogram Entry/Exit Logic ═══"
+input bool        Inp_DPI_BlockOnDeceleration     = false;       // DPI: Block entries on momentum deceleration
+input bool        Inp_DPI_ExitOnHistDisappear     = false;       // DPI: Close trades when green histogram vanishes
+input double      Inp_DPI_ExitThreshold           = 0.0;         // DPI: Exit when |CCI| below threshold (0=disable)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Phase A Quality Gates (TS=1 / TE=1)";
@@ -1558,6 +1566,9 @@ void InitializeConfig()
     Settings.DPI_HistMomentumThreshold   = Inp_DPI_HistMomentumThreshold;
     Settings.DPI_HistDecelLookback       = MathMax(1, MathMin(9, Inp_DPI_HistDecelLookback));
     Settings.DPI_HistTrackingEnabled     = Inp_DPI_HistTrackingEnabled;
+    Settings.DPI_BlockOnDeceleration     = Inp_DPI_BlockOnDeceleration;
+    Settings.DPI_ExitOnHistDisappear     = Inp_DPI_ExitOnHistDisappear;
+    Settings.DPI_ExitThreshold           = MathMax(0.0, Inp_DPI_ExitThreshold);
     // Choppiness Index
     Settings.CI_Period             = MathMax(5, Inp_CI_Period);
     Settings.CI_RangingThreshold   = MathMax(0.0, Inp_CI_RangingThreshold);

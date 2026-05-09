@@ -101,6 +101,7 @@ struct SRejectionStats {
    // ── PHASE A.1: Pre-filter quality gates (TS=1 hardening) ──────────────
    int passed_emafan,     rejected_emafan;     // EMA fan overextension
    int passed_dpi_decel,  rejected_dpi_decel;  // DPI histogram deceleration
+   int exits_dpi_hist;                          // Trades closed by DPI histogram exit
    int passed_phase_age,  rejected_phase_age;  // MinPhaseConfirmBars not met
    int passed_htf_align,  rejected_htf_align;  // HTF EMA slope disagrees with bias
 
@@ -2555,6 +2556,12 @@ public:
       m_stats.passed_te_spread_median    += pass_spread_median;
    }
 
+   // Bridge DPI histogram exit counter from CTradeExecutor into session stats.
+   void AddDPIExitStats(int exits_dpi_hist)
+   {
+      m_stats.exits_dpi_hist += exits_dpi_hist;
+   }
+
    // Returns the number of currently enabled indicator votes.
    int CountEnabledIndicators() const
    {
@@ -2831,6 +2838,13 @@ public:
                     (m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
                        ? "histogram shrinking"
                        : (!m_settings.Ind_Dpi_Enabled ? "(DPI off)" : "(disabled)"));
+      PrintGateStat("DPI Blk Decel",
+                    (m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled),
+                    m_stats.passed_dpi_decel,
+                    m_stats.rejected_dpi_decel,
+                    (m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled)
+                       ? "momentum decelerating"
+                       : "(disabled)");
       PrintGateStat("Phase Age",
                     (m_settings.MinPhaseConfirmBars > 0),
                     m_stats.passed_phase_age,
@@ -2865,11 +2879,12 @@ public:
                        ? StringFormat("median over %d ticks", m_settings.TE_SpreadMedianTicks)
                        : "(disabled)");
       Print("----------------------------------------------------------------");
-      PrintFormat("Pre-filter blocks: %d bars (TS), %d (TE)",
+      PrintFormat("Pre-filter blocks: %d bars (TS), %d (TE), %d exits (DPI Hist)",
                   m_stats.rejected_emafan + m_stats.rejected_dpi_decel +
                   m_stats.rejected_phase_age + m_stats.rejected_htf_align,
                   m_stats.rejected_te_open_delay + m_stats.rejected_te_bc_recheck +
-                  m_stats.rejected_te_spread_median);
+                  m_stats.rejected_te_spread_median,
+                  m_stats.exits_dpi_hist);
       Print("");
       Print("================================================================");
       Print("2. BIAS & LAYER DETECTION");
@@ -5223,6 +5238,34 @@ public:
       }
 
       // ══════════════════════════════════════════════════════════════════
+      // PRE-FILTER (PHASE A.1): DPI Histogram Deceleration (PR #3)
+      // Uses m_dpi_hist_decelerating from UpdateDPIHistogramState() (PR #1).
+      // Rejects entries when momentum is decelerating (approaching exhaustion).
+      // ══════════════════════════════════════════════════════════════════
+      if(m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled)
+      {
+         if(m_dpi_hist_decelerating)
+         {
+            if(m_settings.DebugFlow)
+               DebugLog(StringFormat("[FILTER_DPI_DECEL] REJECT | DPI histogram decelerating (approaching exhaustion) | CCI=%.2f | Trend=%s",
+                                     m_dpi_hist_current,
+                                     (m_dpi_hist_trend == 1 ? "GREEN" : m_dpi_hist_trend == -1 ? "RED" : "FLAT")));
+            m_diag_last_reason = "DPI_DECEL";
+            m_reject_filter++;
+            m_stats.rejected_dpi_decel++;
+            if(!full_eval) {
+               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+               UpdateTelemetry(0);
+               FlushOrClearDebugBuffer(0);
+               RestoreForcedDebug();
+               return 0;
+            }
+            if(m_eval_first_failure == "") m_eval_first_failure = "DPI_DECEL";
+            m_eval_any_failure = true;
+         }
+      }
+
+      // ══════════════════════════════════════════════════════════════════
       // PRE-FILTER (PHASE A.1): Phase-age confirmation
       // Reject when MinPhaseConfirmBars > 0 and the current phase has not
       // persisted for at least that many bars. Catches single-bar TM
@@ -5286,7 +5329,8 @@ public:
       // so the Pass% column reflects accuracy among bars where the gate fired.
       if(m_settings.EmaFanFilterEnabled && m_settings.EmaFanMaxTotalPips > 0.0)
          m_stats.passed_emafan++;
-      if(m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
+      if((m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled) ||
+         (m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled))
          m_stats.passed_dpi_decel++;
       if(m_settings.MinPhaseConfirmBars > 0)
          m_stats.passed_phase_age++;
