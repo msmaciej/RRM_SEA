@@ -2174,30 +2174,6 @@ private:
       return true; // Medium / High / anything else treated as relevant
    }
 
-   // --- ADAPTIVE GATE SCALING HELPERS ---
-
-   // Legacy helper retained for backward compatibility with older revisions.
-   // Active pullback/recovery logic now uses ratio comparisons, not pip thresholds.
-   double GetAdaptivePullbackPips(ENUM_TIMEFRAMES tf, string symbol)
-   {
-      bool is_jpy = (StringFind(symbol, "JPY") >= 0);
-      double base = 0;
-      switch(tf)
-      {
-         case PERIOD_M1:  base = 2.0;  break;
-         case PERIOD_M5:  base = 5.0;  break;
-         case PERIOD_M15: base = 8.0;  break;
-         case PERIOD_M30: base = 10.0; break;
-         case PERIOD_H1:  base = 15.0; break;
-         case PERIOD_H2:  base = 20.0; break;
-         case PERIOD_H4:  base = 30.0; break;
-         case PERIOD_D1:  base = 60.0; break;
-         default:         base = 10.0;
-      }
-      if(is_jpy) base *= 100.0;
-      return base;
-   }
-
    //+------------------------------------------------------------------+
    // Calculate slope direction from two adjacent points
    //+------------------------------------------------------------------+
