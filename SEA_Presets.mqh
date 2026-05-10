@@ -939,7 +939,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Mfi_Enabled        = Inp_RRM_Use_Mfi;
       // Always off in RRM (not part of RRM methodology):
       cfg.Ind_Atr_Enabled        = false;
-      cfg.Ind_CI_Enabled         = Inp_RRM_Use_CI;
+      cfg.Ind_CI_Enabled         = Inp_RRM_Use_CI; // CI stays optional so PRESET_RRM can be tuned from its own section.
       cfg.Ind_VRC_Enabled        = false;
       cfg.Ind_P123_Enabled       = false;
       cfg.Ind_Ross_Enabled       = false;
@@ -1021,7 +1021,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EnableLayerDetection      = true;           // true
       cfg.BlockUnorderedPhase       = true;           // true
       cfg.BlockEmergingPhase        = true;           // true: EM phase = no trades; TM phase = trades allowed
-      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;        // M1: No delay needed on M1
+      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;        // M1/M5: No delay needed on the fastest intraday presets
 
       // Layer permissions per phase (per RRM methodology PNGs):
       //   TRENDING:  Weak + Medium + Strong trades allowed (user-controllable via Inp_RRM_Allow*)
