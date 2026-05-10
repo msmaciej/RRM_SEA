@@ -14,7 +14,7 @@
 #property strict
 
 // Preset system version
-#define PRESET_SYSTEM_VERSION "2.1.0"  // Major.Minor.Patch
+#define PRESET_SYSTEM_VERSION "4.0.1"  // Major.Minor.Patch
 
 #include <RRMS\SEA_Config.mqh>
 
@@ -480,7 +480,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_Lookback              = 0;
       cfg.Gate_EmaDiv.mode          = GATE_SCALE_FIXED;
       cfg.Gate_EmaDiv.value         = 0.0;
-      cfg.RRM_MinDivPips            = 0.0;
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
       cfg.Gate_CandleDirection.value = 0.0;
 
@@ -778,7 +777,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Gate 3: EMA divergence
       cfg.Gate_EmaDiv.mode          = GATE_SCALE_FIXED;
       cfg.Gate_EmaDiv.value         = 0.0;
-      cfg.RRM_MinDivPips            = 0.0;
       
       // Gate 4: Candle direction
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
@@ -930,24 +928,25 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MaxSpread = op_MaxSpread;  // Policy A: user spread gate
 
       // ── INDICATOR TOGGLES: flexible via Inp_RRM_* ────────────────────
-      cfg.Ind_Adx_Enabled        = Inp_RRM_Use_Adx;
-      cfg.Ind_Atr_Enabled        = false;
-      cfg.Ind_Bb_Enabled         = Inp_RRM_Use_Bb;
+      cfg.Ind_Macd_Enabled       = Inp_RRM_Use_Macd;
+      cfg.Ind_Psar_Enabled       = Inp_RRM_Use_Psar;
       cfg.Ind_CandleBody_Enabled = Inp_RRM_Use_CandleBody;
       cfg.Ind_Cci_Enabled        = Inp_RRM_Use_Cci;
-      cfg.Ind_CI_Enabled         = false;       // Always off in RRM (not part of RRM methodology):
-      cfg.Ind_Dpi_Enabled        = false;
-      cfg.Ind_Dpi_Weight         = 1;
-      cfg.Ind_Macd_Enabled       = Inp_RRM_Use_Macd;
-      cfg.Ind_Mfi_Enabled        = Inp_RRM_Use_Mfi;
-      cfg.Ind_P123_Enabled       = false;
-      cfg.Ind_Psar_Enabled       = Inp_RRM_Use_Psar;
-      cfg.Ind_Ross_Enabled       = false;
       cfg.Ind_Rsi_Enabled        = Inp_RRM_Use_Rsi;
+      cfg.Ind_Adx_Enabled        = Inp_RRM_Use_Adx;
+      cfg.Ind_Sto_Enabled        = Inp_RRM_Use_Stoch;
+      cfg.Ind_Bb_Enabled         = Inp_RRM_Use_Bb;
+      cfg.Ind_Mfi_Enabled        = Inp_RRM_Use_Mfi;
+      // Always off in RRM (not part of RRM methodology):
+      cfg.Ind_Atr_Enabled        = false;
+      cfg.Ind_CI_Enabled         = Inp_RRM_Use_CI; // Intentional: PRESET_RRM now exposes the CI toggle in its own preset block.
+      cfg.Ind_VRC_Enabled        = false;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Ross_Enabled       = false;
       cfg.Ind_SmaConverge_Enabled = false;
       cfg.Ind_SmaConverge_Weight  = 1;
-      cfg.Ind_Sto_Enabled        = Inp_RRM_Use_Stoch;
-      cfg.Ind_VRC_Enabled        = false;
+      cfg.Ind_Dpi_Enabled        = false;
+      cfg.Ind_Dpi_Weight         = 1;
 
       // ── MACD SETTINGS: flexible via Inp_RRM_* ────────────────────────
       cfg.P_MacdFast             = Inp_RRM_MacdFast;
@@ -973,43 +972,43 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── RSI SETTINGS: flexible via Inp_RRM_* ─────────────────────────
       cfg.P_Rsi                  = Inp_RRM_RsiPeriod;
       cfg.RsiMode                = Inp_RRM_RsiMode;
-      cfg.T_RsiOB                = 70.0;
-      cfg.T_RsiOS                = 30.0;
+      cfg.T_RsiOB                = Inp_RRM_Rsi_OB;
+      cfg.T_RsiOS                = Inp_RRM_Rsi_OS;
 
       // ── ADX SETTINGS: flexible via Inp_RRM_* ─────────────────────────
-      cfg.ADX_Mode               = ADX_MODE_PHASE_AWARE;
+      cfg.ADX_Mode               = Inp_RRM_Adx_Mode;
       cfg.P_Adx                  = Inp_RRM_AdxPeriod;
       cfg.T_Adx                  = Inp_RRM_AdxThreshold;
-      cfg.ADX_Percentile         = 50.0;
-      cfg.ADX_Lookback           = 100;
-      cfg.ADX_Threshold_Accumulation  = 12.0;
-      cfg.ADX_Threshold_Trending      = 25.0;
-      cfg.ADX_Threshold_Distribution  = 18.0;
+      cfg.ADX_Percentile         = Inp_RRM_Adx_Percentile;
+      cfg.ADX_Lookback           = Inp_RRM_Adx_Lookback;
+      cfg.ADX_Threshold_Accumulation  = Inp_RRM_Adx_Thr_Accum;
+      cfg.ADX_Threshold_Trending      = Inp_RRM_Adx_Thr_Trending;
+      cfg.ADX_Threshold_Distribution  = Inp_RRM_Adx_Thr_Distrib;
 
       // ── STOCH SETTINGS: fixed reasonable defaults ─────────────────────
-      cfg.StoMode                = STO_CROSS_SIGNAL;
-      cfg.P_StoK                 = 5;
-      cfg.P_StoD                 = 3;
-      cfg.P_StoSlow              = 3;
-      cfg.T_StoOB                = 80.0;
-      cfg.T_StoOS                = 20.0;
+      cfg.StoMode                = Inp_RRM_Sto_Mode;
+      cfg.P_StoK                 = Inp_RRM_Sto_K;
+      cfg.P_StoD                 = Inp_RRM_Sto_D;
+      cfg.P_StoSlow              = Inp_RRM_Sto_Slow;
+      cfg.T_StoOB                = Inp_RRM_Sto_OB;
+      cfg.T_StoOS                = Inp_RRM_Sto_OS;
 
       // ── BB SETTINGS: fixed reasonable defaults ────────────────────────
-      cfg.BbMode                 = BB_TREND_FOLLOW;
-      cfg.P_Bb                   = 20;
-      cfg.P_BbDev                = 2.0;
+      cfg.BbMode                 = Inp_RRM_Bb_Mode;
+      cfg.P_Bb                   = Inp_RRM_Bb_Period;
+      cfg.P_BbDev                = Inp_RRM_Bb_Deviation;
 
       // ── MFI SETTINGS: fixed reasonable defaults ───────────────────────
-      cfg.MfiMode                = MFI_ZONE_FILTER;
-      cfg.P_Mfi                  = 14;
-      cfg.T_MfiOB                = 80.0;
-      cfg.T_MfiOS                = 20.0;
+      cfg.MfiMode                = Inp_RRM_Mfi_Mode;
+      cfg.P_Mfi                  = Inp_RRM_Mfi_Period;
+      cfg.T_MfiOB                = Inp_RRM_Mfi_OB;
+      cfg.T_MfiOS                = Inp_RRM_Mfi_OS;
 
       // ── CANDLE BODY SETTINGS ──────────────────────────────────────────
-      cfg.CandleBody_AvgPeriod   = 15;
-      cfg.CandleBody_MaxMult     = 3.5;
-      cfg.CandleBody_CheckBars   = (_Period <= PERIOD_M5) ? 1 : 2;
-      cfg.CandleBody_RequireDirection = true;
+      cfg.CandleBody_AvgPeriod   = Inp_RRM_CandleBody_AvgPeriod;
+      cfg.CandleBody_MaxMult     = Inp_RRM_CandleBody_MaxMult;
+      cfg.CandleBody_CheckBars   = Inp_RRM_CandleBody_CheckBars;
+      cfg.CandleBody_RequireDirection = Inp_RRM_CandleBody_RequireDir;
       cfg.Ind_CandleBody_Weight  = 1;
 
       // ── BAR CLOSE (bcX) CONFIGURATION ────────────────────────────────
@@ -1022,8 +1021,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EnableLayerDetection      = true;           // true
       cfg.BlockUnorderedPhase       = true;           // true
       cfg.BlockEmergingPhase        = true;           // true: EM phase = no trades; TM phase = trades allowed
-      cfg.RequireRecoveryMomentum = (_Period <= PERIOD_M5) ? true : false; 
-      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;        // M1: No delay needed on M1
+      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;        // M1 through M5: No delay needed on the fastest intraday presets
 
       // Layer permissions per phase (per RRM methodology PNGs):
       //   TRENDING:  Weak + Medium + Strong trades allowed (user-controllable via Inp_RRM_Allow*)
@@ -1045,8 +1043,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
       cfg.Gate_EmaDiv.value         = 1.0;
-      cfg.RRM_MinDivPips            = 1.5;
-
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
       cfg.Gate_CandleDirection.value = 1.0;
 
@@ -1211,50 +1207,50 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.DPI_UseGreenHist          = Inp_RRM_ORG_DPI_UseGreenHist;       // default true
 
       // ── PSAR: LOCKED ON (timing/direction confirmation) ───────────────
-      // cfg.Ind_Psar_Enabled          = true;
+      cfg.Ind_Psar_Enabled          = Inp_RRM_ORG_Use_Psar;
       cfg.Vote_AllowPsarFlip        = true;
-      cfg.P_PsarStep                = Inp_RRM_PsarStep;
-      cfg.P_PsarMax                 = Inp_RRM_PsarMax;
+      cfg.P_PsarStep                = Inp_RRM_ORG_PsarStep;
+      cfg.P_PsarMax                 = Inp_RRM_ORG_PsarMax;
       // Vote -1 = persistent: evaluate dot position on every bar,
       // Vote 0,1,2,3...= allowable delay over N-candles
       cfg.Vote_PsarFlipDelay        = -1;
 
       // ── CANDLE BODY ───────────────────────────────────────────────────
-      // cfg.Ind_CandleBody_Enabled    = Inp_Ind_CandleBody_Enabled;
+      cfg.Ind_CandleBody_Enabled    = Inp_RRM_ORG_Use_CandleBody;
       cfg.Ind_CandleBody_Weight     = Inp_Ind_CandleBody_Weight;
-      cfg.CandleBody_AvgPeriod      = Inp_Ind_CandleBody_AvgPeriod;
-      cfg.CandleBody_MaxMult        = Inp_Ind_CandleBody_MaxMult;
-      cfg.CandleBody_CheckBars      = Inp_Ind_CandleBody_CheckBars;
+      cfg.CandleBody_AvgPeriod      = Inp_RRM_ORG_CandleBody_AvgPeriod;
+      cfg.CandleBody_MaxMult        = Inp_RRM_ORG_CandleBody_MaxMult;
+      cfg.CandleBody_CheckBars      = Inp_RRM_ORG_CandleBody_CheckBars;
       // cfg.CandleBody_CheckBars      = (_Period <= PERIOD_M5) ? 3 : 5;
-      cfg.CandleBody_RequireDirection  = Inp_Ind_CandleBody_RequireDirection;
+      cfg.CandleBody_RequireDirection  = Inp_RRM_ORG_CandleBody_RequireDir;
       
-      // ── INDICATOR TOGGLES: flexible via Inp_RRM_* ────────────────────
-      cfg.Ind_Adx_Enabled           = Inp_RRM_Use_Adx;
-      cfg.Ind_Atr_Enabled           = Inp_RRM_Use_Atr;   // ATR VRC - Always off in RRM (not part of RRM methodology):
-      cfg.Ind_Bb_Enabled            = Inp_RRM_Use_Bb;
-      cfg.Ind_CandleBody_Enabled    = Inp_RRM_Use_CandleBody;
-      cfg.Ind_Cci_Enabled           = false;             // used in DPI
-      cfg.Ind_CI_Enabled            = Inp_RRM_Use_CI;    // CI is not part of original RRM_ORG methodology (DPI momentum voter is used)
-      cfg.Ind_Macd_Enabled          = false;             // used in DPI
-      cfg.Ind_Mfi_Enabled           = Inp_RRM_Use_Mfi;
-      cfg.Ind_Psar_Enabled          = Inp_RRM_Use_Psar;
-      cfg.Ind_P123_Enabled          = Inp_RRM_Use_P123;
-      cfg.Ind_Ross_Enabled          = Inp_RRM_Use_Ross;
-      cfg.Ind_Rsi_Enabled           = Inp_RRM_Use_Rsi;
-      cfg.Ind_Sto_Enabled           = Inp_RRM_Use_Stoch;
-      cfg.Ind_SmaConverge_Enabled   = Inp_RRM_Use_SmaConverge;
+      // ── INDICATOR TOGGLES: flexible via Inp_RRM_ORG_* ────────────────
+      cfg.Ind_Adx_Enabled        = Inp_RRM_ORG_Use_Adx;
+      cfg.Ind_Atr_Enabled        = false;             // ATR VRC - Always off in RRM (not part of RRM methodology):
+      cfg.Ind_Bb_Enabled         = Inp_RRM_ORG_Use_Bb;
+      cfg.Ind_CandleBody_Enabled = Inp_RRM_ORG_Use_CandleBody;
+      cfg.Ind_Cci_Enabled        = Inp_RRM_ORG_Use_Cci;
+      cfg.Ind_CI_Enabled         = Inp_RRM_ORG_Use_CI;
+      cfg.Ind_Macd_Enabled       = Inp_RRM_ORG_Use_Macd;
+      cfg.Ind_Mfi_Enabled        = Inp_RRM_ORG_Use_Mfi;
+      cfg.Ind_Psar_Enabled       = Inp_RRM_ORG_Use_Psar;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Ross_Enabled       = false;
+      cfg.Ind_Rsi_Enabled        = Inp_RRM_ORG_Use_Rsi;
+      cfg.Ind_Sto_Enabled        = Inp_RRM_ORG_Use_Stoch;
+      cfg.Ind_SmaConverge_Enabled   = false;
       cfg.Ind_SmaConverge_Weight    = Inp_Ind_SmaConverge_Weight;
-      cfg.Ind_VRC_Enabled           = Inp_RRM_Use_VRC;             // ← CI is now user-controlled, remove from this list
-      
+      cfg.Ind_VRC_Enabled        = false;             // VRC remains outside the RRM_ORG indicator set.
+
       // ── ADX SETTINGS: safe defaults (disabled) ────────────────────────
-      cfg.ADX_Mode                  = ADX_MODE_STATIC;
-      cfg.P_Adx                     = 14;
-      cfg.T_Adx                     = 20.0;
-      cfg.ADX_Percentile            = 50.0;
-      cfg.ADX_Lookback              = 100;
-      cfg.ADX_Threshold_Accumulation   = 12.0;
-      cfg.ADX_Threshold_Trending       = 25.0;
-      cfg.ADX_Threshold_Distribution   = 18.0;
+      cfg.ADX_Mode                  = Inp_RRM_ORG_Adx_Mode;
+      cfg.P_Adx                     = Inp_RRM_ORG_AdxPeriod;
+      cfg.T_Adx                     = Inp_RRM_ORG_AdxThreshold;
+      cfg.ADX_Percentile            = Inp_RRM_ORG_Adx_Percentile;
+      cfg.ADX_Lookback              = Inp_RRM_ORG_Adx_Lookback;
+      cfg.ADX_Threshold_Accumulation   = Inp_RRM_ORG_Adx_Thr_Accum;
+      cfg.ADX_Threshold_Trending       = Inp_RRM_ORG_Adx_Thr_Trending;
+      cfg.ADX_Threshold_Distribution   = Inp_RRM_ORG_Adx_Thr_Distrib;
 
       // ── ATR SETTINGS: safe defaults (disabled) ────────────────────────
       cfg.P_Atr                     = 14;
@@ -1262,44 +1258,44 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ATR_VoteMaxPips           = 50.0;
 
       // ── MACD SETTINGS: safe defaults (disabled) ───────────────────────
-      cfg.MacdVoteMode              = Inp_RRM_MacdMode;
-      cfg.MacdRequireSlope          = Inp_RRM_MacdSlope;
-      cfg.MacdRequireDivergence     = Inp_RRM_MacdDiv;
-      cfg.MacdRequireHook           = Inp_RRM_MacdHook;
-      cfg.P_MacdFast                = Inp_RRM_MacdFast;
-      cfg.P_MacdSlow                = Inp_RRM_MacdSlow;
-      cfg.P_MacdSig                 = Inp_RRM_MacdSig;
+      cfg.MacdVoteMode              = Inp_RRM_ORG_MacdMode;
+      cfg.MacdRequireSlope          = Inp_RRM_ORG_MacdSlope;
+      cfg.MacdRequireDivergence     = Inp_RRM_ORG_MacdDiv;
+      cfg.MacdRequireHook           = false;
+      cfg.P_MacdFast                = Inp_RRM_ORG_MacdFast;
+      cfg.P_MacdSlow                = Inp_RRM_ORG_MacdSlow;
+      cfg.P_MacdSig                 = Inp_RRM_ORG_MacdSig;
       cfg.MacdFreshBars             = 3;
       cfg.MacdSlopeMin              = 0.00001;
 
       // ── CCI/RSI/STOCH/BB/MFI: safe defaults (all disabled) ───────────
-      cfg.CciMode                   = CCI_TREND_ZERO;
-      cfg.P_Cci                     = 14;
+      cfg.CciMode                   = Inp_RRM_ORG_CciMode;
+      cfg.P_Cci                     = Inp_RRM_ORG_CciPeriod;
 
-      // ── CI SETTINGS: flexible via Inp_RRM_* ──────────────────────────
-      cfg.CI_Period                 = Inp_RRM_CiPeriod;
-      cfg.CI_RangingThreshold       = Inp_RRM_CiRangingThreshold;
+      // ── CI SETTINGS: flexible via Inp_RRM_ORG_* ──────────────────────
+      cfg.CI_Period                 = Inp_RRM_ORG_CiPeriod;
+      cfg.CI_RangingThreshold       = Inp_RRM_ORG_CiRangingThreshold;
 
-      cfg.RsiMode                   = Inp_RRM_RsiMode;
-      cfg.P_Rsi                     = Inp_RRM_RsiPeriod;
-      cfg.T_RsiOB                   = 70.0;
-      cfg.T_RsiOS                   = 30.0;
+      cfg.RsiMode                   = Inp_RRM_ORG_RsiMode;
+      cfg.P_Rsi                     = Inp_RRM_ORG_RsiPeriod;
+      cfg.T_RsiOB                   = Inp_RRM_ORG_Rsi_OB;
+      cfg.T_RsiOS                   = Inp_RRM_ORG_Rsi_OS;
 
-      cfg.StoMode                   = STO_CROSS_SIGNAL;
-      cfg.P_StoK                    = 5;
-      cfg.P_StoD                    = 3;
-      cfg.P_StoSlow                 = 3;
-      cfg.T_StoOB                   = 80.0;
-      cfg.T_StoOS                   = 20.0;
+      cfg.StoMode                   = Inp_RRM_ORG_Sto_Mode;
+      cfg.P_StoK                    = Inp_RRM_ORG_Sto_K;
+      cfg.P_StoD                    = Inp_RRM_ORG_Sto_D;
+      cfg.P_StoSlow                 = Inp_RRM_ORG_Sto_Slow;
+      cfg.T_StoOB                   = Inp_RRM_ORG_Sto_OB;
+      cfg.T_StoOS                   = Inp_RRM_ORG_Sto_OS;
 
-      cfg.BbMode                    = BB_TREND_FOLLOW;
-      cfg.P_Bb                      = 20;
-      cfg.P_BbDev                   = 2.0;
+      cfg.BbMode                    = Inp_RRM_ORG_Bb_Mode;
+      cfg.P_Bb                      = Inp_RRM_ORG_Bb_Period;
+      cfg.P_BbDev                   = Inp_RRM_ORG_Bb_Deviation;
 
-      cfg.MfiMode                   = MFI_ZONE_FILTER;
-      cfg.P_Mfi                     = 14;
-      cfg.T_MfiOB                   = 80.0;
-      cfg.T_MfiOS                   = 20.0;
+      cfg.MfiMode                   = Inp_RRM_ORG_Mfi_Mode;
+      cfg.P_Mfi                     = Inp_RRM_ORG_Mfi_Period;
+      cfg.T_MfiOB                   = Inp_RRM_ORG_Mfi_OB;
+      cfg.T_MfiOS                   = Inp_RRM_ORG_Mfi_OS;
 
       cfg.Ind_VRC_Weight            = 1;
       cfg.VRC_ATR_Period            = 14;
@@ -1361,8 +1357,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_Lookback              = (_Period <= PERIOD_M1) ? 15 : (_Period <= PERIOD_M5) ? 10 : 12;
 
       cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
-      cfg.RRM_MinDivPips            = 1.5;
-
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
       cfg.Gate_CandleDirection.value = 1.0;
 
@@ -1487,8 +1481,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       return;
    }
-   
-   
    //+------------------------------------------------------------------+
    // PURPOSE:
    //   Sandbox environment for testing individual indicators, voting
@@ -1710,7 +1702,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Gate 3: EMA divergence
       cfg.Gate_EmaDiv.mode             = GATE_SCALE_FIXED;
       cfg.Gate_EmaDiv.value            = 0.0;
-      cfg.RRM_MinDivPips               = 0.0;
       
       // Gate 4: Candle direction
       cfg.Gate_CandleDirection.mode    = GATE_SCALE_FIXED;

@@ -2,8 +2,8 @@
 //|                                             SEA_SignalEngine.mqh |
 //|                              MJS Institutional Trading Solutions |
 //|                                                                  |
-//| Purpose:    Signal Logic, Indicator Management, Voting & Filters |
-//| Status:   PRODUCTION READY (Revision M: Full Dual Shift Support) |
+//| Purpose: Signal Logic, Indicator Management, Voting & Filters    |
+//| Status:  PRODUCTION READY (Revision M: Full Dual Shift Support)  |
 //+------------------------------------------------------------------+
 // SAVE AS UTF-16 LE WITH BOM
 //+------------------------------------------------------------------+
@@ -42,6 +42,12 @@ enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_104001 = SEA_BUILD_TOKEN_104001 };
 
 #define SEA_MOD_SIGNALENGINE_104001 1
 #define SEA_LAYER_SLOPE_EPSILON 0.00000001
+#define SEA_MIN_WEEKEND_GAP_SECONDS (2 * 24 * 60 * 60)
+#define SEA_WEEKEND_GAP_SCAN_BUFFER_BARS 8
+#define SEA_DOW_SUNDAY 0
+#define SEA_DOW_MONDAY 1
+#define SEA_DOW_FRIDAY 5
+#define SEA_DOW_SATURDAY 6
 
 
 #include <RRMS\SEA_Config.mqh>
@@ -397,6 +403,14 @@ private:
       return GetVal(handle, shift, buffer_num, ignored_valid);
    }
 
+   bool IsValidIndicatorValue(const double value) const
+   {
+      return (MathIsValidNumber(value) &&
+              value != EMPTY_VALUE &&
+              value > -DBL_MAX &&
+              value < DBL_MAX);
+   }
+
    // Version 2: With validity checking via MQL5 reference parameter
    double GetVal(int handle, int shift, int buffer_num, bool &out_valid) const {
       if(handle == INVALID_HANDLE) {
@@ -423,6 +437,11 @@ private:
             PrintFormat("[IND_ERROR] Handle=%d Buffer=%d Shift=%d Error=%d",
                         handle, buffer_num, shift, error);
          }
+         out_valid = false;
+         return 0.0;
+      }
+
+      if(!IsValidIndicatorValue(b[0])) {
          out_valid = false;
          return 0.0;
       }
@@ -488,8 +507,78 @@ private:
          return false;
       }
 
+      if(!IsValidIndicatorValue(arr[0])) {
+         out_error = -2;
+         return false;
+      }
+
       out_error = 0;
       return true;
+   }
+
+   bool HasValidBarData(const int shift) const
+   {
+      if(shift < 0) return false;
+      datetime t = iTime(m_symbol, PERIOD_CURRENT, shift);
+      if(t <= 0) return false;
+
+      double o = iOpen(m_symbol, PERIOD_CURRENT, shift);
+      double h = iHigh(m_symbol, PERIOD_CURRENT, shift);
+      double l = iLow(m_symbol, PERIOD_CURRENT, shift);
+      double c = iClose(m_symbol, PERIOD_CURRENT, shift);
+
+      if(!MathIsValidNumber(o) || !MathIsValidNumber(h) || !MathIsValidNumber(l) || !MathIsValidNumber(c))
+         return false;
+      if(o <= 0.0 || h <= 0.0 || l <= 0.0 || c <= 0.0)
+         return false;
+
+      return true;
+   }
+
+   bool IsWeekendGapBetween(const datetime newer_bar_time, const datetime older_bar_time) const
+   {
+      if(newer_bar_time <= 0 || older_bar_time <= 0 || newer_bar_time <= older_bar_time)
+         return false;
+
+      int gap_duration_seconds = (int)(newer_bar_time - older_bar_time);
+      if(gap_duration_seconds < SEA_MIN_WEEKEND_GAP_SECONDS)
+         return false;
+
+      MqlDateTime newer_dt, older_dt;
+      TimeToStruct(newer_bar_time, newer_dt);
+      TimeToStruct(older_bar_time, older_dt);
+
+      bool older_is_friday = (older_dt.day_of_week == SEA_DOW_FRIDAY);
+      bool newer_is_monday = (newer_dt.day_of_week == SEA_DOW_MONDAY);
+      return (older_is_friday && newer_is_monday);
+   }
+
+   bool IsWithinWeekendGapCooldown(const int v_shift, int &out_bars_since_gap) const
+   {
+      out_bars_since_gap = -1;
+      if(m_settings.MinBarsAfterWeekendGap <= 0)
+         return false;
+
+      int bars_total = iBars(m_symbol, PERIOD_CURRENT);
+      if(bars_total <= (v_shift + 2))
+         return false;
+
+      // Extra scan buffer catches the first valid post-gap bars even when eval shift
+      // and session offsets move the detected boundary a few bars deeper.
+      int scan_limit_shift = v_shift + m_settings.MinBarsAfterWeekendGap + SEA_WEEKEND_GAP_SCAN_BUFFER_BARS;
+      int max_scan_shift = MathMin(bars_total - 2, scan_limit_shift);
+      for(int i = v_shift; i <= max_scan_shift; i++)
+      {
+         datetime newer = iTime(m_symbol, PERIOD_CURRENT, i);
+         datetime older = iTime(m_symbol, PERIOD_CURRENT, i + 1);
+         if(IsWeekendGapBetween(newer, older))
+         {
+            out_bars_since_gap = i - v_shift;
+            return (out_bars_since_gap < m_settings.MinBarsAfterWeekendGap);
+         }
+      }
+
+      return false;
    }
 
    // --- 4. PATTERN RECOGNITION HELPERS ---
@@ -2085,28 +2174,6 @@ private:
       return true; // Medium / High / anything else treated as relevant
    }
 
-   // --- ADAPTIVE GATE SCALING HELPERS ---
-
-   double GetAdaptivePullbackPips(ENUM_TIMEFRAMES tf, string symbol)
-   {
-      bool is_jpy = (StringFind(symbol, "JPY") >= 0);
-      double base = 0;
-      switch(tf)
-      {
-         case PERIOD_M1:  base = 2.0;  break;
-         case PERIOD_M5:  base = 5.0;  break;
-         case PERIOD_M15: base = 8.0;  break;
-         case PERIOD_M30: base = 10.0; break;
-         case PERIOD_H1:  base = 15.0; break;
-         case PERIOD_H2:  base = 20.0; break;
-         case PERIOD_H4:  base = 30.0; break;
-         case PERIOD_D1:  base = 60.0; break;
-         default:         base = 10.0;
-      }
-      if(is_jpy) base *= 100.0;
-      return base;
-   }
-
    //+------------------------------------------------------------------+
    // Calculate slope direction from two adjacent points
    //+------------------------------------------------------------------+
@@ -3338,13 +3405,9 @@ public:
       bool need_atr = m_settings.Ind_Atr_Enabled;
       h_atr = (need_atr ? iATR(m_symbol, PERIOD_CURRENT, m_settings.P_Atr) : INVALID_HANDLE);
       
-      // ChoppinessIndex: Uses native CalculateCI() function (no external indicator needed)
-      // h_ci handle is unused - CI calculation is done inline via CalculateCI()
-      h_ci = INVALID_HANDLE;  // Always INVALID_HANDLE since we use native calculation
-      
-      // VRC: Uses native GetVolatilityRegime() calculation (requires h_atr only, no external indicator)
-      // h_vrc handle is unused - VRC calculation uses ATR percentile ranking
-      h_vrc = INVALID_HANDLE;  // Always INVALID_HANDLE since we use native calculation
+      h_ci  = (m_settings.Ind_CI_Enabled ? iCustom(m_symbol, PERIOD_CURRENT, "ChoppinessIndex", m_settings.CI_Period) : INVALID_HANDLE);
+      h_vrc = (m_settings.Ind_VRC_Enabled ? iCustom(m_symbol, PERIOD_CURRENT, "VRC_Indicator") : INVALID_HANDLE);
+      // ------------------------------------------------------
 
       // Optional indicators: create only when used
       h_macd = (m_settings.Ind_Macd_Enabled ? iMACD(m_symbol, PERIOD_CURRENT, m_settings.P_MacdFast, m_settings.P_MacdSlow, m_settings.P_MacdSig, PRICE_CLOSE) : INVALID_HANDLE);
@@ -3380,39 +3443,43 @@ public:
          Print("CRITICAL ERROR: Failed to create ATR indicator (used for voting).");
          return false;
       }
-      // VRC depends on ATR — ensure ATR is available if VRC is enabled
-      if(m_settings.Ind_VRC_Enabled && h_atr == INVALID_HANDLE) {
-         Print("CRITICAL ERROR: VRC indicator enabled but ATR handle is invalid (VRC requires ATR).");
+      if(m_settings.Ind_CI_Enabled && h_ci == INVALID_HANDLE) {
+         Print("CRITICAL ERROR: Failed to create Choppiness Index (CI) indicator.");
          return false;
       }
-      // CI and VRC use native calculations (no external indicator files needed)
-      // h_ci and h_vrc are intentionally INVALID_HANDLE
+      if(m_settings.Ind_VRC_Enabled && h_vrc == INVALID_HANDLE) {
+         Print("CRITICAL ERROR: Failed to create VRC indicator.");
+         return false;
+      }
       
       return true;
    }
+
 
    // --- 7. CLEANUP ---
    void Release()
    {
       // Release only valid handles and reset to INVALID_HANDLE
-      if(h_adx  != INVALID_HANDLE) { IndicatorRelease(h_adx);  h_adx  = INVALID_HANDLE; }
-      if(h_atr  != INVALID_HANDLE) { IndicatorRelease(h_atr);  h_atr  = INVALID_HANDLE; }
-      if(h_bb   != INVALID_HANDLE) { IndicatorRelease(h_bb);   h_bb   = INVALID_HANDLE; }
-      if(h_cci  != INVALID_HANDLE) { IndicatorRelease(h_cci);  h_cci  = INVALID_HANDLE; }
-      if(h_ci   != INVALID_HANDLE) { IndicatorRelease(h_ci);   h_ci   = INVALID_HANDLE; }
-
       if(h_ema1 != INVALID_HANDLE) { IndicatorRelease(h_ema1); h_ema1 = INVALID_HANDLE; }
       if(h_ema2 != INVALID_HANDLE) { IndicatorRelease(h_ema2); h_ema2 = INVALID_HANDLE; }
       if(h_ema3 != INVALID_HANDLE) { IndicatorRelease(h_ema3); h_ema3 = INVALID_HANDLE; }
       if(h_ema4 != INVALID_HANDLE) { IndicatorRelease(h_ema4); h_ema4 = INVALID_HANDLE; }
-      if(h_fractals != INVALID_HANDLE) { IndicatorRelease(h_fractals); h_fractals = INVALID_HANDLE; }
+
+      // --- NEW: Handle cleanup for ATR, CI, and VRC ---
+      if(h_atr  != INVALID_HANDLE) { IndicatorRelease(h_atr);  h_atr  = INVALID_HANDLE; }
+      if(h_ci   != INVALID_HANDLE) { IndicatorRelease(h_ci);   h_ci   = INVALID_HANDLE; }
+      if(h_vrc  != INVALID_HANDLE) { IndicatorRelease(h_vrc);  h_vrc  = INVALID_HANDLE; }
+      // ------------------------------------------------
 
       if(h_macd != INVALID_HANDLE) { IndicatorRelease(h_macd); h_macd = INVALID_HANDLE; }
-      if(h_mfi  != INVALID_HANDLE) { IndicatorRelease(h_mfi);  h_mfi  = INVALID_HANDLE; }
-      if(h_psar != INVALID_HANDLE) { IndicatorRelease(h_psar); h_psar = INVALID_HANDLE; }
       if(h_rsi  != INVALID_HANDLE) { IndicatorRelease(h_rsi);  h_rsi  = INVALID_HANDLE; }
+      if(h_cci  != INVALID_HANDLE) { IndicatorRelease(h_cci);  h_cci  = INVALID_HANDLE; }
+      if(h_adx  != INVALID_HANDLE) { IndicatorRelease(h_adx);  h_adx  = INVALID_HANDLE; }
+      if(h_mfi  != INVALID_HANDLE) { IndicatorRelease(h_mfi);  h_mfi  = INVALID_HANDLE; }
       if(h_sto  != INVALID_HANDLE) { IndicatorRelease(h_sto);  h_sto  = INVALID_HANDLE; }
-      if(h_vrc  != INVALID_HANDLE) { IndicatorRelease(h_vrc);  h_vrc  = INVALID_HANDLE; }
+      if(h_bb   != INVALID_HANDLE) { IndicatorRelease(h_bb);   h_bb   = INVALID_HANDLE; }
+      if(h_psar != INVALID_HANDLE) { IndicatorRelease(h_psar); h_psar = INVALID_HANDLE; }
+      if(h_fractals != INVALID_HANDLE) { IndicatorRelease(h_fractals); h_fractals = INVALID_HANDLE; }
 
       if(m_settings.UseHTF && h_htf_ema != INVALID_HANDLE) { IndicatorRelease(h_htf_ema); h_htf_ema = INVALID_HANDLE; }
    }
@@ -3501,6 +3568,7 @@ public:
       return ok;
    }
 
+
    double GetATR() const { return GetVal(h_atr, 1); }
 
    double PipSize() const { return GlobalPipSize(m_symbol); }
@@ -3509,6 +3577,7 @@ public:
    // GetATR() retrieves the value from h_atr at shift 1
    double AtrPips() const { return GlobalAtrPips(GetATR(), m_symbol); }
    
+
    // --- 8. NEWS FILTER LOGIC ---
    void LoadNews(string filename) {
       m_news_count = 0;
@@ -5112,6 +5181,52 @@ public:
       m_eval_vote_weight   = 0.0;
       m_eval_all_pass      = false;
       m_last_layer         = 0;
+      bool full_eval       = m_settings.Stats_FullEvaluation;
+
+      // Data readiness guard: prevents indicator/price math on weekend-gap holes
+      // and short-history startup states (common during long-period tests).
+      int min_required_bars = v_shift + 2 + MathMax(0, m_settings.MinBarsAfterWeekendGap);
+      bool bars_ready = (iBars(m_symbol, PERIOD_CURRENT) > min_required_bars);
+      bool bar_now_valid  = HasValidBarData(v_shift);
+      bool bar_prev_valid = HasValidBarData(v_shift + 1);
+      if(!bars_ready || !bar_now_valid || !bar_prev_valid)
+      {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[TS_PREFILTER] DATA_GAP: bars_ready=%s bar[%d]=%s bar[%d]=%s → TS=0",
+                                  bars_ready ? "true" : "false",
+                                  v_shift, bar_now_valid ? "valid" : "invalid",
+                                  v_shift + 1, bar_prev_valid ? "valid" : "invalid"));
+         m_diag_last_reason = "DATA_GAP";
+         m_reject_filter++;
+         if(!full_eval) {
+            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+            UpdateTelemetry(0);
+            FlushOrClearDebugBuffer(0);
+            RestoreForcedDebug();
+            return 0;
+         }
+         if(m_eval_first_failure == "") m_eval_first_failure = "DATA_GAP";
+         m_eval_any_failure = true;
+      }
+
+      int bars_since_weekend_gap = -1;
+      if(IsWithinWeekendGapCooldown(v_shift, bars_since_weekend_gap))
+      {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[TS_PREFILTER] WEEKEND_GAP: cooldown active (%d/%d bars) → TS=0",
+                                  bars_since_weekend_gap, m_settings.MinBarsAfterWeekendGap));
+         m_diag_last_reason = "WEEKEND_GAP";
+         m_reject_filter++;
+         if(!full_eval) {
+            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+            UpdateTelemetry(0);
+            FlushOrClearDebugBuffer(0);
+            RestoreForcedDebug();
+            return 0;
+         }
+         if(m_eval_first_failure == "") m_eval_first_failure = "WEEKEND_GAP";
+         m_eval_any_failure = true;
+      }
 
       // Bar-close diagnostic banner
       if(m_settings.DebugFlow) {
@@ -5121,8 +5236,6 @@ public:
                                TimeToString(bar_time, TIME_DATE|TIME_MINUTES), m_settings.ma_v_shift));
          DebugLog("[EVAL_START] ===========================================");
       }
-
-      bool full_eval = m_settings.Stats_FullEvaluation;
 
       // ── B: Bias ──────────────────────────────────────────────────
       int B = EvaluateB(v_shift);
