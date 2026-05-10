@@ -427,6 +427,11 @@ private:
          return 0.0;
       }
 
+      if(!MathIsValidNumber(b[0]) || b[0] == EMPTY_VALUE || b[0] == DBL_MAX || b[0] == -DBL_MAX) {
+         out_valid = false;
+         return 0.0;
+      }
+
       out_valid = true;
       return b[0];
    }
@@ -488,8 +493,75 @@ private:
          return false;
       }
 
+      if(!MathIsValidNumber(arr[0]) || arr[0] == EMPTY_VALUE || arr[0] == DBL_MAX || arr[0] == -DBL_MAX) {
+         out_error = -2;
+         return false;
+      }
+
       out_error = 0;
       return true;
+   }
+
+   bool HasValidBarData(const int shift) const
+   {
+      if(shift < 0) return false;
+      datetime t = iTime(m_symbol, PERIOD_CURRENT, shift);
+      if(t <= 0) return false;
+
+      double o = iOpen(m_symbol, PERIOD_CURRENT, shift);
+      double h = iHigh(m_symbol, PERIOD_CURRENT, shift);
+      double l = iLow(m_symbol, PERIOD_CURRENT, shift);
+      double c = iClose(m_symbol, PERIOD_CURRENT, shift);
+
+      if(!MathIsValidNumber(o) || !MathIsValidNumber(h) || !MathIsValidNumber(l) || !MathIsValidNumber(c))
+         return false;
+      if(o <= 0.0 || h <= 0.0 || l <= 0.0 || c <= 0.0)
+         return false;
+
+      return true;
+   }
+
+   bool IsWeekendGapBetween(const datetime newer_bar_time, const datetime older_bar_time) const
+   {
+      if(newer_bar_time <= 0 || older_bar_time <= 0 || newer_bar_time <= older_bar_time)
+         return false;
+
+      int gap_seconds = (int)(newer_bar_time - older_bar_time);
+      if(gap_seconds < 2 * 24 * 60 * 60)
+         return false;
+
+      MqlDateTime newer_dt, older_dt;
+      TimeToStruct(newer_bar_time, newer_dt);
+      TimeToStruct(older_bar_time, older_dt);
+
+      bool older_is_fri_or_weekend = (older_dt.day_of_week == 5 || older_dt.day_of_week == 6 || older_dt.day_of_week == 0);
+      bool newer_is_mon_or_weekend = (newer_dt.day_of_week == 1 || newer_dt.day_of_week == 0 || newer_dt.day_of_week == 6);
+      return (older_is_fri_or_weekend || newer_is_mon_or_weekend);
+   }
+
+   bool IsWithinWeekendGapCooldown(const int v_shift, int &out_bars_since_gap) const
+   {
+      out_bars_since_gap = -1;
+      if(m_settings.MinBarsAfterWeekendGap <= 0)
+         return false;
+
+      int bars_total = iBars(m_symbol, PERIOD_CURRENT);
+      if(bars_total <= (v_shift + 2))
+         return false;
+
+      int scan_last_shift = MathMin(bars_total - 2, v_shift + m_settings.MinBarsAfterWeekendGap + 8);
+      for(int i = v_shift; i <= scan_last_shift; i++)
+      {
+         datetime newer = iTime(m_symbol, PERIOD_CURRENT, i);
+         datetime older = iTime(m_symbol, PERIOD_CURRENT, i + 1);
+         if(IsWeekendGapBetween(newer, older))
+         {
+            out_bars_since_gap = i - v_shift;
+            return (out_bars_since_gap < m_settings.MinBarsAfterWeekendGap);
+         }
+      }
+
+      return false;
    }
 
    // --- 4. PATTERN RECOGNITION HELPERS ---
@@ -2087,6 +2159,8 @@ private:
 
    // --- ADAPTIVE GATE SCALING HELPERS ---
 
+   // Legacy helper retained for backward compatibility with older revisions.
+   // Active pullback/recovery logic now uses ratio comparisons, not pip thresholds.
    double GetAdaptivePullbackPips(ENUM_TIMEFRAMES tf, string symbol)
    {
       bool is_jpy = (StringFind(symbol, "JPY") >= 0);
@@ -5114,6 +5188,52 @@ public:
       m_eval_vote_weight   = 0.0;
       m_eval_all_pass      = false;
       m_last_layer         = 0;
+      bool full_eval       = m_settings.Stats_FullEvaluation;
+
+      // Data readiness guard: prevents indicator/price math on weekend-gap holes
+      // and short-history startup states (common during long-period tests).
+      int min_required_bars = v_shift + 2 + MathMax(0, m_settings.MinBarsAfterWeekendGap);
+      bool bars_ready = (iBars(m_symbol, PERIOD_CURRENT) > min_required_bars);
+      bool bar_now_valid  = HasValidBarData(v_shift);
+      bool bar_prev_valid = HasValidBarData(v_shift + 1);
+      if(!bars_ready || !bar_now_valid || !bar_prev_valid)
+      {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[TS_PREFILTER] DATA_GAP: bars_ready=%s bar[%d]=%s bar[%d]=%s → TS=0",
+                                  bars_ready ? "true" : "false",
+                                  v_shift, bar_now_valid ? "valid" : "invalid",
+                                  v_shift + 1, bar_prev_valid ? "valid" : "invalid"));
+         m_diag_last_reason = "DATA_GAP";
+         m_reject_filter++;
+         if(!full_eval) {
+            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+            UpdateTelemetry(0);
+            FlushOrClearDebugBuffer(0);
+            RestoreForcedDebug();
+            return 0;
+         }
+         if(m_eval_first_failure == "") m_eval_first_failure = "DATA_GAP";
+         m_eval_any_failure = true;
+      }
+
+      int bars_since_weekend_gap = -1;
+      if(IsWithinWeekendGapCooldown(v_shift, bars_since_weekend_gap))
+      {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[TS_PREFILTER] WEEKEND_GAP: cooldown active (%d/%d bars) → TS=0",
+                                  bars_since_weekend_gap, m_settings.MinBarsAfterWeekendGap));
+         m_diag_last_reason = "WEEKEND_GAP";
+         m_reject_filter++;
+         if(!full_eval) {
+            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+            UpdateTelemetry(0);
+            FlushOrClearDebugBuffer(0);
+            RestoreForcedDebug();
+            return 0;
+         }
+         if(m_eval_first_failure == "") m_eval_first_failure = "WEEKEND_GAP";
+         m_eval_any_failure = true;
+      }
 
       // Bar-close diagnostic banner
       if(m_settings.DebugFlow) {
@@ -5123,8 +5243,6 @@ public:
                                TimeToString(bar_time, TIME_DATE|TIME_MINUTES), m_settings.ma_v_shift));
          DebugLog("[EVAL_START] ===========================================");
       }
-
-      bool full_eval = m_settings.Stats_FullEvaluation;
 
       // ── B: Bias ──────────────────────────────────────────────────
       int B = EvaluateB(v_shift);

@@ -1046,7 +1046,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
       cfg.Gate_EmaDiv.value         = 1.0;
-      cfg.RRM_MinDivPips            = 1.5;
+      cfg.RRM_MinDivPips            = 0.0; // Pure math mode: EMA distance must increase (no pip threshold)
 
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
       cfg.Gate_CandleDirection.value = 1.0;
@@ -1362,7 +1362,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_Lookback              = (_Period <= PERIOD_M1) ? 15 : (_Period <= PERIOD_M5) ? 10 : 12;
 
       cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
-      cfg.RRM_MinDivPips            = 1.5;
+      cfg.RRM_MinDivPips            = 0.0; // Pure math mode: EMA distance must increase (no pip threshold)
 
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
       cfg.Gate_CandleDirection.value = 1.0;

@@ -632,7 +632,8 @@ struct ST_Settings
    bool          AllowReEntryAfterBE;   // When true, bypass ALREADY_IN_POSITION if position is at BE
 
    // Post-trade cooldown
-   int           MinBarsAfterClose;     // bars to wait after trade close before new entry (0 = off)
+   int           MinBarsAfterClose;      // bars to wait after trade close before new entry (0 = off)
+   int           MinBarsAfterWeekendGap; // TS: bars to wait after weekend gap before evaluating signals (0 = off)
 
    // Spread retry cap — kill carry after N consecutive spread-blocked TE attempts (0=unlimited)
    int    MaxSpreadRetryBars;
@@ -894,6 +895,8 @@ input bool        Inp_RRM_AllowStrong        = true;           // RRM: Allow STR
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Layer Pullback-Recovery Detection";
 input group "╚════════════════════════════════════════════════════════╝";
+// Recommended pullback mode: pure ratio mathematics (LayerPullbackRatio/RecoveryRatio/FlatRatio).
+// This Layer system is independent from legacy RRM gate fields below.
 input bool        Inp_LayerPullbackEnabled   = false;          // Layer PB: Enable pullback-recovery detection
 input int         Inp_LayerBaselineLookback  = 10;             // Layer PB: Baseline slope lookback (bars, recommended 3+)
 input double      Inp_LayerPullbackRatio     = 0.5;            // Layer PB: Pullback threshold ratio (min 0.1)
@@ -929,9 +932,11 @@ input int         Inp_RRM_TrailPsarShiftDelay   = 1;           // PSAR shift del
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 RRM: (Pullback)";
 input group "╚════════════════════════════════════════════════════════╝";
+// Legacy RRM gate block. Keep MinDivPips at 0.0 for pure mathematical distance-comparison mode.
+// If LayerPullbackEnabled=true, this gate should normally remain disabled to avoid double-filtering.
 input bool        Inp_Gate_RequireRecoveryMomentum = false;    // RRM Gate (CUSTOM; presets override)
 input int         Inp_RRM_Lookback           = 5;              // RRM Lookback (CUSTOM; presets override)
-input double      Inp_RRM_MinDivPips         = 0.5;            // RRM MinDivPips (CUSTOM; presets override)
+input double      Inp_RRM_MinDivPips         = 0.0;            // RRM MinDivPips [deprecated threshold]: keep 0.0 for pure math mode
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Indicators — Enable/Disable";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1322,6 +1327,7 @@ input group "╔═════════════════════�
 input group "║   🛡 (TE) COOLDOWN BARS Post-Trade Protection";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_MinBarsAfterClose      = 1;                 // TE: Min bars cooldown after trade close (0=off)
+input int         Inp_MinBarsAfterWeekendGap = 2;                 // TS: Bars to skip after weekend gap (0=off, recommended 1-2)
 
 //+------------------------------------------------------------------+
 //| ADAPTIVE UTILITY FUNCTIONS                                       |
@@ -1683,7 +1689,8 @@ void InitializeConfig()
    Settings.AllowReEntryAfterBE = false;
 
    // Post-trade cooldown: disabled by default; presets may override
-   Settings.MinBarsAfterClose = Inp_MinBarsAfterClose;
+   Settings.MinBarsAfterClose      = Inp_MinBarsAfterClose;
+   Settings.MinBarsAfterWeekendGap = MathMax(0, Inp_MinBarsAfterWeekendGap);
 
    // Spread retry cap: kill carry after N consecutive spread-blocked bars (0=unlimited)
    Settings.MaxSpreadRetryBars    = Inp_MaxSpreadRetryBars;
