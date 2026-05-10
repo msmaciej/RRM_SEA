@@ -3338,19 +3338,13 @@ public:
       bool need_atr = m_settings.Ind_Atr_Enabled;
       h_atr = (need_atr ? iATR(m_symbol, PERIOD_CURRENT, m_settings.P_Atr) : INVALID_HANDLE);
       
-      // ChoppinessIndex: only load if enabled to prevent compiler auto-detection
-      if(m_settings.Ind_CI_Enabled) {
-         h_ci = iCustom(m_symbol, PERIOD_CURRENT, "ChoppinessIndex", m_settings.CI_Period);
-      } else {
-         h_ci = INVALID_HANDLE;
-      }
+      // ChoppinessIndex: Uses native CalculateCI() function (no external indicator needed)
+      // h_ci handle is unused - CI calculation is done inline via CalculateCI()
+      h_ci = INVALID_HANDLE;  // Always INVALID_HANDLE since we use native calculation
       
-      // VRC: only load if enabled to prevent compiler auto-detection  
-      if(m_settings.Ind_VRC_Enabled) {
-         h_vrc = iCustom(m_symbol, PERIOD_CURRENT, "VRC_Indicator");
-      } else {
-         h_vrc = INVALID_HANDLE;
-      }
+      // VRC: Uses native GetVolatilityRegime() calculation (requires h_atr only, no external indicator)
+      // h_vrc handle is unused - VRC calculation uses ATR percentile ranking
+      h_vrc = INVALID_HANDLE;  // Always INVALID_HANDLE since we use native calculation
 
       // Optional indicators: create only when used
       h_macd = (m_settings.Ind_Macd_Enabled ? iMACD(m_symbol, PERIOD_CURRENT, m_settings.P_MacdFast, m_settings.P_MacdSlow, m_settings.P_MacdSig, PRICE_CLOSE) : INVALID_HANDLE);
@@ -3386,43 +3380,39 @@ public:
          Print("CRITICAL ERROR: Failed to create ATR indicator (used for voting).");
          return false;
       }
-      if(m_settings.Ind_CI_Enabled && h_ci == INVALID_HANDLE) {
-         Print("CRITICAL ERROR: Failed to create Choppiness Index (CI) indicator.");
+      // VRC depends on ATR — ensure ATR is available if VRC is enabled
+      if(m_settings.Ind_VRC_Enabled && h_atr == INVALID_HANDLE) {
+         Print("CRITICAL ERROR: VRC indicator enabled but ATR handle is invalid (VRC requires ATR).");
          return false;
       }
-      if(m_settings.Ind_VRC_Enabled && h_vrc == INVALID_HANDLE) {
-         Print("CRITICAL ERROR: Failed to create VRC indicator.");
-         return false;
-      }
+      // CI and VRC use native calculations (no external indicator files needed)
+      // h_ci and h_vrc are intentionally INVALID_HANDLE
       
       return true;
    }
-
 
    // --- 7. CLEANUP ---
    void Release()
    {
       // Release only valid handles and reset to INVALID_HANDLE
+      if(h_adx  != INVALID_HANDLE) { IndicatorRelease(h_adx);  h_adx  = INVALID_HANDLE; }
+      if(h_atr  != INVALID_HANDLE) { IndicatorRelease(h_atr);  h_atr  = INVALID_HANDLE; }
+      if(h_bb   != INVALID_HANDLE) { IndicatorRelease(h_bb);   h_bb   = INVALID_HANDLE; }
+      if(h_cci  != INVALID_HANDLE) { IndicatorRelease(h_cci);  h_cci  = INVALID_HANDLE; }
+      if(h_ci   != INVALID_HANDLE) { IndicatorRelease(h_ci);   h_ci   = INVALID_HANDLE; }
+
       if(h_ema1 != INVALID_HANDLE) { IndicatorRelease(h_ema1); h_ema1 = INVALID_HANDLE; }
       if(h_ema2 != INVALID_HANDLE) { IndicatorRelease(h_ema2); h_ema2 = INVALID_HANDLE; }
       if(h_ema3 != INVALID_HANDLE) { IndicatorRelease(h_ema3); h_ema3 = INVALID_HANDLE; }
       if(h_ema4 != INVALID_HANDLE) { IndicatorRelease(h_ema4); h_ema4 = INVALID_HANDLE; }
-
-      // --- NEW: Handle cleanup for ATR, CI, and VRC ---
-      if(h_atr  != INVALID_HANDLE) { IndicatorRelease(h_atr);  h_atr  = INVALID_HANDLE; }
-      if(h_ci   != INVALID_HANDLE) { IndicatorRelease(h_ci);   h_ci   = INVALID_HANDLE; }
-      if(h_vrc  != INVALID_HANDLE) { IndicatorRelease(h_vrc);  h_vrc  = INVALID_HANDLE; }
-      // ------------------------------------------------
+      if(h_fractals != INVALID_HANDLE) { IndicatorRelease(h_fractals); h_fractals = INVALID_HANDLE; }
 
       if(h_macd != INVALID_HANDLE) { IndicatorRelease(h_macd); h_macd = INVALID_HANDLE; }
-      if(h_rsi  != INVALID_HANDLE) { IndicatorRelease(h_rsi);  h_rsi  = INVALID_HANDLE; }
-      if(h_cci  != INVALID_HANDLE) { IndicatorRelease(h_cci);  h_cci  = INVALID_HANDLE; }
-      if(h_adx  != INVALID_HANDLE) { IndicatorRelease(h_adx);  h_adx  = INVALID_HANDLE; }
       if(h_mfi  != INVALID_HANDLE) { IndicatorRelease(h_mfi);  h_mfi  = INVALID_HANDLE; }
-      if(h_sto  != INVALID_HANDLE) { IndicatorRelease(h_sto);  h_sto  = INVALID_HANDLE; }
-      if(h_bb   != INVALID_HANDLE) { IndicatorRelease(h_bb);   h_bb   = INVALID_HANDLE; }
       if(h_psar != INVALID_HANDLE) { IndicatorRelease(h_psar); h_psar = INVALID_HANDLE; }
-      if(h_fractals != INVALID_HANDLE) { IndicatorRelease(h_fractals); h_fractals = INVALID_HANDLE; }
+      if(h_rsi  != INVALID_HANDLE) { IndicatorRelease(h_rsi);  h_rsi  = INVALID_HANDLE; }
+      if(h_sto  != INVALID_HANDLE) { IndicatorRelease(h_sto);  h_sto  = INVALID_HANDLE; }
+      if(h_vrc  != INVALID_HANDLE) { IndicatorRelease(h_vrc);  h_vrc  = INVALID_HANDLE; }
 
       if(m_settings.UseHTF && h_htf_ema != INVALID_HANDLE) { IndicatorRelease(h_htf_ema); h_htf_ema = INVALID_HANDLE; }
    }
@@ -3511,7 +3501,6 @@ public:
       return ok;
    }
 
-
    double GetATR() const { return GetVal(h_atr, 1); }
 
    double PipSize() const { return GlobalPipSize(m_symbol); }
@@ -3520,7 +3509,6 @@ public:
    // GetATR() retrieves the value from h_atr at shift 1
    double AtrPips() const { return GlobalAtrPips(GetATR(), m_symbol); }
    
-
    // --- 8. NEWS FILTER LOGIC ---
    void LoadNews(string filename) {
       m_news_count = 0;
