@@ -545,9 +545,9 @@ private:
       TimeToStruct(newer_bar_time, newer_dt);
       TimeToStruct(older_bar_time, older_dt);
 
-      bool older_spans_weekend_boundary = (older_dt.day_of_week == SEA_DOW_FRIDAY || older_dt.day_of_week == SEA_DOW_SATURDAY || older_dt.day_of_week == SEA_DOW_SUNDAY);
-      bool newer_spans_weekend_boundary = (newer_dt.day_of_week == SEA_DOW_MONDAY || newer_dt.day_of_week == SEA_DOW_SUNDAY || newer_dt.day_of_week == SEA_DOW_SATURDAY);
-      return (older_spans_weekend_boundary || newer_spans_weekend_boundary);
+      bool older_is_weekend_adjacent = (older_dt.day_of_week == SEA_DOW_FRIDAY);
+      bool newer_is_weekend_adjacent = (newer_dt.day_of_week == SEA_DOW_MONDAY);
+      return (older_is_weekend_adjacent && newer_is_weekend_adjacent);
    }
 
    bool IsWithinWeekendGapCooldown(const int v_shift, int &out_bars_since_gap) const
