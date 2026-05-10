@@ -143,8 +143,7 @@ struct ST_Settings {
    bool   RRM_RequirePullbackReclaim;  // OPTIMIZED: NOW TRUE by default
    bool   RRM_RequireEmaDiv;           // OPTIMIZED: NOW TRUE by default
    int    RRM_Lookback;               
-   // DEPRECATED LEGACY: Historical pip-based pullback threshold retained only for archival comparison; active v1-03 removed MinDivPips and uses pure distance comparison.
-   double RRM_MinDivPips;
+   double RRM_MinDivPips;             
    
    // Bias
    bool BiasEnabled; 
