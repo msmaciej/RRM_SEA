@@ -42,6 +42,12 @@ enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_103003 = SEA_BUILD_TOKEN_103003 };
 
 #define SEA_MOD_SIGNALENGINE_103003 1
 #define SEA_LAYER_SLOPE_EPSILON 0.00000001
+#define SEA_MIN_WEEKEND_GAP_SECONDS (2 * 24 * 60 * 60)
+#define SEA_WEEKEND_GAP_SCAN_BUFFER_BARS 8
+#define SEA_DOW_SUNDAY 0
+#define SEA_DOW_MONDAY 1
+#define SEA_DOW_FRIDAY 5
+#define SEA_DOW_SATURDAY 6
 
 
 #include <RRMS\SEA_Config.mqh>
@@ -527,15 +533,15 @@ private:
          return false;
 
       int gap_seconds = (int)(newer_bar_time - older_bar_time);
-      if(gap_seconds < 2 * 24 * 60 * 60)
+      if(gap_seconds < SEA_MIN_WEEKEND_GAP_SECONDS)
          return false;
 
       MqlDateTime newer_dt, older_dt;
       TimeToStruct(newer_bar_time, newer_dt);
       TimeToStruct(older_bar_time, older_dt);
 
-      bool older_is_fri_or_weekend = (older_dt.day_of_week == 5 || older_dt.day_of_week == 6 || older_dt.day_of_week == 0);
-      bool newer_is_mon_or_weekend = (newer_dt.day_of_week == 1 || newer_dt.day_of_week == 0 || newer_dt.day_of_week == 6);
+      bool older_is_fri_or_weekend = (older_dt.day_of_week == SEA_DOW_FRIDAY || older_dt.day_of_week == SEA_DOW_SATURDAY || older_dt.day_of_week == SEA_DOW_SUNDAY);
+      bool newer_is_mon_or_weekend = (newer_dt.day_of_week == SEA_DOW_MONDAY || newer_dt.day_of_week == SEA_DOW_SUNDAY || newer_dt.day_of_week == SEA_DOW_SATURDAY);
       return (older_is_fri_or_weekend || newer_is_mon_or_weekend);
    }
 
@@ -549,7 +555,7 @@ private:
       if(bars_total <= (v_shift + 2))
          return false;
 
-      int scan_last_shift = MathMin(bars_total - 2, v_shift + m_settings.MinBarsAfterWeekendGap + 8);
+      int scan_last_shift = MathMin(bars_total - 2, v_shift + m_settings.MinBarsAfterWeekendGap + SEA_WEEKEND_GAP_SCAN_BUFFER_BARS);
       for(int i = v_shift; i <= scan_last_shift; i++)
       {
          datetime newer = iTime(m_symbol, PERIOD_CURRENT, i);
