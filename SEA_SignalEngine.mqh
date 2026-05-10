@@ -403,6 +403,11 @@ private:
       return GetVal(handle, shift, buffer_num, ignored_valid);
    }
 
+   bool IsValidIndicatorValue(const double value) const
+   {
+      return (MathIsValidNumber(value) && value != EMPTY_VALUE && value != DBL_MAX && value != -DBL_MAX);
+   }
+
    // Version 2: With validity checking via MQL5 reference parameter
    double GetVal(int handle, int shift, int buffer_num, bool &out_valid) const {
       if(handle == INVALID_HANDLE) {
@@ -433,7 +438,7 @@ private:
          return 0.0;
       }
 
-      if(!MathIsValidNumber(b[0]) || b[0] == EMPTY_VALUE || b[0] == DBL_MAX || b[0] == -DBL_MAX) {
+      if(!IsValidIndicatorValue(b[0])) {
          out_valid = false;
          return 0.0;
       }
@@ -499,7 +504,7 @@ private:
          return false;
       }
 
-      if(!MathIsValidNumber(arr[0]) || arr[0] == EMPTY_VALUE || arr[0] == DBL_MAX || arr[0] == -DBL_MAX) {
+      if(!IsValidIndicatorValue(arr[0])) {
          out_error = -2;
          return false;
       }
@@ -540,9 +545,9 @@ private:
       TimeToStruct(newer_bar_time, newer_dt);
       TimeToStruct(older_bar_time, older_dt);
 
-      bool older_is_fri_or_weekend = (older_dt.day_of_week == SEA_DOW_FRIDAY || older_dt.day_of_week == SEA_DOW_SATURDAY || older_dt.day_of_week == SEA_DOW_SUNDAY);
-      bool newer_is_mon_or_weekend = (newer_dt.day_of_week == SEA_DOW_MONDAY || newer_dt.day_of_week == SEA_DOW_SUNDAY || newer_dt.day_of_week == SEA_DOW_SATURDAY);
-      return (older_is_fri_or_weekend || newer_is_mon_or_weekend);
+      bool older_spans_weekend_boundary = (older_dt.day_of_week == SEA_DOW_FRIDAY || older_dt.day_of_week == SEA_DOW_SATURDAY || older_dt.day_of_week == SEA_DOW_SUNDAY);
+      bool newer_spans_weekend_boundary = (newer_dt.day_of_week == SEA_DOW_MONDAY || newer_dt.day_of_week == SEA_DOW_SUNDAY || newer_dt.day_of_week == SEA_DOW_SATURDAY);
+      return (older_spans_weekend_boundary || newer_spans_weekend_boundary);
    }
 
    bool IsWithinWeekendGapCooldown(const int v_shift, int &out_bars_since_gap) const
@@ -555,6 +560,8 @@ private:
       if(bars_total <= (v_shift + 2))
          return false;
 
+      // Extra scan buffer catches the first valid post-gap bars even when eval shift
+      // and session offsets move the detected boundary a few bars deeper.
       int scan_last_shift = MathMin(bars_total - 2, v_shift + m_settings.MinBarsAfterWeekendGap + SEA_WEEKEND_GAP_SCAN_BUFFER_BARS);
       for(int i = v_shift; i <= scan_last_shift; i++)
       {
