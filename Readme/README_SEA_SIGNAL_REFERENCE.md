@@ -146,6 +146,87 @@ Filters out trades during low volatility regimes. Evaluates as a non-directional
 * **SHORT:** Close < PSAR dot.
 * **PSAR Flip Logic:** (If `Vote_AllowPsarFlip=true`), checks `bars_since_flip <= Vote_PsarFlipDelay` to ensure entry happens early in the flip cycle.
 
+### DPI (Dynamic Price Index) — Momentum Direction Voter
+
+**Purpose:** Primary momentum direction confirmation using MACD-based histogram with optional CCI trend filter.
+
+**How it works:**
+- **Blue Line (LEAD):** Fast MACD core = EMA(Fast) - EMA(Slow)
+- **Red Line (FOLLOW):** Smoothed signal line (EMA of Blue, or Double EMA)
+- **Histogram:** Blue - Red (divergence/convergence)
+- **Ribbon Color:** Determines vote direction
+  - **Yellow ribbon** → DPI votes bullish (confirms LONG bias)
+  - **Red ribbon** → DPI votes bearish (confirms SHORT bias)
+
+**Vote Logic (used by EA):**
+```mql5
+// Ribbon color drives the vote (histogram color after CCI filter)
+if (ribbon_color == YELLOW && bias == LONG)  return +1;  // Pass
+if (ribbon_color == RED && bias == SHORT)    return +1;  // Pass
+return 0;  // Fail
+```
+
+**Histogram Color Logic:**
+
+*Without CCI:*
+- hist > 0 → Yellow (bullish momentum)
+- hist < 0 → Red (bearish momentum)
+
+*With CCI Reset Enabled (trend filter):*
+- hist > 0 AND CCI > 0 → Yellow (strong bullish)
+- hist > 0 AND CCI < 0 → **Red** (bullish weakening — CCI reset!)
+- hist < 0 AND CCI > 0 → **Yellow** (bearish weakening — CCI reset!)
+- hist < 0 AND CCI < 0 → Red (strong bearish)
+
+**GREEN Histogram (visualization only, not a vote):**
+- Appears when Blue line and histogram are aligned (both positive OR both negative)
+- Indicates momentum confirmation strength
+- Does NOT affect EA voting logic
+
+**EA Settings (PRESET_RRM_ORG):**
+- `Ind_Dpi_Enabled` — Enable/disable DPI voter (default: true in RRM_ORG)
+- `DPI_MACD_Fast` — Fast EMA period (default: 8)
+- `DPI_MACD_Slow` — Slow EMA period (default: 13)
+- `DPI_RedSignalType` — Red signal line calculation (1-5):
+  1. EMA5 of Blue
+  2. EMA8 of Blue
+  3. EMA13 of Blue (default)
+  4. EMA21 of Blue
+  5. Double smoothed EMA
+- `DPI_UseCCIReset` — Enable CCI trend filter (default: true)
+- `DPI_CCI_Period` — CCI calculation period (default: 13)
+- `DPI_UseGreenHist` — Enable GREEN visualization overlay (default: true)
+
+**DPI Deceleration Filter** (advanced):
+- When enabled via `DpiDecelFilterEnabled`, blocks entries when GREEN histogram is shrinking
+- Prevents late entries when momentum is weakening
+- Only active when `Ind_Dpi_Enabled = true`
+
+**Standalone Indicator Files:**
+- `DPI_mc_main.mq5` — Full version with GREEN momentum overlay (toggleable)
+- `DPI_mc_simple.mq5` — Simplified version without GREEN overlay
+- `DPI_tm_simple.mq5` — TSI+MACD math variant (William Blau Ergodic)
+
+**Trading Interpretation:**
+- **Strong signals:** Yellow/Red histogram with no CCI resets
+- **Weak signals:** Histogram color contradicts position (CCI reset active)
+- **Avoid:** Ribbon color contradicts the bias direction
+
+**Example (LONG setup):**
+```
+Bias = LONG (+1)
+DPI Blue = 0.0005 (positive)
+DPI hist = 0.0003 (positive)
+CCI = +50 (bullish)
+→ Ribbon = YELLOW (hist > 0, CCI > 0)
+→ DPI vote = +1 (PASS)
+→ GREEN visible (Blue and hist aligned)
+```
+
+See also:
+- [`PRESET_RRM_ORG` preset flow](README_SEA_PRESETS.md#preset_rrm_org)
+- [DPI `mc_main` EA integration notes](../DPI_mc_main_README.md#ea-integration-preset_rrm_org)
+
 ---
 
 ## Part 3: Extending the System (Plugin Architecture)
@@ -271,4 +352,3 @@ For each **active** layer (LayerX == 1), checks if the closed candle has momentu
 - bcW = 1 when Close < EMA1
 
 At least ONE active layer must have its bcX confirmed to proceed.
-

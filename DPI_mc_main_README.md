@@ -225,3 +225,83 @@ When `InpEnableGreen = false` (GREEN overlay disabled), the histogram now render
 - `InpEnableGreen = false` — simple MT4-equivalent: fills `0→Blue` on Blue's side only, single ribbon color (`hist_wants_yellow` still drives yellow vs red), no opposite-side bars, no GREEN buffer
 
 **Vote note:** GREEN state does **not** affect the EA's DPI vote. The vote is driven by ribbon color (yellow → Long, red → Short) with optional CCI-reset confirmation only.
+
+## EA Integration (PRESET_RRM_ORG)
+
+The SimpleEA uses DPI as the primary momentum voter in PRESET_RRM_ORG. The EA computes DPI values internally (`SEA_SignalEngine.mqh::ComputeDPIMainHist`) using the same math as the standalone indicator.
+
+### Internal Calculation
+
+The EA implements:
+1. **Blue Line:** `EMA(Fast) - EMA(Slow)` using configured periods
+2. **Red Signal:** Selected smoothing type (EMA5/8/13/21 or Double)
+3. **Histogram:** `Blue - Red`
+4. **CCI Reset:** Optional trend filter (when enabled)
+5. **Ribbon Color:** Yellow (bullish) or Red (bearish) after CCI logic
+6. **GREEN State:** Alignment flag (not used in voting)
+
+### Vote Logic (Signal Engine)
+
+```mql5
+// Check_DPI() in SEA_SignalEngine.mqh
+bool Check_DPI(int bias, int shift)
+{
+    // Compute histogram color (after CCI reset)
+    bool is_yellow = ComputeRibbonColor(shift);
+    
+    // Vote based on ribbon color matching bias
+    if (bias == +1 && is_yellow)  return true;  // LONG + Yellow ribbon
+    if (bias == -1 && !is_yellow) return true;  // SHORT + Red ribbon
+    
+    return false;  // Mismatch → reject
+}
+```
+
+### DPI Deceleration Filter
+
+When `DpiDecelFilterEnabled = true` (PRESET_RRM_ORG quality patch):
+- Checks if GREEN histogram is shrinking (momentum weakening)
+- Blocks entry when `GREEN[shift] < GREEN[shift+1]`
+- Prevents late entries after momentum peak
+- Only active when `Ind_Dpi_Enabled = true`
+
+### Configuration Mapping
+
+EA settings map to standalone indicator parameters:
+
+| EA Setting | Indicator Parameter | Default |
+|------------|---------------------|---------|
+| `DPI_MACD_Fast` | `InpFastEMA` | 8 |
+| `DPI_MACD_Slow` | `InpSlowEMA` | 13 |
+| `DPI_RedSignalType` | `InpRedLineType` | 3 (EMA13) |
+| `DPI_UseCCIReset` | `InpEnableCCI` | true |
+| `DPI_CCI_Period` | `InpCCIPeriod` | 13 |
+| `DPI_UseGreenHist` | `InpEnableGreen` | true |
+
+### Visualizing EA's DPI Vote
+
+To see what the EA sees:
+1. Add `DPI_mc_main.mq5` to chart
+2. Configure with same parameters as EA (Zone 3D inputs)
+3. Watch ribbon color:
+   - **Yellow ribbon** → EA votes bullish
+   - **Red ribbon** → EA votes bearish
+4. GREEN histogram shows momentum strength (visual only)
+
+### Troubleshooting
+
+**Problem:** Entry taken when GREEN histogram disappearing
+- **Cause:** `DpiDecelFilterEnabled = false` (not checking momentum direction)
+- **Fix:** Enable deceleration filter in preset or via input
+
+**Problem:** DPI vote failing when ribbon looks correct
+- **Cause:** CCI reset changed color (RED reset in bullish zone)
+- **Fix:** Check CCI value — reset = warning signal, not failure
+
+**Problem:** Can't see DPI in tester Data Window
+- **Cause:** DPI is custom indicator, not built-in MT5 indicator
+- **Fix:** Manually add `DPI_mc_main.mq5` to chart before testing
+
+See also:
+- [Signal reference DPI voter section](Readme/README_SEA_SIGNAL_REFERENCE.md#dpi-dynamic-price-index--momentum-direction-voter)
+- [Preset-level PRESET_RRM_ORG workflow](Readme/README_SEA_PRESETS.md#preset_rrm_org)
