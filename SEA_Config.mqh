@@ -936,7 +936,9 @@ input group "╚═════════════════════�
 // If LayerPullbackEnabled=true, this gate should normally remain disabled to avoid double-filtering.
 input bool        Inp_Gate_RequireRecoveryMomentum = false;    // RRM Gate (CUSTOM; presets override)
 input int         Inp_RRM_Lookback           = 5;              // RRM Lookback (CUSTOM; presets override)
-input double      Inp_RRM_MinDivPips         = 0.0;            // RRM MinDivPips [legacy threshold]: keep 0.0; non-zero requires EMA distance growth to exceed pip-converted threshold (legacy mode)
+// Legacy threshold input kept for backward compatibility:
+// 0.0 = pure math mode (recommended); non-zero = legacy pip-converted EMA divergence threshold.
+input double      Inp_RRM_MinDivPips         = 0.0;            // RRM MinDivPips
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Indicators — Enable/Disable";
 input group "╚════════════════════════════════════════════════════════╝";

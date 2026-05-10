@@ -405,7 +405,10 @@ private:
 
    bool IsValidIndicatorValue(const double value) const
    {
-      return (MathIsValidNumber(value) && value != EMPTY_VALUE && value != DBL_MAX && value != -DBL_MAX);
+      return (MathIsValidNumber(value) &&
+              value != EMPTY_VALUE &&
+              value > -DBL_MAX &&
+              value < DBL_MAX);
    }
 
    // Version 2: With validity checking via MQL5 reference parameter
@@ -562,8 +565,8 @@ private:
 
       // Extra scan buffer catches the first valid post-gap bars even when eval shift
       // and session offsets move the detected boundary a few bars deeper.
-      int scan_last_shift = MathMin(bars_total - 2, v_shift + m_settings.MinBarsAfterWeekendGap + SEA_WEEKEND_GAP_SCAN_BUFFER_BARS);
-      for(int i = v_shift; i <= scan_last_shift; i++)
+      int max_scan_shift = MathMin(bars_total - 2, v_shift + m_settings.MinBarsAfterWeekendGap + SEA_WEEKEND_GAP_SCAN_BUFFER_BARS);
+      for(int i = v_shift; i <= max_scan_shift; i++)
       {
          datetime newer = iTime(m_symbol, PERIOD_CURRENT, i);
          datetime older = iTime(m_symbol, PERIOD_CURRENT, i + 1);
