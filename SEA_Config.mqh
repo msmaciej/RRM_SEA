@@ -221,7 +221,7 @@ enum EExitProfile
 enum EGateScaleMode
 {
    GATE_SCALE_OFF,         // GATE_OFF: Gate disabled
-   GATE_SCALE_FIXED,       // GATE_FIXED: Use fixed gate scale value
+   GATE_SCALE_FIXED,       // GATE_FIXED: Use a fixed gate multiplier/value instead of adaptive TF scaling
    GATE_SCALE_AUTO_TF      // GATE_AUTO: Auto-scale by timeframe/pair
 };
 enum EVoteMode
@@ -931,7 +931,7 @@ input int         Inp_RRM_TrailPsarShiftDelay   = 1;           // PSAR shift del
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 RRM: (Pullback)";
 input group "╚════════════════════════════════════════════════════════╝";
-// RRM pullback gate uses pure distance comparison (no pip threshold).
+// RRM pullback gate uses pure distance comparison: the current EMA gap must exceed the prior EMA gap (no pip threshold).
 input bool        Inp_Gate_RequireRecoveryMomentum = false;    // RRM Gate (CUSTOM; presets override)
 input int         Inp_RRM_Lookback           = 5;              // RRM Lookback (CUSTOM; presets override)
 input group "╔════════════════════════════════════════════════════════╗";
