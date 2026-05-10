@@ -1229,22 +1229,22 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_RequireDirection  = Inp_Ind_CandleBody_RequireDirection;
       
       // ── INDICATOR TOGGLES: flexible via Inp_RRM_* ────────────────────
-      cfg.Ind_Adx_Enabled        = Inp_RRM_Use_Adx;
-      cfg.Ind_Atr_Enabled        = Inp_RRM_Use_Atr;   // ATR VRC - Always off in RRM (not part of RRM methodology):
-      cfg.Ind_Bb_Enabled         = Inp_RRM_Use_Bb;
-      cfg.Ind_CandleBody_Enabled = Inp_RRM_Use_CandleBody;
-      cfg.Ind_Cci_Enabled        = Inp_RRM_Use_Cci;
-      cfg.Ind_CI_Enabled         = Inp_RRM_Use_CI;    // CI is not part of original RRM_ORG methodology (DPI momentum voter is used)
-      cfg.Ind_Macd_Enabled       = Inp_RRM_Use_Macd;
-      cfg.Ind_Mfi_Enabled        = Inp_RRM_Use_Mfi;
-      cfg.Ind_Psar_Enabled       = Inp_RRM_Use_Psar;
-      cfg.Ind_P123_Enabled       = Inp_RRM_Use_P123;
-      cfg.Ind_Ross_Enabled       = Inp_RRM_Use_Ross;
-      cfg.Ind_Rsi_Enabled        = Inp_RRM_Use_Rsi;
-      cfg.Ind_Sto_Enabled        = Inp_RRM_Use_Stoch;
+      cfg.Ind_Adx_Enabled           = Inp_RRM_Use_Adx;
+      cfg.Ind_Atr_Enabled           = Inp_RRM_Use_Atr;   // ATR VRC - Always off in RRM (not part of RRM methodology):
+      cfg.Ind_Bb_Enabled            = Inp_RRM_Use_Bb;
+      cfg.Ind_CandleBody_Enabled    = Inp_RRM_Use_CandleBody;
+      cfg.Ind_Cci_Enabled           = false;             // used in DPI
+      cfg.Ind_CI_Enabled            = Inp_RRM_Use_CI;    // CI is not part of original RRM_ORG methodology (DPI momentum voter is used)
+      cfg.Ind_Macd_Enabled          = false;             // used in DPI
+      cfg.Ind_Mfi_Enabled           = Inp_RRM_Use_Mfi;
+      cfg.Ind_Psar_Enabled          = Inp_RRM_Use_Psar;
+      cfg.Ind_P123_Enabled          = Inp_RRM_Use_P123;
+      cfg.Ind_Ross_Enabled          = Inp_RRM_Use_Ross;
+      cfg.Ind_Rsi_Enabled           = Inp_RRM_Use_Rsi;
+      cfg.Ind_Sto_Enabled           = Inp_RRM_Use_Stoch;
       cfg.Ind_SmaConverge_Enabled   = Inp_RRM_Use_SmaConverge;
       cfg.Ind_SmaConverge_Weight    = Inp_Ind_SmaConverge_Weight;
-      cfg.Ind_VRC_Enabled        = Inp_RRM_Use_VRC;             // ← CI is now user-controlled, remove from this list
+      cfg.Ind_VRC_Enabled           = Inp_RRM_Use_VRC;             // ← CI is now user-controlled, remove from this list
       
       // ── ADX SETTINGS: safe defaults (disabled) ────────────────────────
       cfg.ADX_Mode                  = ADX_MODE_STATIC;
@@ -1487,6 +1487,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       return;
    }
+   
+   
    //+------------------------------------------------------------------+
    // PURPOSE:
    //   Sandbox environment for testing individual indicators, voting
