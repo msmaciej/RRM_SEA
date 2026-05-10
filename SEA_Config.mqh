@@ -895,7 +895,7 @@ input bool        Inp_RRM_AllowStrong        = true;           // RRM: Allow STR
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Layer Pullback-Recovery Detection";
 input group "╚════════════════════════════════════════════════════════╝";
-// Recommended pullback mode: pure ratio mathematics (LayerPullbackRatio/RecoveryRatio/FlatRatio).
+// Recommended pullback mode: pure ratio mathematics (Inp_LayerPullbackRatio / Inp_LayerRecoveryRatio / Inp_LayerFlatRatio).
 // This Layer system is independent from legacy RRM gate fields below.
 input bool        Inp_LayerPullbackEnabled   = false;          // Layer PB: Enable pullback-recovery detection
 input int         Inp_LayerBaselineLookback  = 10;             // Layer PB: Baseline slope lookback (bars, recommended 3+)

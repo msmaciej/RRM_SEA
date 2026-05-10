@@ -540,17 +540,17 @@ private:
       if(newer_bar_time <= 0 || older_bar_time <= 0 || newer_bar_time <= older_bar_time)
          return false;
 
-      int gap_seconds = (int)(newer_bar_time - older_bar_time);
-      if(gap_seconds < SEA_MIN_WEEKEND_GAP_SECONDS)
+      int gap_duration_seconds = (int)(newer_bar_time - older_bar_time);
+      if(gap_duration_seconds < SEA_MIN_WEEKEND_GAP_SECONDS)
          return false;
 
       MqlDateTime newer_dt, older_dt;
       TimeToStruct(newer_bar_time, newer_dt);
       TimeToStruct(older_bar_time, older_dt);
 
-      bool older_is_weekend_adjacent = (older_dt.day_of_week == SEA_DOW_FRIDAY);
-      bool newer_is_weekend_adjacent = (newer_dt.day_of_week == SEA_DOW_MONDAY);
-      return (older_is_weekend_adjacent && newer_is_weekend_adjacent);
+      bool older_is_friday = (older_dt.day_of_week == SEA_DOW_FRIDAY);
+      bool newer_is_monday = (newer_dt.day_of_week == SEA_DOW_MONDAY);
+      return (older_is_friday && newer_is_monday);
    }
 
    bool IsWithinWeekendGapCooldown(const int v_shift, int &out_bars_since_gap) const
@@ -565,7 +565,8 @@ private:
 
       // Extra scan buffer catches the first valid post-gap bars even when eval shift
       // and session offsets move the detected boundary a few bars deeper.
-      int max_scan_shift = MathMin(bars_total - 2, v_shift + m_settings.MinBarsAfterWeekendGap + SEA_WEEKEND_GAP_SCAN_BUFFER_BARS);
+      int scan_limit_shift = v_shift + m_settings.MinBarsAfterWeekendGap + SEA_WEEKEND_GAP_SCAN_BUFFER_BARS;
+      int max_scan_shift = MathMin(bars_total - 2, scan_limit_shift);
       for(int i = v_shift; i <= max_scan_shift; i++)
       {
          datetime newer = iTime(m_symbol, PERIOD_CURRENT, i);
