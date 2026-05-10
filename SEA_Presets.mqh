@@ -939,7 +939,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Mfi_Enabled        = Inp_RRM_Use_Mfi;
       // Always off in RRM (not part of RRM methodology):
       cfg.Ind_Atr_Enabled        = false;
-      cfg.Ind_CI_Enabled         = Inp_RRM_Use_CI; // CI is now user-controlled within PRESET_RRM.
+      cfg.Ind_CI_Enabled         = Inp_RRM_Use_CI; // CI toggle is now exposed for PRESET_RRM.
       cfg.Ind_VRC_Enabled        = false;
       cfg.Ind_P123_Enabled       = false;
       cfg.Ind_Ross_Enabled       = false;

@@ -221,7 +221,7 @@ enum EExitProfile
 enum EGateScaleMode
 {
    GATE_SCALE_OFF,         // GATE_OFF: Gate disabled
-   GATE_SCALE_FIXED,       // GATE_FIXED: Use a fixed gate multiplier/value instead of adaptive TF scaling
+   GATE_SCALE_FIXED,       // GATE_FIXED: Use a fixed dimensionless gate value instead of adaptive TF scaling
    GATE_SCALE_AUTO_TF      // GATE_AUTO: Auto-scale by timeframe/pair
 };
 enum EVoteMode
