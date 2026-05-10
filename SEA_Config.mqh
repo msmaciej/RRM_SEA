@@ -221,7 +221,7 @@ enum EExitProfile
 enum EGateScaleMode
 {
    GATE_SCALE_OFF,         // GATE_OFF: Gate disabled
-   GATE_SCALE_FIXED,       // GATE_FIXED: Use fixed pip value
+   GATE_SCALE_FIXED,       // GATE_FIXED: Use a fixed dimensionless gate value instead of adaptive TF scaling
    GATE_SCALE_AUTO_TF      // GATE_AUTO: Auto-scale by timeframe/pair
 };
 enum EVoteMode
@@ -329,8 +329,7 @@ struct ST_Settings
    
    // RRM (Trend Pullback)
    int    RRM_Lookback;
-   double RRM_MinDivPips;
-   
+
    // Bias
    bool          BiasEnabled;
    EBiasMode     BiasMode;
@@ -932,13 +931,9 @@ input int         Inp_RRM_TrailPsarShiftDelay   = 1;           // PSAR shift del
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 RRM: (Pullback)";
 input group "╚════════════════════════════════════════════════════════╝";
-// Legacy RRM gate block. Keep MinDivPips at 0.0 for pure mathematical distance-comparison mode.
-// If LayerPullbackEnabled=true, this gate should normally remain disabled to avoid double-filtering.
+// RRM pullback gate uses pure distance comparison: the current EMA gap must exceed the prior EMA gap (no pip threshold).
 input bool        Inp_Gate_RequireRecoveryMomentum = false;    // RRM Gate (CUSTOM; presets override)
 input int         Inp_RRM_Lookback           = 5;              // RRM Lookback (CUSTOM; presets override)
-// Legacy threshold input kept for backward compatibility:
-// 0.0 = pure math mode (recommended); non-zero = legacy pip-converted EMA divergence threshold.
-input double      Inp_RRM_MinDivPips         = 0.0;            // RRM MinDivPips
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Indicators — Enable/Disable";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -957,11 +952,30 @@ input group "║   📐 RRM: ADX Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_RRM_AdxPeriod          = 14;             // RRM ADX Period
 input double      Inp_RRM_AdxThreshold       = 20.0;           // RRM ADX Threshold
+input EADXMode    Inp_RRM_Adx_Mode           = ADX_MODE_PHASE_AWARE; // RRM ADX Mode
+input double      Inp_RRM_Adx_Percentile     = 50.0;           // RRM ADX Percentile
+input int         Inp_RRM_Adx_Lookback       = 100;            // RRM ADX Lookback bars
+input double      Inp_RRM_Adx_Thr_Accum      = 12.0;           // RRM ADX Accumulation threshold
+input double      Inp_RRM_Adx_Thr_Trending   = 25.0;           // RRM ADX Trending threshold
+input double      Inp_RRM_Adx_Thr_Distrib    = 18.0;           // RRM ADX Distribution threshold
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM: BB Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_Bb_Period          = 20;             // RRM BB Period
+input double      Inp_RRM_Bb_Deviation       = 2.0;            // RRM BB Deviation
+input EBbMode     Inp_RRM_Bb_Mode            = BB_TREND_FOLLOW; // RRM BB Mode
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: CCI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input ECciMode    Inp_RRM_CciMode            = CCI_TREND_ZERO; // RRM CCI Mode
 input int         Inp_RRM_CciPeriod          = 14;             // RRM CCI Period
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM: Candle Body Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_CandleBody_AvgPeriod  = 15;          // RRM CandleBody Average period
+input double      Inp_RRM_CandleBody_MaxMult    = 3.5;         // RRM CandleBody Max multiplier
+input int         Inp_RRM_CandleBody_CheckBars  = 1;           // RRM CandleBody Bars to check
+input bool        Inp_RRM_CandleBody_RequireDir = true;        // RRM CandleBody Require direction
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: CI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -984,6 +998,13 @@ input int         Inp_RRM_MacdFast           = 12;             // RRM MACD Fast 
 input int         Inp_RRM_MacdSlow           = 26;             // RRM MACD Slow period ORG 26
 input int         Inp_RRM_MacdSig            = 9;              // RRM MACD Signal period ORG 9
 input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM: MFI Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_Mfi_Period         = 14;             // RRM MFI Period
+input EMfiMode    Inp_RRM_Mfi_Mode           = MFI_ZONE_FILTER; // RRM MFI Mode
+input double      Inp_RRM_Mfi_OB             = 80.0;           // RRM MFI Overbought threshold
+input double      Inp_RRM_Mfi_OS             = 20.0;           // RRM MFI Oversold threshold
+input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: PSAR Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input double      Inp_RRM_PsarStep           = 0.05;           // RRM PSAR Step
@@ -993,6 +1014,17 @@ input group "║   📐 RRM: RSI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input ERsiMode    Inp_RRM_RsiMode            = RSI_TREND_ABOVE_50; // RRM RSI Mode
 input int         Inp_RRM_RsiPeriod          = 14;             // RRM RSI Period
+input double      Inp_RRM_Rsi_OB             = 70.0;           // RRM RSI Overbought level
+input double      Inp_RRM_Rsi_OS             = 30.0;           // RRM RSI Oversold level
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM: Stochastic Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_Sto_K              = 5;              // RRM Stochastic K period
+input int         Inp_RRM_Sto_D              = 3;              // RRM Stochastic D period
+input int         Inp_RRM_Sto_Slow           = 3;              // RRM Stochastic Slowing period
+input double      Inp_RRM_Sto_OB             = 80.0;           // RRM Stochastic Overbought threshold
+input double      Inp_RRM_Sto_OS             = 20.0;           // RRM Stochastic Oversold threshold
+input EStochMode  Inp_RRM_Sto_Mode           = STO_CROSS_SIGNAL; // RRM Stochastic Mode
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: EMA Fan & DPI Filters";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1028,6 +1060,90 @@ input group "═══ DPI Histogram Entry/Exit Logic ═══"
 input bool        Inp_DPI_BlockOnDeceleration     = false;       // DPI: Block entries on momentum deceleration
 input bool        Inp_DPI_ExitOnHistDisappear     = false;       // DPI: Close trades when green histogram vanishes
 input double      Inp_DPI_ExitThreshold           = 0.0;         // DPI: Exit when |CCI| below threshold (0=disable)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: Indicators — Enable/Disable";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_RRM_ORG_Use_Adx            = false;        // RRM_ORG: ADX vote enabled
+input bool        Inp_RRM_ORG_Use_Bb             = false;        // RRM_ORG: Bollinger Bands vote enabled
+input bool        Inp_RRM_ORG_Use_CandleBody     = true;         // RRM_ORG: Candle body vote enabled
+input bool        Inp_RRM_ORG_Use_Cci            = false;        // RRM_ORG: CCI vote enabled
+input bool        Inp_RRM_ORG_Use_CI             = false;        // RRM_ORG: CI vote ranging market filter
+input bool        Inp_RRM_ORG_Use_Macd           = true;         // RRM_ORG: MACD vote enabled
+input bool        Inp_RRM_ORG_Use_Mfi            = false;        // RRM_ORG: MFI vote enabled
+input bool        Inp_RRM_ORG_Use_Psar           = true;         // RRM_ORG: PSAR vote enabled
+input bool        Inp_RRM_ORG_Use_Rsi            = false;        // RRM_ORG: RSI vote enabled
+input bool        Inp_RRM_ORG_Use_Stoch          = false;        // RRM_ORG: Stochastic vote enabled
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: ADX Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_ORG_AdxPeriod          = 14;           // RRM_ORG ADX Period
+input double      Inp_RRM_ORG_AdxThreshold       = 20.0;         // RRM_ORG ADX Threshold
+input EADXMode    Inp_RRM_ORG_Adx_Mode           = ADX_MODE_STATIC; // RRM_ORG ADX Mode
+input double      Inp_RRM_ORG_Adx_Percentile     = 50.0;         // RRM_ORG ADX Percentile
+input int         Inp_RRM_ORG_Adx_Lookback       = 100;          // RRM_ORG ADX Lookback bars
+input double      Inp_RRM_ORG_Adx_Thr_Accum      = 12.0;         // RRM_ORG ADX Accumulation threshold
+input double      Inp_RRM_ORG_Adx_Thr_Trending   = 25.0;         // RRM_ORG ADX Trending threshold
+input double      Inp_RRM_ORG_Adx_Thr_Distrib    = 18.0;         // RRM_ORG ADX Distribution threshold
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: BB Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_ORG_Bb_Period          = 20;           // RRM_ORG BB Period
+input double      Inp_RRM_ORG_Bb_Deviation       = 2.0;          // RRM_ORG BB Deviation
+input EBbMode     Inp_RRM_ORG_Bb_Mode            = BB_TREND_FOLLOW; // RRM_ORG BB Mode
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: CCI Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input ECciMode    Inp_RRM_ORG_CciMode            = CCI_TREND_ZERO; // RRM_ORG CCI Mode
+input int         Inp_RRM_ORG_CciPeriod          = 14;           // RRM_ORG CCI Period
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: Candle Body Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_ORG_CandleBody_AvgPeriod  = 10;        // RRM_ORG CandleBody Average period
+input double      Inp_RRM_ORG_CandleBody_MaxMult    = 3.0;       // RRM_ORG CandleBody Max multiplier
+input int         Inp_RRM_ORG_CandleBody_CheckBars  = 1;         // RRM_ORG CandleBody Bars to check
+input bool        Inp_RRM_ORG_CandleBody_RequireDir = true;      // RRM_ORG CandleBody Require direction
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: CI Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_ORG_CiPeriod           = 14;           // RRM_ORG CI Period
+input double      Inp_RRM_ORG_CiRangingThreshold = 61.8;         // RRM_ORG CI Ranging Threshold
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: MACD Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input EMacdVoteMode Inp_RRM_ORG_MacdMode         = MACD_HISTOGRAM; // RRM_ORG MACD vote mode
+input bool        Inp_RRM_ORG_MacdSlope          = false;        // RRM_ORG MACD require slope
+input bool        Inp_RRM_ORG_MacdDiv            = false;        // RRM_ORG MACD require divergence
+input int         Inp_RRM_ORG_MacdFast           = 8;            // RRM_ORG MACD Fast period
+input int         Inp_RRM_ORG_MacdSlow           = 13;           // RRM_ORG MACD Slow period
+input int         Inp_RRM_ORG_MacdSig            = 5;            // RRM_ORG MACD Signal period
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: MFI Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_ORG_Mfi_Period         = 14;           // RRM_ORG MFI Period
+input EMfiMode    Inp_RRM_ORG_Mfi_Mode           = MFI_ZONE_FILTER; // RRM_ORG MFI Mode
+input double      Inp_RRM_ORG_Mfi_OB             = 80.0;         // RRM_ORG MFI Overbought threshold
+input double      Inp_RRM_ORG_Mfi_OS             = 20.0;         // RRM_ORG MFI Oversold threshold
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: PSAR Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input double      Inp_RRM_ORG_PsarStep           = 0.05;         // RRM_ORG PSAR Step
+input double      Inp_RRM_ORG_PsarMax            = 0.5;          // RRM_ORG PSAR Max
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: RSI Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input ERsiMode    Inp_RRM_ORG_RsiMode            = RSI_TREND_ABOVE_50; // RRM_ORG RSI Mode
+input int         Inp_RRM_ORG_RsiPeriod          = 14;           // RRM_ORG RSI Period
+input double      Inp_RRM_ORG_Rsi_OB             = 70.0;         // RRM_ORG RSI Overbought level
+input double      Inp_RRM_ORG_Rsi_OS             = 30.0;         // RRM_ORG RSI Oversold level
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: Stochastic Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_ORG_Sto_K              = 5;            // RRM_ORG Stochastic K period
+input int         Inp_RRM_ORG_Sto_D              = 3;            // RRM_ORG Stochastic D period
+input int         Inp_RRM_ORG_Sto_Slow           = 3;            // RRM_ORG Stochastic Slowing period
+input double      Inp_RRM_ORG_Sto_OB             = 80.0;         // RRM_ORG Stochastic Overbought threshold
+input double      Inp_RRM_ORG_Sto_OS             = 20.0;         // RRM_ORG Stochastic Oversold threshold
+input EStochMode  Inp_RRM_ORG_Sto_Mode           = STO_CROSS_SIGNAL; // RRM_ORG Stochastic Mode
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Phase A Quality Gates (TS=1 / TE=1)";
@@ -1438,7 +1554,6 @@ void InitializeConfig()
    Settings.MABenchmarkStrict       = false;
 
    Settings.RRM_Lookback               = Inp_RRM_Lookback;
-   Settings.RRM_MinDivPips             = Inp_RRM_MinDivPips;
    Settings.RequireRecoveryMomentum    = Inp_Gate_RequireRecoveryMomentum;
    
    Settings.Gate_Recovery.mode         = GATE_SCALE_OFF;
