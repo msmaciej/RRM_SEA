@@ -4724,32 +4724,63 @@ public:
    // ─────────────────────────────────────────────────────────────────────────
    int GetBias_4EMA_Direction(const int v_shift = 1)
    {
-      if(!m_settings.PhaseDetectionEnabled) return 0;
+      bool diag_bias = (m_settings.DebugFlow || m_settings.DebugLevel >= DEBUG_SUMMARY);
+      if(diag_bias) {
+         Print("[GET_BIAS_4EMA] Called with v_shift=", v_shift);
+         Print("[GET_BIAS_4EMA] PhaseDetectionEnabled: ", m_settings.PhaseDetectionEnabled ? "TRUE" : "FALSE");
+      }
+
+      if(!m_settings.PhaseDetectionEnabled) {
+         if(diag_bias)
+            Print("[GET_BIAS_4EMA] PhaseDetectionEnabled=FALSE -> returning 0 (NEUTRAL)");
+         return 0;
+      }
 
       EMarketPhase phase = DetectMarketPhase(v_shift);
       m_diag_last_phase = phase;
+      if(diag_bias)
+         Print("[GET_BIAS_4EMA] Phase detected: ", EnumToString(phase));
 
-      if(m_settings.RequireMinPhaseConfirm && m_settings.MinPhaseConfirmBars > 0)
-         if(!ConfirmPhaseStability(phase, m_settings.MinPhaseConfirmBars)) return 0;
+      if(m_settings.RequireMinPhaseConfirm && m_settings.MinPhaseConfirmBars > 0) {
+         if(!ConfirmPhaseStability(phase, m_settings.MinPhaseConfirmBars)) {
+            if(diag_bias)
+               Print("[GET_BIAS_4EMA] Phase not stable -> returning 0");
+            return 0;
+         }
+      }
 
+      int result = 0;
       switch(phase)
       {
          case PHASE_TRENDING_UP:
-         case PHASE_EMERGING_UP:  return 1;
+         case PHASE_EMERGING_UP:
+            result = 1;
+            break;
          case PHASE_TRENDING_DN:
-         case PHASE_EMERGING_DN:  return -1;
+         case PHASE_EMERGING_DN:
+            result = -1;
+            break;
          case PHASE_TRENDING:
          case PHASE_EMERGING: {
             double ema2 = GetMAVal(h_ema2, v_shift, 0);
             double ema4 = GetMAVal(h_ema4, v_shift, 0);
             double tol  = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-            if(ema2 > ema4 + tol) return 1;
-            if(ema4 > ema2 + tol) return -1;
-            return 0;
+            if(ema2 > ema4 + tol) result = 1;
+            else if(ema4 > ema2 + tol) result = -1;
+            else result = 0;
+            break;
          }
          case PHASE_UNORDERED:
-         default: return 0;
+         default:
+            result = 0;
+            break;
       }
+
+      if(diag_bias) {
+         Print("[GET_BIAS_4EMA] Returning bias: ", result,
+               " (", result == 1 ? "LONG" : (result == -1 ? "SHORT" : "NEUTRAL"), ")");
+      }
+      return result;
    }
 
    // ─────────────────────────────────────────────────────────────────────────
@@ -4765,8 +4796,32 @@ public:
       if(m_settings.BiasMode != BIAS_4EMA)
          return EvaluateBias(v_shift);  // Non-4EMA: existing logic unchanged
 
+      bool diag_bias = (m_settings.DebugFlow || m_settings.DebugLevel >= DEBUG_SUMMARY);
+      if(diag_bias) {
+         datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+         double ema2 = GetMAVal(h_ema2, v_shift, 0);
+         double ema3 = GetMAVal(h_ema3, v_shift, 0);
+         double ema4 = GetMAVal(h_ema4, v_shift, 0);
+         double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+         EMarketPhase detected_phase = DetectMarketPhase(v_shift);
+
+         Print("═══════════════════════════════════════════════════════════");
+         Print("[BIAS_DIAGNOSTIC] Bar: ", TimeToString(bar_time, TIME_DATE|TIME_MINUTES), " shift=", v_shift);
+         Print("[BIAS_DIAGNOSTIC] BiasMode: ", EnumToString(m_settings.BiasMode));
+         Print("[BIAS_DIAGNOSTIC] BiasEnabled: ", m_settings.BiasEnabled ? "TRUE" : "FALSE");
+         Print("[BIAS_DIAGNOSTIC] PhaseDetectionEnabled: ", m_settings.PhaseDetectionEnabled ? "TRUE" : "FALSE");
+         Print("[BIAS_DIAGNOSTIC] Price: ", DoubleToString(price, _Digits));
+         Print("[BIAS_DIAGNOSTIC] EMA2 (", m_settings.P_Ema2, "): ", DoubleToString(ema2, _Digits));
+         Print("[BIAS_DIAGNOSTIC] EMA3 (", m_settings.P_Ema3, "): ", DoubleToString(ema3, _Digits));
+         Print("[BIAS_DIAGNOSTIC] EMA4 (", m_settings.P_Ema4, "): ", DoubleToString(ema4, _Digits));
+         Print("[BIAS_DIAGNOSTIC] Detected Phase (direct): ", EnumToString(detected_phase));
+         Print("[BIAS_DIAGNOSTIC] m_diag_last_phase (pre): ", EnumToString(m_diag_last_phase));
+      }
+
       // ── BIAS_4EMA path: direction from phase, no phase-gate blocking ──
       if(!m_settings.BiasEnabled) {
+         if(diag_bias)
+            Print("[BIAS_DIAGNOSTIC] BIAS_DISABLED -> returning 0");
          m_diag_last_reason = "BIAS_DISABLED";
          m_reject_bias++;
          m_stats.rejected_bias++;
@@ -4777,6 +4832,12 @@ public:
 
       int bias = GetBias_4EMA_Direction(v_shift);
       m_eval_str_B = (bias != 0) ? "+" : "POS";
+      if(diag_bias) {
+         Print("[BIAS_DIAGNOSTIC] GetBias_4EMA_Direction returned: ", bias,
+               " (", bias == 1 ? "LONG" : (bias == -1 ? "SHORT" : "NEUTRAL"), ")");
+         Print("[BIAS_DIAGNOSTIC] m_diag_last_phase (post): ", EnumToString(m_diag_last_phase));
+         Print("═══════════════════════════════════════════════════════════");
+      }
 
       if(m_settings.DebugFlow) {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
