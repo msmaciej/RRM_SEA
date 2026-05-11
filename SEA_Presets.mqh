@@ -530,7 +530,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TPFractalOffset           = 1;
 
       // ── RISK MANAGEMENT ───────────────────────────────────────────────
-      cfg.CountBEasZeroRisk         = true;
+      cfg.CountBEasZeroRisk         = Inp_CountBEasZeroRisk;
       cfg.FixedLotSize              = 0.0;
 
       // ── EXIT STRATEGY ─────────────────────────────────────────────────
@@ -794,7 +794,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.FixedLotSize              = 0.0;
       cfg.MaxTotalRisk              = 100.0;
       cfg.MaxOpenTrades             = 1;
-      cfg.CountBEasZeroRisk         = false;
+      cfg.CountBEasZeroRisk         = Inp_CountBEasZeroRisk;
       
       // ================================================================
       // EXIT STRATEGY CONFIGURATION
@@ -1050,7 +1050,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Vote_EvalShift            = 1;
 
       // ── RISK MANAGEMENT ───────────────────────────────────────────────
-      cfg.CountBEasZeroRisk         = true;              // true
+      cfg.CountBEasZeroRisk         = Inp_CountBEasZeroRisk;              // true
       cfg.FixedLotSize              = 0.0;
 
       // ── EXIT STRATEGY: flexible via Inp_RRM_* ────────────────────────
@@ -1364,7 +1364,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Vote_EvalShift            = 1;
 
       // ── RISK MANAGEMENT ───────────────────────────────────────────────
-      cfg.CountBEasZeroRisk         = true;
+      cfg.CountBEasZeroRisk         = Inp_CountBEasZeroRisk;
       cfg.FixedLotSize              = 0.0;
 
       // ── EXIT STRATEGY: flexible (uses RRM profile, SL/TP from inputs) ─
@@ -1715,7 +1715,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // RISK MANAGEMENT (Portfolio-level)
       // ================================================================
-      cfg.CountBEasZeroRisk            = true;     // ORG: false
+      cfg.CountBEasZeroRisk            = Inp_CountBEasZeroRisk;     // ORG: false
       cfg.RiskPercent                  = 2.0;      // ORG: 2.0
       cfg.FixedLotSize                 = 0.0;
       cfg.MaxTotalRisk                 = 6.0;

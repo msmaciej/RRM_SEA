@@ -729,7 +729,23 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input EStrategyPreset InpPreset              = PRESET_RRM_ORG;    // Strategy preset
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    ✅✅ FILTERS | UI | DEBUG (works in ALL presets)";
+input group "    🎯 TRADE & RISK MANAGEMENT";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   💰 (RM) Trade & Risk Management (GLOBAL)";
+input group "╚════════════════════════════════════════════════════════╝";
+input double      Inp_RiskPercent            = 2.0;               // Risk per trade (%)
+input int         Inp_MaxOpenTrades          = 4;                 // Max concurrent trades (0 = unlimited)
+input double      Inp_MaxTotalRisk           = 6.0;               // Max total active risk (%; 0 = unlimited)
+input bool        Inp_CountBEasZeroRisk      = true;              // Count trades at BE as zero risk
+input double      Inp_MarginUsageLimit       = 80.0;              // Max % of free margin per trade (0 = use 100%)
+input double      Inp_MinMarginLevel         = 100.0;             // Min margin level (%) required to allow new entries (0 = disabled)
+input double      Inp_EmergencyMarginLevel   = 80.0;              // Emergency margin level (%) to force-close worst position (0 = disabled)
+// input string   Inp_Step9_Ref1             = "Risk per trade applies to all presets unless overridden by Admin Override";
+// input string   Inp_Step9_Ref2             = "To adjust exits under a strict preset: use PRESET_CUSTOM mode";
+
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    ✅✅ FILTERS | UI | DEBUG (GLOBAL)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   � FILTER: SPREAD (GLOBAL)";
@@ -1366,21 +1382,6 @@ input double      Inp_Adaptive_Spread_Crypto = 50.0;              // Max spread 
 // input string   Inp_Adaptive_Note2         = "📝 M15=5 pips, H1=10 pips, H4=20 pips (see GetTFBasedCushion)";
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    🎯 TRADE MANAGEMENT";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   💰 (RM) Risk Management (GLOBAL)";
-input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_RiskPercent            = 2.0;               // Risk per trade (%)
-input int         Inp_MaxOpenTrades          = 4;                 // Max concurrent trades (0 = unlimited)
-input double      Inp_MaxTotalRisk           = 6.0;               // Max total active risk (%; 0 = unlimited)
-input double      Inp_MarginUsageLimit       = 80.0;              // Max % of free margin per trade (0 = use 100%)
-input double      Inp_MinMarginLevel         = 100.0;             // Min margin level (%) required to allow new entries (0 = disabled)
-input double      Inp_EmergencyMarginLevel   = 80.0;              // Emergency margin level (%) to force-close worst position (0 = disabled)
-// input string   Inp_Step9_Ref1             = "Risk per trade applies to all presets unless overridden by Admin Override";
-// input string   Inp_Step9_Ref2             = "To adjust exits under a strict preset: use PRESET_CUSTOM mode";
-
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🎯 STRATEGY SETTINGS (PRESET_CUSTOM Only)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1756,7 +1757,7 @@ void InitializeConfig()
 
    Settings.MaxTotalRisk         = MathMax(0.0, Inp_MaxTotalRisk);
    Settings.MaxOpenTrades        = MathMax(0, Inp_MaxOpenTrades);
-   Settings.CountBEasZeroRisk    = true;
+   Settings.CountBEasZeroRisk    = Inp_CountBEasZeroRisk;
    Settings.MarginUsageLimit     = MathMax(0.0, Inp_MarginUsageLimit);
    Settings.MinMarginLevel       = MathMax(0.0, Inp_MinMarginLevel);
    Settings.EmergencyMarginLevel = MathMax(0.0, Inp_EmergencyMarginLevel);
