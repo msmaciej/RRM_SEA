@@ -484,7 +484,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Gate_CandleDirection.value = 0.0;
 
       // ── VOTE EVALUATION ───────────────────────────────────────────────
-      cfg.Vote_EvalShift            = 1;
+      cfg.Vote_EvalShift            = 0;
 
       // ── OTHER INDICATOR PERIODS (unused but set safe defaults) ─────────
       cfg.P_Adx                     = 14;
@@ -1226,7 +1226,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       
       // ── INDICATOR TOGGLES: flexible via Inp_RRM_ORG_* ────────────────
       cfg.Ind_Adx_Enabled        = Inp_RRM_ORG_Use_Adx;
-      cfg.Ind_Atr_Enabled        = false;             // ATR VRC - Always off in RRM (not part of RRM methodology):
+      cfg.Ind_Atr_Enabled        = Inp_RRM_ORG_Use_Atr;             // ATR VRC - Always off in RRM (not part of RRM methodology):
       cfg.Ind_Bb_Enabled         = Inp_RRM_ORG_Use_Bb;
       cfg.Ind_CandleBody_Enabled = Inp_RRM_ORG_Use_CandleBody;
       cfg.Ind_Cci_Enabled        = Inp_RRM_ORG_Use_Cci;
@@ -1234,13 +1234,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Macd_Enabled       = Inp_RRM_ORG_Use_Macd;
       cfg.Ind_Mfi_Enabled        = Inp_RRM_ORG_Use_Mfi;
       cfg.Ind_Psar_Enabled       = Inp_RRM_ORG_Use_Psar;
-      cfg.Ind_P123_Enabled       = false;
-      cfg.Ind_Ross_Enabled       = false;
+      cfg.Ind_P123_Enabled       = Inp_RRM_ORG_Use_P123;
+      cfg.Ind_Ross_Enabled       = Inp_RRM_ORG_Use_Ross;
       cfg.Ind_Rsi_Enabled        = Inp_RRM_ORG_Use_Rsi;
       cfg.Ind_Sto_Enabled        = Inp_RRM_ORG_Use_Stoch;
-      cfg.Ind_SmaConverge_Enabled   = false;
+      cfg.Ind_SmaConverge_Enabled   = Inp_RRM_ORG_Use_SmaConverge;
       cfg.Ind_SmaConverge_Weight    = Inp_Ind_SmaConverge_Weight;
-      cfg.Ind_VRC_Enabled        = false;             // VRC remains outside the RRM_ORG indicator set.
+      cfg.Ind_VRC_Enabled        = Inp_RRM_ORG_Use_VRC;             // VRC remains outside the RRM_ORG indicator set.
 
       // ── ADX SETTINGS: safe defaults (disabled) ────────────────────────
       cfg.ADX_Mode                  = Inp_RRM_ORG_Adx_Mode;
@@ -1360,7 +1360,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
       cfg.Gate_CandleDirection.value = 1.0;
 
-      // ── VOTE EVALUATION ───────────────────────────────────────────────
+      // ── VOTE EVALUATION PRESET_RRM_ORG ───────────────────────────────────────────────
       cfg.Vote_EvalShift            = 1;
 
       // ── RISK MANAGEMENT ───────────────────────────────────────────────

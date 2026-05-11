@@ -2,7 +2,7 @@
 //|                                            SEA_TradeExecutor.mqh |
 //|                              MJS Institutional Trading Solutions |
 //| Purpose: Order Execution, Safety, Trailing & Position Management |
-//| Status:     PRODUCTION READY (Cached Handles & Decoupling Fixed) |
+//| Status:  PRODUCTION READY (Cached Handles & Decoupling Fixed)    |
 //+------------------------------------------------------------------+
 #property strict
 
@@ -956,6 +956,19 @@ public:
    double   LastCachedRisk() const { return m_cached_risk; }
    string   LastVetoReason() const { return m_te_veto_reason; }
    int      SpreadBlockBars() const { return m_spread_block_bars; }
+
+   //+------------------------------------------------------------------+
+   //| Classify whether a TE veto is temporary (retriable) or permanent |
+   //| Temporary vetoes may resolve within the same bar; permanent ones  |
+   //| indicate conditions that will not improve on subsequent ticks.    |
+   //+------------------------------------------------------------------+
+   bool IsTemporaryVeto(string veto_reason)
+   {
+      // VETO_OPEN_DELAY: bar age will increase — retry next tick
+      if(veto_reason == "VETO_OPEN_DELAY") return true;
+      // All other vetoes are considered permanent for the current bar
+      return false;
+   }
 
    // ── PHASE A.1: TE-side rejection counter getters ──────────────────
    // Used by SimpleEA OnDeinit to bridge counters into Signal.AddTeStats()

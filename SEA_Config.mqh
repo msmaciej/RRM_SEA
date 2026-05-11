@@ -877,7 +877,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM: (RR) Risk Reward";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETPMode     Inp_RRM_TPMode             = TP_MODE_RR;     // RRM TP mode
-input double      Inp_RRM_RRRatio            = 1.0;            // RRM R:R ratio (used with TP_MODE_RR)
+input double      Inp_RRM_RRRatio            = 2.5;            // RRM R:R ratio (used with TP_MODE_RR)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛑 RRM: (BE) Breakeven (% Progress)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -897,7 +897,7 @@ input group "╚═════════════════════�
 // Recommended pullback mode: pure ratio mathematics (Inp_LayerPullbackRatio / Inp_LayerRecoveryRatio / Inp_LayerFlatRatio).
 // This Layer system is independent from legacy RRM gate fields below.
 input bool        Inp_LayerAllowReversalPullback = true;       // Layer PB: Count slope reversal as pullback
-input bool        Inp_LayerPullbackEnabled   = false;          // Layer PB: Enable pullback-recovery detection
+input bool        Inp_LayerPullbackEnabled   = true;          // Layer PB: Enable pullback-recovery detection
 input int         Inp_LayerBaselineLookback  = 10;             // Layer PB: Baseline slope lookback (bars, recommended 3+)
 input double      Inp_LayerPullbackRatio     = 0.5;            // Layer PB: Pullback threshold ratio (min 0.1)
 input double      Inp_LayerRecoveryRatio     = 0.3;            // Layer PB: Recovery threshold ratio (min 0.1)
@@ -913,7 +913,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM: (SL) Stop Loss";
 input group "╚════════════════════════════════════════════════════════╝";
 input ESLMode    Inp_RRM_SLMode                 = SL_MODE_SWING; // RRM SL placement mode
-input int        Inp_RRM_SwingLookback          = 20;          // RRM Swing lookback bars (used with SL_MODE_SWING)
+input int        Inp_RRM_SwingLookback          = 21;          // RRM Swing lookback bars (used with SL_MODE_SWING)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1049,28 +1049,37 @@ input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond = 8;         // DPI: Double
 input bool        Inp_RRM_ORG_DPI_UseCCIReset      = true;        // DPI: Enable CCI trend filter
 input int         Inp_RRM_ORG_DPI_CCI_Period       = 13;          // DPI: CCI period
 input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price = PRICE_TYPICAL; // DPI: CCI applied price
+
 input group "═══ DPI Histogram Green Logic ═══"
 input bool        Inp_RRM_ORG_DPI_UseGreenHist     = false;       // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
 input bool        Inp_DPI_HistTrackingEnabled      = false;       // DPI: Enable histogram tracking
 input double      Inp_DPI_HistMomentumThreshold    = 0.0001;      // DPI: Histogram momentum threshold (CCI-delta units)
 input int         Inp_DPI_HistDecelLookback        = 3;           // DPI: Deceleration lookback (bars)
+
 input group "═══ DPI Histogram Entry/Exit Logic ═══"
-input bool        Inp_DPI_BlockOnDeceleration     = false;       // DPI: Block entries on momentum deceleration
-input bool        Inp_DPI_ExitOnHistDisappear     = false;       // DPI: Close trades when green histogram vanishes
-input double      Inp_DPI_ExitThreshold           = 0.0;         // DPI: Exit when |CCI| below threshold (0=disable)
+input bool        Inp_DPI_BlockOnDeceleration      = false;       // DPI: Block entries on momentum deceleration
+input bool        Inp_DPI_ExitOnHistDisappear      = false;       // DPI: Close trades when green histogram vanishes
+input double      Inp_DPI_ExitThreshold            = 0.0;         // DPI: Exit when |CCI| below threshold (0=disable)
+
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Indicators — Enable/Disable";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_Use_Adx            = false;        // RRM_ORG: ADX vote enabled
+input bool        Inp_RRM_ORG_Use_Atr            = false;        // RRM_ORG: ATR vote enabled
 input bool        Inp_RRM_ORG_Use_Bb             = false;        // RRM_ORG: Bollinger Bands vote enabled
 input bool        Inp_RRM_ORG_Use_CandleBody     = true;         // RRM_ORG: Candle body vote enabled
 input bool        Inp_RRM_ORG_Use_Cci            = false;        // RRM_ORG: CCI vote enabled
 input bool        Inp_RRM_ORG_Use_CI             = false;        // RRM_ORG: CI vote ranging market filter
-input bool        Inp_RRM_ORG_Use_Macd           = true;         // RRM_ORG: MACD vote enabled
+input bool        Inp_RRM_ORG_Use_Macd           = false;        // RRM_ORG: MACD vote enabled
 input bool        Inp_RRM_ORG_Use_Mfi            = false;        // RRM_ORG: MFI vote enabled
+input bool        Inp_RRM_ORG_Use_P123           = false;        // RRM_ORG: P123 vote enabled
 input bool        Inp_RRM_ORG_Use_Psar           = true;         // RRM_ORG: PSAR vote enabled
+input bool        Inp_RRM_ORG_Use_Ross           = false;        // RRM_ORG: Ross vote enabled
 input bool        Inp_RRM_ORG_Use_Rsi            = false;        // RRM_ORG: RSI vote enabled
+input bool        Inp_RRM_ORG_Use_SmaConverge    = false;        // RRM_ORG: SmaConv vote enabled
 input bool        Inp_RRM_ORG_Use_Stoch          = false;        // RRM_ORG: Stochastic vote enabled
+input bool        Inp_RRM_ORG_Use_VRC            = false;        // RRM_ORG: VRC vote enabled
+
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: ADX Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1155,13 +1164,13 @@ input double      Inp_RRM_ORG_EmaFan_H1Pips       = 60.0;         // RRM_ORG: Fa
 input double      Inp_RRM_ORG_EmaFan_H4Pips       = 100.0;        // RRM_ORG: Fan max pips on H4
 input double      Inp_RRM_ORG_EmaFan_DailyPips    = 180.0;        // RRM_ORG: Fan max pips on D1+
 
-input int         Inp_RRM_ORG_PhaseConfirmM5      = 1;            // RRM_ORG:1 MinPhaseConfirmBars on M1–M5
-input int         Inp_RRM_ORG_PhaseConfirmM30     = 1;            // RRM_ORG:2 MinPhaseConfirmBars on M6–M30
-input int         Inp_RRM_ORG_PhaseConfirmH1plus  = 1;            // RRM_ORG:3 MinPhaseConfirmBars on H1 and above
+input int         Inp_RRM_ORG_PhaseConfirmM5      = 0;            // RRM_ORG:1 MinPhaseConfirmBars on M1–M5
+input int         Inp_RRM_ORG_PhaseConfirmM30     = 0;            // RRM_ORG:2 MinPhaseConfirmBars on M6–M30
+input int         Inp_RRM_ORG_PhaseConfirmH1plus  = 0;            // RRM_ORG:3 MinPhaseConfirmBars on H1 and above
 
 input bool        Inp_RRM_ORG_RequireRecoveryIntraday = true;     // RRM_ORG: Require recovery momentum on M15-and-down
 input double      Inp_RRM_ORG_JpyGateMultiplier   = 1.3;          // RRM_ORG: Recovery+EmaDiv gate scale for JPY pairs (1.0=disabled)
-input bool        Inp_RRM_ORG_HtfFilter           = true;         // RRM_ORG: Force HTF trend filter ON
+input bool        Inp_RRM_ORG_HtfFilter           = false;         // RRM_ORG: Force HTF trend filter ON
 input int         Inp_RRM_ORG_HtfEmaPeriod        = 89;           // RRM_ORG: HTF EMA period (0=use Inp_HtfEmaPeriod)
 input bool        Inp_RRM_ORG_DpiDecelFilter      = true;         // RRM_ORG: Block entry on DPI histogram deceleration
 input bool        Inp_RRM_ORG_ForceDDProtection   = true;         // RRM_ORG: Force drawdown protection ON
@@ -1169,11 +1178,11 @@ input int         Inp_RRM_ORG_DDMaxConsecLosses   = 4;            // RRM_ORG: Ov
 input double      Inp_RRM_ORG_DDMaxDailyPct       = 2.0;          // RRM_ORG: Override max daily DD % (0=use Inp_RRM_*)
 
 // ── TE-side gates (execution evaluation, shift=0) ─────────────────────────
-input bool        Inp_RRM_ORG_TE_RecheckBarClose  = true;         // RRM_ORG: At TE, re-confirm shift=1 BC vs current bid
-input int         Inp_RRM_ORG_TE_OpenDelaySecsM5  = 10;           // RRM_ORG: Defer TE by N sec at new bar (M1–M5)
-input int         Inp_RRM_ORG_TE_OpenDelaySecsM30 = 5;            // RRM_ORG: Defer TE by N sec at new bar (M6–M30)
-input int         Inp_RRM_ORG_TE_OpenDelaySecsHi  = 0;            // RRM_ORG: Defer TE by N sec at new bar (H1+)
-input int         Inp_RRM_ORG_TE_SpreadMedianTicks = 8;           // RRM_ORG: Median spread over last N ticks (0=disabled)
+input bool        Inp_RRM_ORG_TE_RecheckBarClose  = false;         // true RRM_ORG: At TE, re-confirm shift=1 BC vs current bid
+input int         Inp_RRM_ORG_TE_OpenDelaySecsM5  = 0;           // 10 RRM_ORG: Defer TE by N sec at new bar (M1–M5)
+input int         Inp_RRM_ORG_TE_OpenDelaySecsM30 = 0;            // 05 RRM_ORG: Defer TE by N sec at new bar (M6–M30)
+input int         Inp_RRM_ORG_TE_OpenDelaySecsHi  = 0;            // 00 RRM_ORG: Defer TE by N sec at new bar (H1+)
+input int         Inp_RRM_ORG_TE_SpreadMedianTicks = 8;           // 08 RRM_ORG: Median spread over last N ticks (0=disabled)
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️  PRESETS OVERRIDES! (Step1-5)";
@@ -1212,22 +1221,22 @@ input EEmaRole    Inp_BarClose_DefaultEMA       = ROLE_EMA1;      // [bcX] EMA t
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 5: Voting Weight Configuration";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_VoteMode_All           = true;              // VOTE All (CUSTOM; presets override)
-input int         Inp_Ind_Adx_Weight         = 1;                 // [ADX] Vote weight
-input int         Inp_Ind_Atr_Weight         = 1;                 // [ATR] Vote weight
-input int         Inp_Ind_Bb_Weight          = 1;                 // [BB] Vote weight
-input int         Inp_Ind_CandleBody_Weight  = 1;                 // [CandleBody] Vote weight
-input int         Inp_Ind_Cci_Weight         = 1;                 // [CCI] Vote weight
-input int         Inp_Ind_CI_Weight          = 1;                 // [CI] Vote weight
-input int         Inp_Ind_Macd_Weight        = 1;                 // [MACD] Vote weight
-input int         Inp_Ind_Mfi_Weight         = 1;                 // [MFI] Vote weight
-input int         Inp_Ind_P123_Weight        = 1;                 // [P123] Vote weight
-input int         Inp_Ind_Psar_Weight        = 1;                 // [PSAR] Vote weight
-input int         Inp_Ind_Ross_Weight        = 1;                 // [Ross] Vote weight
-input int         Inp_Ind_Rsi_Weight         = 1;                 // [RSI] Vote weight
-input int         Inp_Ind_SmaConverge_Weight = 1;                 // [SmaConv] Vote weight
-input int         Inp_Ind_Sto_Weight         = 1;                 // [Sto] Vote weight
-input int         Inp_Ind_VRC_Weight         = 1;                 // [VRC] Vote weight
+input bool        Inp_VoteMode_All              = true;           // VOTE All (CUSTOM; presets override)
+input int         Inp_Ind_Adx_Weight            = 1;              // [ADX] Vote weight
+input int         Inp_Ind_Atr_Weight            = 1;              // [ATR] Vote weight
+input int         Inp_Ind_Bb_Weight             = 1;              // [BB] Vote weight
+input int         Inp_Ind_CandleBody_Weight     = 1;              // [CandleBody] Vote weight
+input int         Inp_Ind_Cci_Weight            = 1;              // [CCI] Vote weight
+input int         Inp_Ind_CI_Weight             = 1;              // [CI] Vote weight
+input int         Inp_Ind_Macd_Weight           = 1;              // [MACD] Vote weight
+input int         Inp_Ind_Mfi_Weight            = 1;              // [MFI] Vote weight
+input int         Inp_Ind_P123_Weight           = 1;              // [P123] Vote weight
+input int         Inp_Ind_Psar_Weight           = 1;              // [PSAR] Vote weight
+input int         Inp_Ind_Ross_Weight           = 1;              // [Ross] Vote weight
+input int         Inp_Ind_Rsi_Weight            = 1;              // [RSI] Vote weight
+input int         Inp_Ind_SmaConverge_Weight    = 1;              // [SmaConv] Vote weight
+input int         Inp_Ind_Sto_Weight            = 1;              // [Sto] Vote weight
+input int         Inp_Ind_VRC_Weight            = 1;              // [VRC] Vote weight
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️  INDICATORS";

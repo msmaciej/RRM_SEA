@@ -82,6 +82,12 @@ double g_ts_risk = 0.0;
 string g_last_te_result = "";   // "ENTERED", "BLOCKED", or "" (no TE this session)
 string g_last_te_veto   = "";   // "SL_ZERO", "VETO_RISK_CONTROL", "OK", or ""
 
+// TE retry tracking — allows VETO_OPEN_DELAY (and other temporary vetoes) to
+// keep the signal alive across ticks rather than consuming it on the first attempt.
+int      g_te_retry_count = 0;          // Current retry attempt counter
+datetime g_te_retry_bar   = 0;          // Bar time when TE retries started
+const int MAX_TE_RETRIES  = 200;        // Retry limit per bar (safety cap)
+
 // Global tracking for RRM drawdown protection
 int      g_consecutive_losses     = 0;
 int      g_trades_today           = 0;
@@ -666,13 +672,63 @@ void OrchestrateTick()
                   (g_ts_dir > 0 ? "BUY" : "SELL"), te, g_ts_sl, g_ts_lots, g_ts_risk,
                   (g_last_te_veto != "" ? g_last_te_veto : "OK"));
 
-      g_ts_dir = 0; // signal consumed — regardless of TE result, no retry
+      // ── TE retry logic ──────────────────────────────────────────────────────
+      // Track per-bar retry count so we can reset it cleanly on new bars.
+      datetime current_bar_time = iTime(_Symbol, PERIOD_CURRENT, 0);
+      if(g_te_retry_bar != current_bar_time)
+      {
+         g_te_retry_bar   = current_bar_time;
+         g_te_retry_count = 0;
+      }
+      g_te_retry_count++;
+
+      // Classify veto: VETO_OPEN_DELAY is temporary (bar will age past the threshold).
+      // All other vetoes are permanent for the current bar.
+      bool is_temporary_veto = Executor.IsTemporaryVeto(g_last_te_veto);
+      bool is_retry_allowed  = (g_te_retry_count < MAX_TE_RETRIES);
+      bool should_retry      = (te == 0 && is_temporary_veto && is_retry_allowed);
+
+      if(te > 0)
+      {
+         // ✅ Trade executed successfully — consume signal and reset retry counter
+         int prior_attempts = g_te_retry_count - 1; // attempts before this successful one
+         g_ts_dir         = 0;
+         g_te_retry_count = 0;
+         FlowLog(StringFormat("[TE] Trade executed successfully (retries: %d)", prior_attempts));
+      }
+      else if(should_retry)
+      {
+         // ⏳ Temporary veto — keep signal alive so next tick re-attempts TE
+         FlowLog(StringFormat("[TE] Retry %d/%d: %s (signal preserved)",
+                 g_te_retry_count, MAX_TE_RETRIES, g_last_te_veto));
+         // DO NOT consume signal (g_ts_dir remains non-zero)
+      }
+      else
+      {
+         // ❌ Permanent veto OR retry limit reached — consume signal
+         int failed_attempts = g_te_retry_count - 1; // attempts before this final rejection
+         g_ts_dir         = 0;
+         g_te_retry_count = 0;
+
+         if(!is_retry_allowed && is_temporary_veto)
+            PrintFormat("[TE WARNING] Retry limit exceeded (%d attempts) — signal consumed. Veto: %s",
+                        MAX_TE_RETRIES, g_last_te_veto);
+         else
+            FlowLog(StringFormat("[TE] Signal consumed (permanent veto: %s, retries: %d)",
+                    g_last_te_veto, failed_attempts));
+      }
+      // ───────────────────────────────────────────────────────────────────────
    }
 
    // 5. New-bar pipeline: runs only once per bar
    if(!is_new_bar) return;
 
    g_last_bar_time = current_bar;
+
+   // Reset TE retry tracking on new bar so the retry counter is fresh
+   // for any signal that fires on this bar.
+   g_te_retry_count = 0;
+   g_te_retry_bar   = current_bar;
 
    // 6. TM: Trail/BE modifications — bar-close only
    Executor.SetDPIHistogramState(Signal.GetDPIHistCurrent(), Signal.GetDPIHistTrend(), Signal.GetDPIHistDecelerating());
