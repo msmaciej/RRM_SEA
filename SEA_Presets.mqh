@@ -1245,7 +1245,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // pre-filter (line 4793 of SEA_SignalEngine.mqh) which was dead-code
       // until now because that filter requires Ind_Dpi_Enabled=true.
       cfg.Ind_Dpi_Enabled           = Inp_RRM_ORG_ForceDpiOn;
-      cfg.Ind_Dpi_Weight            = Inp_Ind_Dpi_Weight;
+      cfg.Ind_Dpi_Weight            = Inp_RRM_ORG_Ind_Dpi_Weight;
       cfg.DPI_MACD_Fast             = Inp_RRM_ORG_MACD_Fast;              // default 8
       cfg.DPI_MACD_Slow             = Inp_RRM_ORG_MACD_Slow;              // default 13
       cfg.DPI_RedSignalType         = Inp_RRM_ORG_DPI_RedSignalType;      // default 3 (EMA13)
@@ -1271,7 +1271,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── CANDLE BODY ───────────────────────────────────────────────────
       cfg.Ind_CandleBody_Enabled    = Inp_RRM_ORG_Use_CandleBody;
-      cfg.Ind_CandleBody_Weight     = Inp_Ind_CandleBody_Weight;
+      cfg.Ind_CandleBody_Weight     = Inp_CUSTOM_Ind_CandleBody_Weight;
       cfg.CandleBody_AvgPeriod      = Inp_RRM_ORG_CandleBody_AvgPeriod;
       cfg.CandleBody_MaxMult        = Inp_RRM_ORG_CandleBody_MaxMult;
       cfg.CandleBody_CheckBars      = Inp_RRM_ORG_CandleBody_CheckBars;
@@ -1293,7 +1293,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Rsi_Enabled        = Inp_RRM_ORG_Use_Rsi;
       cfg.Ind_Sto_Enabled        = Inp_RRM_ORG_Use_Stoch;
       cfg.Ind_SmaConverge_Enabled   = false;
-      cfg.Ind_SmaConverge_Weight    = Inp_Ind_SmaConverge_Weight;
+      cfg.Ind_SmaConverge_Weight    = Inp_CUSTOM_Ind_SmaConverge_Weight;
       cfg.Ind_VRC_Enabled        = false;             // VRC remains outside the RRM_ORG indicator set.
 
       // ── ADX SETTINGS: safe defaults (disabled) ────────────────────────
@@ -1423,20 +1423,20 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── EXIT STRATEGY: flexible (uses RRM profile, SL/TP from inputs) ─
       cfg.ExitProfile               = EXIT_PROFILE_RRM;
-      cfg.SLMode                    = Inp_SLMode;
-      cfg.TPMode                    = Inp_TPMode;
-      cfg.TP_Enabled                = Inp_TP_Enabled;
+      cfg.SLMode                    = Inp_CUSTOM_SLMode;
+      cfg.TPMode                    = Inp_CUSTOM_TPMode;
+      cfg.TP_Enabled                = Inp_CUSTOM_TP_Enabled;
       cfg.RRRatio                   = Inp_CUSTOM_RRRatio;
-      cfg.SwingLookback             = Inp_SwingLookback;
+      cfg.SwingLookback             = Inp_CUSTOM_SwingLookback;
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
       cfg.FixedTPPips               = 40.0;
       cfg.SLPercent                 = 0.5;
 
-      cfg.TrailMode                 = Inp_TrailMode;
+      cfg.TrailMode                 = Inp_CUSTOM_TrailMode;
       cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
       cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
-      cfg.BE_Mode                   = Inp_BE_Mode;
+      cfg.BE_Mode                   = Inp_CUSTOM_BE_Mode;
 
       ENUM_TIMEFRAMES tfOrg         = (ENUM_TIMEFRAMES)_Period;
       cfg.TrailTrigger              = TRIGGER_BREAKEVEN;
@@ -1484,16 +1484,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // PHASE A: HTF trend filter ON by default. Trades like #075
       // (USDJPY M5 LONG against the H1/H4 picture) are exactly what an
       // HTF gate is meant to suppress. Operator-tunable via
-      // Inp_RRM_ORG_HtfFilter (default true) and Inp_UseHTF as a fallback.
-      cfg.UseHTF                    = Inp_RRM_ORG_HtfFilter || Inp_UseHTF;
-      cfg.HtfPeriod                 = (Inp_HtfPeriod != PERIOD_CURRENT) ? Inp_HtfPeriod
+      // Inp_RRM_ORG_HtfFilter (default true) and Inp_Filter_UseHTF as a fallback.
+      cfg.UseHTF                    = Inp_RRM_ORG_HtfFilter || Inp_Filter_UseHTF;
+      cfg.HtfPeriod                 = (Inp_Filter_HtfPeriod != PERIOD_CURRENT) ? Inp_Filter_HtfPeriod
                                     : ((_Period <= PERIOD_M5)  ? PERIOD_M30
                                     :  (_Period <= PERIOD_M30) ? PERIOD_H1
                                     :  (_Period <= PERIOD_H1)  ? PERIOD_H4
                                     :                            PERIOD_D1);
       cfg.P_HtfEma                  = (Inp_RRM_ORG_HtfEmaPeriod > 0)
                                           ? Inp_RRM_ORG_HtfEmaPeriod
-                                          : (Inp_HtfEmaPeriod > 0 ? Inp_HtfEmaPeriod : 89);
+                                          : (Inp_Filter_HtfEmaPeriod > 0 ? Inp_Filter_HtfEmaPeriod : 89);
 
       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
       cfg.AllowReEntryAfterBE       = true;
@@ -1547,7 +1547,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    //   - No phase detection, no layer detection
    //
    // WHAT YOU MUST CONFIGURE (via inputs):
-   //   - Enable specific indicators to test (Inp_Ind_Macd_Enabled, etc.)
+   //   - Enable specific indicators to test (Inp_CUSTOM_Ind_Macd_Enabled, etc.)
    //   - AutoStrat mode (STRAT_2EMA_POSITION vs STRAT_2EMA_CROSS_PRICE)
    //   - BarClose_Mode and target EMA
    //   - SL/TP distances

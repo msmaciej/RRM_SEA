@@ -505,8 +505,8 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
    AddLine("--- SYSTEM ARCHITECTURE ---", h_clr, lines, line_clrs);
    AddLine(StringFormat("VER:      %s", SEA_BUILD_STR), v_clr, lines, line_clrs);
    AddLine(StringFormat("SYMBOL:   %s %s", _Symbol, EnumToString(_Period)), v_clr, lines, line_clrs);
-   AddLine(StringFormat("PRESET:   %s", EnumToString(InpPreset)), v_clr, lines, line_clrs);
-   AddLine(StringFormat("MODE:     %s", (InpPreset == PRESET_CUSTOM ? "CUSTOM" : "LOCKED")), v_clr, lines, line_clrs);
+   AddLine(StringFormat("PRESET:   %s", EnumToString(Inp_Global_Preset)), v_clr, lines, line_clrs);
+   AddLine(StringFormat("MODE:     %s", (Inp_Global_Preset == PRESET_CUSTOM ? "CUSTOM" : "LOCKED")), v_clr, lines, line_clrs);
    AddLine("", (color)0, lines, line_clrs); // Spacer
 
    // --- ZONE 2: BIAS & STRUCTURE ---
@@ -544,8 +544,8 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
    AddLine(StringFormat("SL MODE:  %s", EnumToString(Settings.SLMode)), v_clr, lines, line_clrs);
    AddLine(StringFormat("RISK:     %.2f%%", Settings.RiskPercent), v_clr, lines, line_clrs);
    string rr_source = "Inp_CUSTOM_RRRatio";
-   if(InpPreset == PRESET_RRM || InpPreset == PRESET_RRM_ORG) rr_source = "Inp_RRM_RRRatio";
-   else if(InpPreset == PRESET_FPM)                           rr_source = "Inp_FPM_RRRatio";
+   if(Inp_Global_Preset == PRESET_RRM || Inp_Global_Preset == PRESET_RRM_ORG) rr_source = "Inp_RRM_RRRatio";
+   else if(Inp_Global_Preset == PRESET_FPM)                           rr_source = "Inp_FPM_RRRatio";
    AddLine(StringFormat("RR:       %.2f  (src: %s)", Settings.RRRatio, rr_source), v_clr, lines, line_clrs);
    AddLine(StringFormat("BE:       %s", (Settings.BE_Mode != BE_MODE_OFF ? "ENABLED" : "OFF")), v_clr, lines, line_clrs);
 
@@ -629,7 +629,7 @@ void SEA_UI_UpdateCockpit(
    // --- STRATEGY LOGIC (The Institutional Grid) ---
    AddLine("--- STRATEGY LOGIC ---", h_clr, lines, line_clrs);
 
-   AddLine(StringFormat("PRESET:    %s", GetPresetContractWording(InpPreset)), h_clr, lines, line_clrs);
+   AddLine(StringFormat("PRESET:    %s", GetPresetContractWording(Inp_Global_Preset)), h_clr, lines, line_clrs);
 
    // Effective display values: always use live telemetry (no carry-forward freeze state)
    int          disp_bias  = ts_telemetry.bias;
