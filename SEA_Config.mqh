@@ -1402,10 +1402,10 @@ input double      Inp_Override_BE_Cushion    = 0.0;               // Override: B
 
 // ── Margin Level Instrument Adjustment ────────────────────────────
 input bool        Inp_UseMarginAdjustment    = true;              // Margin Adj: Enable instrument-aware adjustment
-input double      Inp_MarginAdj_Gold         = 0.8;               // Margin Adj: Gold/Metals (0.8 = accept 20% lower margin level)
-input double      Inp_MarginAdj_Crypto       = 0.7;               // Margin Adj: Crypto (0.7 = accept 30% lower margin level)
-input double      Inp_MarginAdj_Exotic       = 0.85;              // Margin Adj: Exotic pairs (0.85 = accept 15% lower margin level)
-input double      Inp_MarginAdj_JPY          = 0.9;               // Margin Adj: JPY pairs (0.9 = accept 10% lower margin level)
+input double      Inp_MarginAdj_Gold         = 0.8;               // Margin Adj: Gold/Metals (0.8 = use 80% of base margin level)
+input double      Inp_MarginAdj_Crypto       = 0.7;               // Margin Adj: Crypto (0.7 = use 70% of base margin level)
+input double      Inp_MarginAdj_Exotic       = 0.85;              // Margin Adj: Exotic pairs (0.85 = use 85% of base margin level)
+input double      Inp_MarginAdj_JPY          = 0.9;               // Margin Adj: JPY pairs (0.9 = use 90% of base margin level)
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🎯 STRATEGY SETTINGS (PRESET_CUSTOM Only)";
