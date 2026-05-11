@@ -246,3 +246,154 @@ Inp_FPM_UseTrailing        = false
 - **BB_WIDENING is a one-bar test.** Choppy days may produce false positives — the other 4 conditions filter them.
 - **SmaConverge is direction-neutral.** Bias and bar-close handle direction; convergence only checks gap size.
 - **Check the news.** Use `UseNews` + `NewsPre`/`NewsPost` to automate blackouts.
+
+---
+
+## PRESET_RRM_ORG
+
+Implements the original Russ Horn RRM methodology with DPI (Dynamic Price Index) as the primary momentum voter. This is the "ORG" (original) version using inline MACD-based momentum confirmation instead of standalone MACD indicator voting.
+
+```mermaid
+flowchart TD
+    Start([ApplyPreset: PRESET_RRM_ORG]) --> Lock[LOCKED:\nBIAS_4EMA + STRAT_4EMA_LAYER\nEMA: 5/13/34/89\nVOTE_MODE_ALL\nDPI + PSAR + CandleBody]
+
+    Lock --> Filters{Pre-filters\nSpread / Time / News}
+    Filters -- Fail --> Reject([NO TRADE])
+    Filters -- Pass --> Phase{4EMA Phase\nDetection}
+
+    Phase -- PHASE_UNORDERED --> Reject
+    Phase -- PHASE_EMERGING --> Emerging[Emerging: Layer1/2 only\nLayer3 blocked]
+    Phase -- PHASE_TRENDING --> Trending[Trending: Layer1/2/3\nall allowed]
+
+    Emerging --> DPI{DPI Momentum Voter\nRibbon color = bias?}
+    Trending --> DPI
+    DPI -- Yellow ≠ LONG\nor Red ≠ SHORT --> Reject
+    DPI -- Aligned --> Layer{Layer alignment\nLayerW/M/S}
+
+    Layer -- Fail --> Reject
+    Layer -- Pass --> Recovery{Recovery Gates\nGate_Recovery\nGate_EmaDiv}
+    Recovery -- Fail --> Reject
+    Recovery -- Pass --> BarClose{BC_LAYER_AWARE:\nClose beyond\nlayer EMA?}
+
+    BarClose -- Fail --> Reject
+    BarClose -- Pass --> Confirm{PSAR + CandleBody\nconfirmation}
+    Confirm -- Any Fail --> Reject
+    Confirm -- All Pass --> Exits[USER exits:\nSL/TP/Trail/BE modes\nvia Zone 3B inputs]
+    Exits --> End([Execute trade])
+
+    classDef locked fill:#fff3cd,stroke:#ff9800,stroke-width:2px;
+    classDef reject fill:#ffcccc,stroke:#cc0000,stroke-width:2px;
+    classDef accept fill:#ccffcc,stroke:#009900,stroke-width:2px;
+    classDef user fill:#e8f4fd,stroke:#2196F3,stroke-width:2px;
+    class Lock,Phase,DPI,Layer,Recovery,BarClose,Confirm,Emerging,Trending locked;
+    class Reject reject;
+    class End accept;
+    class Exits user;
+```
+
+### Signal Formula (6-step multiplicative chain)
+
+All steps must pass for entry:
+
+| Step | Component | Description |
+|------|-----------|-------------|
+| 1 | **DPI Voter** | Momentum direction — ribbon color must match bias |
+| 2 | **Phase Detection** | 4-EMA structure (UNORDERED blocked, EMERGING/TRENDING allowed) |
+| 3 | **Layer Alignment** | EMA pair spacing (WEAK/MEDIUM/STRONG) |
+| 4 | **Recovery Gates** | Gate_Recovery + Gate_EmaDiv pullback validation |
+| 5 | **Bar Close (BC_LAYER_AWARE)** | Close beyond role-based EMA |
+| 6 | **PSAR + CandleBody** | Timing and direction confirmation |
+
+### Locked Settings
+
+**Signal Architecture:**
+- `BiasMode = BIAS_4EMA` — 4-EMA phase detection
+- `AutoStrat = STRAT_4EMA_LAYER` — Layer-based pullback entry
+- `VoteMode = VOTE_MODE_ALL` — Unanimous indicator agreement required
+- `PhaseDetectionEnabled = true` — Phase filtering active
+- `EnableLayerDetection = true` — Layer filtering active
+- `BlockUnorderedPhase = true` — UNORDERED phase blocked
+- `BarClose_Mode = BC_LAYER_AWARE` — Layer-aware bar close confirmation
+
+**Indicators (fixed):**
+- `Ind_Dpi_Enabled = true` — DPI momentum voter (primary)
+- `Ind_Psar_Enabled = true` — Timing confirmation
+- `Ind_CandleBody_Enabled = true` — Direction confirmation
+- All others OFF (MACD, RSI, CCI, etc. — not part of RRM_ORG)
+
+**Recovery Gates:**
+- `RequireRecoveryMomentum = true` — Pullback recovery detection active
+- `Gate_Recovery` — Phase-scaled threshold
+- `Gate_EmaDiv` — EMA divergence gate
+- `RRM_Lookback` — Pullback lookback period
+
+### User Controls (Zone 3D Inputs)
+
+**DPI Settings:**
+- `Inp_RRM_ORG_ForceDpiOn` — Force DPI voter ON (default: true)
+- `Inp_RRM_ORG_MACD_Fast` — DPI Fast EMA (default: 8)
+- `Inp_RRM_ORG_MACD_Slow` — DPI Slow EMA (default: 13)
+- `Inp_RRM_ORG_DPI_RedSignalType` — Red signal calculation (1-5, default: 3=EMA13)
+- `Inp_RRM_ORG_DPI_UseCCIReset` — Enable CCI trend filter (default: true)
+- `Inp_RRM_ORG_DPI_CCI_Period` — CCI period (default: 13)
+- `Inp_RRM_ORG_DPI_UseGreenHist` — Enable GREEN visualization (default: true)
+
+**PSAR Settings:**
+- `Inp_RRM_PsarStep` — PSAR step (default: 0.02)
+- `Inp_RRM_PsarMax` — PSAR max (default: 0.2)
+
+**Exit Settings (same as PRESET_RRM):**
+- SL mode, TP mode, R:R ratio, trailing mode, BE mode
+
+**Policy A Gates (always user-controlled):**
+- Spread, Time, News, Risk limits
+
+### DPI vs MACD Difference
+
+**PRESET_RRM** uses:
+- Standalone MACD indicator voting
+- MACD crossover modes (histogram, crossover, slope)
+- Separate from DPI
+
+**PRESET_RRM_ORG** uses:
+- DPI inline MACD calculation (internal)
+- Ribbon color voting (Yellow = bullish, Red = bearish)
+- DPI replaces standalone MACD entirely
+
+**Why DPI instead of MACD?**
+- **Russ Horn's original methodology** uses DPI as shown in reference screenshots
+- **CCI reset logic** provides trend filter warnings (color resets)
+- **Visual clarity** — single ribbon color = directional vote
+- **GREEN overlay** — momentum strength visualization
+
+### Phase A Quality Patches (TS=1 hardening)
+
+Targets failure modes in 100-trades reference set:
+
+| Issue | Fix | Setting |
+|-------|-----|---------|
+| (B) EM→TM flicker entries | Phase confirmation delay | `MinPhaseConfirmBars` TF-scaled |
+| (C) Late-trend / overextended fan | Fan width filter | `EmaFanFilterEnabled = true` |
+| (C) DPI deceleration leaks | Force DPI ON + decel filter | `Ind_Dpi_Enabled = true` + `DpiDecelFilterEnabled` |
+| (D) Tangled-ribbon false TM | Phase + recovery gates | `MinPhaseConfirmBars` + recovery thresholds |
+
+### Use When
+
+- Trading H1 timeframe with structured pullback entries
+- Following Russ Horn RRM methodology exactly
+- Need visual momentum confirmation (DPI ribbon + GREEN)
+- Want CCI-filtered trend warnings (color resets)
+
+### Differences from PRESET_RRM
+
+| Feature | PRESET_RRM | PRESET_RRM_ORG |
+|---------|------------|----------------|
+| Momentum voter | Standalone MACD | DPI (inline MACD) |
+| Voting indicators | MACD + PSAR + optional CCI/RSI/BB | DPI + PSAR + CandleBody (fixed) |
+| CCI usage | Optional voting indicator | Integrated DPI trend filter |
+| Visual feedback | MACD in subwindow | DPI ribbon + GREEN momentum |
+| Methodology | Generic RRM framework | Russ Horn original RRM |
+
+See also:
+- [DPI vote and histogram behavior](README_SEA_SIGNAL_REFERENCE.md#dpi-dynamic-price-index--momentum-direction-voter)
+- [DPI standalone + EA parity notes](../DPI_mc_main_README.md#ea-integration-preset_rrm_org)
