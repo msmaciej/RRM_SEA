@@ -159,7 +159,7 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
    if(HistoryDealSelect(deal_ticket))
    {
       long deal_magic = HistoryDealGetInteger(deal_ticket, DEAL_MAGIC);
-      if(deal_magic != Inp_MagicNum) return;  // Not our trade
+      if(deal_magic != Inp_Global_MagicNum) return;  // Not our trade
       
       long deal_entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
       if(deal_entry != DEAL_ENTRY_OUT) return;  // Not a position close
@@ -200,7 +200,7 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
 //+------------------------------------------------------------------+
 void FlowLog(const string msg)
 {
-   if(Inp_DebugFlow && Inp_DebugLevel >= DEBUG_FULL) Print("FLOW: ", msg);
+   if(Inp_Debug_Flow && Inp_Debug_Level >= DEBUG_FULL) Print("FLOW: ", msg);
 }
 
 void BuildUiReportingState()
@@ -226,9 +226,9 @@ void BuildUiReportingState()
          g_effectiveEmaStrategy = EMA_STRAT_CUSTOM;
    }
 
-   g_ui_ma_source = (InpPreset == PRESET_MA ? "BENCHMARK" : "CUSTOM");
+   g_ui_ma_source = (Inp_Global_Preset == PRESET_MA ? "BENCHMARK" : "CUSTOM");
 
-   if(InpPreset == PRESET_CUSTOM)
+   if(Inp_Global_Preset == PRESET_CUSTOM)
    {
       g_ui_used_flags    = "CUSTOM";
       g_ui_ignored_flags = "";
@@ -236,7 +236,7 @@ void BuildUiReportingState()
    }
    else
    {
-      g_ui_used_flags    = "PRESET=" + PresetToString(InpPreset);
+      g_ui_used_flags    = "PRESET=" + PresetToString(Inp_Global_Preset);
       g_ui_ignored_flags = "Strategy inputs ignored (preset authoritative)";
       g_ui_overrides     = "Preset overwrote strategy-critical fields";
       g_effectiveSigNote = "Preset is active; strategy inputs ignored.";
@@ -248,12 +248,12 @@ void PrintEffectiveConfig()
    Print("------------------------------------------");
    Print("--- SimpleEA v", SEA_BUILD_STR, " Configuration ---");
    Print("Program: ", MQLInfoString(MQL_PROGRAM_NAME), " | Path: ", MQLInfoString(MQL_PROGRAM_PATH));
-   Print("Symbol: ", _Symbol, " | Magic: ", Inp_MagicNum);
-   Print("Preset: ", EnumToString(InpPreset), " (", (int)InpPreset, ")");
+   Print("Symbol: ", _Symbol, " | Magic: ", Inp_Global_MagicNum);
+   Print("Preset: ", EnumToString(Inp_Global_Preset), " (", (int)Inp_Global_Preset, ")");
 
-   if(InpPreset != PRESET_CUSTOM)
+   if(Inp_Global_Preset != PRESET_CUSTOM)
    {
-      Print("Preset ", PresetToString(InpPreset), " is active; strategy inputs ignored");
+      Print("Preset ", PresetToString(Inp_Global_Preset), " is active; strategy inputs ignored");
    }
 
    Print("Diagnostics: PrintEffectiveConfig=", (Settings.PrintEffectiveConfig ? "true" : "false"),
@@ -302,7 +302,7 @@ void PrintEffectiveConfig()
    Print("MACD Mode: ", GetMACDModeDescription(Settings.MacdVoteMode, Settings.MacdRequireSlope,
                                                Settings.MacdRequireDivergence, Settings.MacdRequireHook));
 
-   if(Settings.ExitProfile == EXIT_PROFILE_RRM || InpPreset == PRESET_RRM)
+   if(Settings.ExitProfile == EXIT_PROFILE_RRM || Inp_Global_Preset == PRESET_RRM)
    {
       Print("Effective: ExitProfile=", EnumToString(Settings.ExitProfile),
             " TP_Enabled=", (Settings.TP_Enabled ? "true" : "false"),
@@ -424,7 +424,7 @@ int OrchestrateInit()
    }
 
    FlowLog("Step B: ApplyPreset() (preset overrides -> Settings)");
-   ApplyPreset(InpPreset, Settings);
+   ApplyPreset(Inp_Global_Preset, Settings);
 
    FlowLog("Step B1: InitializeIndicatorRegistry() (populate central indicator registry)");
    InitializeIndicatorRegistry(Settings);
@@ -443,32 +443,32 @@ int OrchestrateInit()
       Print("");
 
       Print("Exit Profile:");
-      PrintFormat("  Input:    %s", EnumToString(Inp_ExitProfile));
+      PrintFormat("  Input:    %s", EnumToString(Inp_CUSTOM_ExitProfile));
       PrintFormat("  Settings: %s", EnumToString(Settings.ExitProfile));
-      PrintFormat("  ✓ Match:  %s", (Settings.ExitProfile == Inp_ExitProfile) ? "YES ✅" : "NO ❌ BUG DETECTED!");
+      PrintFormat("  ✓ Match:  %s", (Settings.ExitProfile == Inp_CUSTOM_ExitProfile) ? "YES ✅" : "NO ❌ BUG DETECTED!");
       Print("");
 
       Print("Stop Loss Mode:");
-      PrintFormat("  Input:    %s", EnumToString(Inp_SLMode));
+      PrintFormat("  Input:    %s", EnumToString(Inp_CUSTOM_SLMode));
       PrintFormat("  Settings: %s", EnumToString(Settings.SLMode));
-      PrintFormat("  ✓ Match:  %s", (Settings.SLMode == Inp_SLMode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
-      if(Inp_SLMode == SL_MODE_PSAR_DOT || Settings.SLMode == SL_MODE_PSAR_DOT)
+      PrintFormat("  ✓ Match:  %s", (Settings.SLMode == Inp_CUSTOM_SLMode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
+      if(Inp_CUSTOM_SLMode == SL_MODE_PSAR_DOT || Settings.SLMode == SL_MODE_PSAR_DOT)
       {
          PrintFormat("  PSAR Cushion (TF-based): %.1f pips", Settings.SL_PsarPipsCushion);
       }
       Print("");
 
       Print("Take Profit Mode:");
-      PrintFormat("  Input:    %s (RRRatio: %.1f)", EnumToString(Inp_TPMode), Inp_CUSTOM_RRRatio);
+      PrintFormat("  Input:    %s (RRRatio: %.1f)", EnumToString(Inp_CUSTOM_TPMode), Inp_CUSTOM_RRRatio);
       PrintFormat("  Settings: %s (RRRatio: %.1f)", EnumToString(Settings.TPMode), Settings.RRRatio);
-      PrintFormat("  ✓ Match:  %s", (Settings.TPMode == Inp_TPMode && Settings.RRRatio == Inp_CUSTOM_RRRatio) ? "YES ✅" : "NO ❌ BUG DETECTED!");
+      PrintFormat("  ✓ Match:  %s", (Settings.TPMode == Inp_CUSTOM_TPMode && Settings.RRRatio == Inp_CUSTOM_RRRatio) ? "YES ✅" : "NO ❌ BUG DETECTED!");
       Print("");
 
       Print("Breakeven Mode:");
-      PrintFormat("  RRM Input:    %s", EnumToString(Inp_BE_Mode));
+      PrintFormat("  RRM Input:    %s", EnumToString(Inp_CUSTOM_BE_Mode));
       PrintFormat("  RRM Settings: %s", EnumToString(Settings.BE_Mode));
-      PrintFormat("  ✓ Match:      %s", (Settings.BE_Mode == Inp_BE_Mode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
-      if(Inp_BE_Mode == BE_MODE_TP_PROGRESS_PCT || Settings.BE_Mode == BE_MODE_TP_PROGRESS_PCT)
+      PrintFormat("  ✓ Match:      %s", (Settings.BE_Mode == Inp_CUSTOM_BE_Mode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
+      if(Inp_CUSTOM_BE_Mode == BE_MODE_TP_PROGRESS_PCT || Settings.BE_Mode == BE_MODE_TP_PROGRESS_PCT)
       {
          PrintFormat("  Progress%% Input:    %.1f%%", Inp_RRM_BE_ProgressPct);
          PrintFormat("  Progress%% Settings: %.1f%%", Settings.RRM_BE_ProgressPct);
@@ -477,13 +477,13 @@ int OrchestrateInit()
       Print("");
 
       Print("Trailing Stop Mode:");
-      PrintFormat("  Input:    %s", EnumToString(Inp_TrailMode));
+      PrintFormat("  Input:    %s", EnumToString(Inp_CUSTOM_TrailMode));
       PrintFormat("  Settings: %s", EnumToString(Settings.TrailMode));
-      PrintFormat("  ✓ Match:  %s", (Settings.TrailMode == Inp_TrailMode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
-      if(Inp_TrailMode == TRAIL_PSAR || Settings.TrailMode == TRAIL_PSAR)
+      PrintFormat("  ✓ Match:  %s", (Settings.TrailMode == Inp_CUSTOM_TrailMode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
+      if(Inp_CUSTOM_TrailMode == TRAIL_PSAR || Settings.TrailMode == TRAIL_PSAR)
       {
          PrintFormat("  PSAR Cushion (TF-based): %.1f pips", Settings.PSAR_TrailPipsCushion);
-         PrintFormat("  PSAR Delay Input:      %d bars", Inp_PSAR_TrailDelay);
+         PrintFormat("  PSAR Delay Input:      %d bars", Inp_RRM_PSAR_TrailDelay);
          PrintFormat("  PSAR Delay Settings:   %d bars", Settings.PSAR_TrailDelay);
          PrintFormat("  RRM StartAfterBE Input:    %s", Inp_RRM_TrailStartsAfterBE ? "true" : "false");
          PrintFormat("  RRM StartAfterBE Settings: %s", Settings.RRM_TrailStartsAfterBE ? "true" : "false");
@@ -525,7 +525,7 @@ int OrchestrateInit()
       Print("════════════════════════════════════════════");
       Print("  SimpleEA v", SEA_BUILD_STR, " - ACTIVE CONFIGURATION");
       Print("  Symbol: ", _Symbol, " | TF: ", EnumToString(_Period));
-      Print("  Preset: ", EnumToString(InpPreset));
+      Print("  Preset: ", EnumToString(Inp_Global_Preset));
       Print("════════════════════════════════════════════");
 
       Print("BIAS & PHASE:");
@@ -582,7 +582,7 @@ int OrchestrateInit()
    }
 
    FlowLog("Step F: Init Trade Executor");
-   Executor.Init(Inp_MagicNum, Settings);
+   Executor.Init(Inp_Global_MagicNum, Settings);
 
    // BUG FIX: Restore g_consecutive_losses from history on (re-)init so DrawdownProtection
    // is not bypassed after an EA restart (crash, parameter change, broker disconnect, etc.)
@@ -595,9 +595,9 @@ int OrchestrateInit()
 
    FlowLog("Step G: Load News calendar (optional)");
    if(Settings.UseNews)
-      Signal.LoadNews(Inp_NewsFile);
+      Signal.LoadNews(Inp_Filter_NewsFile);
 
-   SEA_UI_Init(Inp_MagicNum);
+   SEA_UI_Init(Inp_Global_MagicNum);
    SEA_UI_UpdateSettingsPanel();
    {
       // Fetch the initial empty state from the Signal Engine
@@ -860,15 +860,15 @@ void OrchestrateTick()
 
    if(PositionSelect(_Symbol))
    {
-      active_lots         = Executor.GetActiveLots(Inp_MagicNum);
-      active_risk_money   = Executor.GetInitialRiskMoney(Inp_MagicNum);
-      active_reward_money = Executor.GetActiveRewardMoney(Inp_MagicNum);
-      sl_pips             = Executor.GetInitialSLPips(Inp_MagicNum);
-      cur_sl_pips         = Executor.GetActiveSLPips(Inp_MagicNum);
-      tp_pips             = Executor.GetActiveTPPips(Inp_MagicNum);
-      current_rr          = Executor.GetCurrentRR(Inp_MagicNum);
-      current_risk_pct    = Executor.GetCurrentRiskPct(Inp_MagicNum);
-      current_risk_money  = Executor.GetCurrentRiskMoney(Inp_MagicNum);
+      active_lots         = Executor.GetActiveLots(Inp_Global_MagicNum);
+      active_risk_money   = Executor.GetInitialRiskMoney(Inp_Global_MagicNum);
+      active_reward_money = Executor.GetActiveRewardMoney(Inp_Global_MagicNum);
+      sl_pips             = Executor.GetInitialSLPips(Inp_Global_MagicNum);
+      cur_sl_pips         = Executor.GetActiveSLPips(Inp_Global_MagicNum);
+      tp_pips             = Executor.GetActiveTPPips(Inp_Global_MagicNum);
+      current_rr          = Executor.GetCurrentRR(Inp_Global_MagicNum);
+      current_risk_pct    = Executor.GetCurrentRiskPct(Inp_Global_MagicNum);
+      current_risk_money  = Executor.GetCurrentRiskMoney(Inp_Global_MagicNum);
    }
    
    SEA_UI_UpdateCockpit(
