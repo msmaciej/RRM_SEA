@@ -983,11 +983,11 @@ input int         Inp_RRM_TrailPsarShiftDelay   = 1;           // PSAR shift del
 // input string   Inp_PSAR_TrailCushion_Note    = "PSAR trail cushion auto-set by timeframe (M15=3, H1=7, H4=10 pips)"
 // input string   Inp_RRM_Trail_Info            = "RRM trailing: PSAR-based with bar shift delay for flip stability";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🔧 CUSTOM: (Pullback Gate Inputs)";
+input group "║   🔧 CUSTOM: (Pullback Gate Inputs used by pullback logic)";
 input group "╚════════════════════════════════════════════════════════╝";
-// RRM pullback gate uses pure distance comparison: the current EMA gap must exceed the prior EMA gap (no pip threshold).
-input bool        Inp_CUSTOM_RequireRecoveryMomentum = false;    // RRM Gate (CUSTOM; presets override) (was Inp_Gate_RequireRecoveryMomentum)
-input int         Inp_CUSTOM_Lookback           = 5;              // RRM Lookback (CUSTOM; presets override) (was Inp_RRM_Lookback)
+// Pullback gate uses pure distance comparison: the current EMA gap must exceed the prior EMA gap (no pip threshold).
+input bool        Inp_CUSTOM_RequireRecoveryMomentum = false;    // CUSTOM pullback gate option (used by preset pullback logic; presets may override) (was Inp_Gate_RequireRecoveryMomentum)
+input int         Inp_CUSTOM_Lookback           = 5;              // CUSTOM pullback lookback (used by preset pullback logic; presets may override) (was Inp_RRM_Lookback)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Indicators — Enable/Disable";
 input group "╚════════════════════════════════════════════════════════╝";
