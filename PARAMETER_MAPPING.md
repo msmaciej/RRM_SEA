@@ -2,7 +2,7 @@
 
 This release renames ambiguous/conflicting inputs to explicit scoped names.
 
-> ⚠️ **Breaking change:** existing `.set`/preset input files using old names will not auto-map. Re-enter values using the new names below.
+> ⚠️ **Breaking change:** existing `.set`/preset input files using old names will not automatically map. Re-enter values using the new names below.
 
 | Old parameter name | New parameter name | Scope | Notes |
 |---|---|---|---|
