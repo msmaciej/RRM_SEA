@@ -742,7 +742,42 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input EStrategyPreset InpPreset              = PRESET_RRM_ORG;    // Strategy preset
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    ✅✅ FILTERS | UI | DEBUG (works in ALL presets)";
+input group "    🎯 TRADE MANAGEMENT";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   💰 (RM) RISK MANAGEMENT (GLOBAL)";
+input group "╚════════════════════════════════════════════════════════╝";
+input double      Inp_RiskPercent            = 2.0;               // Risk per trade (%)
+input int         Inp_MaxOpenTrades          = 4;                 // Max concurrent trades (0 = unlimited)
+input double      Inp_MaxTotalRisk           = 6.0;               // Max total active risk (%; 0 = unlimited)
+input double      Inp_MarginUsageLimit       = 80.0;              // Max % of free margin per trade (0 = use 100%)
+input double      Inp_MinMarginLevel         = 100.0;             // Min margin level (%) required to allow new entries (0 = disabled)
+input double      Inp_EmergencyMarginLevel   = 80.0;              // Emergency margin level (%) to force-close worst position (0 = disabled)
+// input string   Inp_Step9_Ref1             = "Risk per trade applies to all presets unless overridden by Admin Override";
+// input string   Inp_Step9_Ref2             = "To adjust exits under a strict preset: use PRESET_CUSTOM mode";
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 (RM) ADAPTIVE RISK & MARGIN (GLOBAL)";
+input group "╚════════════════════════════════════════════════════════╝";
+// ── TF-Based Adaptive Risk Scaling ────────────────────────────────
+input bool        Inp_UseAdaptiveRisk        = true;              // Adaptive Risk: Enable TF-based risk scaling (M1=1%, M5=1.5%, M15+=2%)
+input double      Inp_AdaptiveRisk_M1        = 1.0;               // Adaptive Risk: M1 timeframe (%)
+input double      Inp_AdaptiveRisk_M5        = 1.5;               // Adaptive Risk: M5 timeframe (%)
+input double      Inp_AdaptiveRisk_M15Plus   = 2.0;               // Adaptive Risk: M15+ timeframes (%)
+
+// ── Optional Cushion Overrides (0 = use auto TF/JPY calculation) ──
+input double      Inp_Override_SL_Cushion    = 0.0;               // Override: SL cushion pips (0=auto; applies to Swing/PSAR modes)
+input double      Inp_Override_Trail_Cushion = 0.0;               // Override: Trail cushion pips (0=auto; applies to PSAR trail)
+input double      Inp_Override_BE_Cushion    = 0.0;               // Override: BE cushion pips (0=auto; applies to breakeven buffer)
+
+// ── Margin Level Instrument Adjustment ────────────────────────────
+input bool        Inp_UseMarginAdjustment    = true;              // Margin Adj: Enable instrument-aware adjustment
+input double      Inp_MarginAdj_Gold         = 0.8;               // Margin Adj: Gold/Metals (0.8 = use 80% of base margin level)
+input double      Inp_MarginAdj_Crypto       = 0.7;               // Margin Adj: Crypto (0.7 = use 70% of base margin level)
+input double      Inp_MarginAdj_Exotic       = 0.85;              // Margin Adj: Exotic pairs (0.85 = use 85% of base margin level)
+input double      Inp_MarginAdj_JPY          = 0.9;               // Margin Adj: JPY pairs (0.9 = use 90% of base margin level)
+
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    ✅✅ FILTERS (GLOBAL)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   � FILTER: SPREAD (GLOBAL)";
@@ -751,7 +786,7 @@ input bool        Inp_UseSpread              = false;       // Spread: Enable fi
 input double      Inp_MaxSpreadPips          = 3.0;         // Spread: Max (pips; ignored if UseSpread=false)
 input int         Inp_MaxSpreadRetryBars     = 3;           // Spread: Kill carry after N bars of spread blocking (0=unlimited)
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   ⏰ FILTER: TIME (GLOBAL)";
+input group "║   � FILTER: TIME (GLOBAL)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_UseTime                = false;       // Session: Enable time filter
 input int         Inp_StartHour              = 8;           // Session: Start hour (broker time)
@@ -770,6 +805,9 @@ input bool        Inp_UseHTF                 = false;       // HTF: Enable HTF t
 input ENUM_TIMEFRAMES Inp_HtfPeriod          = PERIOD_H4;   // HTF: timeframe
 input int         Inp_HtfEmaPeriod           = 89;          // HTF: EMA period
 
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    ✅✅ UI (GLOBAL)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: COCKPIT PANEL";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -810,6 +848,9 @@ input color       Inp_UI_FontColor           = clrYellow;   // UI: font color
 input int         Inp_UI_PanelBgAlpha        = 110;         // UI: Panel background alpha (0..255)
 input int         Inp_UI_FramePadPx          = 6;           // UI: Panel padding (px)
 
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    ✅✅ DEBUG (GLOBAL)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔍 DEBUG: DIAGNOSTICS";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1370,42 +1411,6 @@ input double      Inp_Adaptive_Spread_Gold   = 5.0;               // Max spread 
 input double      Inp_Adaptive_Spread_Crypto = 50.0;              // Max spread for crypto (pips)
 // input string   Inp_Adaptive_Note1         = "📝 Note: SL/TP cushions auto-adjust by timeframe (no input needed)";
 // input string   Inp_Adaptive_Note2         = "📝 M15=5 pips, H1=10 pips, H4=20 pips (see GetTFBasedCushion)";
-
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    🎯 TRADE MANAGEMENT";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   💰 (RM) Risk Management (GLOBAL)";
-input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_RiskPercent            = 2.0;               // Risk per trade (%)
-input int         Inp_MaxOpenTrades          = 4;                 // Max concurrent trades (0 = unlimited)
-input double      Inp_MaxTotalRisk           = 6.0;               // Max total active risk (%; 0 = unlimited)
-input double      Inp_MarginUsageLimit       = 80.0;              // Max % of free margin per trade (0 = use 100%)
-input double      Inp_MinMarginLevel         = 100.0;             // Min margin level (%) required to allow new entries (0 = disabled)
-input double      Inp_EmergencyMarginLevel   = 80.0;              // Emergency margin level (%) to force-close worst position (0 = disabled)
-// input string   Inp_Step9_Ref1             = "Risk per trade applies to all presets unless overridden by Admin Override";
-// input string   Inp_Step9_Ref2             = "To adjust exits under a strict preset: use PRESET_CUSTOM mode";
-
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 ADAPTIVE RISK & MARGIN (GLOBAL)";
-input group "╚════════════════════════════════════════════════════════╝";
-// ── TF-Based Adaptive Risk Scaling ────────────────────────────────
-input bool        Inp_UseAdaptiveRisk        = true;              // Adaptive Risk: Enable TF-based risk scaling (M1=1%, M5=1.5%, M15+=2%)
-input double      Inp_AdaptiveRisk_M1        = 1.0;               // Adaptive Risk: M1 timeframe (%)
-input double      Inp_AdaptiveRisk_M5        = 1.5;               // Adaptive Risk: M5 timeframe (%)
-input double      Inp_AdaptiveRisk_M15Plus   = 2.0;               // Adaptive Risk: M15+ timeframes (%)
-
-// ── Optional Cushion Overrides (0 = use auto TF/JPY calculation) ──
-input double      Inp_Override_SL_Cushion    = 0.0;               // Override: SL cushion pips (0=auto; applies to Swing/PSAR modes)
-input double      Inp_Override_Trail_Cushion = 0.0;               // Override: Trail cushion pips (0=auto; applies to PSAR trail)
-input double      Inp_Override_BE_Cushion    = 0.0;               // Override: BE cushion pips (0=auto; applies to breakeven buffer)
-
-// ── Margin Level Instrument Adjustment ────────────────────────────
-input bool        Inp_UseMarginAdjustment    = true;              // Margin Adj: Enable instrument-aware adjustment
-input double      Inp_MarginAdj_Gold         = 0.8;               // Margin Adj: Gold/Metals (0.8 = use 80% of base margin level)
-input double      Inp_MarginAdj_Crypto       = 0.7;               // Margin Adj: Crypto (0.7 = use 70% of base margin level)
-input double      Inp_MarginAdj_Exotic       = 0.85;              // Margin Adj: Exotic pairs (0.85 = use 85% of base margin level)
-input double      Inp_MarginAdj_JPY          = 0.9;               // Margin Adj: JPY pairs (0.9 = use 90% of base margin level)
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🎯 STRATEGY SETTINGS (PRESET_CUSTOM Only)";
