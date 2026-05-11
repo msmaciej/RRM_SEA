@@ -21,6 +21,9 @@
 // TF+JPY-aware initial SL cushion mapping (suited for SL_PSAR_DOT / SL_MODE_SWING)
 double GetRecommendedInitialSlCushionPips()
 {
+   if(Settings.Override_SL_Cushion > 0.0)
+      return Settings.Override_SL_Cushion;
+
    ENUM_TIMEFRAMES tf = _Period;
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
 
@@ -31,9 +34,57 @@ double GetRecommendedInitialSlCushionPips()
    else                       return isJPY ? 25.0 : 15.0;    // Covers H6, D1, W1, MN1
 }
 
+//+------------------------------------------------------------------+
+//| GetEffectiveRiskPercent: TF-adaptive risk with smart override    |
+//+------------------------------------------------------------------+
+double GetEffectiveRiskPercent()
+{
+   if(!Settings.UseAdaptiveRisk)
+      return Settings.RiskPercent;
+
+   // Treat the legacy 2.0% default as "auto" while adaptive mode is enabled.
+   if(Settings.RiskPercent > 0.0 && MathAbs(Settings.RiskPercent - 2.0) > 1e-8)
+      return Settings.RiskPercent;
+
+   ENUM_TIMEFRAMES tf = _Period;
+   double adaptive = (tf <= PERIOD_M1) ? Settings.AdaptiveRisk_M1
+                     : (tf <= PERIOD_M5) ? Settings.AdaptiveRisk_M5
+                                         : Settings.AdaptiveRisk_M15Plus;
+   return (adaptive > 0.0) ? adaptive : Settings.RiskPercent;
+}
+
+//+------------------------------------------------------------------+
+//| GetMarginLevelAdjustment: instrument-aware margin multiplier     |
+//+------------------------------------------------------------------+
+double GetMarginLevelAdjustment()
+{
+   if(!Settings.UseMarginAdjustment)
+      return 1.0;
+
+   string sym = _Symbol;
+   StringToUpper(sym);
+
+   if(StringFind(sym, "JPY") >= 0)
+      return (Settings.MarginAdj_JPY > 0.0) ? Settings.MarginAdj_JPY : 1.0;
+
+   if(StringFind(sym, "XAU") >= 0 || StringFind(sym, "XAG") >= 0 || StringFind(sym, "GOLD") >= 0 || StringFind(sym, "SILVER") >= 0)
+      return (Settings.MarginAdj_Gold > 0.0) ? Settings.MarginAdj_Gold : 1.0;
+
+   if(StringFind(sym, "BTC") >= 0 || StringFind(sym, "ETH") >= 0)
+      return (Settings.MarginAdj_Crypto > 0.0) ? Settings.MarginAdj_Crypto : 1.0;
+
+   if(StringFind(sym, "TRY") >= 0 || StringFind(sym, "ZAR") >= 0 || StringFind(sym, "MXN") >= 0)
+      return (Settings.MarginAdj_Exotic > 0.0) ? Settings.MarginAdj_Exotic : 1.0;
+
+   return 1.0;
+}
+
 // TF+JPY-aware trailing cushion mapping (smaller, suited for TRAIL_PSAR + PSAR_CUSHION_PIPS)
 double GetRecommendedTrailPsarCushionPips()
 {
+   if(Settings.Override_Trail_Cushion > 0.0)
+      return Settings.Override_Trail_Cushion;
+
    ENUM_TIMEFRAMES tf = _Period;
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
 
@@ -47,6 +98,9 @@ double GetRecommendedTrailPsarCushionPips()
 // TF+JPY-aware breakeven/trail cushion values
 double GetTFBasedCushion(ENUM_TIMEFRAMES tf)
 {
+   if(Settings.Override_BE_Cushion > 0.0)
+      return Settings.Override_BE_Cushion;
+
    if(tf == PERIOD_CURRENT) tf = _Period; // Safe fallback just in case
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
 
@@ -484,7 +538,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Gate_CandleDirection.value = 0.0;
 
       // ── VOTE EVALUATION ───────────────────────────────────────────────
-      cfg.Vote_EvalShift            = 0;
+      cfg.Vote_EvalShift            = 1;
 
       // ── OTHER INDICATOR PERIODS (unused but set safe defaults) ─────────
       cfg.P_Adx                     = 14;
@@ -530,7 +584,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TPFractalOffset           = 1;
 
       // ── RISK MANAGEMENT ───────────────────────────────────────────────
-      cfg.CountBEasZeroRisk         = Inp_CountBEasZeroRisk;
+      cfg.CountBEasZeroRisk         = true;
       cfg.FixedLotSize              = 0.0;
 
       // ── EXIT STRATEGY ─────────────────────────────────────────────────
@@ -794,7 +848,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.FixedLotSize              = 0.0;
       cfg.MaxTotalRisk              = 100.0;
       cfg.MaxOpenTrades             = 1;
-      cfg.CountBEasZeroRisk         = Inp_CountBEasZeroRisk;
+      cfg.CountBEasZeroRisk         = false;
       
       // ================================================================
       // EXIT STRATEGY CONFIGURATION
@@ -1050,7 +1104,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Vote_EvalShift            = 1;
 
       // ── RISK MANAGEMENT ───────────────────────────────────────────────
-      cfg.CountBEasZeroRisk         = Inp_CountBEasZeroRisk;              // true
+      cfg.CountBEasZeroRisk         = true;              // true
       cfg.FixedLotSize              = 0.0;
 
       // ── EXIT STRATEGY: flexible via Inp_RRM_* ────────────────────────
@@ -1100,7 +1154,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.UseNews                   = op_UseNews;
       cfg.NewsPre                   = op_NewsPre;
       cfg.NewsPost                  = op_NewsPost;
-      cfg.RiskPercent               = op_RiskPercent;
+      cfg.RiskPercent               = GetEffectiveRiskPercent();
       cfg.MaxOpenTrades             = op_MaxOpenTrades;
       cfg.MaxTotalRisk              = op_MaxTotalRisk;
       cfg.MinMarginLevel            = op_MinMarginLevel;
@@ -1226,7 +1280,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       
       // ── INDICATOR TOGGLES: flexible via Inp_RRM_ORG_* ────────────────
       cfg.Ind_Adx_Enabled        = Inp_RRM_ORG_Use_Adx;
-      cfg.Ind_Atr_Enabled        = Inp_RRM_ORG_Use_Atr;             // ATR VRC - Always off in RRM (not part of RRM methodology):
+      cfg.Ind_Atr_Enabled        = false;             // ATR VRC - Always off in RRM (not part of RRM methodology):
       cfg.Ind_Bb_Enabled         = Inp_RRM_ORG_Use_Bb;
       cfg.Ind_CandleBody_Enabled = Inp_RRM_ORG_Use_CandleBody;
       cfg.Ind_Cci_Enabled        = Inp_RRM_ORG_Use_Cci;
@@ -1234,13 +1288,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Macd_Enabled       = Inp_RRM_ORG_Use_Macd;
       cfg.Ind_Mfi_Enabled        = Inp_RRM_ORG_Use_Mfi;
       cfg.Ind_Psar_Enabled       = Inp_RRM_ORG_Use_Psar;
-      cfg.Ind_P123_Enabled       = Inp_RRM_ORG_Use_P123;
-      cfg.Ind_Ross_Enabled       = Inp_RRM_ORG_Use_Ross;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Ross_Enabled       = false;
       cfg.Ind_Rsi_Enabled        = Inp_RRM_ORG_Use_Rsi;
       cfg.Ind_Sto_Enabled        = Inp_RRM_ORG_Use_Stoch;
-      cfg.Ind_SmaConverge_Enabled   = Inp_RRM_ORG_Use_SmaConverge;
+      cfg.Ind_SmaConverge_Enabled   = false;
       cfg.Ind_SmaConverge_Weight    = Inp_Ind_SmaConverge_Weight;
-      cfg.Ind_VRC_Enabled        = Inp_RRM_ORG_Use_VRC;             // VRC remains outside the RRM_ORG indicator set.
+      cfg.Ind_VRC_Enabled        = false;             // VRC remains outside the RRM_ORG indicator set.
 
       // ── ADX SETTINGS: safe defaults (disabled) ────────────────────────
       cfg.ADX_Mode                  = Inp_RRM_ORG_Adx_Mode;
@@ -1360,11 +1414,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
       cfg.Gate_CandleDirection.value = 1.0;
 
-      // ── VOTE EVALUATION PRESET_RRM_ORG ───────────────────────────────────────────────
+      // ── VOTE EVALUATION ───────────────────────────────────────────────
       cfg.Vote_EvalShift            = 1;
 
       // ── RISK MANAGEMENT ───────────────────────────────────────────────
-      cfg.CountBEasZeroRisk         = Inp_CountBEasZeroRisk;
+      cfg.CountBEasZeroRisk         = true;
       cfg.FixedLotSize              = 0.0;
 
       // ── EXIT STRATEGY: flexible (uses RRM profile, SL/TP from inputs) ─
@@ -1421,7 +1475,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.UseNews                   = op_UseNews;
       cfg.NewsPre                   = op_NewsPre;
       cfg.NewsPost                  = op_NewsPost;
-      cfg.RiskPercent               = op_RiskPercent;
+      cfg.RiskPercent               = GetEffectiveRiskPercent();
       cfg.MaxOpenTrades             = op_MaxOpenTrades;
       cfg.MaxTotalRisk              = op_MaxTotalRisk;
       cfg.MinMarginLevel            = op_MinMarginLevel;
@@ -1715,7 +1769,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // RISK MANAGEMENT (Portfolio-level)
       // ================================================================
-      cfg.CountBEasZeroRisk            = Inp_CountBEasZeroRisk;     // ORG: false
+      cfg.CountBEasZeroRisk            = true;     // ORG: false
       cfg.RiskPercent                  = 2.0;      // ORG: 2.0
       cfg.FixedLotSize                 = 0.0;
       cfg.MaxTotalRisk                 = 6.0;

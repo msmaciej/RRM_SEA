@@ -626,8 +626,9 @@ private:
       if(m_settings.MinMarginLevel > 0.0) {
          double equity = AccountInfoDouble(ACCOUNT_EQUITY);
          double current_margin = AccountInfoDouble(ACCOUNT_MARGIN);
-         if(equity > 0.0 && margin_per_lot > 0.0) {
-            double max_additional_margin = (equity / (m_settings.MinMarginLevel / 100.0)) - current_margin;
+         double adjusted_threshold = m_settings.MinMarginLevel * GetMarginLevelAdjustment();
+         if(equity > 0.0 && margin_per_lot > 0.0 && adjusted_threshold > 0.0) {
+            double max_additional_margin = (equity / (adjusted_threshold / 100.0)) - current_margin;
             if(max_additional_margin <= 0.0) return 0.0;
             double max_vol_by_margin_level = max_additional_margin / margin_per_lot;
             vol = NormalizeVolume(MathMin(vol, max_vol_by_margin_level));
@@ -1413,8 +1414,11 @@ public:
          if(OrderCalcMargin(order_type, m_symbol, lots, live_price, new_trade_margin) && new_trade_margin > 0.0) {
             double projected_margin = current_margin + new_trade_margin;
             double projected_level = (projected_margin > 0.0) ? (equity / projected_margin * 100.0) : SEA_MARGIN_LEVEL_UNLIMITED;
-            if(projected_level < m_settings.MinMarginLevel) {
-               PrintFormat("🚫 [RC] Projected margin level %.1f%% < MinMarginLevel %.1f%% -- trade blocked", projected_level, m_settings.MinMarginLevel);
+            double margin_adj = GetMarginLevelAdjustment();
+            double adjusted_threshold = m_settings.MinMarginLevel * margin_adj;
+            if(projected_level < adjusted_threshold) {
+               PrintFormat("🚫 [RC] VETO_RC_MARGIN_LEVEL: Projected %.1f%% < Adjusted threshold %.1f%% (base=%.1f%% × %.2f instrument adj) [%s]",
+                           projected_level, adjusted_threshold, m_settings.MinMarginLevel, margin_adj, _Symbol);
                m_rc_veto_reason = "VETO_RC_MARGIN_LEVEL";
                return false;
             }
