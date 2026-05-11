@@ -310,6 +310,19 @@ struct ST_Settings
    bool   CountBEasZeroRisk;     // If true, trades at breakeven don't count toward risk
    double MarginUsageLimit;      // Max % of free margin allowed per trade (0 = use 100%)
    double MinMarginLevel;        // Block new entries if margin level (%) is below this threshold (0 = disabled)
+   // Adaptive risk & margin
+   bool   UseAdaptiveRisk;         // Enable TF-based risk scaling
+   double AdaptiveRisk_M1;         // M1 risk % (default: 1.0)
+   double AdaptiveRisk_M5;         // M5 risk % (default: 1.5)
+   double AdaptiveRisk_M15Plus;    // M15+ risk % (default: 2.0)
+   double Override_SL_Cushion;     // User override for SL cushion (0 = auto)
+   double Override_Trail_Cushion;  // User override for trail cushion (0 = auto)
+   double Override_BE_Cushion;     // User override for BE cushion (0 = auto)
+   bool   UseMarginAdjustment;     // Enable instrument margin adjustment
+   double MarginAdj_Gold;          // Gold/metals multiplier
+   double MarginAdj_Crypto;        // Crypto multiplier
+   double MarginAdj_Exotic;        // Exotic multiplier
+   double MarginAdj_JPY;           // JPY multiplier
    double EmergencyMarginLevel;  // Emergency TM threshold (%) to cut worst position (0 = disabled)
    double MaxSpread;
    bool   UseSpread;             // Enable spread filter (false = bypass spread gate)
@@ -1373,6 +1386,27 @@ input double      Inp_EmergencyMarginLevel   = 80.0;              // Emergency m
 // input string   Inp_Step9_Ref1             = "Risk per trade applies to all presets unless overridden by Admin Override";
 // input string   Inp_Step9_Ref2             = "To adjust exits under a strict preset: use PRESET_CUSTOM mode";
 
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 ADAPTIVE RISK & MARGIN (GLOBAL)";
+input group "╚════════════════════════════════════════════════════════╝";
+// ── TF-Based Adaptive Risk Scaling ────────────────────────────────
+input bool        Inp_UseAdaptiveRisk        = true;              // Adaptive Risk: Enable TF-based risk scaling (M1=1%, M5=1.5%, M15+=2%)
+input double      Inp_AdaptiveRisk_M1        = 1.0;               // Adaptive Risk: M1 timeframe (%)
+input double      Inp_AdaptiveRisk_M5        = 1.5;               // Adaptive Risk: M5 timeframe (%)
+input double      Inp_AdaptiveRisk_M15Plus   = 2.0;               // Adaptive Risk: M15+ timeframes (%)
+
+// ── Optional Cushion Overrides (0 = use auto TF/JPY calculation) ──
+input double      Inp_Override_SL_Cushion    = 0.0;               // Override: SL cushion pips (0=auto; applies to Swing/PSAR modes)
+input double      Inp_Override_Trail_Cushion = 0.0;               // Override: Trail cushion pips (0=auto; applies to PSAR trail)
+input double      Inp_Override_BE_Cushion    = 0.0;               // Override: BE cushion pips (0=auto; applies to breakeven buffer)
+
+// ── Margin Level Instrument Adjustment ────────────────────────────
+input bool        Inp_UseMarginAdjustment    = true;              // Margin Adj: Enable instrument-aware adjustment
+input double      Inp_MarginAdj_Gold         = 0.8;               // Margin Adj: Gold/Metals (0.8 = use 80% of base margin level)
+input double      Inp_MarginAdj_Crypto       = 0.7;               // Margin Adj: Crypto (0.7 = use 70% of base margin level)
+input double      Inp_MarginAdj_Exotic       = 0.85;              // Margin Adj: Exotic pairs (0.85 = use 85% of base margin level)
+input double      Inp_MarginAdj_JPY          = 0.9;               // Margin Adj: JPY pairs (0.9 = use 90% of base margin level)
+
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🎯 STRATEGY SETTINGS (PRESET_CUSTOM Only)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1747,12 +1781,24 @@ void InitializeConfig()
    Settings.Vote_AllowPsarFlip   = false;
    Settings.Vote_PsarFlipDelay   = (Inp_Vote_PsarFlipDelay < -1) ? -1 : (Inp_Vote_PsarFlipDelay > 10) ? 10 : Inp_Vote_PsarFlipDelay;
 
-   Settings.MaxTotalRisk         = MathMax(0.0, Inp_MaxTotalRisk);
-   Settings.MaxOpenTrades        = MathMax(0, Inp_MaxOpenTrades);
-   Settings.CountBEasZeroRisk    = true;
-   Settings.MarginUsageLimit     = MathMax(0.0, Inp_MarginUsageLimit);
-   Settings.MinMarginLevel       = MathMax(0.0, Inp_MinMarginLevel);
-   Settings.EmergencyMarginLevel = MathMax(0.0, Inp_EmergencyMarginLevel);
+   Settings.MaxTotalRisk            = MathMax(0.0, Inp_MaxTotalRisk);
+   Settings.MaxOpenTrades           = MathMax(0, Inp_MaxOpenTrades);
+   Settings.CountBEasZeroRisk       = true;
+   Settings.MarginUsageLimit        = MathMax(0.0, Inp_MarginUsageLimit);
+   Settings.MinMarginLevel          = MathMax(0.0, Inp_MinMarginLevel);
+   Settings.UseAdaptiveRisk         = Inp_UseAdaptiveRisk;
+   Settings.AdaptiveRisk_M1         = MathMax(0.0, Inp_AdaptiveRisk_M1);
+   Settings.AdaptiveRisk_M5         = MathMax(0.0, Inp_AdaptiveRisk_M5);
+   Settings.AdaptiveRisk_M15Plus    = MathMax(0.0, Inp_AdaptiveRisk_M15Plus);
+   Settings.Override_SL_Cushion     = MathMax(0.0, Inp_Override_SL_Cushion);
+   Settings.Override_Trail_Cushion  = MathMax(0.0, Inp_Override_Trail_Cushion);
+   Settings.Override_BE_Cushion     = MathMax(0.0, Inp_Override_BE_Cushion);
+   Settings.UseMarginAdjustment     = Inp_UseMarginAdjustment;
+   Settings.MarginAdj_Gold          = MathMax(0.0, Inp_MarginAdj_Gold);
+   Settings.MarginAdj_Crypto        = MathMax(0.0, Inp_MarginAdj_Crypto);
+   Settings.MarginAdj_Exotic        = MathMax(0.0, Inp_MarginAdj_Exotic);
+   Settings.MarginAdj_JPY           = MathMax(0.0, Inp_MarginAdj_JPY);
+   Settings.EmergencyMarginLevel    = MathMax(0.0, Inp_EmergencyMarginLevel);
 
    Settings.Adaptive.PairType          = Inp_Adaptive_PairType;
    Settings.Adaptive.Spread_Major      = Inp_Adaptive_Spread_Major;

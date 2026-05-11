@@ -21,6 +21,9 @@
 // TF+JPY-aware initial SL cushion mapping (suited for SL_PSAR_DOT / SL_MODE_SWING)
 double GetRecommendedInitialSlCushionPips()
 {
+   if(Settings.Override_SL_Cushion > 0.0)
+      return Settings.Override_SL_Cushion;
+
    ENUM_TIMEFRAMES tf = _Period;
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
 
@@ -31,9 +34,57 @@ double GetRecommendedInitialSlCushionPips()
    else                       return isJPY ? 25.0 : 15.0;    // Covers H6, D1, W1, MN1
 }
 
+//+------------------------------------------------------------------+
+//| GetEffectiveRiskPercent: TF-adaptive risk with smart override    |
+//+------------------------------------------------------------------+
+double GetEffectiveRiskPercent()
+{
+   if(!Settings.UseAdaptiveRisk)
+      return Settings.RiskPercent;
+
+   // Treat the legacy 2.0% default as "auto" while adaptive mode is enabled.
+   if(Settings.RiskPercent > 0.0 && MathAbs(Settings.RiskPercent - 2.0) > 1e-8)
+      return Settings.RiskPercent;
+
+   ENUM_TIMEFRAMES tf = _Period;
+   double adaptive = (tf <= PERIOD_M1) ? Settings.AdaptiveRisk_M1
+                     : (tf <= PERIOD_M5) ? Settings.AdaptiveRisk_M5
+                                         : Settings.AdaptiveRisk_M15Plus;
+   return (adaptive > 0.0) ? adaptive : Settings.RiskPercent;
+}
+
+//+------------------------------------------------------------------+
+//| GetMarginLevelAdjustment: instrument-aware margin multiplier     |
+//+------------------------------------------------------------------+
+double GetMarginLevelAdjustment()
+{
+   if(!Settings.UseMarginAdjustment)
+      return 1.0;
+
+   string sym = _Symbol;
+   StringToUpper(sym);
+
+   if(StringFind(sym, "JPY") >= 0)
+      return (Settings.MarginAdj_JPY > 0.0) ? Settings.MarginAdj_JPY : 1.0;
+
+   if(StringFind(sym, "XAU") >= 0 || StringFind(sym, "XAG") >= 0 || StringFind(sym, "GOLD") >= 0 || StringFind(sym, "SILVER") >= 0)
+      return (Settings.MarginAdj_Gold > 0.0) ? Settings.MarginAdj_Gold : 1.0;
+
+   if(StringFind(sym, "BTC") >= 0 || StringFind(sym, "ETH") >= 0)
+      return (Settings.MarginAdj_Crypto > 0.0) ? Settings.MarginAdj_Crypto : 1.0;
+
+   if(StringFind(sym, "TRY") >= 0 || StringFind(sym, "ZAR") >= 0 || StringFind(sym, "MXN") >= 0)
+      return (Settings.MarginAdj_Exotic > 0.0) ? Settings.MarginAdj_Exotic : 1.0;
+
+   return 1.0;
+}
+
 // TF+JPY-aware trailing cushion mapping (smaller, suited for TRAIL_PSAR + PSAR_CUSHION_PIPS)
 double GetRecommendedTrailPsarCushionPips()
 {
+   if(Settings.Override_Trail_Cushion > 0.0)
+      return Settings.Override_Trail_Cushion;
+
    ENUM_TIMEFRAMES tf = _Period;
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
 
@@ -47,6 +98,9 @@ double GetRecommendedTrailPsarCushionPips()
 // TF+JPY-aware breakeven/trail cushion values
 double GetTFBasedCushion(ENUM_TIMEFRAMES tf)
 {
+   if(Settings.Override_BE_Cushion > 0.0)
+      return Settings.Override_BE_Cushion;
+
    if(tf == PERIOD_CURRENT) tf = _Period; // Safe fallback just in case
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
 
@@ -1100,7 +1154,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.UseNews                   = op_UseNews;
       cfg.NewsPre                   = op_NewsPre;
       cfg.NewsPost                  = op_NewsPost;
-      cfg.RiskPercent               = op_RiskPercent;
+      cfg.RiskPercent               = GetEffectiveRiskPercent();
       cfg.MaxOpenTrades             = op_MaxOpenTrades;
       cfg.MaxTotalRisk              = op_MaxTotalRisk;
       cfg.MinMarginLevel            = op_MinMarginLevel;
@@ -1421,7 +1475,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.UseNews                   = op_UseNews;
       cfg.NewsPre                   = op_NewsPre;
       cfg.NewsPost                  = op_NewsPost;
-      cfg.RiskPercent               = op_RiskPercent;
+      cfg.RiskPercent               = GetEffectiveRiskPercent();
       cfg.MaxOpenTrades             = op_MaxOpenTrades;
       cfg.MaxTotalRisk              = op_MaxTotalRisk;
       cfg.MinMarginLevel            = op_MinMarginLevel;
