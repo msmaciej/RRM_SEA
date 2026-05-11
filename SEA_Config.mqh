@@ -747,7 +747,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   💰 (RM) RISK MANAGEMENT (GLOBAL)";
 input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_RiskPercent            = 2.0;               // Risk per trade (%)
+input double      Inp_RiskPercent            = 2.0;               // Risk: Default when Adaptive Risk Enable: false
 input int         Inp_MaxOpenTrades          = 4;                 // Max concurrent trades (0 = unlimited)
 input double      Inp_MaxTotalRisk           = 6.0;               // Max total active risk (%; 0 = unlimited)
 input double      Inp_MarginUsageLimit       = 80.0;              // Max % of free margin per trade (0 = use 100%)
