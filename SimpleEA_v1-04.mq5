@@ -1,6 +1,6 @@
 ﻿//+------------------------------------------------------------------+
-//|                                           SimpleEA_v1-04-001.mq5 |
-//| Institutional Trading Solutions RRMS Simple Rapid Results Method |
+//|                                               SimpleEA_v1-04.mq5 |
+//|                            MJS - Institutional Trading Solutions |
 //+------------------------------------------------------------------+
 // SAVE AS UTF-16 LE WITH BOM
 //+------------------------------------------------------------------+
@@ -8,11 +8,16 @@
 #property version   "104.001"
 #property strict
 
-// --- Anti-stale build lock
+// ══════════════════════════════════════════════════════════════════
+// 🔒 ACTIVE BUILD TOKEN - DO NOT MODIFY
+// This is the CURRENT production version. All legacy tokens (103003,
+// 102016D, etc.) in Legacy/ and Revision/ folders are ARCHIVED.
+// ══════════════════════════════════════════════════════════════════
 #define SEA_BUILD_TOKEN_104001 1
 
 #define SEA_BUILD_NUM 104001
 #define SEA_BUILD_STR "1.04.001"
+// ══════════════════════════════════════════════════════════════════
 
 //+------------------------------------------------------------------+
 //| FORWARD DECLARATIONS                                             |
