@@ -1,12 +1,17 @@
 ﻿//+------------------------------------------------------------------+
-//|                                               SimpleEA_v1-04.mq5 |
-//|                            MJS - Institutional Trading Solutions |
+//|                                           SimpleEA_v1-04.mq5     |
+//|                       Copyright © 2025 Maciej Jerzy Szczech (MJS)|
+//|                      RRM Simple EA - macOS + Wine + MT5 + MQL5   |
 //+------------------------------------------------------------------+
 // SAVE AS UTF-16 LE WITH BOM
 //+------------------------------------------------------------------+
-#property copyright "SimpleEA_v1.04"
+#property copyright "Copyright © 2025 Maciej Jerzy Szczech (MJS)"
+#property link      "https://github.com/msmaciej/RRM_SEA"
 #property version   "104.001"
 #property strict
+#property description "Simple Expert Advisor - Original research and development"
+#property description "Incorporates concepts from multiple trading methodologies"
+#property description "macOS + Wine + MT5 compatible | MQL5 ONLY"
 
 // ══════════════════════════════════════════════════════════════════
 // 🔒 ACTIVE BUILD TOKEN - DO NOT MODIFY
