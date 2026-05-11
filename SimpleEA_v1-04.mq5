@@ -426,6 +426,15 @@ int OrchestrateInit()
    FlowLog("Step B: ApplyPreset() (preset overrides -> Settings)");
    ApplyPreset(Inp_Global_Preset, Settings);
 
+   // Safety synchronization: BIAS_4EMA requires phase detection.
+   // Prevents silent BIAS=0 behavior if a preset/input regression disables phase.
+   if(Settings.BiasMode == BIAS_4EMA && !Settings.PhaseDetectionEnabled)
+   {
+      Print("WARNING: BIAS_4EMA with PhaseDetectionEnabled=false detected after ApplyPreset.");
+      Print("WARNING: Auto-correcting PhaseDetectionEnabled=true to keep Bias/Phase synchronized.");
+      Settings.PhaseDetectionEnabled = true;
+   }
+
    FlowLog("Step B1: InitializeIndicatorRegistry() (populate central indicator registry)");
    InitializeIndicatorRegistry(Settings);
 
