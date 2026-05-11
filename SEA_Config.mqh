@@ -1106,11 +1106,12 @@ input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond = 8;         // DPI: Double
 input bool        Inp_RRM_ORG_DPI_UseCCIReset      = true;        // DPI: Enable CCI trend filter
 input int         Inp_RRM_ORG_DPI_CCI_Period       = 13;          // DPI: CCI period
 input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price = PRICE_TYPICAL; // DPI: CCI applied price
+input group "═══ DPI GREEN Histogram Logic ═══"
 input bool        Inp_RRM_ORG_DPI_UseGreenHist     = false;       // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
 input double      Inp_DPI_HistMomentumThreshold    = 0.0001;      // DPI: Histogram momentum threshold (CCI-delta units)
 input int         Inp_DPI_HistDecelLookback        = 3;           // DPI: Deceleration lookback (bars)
 input bool        Inp_DPI_HistTrackingEnabled      = false;       // DPI: Enable histogram tracking
-input group "═══ DPI Histogram Entry/Exit Logic ═══"
+input group "═══ DPI GREEN Histogram Entry/Exit ═══"
 input bool        Inp_DPI_BlockOnDeceleration     = false;       // DPI: Block entries on momentum deceleration
 input bool        Inp_DPI_ExitOnHistDisappear     = false;       // DPI: Close trades when green histogram vanishes
 input double      Inp_DPI_ExitThreshold           = 0.0;         // DPI: Exit when |CCI| below threshold (0=disable)
@@ -1211,9 +1212,9 @@ input double      Inp_RRM_ORG_EmaFan_H1Pips       = 60.0;         // RRM_ORG: Fa
 input double      Inp_RRM_ORG_EmaFan_H4Pips       = 100.0;        // RRM_ORG: Fan max pips on H4
 input double      Inp_RRM_ORG_EmaFan_DailyPips    = 180.0;        // RRM_ORG: Fan max pips on D1+
 
-input int         Inp_RRM_ORG_PhaseConfirmM5      = 1;            // RRM_ORG:1 MinPhaseConfirmBars on M1–M5
-input int         Inp_RRM_ORG_PhaseConfirmM30     = 1;            // RRM_ORG:2 MinPhaseConfirmBars on M6–M30
-input int         Inp_RRM_ORG_PhaseConfirmH1plus  = 1;            // RRM_ORG:3 MinPhaseConfirmBars on H1 and above
+input int         Inp_RRM_ORG_PhaseConfirmM5      = 0;            // RRM_ORG:1 MinPhaseConfirmBars on M1–M5
+input int         Inp_RRM_ORG_PhaseConfirmM30     = 0;            // RRM_ORG:2 MinPhaseConfirmBars on M6–M30
+input int         Inp_RRM_ORG_PhaseConfirmH1plus  = 0;            // RRM_ORG:3 MinPhaseConfirmBars on H1 and above
 
 input bool        Inp_RRM_ORG_RequireRecoveryIntraday = true;     // RRM_ORG: Require recovery momentum on M15-and-down
 input double      Inp_RRM_ORG_JpyGateMultiplier   = 1.3;          // RRM_ORG: Recovery+EmaDiv gate scale for JPY pairs (1.0=disabled)
