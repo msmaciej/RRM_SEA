@@ -459,9 +459,9 @@ int OrchestrateInit()
       Print("");
 
       Print("Take Profit Mode:");
-      PrintFormat("  Input:    %s (RRRatio: %.1f)", EnumToString(Inp_TPMode), Inp_RRRatio);
+      PrintFormat("  Input:    %s (RRRatio: %.1f)", EnumToString(Inp_TPMode), Inp_CUSTOM_RRRatio);
       PrintFormat("  Settings: %s (RRRatio: %.1f)", EnumToString(Settings.TPMode), Settings.RRRatio);
-      PrintFormat("  ✓ Match:  %s", (Settings.TPMode == Inp_TPMode && Settings.RRRatio == Inp_RRRatio) ? "YES ✅" : "NO ❌ BUG DETECTED!");
+      PrintFormat("  ✓ Match:  %s", (Settings.TPMode == Inp_TPMode && Settings.RRRatio == Inp_CUSTOM_RRRatio) ? "YES ✅" : "NO ❌ BUG DETECTED!");
       Print("");
 
       Print("Breakeven Mode:");

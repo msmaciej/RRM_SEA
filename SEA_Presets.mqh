@@ -1426,7 +1426,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SLMode                    = Inp_SLMode;
       cfg.TPMode                    = Inp_TPMode;
       cfg.TP_Enabled                = Inp_TP_Enabled;
-      cfg.RRRatio                   = Inp_RRRatio;
+      cfg.RRRatio                   = Inp_CUSTOM_RRRatio;
       cfg.SwingLookback             = Inp_SwingLookback;
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
