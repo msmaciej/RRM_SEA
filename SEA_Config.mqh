@@ -747,7 +747,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   💰 (RM) RISK MANAGEMENT (GLOBAL)";
 input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_RiskPercent            = 2.0;               // Risk: Default when Adaptive Risk Enable: false
+input double      Inp_RM_RiskPercentDefault  = 2.0;               // Risk: Default when Adaptive Risk Enable: false (was Inp_RiskPercent)
 input int         Inp_MaxOpenTrades          = 4;                 // Max concurrent trades (0 = unlimited)
 input double      Inp_MaxTotalRisk           = 6.0;               // Max total active risk (%; 0 = unlimited)
 input double      Inp_MarginUsageLimit       = 80.0;              // Max % of free margin per trade (0 = use 100%)
@@ -759,10 +759,10 @@ input group "╔═════════════════════�
 input group "║   📐 (RM) ADAPTIVE RISK & MARGIN (GLOBAL)";
 input group "╚════════════════════════════════════════════════════════╝";
 // ── TF-Based Adaptive Risk Scaling ────────────────────────────────
-input bool        Inp_UseAdaptiveRisk        = true;              // Adaptive Risk: Enable TF-based risk scaling (M1=1%, M5=1.5%, M15+=2%)
-input double      Inp_AdaptiveRisk_M1        = 1.0;               // Adaptive Risk: M1 timeframe (%)
-input double      Inp_AdaptiveRisk_M5        = 1.5;               // Adaptive Risk: M5 timeframe (%)
-input double      Inp_AdaptiveRisk_M15Plus   = 2.0;               // Adaptive Risk: M15+ timeframes (%)
+input bool        Inp_RM_UseAdaptiveRisk      = true;              // Adaptive Risk: Enable TF-based risk scaling (M1=1%, M5=1.5%, M15+=2%) (was Inp_UseAdaptiveRisk)
+input double      Inp_RM_AdaptiveRisk_M1      = 1.0;               // Adaptive Risk: M1 timeframe (%) (was Inp_AdaptiveRisk_M1)
+input double      Inp_RM_AdaptiveRisk_M5      = 1.5;               // Adaptive Risk: M5 timeframe (%) (was Inp_AdaptiveRisk_M5)
+input double      Inp_RM_AdaptiveRisk_M15Plus = 2.0;               // Adaptive Risk: M15+ timeframes (%) (was Inp_AdaptiveRisk_M15Plus)
 
 // ── Optional Cushion Overrides (0 = use auto TF/JPY calculation) ──
 input double      Inp_Override_SL_Cushion    = 0.0;               // Override: SL cushion pips (0=auto; applies to Swing/PSAR modes)
@@ -922,7 +922,7 @@ input double      Inp_FPM_PsarMax            = 0.2;            // FPM PSAR Max
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 FPM: SMA Convergence";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Ind_SmaConverge_Enabled = false;         // FPM [SmaConv] Enable SMA convergence vote (FPM Condition 4)
+input bool        Inp_FPM_Ind_SmaConverge_Enabled = false;         // FPM [SmaConv] Enable SMA convergence vote (FPM Condition 4) (was Inp_Ind_SmaConverge_Enabled)
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET: RRM";
@@ -983,11 +983,11 @@ input int         Inp_RRM_TrailPsarShiftDelay   = 1;           // PSAR shift del
 // input string   Inp_PSAR_TrailCushion_Note    = "PSAR trail cushion auto-set by timeframe (M15=3, H1=7, H4=10 pips)"
 // input string   Inp_RRM_Trail_Info            = "RRM trailing: PSAR-based with bar shift delay for flip stability";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🔧 RRM: (Pullback)";
+input group "║   🔧 CUSTOM: (Pullback Gate Inputs)";
 input group "╚════════════════════════════════════════════════════════╝";
 // RRM pullback gate uses pure distance comparison: the current EMA gap must exceed the prior EMA gap (no pip threshold).
-input bool        Inp_Gate_RequireRecoveryMomentum = false;    // RRM Gate (CUSTOM; presets override)
-input int         Inp_RRM_Lookback           = 5;              // RRM Lookback (CUSTOM; presets override)
+input bool        Inp_CUSTOM_RequireRecoveryMomentum = false;    // RRM Gate (CUSTOM; presets override) (was Inp_Gate_RequireRecoveryMomentum)
+input int         Inp_CUSTOM_Lookback           = 5;              // RRM Lookback (CUSTOM; presets override) (was Inp_RRM_Lookback)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Indicators — Enable/Disable";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1479,7 +1479,7 @@ input group "║   🎯 (TP) TAKE PROFIT (CUSTOM only)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_TP_Enabled             = true;              // Enable take profit
 input ETPMode     Inp_TPMode                 = TP_MODE_RR;        // TP calculation method
-input double      Inp_RRRatio                = 2.0;               // Risk:Reward ratio
+input double      Inp_CUSTOM_RRRatio          = 2.0;               // Risk:Reward ratio (was Inp_RRRatio)
 input double      Inp_FixedTPPips            = 40.0;              // Fixed TP distance
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛡 (TE) COOLDOWN BARS Post-Trade Protection";
@@ -1575,7 +1575,7 @@ void InitializeConfig()
 
    // === Strategy inputs ===
    Settings.CloseOnReverse          = Inp_CloseOnReverse;
-   Settings.RiskPercent             = Inp_RiskPercent;
+   Settings.RiskPercent             = Inp_RM_RiskPercentDefault;
    Settings.FixedLotSize            = 0.0; // 0 = risk-based sizing (default)
    Settings.MaxSpread               = Inp_MaxSpreadPips;
    Settings.UseSpread               = Inp_UseSpread;
@@ -1593,8 +1593,8 @@ void InitializeConfig()
    Settings.RequirePriceCross       = false;
    Settings.MABenchmarkStrict       = false;
 
-   Settings.RRM_Lookback               = Inp_RRM_Lookback;
-   Settings.RequireRecoveryMomentum    = Inp_Gate_RequireRecoveryMomentum;
+   Settings.RRM_Lookback               = Inp_CUSTOM_Lookback;
+   Settings.RequireRecoveryMomentum    = Inp_CUSTOM_RequireRecoveryMomentum;
    
    Settings.Gate_Recovery.mode         = GATE_SCALE_OFF;
    Settings.Gate_Recovery.value        = 0.0;
@@ -1691,7 +1691,7 @@ void InitializeConfig()
    Settings.Ind_CandleBody_Enabled = Inp_Ind_CandleBody_Enabled;
    Settings.Ind_CI_Enabled        = Inp_Ind_CI_Enabled;
    Settings.Ind_VRC_Enabled       = Inp_Ind_VRC_Enabled;
-   Settings.Ind_SmaConverge_Enabled = Inp_Ind_SmaConverge_Enabled;
+   Settings.Ind_SmaConverge_Enabled = Inp_FPM_Ind_SmaConverge_Enabled;
 
    // Weights
    Settings.Ind_Adx_Weight       = Inp_Ind_Adx_Weight;
@@ -1749,7 +1749,7 @@ void InitializeConfig()
    Settings.TPMode               = Inp_TPMode;
    Settings.FixedTPPips          = Inp_FixedTPPips;
    Settings.SLPercent            = Inp_SLPercent;
-   Settings.RRRatio              = Inp_RRRatio;
+   Settings.RRRatio              = Inp_CUSTOM_RRRatio;
    Settings.SwingLookback        = Inp_SwingLookback;
    Settings.FractalPeriod        = Inp_FractalPeriod;
    Settings.TPFractalOffset      = Inp_TPFractalOffset;
@@ -1792,10 +1792,10 @@ void InitializeConfig()
    Settings.CountBEasZeroRisk       = true;
    Settings.MarginUsageLimit        = MathMax(0.0, Inp_MarginUsageLimit);
    Settings.MinMarginLevel          = MathMax(0.0, Inp_MinMarginLevel);
-   Settings.UseAdaptiveRisk         = Inp_UseAdaptiveRisk;
-   Settings.AdaptiveRisk_M1         = MathMax(0.0, Inp_AdaptiveRisk_M1);
-   Settings.AdaptiveRisk_M5         = MathMax(0.0, Inp_AdaptiveRisk_M5);
-   Settings.AdaptiveRisk_M15Plus    = MathMax(0.0, Inp_AdaptiveRisk_M15Plus);
+   Settings.UseAdaptiveRisk         = Inp_RM_UseAdaptiveRisk;
+   Settings.AdaptiveRisk_M1         = MathMax(0.0, Inp_RM_AdaptiveRisk_M1);
+   Settings.AdaptiveRisk_M5         = MathMax(0.0, Inp_RM_AdaptiveRisk_M5);
+   Settings.AdaptiveRisk_M15Plus    = MathMax(0.0, Inp_RM_AdaptiveRisk_M15Plus);
    Settings.Override_SL_Cushion     = MathMax(0.0, Inp_Override_SL_Cushion);
    Settings.Override_Trail_Cushion  = MathMax(0.0, Inp_Override_Trail_Cushion);
    Settings.Override_BE_Cushion     = MathMax(0.0, Inp_Override_BE_Cushion);

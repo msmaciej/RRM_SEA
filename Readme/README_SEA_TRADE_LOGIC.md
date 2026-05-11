@@ -152,7 +152,7 @@ flowchart TD
 
 ### Take Profit Modes (`ETPMode`)
 * `TP_MODE_FIXED_PIPS`: Strict pip distance via `Inp_FixedTPPips`.
-* `TP_MODE_RR`: Calculates TP based on actual SL distance multiplied by `Inp_RRRatio` (e.g., 2.0 = 1:2 R:R). 
+* `TP_MODE_RR`: Calculates TP based on actual SL distance multiplied by `Inp_CUSTOM_RRRatio` (e.g., 2.0 = 1:2 R:R). 
 * `TP_MODE_FRACTAL`: Targets the next opposing market fractal.
 * `TP_MODE_PSAR_FLIP`: No fixed TP; exits solely when the PSAR indicator flips direction.
 * `TP_MODE_NONE`: Relies entirely on the Trailing Stop to close the trade.
