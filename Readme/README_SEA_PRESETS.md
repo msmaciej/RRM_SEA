@@ -377,6 +377,107 @@ Targets failure modes in 100-trades reference set:
 | (C) DPI deceleration leaks | Force DPI ON + decel filter | `Ind_Dpi_Enabled = true` + `DpiDecelFilterEnabled` |
 | (D) Tangled-ribbon false TM | Phase + recovery gates | `MinPhaseConfirmBars` + recovery thresholds |
 
+### Phase B: Recovery Sensitivity Tuning
+
+These **opt-in** settings address pullback-recovery setups that are blocked by overly strict
+filter thresholds during early market recovery.  All default to `false`/`0` so the original
+PRESET_RRM_ORG contract is fully preserved.
+
+> **Design principle:** enable only what the chart shows is failing. Start with one setting,
+> backtest, then add the next if still needed.
+
+#### `Inp_RRM_ORG_DPI_IgnoreCCIForVote` (default: `false`)
+
+| Setting | Behaviour |
+|---------|-----------|
+| `false` (default) | DPI vote requires CCI direction to agree with histogram sign (existing RRM_ORG behaviour) |
+| `true` | DPI vote uses **raw histogram direction only** — CCI-reset colour overrides are ignored |
+
+**Use when:** DPI histogram is above zero (bullish) but CCI temporarily turns negative, flipping
+the ribbon to RED and blocking valid LONG entries during a pullback.  CCI-reset warnings are
+designed for divergence detection, not early-recovery entries.
+
+> **Caution:** disabling the CCI check may allow entries when momentum is genuinely diverging.
+> Use in combination with the DPI histogram deceleration filter
+> (`Inp_RRM_ORG_DpiDecelFilter = true`, already default).
+
+---
+
+#### `Inp_RRM_ORG_Layer_SlopeTolerance` (default: `0.0` pips)
+
+Controls how much an EMA pair's slope may be **flat or marginally reversed** before the
+layer-alignment check fails.  With the default (`0.0`) both the fast and slow EMA of a layer
+must be strictly rising (LONG) or falling (SHORT).
+
+| Value | Meaning |
+|-------|---------|
+| `0.0` | Strict — both EMAs must be strictly moving in bias direction (existing behaviour) |
+| `2.0` | EMAs are allowed to be flat or reversed by up to 2 pips since the lookback bar |
+| `5.0` | Wider tolerance — useful on M1/M5 where EMAs are noisy but trend is intact |
+
+**When to use:** layer rejections at `LAYER_NONE_ALIGNED` during early recovery when the fast
+EMA is still decelerating (slope near zero) even though both EMAs are correctly positioned.
+
+> **Caution:** higher values reduce the slope signal quality.  Keep at ≤ 3 pips on M5 and
+> ≤ 7 pips on H1.  If rejections are coming from the slow EMA pair, a smaller value is usually
+> sufficient.
+
+---
+
+#### `Inp_RRM_ORG_BarClose_PipTolerance` (default: `0.0` pips)
+
+The bar-close confirmation (`BC_LAYER_AWARE`) requires the candle to close **beyond** the
+layer-specific EMA.  With a positive tolerance, closes that are within N pips of the EMA
+(either side) are accepted.
+
+| Value | Meaning |
+|-------|---------|
+| `0.0` | Strict — close must be strictly beyond EMA in trade direction (existing behaviour) |
+| `1.0` | Closes within 1 pip of the EMA are accepted (touch is enough) |
+| `3.0` | Closes up to 3 pips on the "wrong" side of the EMA still pass |
+
+**When to use:** bar-close rejections (`BC_NOT_CONFIRMED`) when the candle closed at or very
+near the EMA but the body extension was fractional.
+
+> **Caution:** too-large values make the bar-close check ineffective.  Recommended range:
+> 0.5–3 pips.  Keep at 0 when `BarClose_Mode = BC_LAYER_AWARE` is used with loose layers.
+
+---
+
+#### `Inp_RRM_ORG_PSAR_FlipGraceBars` (default: `0`)
+
+When PSAR temporarily flips **against** the trade direction during a pullback, this grace
+period keeps the PSAR vote passing for up to N bars after the adverse flip, even though the
+dot is now on the wrong side.
+
+| Value | Meaning |
+|-------|---------|
+| `0` | Disabled — PSAR must be on the correct side at shift=1 (existing behaviour) |
+| `2` | PSAR passes for 2 bars after an adverse flip — allows entries during brief dot reversals |
+| `5` | Wider grace window, useful on H1 where PSAR flips can last several bars |
+
+**When to use:** PSAR vote rejections (`PSAR_DOT_WRONG_SIDE`) when the dot flipped during a
+pullback but all other conditions (DPI, layer, bar-close) are satisfied.
+
+> **Caution:** a long grace window can allow entries when the PSAR flip signals a genuine
+> trend reversal.  Combine with `Inp_RRM_ORG_Layer_SlopeTolerance = 0` (strict layer
+> requirement) to maintain structural quality.
+
+---
+
+#### Recommended Starting Configuration for Missed Pullback-Recovery Entries
+
+```
+// Enable one at a time; backtest after each change
+Inp_RRM_ORG_DPI_IgnoreCCIForVote   = false   // enable only if DPI CCI-reset is the primary rejection
+Inp_RRM_ORG_Layer_SlopeTolerance   = 2.0     // start here if LAYER_NONE_ALIGNED dominates
+Inp_RRM_ORG_BarClose_PipTolerance  = 1.0     // start here if BC_NOT_CONFIRMED dominates
+Inp_RRM_ORG_PSAR_FlipGraceBars     = 2       // start here if PSAR_DOT_WRONG_SIDE dominates
+```
+
+Use `DebugFlow = true` (or `DebugLevel = DEBUG_INDICATORS`) on a historical bar to see the
+exact rejection reason printed in the MT5 journal before choosing which setting to adjust.
+
 ### Use When
 
 - Trading H1 timeframe with structured pullback entries

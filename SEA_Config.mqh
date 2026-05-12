@@ -661,6 +661,15 @@ struct ST_Settings
    // Only activates when DpiDecelFilterEnabled=true AND Ind_Dpi_Enabled=true.
    bool   DpiDecelFilterEnabled;
 
+   // ── PHASE B: Recovery-sensitivity tuning (all opt-in, default disabled/0) ──────────────────
+   // These settings allow pullback-recovery setups to pass filters they previously failed when
+   // EMAs/bars are near the threshold.  Default=off to preserve the existing PRESET_RRM_ORG
+   // contract.  Enable via the corresponding Inp_RRM_ORG_* inputs.
+   bool   DPI_IgnoreCCIForVote;     // DPI vote: use raw histogram direction only (skip CCI-reset)
+   double Layer_SlopeTolerance;     // Layer slope tolerance in pips (0=strict; N pips = flat allowed)
+   double BarClose_PipTolerance;    // Bar-close tolerance in pips (0=strict close>EMA; N=within N pips)
+   int    PSAR_FlipGraceBars;       // PSAR grace bars after an adverse flip (0=disabled)
+
    // ── PHASE B: TE-side hardening (read by SEA_TradeExecutor::EvaluateTE) ──
    bool   TE_RecheckBarClose;       // Re-confirm bar-close BC vs live bid at shift=0
    int    TE_OpenDelaySeconds;      // Defer EvaluateTE() by N sec after new bar
@@ -1226,6 +1235,14 @@ input double      Inp_RRM_ORG_EmaFan_H4Pips        = 100.0;          // RRM_ORG:
 input double      Inp_RRM_ORG_EmaFan_DailyPips     = 180.0;          // RRM_ORG: Fan max pips on D1+
 input double      Inp_RRM_ORG_JpyGateMultiplier    = 1.3;            // RRM_ORG: Recovery+EmaDiv gate scale for JPY pairs (1.0=disabled)
 input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM_ORG: Override max daily DD % (0=use Inp_RRM_*)
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: Recovery Sensitivity Tuning (Phase B)";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote  = false;         // DPI: Use raw histogram direction for vote (skip CCI-reset check)
+input double      Inp_RRM_ORG_Layer_SlopeTolerance  = 0.0;           // Layer: Flat-slope tolerance in pips (0=strict both EMAs rising/falling)
+input double      Inp_RRM_ORG_BarClose_PipTolerance = 0.0;           // BarClose: Allow close within N pips of target EMA (0=strict close>EMA)
+input int         Inp_RRM_ORG_PSAR_FlipGraceBars    = 0;             // PSAR: Ignore PSAR vote for N bars after an adverse flip (0=disabled)
 
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1881,6 +1898,12 @@ void InitializeConfig()
    Settings.TE_RecheckBarClose    = false;
    Settings.TE_OpenDelaySeconds   = 0;
    Settings.TE_SpreadMedianTicks  = 0;
+
+   // ── PHASE B: Recovery-sensitivity tuning defaults (all off; PRESET_RRM_ORG may override) ──
+   Settings.DPI_IgnoreCCIForVote  = false;
+   Settings.Layer_SlopeTolerance  = 0.0;
+   Settings.BarClose_PipTolerance = 0.0;
+   Settings.PSAR_FlipGraceBars    = 0;
 
    // === FINAL VALIDATION: BiasMode vs AutoStrat compatibility ===
    if(Settings.BiasEnabled && !ValidateBiasStratCombo(Settings.BiasMode, Settings.AutoStrat))

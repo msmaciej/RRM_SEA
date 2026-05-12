@@ -840,34 +840,43 @@ private:
       }
       
       // ════════════════════════════════════════════════════════════════
-      // Check close vs EMA
+      // Check close vs EMA (with optional pip tolerance)
       // ════════════════════════════════════════════════════════════════
       double close_price = iClose(_Symbol, _Period, v_shift);
       bool passed = false;
+
+      // BarClose_PipTolerance: allow close within N pips of the target EMA.
+      // Default=0 (strict: close must be beyond EMA in trade direction).
+      // Positive tolerance relaxes the check: LONG passes when close >= EMA - tol;
+      // SHORT passes when close <= EMA + tol. Enables entries where price touches
+      // the EMA precisely but doesn't close strictly beyond it.
+      double bc_tol = m_settings.BarClose_PipTolerance * GlobalPipSize(_Symbol);
       
-      if(bias == 1)  // LONG: Close must be above EMA
+      if(bias == 1)  // LONG: Close must be at or above EMA (within tolerance)
       {
-         passed = (close_price > check_ema);
+         passed = (close_price >= check_ema - bc_tol);
          
          if(m_settings.DebugFlow)
-            DebugLog(StringFormat("[%s] LONG: Close=%s vs %s=%s → %s",
+            DebugLog(StringFormat("[%s] LONG: Close=%s vs %s=%s tol=%.5f → %s",
                                   bc_label,
                                   DoubleToString(close_price, _Digits),
                                   ema_name,
                                   DoubleToString(check_ema, _Digits),
-                                  (passed ? "PASS (Close > EMA)" : "FAIL (Close <= EMA)")));
+                                  bc_tol,
+                                  (passed ? "PASS (Close >= EMA-tol)" : "FAIL (Close < EMA-tol)")));
       }
-      else if(bias == -1)  // SHORT: Close must be below EMA
+      else if(bias == -1)  // SHORT: Close must be at or below EMA (within tolerance)
       {
-         passed = (close_price < check_ema);
+         passed = (close_price <= check_ema + bc_tol);
          
          if(m_settings.DebugFlow)
-            DebugLog(StringFormat("[%s] SHORT: Close=%s vs %s=%s → %s",
+            DebugLog(StringFormat("[%s] SHORT: Close=%s vs %s=%s tol=%.5f → %s",
                                   bc_label,
                                   DoubleToString(close_price, _Digits),
                                   ema_name,
                                   DoubleToString(check_ema, _Digits),
-                                  (passed ? "PASS (Close < EMA)" : "FAIL (Close >= EMA)")));
+                                  bc_tol,
+                                  (passed ? "PASS (Close <= EMA+tol)" : "FAIL (Close > EMA+tol)")));
       }
       
       return passed ? 1 : 0;
@@ -1529,6 +1538,29 @@ private:
       double cl = iClose(m_symbol, PERIOD_CURRENT, shift);
 
       bool result = (bias==1) ? (cl > p) : (cl < p);
+
+      // PSAR_FlipGraceBars: when the dot is on the wrong side but recently flipped there
+      // (adverse flip within N bars), still pass the vote.  This handles pullback scenarios
+      // where PSAR temporarily flips against the trend direction and hasn't flipped back yet
+      // at the entry bar.  Default=0 (disabled).
+      if(!result && m_settings.PSAR_FlipGraceBars > 0)
+      {
+         datetime adverse_flip = (bias ==  1) ? m_psar_last_flip_time_bear
+                                              : m_psar_last_flip_time_bull;
+         if(adverse_flip > 0)
+         {
+            int flip_bar   = iBarShift(m_symbol, PERIOD_CURRENT, adverse_flip, false);
+            int bars_since = (flip_bar >= 0) ? (flip_bar - shift) : INT_MAX;
+            if(bars_since >= 0 && bars_since <= m_settings.PSAR_FlipGraceBars)
+            {
+               if(m_settings.DebugFlow)
+                  DebugLog(StringFormat("[PSAR_GRACE] dot wrong side but %d bars since adverse flip (grace=%d) → PASS",
+                                        bars_since, m_settings.PSAR_FlipGraceBars));
+               result = true;
+            }
+         }
+      }
+
       m_ind_cache.cached_bias = bias;
       m_ind_cache.psar_value = p;
       m_ind_cache.psar_close = cl;
@@ -2064,7 +2096,10 @@ private:
       int dir = (hist_cur > 0.0) ? 1 : ((hist_cur < 0.0) ? -1 : 0);
 
       bool dir_ok  = (dir == bias);
-      bool cci_ok  = (!m_settings.DPI_UseCCIReset  || dpi_macd_agree);
+      // DPI_IgnoreCCIForVote: bypass CCI-reset check — vote on raw histogram direction only.
+      // Useful when a valid pullback-recovery causes CCI to temporarily flip against the
+      // histogram, causing the vote to fail despite correct momentum direction.
+      bool cci_ok  = (m_settings.DPI_IgnoreCCIForVote || !m_settings.DPI_UseCCIReset || dpi_macd_agree);
       bool green_ok= (!m_settings.DPI_UseGreenHist  || dpi_green);
 
       bool result  = dir_ok && cci_ok && green_ok;
@@ -2078,9 +2113,10 @@ private:
          if(!dir_ok)   sub = sub + "DIR_MISMATCH ";
          if(!cci_ok)   sub = sub + "CCI_RESET ";
          if(!green_ok) sub = sub + "NO_GREEN ";
-         DebugLog(StringFormat("[IND_DPI] bias=%d hist=%.6f dir=%d green=%d cciagreed=%d → %s%s",
+         DebugLog(StringFormat("[IND_DPI] bias=%d hist=%.6f dir=%d green=%d cciagreed=%d ignoreCCI=%s → %s%s",
                                bias, hist_cur, dir,
                                dpi_green ? 1 : 0, dpi_macd_agree ? 1 : 0,
+                               m_settings.DPI_IgnoreCCIForVote ? "Y" : "N",
                                result ? "PASS" : "FAIL ",
                                result ? "" : ("(" + sub + ")")));
       }
@@ -2287,10 +2323,27 @@ private:
          return 0;
       }
 
-      bool slope_fast_aligned = (bias == 1)  ? (ema_fast > ema_fast_prev) :
-                                (bias == -1) ? (ema_fast < ema_fast_prev) : false;
-      bool slope_slow_aligned = (bias == 1)  ? (ema_slow > ema_slow_prev) :
-                                (bias == -1) ? (ema_slow < ema_slow_prev) : false;
+      bool slope_fast_aligned, slope_slow_aligned;
+
+      double slope_tol = m_settings.Layer_SlopeTolerance * GlobalPipSize(m_symbol);
+      if(slope_tol > 0.0)
+      {
+         // Tolerance mode: slope is "aligned" when EMA didn't move MORE than slope_tol
+         // in the wrong direction.  Allows flat / marginally-reversed slopes that occur
+         // during early pullback-recovery (fast EMA still decelerating but not truly reversing).
+         slope_fast_aligned = (bias ==  1) ? (ema_fast >= ema_fast_prev - slope_tol) :
+                              (bias == -1) ? (ema_fast <= ema_fast_prev + slope_tol) : false;
+         slope_slow_aligned = (bias ==  1) ? (ema_slow >= ema_slow_prev - slope_tol) :
+                              (bias == -1) ? (ema_slow <= ema_slow_prev + slope_tol) : false;
+      }
+      else
+      {
+         // Strict mode (default): both EMAs must be strictly rising (LONG) or falling (SHORT).
+         slope_fast_aligned = (bias ==  1) ? (ema_fast > ema_fast_prev) :
+                              (bias == -1) ? (ema_fast < ema_fast_prev) : false;
+         slope_slow_aligned = (bias ==  1) ? (ema_slow > ema_slow_prev) :
+                              (bias == -1) ? (ema_slow < ema_slow_prev) : false;
+      }
 
       int base_result = (slope_fast_aligned && slope_slow_aligned) ? 1 : 0;
 
@@ -2310,12 +2363,14 @@ private:
       {
          string pair_name = (layer_type == 1) ? "LayerW(EMA1/2)" :
                             (layer_type == 2) ? "LayerM(EMA2/3)" : "LayerS(EMA3/4)";
-         PrintFormat("[LayerAlign] %s | bias=%d | fast=%.5f prev=%.5f (%s) | slow=%.5f prev=%.5f (%s) | pos=%s slope=%s → %s",
+         double slope_tol_dbg = m_settings.Layer_SlopeTolerance * GlobalPipSize(m_symbol);
+         PrintFormat("[LayerAlign] %s | bias=%d | fast=%.5f prev=%.5f (%s) | slow=%.5f prev=%.5f (%s) | pos=%s slope=%s tol=%.5f → %s",
                      pair_name, bias,
                      ema_fast, ema_fast_prev, slope_fast_aligned ? "OK" : "FAIL",
                      ema_slow, ema_slow_prev, slope_slow_aligned ? "OK" : "FAIL",
                      position_aligned ? "OK" : "FAIL",
                      (base_result == 1) ? "OK" : "FAIL",
+                     slope_tol_dbg,
                      (base_result == 1) ? "PASS" : "REJECT");
       }
 
