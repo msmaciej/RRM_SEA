@@ -1526,6 +1526,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Operator-tunable via Inp_RRM_ORG_DpiDecelFilter.
       cfg.DpiDecelFilterEnabled     = Inp_RRM_ORG_DpiDecelFilter;
 
+      // ── PHASE B: RECOVERY SENSITIVITY TUNING (opt-in, all default disabled/0) ──────────
+      // These settings widen specific bottlenecks in the TS→TE pipeline to allow valid
+      // pullback-recovery setups through.  All default to the conservative value that
+      // preserves the original PRESET_RRM_ORG contract.
+      cfg.DPI_IgnoreCCIForVote      = Inp_RRM_ORG_DPI_IgnoreCCIForVote;
+      cfg.Layer_SlopeTolerance      = Inp_RRM_ORG_Layer_SlopeTolerance;
+      cfg.BarClose_PipTolerance     = Inp_RRM_ORG_BarClose_PipTolerance;
+      cfg.PSAR_FlipGraceBars        = Inp_RRM_ORG_PSAR_FlipGraceBars;
+
       // ── PHASE B: TE-side hardening (input-driven) ─────────────────────
       cfg.TE_RecheckBarClose        = Inp_RRM_ORG_TE_RecheckBarClose;
       cfg.TE_OpenDelaySeconds       = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_TE_OpenDelaySecsM5
