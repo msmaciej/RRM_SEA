@@ -813,6 +813,7 @@ input bool        Inp_Filter_UseHTF                = false;      // HTF: Enable 
 input ENUM_TIMEFRAMES Inp_Filter_HtfPeriod         = PERIOD_H4;  // HTF: timeframe
 input int         Inp_Filter_HtfEmaPeriod          = 89;         // HTF: EMA period
 
+// OptionC model: TE should execute at bar open using F filters; these are optional advanced vetoes (default OFF).
 input group "─── TE Execution Vetoes (Advanced) ───"
 input bool        Inp_TE_RecheckBarClose           = false;      // TE: Re-check price vs Close[1]
 input int         Inp_TE_OpenDelaySeconds          = 0;          // TE: Delay after bar open (0=immediate)

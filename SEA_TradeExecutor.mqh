@@ -1687,6 +1687,7 @@ public:
       datetime bar_open_time = iTime(m_symbol, PERIOD_CURRENT, 0);
       datetime current_time  = TimeCurrent();
       int elapsed_seconds    = (int)(current_time - bar_open_time);
+      if(elapsed_seconds < 0) return false;
       if(elapsed_seconds < m_settings.TE_OpenDelaySeconds)
       {
          if(m_settings.DebugFlow)
