@@ -33,8 +33,8 @@ This document lists all vetoes (trade rejection reasons), their configurability,
 
 ### 3. RC Safeguards (Hardcoded Risk Protection)
 
-| Veto Code | Description | User Control | Related Setting |
-|-----------|-------------|--------------|-----------------|
+| Veto Code | Description | User Control | Input Setting |
+|-----------|-------------|--------------|---------------|
 | `VETO_INVALID_LOTS` | Invalid lot sizing / SL preconditions | ❌ Cannot disable | N/A |
 | `VETO_RC_MARGIN_LEVEL` | Projected margin level too low | ❌ Cannot disable | threshold uses margin settings |
 | `VETO_RC_MAX_OPEN_TRADES` | Max concurrent trades reached | ⚠️ Threshold only | `Inp_RM_MaxOpenTrades` |
