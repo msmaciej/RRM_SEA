@@ -965,9 +965,10 @@ public:
    //+------------------------------------------------------------------+
    bool IsTemporaryVeto(string veto_reason)
    {
-      // VETO_OPEN_DELAY: bar age will increase — retry next tick
-      if(veto_reason == "VETO_OPEN_DELAY") return true;
-      // All other vetoes are considered permanent for the current bar
+      // OptionA/OptionC: TE is evaluated once per bar-open decision path.
+      // Keep all vetoes permanent for the current signal (no per-tick retries).
+      // Keep parameter for compatibility with existing caller-side veto classification flow.
+      (void)veto_reason;
       return false;
    }
 
@@ -1646,42 +1647,11 @@ public:
          double bid = SymbolInfoDouble(m_symbol, SYMBOL_BID);
          int digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
          double pip = (digits == 3 || digits == 5) ? _Point * 10.0 : _Point;
-         double spread_inst = (ask - bid) / pip;
-         double spread_pips = spread_inst;
-
-         // ── PHASE B: optional median-spread smoothing ───────────────
-         // When TE_SpreadMedianTicks > 0, replace the instant spread with
-         // the median of the last N ticks. Filters single-tick spikes at
-         // session boundaries while still rejecting sustained widening.
-         int N = m_settings.TE_SpreadMedianTicks;
-         if(N > 0 && N <= 32) {
-            m_spread_history[m_spread_history_idx % N] = spread_inst;
-            m_spread_history_idx++;
-            if(m_spread_history_count < N) m_spread_history_count++;
-            if(m_spread_history_count == N) {
-               // Insertion sort copy and pick median (N is small, this is cheap)
-               double tmp[32];
-               for(int i = 0; i < N; i++) tmp[i] = m_spread_history[i];
-               for(int i = 1; i < N; i++) {
-                  double key = tmp[i]; int j = i - 1;
-                  while(j >= 0 && tmp[j] > key) { tmp[j+1] = tmp[j]; j--; }
-                  tmp[j+1] = key;
-               }
-               spread_pips = (N % 2 == 1) ? tmp[N/2] : 0.5 * (tmp[N/2 - 1] + tmp[N/2]);
-            }
-         }
-
+         double spread_pips = (ask - bid) / pip;
          if(spread_pips > m_settings.MaxSpread)
          {
-            if(N > 0) {
-               PrintFormat("[TE VETO] VETO_SPREAD_MEDIAN | median=%.1f (inst=%.1f) > MaxSpread=%.1f pips",
-                           spread_pips, spread_inst, m_settings.MaxSpread);
-               m_te_veto_reason = "VETO_SPREAD_MEDIAN";
-               m_te_rej_spread_median++;
-            } else {
-               PrintFormat("[TE VETO] VETO_SPREAD | spread=%.1f pips > MaxSpread=%.1f pips", spread_pips, m_settings.MaxSpread);
-               m_te_veto_reason = "VETO_SPREAD";
-            }
+            PrintFormat("[TE VETO] VETO_SPREAD | spread=%.1f pips > MaxSpread=%.1f pips", spread_pips, m_settings.MaxSpread);
+            m_te_veto_reason = "VETO_SPREAD";
             return 0;
          }
       }
@@ -1713,6 +1683,88 @@ public:
       return 1;  // All execution-moment filters pass
    }
 
+   bool Check_TE_OpenDelay()
+   {
+      datetime bar_open_time = iTime(m_symbol, PERIOD_CURRENT, 0);
+      datetime current_time  = TimeCurrent();
+      int elapsed_seconds    = (int)(current_time - bar_open_time);
+      if(elapsed_seconds < 0)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[TE_VETO] OPEN_DELAY: negative elapsed time (%d) — clock/bar-time mismatch", elapsed_seconds);
+         return false;
+      }
+      if(elapsed_seconds < m_settings.TE_OpenDelaySeconds)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[TE_VETO] OPEN_DELAY: %d seconds < %d required",
+                        elapsed_seconds, m_settings.TE_OpenDelaySeconds);
+         return false;
+      }
+      return true;
+   }
+
+   bool Check_TE_BarClose_Smart(int direction)
+   {
+      double close1 = iClose(m_symbol, PERIOD_CURRENT, 1);
+      double bid_now = SymbolInfoDouble(m_symbol, SYMBOL_BID);
+      double pip = GlobalPipSize(m_symbol);
+      if(pip <= 0.0) return true;
+
+      double drift_pips = (direction > 0) ? (close1 - bid_now) / pip : (bid_now - close1) / pip;
+      if(drift_pips <= 0.0) return true;
+
+      double tolerance = m_settings.TE_BC_TolerancePips;
+      const double default_tolerance_pips = 2.0; // Legacy strict fallback when input tolerance is zero.
+      if(tolerance <= 0.0) tolerance = default_tolerance_pips;
+      if(drift_pips > tolerance)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[TE_VETO] BC_STALE: Drift %.1f pips > tolerance %.1f pips",
+                        drift_pips, tolerance);
+         return false;
+      }
+      return true;
+   }
+
+   bool Check_TE_SpreadMedian()
+   {
+      int N = m_settings.TE_SpreadMedianTicks;
+      if(N <= 0 || N > 32 || !m_settings.UseSpread || m_settings.MaxSpread <= 0.0)
+         return true;
+
+      double ask = SymbolInfoDouble(m_symbol, SYMBOL_ASK);
+      double bid = SymbolInfoDouble(m_symbol, SYMBOL_BID);
+      int digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
+      double pip = (digits == 3 || digits == 5) ? _Point * 10.0 : _Point;
+      if(pip <= 0.0) return true;
+
+      double spread_inst = (ask - bid) / pip;
+      m_spread_history[m_spread_history_idx % N] = spread_inst;
+      m_spread_history_idx++;
+      if(m_spread_history_count < N) m_spread_history_count++;
+      if(m_spread_history_count < N) return true;
+
+      double tmp[32];
+      for(int i = 0; i < N; i++) tmp[i] = m_spread_history[i];
+      for(int i = 1; i < N; i++)
+      {
+         double key = tmp[i];
+         int j = i - 1;
+         while(j >= 0 && tmp[j] > key) { tmp[j + 1] = tmp[j]; j--; }
+         tmp[j + 1] = key;
+      }
+      double spread_median = (N % 2 == 1) ? tmp[N / 2] : 0.5 * (tmp[N / 2 - 1] + tmp[N / 2]);
+      if(spread_median > m_settings.MaxSpread)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[TE_VETO] SPREAD_MEDIAN: median=%.1f (inst=%.1f) > max=%.1f",
+                        spread_median, spread_inst, m_settings.MaxSpread);
+         return false;
+      }
+      return true;
+   }
+
    int EvaluateTE(int direction, bool news_blocked_override = false) {
       // ══════════════════════════════════════════════════════════════
       // TE = F
@@ -1729,62 +1781,10 @@ public:
       m_te_veto_reason = "OK";
       string te_reject_reason = "";
 
-      // Log the reference prices being used for diagnostics
-      bool isBuy = (direction > 0);
-      double ref_price  = iClose(m_symbol, PERIOD_CURRENT, 1);
-      double live_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
-      PrintFormat("📋 [TE] %s | ref_price(barClose)=%.5f | live_price=%.5f | spread_offset=%.5f",
-                  m_symbol, ref_price, live_price, MathAbs(live_price - ref_price));
-
-      // ══════════════════════════════════════════════════════════════
-      // PHASE B GATE 1: Open-tick delay (TE_OpenDelaySeconds)
-      // Defer TE by N seconds after a new bar opens. Bid/ask spreads
-      // spike hardest at the bar boundary (esp. M1/M5 around session
-      // opens). Skipping TE in the first N seconds lets the spike
-      // resolve. No-op when TE_OpenDelaySeconds <= 0.
-      // ══════════════════════════════════════════════════════════════
-      if(m_settings.TE_OpenDelaySeconds > 0) {
-         datetime bar0_open = (datetime)SeriesInfoInteger(m_symbol, PERIOD_CURRENT, SERIES_LASTBAR_DATE);
-         long age_sec       = (long)(TimeCurrent() - bar0_open);
-         if(age_sec >= 0 && age_sec < m_settings.TE_OpenDelaySeconds) {
-            m_te_veto_reason = "VETO_OPEN_DELAY";
-            m_te_rej_open_delay++;
-            if(m_settings.DebugFlow)
-               PrintFormat("[TE] VETO_OPEN_DELAY: bar age=%d sec < %d sec required",
-                           (int)age_sec, m_settings.TE_OpenDelaySeconds);
-            return 0;
-         }
-      }
-
-      // ══════════════════════════════════════════════════════════════
-      // PHASE B GATE 2: Bar-close BC re-check (TE_RecheckBarClose)
-      // The TS=1 setup was confirmed at shift=1 close. By the time TE
-      // fires at shift=0, price may have gapped through the layer EMA
-      // in the wrong direction. Re-check that the last bar's close is
-      // still on the correct side of bid within a 2-pip noise tolerance.
-      // ══════════════════════════════════════════════════════════════
-      if(m_settings.TE_RecheckBarClose) {
-         double close1   = iClose(m_symbol, PERIOD_CURRENT, 1);
-         double bid_now  = SymbolInfoDouble(m_symbol, SYMBOL_BID);
-         double pip      = GlobalPipSize(m_symbol);
-         // Drift in pips against bias direction:
-         //   for LONG:  drift > 0  ⇒  bid is BELOW close1 (bad)
-         //   for SHORT: drift > 0  ⇒  bid is ABOVE close1 (bad)
-         double drift_pips = isBuy ? (close1 - bid_now) / pip : (bid_now - close1) / pip;
-         double max_drift_pips = 2.0;
-         if(pip > 0.0 && drift_pips > max_drift_pips) {
-            m_te_veto_reason = "VETO_BC_STALE";
-            m_te_rej_bc_recheck++;
-            if(m_settings.DebugFlow)
-               PrintFormat("[TE] VETO_BC_STALE: drift=%.1f pips > %.1f (close1=%.5f bid=%.5f)",
-                           drift_pips, max_drift_pips, close1, bid_now);
-            return 0;
-         }
-      }
-
       // ── F: Filters (spread × session × news) ──
       int F = EvaluateF(news_blocked_override);
-      if(F == 0) {
+      if(F == 0)
+      {
          te_reject_reason = m_te_veto_reason;
          // Spread retry cap: track consecutive spread-blocked bars
          if(m_te_veto_reason == "VETO_SPREAD")
@@ -1812,6 +1812,36 @@ public:
       else
       {
          m_spread_block_bars = 0;  // reset counter when filters pass
+      }
+
+      if(te_reject_reason == "" && m_settings.TE_RecheckBarClose)
+      {
+         if(!Check_TE_BarClose_Smart(direction))
+         {
+            m_te_veto_reason = "VETO_BC_STALE";
+            m_te_rej_bc_recheck++;
+            te_reject_reason = m_te_veto_reason;
+         }
+      }
+
+      if(te_reject_reason == "" && m_settings.TE_OpenDelaySeconds > 0)
+      {
+         if(!Check_TE_OpenDelay())
+         {
+            m_te_veto_reason = "VETO_OPEN_DELAY";
+            m_te_rej_open_delay++;
+            te_reject_reason = m_te_veto_reason;
+         }
+      }
+
+      if(te_reject_reason == "" && m_settings.TE_SpreadMedianTicks > 0)
+      {
+         if(!Check_TE_SpreadMedian())
+         {
+            m_te_veto_reason = "VETO_SPREAD_MEDIAN";
+            m_te_rej_spread_median++;
+            te_reject_reason = m_te_veto_reason;
+         }
       }
 
       double te_lots = 0;

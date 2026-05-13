@@ -670,10 +670,16 @@ struct ST_Settings
    double BarClose_PipTolerance;    // Bar-close tolerance in pips (0=strict close>EMA; N=within N pips)
    int    PSAR_FlipGraceBars;       // PSAR grace bars after an adverse flip (0=disabled)
 
-   // ── PHASE B: TE-side hardening (read by SEA_TradeExecutor::EvaluateTE) ──
-   bool   TE_RecheckBarClose;       // Re-confirm bar-close BC vs live bid at shift=0
-   int    TE_OpenDelaySeconds;      // Defer EvaluateTE() by N sec after new bar
-   int    TE_SpreadMedianTicks;     // Median spread over last N ticks (0=disabled)
+   // ── TE-side execution veto controls (OptionB) ──
+   bool   TE_RecheckBarClose;       // Optional TE veto: re-check shift=1 close vs live bid
+   int    TE_OpenDelaySeconds;      // Optional TE veto: minimum seconds since bar open
+   int    TE_SpreadMedianTicks;     // Optional TE veto: median spread window (ticks, 0=off)
+   double TE_BC_TolerancePips;      // Optional TE veto tolerance (0.0=legacy strict fallback)
+
+   // ── Multi-bar momentum detection (OptionA/TS) ──
+   int    BarClose_LookbackBars;         // TS: look back N bars for BC confirmation (1-4)
+   bool   Require_Progressive_Momentum;  // TS: require consecutive close improvement in lookback
+   bool   DPI_Histogram_Growth_Boost;    // TS: allow DPI histogram growth to rescue momentum veto
 };
 
 // Global Configuration Instance
@@ -806,6 +812,18 @@ input group "╚═════════════════════�
 input bool        Inp_Filter_UseHTF                = false;      // HTF: Enable HTF trend filter
 input ENUM_TIMEFRAMES Inp_Filter_HtfPeriod         = PERIOD_H4;  // HTF: timeframe
 input int         Inp_Filter_HtfEmaPeriod          = 89;         // HTF: EMA period
+
+// OptionC model: TE should execute at bar open using F filters; these are optional advanced vetoes (default OFF).
+input group "─── TE Execution Vetoes (Advanced) ───"
+input bool        Inp_TE_RecheckBarClose           = false;      // TE: Re-check price vs Close[1]
+input int         Inp_TE_OpenDelaySeconds          = 0;          // TE: Delay after bar open (0=immediate)
+input int         Inp_TE_SpreadMedianTicks         = 0;          // TE: Spread spike filter (0=off)
+input double      Inp_TE_BC_TolerancePips          = 0.0;        // TE: Price drift tolerance (0=strict fallback)
+
+input group "─── Multi-Bar Momentum Detection ───"
+input int         Inp_BarClose_LookbackBars        = 3;          // TS: BC lookback window (1-4)
+input bool        Inp_Require_Progressive_Momentum = true;       // TS: Require consecutive improvement
+input bool        Inp_DPI_Histogram_Growth_Boost   = true;       // TS: Use DPI growth as momentum fallback
 
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1894,10 +1912,16 @@ void InitializeConfig()
    // DPI momentum deceleration filter: disabled by default (presets override)
    Settings.DpiDecelFilterEnabled = Inp_RRM_DpiDecelFilterEnabled;
 
-   // ── PHASE B: TE-side gate defaults (off; PRESET_RRM_ORG turns them on) ──
-   Settings.TE_RecheckBarClose    = false;
-   Settings.TE_OpenDelaySeconds   = 0;
-   Settings.TE_SpreadMedianTicks  = 0;
+   // ── TE-side execution veto controls (OptionB defaults OFF) ──
+   Settings.TE_RecheckBarClose    = Inp_TE_RecheckBarClose;
+   Settings.TE_OpenDelaySeconds   = MathMax(0, Inp_TE_OpenDelaySeconds);
+   Settings.TE_SpreadMedianTicks  = MathMax(0, MathMin(32, Inp_TE_SpreadMedianTicks));
+   Settings.TE_BC_TolerancePips   = MathMax(0.0, Inp_TE_BC_TolerancePips);
+
+   // ── Multi-bar momentum detection ──
+   Settings.BarClose_LookbackBars         = MathMax(1, MathMin(4, Inp_BarClose_LookbackBars));
+   Settings.Require_Progressive_Momentum  = Inp_Require_Progressive_Momentum;
+   Settings.DPI_Histogram_Growth_Boost    = Inp_DPI_Histogram_Growth_Boost;
 
    // ── PHASE B: Recovery-sensitivity tuning defaults (all off; PRESET_RRM_ORG may override) ──
    Settings.DPI_IgnoreCCIForVote  = false;
