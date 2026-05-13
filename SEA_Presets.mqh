@@ -1535,12 +1535,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BarClose_PipTolerance     = Inp_RRM_ORG_BarClose_PipTolerance;
       cfg.PSAR_FlipGraceBars        = Inp_RRM_ORG_PSAR_FlipGraceBars;
 
-      // ── PHASE B: TE-side hardening (input-driven) ─────────────────────
-      cfg.TE_RecheckBarClose        = Inp_RRM_ORG_TE_RecheckBarClose;
-      cfg.TE_OpenDelaySeconds       = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_TE_OpenDelaySecsM5
-                                    : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_TE_OpenDelaySecsM30
-                                    :                           Inp_RRM_ORG_TE_OpenDelaySecsHi;
-      cfg.TE_SpreadMedianTicks      = Inp_RRM_ORG_TE_SpreadMedianTicks;
+      // ── OptionC default: keep TE vetoes OFF unless operator explicitly enables them ──
+      cfg.TE_RecheckBarClose        = false;
+      cfg.TE_OpenDelaySeconds       = 0;
+      cfg.TE_SpreadMedianTicks      = 0;
+      cfg.TE_BC_TolerancePips       = 0.0;
 
       return;
    }

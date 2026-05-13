@@ -2386,6 +2386,59 @@ private:
       return Check_BarClose(v_shift, bias, layer_id);
    }
 
+   bool Check_BarClose_MultiBar(int v_shift, int bias, int active_layer, int lookback)
+   {
+      int bars = MathMax(1, MathMin(4, lookback));
+      for(int i = 0; i < bars; i++)
+      {
+         int bc = Eval_BarClose(v_shift + i, bias, active_layer);
+         if(bc == 1) return true;
+      }
+      return false;
+   }
+
+   bool Check_Progressive_Momentum(int v_shift, int bias, int lookback)
+   {
+      int bars = MathMax(1, MathMin(4, lookback));
+      if(bars <= 1 || bias == 0) return true;
+
+      int improvements = 0;
+      for(int i = 1; i < bars; i++)
+      {
+         double close_prev = iClose(m_symbol, PERIOD_CURRENT, v_shift + i);
+         double close_curr = iClose(m_symbol, PERIOD_CURRENT, v_shift + i - 1);
+         bool improved = (bias == 1) ? (close_curr > close_prev) : (close_curr < close_prev);
+         if(improved) improvements++;
+      }
+
+      int required = MathMax(1, (bars - 1) * 2 / 3);
+      return (improvements >= required);
+   }
+
+   bool Check_DPI_Histogram_Growing(int v_shift, int bias, int lookback)
+   {
+      if(!m_settings.DPI_HistTrackingEnabled || bias == 0) return false;
+
+      int bars = MathMax(1, MathMin(4, lookback));
+      if(bars <= 1) return false;
+
+      double hist_values[4];
+      for(int i = 0; i < bars; i++)
+         hist_values[i] = ComputeDPI_CCI(v_shift + i);
+
+      bool all_same_sign = true;
+      bool growing = true;
+      for(int i = 0; i < bars; i++)
+      {
+         if((bias == 1 && hist_values[i] <= 0.0) || (bias == -1 && hist_values[i] >= 0.0))
+            all_same_sign = false;
+         if(i > 0 && MathAbs(hist_values[i - 1]) <= MathAbs(hist_values[i]))
+            growing = false;
+      }
+
+      return (all_same_sign && growing);
+   }
+
 public:
    // Public Accessors for the UI/Cockpit
    string            GetTSStatusString() const { return m_ts_status_str; }
@@ -5037,10 +5090,21 @@ public:
       // Step 2: BD (Bar Direction) — same bar, applies equally to all layers
       bool bd_pass = CheckCandleDirectionGate(bias);
 
+      int lookback = MathMax(1, MathMin(4, m_settings.BarClose_LookbackBars));
+      bool momentum_confirmed = true;
+      if(lookback > 1 && m_settings.Require_Progressive_Momentum)
+      {
+         momentum_confirmed = Check_Progressive_Momentum(v_shift, bias, lookback);
+         if(!momentum_confirmed && m_settings.DPI_Histogram_Growth_Boost)
+            momentum_confirmed = Check_DPI_Histogram_Growing(v_shift, bias, lookback);
+      }
+
       // Step 3: Priority walk L3 → L2 → L1; each layer also needs BC and BD
       if(m_eval_layer_s == 1) {
          int bc_s = Eval_BarClose(v_shift, bias, LAYER_3_STRONG);
-         if(bc_s == 1 && bd_pass) {
+         if(bc_s == 0 && lookback > 1)
+            bc_s = Check_BarClose_MultiBar(v_shift, bias, LAYER_3_STRONG, lookback) ? 1 : 0;
+         if(bc_s == 1 && bd_pass && momentum_confirmed) {
             m_last_layer = 3;
             if(m_settings.DebugFlow) DebugLog("EvaluateL: L3 (Strong/EMA3-EMA4) PASS → L=1");
             return 1;
@@ -5049,7 +5113,9 @@ public:
 
       if(m_eval_layer_m == 1) {
          int bc_m = Eval_BarClose(v_shift, bias, LAYER_2_MEDIUM);
-         if(bc_m == 1 && bd_pass) {
+         if(bc_m == 0 && lookback > 1)
+            bc_m = Check_BarClose_MultiBar(v_shift, bias, LAYER_2_MEDIUM, lookback) ? 1 : 0;
+         if(bc_m == 1 && bd_pass && momentum_confirmed) {
             m_last_layer = 2;
             if(m_settings.DebugFlow) DebugLog("EvaluateL: L2 (Medium/EMA2-EMA3) PASS → L=1");
             return 1;
@@ -5058,7 +5124,9 @@ public:
 
       if(m_eval_layer_w == 1) {
          int bc_w = Eval_BarClose(v_shift, bias, LAYER_1_WEAK);
-         if(bc_w == 1 && bd_pass) {
+         if(bc_w == 0 && lookback > 1)
+            bc_w = Check_BarClose_MultiBar(v_shift, bias, LAYER_1_WEAK, lookback) ? 1 : 0;
+         if(bc_w == 1 && bd_pass && momentum_confirmed) {
             m_last_layer = 1;
             if(m_settings.DebugFlow) DebugLog("EvaluateL: L1 (Weak/EMA1-EMA2) PASS → L=1");
             return 1;
@@ -5071,6 +5139,8 @@ public:
          m_diag_last_reason = "LAYER_NONE_ALIGNED";
       else if(!bd_pass)
          m_diag_last_reason = "CandleDir: bar not in trade direction";
+      else if(!momentum_confirmed)
+         m_diag_last_reason = "MOMENTUM_NOT_CONFIRMED";
       else
          m_diag_last_reason = "BC_NOT_CONFIRMED";
 
