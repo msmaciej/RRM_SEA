@@ -1831,7 +1831,7 @@ public:
       // PHASE 2 GATE 2: Bar-close BC re-check (TE_RecheckBarClose)
       // The TS=1 setup was confirmed at shift=1 close. By the time TE
       // fires at shift=0, price may have drifted. Re-check that the
-      // drift is within the configured tolerance.
+      // drift is within Inp_VETO_TE_BC_TolerancePips.
       // ══════════════════════════════════════════════════════════════
       if(te_reject_reason == "" && m_settings.TE_RecheckBarClose) {
          double close1   = iClose(m_symbol, PERIOD_CURRENT, 1);
