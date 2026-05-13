@@ -967,6 +967,7 @@ public:
    {
       // OptionA/OptionC: TE is evaluated once per bar-open decision path.
       // Keep all vetoes permanent for the current signal (no per-tick retries).
+      // Keep parameter for compatibility with existing caller-side veto classification flow.
       (void)veto_reason;
       return false;
    }
@@ -1687,7 +1688,12 @@ public:
       datetime bar_open_time = iTime(m_symbol, PERIOD_CURRENT, 0);
       datetime current_time  = TimeCurrent();
       int elapsed_seconds    = (int)(current_time - bar_open_time);
-      if(elapsed_seconds < 0) return false;
+      if(elapsed_seconds < 0)
+      {
+         if(m_settings.DebugFlow)
+            PrintFormat("[TE_VETO] OPEN_DELAY: negative elapsed time (%d) — clock/bar-time mismatch", elapsed_seconds);
+         return false;
+      }
       if(elapsed_seconds < m_settings.TE_OpenDelaySeconds)
       {
          if(m_settings.DebugFlow)
@@ -1709,7 +1715,8 @@ public:
       if(drift_pips <= 0.0) return true;
 
       double tolerance = m_settings.TE_BC_TolerancePips;
-      if(tolerance <= 0.0) tolerance = 2.0;
+      const double default_tolerance_pips = 2.0; // Legacy strict fallback when input tolerance is zero.
+      if(tolerance <= 0.0) tolerance = default_tolerance_pips;
       if(drift_pips > tolerance)
       {
          if(m_settings.DebugFlow)

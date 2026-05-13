@@ -2411,6 +2411,7 @@ private:
          if(improved) improvements++;
       }
 
+      // Require a 2/3 directional-improvement majority across lookback transitions.
       int required = MathMax(1, (bars - 1) * 2 / 3);
       return (improvements >= required);
    }
@@ -2424,7 +2425,7 @@ private:
 
       double hist_values[4];
       for(int i = 0; i < bars; i++)
-         // Store oldest→newest so growth check can compare consecutive bars naturally.
+         // Convert shift-based newest-first access into oldest→newest array order.
          hist_values[i] = ComputeDPI_CCI(v_shift + (bars - 1 - i));
 
       bool all_same_sign = true;
