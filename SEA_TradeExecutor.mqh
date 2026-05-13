@@ -1841,7 +1841,7 @@ public:
          //   for LONG:  drift > 0  ⇒  bid is BELOW close1 (bad)
          //   for SHORT: drift > 0  ⇒  bid is ABOVE close1 (bad)
          double drift_pips = isBuy ? (close1 - bid_now) / pip : (bid_now - close1) / pip;
-         double max_drift_pips = MathMax(0.0, m_settings.TE_BC_TolerancePips);
+         double max_drift_pips = m_settings.TE_BC_TolerancePips;
          if(pip > 0.0 && drift_pips > max_drift_pips) {
             m_te_veto_reason = "VETO_BC_STALE";
             m_te_rej_bc_recheck++;

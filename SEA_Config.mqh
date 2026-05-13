@@ -1899,7 +1899,7 @@ void InitializeConfig()
 
    // ── PHASE B: TE-side gates (user-configurable veto controls) ──
    Settings.TE_RecheckBarClose    = Inp_VETO_TE_RecheckBarClose;
-   Settings.TE_BC_TolerancePips   = Inp_VETO_TE_BC_TolerancePips;
+   Settings.TE_BC_TolerancePips   = MathMax(0.0, Inp_VETO_TE_BC_TolerancePips);
    Settings.TE_OpenDelaySeconds   = Inp_VETO_TE_OpenDelaySeconds;
    Settings.TE_SpreadMedianTicks  = Inp_VETO_TE_SpreadMedianTicks;
 

@@ -83,7 +83,18 @@ TE=1 → trade executed
 ## Backward Compatibility Note
 
 Input names were standardized from `Inp_Filter_*` (spread/time/news) to `Inp_VETO_*` and TE gate controls were exposed under `Inp_VETO_TE_*`.
-If you load older `.set` files, remap old filter input keys to the new veto-prefixed names.
+If you load older `.set` files, remap old keys as follows:
+
+- `Inp_Filter_UseSpread` → `Inp_VETO_UseSpread`
+- `Inp_Filter_MaxSpreadPips` → `Inp_VETO_MaxSpread`
+- `Inp_Filter_MaxSpreadRetryBars` → `Inp_VETO_MaxSpreadRetryBars`
+- `Inp_Filter_UseTime` → `Inp_VETO_UseTime`
+- `Inp_Filter_StartHour` → `Inp_VETO_StartHr`
+- `Inp_Filter_EndHour` → `Inp_VETO_EndHr`
+- `Inp_Filter_UseNews` → `Inp_VETO_UseNews`
+- `Inp_Filter_NewsFile` → `Inp_VETO_NewsFile`
+- `Inp_Filter_NewsPre` → `Inp_VETO_NewsPreMinutes`
+- `Inp_Filter_NewsPost` → `Inp_VETO_NewsPostMinutes`
 
 ---
 
