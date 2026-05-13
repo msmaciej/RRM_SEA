@@ -1366,6 +1366,20 @@ public:
       return tp_pips;
    }
 
+   //+------------------------------------------------------------------+
+   //| EvaluateCM - Calculate & Manage (Position Sizing + SL Geometry)  |
+   //| Returns: lots > 0 = pass, 0 = veto                               |
+   //|                                                                  |
+   //| RC VETO EVALUATION (see EvaluateRC):                             |
+   //|   • RC_VETO_SL_ZERO (HARDCODED - SL calculation failed)          |
+   //|   • RC_VETO_SL_TOO_WIDE (threshold: Inp_Risk_MaxSlPips)          |
+   //|   • RC_VETO_MARGIN (HARDCODED - insufficient margin)             |
+   //|   • RC_VETO_RISK_PCT (threshold: Inp_Risk_RiskPercent)           |
+   //|   • RC_VETO_DRAWDOWN_PROTECTION (thresholds: Max losses/trades)  |
+   //|   • RC_VETO_SAME_BAR (HARDCODED - duplicate-entry protection)    |
+   //|                                                                  |
+   //| NOTE: RC safeguards cannot be disabled; users adjust thresholds. |
+   //+------------------------------------------------------------------+
    double EvaluateCM(int direction) {
       if(direction == 0) return 0.0;
       bool isBuy = (direction == 1);
@@ -1400,6 +1414,14 @@ public:
       return adjusted_lots;
    }
 
+   //+------------------------------------------------------------------+
+   //| EvaluateRC - Risk Control Veto Gates                             |
+   //| Returns: true = pass, false = veto                               |
+   //|                                                                  |
+   //| RC vetoes here combine hardcoded safeguards with user thresholds |
+   //| from Inp_Risk_* and Inp_RRM_* controls.                          |
+   //| Hardcoded safeguards remain always active for capital protection.|
+   //+------------------------------------------------------------------+
    bool EvaluateRC(int direction, double lots) {
       m_rc_veto_reason = "";
       bool isBuy = (direction > 0);
@@ -1713,14 +1735,31 @@ public:
       return 1;  // All execution-moment filters pass
    }
 
+   //+------------------------------------------------------------------+
+   //| EvaluateTE - Trade Entry Evaluation                              |
+   //| Returns: 1 = execute, 0 = veto                                   |
+   //|                                                                  |
+   //| VETO EVALUATION ORDER:                                           |
+   //|   1. F Filters (user-configurable via Inp_VETO_*)                |
+   //|      • VETO_SPREAD (Inp_VETO_MaxSpread / Inp_VETO_UseSpread)     |
+   //|      • VETO_TIME (Inp_VETO_UseTime, Inp_VETO_StartHr/EndHr)      |
+   //|      • VETO_NEWS (Inp_VETO_UseNews, NewsPre/Post minutes)        |
+   //|                                                                  |
+   //|   2. TE Quality Gates (user-configurable via Inp_VETO_TE_*)      |
+   //|      • VETO_BC_STALE (Inp_VETO_TE_RecheckBarClose)               |
+   //|      • VETO_OPEN_DELAY (Inp_VETO_TE_OpenDelaySeconds)            |
+   //|      • VETO_SPREAD_MEDIAN (Inp_VETO_TE_SpreadMedianTicks)        |
+   //|                                                                  |
+   //|   3. RC Safeguards / threshold gates (EvaluateCM + EvaluateRC)   |
+   //|      • Hardcoded safeguards stay always active                    |
+   //|      • Risk thresholds remain user-tunable via Inp_Risk_*        |
+   //|                                                                  |
+   //| DESIGN PRINCIPLE:                                                |
+   //|   • TS=1 at shift=1 is trusted at shift=0                        |
+   //|   • TE checks execution-moment veto conditions                   |
+   //|   • Optional TE quality gates are OFF by default                 |
+   //+------------------------------------------------------------------+
    int EvaluateTE(int direction, bool news_blocked_override = false) {
-      // ══════════════════════════════════════════════════════════════
-      // TE = F
-      //
-      // F = Filters (spread × session × news)
-      // TE does NOT re-evaluate signal logic (B/P/L/I).
-      // It only checks if RIGHT NOW is a valid moment to execute.
-      // ══════════════════════════════════════════════════════════════
 
       if(direction == 0) return 0;
       m_cached_sl   = 0.0;
@@ -1735,52 +1774,6 @@ public:
       double live_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
       PrintFormat("📋 [TE] %s | ref_price(barClose)=%.5f | live_price=%.5f | spread_offset=%.5f",
                   m_symbol, ref_price, live_price, MathAbs(live_price - ref_price));
-
-      // ══════════════════════════════════════════════════════════════
-      // PHASE B GATE 1: Open-tick delay (TE_OpenDelaySeconds)
-      // Defer TE by N seconds after a new bar opens. Bid/ask spreads
-      // spike hardest at the bar boundary (esp. M1/M5 around session
-      // opens). Skipping TE in the first N seconds lets the spike
-      // resolve. No-op when TE_OpenDelaySeconds <= 0.
-      // ══════════════════════════════════════════════════════════════
-      if(m_settings.TE_OpenDelaySeconds > 0) {
-         datetime bar0_open = (datetime)SeriesInfoInteger(m_symbol, PERIOD_CURRENT, SERIES_LASTBAR_DATE);
-         long age_sec       = (long)(TimeCurrent() - bar0_open);
-         if(age_sec >= 0 && age_sec < m_settings.TE_OpenDelaySeconds) {
-            m_te_veto_reason = "VETO_OPEN_DELAY";
-            m_te_rej_open_delay++;
-            if(m_settings.DebugFlow)
-               PrintFormat("[TE] VETO_OPEN_DELAY: bar age=%d sec < %d sec required",
-                           (int)age_sec, m_settings.TE_OpenDelaySeconds);
-            return 0;
-         }
-      }
-
-      // ══════════════════════════════════════════════════════════════
-      // PHASE B GATE 2: Bar-close BC re-check (TE_RecheckBarClose)
-      // The TS=1 setup was confirmed at shift=1 close. By the time TE
-      // fires at shift=0, price may have gapped through the layer EMA
-      // in the wrong direction. Re-check that the last bar's close is
-      // still on the correct side of bid within a 2-pip noise tolerance.
-      // ══════════════════════════════════════════════════════════════
-      if(m_settings.TE_RecheckBarClose) {
-         double close1   = iClose(m_symbol, PERIOD_CURRENT, 1);
-         double bid_now  = SymbolInfoDouble(m_symbol, SYMBOL_BID);
-         double pip      = GlobalPipSize(m_symbol);
-         // Drift in pips against bias direction:
-         //   for LONG:  drift > 0  ⇒  bid is BELOW close1 (bad)
-         //   for SHORT: drift > 0  ⇒  bid is ABOVE close1 (bad)
-         double drift_pips = isBuy ? (close1 - bid_now) / pip : (bid_now - close1) / pip;
-         double max_drift_pips = 2.0;
-         if(pip > 0.0 && drift_pips > max_drift_pips) {
-            m_te_veto_reason = "VETO_BC_STALE";
-            m_te_rej_bc_recheck++;
-            if(m_settings.DebugFlow)
-               PrintFormat("[TE] VETO_BC_STALE: drift=%.1f pips > %.1f (close1=%.5f bid=%.5f)",
-                           drift_pips, max_drift_pips, close1, bid_now);
-            return 0;
-         }
-      }
 
       // ── F: Filters (spread × session × news) ──
       int F = EvaluateF(news_blocked_override);
@@ -1812,6 +1805,51 @@ public:
       else
       {
          m_spread_block_bars = 0;  // reset counter when filters pass
+      }
+
+      // ══════════════════════════════════════════════════════════════
+      // PHASE 2 GATE 1: Open-tick delay (TE_OpenDelaySeconds)
+      // Defer TE by N seconds after a new bar opens. Bid/ask spreads
+      // spike hardest at the bar boundary (esp. M1/M5 around session
+      // opens). Skipping TE in the first N seconds lets the spike
+      // resolve. No-op when TE_OpenDelaySeconds <= 0.
+      // ══════════════════════════════════════════════════════════════
+      if(te_reject_reason == "" && m_settings.TE_OpenDelaySeconds > 0) {
+         datetime bar0_open = (datetime)SeriesInfoInteger(m_symbol, PERIOD_CURRENT, SERIES_LASTBAR_DATE);
+         long age_sec       = (long)(TimeCurrent() - bar0_open);
+         if(age_sec >= 0 && age_sec < m_settings.TE_OpenDelaySeconds) {
+            m_te_veto_reason = "VETO_OPEN_DELAY";
+            m_te_rej_open_delay++;
+            if(m_settings.DebugFlow)
+               PrintFormat("[TE] VETO_OPEN_DELAY: bar age=%d sec < %d sec required",
+                           (int)age_sec, m_settings.TE_OpenDelaySeconds);
+            te_reject_reason = m_te_veto_reason;
+         }
+      }
+
+      // ══════════════════════════════════════════════════════════════
+      // PHASE 2 GATE 2: Bar-close BC re-check (TE_RecheckBarClose)
+      // The TS=1 setup was confirmed at shift=1 close. By the time TE
+      // fires at shift=0, price may have drifted. Re-check that the
+      // drift is within the configured tolerance.
+      // ══════════════════════════════════════════════════════════════
+      if(te_reject_reason == "" && m_settings.TE_RecheckBarClose) {
+         double close1   = iClose(m_symbol, PERIOD_CURRENT, 1);
+         double bid_now  = SymbolInfoDouble(m_symbol, SYMBOL_BID);
+         double pip      = GlobalPipSize(m_symbol);
+         // Drift in pips against bias direction:
+         //   for LONG:  drift > 0  ⇒  bid is BELOW close1 (bad)
+         //   for SHORT: drift > 0  ⇒  bid is ABOVE close1 (bad)
+         double drift_pips = isBuy ? (close1 - bid_now) / pip : (bid_now - close1) / pip;
+         double max_drift_pips = MathMax(0.0, m_settings.TE_BC_TolerancePips);
+         if(pip > 0.0 && drift_pips > max_drift_pips) {
+            m_te_veto_reason = "VETO_BC_STALE";
+            m_te_rej_bc_recheck++;
+            if(m_settings.DebugFlow)
+               PrintFormat("[TE] VETO_BC_STALE: drift=%.1f pips > %.1f (close1=%.5f bid=%.5f)",
+                           drift_pips, max_drift_pips, close1, bid_now);
+            te_reject_reason = m_te_veto_reason;
+         }
       }
 
       double te_lots = 0;

@@ -160,6 +160,27 @@ Bar N+1 opens (shift=0):
 
 ---
 
+## Trade Rejection (Vetoes)
+
+SimpleEA uses a layered veto system to protect capital while preserving user control.
+
+### Veto Layers
+1. **F Filters** — Execution-moment conditions (spread/time/news)
+2. **TE Quality Gates** — Optional signal refinement (disabled by default)
+3. **RC Safeguards** — Hardcoded protection (cannot be disabled)
+4. **RC Thresholds** — User-configurable risk limits
+
+See **[VETO_REFERENCE.md](docs/VETO_REFERENCE.md)** for the full veto catalog and flow.
+
+### Input Naming Convention
+All user-configurable vetoes use the `Inp_VETO_` prefix:
+- `Inp_VETO_MaxSpread` — spread veto threshold
+- `Inp_VETO_TE_RecheckBarClose` — optional TE bar-close recheck veto
+
+Risk controls keep existing risk prefixes (for example `Inp_RM_*`, `Inp_RRM_*`) and remain active through RC safeguards.
+
+---
+
 ## 📐 Bias Modes & Strategy Mapping
 
 SimpleEA supports 4 bias modes, each with specific strategy requirements:

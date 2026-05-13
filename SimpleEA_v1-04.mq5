@@ -603,8 +603,8 @@ int OrchestrateInit()
    }
 
    FlowLog("Step G: Load News calendar (optional)");
-   if(Settings.UseNews)
-      Signal.LoadNews(Inp_Filter_NewsFile);
+    if(Settings.UseNews)
+       Signal.LoadNews(Inp_VETO_NewsFile);
 
    SEA_UI_Init(Inp_Global_MagicNum);
    SEA_UI_UpdateSettingsPanel();
