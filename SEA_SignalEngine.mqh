@@ -2424,7 +2424,7 @@ private:
 
       double hist_values[4];
       for(int i = 0; i < bars; i++)
-         hist_values[i] = ComputeDPI_CCI(v_shift + i);
+         hist_values[i] = ComputeDPI_CCI(v_shift + (bars - 1 - i));
 
       bool all_same_sign = true;
       bool growing = true;
@@ -2432,8 +2432,13 @@ private:
       {
          if((bias == 1 && hist_values[i] <= 0.0) || (bias == -1 && hist_values[i] >= 0.0))
             all_same_sign = false;
-         if(i > 0 && MathAbs(hist_values[i - 1]) <= MathAbs(hist_values[i]))
-            growing = false;
+         if(i > 0)
+         {
+            double older_abs = MathAbs(hist_values[i - 1]);
+            double newer_abs = MathAbs(hist_values[i]);
+            if(newer_abs <= older_abs)
+               growing = false;
+         }
       }
 
       return (all_same_sign && growing);
