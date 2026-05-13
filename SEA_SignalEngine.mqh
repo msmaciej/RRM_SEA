@@ -2424,6 +2424,7 @@ private:
 
       double hist_values[4];
       for(int i = 0; i < bars; i++)
+         // Store oldest→newest so growth check can compare consecutive bars naturally.
          hist_values[i] = ComputeDPI_CCI(v_shift + (bars - 1 - i));
 
       bool all_same_sign = true;
