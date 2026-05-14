@@ -746,7 +746,7 @@ input group "    🎯 PRESET";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input EStrategyPreset Inp_Global_Preset            = PRESET_RRM_ORG;    // Strategy preset
 
-
+input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🎯 TRADE MANAGEMENT";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -782,7 +782,7 @@ input double      Inp_RM_MarginAdj_Crypto          = 0.7;         // Margin Adj:
 input double      Inp_RM_MarginAdj_Exotic          = 0.85;        // Margin Adj: Exotic pairs (0.85 = use 85% of base margin level)
 input double      Inp_RM_MarginAdj_JPY             = 0.9;         // Margin Adj: JPY pairs (0.9 = use 90% of base margin level)
 
-
+input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🚫✅ VETO CONTROLS (GLOBAL)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -819,7 +819,7 @@ input bool        Inp_Filter_UseHTF                = false;      // HTF: Enable 
 input ENUM_TIMEFRAMES Inp_Filter_HtfPeriod         = PERIOD_H4;  // HTF: timeframe
 input int         Inp_Filter_HtfEmaPeriod          = 89;         // HTF: EMA period
 
-
+input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ✅✅ UI (GLOBAL)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -863,7 +863,7 @@ input color       Inp_UI_FontColor                 = clrYellow;      // UI: font
 input int         Inp_UI_PanelBgAlpha              = 110;            // UI: Panel background alpha (0..255)
 input int         Inp_UI_FramePadPx                = 6;              // UI: Panel padding (px)
 
-
+input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ✅✅ DEBUG (GLOBAL)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -894,7 +894,7 @@ input group "╚═════════════════════�
 input bool        Inp_Debug_ExportCSV              = false;          // Report: Export CSV reporting
 input bool        Inp_Debug_ExportUseCommonFiles   = false;          // Report: Use terminal Common Files folder
 
-
+input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET: MA";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -906,7 +906,7 @@ input int         Inp_MA_Shift                     = 6;              // MA shift
 input double      Inp_MA_MaximumRiskPct            = 0.02;           // MA Max risk (%)
 input double      Inp_MA_DecreaseFactor            = 3.0;            // MA Lot decrease factor
 
-
+input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET: FPM";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -942,15 +942,31 @@ input group "║   📊 FPM: SMA Convergence";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_FPM_Ind_SmaConverge_Enabled  = false;          // FPM [SmaConv] Enable SMA convergence vote (FPM Condition 4) (was Inp_Ind_SmaConverge_Enabled)
 
-
+input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET: RRM";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: (RR) Risk Reward";
+input group "║   📐 RRM: (TP) Take Profit - Risk Reward Ratio";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETPMode     Inp_RRM_TPMode                   = TP_MODE_RR;     // RRM TP mode
 input double      Inp_RRM_RRRatio                  = 1.0;            // RRM R:R ratio (used with TP_MODE_RR)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM: (SL) Stop Loss";
+input group "╚════════════════════════════════════════════════════════╝";
+input ESLMode    Inp_RRM_SLMode                    = SL_MODE_SWING;  // RRM SL placement mode
+input int        Inp_RRM_SwingLookback             = 20;             // RRM Swing lookback bars (used with SL_MODE_SWING)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM: (TS) Trailing Stop";
+input group "╚════════════════════════════════════════════════════════╝";
+input ETrailingMode Inp_RRM_TrailMode              = TRAIL_PSAR;     // RRM Trailing stop mode
+input EPsarTrailCushionMode Inp_RRM_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR trail cushion mode
+input bool        Inp_RRM_TrailStartsAfterBE       = false;          // Start trailing only after BE is reached
+input bool        Inp_RRM_FreezeTrailOnFlip        = true;           // Freeze trail on PSAR flip
+input int         Inp_RRM_PSAR_TrailDelay          = 1;              // PSAR trailing delay
+input int         Inp_RRM_TrailPsarShiftDelay      = 1;              // PSAR shift delay
+// input string   Inp_PSAR_TrailCushion_Note       = "PSAR trail cushion auto-set by timeframe (M15=3, H1=7, H4=10 pips)"
+// input string   Inp_RRM_Trail_Info               = "RRM trailing: PSAR-based with bar shift delay for flip stability";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛑 RRM: (BE) Breakeven (% Progress)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -958,6 +974,7 @@ input double      Inp_RRM_BE_ProgressPct           = 10.0;           // BE at % 
 input double      Inp_RRM_BE_RMultiple             = 1.0;            // BE at R-multiple
 // input string   Inp_RRM_BE_Buffer_Note           = "BE buffer auto-set by timeframe (M15=5, H1=10, H4=20 pips)";
 // input string   Inp_RRM_BE_Example               = "Example: SL=10, TP=30 (3:1), BE@33% → triggers at +10 pips; SL locks at entry + TF-cushion";
+input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Layer Filter (sub-markets)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -982,22 +999,6 @@ input bool        Inp_RRM_EnableDrawdownProtection = false;          // RRM: Ena
 input int         Inp_RRM_MaxConsecutiveLosses     = 5;              // RRM: Max consecutive losses before pause
 input int         Inp_RRM_MaxTradesPerDay          = 15;             // RRM: Max trades per day
 input double      Inp_RRM_MaxDailyDrawdownPct      = 3.0;            // RRM: Max daily drawdown %
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: (SL) Stop Loss";
-input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode    Inp_RRM_SLMode                    = SL_MODE_SWING;  // RRM SL placement mode
-input int        Inp_RRM_SwingLookback             = 20;             // RRM Swing lookback bars (used with SL_MODE_SWING)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: (TS) Trailing Stop";
-input group "╚════════════════════════════════════════════════════════╝";
-input ETrailingMode Inp_RRM_TrailMode              = TRAIL_PSAR;     // RRM Trailing stop mode
-input EPsarTrailCushionMode Inp_RRM_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR trail cushion mode
-input bool        Inp_RRM_TrailStartsAfterBE       = false;          // Start trailing only after BE is reached
-input bool        Inp_RRM_FreezeTrailOnFlip        = true;           // Freeze trail on PSAR flip
-input int         Inp_RRM_PSAR_TrailDelay          = 1;              // PSAR trailing delay
-input int         Inp_RRM_TrailPsarShiftDelay      = 1;              // PSAR shift delay
-// input string   Inp_PSAR_TrailCushion_Note       = "PSAR trail cushion auto-set by timeframe (M15=3, H1=7, H4=10 pips)"
-// input string   Inp_RRM_Trail_Info               = "RRM trailing: PSAR-based with bar shift delay for flip stability";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Indicators — Enable/Disable";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1096,10 +1097,34 @@ input bool        Inp_RRM_EmaFanFilterEnabled      = false;          // RRM: Blo
 input bool        Inp_RRM_DpiDecelFilterEnabled    = false;          // RRM: Block entry on DPI histogram deceleration
 input double      Inp_RRM_EmaFanMaxTotalPips       = 0.0;            // RRM: EMA1–EMA4 max total gap pips (0=disabled; M1/M5 start: 25.0)
 
-
+input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET: RRM_ORG";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: (TP) Take Profit - Risk Reward Ratio";
+input group "╚════════════════════════════════════════════════════════╝";
+input ETPMode     Inp_RRM_ORG_TPMode                  = TP_MODE_RR;  // RRM_ORG TP mode
+input double      Inp_RRM_ORG_RRRatio                 = 1.0;         // RRM_ORG R:R ratio (1:2 risk-reward)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: (SL) Stop Loss";
+input group "╚════════════════════════════════════════════════════════╝";
+input ESLMode     Inp_RRM_ORG_SLMode                  = SL_MODE_SWING;  // RRM_ORG SL mode
+input int         Inp_RRM_ORG_SwingLookback           = 34;          // RRM_ORG Swing lookback bars
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: (TS) Trailing Stop";
+input group "╚════════════════════════════════════════════════════════╝";
+input ETrailingMode Inp_RRM_ORG_TrailMode             = TRAIL_PSAR;  // RRM_ORG trailing mode
+input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // RRM_ORG PSAR trail cushion mode
+input bool        Inp_RRM_ORG_TrailStartsAfterBE      = false;       // RRM_ORG trail only after BE
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: (BE) Breakeven";
+input group "╚════════════════════════════════════════════════════════╝";
+input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_R_MULTIPLE;  // RRM_ORG BE mode
+input double      Inp_RRM_ORG_BE_RMultiple            = 1.0;         // RRM_ORG BE at R-multiple (1.0 = 1R profit)
+input double      Inp_RRM_ORG_BE_ProgressPct          = 33.0;        // RRM_ORG BE at % to TP (used with BE_MODE_TP_PROGRESS_PCT)
+input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI v31 Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1118,41 +1143,41 @@ input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst   = 5;           // DPI: Dou
 input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond  = 8;           // DPI: Double-smooth second EMA
 input int         Inp_RRM_ORG_DPI_CCI_Period          = 13;          // DPI: CCI period
 input group " ";
-input group "═══ DPI GREEN Histogram Logic ═══"
+input group "═══ RRM_ORG: DPI GREEN Histogram Logic ═══"
 input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;    // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
 input bool        Inp_RRM_ORG_DPI_HistTrackingEnabled    = false;    // DPI: Enable histogram tracking
 input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // DPI: Deceleration lookback (bars)
 input double      Inp_RRM_ORG_DPI_HistMomentumThreshold  = 0.0001;   // DPI: Histogram momentum threshold (CCI-delta units)
 input group " ";
-input group "═══ DPI GREEN Histogram Entry/Exit ═══"
+input group "═══ RRM_ORG: DPI GREEN Histogram Entry/Exit ═══"
 input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = false;    // DPI: Block entries on momentum deceleration
 input bool        Inp_RRM_ORG_DPI_ExitOnHistDisappear    = false;    // DPI: Close trades when green histogram vanishes
 input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // DPI: Exit when |CCI| below threshold (0=disable)
-
+input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Indicators — Enable/Disable";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_Use_Adx              = false;         // RRM_ORG: ADX vote enabled
-input bool        Inp_RRM_ORG_Use_Bb               = false;         // RRM_ORG: Bollinger Bands vote enabled
-input bool        Inp_RRM_ORG_Use_CandleBody       = true;          // RRM_ORG: Candle body vote enabled
-input bool        Inp_RRM_ORG_Use_Cci              = false;         // RRM_ORG: CCI vote enabled
-input bool        Inp_RRM_ORG_Use_CI               = false;         // RRM_ORG: CI vote ranging market filter
-input bool        Inp_RRM_ORG_Use_Macd             = true;          // RRM_ORG: MACD vote enabled
-input bool        Inp_RRM_ORG_Use_Mfi              = false;         // RRM_ORG: MFI vote enabled
-input bool        Inp_RRM_ORG_Use_Psar             = true;          // RRM_ORG: PSAR vote enabled
-input bool        Inp_RRM_ORG_Use_Rsi              = false;         // RRM_ORG: RSI vote enabled
-input bool        Inp_RRM_ORG_Use_Stoch            = false;         // RRM_ORG: Stochastic vote enabled
+input bool        Inp_RRM_ORG_Use_Adx              = false;          // RRM_ORG: ADX vote enabled
+input bool        Inp_RRM_ORG_Use_Bb               = false;          // RRM_ORG: Bollinger Bands vote enabled
+input bool        Inp_RRM_ORG_Use_CandleBody       = true;           // RRM_ORG: Candle body vote enabled
+input bool        Inp_RRM_ORG_Use_Cci              = false;          // RRM_ORG: CCI vote enabled
+input bool        Inp_RRM_ORG_Use_CI               = false;          // RRM_ORG: CI vote ranging market filter
+input bool        Inp_RRM_ORG_Use_Macd             = false;           // RRM_ORG: MACD vote enabled
+input bool        Inp_RRM_ORG_Use_Mfi              = false;          // RRM_ORG: MFI vote enabled
+input bool        Inp_RRM_ORG_Use_Psar             = true;           // RRM_ORG: PSAR vote enabled
+input bool        Inp_RRM_ORG_Use_Rsi              = false;          // RRM_ORG: RSI vote enabled
+input bool        Inp_RRM_ORG_Use_Stoch            = false;          // RRM_ORG: Stochastic vote enabled
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: ADX Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input EADXMode    Inp_RRM_ORG_Adx_Mode             = ADX_MODE_STATIC;  // RRM_ORG ADX Mode
-input int         Inp_RRM_ORG_AdxPeriod            = 14;            // RRM_ORG ADX Period
-input int         Inp_RRM_ORG_Adx_Lookback         = 100;           // RRM_ORG ADX Lookback bars
-input double      Inp_RRM_ORG_AdxThreshold         = 20.0;          // RRM_ORG ADX Threshold
-input double      Inp_RRM_ORG_Adx_Percentile       = 50.0;          // RRM_ORG ADX Percentile
-input double      Inp_RRM_ORG_Adx_Thr_Accum        = 12.0;          // RRM_ORG ADX Accumulation threshold
-input double      Inp_RRM_ORG_Adx_Thr_Trending     = 25.0;          // RRM_ORG ADX Trending threshold
-input double      Inp_RRM_ORG_Adx_Thr_Distrib      = 18.0;          // RRM_ORG ADX Distribution threshold
+input int         Inp_RRM_ORG_AdxPeriod            = 14;             // RRM_ORG ADX Period
+input int         Inp_RRM_ORG_Adx_Lookback         = 100;            // RRM_ORG ADX Lookback bars
+input double      Inp_RRM_ORG_AdxThreshold         = 20.0;           // RRM_ORG ADX Threshold
+input double      Inp_RRM_ORG_Adx_Percentile       = 50.0;           // RRM_ORG ADX Percentile
+input double      Inp_RRM_ORG_Adx_Thr_Accum        = 12.0;           // RRM_ORG ADX Accumulation threshold
+input double      Inp_RRM_ORG_Adx_Thr_Trending     = 25.0;           // RRM_ORG ADX Trending threshold
+input double      Inp_RRM_ORG_Adx_Thr_Distrib      = 18.0;           // RRM_ORG ADX Distribution threshold
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: BB Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1213,11 +1238,10 @@ input int         Inp_RRM_ORG_Sto_D                = 3;              // RRM_ORG 
 input int         Inp_RRM_ORG_Sto_Slow             = 3;              // RRM_ORG Stochastic Slowing period
 input double      Inp_RRM_ORG_Sto_OB               = 80.0;           // RRM_ORG Stochastic Overbought threshold
 input double      Inp_RRM_ORG_Sto_OS               = 20.0;           // RRM_ORG Stochastic Oversold threshold
-
+input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: Phase A Quality Gates (TS=1 / TE=1)";
+input group "║   📐 RRM_ORG: Phase A Quality Gates (TS=1 (shif=1) / TE=1)";
 input group "╚════════════════════════════════════════════════════════╝";
-// ── TS-side gates (signal evaluation, shift=1) ────────────────────────────
 input bool        Inp_RRM_ORG_ForceDpiOn           = true;           // RRM_ORG: Force DPI voter ON (matches reference methodology)
 input bool        Inp_RRM_ORG_RequireRecoveryIntraday = true;        // RRM_ORG: Require recovery momentum on M15-and-down
 input bool        Inp_RRM_ORG_DpiDecelFilter       = true;           // RRM_ORG: Block entry on DPI histogram deceleration
@@ -1233,7 +1257,7 @@ input int         Inp_RRM_ORG_PhaseConfirmM30      = 0;              // RRM_ORG:
 input int         Inp_RRM_ORG_PhaseConfirmH1plus   = 0;              // RRM_ORG:3 MinPhaseConfirmBars on H1 and above
 
 // ── TE-side gates are standardized globally via Inp_VETO_TE_* ─────────────────────────────
-
+input group " ";
 input bool        Inp_RRM_ORG_EmaFanFilter         = true;           // RRM_ORG: Block entry on overextended EMA fan
 input double      Inp_RRM_ORG_EmaFan_M5Pips        = 25.0;           // RRM_ORG: Fan max pips on M1–M5
 input double      Inp_RRM_ORG_EmaFan_M30Pips       = 40.0;           // RRM_ORG: Fan max pips on M6–M30
@@ -1242,45 +1266,22 @@ input double      Inp_RRM_ORG_EmaFan_H4Pips        = 100.0;          // RRM_ORG:
 input double      Inp_RRM_ORG_EmaFan_DailyPips     = 180.0;          // RRM_ORG: Fan max pips on D1+
 input double      Inp_RRM_ORG_JpyGateMultiplier    = 1.3;            // RRM_ORG: Recovery+EmaDiv gate scale for JPY pairs (1.0=disabled)
 input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM_ORG: Override max daily DD % (0=use Inp_RRM_*)
-
+input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Recovery Sensitivity Tuning (Phase B)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote  = false;         // DPI: Use raw histogram direction for vote (skip CCI-reset check)
-input double      Inp_RRM_ORG_Layer_SlopeTolerance  = 0.0;           // Layer: Flat-slope tolerance in pips (0=strict both EMAs rising/falling)
-input double      Inp_RRM_ORG_BarClose_PipTolerance = 0.0;           // BarClose: Allow close within N pips of target EMA (0=strict close>EMA)
-input int         Inp_RRM_ORG_PSAR_FlipGraceBars    = 0;             // PSAR: Ignore PSAR vote for N bars after an adverse flip (0=disabled)
-
+input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote    = false;       // DPI: Use raw histogram direction for vote (skip CCI-reset check)
+input double      Inp_RRM_ORG_Layer_SlopeTolerance    = 0.0;         // Layer: Flat-slope tolerance in pips (0=strict both EMAs rising/falling)
+input double      Inp_RRM_ORG_BarClose_PipTolerance   = 0.0;         // BarClose: Allow close within N pips of target EMA (0=strict close>EMA)
+input int         Inp_RRM_ORG_PSAR_FlipGraceBars      = 0;           // PSAR: Ignore PSAR vote for N bars after an adverse flip (0=disabled)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 MULTI-BAR MOMENTUM DETECTION";
 input group "╚════════════════════════════════════════════════════════╝";
-input int  Inp_BarClose_LookbackBars        = 3;    // BC lookback window (1-4 bars)
-input bool Inp_Require_Progressive_Momentum = true; // Require consecutive close improvement
-input bool Inp_DPI_Histogram_Growth_Boost   = true; // Use DPI histogram growth as boost
+input int         Inp_BarClose_LookbackBars           = 3;           // BC lookback window (1-4 bars)
+input bool        Inp_Require_Progressive_Momentum    = true;        // Require consecutive close improvement
+input bool        Inp_DPI_Histogram_Growth_Boost      = true;        // Use DPI histogram growth as boost
 
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: (EXIT) Stop Loss / Take Profit";
-input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode     Inp_RRM_ORG_SLMode           = SL_MODE_PSAR_DOT;    // RRM_ORG SL mode
-input int         Inp_RRM_ORG_SwingLookback    = 20;                  // RRM_ORG Swing lookback bars
-input ETPMode     Inp_RRM_ORG_TPMode           = TP_MODE_RR;          // RRM_ORG TP mode
-input double      Inp_RRM_ORG_RRRatio          = 2.0;                 // RRM_ORG R:R ratio (1:2 risk-reward)
-
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: (EXIT) Trailing Stop";
-input group "╚════════════════════════════════════════════════════════╝";
-input ETrailingMode Inp_RRM_ORG_TrailMode      = TRAIL_PSAR;          // RRM_ORG trailing mode
-input bool        Inp_RRM_ORG_TrailStartsAfterBE = false;             // RRM_ORG trail only after BE
-input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // RRM_ORG PSAR trail cushion mode
-
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: (EXIT) Breakeven";
-input group "╚════════════════════════════════════════════════════════╝";
-input EBeMode     Inp_RRM_ORG_BE_Mode          = BE_MODE_R_MULTIPLE;  // RRM_ORG BE mode
-input double      Inp_RRM_ORG_BE_RMultiple     = 1.0;                 // RRM_ORG BE at R-multiple (1.0 = 1R profit)
-input double      Inp_RRM_ORG_BE_ProgressPct   = 33.0;                // RRM_ORG BE at % to TP (used with BE_MODE_TP_PROGRESS_PCT)
-
-
+input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️  PRESETS OVERRIDES! (Step1-5)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1341,7 +1342,7 @@ input group "╚═════════════════════�
 input bool        Inp_CUSTOM_RequireRecoveryMomentum = false;        // CUSTOM pullback gate option (used by preset pullback logic; presets may override) (was Inp_Gate_RequireRecoveryMomentum)
 input int         Inp_CUSTOM_Lookback              = 5;              // CUSTOM pullback lookback (used by preset pullback logic; presets may override) (was Inp_RRM_Lookback)
 
-
+input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️  INDICATORS";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1450,7 +1451,7 @@ input int         Inp_CUSTOM_Ind_VRC_ATR_Period    = 14;             // [VRC] AT
 input int         Inp_CUSTOM_Ind_VRC_Lookback      = 100;            // [VRC] Lookback bars for percentile
 input double      Inp_CUSTOM_Ind_VRC_LowThreshold  = 33.0;           // [VRC] Low volatility threshold (percentile)
 
-
+input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🔧 PAIR SETTINGS (Type | Spread)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1470,10 +1471,17 @@ input double      Inp_Adaptive_Spread_Crypto       = 50.0;           // Max spre
 // input string   Inp_Adaptive_Note1               = "📝 Note: SL/TP cushions auto-adjust by timeframe (no input needed)";
 // input string   Inp_Adaptive_Note2               = "📝 M15=5 pips, H1=10 pips, H4=20 pips (see GetTFBasedCushion)";
 
-
+input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🎯 STRATEGY SETTINGS (PRESET_CUSTOM Only)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🎯 (TP) TAKE PROFIT (CUSTOM only)";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_CUSTOM_TP_Enabled            = true;           // Enable take profit
+input ETPMode     Inp_CUSTOM_TPMode                = TP_MODE_RR;     // TP calculation method
+input double      Inp_CUSTOM_RRRatio               = 2.0;            // Risk:Reward ratio (was Inp_RRRatio)
+input double      Inp_CUSTOM_FixedTPPips           = 40.0;           // Fixed TP distance
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎯 EXIT PROFILES";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1533,13 +1541,6 @@ input EBeMode     Inp_CUSTOM_BE_Mode               = BE_MODE_TP_PROGRESS_PCT; //
 // input string   Inp_RRM_Info1                    = "RRM uses % of TP distance for BE — not absolute pips";
 // input string   Inp_RRM_Info2                    = "Only active when ExitProfile = EXIT_PROFILE_RRM";
 // input string   Inp_RRM_Info3                    = "Example: SL=10 pips, TP=30 pips (3:1 RR), BE@33% → triggers at +10 pips profit";
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🎯 (TP) TAKE PROFIT (CUSTOM only)";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_TP_Enabled            = true;           // Enable take profit
-input ETPMode     Inp_CUSTOM_TPMode                = TP_MODE_RR;     // TP calculation method
-input double      Inp_CUSTOM_RRRatio               = 2.0;            // Risk:Reward ratio (was Inp_RRRatio)
-input double      Inp_CUSTOM_FixedTPPips           = 40.0;           // Fixed TP distance
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛡 (TE) COOLDOWN BARS Post-Trade Protection";
 input group "╚════════════════════════════════════════════════════════╝";
