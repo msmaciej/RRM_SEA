@@ -127,8 +127,8 @@ string SEA_UI_AdmMark() { return ""; }
 
 string SEA_UI_NormalizeStatusText(const string status)
 {
-   if(status == "" || status == "null")
-      return "Evaluating...";
+   if(StringLen(status) == 0 || StringCompare(status, "null") == 0)
+      return SEA_STATUS_EVALUATING;
    return status;
 }
 

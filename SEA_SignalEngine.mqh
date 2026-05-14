@@ -3530,7 +3530,7 @@ public:
       m_telemetry.layer = 0;
       m_telemetry.votes_for = 0;
       m_telemetry.votes_total = GetEnabledIndicatorCount(m_settings);
-      m_telemetry.rejection_reason = "Evaluating...";
+      m_telemetry.rejection_reason = SEA_STATUS_EVALUATING;
       m_telemetry.active_indicators = "0/0";
       m_telemetry.diag_layer_w = 0;
       m_telemetry.diag_layer_m = 0;
@@ -5383,7 +5383,7 @@ public:
       m_telemetry.layer = 0;
       m_telemetry.votes_for = 0;
       m_telemetry.votes_total = 0;
-      m_telemetry.rejection_reason = "Evaluating...";
+      m_telemetry.rejection_reason = SEA_STATUS_EVALUATING;
       m_telemetry.active_indicators = "0/0";
       m_bars_evaluated++;
       m_stats.total_bars++;
