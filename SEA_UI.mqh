@@ -544,8 +544,12 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
    AddLine(StringFormat("SL MODE:  %s", EnumToString(Settings.SLMode)), v_clr, lines, line_clrs);
    AddLine(StringFormat("RISK:     %.2f%%", Settings.RiskPercent), v_clr, lines, line_clrs);
    string rr_source = "Inp_CUSTOM_RRRatio";
-   if(Inp_Global_Preset == PRESET_RRM || Inp_Global_Preset == PRESET_RRM_ORG) rr_source = "Inp_RRM_RRRatio";
-   else if(Inp_Global_Preset == PRESET_FPM)                           rr_source = "Inp_FPM_RRRatio";
+   if(Inp_Global_Preset == PRESET_RRM)
+      rr_source = "Inp_RRM_RRRatio";
+   else if(Inp_Global_Preset == PRESET_RRM_ORG)
+      rr_source = "Inp_RRM_ORG_RRRatio";
+   else if(Inp_Global_Preset == PRESET_FPM)
+      rr_source = "Inp_FPM_RRRatio";
    AddLine(StringFormat("RR:       %.2f  (src: %s)", Settings.RRRatio, rr_source), v_clr, lines, line_clrs);
    AddLine(StringFormat("BE:       %s", (Settings.BE_Mode != BE_MODE_OFF ? "ENABLED" : "OFF")), v_clr, lines, line_clrs);
 

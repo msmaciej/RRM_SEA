@@ -342,8 +342,22 @@ All steps must pass for entry:
 - `Inp_RRM_PsarStep` — PSAR step (default: 0.02)
 - `Inp_RRM_PsarMax` — PSAR max (default: 0.2)
 
-**Exit Settings (same as PRESET_RRM):**
-- SL mode, TP mode, R:R ratio, trailing mode, BE mode
+**Exit Settings (RRM_ORG-specific inputs):**
+
+| Input | Default | Purpose |
+|-------|---------|---------|
+| `Inp_RRM_ORG_SLMode` | `SL_MODE_PSAR_DOT` | Initial SL placement method |
+| `Inp_RRM_ORG_SwingLookback` | `20` | Swing SL lookback bars (if using SL_MODE_SWING) |
+| `Inp_RRM_ORG_TPMode` | `TP_MODE_RR` | TP calculation mode |
+| `Inp_RRM_ORG_RRRatio` | `2.0` | Risk-reward ratio (1:2 = risk 1 to win 2) |
+| `Inp_RRM_ORG_TrailMode` | `TRAIL_PSAR` | Trailing stop mode |
+| `Inp_RRM_ORG_TrailStartsAfterBE` | `false` | Only trail after BE hit |
+| `Inp_RRM_ORG_PSAR_TrailCushionMode` | `PSAR_CUSHION_PIPS` | PSAR trail cushion mode |
+| `Inp_RRM_ORG_BE_Mode` | `BE_MODE_R_MULTIPLE` | Breakeven trigger mode |
+| `Inp_RRM_ORG_BE_RMultiple` | `1.0` | Move to BE at 1R profit |
+| `Inp_RRM_ORG_BE_ProgressPct` | `33.0` | BE trigger % to TP (if using BE_MODE_TP_PROGRESS_PCT) |
+
+**All RRM_ORG settings now in dedicated input groups** — no more mixing with CUSTOM inputs.
 
 **Policy A Gates (always user-controlled):**
 - Spread, Time, News, Risk limits

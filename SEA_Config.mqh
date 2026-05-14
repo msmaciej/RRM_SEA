@@ -1258,6 +1258,28 @@ input int  Inp_BarClose_LookbackBars        = 3;    // BC lookback window (1-4 b
 input bool Inp_Require_Progressive_Momentum = true; // Require consecutive close improvement
 input bool Inp_DPI_Histogram_Growth_Boost   = true; // Use DPI histogram growth as boost
 
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: (EXIT) Stop Loss / Take Profit";
+input group "╚════════════════════════════════════════════════════════╝";
+input ESLMode     Inp_RRM_ORG_SLMode           = SL_MODE_PSAR_DOT;    // RRM_ORG SL mode
+input int         Inp_RRM_ORG_SwingLookback    = 20;                  // RRM_ORG Swing lookback bars
+input ETPMode     Inp_RRM_ORG_TPMode           = TP_MODE_RR;          // RRM_ORG TP mode
+input double      Inp_RRM_ORG_RRRatio          = 2.0;                 // RRM_ORG R:R ratio (1:2 risk-reward)
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: (EXIT) Trailing Stop";
+input group "╚════════════════════════════════════════════════════════╝";
+input ETrailingMode Inp_RRM_ORG_TrailMode      = TRAIL_PSAR;          // RRM_ORG trailing mode
+input bool        Inp_RRM_ORG_TrailStartsAfterBE = false;             // RRM_ORG trail only after BE
+input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // RRM_ORG PSAR trail cushion mode
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: (EXIT) Breakeven";
+input group "╚════════════════════════════════════════════════════════╝";
+input EBeMode     Inp_RRM_ORG_BE_Mode          = BE_MODE_R_MULTIPLE;  // RRM_ORG BE mode
+input double      Inp_RRM_ORG_BE_RMultiple     = 1.0;                 // RRM_ORG BE at R-multiple (1.0 = 1R profit)
+input double      Inp_RRM_ORG_BE_ProgressPct   = 33.0;                // RRM_ORG BE at % to TP (used with BE_MODE_TP_PROGRESS_PCT)
+
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️  PRESETS OVERRIDES! (Step1-5)";
