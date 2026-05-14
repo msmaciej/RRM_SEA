@@ -900,7 +900,7 @@ input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 GLOBAL: Bar Close (bcX) Multi-Bar Momentum";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_BarClose_LookbackBars                 = 3;      // BC lookback window (1-4 bars)
+input int         Inp_BarClose_LookbackBars                 = 3;      // BarClose lookback window (1-4 bars)
 input bool        Inp_BarClose_Require_Progressive_Momentum = true;   // Require consecutive close improvement
 input bool        Inp_DPI_Histogram_Growth_Boost            = true;   // Use DPI histogram growth as boost
 
@@ -1235,7 +1235,7 @@ input group "╚═════════════════════�
 input double      Inp_RRM_ORG_PsarStep             = 0.05;           // RRM_ORG PSAR Step
 input double      Inp_RRM_ORG_PsarMax              = 0.5;            // RRM_ORG PSAR Max
 input bool        Inp_RRM_ORG_Vote_AllowPsarFlip   = true;           // RRM_ORG: Enable PSAR flip detection
-input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 2;              // RRM_ORG: -1=persistent, 0=flip bar, 1-10=bars after flip
+input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 2;              // RRM_ORG: -1=persistent, 0=flip bar, 1-10=bars after flip (clamped in preset wiring)
 input int         Inp_RRM_ORG_PSAR_FlipGraceBars   = 0;              // PSAR: Ignore PSAR vote for N bars after an adverse flip (0=disabled)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: RSI Settings";
