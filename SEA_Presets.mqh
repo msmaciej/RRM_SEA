@@ -1421,22 +1421,26 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CountBEasZeroRisk         = true;
       cfg.FixedLotSize              = 0.0;
 
-      // ── EXIT STRATEGY: flexible (uses RRM profile, SL/TP from inputs) ─
+      // ── EXIT STRATEGY: RRM_ORG-specific inputs (complete namespace) ──
       cfg.ExitProfile               = EXIT_PROFILE_RRM;
-      cfg.SLMode                    = Inp_CUSTOM_SLMode;
-      cfg.TPMode                    = Inp_CUSTOM_TPMode;
-      cfg.TP_Enabled                = Inp_CUSTOM_TP_Enabled;
-      cfg.RRRatio                   = Inp_CUSTOM_RRRatio;
-      cfg.SwingLookback             = Inp_CUSTOM_SwingLookback;
+      cfg.SLMode                    = Inp_RRM_ORG_SLMode;
+      cfg.TPMode                    = Inp_RRM_ORG_TPMode;
+      cfg.TP_Enabled                = (Inp_RRM_ORG_TPMode != TP_MODE_NONE);
+      cfg.RRRatio                   = Inp_RRM_ORG_RRRatio;
+      cfg.SwingLookback             = Inp_RRM_ORG_SwingLookback;
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
       cfg.FixedTPPips               = 40.0;
       cfg.SLPercent                 = 0.5;
 
-      cfg.TrailMode                 = Inp_CUSTOM_TrailMode;
-      cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
+      cfg.TrailMode                 = Inp_RRM_ORG_TrailMode;
+      cfg.RRM_TrailStartsAfterBE    = Inp_RRM_ORG_TrailStartsAfterBE;
+      cfg.PSAR_TrailCushionMode     = Inp_RRM_ORG_PSAR_TrailCushionMode;
       cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
-      cfg.BE_Mode                   = Inp_CUSTOM_BE_Mode;
+      cfg.BE_Mode                   = Inp_RRM_ORG_BE_Mode;
+      cfg.RRM_BE_RMultiple          = Inp_RRM_ORG_BE_RMultiple;
+      cfg.RRM_BE_ProgressPct        = Inp_RRM_ORG_BE_ProgressPct;
+      cfg.RRM_BE_BufferPips         = GetTFBasedCushion(_Period);
 
       ENUM_TIMEFRAMES tfOrg         = (ENUM_TIMEFRAMES)_Period;
       cfg.TrailTrigger              = TRIGGER_BREAKEVEN;

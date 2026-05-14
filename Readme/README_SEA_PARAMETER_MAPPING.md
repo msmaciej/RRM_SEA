@@ -143,3 +143,54 @@
 1. Open your existing `.set` file and rename legacy keys using the table above.
 2. Re-save presets/templates from MT5 so future exports use the new canonical names.
 3. Re-check CUSTOM and preset-specific blocks (RRM/FPM/RRM_ORG) because both naming and ordering were normalized.
+
+---
+
+## PRESET_RRM_ORG Exit Settings Migration (v1.04 → v1.05)
+
+### Problem in v1.04
+
+PRESET_RRM_ORG used `Inp_CUSTOM_*` inputs for exit settings, causing:
+- Namespace confusion (mix of RRM_ORG and CUSTOM inputs)
+- RR ratio effectively hardcoded via `Inp_CUSTOM_RRRatio` default (2.0), not via an `Inp_RRM_ORG_*` input
+- Unclear where to configure RRM_ORG exits
+
+### Solution in v1.05
+
+Complete `Inp_RRM_ORG_*` namespace for all exit settings.
+
+### Migration Table
+
+| Old Input (v1.04) | New Input (v1.05) | Default Value |
+|-------------------|-------------------|---------------|
+| `Inp_CUSTOM_SLMode` | `Inp_RRM_ORG_SLMode` | `SL_MODE_PSAR_DOT` |
+| `Inp_CUSTOM_SwingLookback` | `Inp_RRM_ORG_SwingLookback` | `20` |
+| `Inp_CUSTOM_TPMode` | `Inp_RRM_ORG_TPMode` | `TP_MODE_RR` |
+| `Inp_CUSTOM_RRRatio` | `Inp_RRM_ORG_RRRatio` | `2.0` (now user-configurable!) |
+| `Inp_CUSTOM_TrailMode` | `Inp_RRM_ORG_TrailMode` | `TRAIL_PSAR` |
+| `Inp_CUSTOM_BE_Mode` | `Inp_RRM_ORG_BE_Mode` | `BE_MODE_R_MULTIPLE` |
+
+### Action Required
+
+**If using existing `.set` files with PRESET_RRM_ORG**:
+1. Open your `.set` file in a text editor
+2. Replace `Inp_CUSTOM_SLMode`, `Inp_CUSTOM_SwingLookback`, `Inp_CUSTOM_TPMode`, `Inp_CUSTOM_RRRatio`, `Inp_CUSTOM_TrailMode`, `Inp_CUSTOM_BE_Mode` with the corresponding `Inp_RRM_ORG_*` keys listed in the table above
+3. OR: Reconfigure via MT5 inputs panel (recommended)
+
+**If configuring fresh**:
+- All RRM_ORG settings are now grouped under dedicated "📐 RRM_ORG: (EXIT)" input groups
+- No more searching through CUSTOM zone inputs
+
+### Example: Changing RR Ratio
+
+**Before (v1.04)** ❌:
+```
+User sets: Inp_CUSTOM_RRRatio = 1.0  (but still uses CUSTOM namespace — confusing!)
+```
+
+**After (v1.05)** ✅:
+```
+User sets: Inp_RRM_ORG_RRRatio = 1.0
+Result: Uses RR = 1.0 (correct namespace, respects user input)
+```
+
