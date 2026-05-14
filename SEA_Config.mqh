@@ -753,7 +753,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   💰 (RM) RISK MANAGEMENT (GLOBAL)";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_RM_MaxOpenTrades             = 4;           // Max concurrent trades (0 = unlimited)
+input int         Inp_RM_MaxOpenTrades             = 3;           // Max concurrent trades (0 = unlimited)
 input double      Inp_RM_RiskPercentDefault        = 2.0;         // Risk: Default when Adaptive Risk Enable: false (was Inp_RiskPercent)
 input double      Inp_RM_MaxTotalRisk              = 6.0;         // Max total active risk (%; 0 = unlimited)
 input double      Inp_RM_MarginUsageLimit          = 80.0;        // Max % of free margin per trade (0 = use 100%)
@@ -919,7 +919,7 @@ input group "╔═════════════════════�
 input group "║   📐 FPM: (SL) Stop Loss Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input ESLMode     Inp_FPM_SLMode                   = SL_MODE_SWING;  // FPM SL mode: SWING (recent high/low) or FIXED_PIPS
-input int         Inp_FPM_SwingLookback            = 20;             // FPM SL swing lookback bars — advisory; PRESET_FPM uses GetFPMSwingLookback() internally
+input int         Inp_FPM_SwingLookback            = 34;             // FPM SL swing lookback bars — advisory; PRESET_FPM uses GetFPMSwingLookback() internally
 input double      Inp_FPM_SLFixedPips              = 15.0;           // FPM SL fixed distance in pips (SL_MODE_FIXED_PIPS only)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 FPM: (TS) Trailing Stop (Optional)";
@@ -955,7 +955,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM: (SL) Stop Loss";
 input group "╚════════════════════════════════════════════════════════╝";
 input ESLMode    Inp_RRM_SLMode                    = SL_MODE_SWING;  // RRM SL placement mode
-input int        Inp_RRM_SwingLookback             = 20;             // RRM Swing lookback bars (used with SL_MODE_SWING)
+input int        Inp_RRM_SwingLookback             = 34;             // RRM Swing lookback bars (used with SL_MODE_SWING)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1111,7 +1111,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: (SL) Stop Loss";
 input group "╚════════════════════════════════════════════════════════╝";
 input ESLMode     Inp_RRM_ORG_SLMode                  = SL_MODE_SWING;  // RRM_ORG SL mode
-input int         Inp_RRM_ORG_SwingLookback           = 34;          // RRM_ORG Swing lookback bars
+input int         Inp_RRM_ORG_SwingLookback           = 55;          // RRM_ORG Swing lookback bars
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1277,9 +1277,9 @@ input int         Inp_RRM_ORG_PSAR_FlipGraceBars      = 0;           // PSAR: Ig
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 MULTI-BAR MOMENTUM DETECTION";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_BarClose_LookbackBars           = 3;           // BC lookback window (1-4 bars)
 input bool        Inp_Require_Progressive_Momentum    = true;        // Require consecutive close improvement
 input bool        Inp_DPI_Histogram_Growth_Boost      = true;        // Use DPI histogram growth as boost
+input int         Inp_BarClose_LookbackBars           = 3;           // BC lookback window (1-4 bars)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
