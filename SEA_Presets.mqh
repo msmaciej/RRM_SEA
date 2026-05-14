@@ -1533,6 +1533,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.DPI_IgnoreCCIForVote      = Inp_RRM_ORG_DPI_IgnoreCCIForVote;
       cfg.Layer_SlopeTolerance      = Inp_RRM_ORG_Layer_SlopeTolerance;
       cfg.BarClose_PipTolerance     = Inp_RRM_ORG_BarClose_PipTolerance;
+      cfg.BarClose_LookbackBars        = MathMax(1, MathMin(4, Inp_BarClose_LookbackBars));
+      cfg.Require_Progressive_Momentum = Inp_Require_Progressive_Momentum;
+      cfg.DPI_Histogram_Growth_Boost   = Inp_DPI_Histogram_Growth_Boost;
       cfg.PSAR_FlipGraceBars        = Inp_RRM_ORG_PSAR_FlipGraceBars;
 
       // ── PHASE B: TE-side hardening (standardized veto inputs) ──────────
