@@ -1265,8 +1265,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Vote_AllowPsarFlip        = Inp_RRM_ORG_Vote_AllowPsarFlip;
       cfg.P_PsarStep                = Inp_RRM_ORG_PsarStep;
       cfg.P_PsarMax                 = Inp_RRM_ORG_PsarMax;
-      // Vote -1 = persistent: evaluate dot position on every bar
-      // Vote -1 or 0..10 = allowable delay over N candles after a flip
+      // Vote: -1=persistent (every bar), 0=flip bar only, 1-10=N candles after flip
       cfg.Vote_PsarFlipDelay        = MathMax(-1, MathMin(10, Inp_RRM_ORG_Vote_PsarFlipDelay));
 
       // ── CANDLE BODY ───────────────────────────────────────────────────

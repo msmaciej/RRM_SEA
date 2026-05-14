@@ -1235,7 +1235,7 @@ input group "╚═════════════════════�
 input double      Inp_RRM_ORG_PsarStep             = 0.05;           // RRM_ORG PSAR Step
 input double      Inp_RRM_ORG_PsarMax              = 0.5;            // RRM_ORG PSAR Max
 input bool        Inp_RRM_ORG_Vote_AllowPsarFlip   = true;           // RRM_ORG: Enable PSAR flip detection
-input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 2;              // RRM_ORG: Valid range -1..10 (-1=persistent, 0=flip bar, 1-10=bars after flip); range clamped in preset initialization
+input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 2;              // RRM_ORG: PSAR flip delay (-1=persistent, 0-10=bars after flip)
 input int         Inp_RRM_ORG_PSAR_FlipGraceBars   = 0;              // PSAR: Ignore PSAR vote for N bars after an adverse flip (0=disabled)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: RSI Settings";
