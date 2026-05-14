@@ -339,8 +339,11 @@ All steps must pass for entry:
 - `Inp_RRM_ORG_DPI_UseGreenHist` — Enable GREEN visualization (default: true)
 
 **PSAR Settings:**
-- `Inp_RRM_PsarStep` — PSAR step (default: 0.02)
-- `Inp_RRM_PsarMax` — PSAR max (default: 0.2)
+- `Inp_RRM_ORG_PsarStep` — PSAR step (default: 0.05)
+- `Inp_RRM_ORG_PsarMax` — PSAR max (default: 0.5)
+- `Inp_RRM_ORG_Vote_AllowPsarFlip` — Enable PSAR flip detection (default: true)
+- `Inp_RRM_ORG_Vote_PsarFlipDelay` — PSAR flip delay window `(-1, 0, 1..10)` (default: 2)
+- `Inp_RRM_ORG_PSAR_FlipGraceBars` — Grace bars after adverse flip (default: 0)
 
 **Exit Settings (RRM_ORG-specific inputs):**
 
