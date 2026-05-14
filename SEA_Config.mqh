@@ -845,8 +845,8 @@ input group "╔═════════════════════�
 input group "║   🎨 UI: STATUS PANEL";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_UI_ShowStatusPanel           = false;          // UI SP: STATUS PANEL
-input bool        Inp_UI_ManageChartIndicators     = false;          // UI SP: Auto-add/remove chart indicators
 input ENUM_BASE_CORNER Inp_UI_PanelCorner          = CORNER_LEFT_UPPER; // UI SP: Status panel corner
+input bool        Inp_UI_ManageChartIndicators     = false;          // UI SP: Auto-add/remove chart indicators
 input int         Inp_UI_PanelX                    = 30;             // UI SP: Status panel X (px)
 input int         Inp_UI_PanelY                    = 30;             // UI SP: Status panel Y (px)
 input int         Inp_UI_PanelFontSize             = 10;             // UI SP: Status panel font size
@@ -855,10 +855,10 @@ input string      Inp_UI_PanelFont                 = "Arial";        // UI SP: S
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: SIGNAL MARKERS & COLORS";
 input group "╚════════════════════════════════════════════════════════╝";
+input EUIFrameMode Inp_UI_FrameMode                = UI_FRAME_NONE;  // UI: Panel frame mode
 input bool        Inp_UI_DrawEntryLines            = true;           // UI: Draw entry marker lines
 input bool        Inp_UI_DrawTradeLines            = true;           // UI: Draw trade management lines
 input bool        Inp_UI_UseCustomColors           = true;           // UI: Use custom panel colors
-input EUIFrameMode Inp_UI_FrameMode                = UI_FRAME_NONE;  // UI: Panel frame mode
 input color       Inp_UI_FontColor                 = clrYellow;      // UI: font color
 input int         Inp_UI_PanelBgAlpha              = 110;            // UI: Panel background alpha (0..255)
 input int         Inp_UI_FramePadPx                = 6;              // UI: Panel padding (px)
@@ -996,8 +996,8 @@ input group "╔═════════════════════�
 input group "║   🔧 RRM: (DP) Drawdown Protection";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_EnableDrawdownProtection = false;          // RRM: Enable drawdown protection
-input int         Inp_RRM_MaxConsecutiveLosses     = 5;              // RRM: Max consecutive losses before pause
-input int         Inp_RRM_MaxTradesPerDay          = 15;             // RRM: Max trades per day
+input int         Inp_RRM_MaxConsecutiveLosses     = 10;              // RRM: Max consecutive losses before pause
+input int         Inp_RRM_MaxTradesPerDay          = 50;             // RRM: Max trades per day
 input double      Inp_RRM_MaxDailyDrawdownPct      = 3.0;            // RRM: Max daily drawdown %
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Indicators — Enable/Disable";
@@ -1121,9 +1121,9 @@ input bool        Inp_RRM_ORG_TrailStartsAfterBE      = false;       // RRM_ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (BE) Breakeven";
 input group "╚════════════════════════════════════════════════════════╝";
-input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_R_MULTIPLE;  // RRM_ORG BE mode
+input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_TP_PROGRESS_PCT;  // RRM_ORG BE mode
 input double      Inp_RRM_ORG_BE_RMultiple            = 1.0;         // RRM_ORG BE at R-multiple (1.0 = 1R profit)
-input double      Inp_RRM_ORG_BE_ProgressPct          = 33.0;        // RRM_ORG BE at % to TP (used with BE_MODE_TP_PROGRESS_PCT)
+input double      Inp_RRM_ORG_BE_ProgressPct          = 25.0;        // RRM_ORG BE at % to TP (used with BE_MODE_TP_PROGRESS_PCT)
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI v31 Settings";
@@ -1517,7 +1517,7 @@ input int         Inp_CUSTOM_MarkerLookback        = 55;             // Bars to 
 input color       Inp_CUSTOM_SwingHighColor        = clrCrimson;     // Swing High color
 input color       Inp_CUSTOM_SwingLowColor         = clrDodgerBlue;  // Swing Low color
 input int         Inp_CUSTOM_SwingMarkerSize       = 1;              // Swing marker width (1-5) - tiny like built-in Fractals
-input color       Inp_CUSTOM_FractalHighColor      = clrGray;        // Fractal High color
+input color       Inp_CUSTOM_FractalHighColor      = clrOrange;        // Fractal High color
 input color       Inp_CUSTOM_FractalLowColor       = clrGray;        // Fractal Low color
 input int         Inp_CUSTOM_FractalMarkerSize     = 1;              // Fractal marker width (1-5) - tiny like built-in Fractals
 // input group "--- SL Configuration Examples ---";

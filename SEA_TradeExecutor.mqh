@@ -173,37 +173,37 @@ private:
                    int high_arrow_code,
                    int low_arrow_code)
    {
-      string side = isHigh ? "HIGH" : "LOW";
-      string name = StringFormat("%s_%s_%d_%I64d", prefix, side, bar, (long)time);
-      if(ObjectFind(0, name) >= 0) return;
-
-      if(!ObjectCreate(0, name, OBJ_ARROW, 0, time, price)) return;
-
-      color marker_color = isHigh ? high_color : low_color;
-      ObjectSetInteger(0, name, OBJPROP_ARROWCODE, isHigh ? high_arrow_code : low_arrow_code);
-      ObjectSetInteger(0, name, OBJPROP_COLOR, marker_color);
-      ObjectSetInteger(0, name, OBJPROP_WIDTH, width);
-      ObjectSetInteger(0, name, OBJPROP_BACK, StringFind(prefix, "Swing") == 0);
-      ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
-      ObjectSetInteger(0, name, OBJPROP_HIDDEN, true);
-
-      string marker_type = (StringFind(prefix, "Swing") == 0) ? "Swing" : "Fractal";
-      ObjectSetString(0, name, OBJPROP_TOOLTIP,
-                      StringFormat("%s %s: %.5f", marker_type, isHigh ? "High" : "Low", price));
-
-      if(!m_settings.ShowMarkerLabels) return;
-
-      string label_prefix = (StringFind(prefix, "Swing") == 0) ? "SwingLabel" : "FractalLabel";
-      string label_name = StringFormat("%s_%s_%d_%I64d", label_prefix, side, bar, (long)time);
-      if(!ObjectCreate(0, label_name, OBJ_TEXT, 0, time, price)) return;
-
-      ObjectSetString(0, label_name, OBJPROP_TEXT,
-                      StringFormat("%s%.5f", (StringFind(prefix, "Swing") == 0) ? "S:" : "F:", price));
-      ObjectSetInteger(0, label_name, OBJPROP_COLOR, marker_color);
-      ObjectSetInteger(0, label_name, OBJPROP_FONTSIZE, (StringFind(prefix, "Swing") == 0) ? 7 : 8);
-      ObjectSetInteger(0, label_name, OBJPROP_ANCHOR, isHigh ? ANCHOR_BOTTOM : ANCHOR_TOP);
-      ObjectSetInteger(0, label_name, OBJPROP_SELECTABLE, false);
-      ObjectSetInteger(0, label_name, OBJPROP_HIDDEN, true);
+       string side = isHigh ? "HIGH" : "LOW";
+       string name = StringFormat("%s_%s_%d_%I64d", prefix, side, bar, (long)time);
+       if(ObjectFind(0, name) >= 0) return;
+   
+       if(!ObjectCreate(0, name, OBJ_ARROW, 0, time, price)) return;
+   
+       color marker_color = isHigh ? high_color : low_color;
+       ObjectSetInteger(0, name, OBJPROP_ARROWCODE, isHigh ? high_arrow_code : low_arrow_code);
+       ObjectSetInteger(0, name, OBJPROP_COLOR, marker_color);
+       ObjectSetInteger(0, name, OBJPROP_WIDTH, width);
+       ObjectSetInteger(0, name, OBJPROP_BACK, StringFind(prefix, "Swing") == 0);
+       ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+       ObjectSetInteger(0, name, OBJPROP_HIDDEN, true);
+   
+       string marker_type = (StringFind(prefix, "Swing") == 0) ? "Swing" : "Fractal";
+       ObjectSetString(0, name, OBJPROP_TOOLTIP,
+                       StringFormat("%s %s: %.5f", marker_type, isHigh ? "High" : "Low", price));
+   
+       if(!m_settings.ShowMarkerLabels) return;
+   
+       string label_prefix = (StringFind(prefix, "Swing") == 0) ? "SwingLabel" : "FractalLabel";
+       string label_name = StringFormat("%s_%s_%d_%I64d", label_prefix, side, bar, (long)time);
+       if(!ObjectCreate(0, label_name, OBJ_TEXT, 0, time, price)) return;
+   
+       ObjectSetString(0, label_name, OBJPROP_TEXT,
+                       StringFormat("%s%.5f", (StringFind(prefix, "Swing") == 0) ? "S:" : "F:", price));
+       ObjectSetInteger(0, label_name, OBJPROP_COLOR, marker_color);
+       ObjectSetInteger(0, label_name, OBJPROP_FONTSIZE, (StringFind(prefix, "Swing") == 0) ? 7 : 8);
+       ObjectSetInteger(0, label_name, OBJPROP_ANCHOR, isHigh ? ANCHOR_BOTTOM : ANCHOR_TOP);
+       ObjectSetInteger(0, label_name, OBJPROP_SELECTABLE, false);
+       ObjectSetInteger(0, label_name, OBJPROP_HIDDEN, true);
    }
 
    void DrawSwingMarkers()
@@ -252,6 +252,21 @@ private:
    {
       if(m_h_fractals == INVALID_HANDLE) return;
 
+       // ── TEST: Count how many fractals exist in buffers ──
+       //int high_count = 0, low_count = 0;
+       //double test_upper[100], test_lower[100];
+       
+       //CopyBuffer(m_h_fractals, 0, 0, 100, test_upper);  // Last 100 bars, buffer 0 (highs)
+       //CopyBuffer(m_h_fractals, 1, 0, 100, test_lower);  // Last 100 bars, buffer 1 (lows)
+       
+       //for(int x = 0; x < 100; x++) {
+       //    if(test_upper[x] != EMPTY_VALUE && test_upper[x] > 0) high_count++;
+       //    if(test_lower[x] != EMPTY_VALUE && test_lower[x] > 0) low_count++;
+       //}
+       
+       //PrintFormat("📊 FRACTAL SCAN: Last 100 bars → Highs=%d | Lows=%d", high_count, low_count);
+       // ── END TEST ──
+
       int bars_to_scan = GetMarkerBarsToScan();
       int start_bar = (m_settings.FractalPeriod > 0) ? m_settings.FractalPeriod : 5;
       if(bars_to_scan < start_bar) return;
@@ -260,12 +275,14 @@ private:
 
       for(int i = start_bar; i <= bars_to_scan; i++)
       {
+         // ✅ Check if fractal indicator detected a HIGH at bar i
          if(CopyBuffer(m_h_fractals, 0, i, 1, upper) > 0 &&
-            upper[0] != EMPTY_VALUE && upper[0] != DBL_MAX && upper[0] > 0.0)
+           upper[0] != EMPTY_VALUE && upper[0] != DBL_MAX && upper[0] > 0.0)
          {
+            // Fractal exists at bar i, draw marker at THIS BAR'S high
             DrawMarker("FractalSL",
                        iTime(m_symbol, PERIOD_CURRENT, i),
-                       upper[0],
+                       iHigh(m_symbol, PERIOD_CURRENT, i),  // ✅ Draw at candle high
                        true,
                        i,
                        m_settings.FractalHighColor,
@@ -274,13 +291,15 @@ private:
                        217,
                        218);
          }
-
+      
+         // ✅ Check if fractal indicator detected a LOW at bar i
          if(CopyBuffer(m_h_fractals, 1, i, 1, lower) > 0 &&
-            lower[0] != EMPTY_VALUE && lower[0] != DBL_MAX && lower[0] > 0.0)
+           lower[0] != EMPTY_VALUE && lower[0] != DBL_MAX && lower[0] > 0.0)
          {
+            // Fractal exists at bar i, draw marker at THIS BAR'S low
             DrawMarker("FractalSL",
                        iTime(m_symbol, PERIOD_CURRENT, i),
-                       lower[0],
+                       iLow(m_symbol, PERIOD_CURRENT, i),   // ✅ Draw at candle low
                        false,
                        i,
                        m_settings.FractalHighColor,
@@ -1367,7 +1386,7 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| EvaluateCM - Calculate & Manage (Position Sizing + SL Geometry)  |
+   //| EvaluateCM - CAPITAL MANAGEMENT (Position Sizing + SL Geometry)  |
    //| Returns: lots > 0 = pass, 0 = veto                               |
    //|                                                                  |
    //| RC VETO EVALUATION (see EvaluateRC):                             |
@@ -1415,7 +1434,7 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| EvaluateRC - Risk Control Veto Gates                             |
+   //| EvaluateRC - RISK CONTROL Veto Gates                             |
    //| Returns: true = pass, false = veto                               |
    //|                                                                  |
    //| RC vetoes here combine hardcoded safeguards with user thresholds |
