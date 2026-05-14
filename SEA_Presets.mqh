@@ -1244,10 +1244,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // the subwindow. Enabling it also activates the DPI deceleration
       // pre-filter (line 4793 of SEA_SignalEngine.mqh) which was dead-code
       // until now because that filter requires Ind_Dpi_Enabled=true.
-      cfg.Ind_Dpi_Enabled           = Inp_RRM_ORG_Ind_Dpi_Enabled;
-      cfg.Ind_Dpi_Weight            = Inp_RRM_ORG_Ind_Dpi_Weight;
-      cfg.DPI_MACD_Fast             = Inp_RRM_ORG_MACD_Fast;              // default 8
-      cfg.DPI_MACD_Slow             = Inp_RRM_ORG_MACD_Slow;              // default 13
+      cfg.Ind_Dpi_Enabled           = Inp_RRM_ORG_DPI_Enabled;
+      cfg.Ind_Dpi_Weight            = Inp_RRM_ORG_DPI_Weight;
+      cfg.DPI_MACD_Fast             = Inp_RRM_ORG_DPI_MacdFast;           // default 8
+      cfg.DPI_MACD_Slow             = Inp_RRM_ORG_DPI_MacdSlow;           // default 13
       cfg.DPI_RedSignalType         = Inp_RRM_ORG_DPI_RedSignalType;      // default 3 (EMA13)
       cfg.DPI_RedEMA_A              = Inp_RRM_ORG_DPI_RedEMA_A;           // default 5
       cfg.DPI_RedEMA_B              = Inp_RRM_ORG_DPI_RedEMA_B;           // default 8
@@ -1279,21 +1279,21 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       
       // ── INDICATOR TOGGLES: flexible via Inp_RRM_ORG_* ────────────────
       cfg.Ind_Adx_Enabled        = Inp_RRM_ORG_Use_Adx;
-      cfg.Ind_Atr_Enabled        = false;             // ATR VRC - Always off in RRM (not part of RRM methodology):
+      cfg.Ind_Atr_Enabled        = Inp_RRM_ORG_Use_Atr;
       cfg.Ind_Bb_Enabled         = Inp_RRM_ORG_Use_Bb;
       cfg.Ind_CandleBody_Enabled = Inp_RRM_ORG_Use_CandleBody;
-      cfg.Ind_Cci_Enabled        = Inp_RRM_ORG_Use_Cci;
+      cfg.Ind_Cci_Enabled        = false;
       cfg.Ind_CI_Enabled         = Inp_RRM_ORG_Use_CI;
-      cfg.Ind_Macd_Enabled       = Inp_RRM_ORG_Use_Macd;
+      cfg.Ind_Macd_Enabled       = false;
       cfg.Ind_Mfi_Enabled        = Inp_RRM_ORG_Use_Mfi;
       cfg.Ind_Psar_Enabled       = Inp_RRM_ORG_Use_Psar;
-      cfg.Ind_P123_Enabled       = false;
-      cfg.Ind_Ross_Enabled       = false;
+      cfg.Ind_P123_Enabled       = Inp_RRM_ORG_Use_P123;
+      cfg.Ind_Ross_Enabled       = Inp_RRM_ORG_Use_Ross;
       cfg.Ind_Rsi_Enabled        = Inp_RRM_ORG_Use_Rsi;
       cfg.Ind_Sto_Enabled        = Inp_RRM_ORG_Use_Stoch;
       cfg.Ind_SmaConverge_Enabled   = false;
       cfg.Ind_SmaConverge_Weight    = Inp_CUSTOM_Ind_SmaConverge_Weight;
-      cfg.Ind_VRC_Enabled        = false;             // VRC remains outside the RRM_ORG indicator set.
+      cfg.Ind_VRC_Enabled        = Inp_RRM_ORG_Use_VRC;
 
       // ── ADX SETTINGS: safe defaults (disabled) ────────────────────────
       cfg.ADX_Mode                  = Inp_RRM_ORG_Adx_Mode;
@@ -1529,7 +1529,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── DPI DECELERATION FILTER ────────────────────────────────────────
       // PHASE A: now actually active because Ind_Dpi_Enabled is true above.
       // Operator-tunable via Inp_RRM_ORG_DpiDecelFilter.
-      cfg.DpiDecelFilterEnabled     = Inp_RRM_ORG_DpiDecelFilter;
+      cfg.DpiDecelFilterEnabled     = Inp_RRM_ORG_DPI_Decel_Filter;
 
       // ── PHASE B: RECOVERY SENSITIVITY TUNING (opt-in, all default disabled/0) ──────────
       // These settings widen specific bottlenecks in the TS→TE pipeline to allow valid
