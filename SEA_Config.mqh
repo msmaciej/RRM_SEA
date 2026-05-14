@@ -897,6 +897,14 @@ input bool        Inp_Debug_ExportCSV              = false;          // Report: 
 input bool        Inp_Debug_ExportUseCommonFiles   = false;          // Report: Use terminal Common Files folder
 
 input group " ";
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 GLOBAL: Bar Close (bcX) Multi-Bar Momentum";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_BarClose_LookbackBars                 = 3;      // BarClose lookback window (1-4 bars)
+input bool        Inp_BarClose_Require_Progressive_Momentum = true;   // Require consecutive close improvement
+input bool        Inp_DPI_Histogram_Growth_Boost            = true;   // Use DPI histogram growth as boost
+
+input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET: MA";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1144,6 +1152,8 @@ input int         Inp_RRM_ORG_DPI_RedEMA_D            = 21;          // DPI: Red
 input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst   = 5;           // DPI: Double-smooth first EMA
 input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond  = 8;           // DPI: Double-smooth second EMA
 input int         Inp_RRM_ORG_DPI_CCI_Period          = 13;          // DPI: CCI period
+input bool        Inp_RRM_ORG_DpiDecelFilter          = true;        // RRM_ORG: Block entry on DPI histogram deceleration
+input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote    = false;       // DPI: Use raw histogram direction for vote (skip CCI-reset check)
 input group " ";
 input group "═══ RRM_ORG: DPI GREEN Histogram Logic ═══"
 input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;    // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
@@ -1224,6 +1234,9 @@ input group "║   📐 RRM_ORG: PSAR Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input double      Inp_RRM_ORG_PsarStep             = 0.05;           // RRM_ORG PSAR Step
 input double      Inp_RRM_ORG_PsarMax              = 0.5;            // RRM_ORG PSAR Max
+input bool        Inp_RRM_ORG_Vote_AllowPsarFlip   = true;           // RRM_ORG: Enable PSAR flip detection
+input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 2;              // RRM_ORG: PSAR flip delay (-1=persistent, 0-10=bars after flip)
+input int         Inp_RRM_ORG_PSAR_FlipGraceBars   = 0;              // PSAR: Ignore PSAR vote for N bars after an adverse flip (0=disabled)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: RSI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1246,7 +1259,6 @@ input group "║   📐 RRM_ORG: Phase A Quality Gates (TS=1 (shif=1) / TE=1)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_ForceDpiOn           = true;           // RRM_ORG: Force DPI voter ON (matches reference methodology)
 input bool        Inp_RRM_ORG_RequireRecoveryIntraday = true;        // RRM_ORG: Require recovery momentum on M15-and-down
-input bool        Inp_RRM_ORG_DpiDecelFilter       = true;           // RRM_ORG: Block entry on DPI histogram deceleration
 
 input bool        Inp_RRM_ORG_ForceDDProtection    = true;           // RRM_ORG: Force drawdown protection ON
 input int         Inp_RRM_ORG_DDMaxConsecLosses    = 4;              // RRM_ORG: Override max consecutive losses (0=use Inp_RRM_*)
@@ -1272,16 +1284,8 @@ input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Recovery Sensitivity Tuning (Phase B)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote    = false;       // DPI: Use raw histogram direction for vote (skip CCI-reset check)
 input double      Inp_RRM_ORG_Layer_SlopeTolerance    = 0.0;         // Layer: Flat-slope tolerance in pips (0=strict both EMAs rising/falling)
 input double      Inp_RRM_ORG_BarClose_PipTolerance   = 0.0;         // BarClose: Allow close within N pips of target EMA (0=strict close>EMA)
-input int         Inp_RRM_ORG_PSAR_FlipGraceBars      = 0;           // PSAR: Ignore PSAR vote for N bars after an adverse flip (0=disabled)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📊 MULTI-BAR MOMENTUM DETECTION";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Require_Progressive_Momentum    = true;        // Require consecutive close improvement
-input bool        Inp_DPI_Histogram_Growth_Boost      = true;        // Use DPI histogram growth as boost
-input int         Inp_BarClose_LookbackBars           = 3;           // BC lookback window (1-4 bars)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1944,7 +1948,7 @@ void InitializeConfig()
    Settings.Layer_SlopeTolerance  = 0.0;
    Settings.BarClose_PipTolerance = 0.0;
    Settings.BarClose_LookbackBars        = MathMax(1, MathMin(4, Inp_BarClose_LookbackBars));
-   Settings.Require_Progressive_Momentum = Inp_Require_Progressive_Momentum;
+   Settings.Require_Progressive_Momentum = Inp_BarClose_Require_Progressive_Momentum;
    Settings.DPI_Histogram_Growth_Boost   = Inp_DPI_Histogram_Growth_Boost;
    Settings.PSAR_FlipGraceBars    = 0;
 

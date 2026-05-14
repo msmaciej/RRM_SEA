@@ -1262,12 +1262,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── PSAR: LOCKED ON (timing/direction confirmation) ───────────────
       cfg.Ind_Psar_Enabled          = Inp_RRM_ORG_Use_Psar;
-      cfg.Vote_AllowPsarFlip        = true;
+      cfg.Vote_AllowPsarFlip        = Inp_RRM_ORG_Vote_AllowPsarFlip;
       cfg.P_PsarStep                = Inp_RRM_ORG_PsarStep;
       cfg.P_PsarMax                 = Inp_RRM_ORG_PsarMax;
-      // Vote -1 = persistent: evaluate dot position on every bar,
-      // Vote 0,1,2,3...= allowable delay over N-candles
-      cfg.Vote_PsarFlipDelay        = -1;
+      // Vote: -1=persistent (every bar), 0=flip bar only, 1-10=N candles after flip
+      cfg.Vote_PsarFlipDelay        = MathMax(-1, MathMin(10, Inp_RRM_ORG_Vote_PsarFlipDelay));
 
       // ── CANDLE BODY ───────────────────────────────────────────────────
       cfg.Ind_CandleBody_Enabled    = Inp_RRM_ORG_Use_CandleBody;
@@ -1538,7 +1537,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Layer_SlopeTolerance      = Inp_RRM_ORG_Layer_SlopeTolerance;
       cfg.BarClose_PipTolerance     = Inp_RRM_ORG_BarClose_PipTolerance;
       cfg.BarClose_LookbackBars        = MathMax(1, MathMin(4, Inp_BarClose_LookbackBars));
-      cfg.Require_Progressive_Momentum = Inp_Require_Progressive_Momentum;
+      cfg.Require_Progressive_Momentum = Inp_BarClose_Require_Progressive_Momentum;
       cfg.DPI_Histogram_Growth_Boost   = Inp_DPI_Histogram_Growth_Boost;
       cfg.PSAR_FlipGraceBars        = Inp_RRM_ORG_PSAR_FlipGraceBars;
 
