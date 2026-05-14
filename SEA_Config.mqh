@@ -668,6 +668,10 @@ struct ST_Settings
    bool   DPI_IgnoreCCIForVote;     // DPI vote: use raw histogram direction only (skip CCI-reset)
    double Layer_SlopeTolerance;     // Layer slope tolerance in pips (0=strict; N pips = flat allowed)
    double BarClose_PipTolerance;    // Bar-close tolerance in pips (0=strict close>EMA; N=within N pips)
+   // ── Multi-Bar Momentum Detection ──
+   int    BarClose_LookbackBars;        // BC lookback window (1-4 bars, default 3)
+   bool   Require_Progressive_Momentum; // Require consecutive close improvement (default true)
+   bool   DPI_Histogram_Growth_Boost;   // Use DPI histogram growth as confirmation (default true)
    int    PSAR_FlipGraceBars;       // PSAR grace bars after an adverse flip (0=disabled)
 
    // ── PHASE B: TE-side hardening (read by SEA_TradeExecutor::EvaluateTE) ──
@@ -1246,6 +1250,13 @@ input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote  = false;         // DPI: Use
 input double      Inp_RRM_ORG_Layer_SlopeTolerance  = 0.0;           // Layer: Flat-slope tolerance in pips (0=strict both EMAs rising/falling)
 input double      Inp_RRM_ORG_BarClose_PipTolerance = 0.0;           // BarClose: Allow close within N pips of target EMA (0=strict close>EMA)
 input int         Inp_RRM_ORG_PSAR_FlipGraceBars    = 0;             // PSAR: Ignore PSAR vote for N bars after an adverse flip (0=disabled)
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📊 MULTI-BAR MOMENTUM DETECTION";
+input group "╚════════════════════════════════════════════════════════╝";
+input int  Inp_BarClose_LookbackBars        = 3;    // BC lookback window (1-4 bars)
+input bool Inp_Require_Progressive_Momentum = true; // Require consecutive close improvement
+input bool Inp_DPI_Histogram_Growth_Boost   = true; // Use DPI histogram growth as boost
 
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1907,6 +1918,9 @@ void InitializeConfig()
    Settings.DPI_IgnoreCCIForVote  = false;
    Settings.Layer_SlopeTolerance  = 0.0;
    Settings.BarClose_PipTolerance = 0.0;
+   Settings.BarClose_LookbackBars        = MathMax(1, MathMin(4, Inp_BarClose_LookbackBars));
+   Settings.Require_Progressive_Momentum = Inp_Require_Progressive_Momentum;
+   Settings.DPI_Histogram_Growth_Boost   = Inp_DPI_Histogram_Growth_Boost;
    Settings.PSAR_FlipGraceBars    = 0;
 
    // === FINAL VALIDATION: BiasMode vs AutoStrat compatibility ===
