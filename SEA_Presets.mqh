@@ -1237,14 +1237,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Ema3                 = Inp_RRM_Ema3Period;
       cfg.P_Ema4                 = Inp_RRM_Ema4Period;
 
-      // ── DPI v31: LOCKED ON in RRM_ORG (input-overridable via Inp_RRM_ORG_ForceDpiOn) ──
+      // ── DPI v31: controlled via Inp_RRM_ORG_Ind_Dpi_Enabled (replaces removed Inp_RRM_ORG_ForceDpiOn) ──
       // PHASE A: was opt-in (false). The "ORG" suffix marks the original
       // Russ Horn methodology, which uses DPI as the primary momentum
       // voter — every entry shown in /100-trades/*.{jpg,png} has DPI in
-      // the subwindow. Forcing it on also activates the DPI deceleration
+      // the subwindow. Enabling it also activates the DPI deceleration
       // pre-filter (line 4793 of SEA_SignalEngine.mqh) which was dead-code
       // until now because that filter requires Ind_Dpi_Enabled=true.
-      cfg.Ind_Dpi_Enabled           = Inp_RRM_ORG_ForceDpiOn;
+      cfg.Ind_Dpi_Enabled           = Inp_RRM_ORG_Ind_Dpi_Enabled;
       cfg.Ind_Dpi_Weight            = Inp_RRM_ORG_Ind_Dpi_Weight;
       cfg.DPI_MACD_Fast             = Inp_RRM_ORG_MACD_Fast;              // default 8
       cfg.DPI_MACD_Slow             = Inp_RRM_ORG_MACD_Slow;              // default 13
@@ -1459,7 +1459,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_MaxConsecutiveLosses  = (Inp_RRM_ORG_DDMaxConsecLosses > 0)
                                           ? Inp_RRM_ORG_DDMaxConsecLosses
                                           : (Inp_RRM_MaxConsecutiveLosses > 0 ? Inp_RRM_MaxConsecutiveLosses : 4);
-      cfg.RRM_MaxTradesPerDay       = Inp_RRM_MaxTradesPerDay;
+      cfg.RRM_MaxTradesPerDay       = (Inp_RRM_ORG_DDMaxTradesPerDay > 0)
+                                          ? Inp_RRM_ORG_DDMaxTradesPerDay
+                                          : Inp_RRM_MaxTradesPerDay;
       cfg.RRM_MaxDailyDrawdownPct   = (Inp_RRM_ORG_DDMaxDailyPct > 0.0)
                                           ? Inp_RRM_ORG_DDMaxDailyPct
                                           : (Inp_RRM_MaxDailyDrawdownPct > 0.0 ? Inp_RRM_MaxDailyDrawdownPct : 2.0);
@@ -1534,11 +1536,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // pullback-recovery setups through.  All default to the conservative value that
       // preserves the original PRESET_RRM_ORG contract.
       cfg.DPI_IgnoreCCIForVote      = Inp_RRM_ORG_DPI_IgnoreCCIForVote;
-      cfg.Layer_SlopeTolerance      = Inp_RRM_ORG_Layer_SlopeTolerance;
+      cfg.Layer_SlopeTolerance      = 0.0;   // Hardcoded: obsolete pip-based slope tolerance removed
       cfg.BarClose_PipTolerance     = Inp_RRM_ORG_BarClose_PipTolerance;
-      cfg.BarClose_LookbackBars        = MathMax(1, MathMin(4, Inp_BarClose_LookbackBars));
-      cfg.Require_Progressive_Momentum = Inp_BarClose_Require_Progressive_Momentum;
-      cfg.DPI_Histogram_Growth_Boost   = Inp_DPI_Histogram_Growth_Boost;
+      cfg.BarClose_LookbackBars        = MathMax(1, MathMin(4, Inp_RRM_ORG_BarClose_LookbackBars));
+      cfg.Require_Progressive_Momentum = Inp_RRM_ORG_BarClose_Require_Progressive_Momentum;
+      cfg.DPI_Histogram_Growth_Boost   = Inp_RRM_ORG_DPI_Histogram_Growth_Boost;
       cfg.PSAR_FlipGraceBars        = Inp_RRM_ORG_PSAR_FlipGraceBars;
 
       // ── PHASE B: TE-side hardening (standardized veto inputs) ──────────

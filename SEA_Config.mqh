@@ -897,14 +897,6 @@ input bool        Inp_Debug_ExportCSV              = false;          // Report: 
 input bool        Inp_Debug_ExportUseCommonFiles   = false;          // Report: Use terminal Common Files folder
 
 input group " ";
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 GLOBAL: Bar Close (bcX) Multi-Bar Momentum";
-input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_BarClose_LookbackBars                 = 3;      // BarClose lookback window (1-4 bars)
-input bool        Inp_BarClose_Require_Progressive_Momentum = true;   // Require consecutive close improvement
-input bool        Inp_DPI_Histogram_Growth_Boost            = true;   // Use DPI histogram growth as boost
-
-input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET: MA";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1101,11 +1093,14 @@ input int         Inp_RRM_Sto_Slow                 = 3;              // RRM Stoc
 input double      Inp_RRM_Sto_OB                   = 80.0;           // RRM Stochastic Overbought threshold
 input double      Inp_RRM_Sto_OS                   = 20.0;           // RRM Stochastic Oversold threshold
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: EMA Fan & DPI Filters";
+input group "║   📐 RRM: EMA Fan Filter";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_EmaFanFilterEnabled      = false;          // RRM: Block entry on overextended EMA fan
-input bool        Inp_RRM_DpiDecelFilterEnabled    = false;          // RRM: Block entry on DPI histogram deceleration
 input double      Inp_RRM_EmaFanMaxTotalPips       = 0.0;            // RRM: EMA1–EMA4 max total gap pips (0=disabled; M1/M5 start: 25.0)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM: DPI Deceleration Filter";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_RRM_DpiDecelFilterEnabled    = false;          // RRM: Block entry on DPI histogram deceleration
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1154,6 +1149,7 @@ input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond  = 8;           // DPI: Dou
 input int         Inp_RRM_ORG_DPI_CCI_Period          = 13;          // DPI: CCI period
 input bool        Inp_RRM_ORG_DpiDecelFilter          = true;        // RRM_ORG: Block entry on DPI histogram deceleration
 input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote    = false;       // DPI: Use raw histogram direction for vote (skip CCI-reset check)
+input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = true;     // DPI: Use DPI histogram growth as boost
 input group " ";
 input group "═══ RRM_ORG: DPI GREEN Histogram Logic ═══"
 input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;    // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
@@ -1165,6 +1161,12 @@ input group "═══ RRM_ORG: DPI GREEN Histogram Entry/Exit ═══"
 input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = false;    // DPI: Block entries on momentum deceleration
 input bool        Inp_RRM_ORG_DPI_ExitOnHistDisappear    = false;    // DPI: Close trades when green histogram vanishes
 input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // DPI: Exit when |CCI| below threshold (0=disable)
+input group " ";
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: Multi-Bar Momentum";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_ORG_BarClose_LookbackBars                 = 3;    // BarClose lookback window (1-4 bars)
+input bool        Inp_RRM_ORG_BarClose_Require_Progressive_Momentum = true; // Require consecutive close improvement
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Indicators — Enable/Disable";
@@ -1255,23 +1257,18 @@ input double      Inp_RRM_ORG_Sto_OB               = 80.0;           // RRM_ORG 
 input double      Inp_RRM_ORG_Sto_OS               = 20.0;           // RRM_ORG Stochastic Oversold threshold
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: Phase A Quality Gates (TS=1 (shif=1) / TE=1)";
+input group "║   📐 RRM_ORG: Phase A Quality Gates";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_ForceDpiOn           = true;           // RRM_ORG: Force DPI voter ON (matches reference methodology)
 input bool        Inp_RRM_ORG_RequireRecoveryIntraday = true;        // RRM_ORG: Require recovery momentum on M15-and-down
-
-input bool        Inp_RRM_ORG_ForceDDProtection    = true;           // RRM_ORG: Force drawdown protection ON
-input int         Inp_RRM_ORG_DDMaxConsecLosses    = 4;              // RRM_ORG: Override max consecutive losses (0=use Inp_RRM_*)
-
 input bool        Inp_RRM_ORG_HtfFilter            = false;          // RRM_ORG: Force HTF trend filter ON
 input int         Inp_RRM_ORG_HtfEmaPeriod         = 89;             // RRM_ORG: HTF EMA period (0=use Inp_Filter_HtfEmaPeriod)
 
 input int         Inp_RRM_ORG_PhaseConfirmM5       = 0;              // RRM_ORG:1 MinPhaseConfirmBars on M1–M5
 input int         Inp_RRM_ORG_PhaseConfirmM30      = 0;              // RRM_ORG:2 MinPhaseConfirmBars on M6–M30
 input int         Inp_RRM_ORG_PhaseConfirmH1plus   = 0;              // RRM_ORG:3 MinPhaseConfirmBars on H1 and above
-
-// ── TE-side gates are standardized globally via Inp_VETO_TE_* ─────────────────────────────
-input group " ";
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: EMA Fan Filter";
+input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_EmaFanFilter         = true;           // RRM_ORG: Block entry on overextended EMA fan
 input double      Inp_RRM_ORG_EmaFan_M5Pips        = 25.0;           // RRM_ORG: Fan max pips on M1–M5
 input double      Inp_RRM_ORG_EmaFan_M30Pips       = 40.0;           // RRM_ORG: Fan max pips on M6–M30
@@ -1279,12 +1276,16 @@ input double      Inp_RRM_ORG_EmaFan_H1Pips        = 60.0;           // RRM_ORG:
 input double      Inp_RRM_ORG_EmaFan_H4Pips        = 100.0;          // RRM_ORG: Fan max pips on H4
 input double      Inp_RRM_ORG_EmaFan_DailyPips     = 180.0;          // RRM_ORG: Fan max pips on D1+
 input double      Inp_RRM_ORG_JpyGateMultiplier    = 1.3;            // RRM_ORG: Recovery+EmaDiv gate scale for JPY pairs (1.0=disabled)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: Drawdown Protection";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_RRM_ORG_ForceDDProtection    = true;           // RRM_ORG: Force drawdown protection ON
+input int         Inp_RRM_ORG_DDMaxConsecLosses    = 4;              // RRM_ORG: Override max consecutive losses (0=use Inp_RRM_*)
+input int         Inp_RRM_ORG_DDMaxTradesPerDay    = 15;             // RRM_ORG: Override max trades per day (0=use Inp_RRM_*)
 input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM_ORG: Override max daily DD % (0=use Inp_RRM_*)
-input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Recovery Sensitivity Tuning (Phase B)";
 input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_RRM_ORG_Layer_SlopeTolerance    = 0.0;         // Layer: Flat-slope tolerance in pips (0=strict both EMAs rising/falling)
 input double      Inp_RRM_ORG_BarClose_PipTolerance   = 0.0;         // BarClose: Allow close within N pips of target EMA (0=strict close>EMA)
 
 input group " ";
@@ -1947,9 +1948,9 @@ void InitializeConfig()
    Settings.DPI_IgnoreCCIForVote  = false;
    Settings.Layer_SlopeTolerance  = 0.0;
    Settings.BarClose_PipTolerance = 0.0;
-   Settings.BarClose_LookbackBars        = MathMax(1, MathMin(4, Inp_BarClose_LookbackBars));
-   Settings.Require_Progressive_Momentum = Inp_BarClose_Require_Progressive_Momentum;
-   Settings.DPI_Histogram_Growth_Boost   = Inp_DPI_Histogram_Growth_Boost;
+   Settings.BarClose_LookbackBars        = 3;    // Default; overridden by PRESET_RRM_ORG via Inp_RRM_ORG_BarClose_LookbackBars
+   Settings.Require_Progressive_Momentum = true; // Default; overridden by PRESET_RRM_ORG via Inp_RRM_ORG_BarClose_Require_Progressive_Momentum
+   Settings.DPI_Histogram_Growth_Boost   = true; // Default; overridden by PRESET_RRM_ORG via Inp_RRM_ORG_DPI_Histogram_Growth_Boost
    Settings.PSAR_FlipGraceBars    = 0;
 
    // === FINAL VALIDATION: BiasMode vs AutoStrat compatibility ===
