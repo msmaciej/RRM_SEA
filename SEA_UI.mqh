@@ -125,6 +125,13 @@ string SEA_UI_FormatFilterStatus(bool is_allowed, bool filter_active, color &out
 
 string SEA_UI_AdmMark() { return ""; }
 
+string SEA_UI_NormalizeStatusText(const string status)
+{
+   if(StringLen(status) == 0 || StringCompare(status, "null") == 0)
+      return SEA_STATUS_EVALUATING;
+   return status;
+}
+
 int SEA_UI_PipFactor()
 {
    int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
@@ -623,9 +630,10 @@ void SEA_UI_UpdateCockpit(
    AddLine(StringFormat("SPREAD:    %.1f Pips", spread_val), v_clr, lines, line_clrs);
    AddLine(StringFormat("STOPLEVEL: %d Pips", (int)stop_lvl), v_clr, lines, line_clrs);
    
-   bool is_valid = (ts_telemetry.rejection_reason == "Valid Signal" || ts_telemetry.rejection_reason == "OK");
+   string status_text = SEA_UI_NormalizeStatusText(ts_telemetry.rejection_reason);
+   bool is_valid = (status_text == "Valid Signal" || status_text == "OK");
    string sig_str = is_valid ? ((ts_telemetry.bias == 1) ? "BUY" : "SELL") : "FLAT";
-   AddLine(StringFormat("STATUS:    %s", ts_telemetry.rejection_reason), (is_valid ? Settings.clr_Pass : Settings.clr_Fail), lines, line_clrs);
+   AddLine(StringFormat("STATUS:    %s", status_text), (is_valid ? Settings.clr_Pass : Settings.clr_Fail), lines, line_clrs);
    AddLine(StringFormat("SIGNAL:    %s", sig_str), v_clr, lines, line_clrs);
 
    AddLine("", (color)0, lines, line_clrs); 
@@ -646,13 +654,13 @@ void SEA_UI_UpdateCockpit(
    string p_eq = (disp_phase_val > 0) ? "+" : ((disp_phase_val < 0) ? "-" : ".");
    string l_eq = (ts_telemetry.layer > 0) ? "+" : ((ts_telemetry.layer < 0) ? "-" : ".");
    string i_eq = (disp_votes > 0) ? "+" : ".";
-   bool filter_rejected = (StringFind(ts_telemetry.rejection_reason, "HTF")    >= 0 ||
-                           StringFind(ts_telemetry.rejection_reason, "Filter") >= 0 ||
-                           StringFind(ts_telemetry.rejection_reason, "TIME")   >= 0 ||
-                           StringFind(ts_telemetry.rejection_reason, "SPREAD") >= 0 ||
-                           StringFind(ts_telemetry.rejection_reason, "NEWS")   >= 0);
-   bool signal_valid    = (ts_telemetry.rejection_reason == "Valid Signal" ||
-                           ts_telemetry.rejection_reason == "OK");
+   bool filter_rejected = (StringFind(status_text, "HTF")    >= 0 ||
+                           StringFind(status_text, "Filter") >= 0 ||
+                           StringFind(status_text, "TIME")   >= 0 ||
+                           StringFind(status_text, "SPREAD") >= 0 ||
+                           StringFind(status_text, "NEWS")   >= 0);
+   bool signal_valid    = (status_text == "Valid Signal" ||
+                           status_text == "OK");
    string f_eq = filter_rejected ? "-" : (signal_valid ? "+" : ".");
 
    AddLine(StringFormat("TS EQ: TS = B[%s] * P[%s] * L[%s] * I[%s] * F[%s]", b_eq, p_eq, l_eq, i_eq, f_eq), v_clr, lines, line_clrs);
