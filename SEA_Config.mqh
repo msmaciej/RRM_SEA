@@ -670,16 +670,11 @@ struct ST_Settings
    double BarClose_PipTolerance;    // Bar-close tolerance in pips (0=strict close>EMA; N=within N pips)
    int    PSAR_FlipGraceBars;       // PSAR grace bars after an adverse flip (0=disabled)
 
-   // ── TE-side execution veto controls (OptionB) ──
-   bool   TE_RecheckBarClose;       // Optional TE veto: re-check shift=1 close vs live bid
-   int    TE_OpenDelaySeconds;      // Optional TE veto: minimum seconds since bar open
-   int    TE_SpreadMedianTicks;     // Optional TE veto: median spread window (ticks, 0=off)
-   double TE_BC_TolerancePips;      // Optional TE veto tolerance (0.0=legacy strict fallback)
-
-   // ── Multi-bar momentum detection (OptionA/TS) ──
-   int    BarClose_LookbackBars;         // TS: look back N bars for BC confirmation (1-4)
-   bool   Require_Progressive_Momentum;  // TS: require consecutive close improvement in lookback
-   bool   DPI_Histogram_Growth_Boost;    // TS: allow DPI histogram growth to rescue momentum veto
+   // ── PHASE B: TE-side hardening (read by SEA_TradeExecutor::EvaluateTE) ──
+   bool   TE_RecheckBarClose;       // Re-confirm bar-close BC vs live bid at shift=0
+   double TE_BC_TolerancePips;      // Allowed shift=0 drift from Close[1] in pips
+   int    TE_OpenDelaySeconds;      // Defer EvaluateTE() by N sec after new bar
+   int    TE_SpreadMedianTicks;     // Median spread over last N ticks (0=disabled)
 };
 
 // Global Configuration Instance
@@ -785,45 +780,40 @@ input double      Inp_RM_MarginAdj_JPY             = 0.9;         // Margin Adj:
 
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    ✅✅ FILTERS (GLOBAL)";
+input group "    🚫✅ VETO CONTROLS (GLOBAL)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   � FILTER: SPREAD (GLOBAL)";
+input group "║   🚫 VETO: F FILTERS (SPREAD/TIME/NEWS)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Filter_UseSpread             = false;       // Spread: Enable filter
-input int         Inp_Filter_MaxSpreadRetryBars    = 3;           // Spread: Kill carry after N bars of spread blocking (0=unlimited)
-input double      Inp_Filter_MaxSpreadPips         = 3.0;         // Spread: Max (pips; ignored if UseSpread=false)
+input bool        Inp_VETO_UseSpread               = false;       // Spread: Enable filter
+input int         Inp_VETO_MaxSpreadRetryBars      = 3;           // Spread: Kill carry after N bars of spread blocking (0=unlimited)
+input double      Inp_VETO_MaxSpread               = 3.0;         // Spread: Max (pips; ignored if UseSpread=false)
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   � FILTER: TIME (GLOBAL)";
+input group "║   🚫 VETO: TIME";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Filter_UseTime               = false;      // Session: Enable time filter
-input int         Inp_Filter_StartHour             = 8;          // Session: Start hour (broker time)
-input int         Inp_Filter_EndHour               = 20;         // Session: End hour (broker time)
+input bool        Inp_VETO_UseTime                 = false;      // Session: Enable time filter
+input int         Inp_VETO_StartHr                 = 8;          // Session: Start hour (broker time)
+input int         Inp_VETO_EndHr                   = 20;         // Session: End hour (broker time)
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   � FILTER: NEWS (GLOBAL)";
+input group "║   🚫 VETO: NEWS";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Filter_UseNews               = false;      // News: Enable news filter (CSV calendar)
-input string      Inp_Filter_NewsFile              = "calendar_statement.csv"; // News: CSV filename
-input int         Inp_Filter_NewsPre               = 60;         // News: Minutes before news to block entries
-input int         Inp_Filter_NewsPost              = 60;         // NEws: Minutes after news to block entries
+input bool        Inp_VETO_UseNews                 = false;      // News: Enable news filter (CSV calendar)
+input string      Inp_VETO_NewsFile                = "calendar_statement.csv"; // News: CSV filename
+input int         Inp_VETO_NewsPreMinutes          = 60;         // News: Minutes before news to block entries
+input int         Inp_VETO_NewsPostMinutes         = 60;         // News: Minutes after news to block entries
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🚫 VETO: TE QUALITY GATES (ADVANCED)";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_VETO_TE_RecheckBarClose      = false;      // Re-check price drift vs Close[1]
+input double      Inp_VETO_TE_BC_TolerancePips     = 3.0;        // Drift tolerance in pips (if RecheckBarClose=true)
+input int         Inp_VETO_TE_OpenDelaySeconds     = 0;          // Delay after bar open in seconds (0=off)
+input int         Inp_VETO_TE_SpreadMedianTicks    = 0;          // Spread median filter tick window (0=off)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   � FILTER: HTF (GLOBAL)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_Filter_UseHTF                = false;      // HTF: Enable HTF trend filter
 input ENUM_TIMEFRAMES Inp_Filter_HtfPeriod         = PERIOD_H4;  // HTF: timeframe
 input int         Inp_Filter_HtfEmaPeriod          = 89;         // HTF: EMA period
-
-// OptionC model: TE should execute at bar open using F filters; these are optional advanced vetoes (default OFF).
-input group "─── TE Execution Vetoes (Advanced) ───"
-input bool        Inp_TE_RecheckBarClose           = false;      // TE: Re-check price vs Close[1]
-input int         Inp_TE_OpenDelaySeconds          = 0;          // TE: Delay after bar open (0=immediate)
-input int         Inp_TE_SpreadMedianTicks         = 0;          // TE: Spread spike filter (0=off)
-input double      Inp_TE_BC_TolerancePips          = 0.0;        // TE: Price drift tolerance (0=strict fallback)
-
-input group "─── Multi-Bar Momentum Detection ───"
-input int         Inp_BarClose_LookbackBars        = 3;          // TS: BC lookback window (1-4)
-input bool        Inp_Require_Progressive_Momentum = true;       // TS: Require consecutive improvement
-input bool        Inp_DPI_Histogram_Growth_Boost   = true;       // TS: Use DPI growth as momentum fallback
 
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1238,12 +1228,7 @@ input int         Inp_RRM_ORG_PhaseConfirmM5       = 0;              // RRM_ORG:
 input int         Inp_RRM_ORG_PhaseConfirmM30      = 0;              // RRM_ORG:2 MinPhaseConfirmBars on M6–M30
 input int         Inp_RRM_ORG_PhaseConfirmH1plus   = 0;              // RRM_ORG:3 MinPhaseConfirmBars on H1 and above
 
-// ── TE-side gates (execution evaluation, shift=0 + delay in SEC.) ─────────────────────────
-input bool        Inp_RRM_ORG_TE_RecheckBarClose   = true;           // RRM_ORG: At TE, re-confirm shift=1 BC vs current bid
-input int         Inp_RRM_ORG_TE_OpenDelaySecsM5   = 5;              // RRM_ORG: Defer TE by N sec at new bar (M1–M5)
-input int         Inp_RRM_ORG_TE_OpenDelaySecsM30  = 10;             // RRM_ORG: Defer TE by N sec at new bar (M6–M30)
-input int         Inp_RRM_ORG_TE_OpenDelaySecsHi   = 15;             // RRM_ORG: Defer TE by N sec at new bar (H1+)
-input int         Inp_RRM_ORG_TE_SpreadMedianTicks = 8;              // RRM_ORG: Median spread over last N ticks (0=disabled)
+// ── TE-side gates are standardized globally via Inp_VETO_TE_* ─────────────────────────────
 
 input bool        Inp_RRM_ORG_EmaFanFilter         = true;           // RRM_ORG: Block entry on overextended EMA fan
 input double      Inp_RRM_ORG_EmaFan_M5Pips        = 25.0;           // RRM_ORG: Fan max pips on M1–M5
@@ -1618,8 +1603,8 @@ void InitializeConfig()
    Settings.CloseOnReverse          = Inp_CUSTOM_CloseOnReverse;
    Settings.RiskPercent             = Inp_RM_RiskPercentDefault;
    Settings.FixedLotSize            = 0.0; // 0 = risk-based sizing (default)
-   Settings.MaxSpread               = Inp_Filter_MaxSpreadPips;
-   Settings.UseSpread               = Inp_Filter_UseSpread;
+   Settings.MaxSpread               = Inp_VETO_MaxSpread;
+   Settings.UseSpread               = Inp_VETO_UseSpread;
    Settings.ATR_VoteMinPips         = Inp_CUSTOM_Ind_Atr_VoteMinPips;
    Settings.ATR_VoteMaxPips         = Inp_CUSTOM_Ind_Atr_VoteMaxPips;
 
@@ -1656,12 +1641,12 @@ void InitializeConfig()
    Settings.ma_v_shift           = Inp_CUSTOM_MaVerShift;
    
    // Filters
-   Settings.UseTime              = Inp_Filter_UseTime;
-   Settings.StartHr              = Inp_Filter_StartHour;
-   Settings.EndHr                = Inp_Filter_EndHour;
-   Settings.UseNews              = Inp_Filter_UseNews;
-   Settings.NewsPre              = Inp_Filter_NewsPre;
-   Settings.NewsPost             = Inp_Filter_NewsPost;
+   Settings.UseTime              = Inp_VETO_UseTime;
+   Settings.StartHr              = Inp_VETO_StartHr;
+   Settings.EndHr                = Inp_VETO_EndHr;
+   Settings.UseNews              = Inp_VETO_UseNews;
+   Settings.NewsPre              = Inp_VETO_NewsPreMinutes;
+   Settings.NewsPost             = Inp_VETO_NewsPostMinutes;
    Settings.UseHTF               = Inp_Filter_UseHTF;
    Settings.HtfPeriod            = Inp_Filter_HtfPeriod;
    Settings.P_HtfEma             = Inp_Filter_HtfEmaPeriod;
@@ -1903,7 +1888,7 @@ void InitializeConfig()
    Settings.MinBarsAfterWeekendGap = MathMax(0, Inp_CUSTOM_MinBarsAfterWeekendGap);
 
    // Spread retry cap: kill carry after N consecutive spread-blocked bars (0=unlimited)
-   Settings.MaxSpreadRetryBars    = Inp_Filter_MaxSpreadRetryBars;
+   Settings.MaxSpreadRetryBars    = Inp_VETO_MaxSpreadRetryBars;
 
    // EMA fan overextension filter: disabled by default (presets override)
    Settings.EmaFanFilterEnabled   = Inp_RRM_EmaFanFilterEnabled;
@@ -1912,16 +1897,11 @@ void InitializeConfig()
    // DPI momentum deceleration filter: disabled by default (presets override)
    Settings.DpiDecelFilterEnabled = Inp_RRM_DpiDecelFilterEnabled;
 
-   // ── TE-side execution veto controls (OptionB defaults OFF) ──
-   Settings.TE_RecheckBarClose    = Inp_TE_RecheckBarClose;
-   Settings.TE_OpenDelaySeconds   = MathMax(0, Inp_TE_OpenDelaySeconds);
-   Settings.TE_SpreadMedianTicks  = MathMax(0, MathMin(32, Inp_TE_SpreadMedianTicks));
-   Settings.TE_BC_TolerancePips   = MathMax(0.0, Inp_TE_BC_TolerancePips);
-
-   // ── Multi-bar momentum detection ──
-   Settings.BarClose_LookbackBars         = MathMax(1, MathMin(4, Inp_BarClose_LookbackBars));
-   Settings.Require_Progressive_Momentum  = Inp_Require_Progressive_Momentum;
-   Settings.DPI_Histogram_Growth_Boost    = Inp_DPI_Histogram_Growth_Boost;
+   // ── PHASE B: TE-side gates (user-configurable veto controls) ──
+   Settings.TE_RecheckBarClose    = Inp_VETO_TE_RecheckBarClose;
+   Settings.TE_BC_TolerancePips   = MathMax(0.0, Inp_VETO_TE_BC_TolerancePips);
+   Settings.TE_OpenDelaySeconds   = Inp_VETO_TE_OpenDelaySeconds;
+   Settings.TE_SpreadMedianTicks  = Inp_VETO_TE_SpreadMedianTicks;
 
    // ── PHASE B: Recovery-sensitivity tuning defaults (all off; PRESET_RRM_ORG may override) ──
    Settings.DPI_IgnoreCCIForVote  = false;
