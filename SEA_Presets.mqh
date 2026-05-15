@@ -18,6 +18,73 @@
 
 #include <RRMS\SEA_Config.mqh>
 
+// ═══════════════════════════════════════════════════════════════════════
+// PRESET_RRM_ORG: EXIT MANAGEMENT CONFIGURATION EXAMPLES
+// ═══════════════════════════════════════════════════════════════════════
+//
+// These examples show complete exit-management configurations.
+// Copy and adjust values to match your instrument, timeframe, and risk.
+//
+// ──────────────────────────────────────────────────────────────────────
+// CONFIGURATION A: Classic RRM (Swing SL + BE + PSAR Trail + Fixed TP)
+// ──────────────────────────────────────────────────────────────────────
+// Use case: conservative swing trading with BE lock and PSAR follow-through.
+// Initial SL:   SLMode=SL_MODE_SWING, SwingLookback=34
+// Breakeven:    BE_Mode=BE_MODE_TP_PROGRESS_PCT, BE_ProgressPct=33.0
+// Trailing:     TrailMode=TRAIL_PSAR, TrailStartsAfterBE=true, TrailLockProfit=true
+// Take Profit:  TPMode=TP_MODE_RR, RRRatio=3.0
+// Flow:
+//   1) Enter with swing-based SL.
+//   2) At ~1/3 path to TP, lock BE (entry + buffer).
+//   3) Trail using PSAR only in profit zone.
+//   4) Exit on TP or trailing protection.
+//
+// ──────────────────────────────────────────────────────────────────────
+// CONFIGURATION B: Let Profit Run (PSAR SL + 1R BE + % Trail + No TP)
+// ──────────────────────────────────────────────────────────────────────
+// Use case: trend capture with no fixed TP ceiling.
+// Initial SL:   SLMode=SL_MODE_PSAR_DOT, PSAR cushion enabled
+// Breakeven:    BE_Mode=BE_MODE_R_MULTIPLE, BE_RMultiple=1.0
+// Trailing:     TrailMode=TRAIL_PROFIT_PERCENT, TrailProfitPercentLPR=25.0
+// Take Profit:  TPMode=TP_MODE_NONE
+// Flow:
+//   1) Enter with PSAR-based SL.
+//   2) At 1R profit, BE locks once.
+//   3) Trail continuously at 25% behind peak profit.
+//   4) Exit on retracement into trailed SL.
+//
+// ──────────────────────────────────────────────────────────────────────
+// CONFIGURATION C: Aggressive Scalp (Fixed SL + Fast Trail + 1:1 TP)
+// ──────────────────────────────────────────────────────────────────────
+// Use case: quick momentum scalps with tight risk and fast exits.
+// Initial SL:   SLMode=SL_MODE_FIXED_PIPS (tight stop)
+// Breakeven:    BE_Mode=BE_MODE_OFF (or early BE if safer profile desired)
+// Trailing:     TrailMode=TRAIL_FIXED_PIPS, quick trigger in custom profile
+// Take Profit:  TPMode=TP_MODE_RR, RRRatio=1.0
+// Flow:
+//   1) Enter with small fixed SL.
+//   2) Activate trailing quickly once short profit appears.
+//   3) Trail toward breakeven/lock.
+//   4) Capture 1:1 TP or trail-out.
+//
+// ──────────────────────────────────────────────────────────────────────
+// CONFIGURATION D: Hybrid (Swing SL + Early BE + PSAR Trail + 1:2 TP)
+// ──────────────────────────────────────────────────────────────────────
+// Use case: balanced profile (early protection + trend participation).
+// Initial SL:   SLMode=SL_MODE_SWING, SwingLookback=21
+// Breakeven:    BE_Mode=BE_MODE_R_MULTIPLE, BE_RMultiple=0.5
+// Trailing:     TrailMode=TRAIL_PSAR, TrailStartsAfterBE=true
+// Take Profit:  TPMode=TP_MODE_RR, RRRatio=2.0
+// Flow:
+//   1) Enter with tighter swing anchor.
+//   2) BE locks early at 0.5R.
+//   3) PSAR trailing advances only after protection.
+//   4) Exit at 1:2 TP or by trailing stop behavior.
+//
+// Notes:
+// - In PRESET_RRM_ORG, TrailTrigger is configured in preset logic (not as input).
+// - BE_MODE_TP_PROGRESS_PCT requires TP to be enabled (TPMode != TP_MODE_NONE).
+
 // TF+JPY-aware initial SL cushion mapping (suited for SL_PSAR_DOT / SL_MODE_SWING)
 double GetRecommendedInitialSlCushionPips()
 {
@@ -354,6 +421,60 @@ bool ValidatePresetConfiguration(const ST_Settings &cfg, const string preset_nam
    }
 
    return valid;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// EXIT CONFIGURATION VALIDATION (PRESET_RRM_ORG)
+// ═══════════════════════════════════════════════════════════════════════
+void ValidateRRM_ORG_ExitConfig(ST_Settings &cfg)
+{
+   string warnings = "";
+
+   // ── Conflict 1: TP_MODE_NONE with BE_MODE_TP_PROGRESS_PCT ─────────
+   if(cfg.TPMode == TP_MODE_NONE && cfg.BE_Mode == BE_MODE_TP_PROGRESS_PCT)
+   {
+      warnings += "[CONFLICT] BE_MODE_TP_PROGRESS_PCT requires TP target!\n";
+      warnings += "  Fix: Change BE_Mode to BE_MODE_R_MULTIPLE or enable TP.\n\n";
+   }
+
+   // ── Conflict 2: TrailTrigger vs RRM_TrailStartsAfterBE ────────────
+   if(cfg.TrailTrigger == TRIGGER_IMMEDIATE && cfg.RRM_TrailStartsAfterBE == true)
+   {
+      warnings += "[OVERRIDE] TrailTrigger=IMMEDIATE but RRM_TrailStartsAfterBE=true\n";
+      warnings += "  Result: Trailing will WAIT for BE (safety override active).\n\n";
+   }
+
+   // ── Conflict 3: PSAR trail with BE disabled ───────────────────────
+   if(cfg.TrailMode == TRAIL_PSAR && cfg.BE_Mode == BE_MODE_OFF && cfg.TrailTrigger == TRIGGER_BREAKEVEN)
+   {
+      warnings += "[DEADLOCK] PSAR trail waits for BE, but BE is disabled!\n";
+      warnings += "  Fix: Enable BE or change TrailTrigger to TRIGGER_IMMEDIATE.\n\n";
+   }
+
+   // ── Warning 1: Let Profit Run with fixed TP ───────────────────────
+   if(cfg.TrailMode == TRAIL_PROFIT_PERCENT && cfg.TPMode != TP_MODE_NONE)
+   {
+      warnings += "[NOTICE] TRAIL_PROFIT_PERCENT (LPR) works best with TP_MODE_NONE.\n";
+      warnings += "  Current: Fixed TP will limit upside, trailing runs underneath.\n";
+      warnings += "  Recommended: Set TPMode=TP_MODE_NONE for full LPR.\n\n";
+   }
+
+   // ── Warning 2: Aggressive immediate trail without BE ──────────────
+   if(cfg.TrailTrigger == TRIGGER_IMMEDIATE && cfg.BE_Mode == BE_MODE_OFF && cfg.RRM_TrailStartsAfterBE == false)
+   {
+      warnings += "[RISK WARNING] Trailing from entry with NO breakeven protection!\n";
+      warnings += "  SL can move into loss zone before profit is secured.\n";
+      warnings += "  Recommended: Enable BE or set RRM_TrailStartsAfterBE=true.\n\n";
+   }
+
+   // ── Print warnings if any ──────────────────────────────────────────
+   if(warnings != "")
+   {
+      Print("╔══════════════════════════════════════════════════════════╗");
+      Print("║  ⚠️  PRESET_RRM_ORG EXIT CONFIGURATION WARNINGS         ║");
+      Print("╚══════════════════════════════════════════════════════════╝");
+      Print(warnings);
+   }
 }
 
 void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
@@ -1550,6 +1671,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TE_OpenDelaySeconds       = Inp_VETO_TE_OpenDelaySeconds;
       cfg.TE_SpreadMedianTicks      = Inp_VETO_TE_SpreadMedianTicks;
 
+      ValidateRRM_ORG_ExitConfig(cfg);
       return;
    }
    //+------------------------------------------------------------------+

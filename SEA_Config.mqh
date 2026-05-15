@@ -1105,28 +1105,87 @@ input group "    📐 PRESET: RRM_ORG";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: (TP) Take Profit - Risk Reward Ratio";
+input group "║   📐 RRM_ORG: TAKE PROFIT TARGET";
 input group "╚════════════════════════════════════════════════════════╝";
-input ETPMode     Inp_RRM_ORG_TPMode               = TP_MODE_RR;     // RRM_ORG TP mode
-input double      Inp_RRM_ORG_RRRatio              = 1.0;            // RRM_ORG RR ratio (risk-reward)
+// Take profit mode:
+// TP_MODE_FIXED_PIPS: TP at fixed pip distance
+// TP_MODE_RR:         TP derived from SL distance × RR ratio (recommended)
+// TP_MODE_FRACTAL:    TP at next fractal level
+// TP_MODE_PSAR_FLIP:  No fixed TP, exit on PSAR flip
+// TP_MODE_NONE:       No TP target, rely on trailing stop only (LPR mode)
+input ETPMode     Inp_RRM_ORG_TPMode               = TP_MODE_RR;     // Take profit mode
+// Risk:Reward ratio: TP distance = SL distance × RR
+// Example: RR=2.0 and SL=20 pips → TP=40 pips
+// Only used when TPMode = TP_MODE_RR
+//
+// ⚠️ TP vs trailing interaction:
+// TPMode != TP_MODE_NONE → TP stays fixed, trailing runs underneath.
+// TPMode == TP_MODE_NONE → no TP cap, trailing manages full exit.
+input double      Inp_RRM_ORG_RRRatio              = 1.0;            // RR ratio for TP_MODE_RR
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: (SL) Stop Loss";
+input group "║   📐 RRM_ORG: INITIAL STOP LOSS PLACEMENT";
 input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;  // RRM_ORG SL mode
-input int         Inp_RRM_ORG_SwingLookback        = 55;             // RRM_ORG Swing lookback
+// Initial SL placement method:
+// SL_MODE_SWING:      SL at recent swing high/low (lookback bars)
+// SL_MODE_PSAR_DOT:   SL at current PSAR dot + cushion
+// SL_MODE_FRACTAL:    SL at last fractal level
+// SL_MODE_FIXED_PIPS: SL at fixed pip distance from entry
+// SL_MODE_PERCENT:    SL at % distance from entry
+input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;  // Initial stop loss mode
+// Swing lookback: number of bars to scan for swing high/low.
+// Larger value = wider SL (major swings), smaller value = tighter SL (minor swings).
+// Typical guide: M5 21-34, M15 34-55, H1 55-89, H4 89-144.
+// Only used when SLMode = SL_MODE_SWING.
+input int         Inp_RRM_ORG_SwingLookback        = 55;             // Swing lookback bars
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: (TS) Trailing Stop";
+input group "║   📐 RRM_ORG: HOW TO TRAIL STOP LOSS";
 input group "╚════════════════════════════════════════════════════════╝";
-input ETrailingMode Inp_RRM_ORG_TrailMode          = TRAIL_PSAR;     // RRM_ORG trailing mode
-input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // RRM_ORG PSAR trail cushion mode
-input bool        Inp_RRM_ORG_TrailStartsAfterBE   = false;          // RRM_ORG trail only after BE
-input double      Inp_RRM_ORG_TrailProfitPercentLPR = 25.0;          // RRM_ORG LPR: keep SL X% behind peak profit
+// Trailing method:
+// TRAIL_NONE:            No trailing
+// TRAIL_PSAR:            Follow PSAR dots with cushion (RRM default)
+// TRAIL_FIXED_PIPS:      Fixed pip distance from current price
+// TRAIL_PROFIT_PERCENT:  Let Profit Run (% behind peak profit)
+// TRAIL_FRACTAL:         Trail with fractal levels
+// TRAIL_PSAR_FLIP_EXIT:  Close position on PSAR flip
+input ETrailingMode Inp_RRM_ORG_TrailMode          = TRAIL_PSAR;     // Trailing stop method
+// PSAR trailing cushion mode:
+// PSAR_CUSHION_PIPS    = fixed pips safety buffer
+// PSAR_CUSHION_AUTO_TF = auto TF-aware cushion from preset helper
+input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR cushion mode
+// Let Profit Run mode: SL trails X% behind the PEAK profit reached.
+// Example: peak=80 pips, value=25 → SL target at +60 pips.
+// Only used when TrailMode = TRAIL_PROFIT_PERCENT.
+input double      Inp_RRM_ORG_TrailProfitPercentLPR = 25.0;          // LPR trailing percent behind peak
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: (BE) Breakeven";
+input group "║   📐 RRM_ORG: WHEN TO START TRAILING";
 input group "╚════════════════════════════════════════════════════════╝";
-input EBeMode     Inp_RRM_ORG_BE_Mode              = BE_MODE_TP_PROGRESS_PCT;  // RRM_ORG BE mode
-input double      Inp_RRM_ORG_BE_RMultiple         = 1.0;            // RRM_ORG BE at R-multiple (1.0 = 1R profit)
-input double      Inp_RRM_ORG_BE_ProgressPct       = 25.0;           // RRM_ORG BE at % to TP (used with BE_MODE_TP_PROGRESS_PCT)
+// Trailing activation logic in PRESET_RRM_ORG:
+// TrailTrigger is preset-managed (TRIGGER_BREAKEVEN by default).
+// Trail starts after BE lock unless safety override below is disabled.
+// If custom profiles use TRIGGER_IMMEDIATE, keep BE protection in mind.
+// Force trailing to wait for BE lock before any trailing movement.
+// Recommended true for protection against trailing in loss zone.
+// In PRESET_RRM_ORG, TrailTrigger is internally set to TRIGGER_BREAKEVEN.
+input bool        Inp_RRM_ORG_TrailStartsAfterBE   = false;          // Safety override: trail after BE
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: BREAKEVEN (BE) - ONE-TIME LOCK";
+input group "╚════════════════════════════════════════════════════════╝";
+// Breakeven trigger mode:
+// BE_MODE_OFF:             Breakeven disabled
+// BE_MODE_TP_PROGRESS_PCT: Move SL to BE when profit reaches X% toward TP
+// BE_MODE_R_MULTIPLE:      Move SL to BE when profit reaches X× risk (R-multiple)
+input EBeMode     Inp_RRM_ORG_BE_Mode              = BE_MODE_TP_PROGRESS_PCT;  // Breakeven trigger mode
+// BE trigger in R-multiples.
+// Example: 1.0 = BE at 1R (profit equals initial risk distance).
+// Only used when BE_Mode = BE_MODE_R_MULTIPLE.
+input double      Inp_RRM_ORG_BE_RMultiple         = 1.0;            // BE trigger as R multiple
+// BE trigger as percent progress toward TP.
+// Example: 33 = move to BE at one-third of the path to TP.
+// Only used when BE_Mode = BE_MODE_TP_PROGRESS_PCT.
+//
+// ⚠️ BE lock is one-time: once triggered, SL moves to entry+buffer and does not recalculate.
+// Buffer pips are TF-adaptive in PRESET_RRM_ORG via GetTFBasedCushion().
+input double      Inp_RRM_ORG_BE_ProgressPct       = 25.0;           // BE trigger as TP progress %
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI v31 Settings";
