@@ -416,7 +416,7 @@ designed for divergence detection, not early-recovery entries.
 
 > **Caution:** disabling the CCI check may allow entries when momentum is genuinely diverging.
 > Use in combination with the DPI histogram deceleration filter
-> (`Inp_RRM_ORG_DpiDecelFilter = true`, already default).
+> (`Inp_RRM_ORG_DPI_Decel_Filter = true`, already default).
 
 ---
 
