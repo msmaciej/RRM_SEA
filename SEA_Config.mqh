@@ -228,8 +228,8 @@ enum EGateScaleMode
 };
 enum EVoteMode
 {
-   VOTE_MODE_THRESHOLD,    // VOTE_THRESHOLD: minimum weighted votes required (default)
-   VOTE_MODE_ALL           // VOTE_ALL: every enabled indicator must agree
+   VOTE_MODE_THRESHOLD,    // VOTE_THRESHOLD: all enabled indicators must agree (same as VOTE_MODE_ALL; vote_weight is informational only)
+   VOTE_MODE_ALL           // VOTE_ALL: every enabled indicator must agree (recommended)
 };
 enum EPairType
 {
@@ -370,7 +370,7 @@ struct ST_Settings
    int             P_HtfEma;
 
    // Voting
-   EVoteMode VoteMode; // ALL: every enabled indicator must agree (recommended); THRESHOLD: uses same all_pass logic as ALL mode
+   EVoteMode VoteMode; // ALL/THRESHOLD: every enabled indicator must agree; vote_weight is informational only and does not gate trade decisions
 
    // Per-indicator weights (1 = standard; only used in VOTE_MODE_THRESHOLD for weighted sum)
    // In VOTE_MODE_ALL, weights are ignored — all enabled indicators must simply agree.

@@ -220,7 +220,11 @@ private:
    bool     m_eval_ind_res_ross;
    bool     m_eval_ind_res_sma_converge;
    bool     m_eval_ind_res_dpi;
-   double   m_eval_vote_weight;          // Total vote weight from EvaluateIndicatorX
+   bool     m_eval_ind_res_atr;
+   bool     m_eval_ind_res_candle_body;
+   bool     m_eval_ind_res_ci;
+   bool     m_eval_ind_res_vrc;
+   double   m_eval_vote_weight;          // Total vote weight from EvaluateIndicatorX (informational; does not gate trade decisions)
    bool     m_eval_all_pass;             // True if all enabled indicators passed
 
    // --- 2j. BUFFERED LOGGING (for DEBUG_SIGNALS_ONLY mode) ---
@@ -4637,7 +4641,8 @@ public:
    int EvaluateIndicatorX(int v_shift, int bias)
    {
       // ═══════════════════════════════════════════════════════════════
-      // 4. Voting Logic — Dynamic weight-based consensus
+      // 4. Voting Logic — All enabled indicators must agree (VOTE_MODE_ALL)
+      // vote_weight is accumulated for statistics only; trade decisions use all_pass
       // ═══════════════════════════════════════════════════════════════
       double vote_weight = 0.0;
       bool   all_pass    = true;
@@ -4689,11 +4694,8 @@ public:
       if(m_settings.Ind_CI_Enabled)          { s_enabled++; if(Check_CI(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_VRC_Enabled)         { s_enabled++; if(Check_VRC(bias, v_shift)) s_passed++; }
 
-      // VOTE_MODE_ALL: use indicator pass count for clear display; VOTE_MODE_THRESHOLD: use weight sum
-      if(m_settings.VoteMode == VOTE_MODE_ALL)
-         m_diag_last_votes = s_passed;
-      else
-         m_diag_last_votes = (int)MathRound(vote_weight);
+      // Always use indicator pass count for display (vote_weight is informational only, does not gate trades)
+      m_diag_last_votes = s_passed;
 
       m_eval_str_I = StringFormat("%d/%d", s_passed, s_enabled);
       m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
@@ -4701,7 +4703,8 @@ public:
       // Per-indicator results for diagnostic logging
       bool _res_adx=false, _res_macd=false, _res_rsi=false,
            _res_cci=false, _res_mfi=false, _res_sto=false, _res_bb=false,
-           _res_psar=false, _res_p123=false, _res_ross=false, _res_dpi=false;
+           _res_psar=false, _res_p123=false, _res_ross=false, _res_dpi=false,
+           _res_atr=false, _res_candle_body=false, _res_ci=false, _res_vrc=false;
 
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGIN =====
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
@@ -4715,7 +4718,11 @@ public:
          if(m_settings.Ind_Psar_Enabled)   _res_psar   = (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift));
          if(m_settings.Ind_P123_Enabled)   _res_p123   = Check_P123(bias, v_shift);
          if(m_settings.Ind_Ross_Enabled)   _res_ross   = Check_Ross(bias, v_shift);
-         if(m_settings.Ind_Dpi_Enabled)    _res_dpi    = Check_DPI(bias, v_shift);
+         if(m_settings.Ind_Dpi_Enabled)         _res_dpi         = Check_DPI(bias, v_shift);
+         if(m_settings.Ind_Atr_Enabled)         _res_atr         = Check_ATR(bias, v_shift);
+         if(m_settings.Ind_CandleBody_Enabled)  _res_candle_body = Check_CandleBody(bias, v_shift);
+         if(m_settings.Ind_CI_Enabled)          _res_ci          = Check_CI(bias, v_shift);
+         if(m_settings.Ind_VRC_Enabled)         _res_vrc         = Check_VRC(bias, v_shift);
 
          if(m_settings.DebugLevel >= DEBUG_FULL) {
             string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
@@ -4849,6 +4856,10 @@ public:
       m_eval_ind_res_ross   = _res_ross;
       m_eval_ind_res_sma_converge = (m_settings.Ind_SmaConverge_Enabled ? Check_SmaConverge(v_shift) : false);
       m_eval_ind_res_dpi          = _res_dpi;
+      m_eval_ind_res_atr          = _res_atr;
+      m_eval_ind_res_candle_body  = _res_candle_body;
+      m_eval_ind_res_ci           = _res_ci;
+      m_eval_ind_res_vrc          = _res_vrc;
       m_eval_vote_weight    = vote_weight;
       m_eval_all_pass       = all_pass;
 
@@ -5713,7 +5724,9 @@ public:
       }
 
       // Ensure UI vote counter is up-to-date
-      if(m_eval_vote_weight > 0 && m_diag_last_votes == 0)
+      // In VOTE_MODE_ALL, m_diag_last_votes is already set to indicator pass count.
+      // In VOTE_MODE_THRESHOLD, fall back to rounded vote_weight if count is unavailable.
+      if(m_settings.VoteMode == VOTE_MODE_THRESHOLD && m_eval_vote_weight > 0 && m_diag_last_votes == 0)
          m_diag_last_votes = (int)MathRound(m_eval_vote_weight);
 
       // ===== TS PIPELINE SUMMARY =====
@@ -5764,16 +5777,22 @@ public:
 
          // INDICATORS SECTION
          int s_enabled=0, s_disabled=0, s_passed=0;
-         if(m_settings.Ind_Adx_Enabled)    s_enabled++; else s_disabled++;
-         if(m_settings.Ind_Macd_Enabled)   s_enabled++; else s_disabled++;
-         if(m_settings.Ind_Rsi_Enabled)    s_enabled++; else s_disabled++;
-         if(m_settings.Ind_Cci_Enabled)    s_enabled++; else s_disabled++;
-         if(m_settings.Ind_Mfi_Enabled)    s_enabled++; else s_disabled++;
-         if(m_settings.Ind_Sto_Enabled)    s_enabled++; else s_disabled++;
-         if(m_settings.Ind_Bb_Enabled)     s_enabled++; else s_disabled++;
-         if(m_settings.Ind_Psar_Enabled)   s_enabled++; else s_disabled++;
-         if(m_settings.Ind_P123_Enabled)   s_enabled++; else s_disabled++;
-         if(m_settings.Ind_Ross_Enabled)   s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Adx_Enabled)         s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Macd_Enabled)        s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Rsi_Enabled)         s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Cci_Enabled)         s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Mfi_Enabled)         s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Sto_Enabled)         s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Bb_Enabled)          s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Psar_Enabled)        s_enabled++; else s_disabled++;
+         if(m_settings.Ind_P123_Enabled)        s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Ross_Enabled)        s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Atr_Enabled)         s_enabled++; else s_disabled++;
+         if(m_settings.Ind_CandleBody_Enabled)  s_enabled++; else s_disabled++;
+         if(m_settings.Ind_CI_Enabled)          s_enabled++; else s_disabled++;
+         if(m_settings.Ind_VRC_Enabled)         s_enabled++; else s_disabled++;
+         if(m_settings.Ind_SmaConverge_Enabled) s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Dpi_Enabled)         s_enabled++; else s_disabled++;
 
          DebugLog(StringFormat("INDICATORS (%d enabled, %d disabled):", s_enabled, s_disabled));
 
@@ -5834,6 +5853,31 @@ public:
             DebugLog(StringFormat("  %s SMA Convergence", m_eval_ind_res_sma_converge ? "✅" : "❌"));
             if(m_eval_ind_res_sma_converge) s_passed++;
          } else DebugLog("  ⏭️  SMA Convergence: disabled");
+
+         if(m_settings.Ind_Dpi_Enabled) {
+            DebugLog(StringFormat("  %s DPI", m_eval_ind_res_dpi ? "✅" : "❌"));
+            if(m_eval_ind_res_dpi) s_passed++;
+         } else DebugLog("  ⏭️  DPI: disabled");
+
+         if(m_settings.Ind_Atr_Enabled) {
+            DebugLog(StringFormat("  %s ATR (volatility filter)", m_eval_ind_res_atr ? "✅" : "❌"));
+            if(m_eval_ind_res_atr) s_passed++;
+         } else DebugLog("  ⏭️  ATR: disabled");
+
+         if(m_settings.Ind_CandleBody_Enabled) {
+            DebugLog(StringFormat("  %s CandleBody (spike filter)", m_eval_ind_res_candle_body ? "✅" : "❌"));
+            if(m_eval_ind_res_candle_body) s_passed++;
+         } else DebugLog("  ⏭️  CandleBody: disabled");
+
+         if(m_settings.Ind_CI_Enabled) {
+            DebugLog(StringFormat("  %s Choppiness Index", m_eval_ind_res_ci ? "✅" : "❌"));
+            if(m_eval_ind_res_ci) s_passed++;
+         } else DebugLog("  ⏭️  Choppiness Index: disabled");
+
+         if(m_settings.Ind_VRC_Enabled) {
+            DebugLog(StringFormat("  %s VRC (volatility regime)", m_eval_ind_res_vrc ? "✅" : "❌"));
+            if(m_eval_ind_res_vrc) s_passed++;
+         } else DebugLog("  ⏭️  VRC: disabled");
 
          DebugLog("");
 
