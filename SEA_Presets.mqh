@@ -1434,6 +1434,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       cfg.TrailMode                 = Inp_RRM_ORG_TrailMode;
       cfg.RRM_TrailStartsAfterBE    = Inp_RRM_ORG_TrailStartsAfterBE;
+      cfg.TrailProfitPercentLPR     = Inp_RRM_ORG_TrailProfitPercentLPR;
       cfg.PSAR_TrailCushionMode     = Inp_RRM_ORG_PSAR_TrailCushionMode;
       cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
       cfg.BE_Mode                   = Inp_RRM_ORG_BE_Mode;
@@ -1446,7 +1447,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TrailDistancePips         = GetTFBasedCushion(tfOrg);
       cfg.BEThresholdPips           = GetTFBasedCushion(tfOrg);
       cfg.TrailLockProfit           = true;
-      cfg.TrailProfitPercent        = 50.0;
+      cfg.TrailProfitPercent        = 50.0; // 50 = 0.5R trigger when TRIGGER_PROFIT_PERCENT is used
       cfg.TrailStepPips             = 5.0;
 
       cfg.FractalPeriod             = 5;

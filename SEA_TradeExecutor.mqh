@@ -73,11 +73,11 @@ private:
    int         m_spread_history_count;
    int         m_spread_history_idx;
    
-   // Position excursion tracking
-   struct SPositionExcursion {
-      ulong    ticket;
-      datetime entry_time;
-      double   entry_price;
+    // Position excursion tracking
+    struct SPositionExcursion {
+       ulong    ticket;
+       datetime entry_time;
+       double   entry_price;
       double   mae_pips;
       double   mfe_pips;
       double   current_pips;
@@ -86,7 +86,114 @@ private:
       string   trail_type;
    };
 
-   SPositionExcursion m_excursion;
+    SPositionExcursion m_excursion;
+
+    struct SPositionState {
+       ulong    ticket;
+       bool     be_triggered;
+       double   peak_profit_pips;
+       datetime last_update;
+    };
+
+    SPositionState m_position_states[];
+
+    int FindPositionStateIndex(ulong ticket) {
+       for(int i = 0; i < ArraySize(m_position_states); i++) {
+          if(m_position_states[i].ticket == ticket) return i;
+       }
+       return -1;
+    }
+
+    void InitPositionState(ulong ticket) {
+       int idx = FindPositionStateIndex(ticket);
+       if(idx >= 0) {
+          m_position_states[idx].last_update = TimeCurrent();
+          return;
+       }
+       int size = ArraySize(m_position_states);
+       ArrayResize(m_position_states, size + 1);
+       m_position_states[size].ticket = ticket;
+       m_position_states[size].be_triggered = false;
+       m_position_states[size].peak_profit_pips = 0.0;
+       m_position_states[size].last_update = TimeCurrent();
+    }
+
+    void RemovePositionState(ulong ticket) {
+       int idx = FindPositionStateIndex(ticket);
+       if(idx < 0) return;
+       int size = ArraySize(m_position_states);
+       for(int i = idx; i < size - 1; i++) m_position_states[i] = m_position_states[i + 1];
+       ArrayResize(m_position_states, size - 1);
+    }
+
+    void CleanupClosedPositionStates() {
+       for(int i = ArraySize(m_position_states) - 1; i >= 0; i--) {
+          if(!PositionSelectByTicket(m_position_states[i].ticket)) RemovePositionState(m_position_states[i].ticket);
+       }
+    }
+
+    bool GetPositionBETriggered(ulong ticket) {
+       int idx = FindPositionStateIndex(ticket);
+       return (idx >= 0) ? m_position_states[idx].be_triggered : false;
+    }
+
+    void SetPositionBETriggered(ulong ticket, bool value) {
+       int idx = FindPositionStateIndex(ticket);
+       if(idx >= 0) {
+          m_position_states[idx].be_triggered = value;
+          m_position_states[idx].last_update = TimeCurrent();
+       }
+    }
+
+    double UpdatePositionPeakProfit(ulong ticket, double profit_pips) {
+       InitPositionState(ticket);
+       int idx = FindPositionStateIndex(ticket);
+       if(idx < 0) return profit_pips;
+       if(profit_pips > m_position_states[idx].peak_profit_pips) m_position_states[idx].peak_profit_pips = profit_pips;
+       m_position_states[idx].last_update = TimeCurrent();
+       return m_position_states[idx].peak_profit_pips;
+    }
+
+    double CalculateProfitPercentTrailSL(ulong ticket,
+                                         ENUM_POSITION_TYPE pos_type,
+                                         double entry_price,
+                                         double current_price,
+                                         double current_sl,
+                                         double pipSize,
+                                         int digits) {
+       double profit_pips = (pos_type == POSITION_TYPE_BUY)
+                          ? (current_price - entry_price) / pipSize
+                          : (entry_price - current_price) / pipSize;
+       if(profit_pips <= 0.0) return 0.0;
+
+       double peak_profit_pips = UpdatePositionPeakProfit(ticket, profit_pips);
+       double trail_percent = m_settings.TrailProfitPercentLPR / 100.0;
+       if(trail_percent < 0.0) trail_percent = 0.0;
+       if(trail_percent > 1.0) trail_percent = 1.0;
+
+       double trail_profit_pips = peak_profit_pips * (1.0 - trail_percent);
+       double new_sl = (pos_type == POSITION_TYPE_BUY)
+                     ? entry_price + (trail_profit_pips * pipSize)
+                     : entry_price - (trail_profit_pips * pipSize);
+
+       double be_buffer = MathMax(0.0, m_settings.RRM_BE_BufferPips) * pipSize;
+       if(pos_type == POSITION_TYPE_BUY && new_sl < entry_price + be_buffer) new_sl = entry_price + be_buffer;
+       if(pos_type == POSITION_TYPE_SELL && new_sl > entry_price - be_buffer) new_sl = entry_price - be_buffer;
+
+       if(m_settings.TrailLockProfit && current_sl != 0.0) {
+          if(pos_type == POSITION_TYPE_BUY && new_sl <= current_sl) return 0.0;
+          if(pos_type == POSITION_TYPE_SELL && new_sl >= current_sl) return 0.0;
+       }
+
+       if(pos_type == POSITION_TYPE_BUY && new_sl >= current_price) return 0.0;
+       if(pos_type == POSITION_TYPE_SELL && new_sl <= current_price) return 0.0;
+
+       if(m_settings.DebugFlow) {
+          PrintFormat("[LPR] #%I64u Peak=%.1f pips Trail=%.1f%% -> SL=%.5f",
+                      ticket, peak_profit_pips, m_settings.TrailProfitPercentLPR, new_sl);
+       }
+       return NormalizeDouble(new_sl, digits);
+    }
 
    void ReleaseHandles() {
       if(m_h_psar != INVALID_HANDLE) { IndicatorRelease(m_h_psar); m_h_psar = INVALID_HANDLE; }
@@ -456,8 +563,12 @@ private:
          case TRIGGER_PROFIT_PIPS: 
             return (profit_pips >= m_settings.TrailDistancePips);
          case TRIGGER_PROFIT_PERCENT: {
-            double profit_percent = (profit_pips * GetPipSize() / entry_price) * 100.0;
-            return (profit_percent >= m_settings.TrailProfitPercent);
+            double initial_sl = m_initial_sl_price;
+            if(initial_sl <= 0.0) initial_sl = PositionGetDouble(POSITION_SL);
+            double risk_pips = MathAbs(entry_price - initial_sl) / GetPipSize();
+            if(risk_pips <= 0.0) return false;
+            double trigger_pips = risk_pips * (m_settings.TrailProfitPercent / 100.0);
+            return (profit_pips >= trigger_pips);
          }
          case TRIGGER_PSAR_ALIGN: {
             // FIX Bug2: use shift=1 (last confirmed closed bar) instead of shift=0 (still-forming bar)
@@ -816,6 +927,7 @@ private:
    //+------------------------------------------------------------------+
    void RRM_ManageStrictNoATR(ulong ticket) {
       if(!PositionSelectByTicket(ticket)) return;
+      InitPositionState(ticket);
 
       if(ticket != m_rrm_last_ticket) {
          m_rrm_last_ticket  = ticket;
@@ -836,6 +948,7 @@ private:
       double pipSize   = GetPipSize();
 
       double R = (m_rrm_initial_sl > 0.0) ? MathAbs(entry - m_rrm_initial_sl) : 0.0;
+      m_rrm_be_reached = GetPositionBETriggered(ticket);
 
       // BREAKEVEN
       if(m_settings.BE_Mode != BE_MODE_OFF && !m_rrm_be_reached) {
@@ -852,21 +965,29 @@ private:
          }
 
          if(should_be) {
-            double be_buffer = m_settings.RRM_BE_BufferPips * pipSize; 
+            double be_buffer = m_settings.RRM_BE_BufferPips * pipSize;
             double be_sl = isBuy ? NormalizeDouble(entry + be_buffer, digits) : NormalizeDouble(entry - be_buffer, digits);
-            if(isBuy ? (be_sl > cur_sl) : (cur_sl == 0.0 || be_sl < cur_sl)) {
-               if(m_trade.PositionModify(ticket, be_sl, cur_tp)) { 
-                  m_rrm_be_reached = true; 
-                  cur_sl = be_sl; 
-                  if(m_settings.DebugFlow) PrintFormat("RRM Strict BE: SL -> %.5f (%s)", be_sl, m_symbol);
+            bool already_locked = isBuy ? (cur_sl >= be_sl) : (cur_sl != 0.0 && cur_sl <= be_sl);
+            if(already_locked || (isBuy ? (be_sl > cur_sl) : (cur_sl == 0.0 || be_sl < cur_sl))) {
+               if(already_locked || m_trade.PositionModify(ticket, be_sl, cur_tp)) {
+                  SetPositionBETriggered(ticket, true);
+                  m_rrm_be_reached = true;
+                  if(!already_locked) cur_sl = be_sl;
+                  if(m_settings.DebugFlow) PrintFormat("[BE] Position #%I64u locked at %.5f (one-time lock)", ticket, already_locked ? cur_sl : be_sl);
                }
             }
          }
       }
 
       // TRAILING
-      if(m_settings.TrailMode != TRAIL_PSAR) return;
+      if(m_settings.TrailMode != TRAIL_PSAR && m_settings.TrailMode != TRAIL_PROFIT_PERCENT) return;
       if(m_settings.RRM_TrailStartsAfterBE && !m_rrm_be_reached) return;
+
+      if(m_settings.TrailMode == TRAIL_PROFIT_PERCENT) {
+         double lpr_sl = CalculateProfitPercentTrailSL(ticket, pos_type, entry, cur_price, cur_sl, pipSize, digits);
+         if(lpr_sl != 0.0) m_trade.PositionModify(ticket, lpr_sl, cur_tp);
+         return;
+      }
 
       int shift = m_settings.RRM_TrailPsarShiftDelay;
       if(shift < 1) shift = 1;
@@ -894,9 +1015,27 @@ private:
       double cushion = m_settings.PSAR_TrailPipsCushion * pipSize;
       double new_sl  = isBuy ? NormalizeDouble(psar - cushion, digits) : NormalizeDouble(psar + cushion, digits);
 
-      if(m_rrm_be_reached && cur_sl != 0.0) {
-         if(isBuy  && new_sl < cur_sl) return;
-         if(!isBuy && new_sl > cur_sl) return;
+      double be_guard = m_settings.RRM_BE_BufferPips * pipSize;
+      if(isBuy) {
+         double min_sl = entry + be_guard;
+         if(new_sl <= min_sl) {
+            if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot below entry+buffer (%.5f <= %.5f), trail blocked", ticket, new_sl, min_sl);
+            return;
+         }
+         if(m_settings.TrailLockProfit && cur_sl != 0.0 && new_sl <= cur_sl) {
+            if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Would move SL backwards (%.5f <= %.5f), trail blocked", ticket, new_sl, cur_sl);
+            return;
+         }
+      } else {
+         double max_sl = entry - be_guard;
+         if(new_sl >= max_sl) {
+            if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot above entry-buffer (%.5f >= %.5f), trail blocked", ticket, new_sl, max_sl);
+            return;
+         }
+         if(m_settings.TrailLockProfit && cur_sl != 0.0 && new_sl >= cur_sl) {
+            if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Would move SL backwards (%.5f >= %.5f), trail blocked", ticket, new_sl, cur_sl);
+            return;
+         }
       }
 
       bool can_move = isBuy ? (new_sl > cur_sl && new_sl < cur_price) : ((cur_sl == 0.0 || new_sl < cur_sl) && new_sl > cur_price);
@@ -1915,15 +2054,17 @@ public:
    //+------------------------------------------------------------------+
    // Public method: excursion tracking only, no SL modification (for tick-by-tick call)
    void UpdateExcursionOnly() {
+      CleanupClosedPositionStates();
       ulong ticket = GetMyPosition();
       if(ticket == 0 || !PositionSelectByTicket(ticket)) {
-         m_initial_sl_price = 0.0;
-         return;
+          m_initial_sl_price = 0.0;
+          return;
       }
       UpdatePositionExcursion(ticket);
    }
 
    void EvaluateTM() {
+      CleanupClosedPositionStates();
       if(m_settings.EmergencyMarginLevel > 0.0) {
          double margin_level = AccountInfoDouble(ACCOUNT_MARGIN_LEVEL);
          if(margin_level > 0.0 && margin_level < m_settings.EmergencyMarginLevel) {
@@ -1987,7 +2128,8 @@ public:
       double entry_price      = PositionGetDouble(POSITION_PRICE_OPEN);
       int    direction        = (type == POSITION_TYPE_BUY) ? 1 : -1;
       double new_sl           = 0.0;
-      
+      int    digits           = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
+
       double pipSize  = GetPipSize();
       double profit_pips = (direction > 0) ? (current_price - entry_price) / pipSize : (entry_price - current_price) / pipSize;
 
@@ -2023,7 +2165,6 @@ public:
          new_sl = (type == POSITION_TYPE_BUY) ? (current_price - trail_dist) : (current_price + trail_dist);
       }
       else if(m_settings.TrailMode == TRAIL_BREAKEVEN) {
-         double be_dist = m_settings.BEThresholdPips * pipSize;
          bool at_or_past_be = (current_sl > 0.0) && ((type == POSITION_TYPE_BUY && current_sl >= entry_price) || (type == POSITION_TYPE_SELL && current_sl <= entry_price));
          if(at_or_past_be) {
             double trail_dist = m_settings.TrailDistancePips * pipSize;
@@ -2034,12 +2175,36 @@ public:
          }
       }
       else if(m_settings.TrailMode == TRAIL_PROFIT_PERCENT) {
-         double trail_dist = m_settings.TrailDistancePips * pipSize;
-         new_sl = (type == POSITION_TYPE_BUY) ? (current_price - trail_dist) : (current_price + trail_dist);
+         new_sl = CalculateProfitPercentTrailSL(ticket, type, entry_price, current_price, current_sl, pipSize, digits);
+      }
+
+      if(new_sl != 0.0 && m_settings.TrailMode == TRAIL_PSAR) {
+         double be_guard = MathMax(0.0, m_settings.RRM_BE_BufferPips) * pipSize;
+         if(type == POSITION_TYPE_BUY) {
+            double min_sl = entry_price + be_guard;
+            if(new_sl <= min_sl) {
+               if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot below entry+buffer (%.5f <= %.5f), trail blocked", ticket, new_sl, min_sl);
+               new_sl = 0.0;
+            }
+            else if(m_settings.TrailLockProfit && current_sl != 0.0 && new_sl <= current_sl) {
+               if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Would move SL backwards (%.5f <= %.5f), trail blocked", ticket, new_sl, current_sl);
+               new_sl = 0.0;
+            }
+         }
+         else {
+            double max_sl = entry_price - be_guard;
+            if(new_sl >= max_sl) {
+               if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot above entry-buffer (%.5f >= %.5f), trail blocked", ticket, new_sl, max_sl);
+               new_sl = 0.0;
+            }
+            else if(m_settings.TrailLockProfit && current_sl != 0.0 && new_sl >= current_sl) {
+               if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Would move SL backwards (%.5f >= %.5f), trail blocked", ticket, new_sl, current_sl);
+               new_sl = 0.0;
+            }
+         }
       }
 
       if(new_sl != 0.0) {
-         int digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
          new_sl = NormalizeDouble(new_sl, digits);
          bool modify = false;
          

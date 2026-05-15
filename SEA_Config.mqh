@@ -177,7 +177,7 @@ enum ETrailTrigger
    TRIGGER_IMMEDIATE,      // TRIGGER_IMMEDIATE: Tr from entry (default)
    TRIGGER_BREAKEVEN,      // TRIGGER_BREAKEVEN: Tr after breakeven threshold reached
    TRIGGER_PROFIT_PIPS,    // TRIGGER_PROFIT_PIPS: Tr after X pips profit (TrailDistancePips)
-   TRIGGER_PROFIT_PERCENT, // TRIGGER_PROFIT_PERCENT: Tr after X% profit (TrailProfitPercent)
+   TRIGGER_PROFIT_PERCENT, // TRIGGER_PROFIT_PERCENT: Tr after X% of risk / R-multiple (TrailProfitPercent)
    TRIGGER_PSAR_ALIGN      // TRIGGER_PSAR_ALIGN: Tr when PSAR aligns with position direction
 };
 enum ETrailingMode
@@ -186,7 +186,7 @@ enum ETrailingMode
    TRAIL_FIXED_PIPS,       // TRAIL_FIXED_PIPS: fixed pip distance trailing
    TRAIL_FRACTAL,          // TRAIL_FRACTAL: fractal-based trailing
    TRAIL_NONE,             // TRAIL_NONE: no trailing stop
-   TRAIL_PROFIT_PERCENT,   // TRAIL_PROFIT_PERCENT: trail after profit % threshold reached
+   TRAIL_PROFIT_PERCENT,   // TRAIL_PROFIT_PERCENT: trail at % behind peak profit
    TRAIL_PSAR,             // TRAIL_PSAR: dot trailing
    TRAIL_PSAR_FLIP_EXIT    // TRAIL_PSAR_FLIP_EXIT: close position on PSAR flip
 };
@@ -537,7 +537,8 @@ struct ST_Settings
    ETrailTrigger TrailTrigger;   // When to begin trailing (default: TRIGGER_IMMEDIATE)
    double   BEThresholdPips;     // Profit pips required before moving to breakeven
    double   TrailDistancePips;   // Fixed trail distance in pips (TRAIL_FIXED_PIPS / trigger threshold)
-   double   TrailProfitPercent;  // Profit % threshold for TRIGGER_PROFIT_PERCENT
+   double   TrailProfitPercent;  // Trigger threshold as % of risk (R-multiple) for TRIGGER_PROFIT_PERCENT
+   double   TrailProfitPercentLPR; // Trail at X% behind peak profit for TRAIL_PROFIT_PERCENT
    double   TrailStepPips;       // Minimum pips movement before updating SL
    bool     TrailLockProfit;     // Lock in profit (never move SL backwards)
 
@@ -1119,6 +1120,7 @@ input group "╚═════════════════════�
 input ETrailingMode Inp_RRM_ORG_TrailMode          = TRAIL_PSAR;     // RRM_ORG trailing mode
 input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // RRM_ORG PSAR trail cushion mode
 input bool        Inp_RRM_ORG_TrailStartsAfterBE   = false;          // RRM_ORG trail only after BE
+input double      Inp_RRM_ORG_TrailProfitPercentLPR = 25.0;          // RRM_ORG LPR: keep SL X% behind peak profit
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (BE) Breakeven";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1543,7 +1545,9 @@ input ETrailingMode  Inp_CUSTOM_TrailMode          = TRAIL_PSAR;     // CUSTOM: 
 input ETrailTrigger  Inp_CUSTOM_TrailTrigger       = TRIGGER_IMMEDIATE; // CUSTOM: When Trail
 input double      Inp_CUSTOM_TrailDistancePips     = 5.0;            // CUSTOM: Trail Pips
 input double      Inp_CUSTOM_BEThresholdPips       = 5.0;            // CUSTOM: BE Pips
-input double      Inp_CUSTOM_TrailProfitPercent    = 10.0;           // CUSTOM: Trail Profit %
+// Trail trigger: % of RISK (R-multiple based)
+// Examples: 50 = 0.5R, 100 = 1.0R, 150 = 1.5R
+input double      Inp_CUSTOM_TrailProfitPercent    = 10.0;           // CUSTOM: Trail trigger as % of risk for TRIGGER_PROFIT_PERCENT
 input double      Inp_CUSTOM_TrailStepPips         = 5.0;            // CUSTOM: Trail Step Pips
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   ⚖️ (BE) BREAK-EVEN (CUSTOM only)";
@@ -1839,6 +1843,7 @@ void InitializeConfig()
    Settings.TrailDistancePips    = Inp_CUSTOM_TrailDistancePips;
    Settings.BEThresholdPips      = Inp_CUSTOM_BEThresholdPips;
    Settings.TrailProfitPercent   = Inp_CUSTOM_TrailProfitPercent;
+   Settings.TrailProfitPercentLPR= 25.0;
    Settings.TrailStepPips        = Inp_CUSTOM_TrailStepPips;
    Settings.TrailLockProfit      = Inp_CUSTOM_TrailLockProfit;
    Settings.TP_Enabled           = Inp_CUSTOM_TP_Enabled;
