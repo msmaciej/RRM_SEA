@@ -1528,7 +1528,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── DPI DECELERATION FILTER ────────────────────────────────────────
       // PHASE A: now actually active because Ind_Dpi_Enabled is true above.
-      // Operator-tunable via Inp_RRM_ORG_DpiDecelFilter.
+      // Operator-tunable via Inp_RRM_ORG_DPI_Decel_Filter.
       cfg.DpiDecelFilterEnabled     = Inp_RRM_ORG_DPI_Decel_Filter;
 
       // ── PHASE B: RECOVERY SENSITIVITY TUNING (opt-in, all default disabled/0) ──────────

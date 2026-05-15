@@ -4670,28 +4670,33 @@ public:
 
       #undef CAST_VOTE_STAT
 
-      m_diag_last_votes = (int)MathRound(vote_weight);
-
-      // Calculate string telemetry for Indicators
+      // Calculate indicator pass counts for telemetry (all enabled indicators, including non-directional filters)
       int s_enabled=0, s_passed=0;
-      if(m_settings.Ind_Adx_Enabled)    { s_enabled++; if(Check_ADX(v_shift)) s_passed++; }
-      if(m_settings.Ind_Macd_Enabled)   { s_enabled++; if(Check_MACD(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Rsi_Enabled)    { s_enabled++; if(Check_RSI(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Cci_Enabled)    { s_enabled++; if(Check_CCI(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Mfi_Enabled)    { s_enabled++; if(Check_MFI(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Sto_Enabled)    { s_enabled++; if(Check_Sto(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Bb_Enabled)     { s_enabled++; if(Check_BB(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Psar_Enabled)   { s_enabled++; if(m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_P123_Enabled)   { s_enabled++; if(Check_P123(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Ross_Enabled)   { s_enabled++; if(Check_Ross(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_Adx_Enabled)         { s_enabled++; if(Check_ADX(v_shift)) s_passed++; }
+      if(m_settings.Ind_Macd_Enabled)        { s_enabled++; if(Check_MACD(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_Rsi_Enabled)         { s_enabled++; if(Check_RSI(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_Cci_Enabled)         { s_enabled++; if(Check_CCI(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_Mfi_Enabled)         { s_enabled++; if(Check_MFI(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_Sto_Enabled)         { s_enabled++; if(Check_Sto(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_Bb_Enabled)          { s_enabled++; if(Check_BB(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_Psar_Enabled)        { s_enabled++; if(m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_P123_Enabled)        { s_enabled++; if(Check_P123(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_Ross_Enabled)        { s_enabled++; if(Check_Ross(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_SmaConverge_Enabled) { s_enabled++; if(Check_SmaConverge(v_shift)) s_passed++; }
       if(m_settings.Ind_Dpi_Enabled)         { s_enabled++; if(Check_DPI(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_Atr_Enabled)         { s_enabled++; if(Check_ATR(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_CandleBody_Enabled)  { s_enabled++; if(Check_CandleBody(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_CI_Enabled)          { s_enabled++; if(Check_CI(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_VRC_Enabled)         { s_enabled++; if(Check_VRC(bias, v_shift)) s_passed++; }
+
+      // VOTE_MODE_ALL: use indicator pass count for clear display; VOTE_MODE_THRESHOLD: use weight sum
+      if(m_settings.VoteMode == VOTE_MODE_ALL)
+         m_diag_last_votes = s_passed;
+      else
+         m_diag_last_votes = (int)MathRound(vote_weight);
 
       m_eval_str_I = StringFormat("%d/%d", s_passed, s_enabled);
       m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-
-      // Force the UI counter to show the current vote weight
-      m_diag_last_votes = (int)MathRound(vote_weight);
 
       // Per-indicator results for diagnostic logging
       bool _res_adx=false, _res_macd=false, _res_rsi=false,
@@ -4856,7 +4861,7 @@ public:
          return bias;
       }
       else {
-         m_diag_last_reason = StringFormat("NOT_ALL_PASS w=%.2f", vote_weight);
+         m_diag_last_reason = StringFormat("NOT_ALL_PASS (%d/%d)", s_passed, s_enabled);
          m_reject_votes++;
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
          return 0;
