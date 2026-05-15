@@ -1152,14 +1152,21 @@ input ETrailingMode Inp_RRM_ORG_TrailMode          = TRAIL_PSAR;     // Trailing
 // PSAR_CUSHION_PIPS    = fixed pips safety buffer
 // PSAR_CUSHION_AUTO_TF = auto TF-aware cushion from preset helper
 input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR cushion mode
-// Force trailing to wait for BE lock before any trailing movement.
-// Recommended true for protection against trailing in loss zone.
-// In PRESET_RRM_ORG, TrailTrigger is internally set to TRIGGER_BREAKEVEN.
-input bool        Inp_RRM_ORG_TrailStartsAfterBE   = false;          // Safety override: trail after BE
 // Let Profit Run mode: SL trails X% behind the PEAK profit reached.
 // Example: peak=80 pips, value=25 → SL target at +60 pips.
 // Only used when TrailMode = TRAIL_PROFIT_PERCENT.
 input double      Inp_RRM_ORG_TrailProfitPercentLPR = 25.0;          // LPR trailing percent behind peak
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: WHEN TO START TRAILING";
+input group "╚════════════════════════════════════════════════════════╝";
+// Trailing activation logic in PRESET_RRM_ORG:
+// TrailTrigger is preset-managed (TRIGGER_BREAKEVEN by default).
+// Trail starts after BE lock unless safety override below is disabled.
+// If custom profiles use TRIGGER_IMMEDIATE, keep BE protection in mind.
+// Force trailing to wait for BE lock before any trailing movement.
+// Recommended true for protection against trailing in loss zone.
+// In PRESET_RRM_ORG, TrailTrigger is internally set to TRIGGER_BREAKEVEN.
+input bool        Inp_RRM_ORG_TrailStartsAfterBE   = false;          // Safety override: trail after BE
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: BREAKEVEN (BE) - ONE-TIME LOCK";
 input group "╚════════════════════════════════════════════════════════╝";

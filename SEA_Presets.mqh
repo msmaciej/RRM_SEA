@@ -28,38 +28,58 @@
 // ──────────────────────────────────────────────────────────────────────
 // CONFIGURATION A: Classic RRM (Swing SL + BE + PSAR Trail + Fixed TP)
 // ──────────────────────────────────────────────────────────────────────
+// Use case: conservative swing trading with BE lock and PSAR follow-through.
 // Initial SL:   SLMode=SL_MODE_SWING, SwingLookback=34
 // Breakeven:    BE_Mode=BE_MODE_TP_PROGRESS_PCT, BE_ProgressPct=33.0
-// Trailing:     TrailMode=TRAIL_PSAR, TrailStartsAfterBE=true
+// Trailing:     TrailMode=TRAIL_PSAR, TrailStartsAfterBE=true, TrailLockProfit=true
 // Take Profit:  TPMode=TP_MODE_RR, RRRatio=3.0
-// Flow: Enter → lock BE near 1/3 to TP → trail by PSAR in profit zone → TP/freeze exit.
+// Flow:
+//   1) Enter with swing-based SL.
+//   2) At ~1/3 path to TP, lock BE (entry + buffer).
+//   3) Trail using PSAR only in profit zone.
+//   4) Exit on TP or trailing protection.
 //
 // ──────────────────────────────────────────────────────────────────────
 // CONFIGURATION B: Let Profit Run (PSAR SL + 1R BE + % Trail + No TP)
 // ──────────────────────────────────────────────────────────────────────
-// Initial SL:   SLMode=SL_MODE_PSAR_DOT
+// Use case: trend capture with no fixed TP ceiling.
+// Initial SL:   SLMode=SL_MODE_PSAR_DOT, PSAR cushion enabled
 // Breakeven:    BE_Mode=BE_MODE_R_MULTIPLE, BE_RMultiple=1.0
 // Trailing:     TrailMode=TRAIL_PROFIT_PERCENT, TrailProfitPercentLPR=25.0
 // Take Profit:  TPMode=TP_MODE_NONE
-// Flow: Enter → lock BE at 1R → trail behind peak profit → exit on pullback.
+// Flow:
+//   1) Enter with PSAR-based SL.
+//   2) At 1R profit, BE locks once.
+//   3) Trail continuously at 25% behind peak profit.
+//   4) Exit on retracement into trailed SL.
 //
 // ──────────────────────────────────────────────────────────────────────
 // CONFIGURATION C: Aggressive Scalp (Fixed SL + Fast Trail + 1:1 TP)
 // ──────────────────────────────────────────────────────────────────────
-// Initial SL:   SLMode=SL_MODE_FIXED_PIPS, tight stop
-// Breakeven:    BE_Mode=BE_MODE_OFF
-// Trailing:     TrailMode=TRAIL_FIXED_PIPS (or TRIGGER_IMMEDIATE in custom profile)
+// Use case: quick momentum scalps with tight risk and fast exits.
+// Initial SL:   SLMode=SL_MODE_FIXED_PIPS (tight stop)
+// Breakeven:    BE_Mode=BE_MODE_OFF (or early BE if safer profile desired)
+// Trailing:     TrailMode=TRAIL_FIXED_PIPS, quick trigger in custom profile
 // Take Profit:  TPMode=TP_MODE_RR, RRRatio=1.0
-// Flow: Enter → quick trail activation → fast lock / fast TP.
+// Flow:
+//   1) Enter with small fixed SL.
+//   2) Activate trailing quickly once short profit appears.
+//   3) Trail toward breakeven/lock.
+//   4) Capture 1:1 TP or trail-out.
 //
 // ──────────────────────────────────────────────────────────────────────
 // CONFIGURATION D: Hybrid (Swing SL + Early BE + PSAR Trail + 1:2 TP)
 // ──────────────────────────────────────────────────────────────────────
+// Use case: balanced profile (early protection + trend participation).
 // Initial SL:   SLMode=SL_MODE_SWING, SwingLookback=21
 // Breakeven:    BE_Mode=BE_MODE_R_MULTIPLE, BE_RMultiple=0.5
 // Trailing:     TrailMode=TRAIL_PSAR, TrailStartsAfterBE=true
 // Take Profit:  TPMode=TP_MODE_RR, RRRatio=2.0
-// Flow: Enter → early BE protection → PSAR trail progression → TP or trail exit.
+// Flow:
+//   1) Enter with tighter swing anchor.
+//   2) BE locks early at 0.5R.
+//   3) PSAR trailing advances only after protection.
+//   4) Exit at 1:2 TP or by trailing stop behavior.
 //
 // Notes:
 // - In PRESET_RRM_ORG, TrailTrigger is configured in preset logic (not as input).
