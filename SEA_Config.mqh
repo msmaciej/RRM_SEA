@@ -1106,45 +1106,45 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (TP) Take Profit - Risk Reward Ratio";
 input group "╚════════════════════════════════════════════════════════╝";
-input ETPMode     Inp_RRM_ORG_TPMode                  = TP_MODE_RR;  // RRM_ORG TP mode
-input double      Inp_RRM_ORG_RRRatio                 = 1.0;         // RRM_ORG RR ratio (risk-reward)
+input ETPMode     Inp_RRM_ORG_TPMode               = TP_MODE_RR;     // RRM_ORG TP mode
+input double      Inp_RRM_ORG_RRRatio              = 1.0;            // RRM_ORG RR ratio (risk-reward)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (SL) Stop Loss";
 input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode     Inp_RRM_ORG_SLMode                  = SL_MODE_SWING;  // RRM_ORG SL mode
-input int         Inp_RRM_ORG_SwingLookback           = 55;          // RRM_ORG Swing lookback
+input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;  // RRM_ORG SL mode
+input int         Inp_RRM_ORG_SwingLookback        = 55;             // RRM_ORG Swing lookback
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
-input ETrailingMode Inp_RRM_ORG_TrailMode             = TRAIL_PSAR;  // RRM_ORG trailing mode
+input ETrailingMode Inp_RRM_ORG_TrailMode          = TRAIL_PSAR;     // RRM_ORG trailing mode
 input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // RRM_ORG PSAR trail cushion mode
-input bool        Inp_RRM_ORG_TrailStartsAfterBE      = false;       // RRM_ORG trail only after BE
+input bool        Inp_RRM_ORG_TrailStartsAfterBE   = false;          // RRM_ORG trail only after BE
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (BE) Breakeven";
 input group "╚════════════════════════════════════════════════════════╝";
-input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_TP_PROGRESS_PCT;  // RRM_ORG BE mode
-input double      Inp_RRM_ORG_BE_RMultiple            = 1.0;         // RRM_ORG BE at R-multiple (1.0 = 1R profit)
-input double      Inp_RRM_ORG_BE_ProgressPct          = 25.0;        // RRM_ORG BE at % to TP (used with BE_MODE_TP_PROGRESS_PCT)
+input EBeMode     Inp_RRM_ORG_BE_Mode              = BE_MODE_TP_PROGRESS_PCT;  // RRM_ORG BE mode
+input double      Inp_RRM_ORG_BE_RMultiple         = 1.0;            // RRM_ORG BE at R-multiple (1.0 = 1R profit)
+input double      Inp_RRM_ORG_BE_ProgressPct       = 25.0;           // RRM_ORG BE at % to TP (used with BE_MODE_TP_PROGRESS_PCT)
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI v31 Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_DPI_Enabled             = true;        // DPI: Enable DPI vote in TS equation
-input bool        Inp_RRM_ORG_DPI_UseCCIReset         = true;        // DPI: Enable CCI trend filter
-input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price    = PRICE_TYPICAL;  // DPI: CCI applied price
-input int         Inp_RRM_ORG_DPI_Weight              = 1;           // DPI: Vote weight
-input int         Inp_RRM_ORG_DPI_MacdFast            = 8;           // DPI: MACD fast EMA period
-input int         Inp_RRM_ORG_DPI_MacdSlow            = 13;          // DPI: MACD slow EMA period
-input int         Inp_RRM_ORG_DPI_RedSignalType       = 3;           // DPI: Red line type (1=EMA_A 2=EMA_B 3=EMA_C 4=EMA_D 5=Double)
-input int         Inp_RRM_ORG_DPI_RedEMA_A            = 5;           // DPI: Red EMA period A (type 1)
-input int         Inp_RRM_ORG_DPI_RedEMA_B            = 8;           // DPI: Red EMA period B (type 2)
-input int         Inp_RRM_ORG_DPI_RedEMA_C            = 13;          // DPI: Red EMA period C (type 3, default)
-input int         Inp_RRM_ORG_DPI_RedEMA_D            = 21;          // DPI: Red EMA period D (type 4)
-input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst   = 5;           // DPI: Double-smooth first EMA
-input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond  = 8;           // DPI: Double-smooth second EMA
-input int         Inp_RRM_ORG_DPI_CCI_Period          = 13;          // DPI: CCI period
-input bool        Inp_RRM_ORG_DPI_Decel_Filter        = true;        // DPI: Block entry on DPI histogram deceleration
-input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote    = false;       // DPI: Use raw histogram direction for vote (skip CCI-reset check)
+input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // DPI: Enable DPI vote in TS equation
+input bool        Inp_RRM_ORG_DPI_UseCCIReset            = true;     // DPI: Enable CCI trend filter
+input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price       = PRICE_TYPICAL;  // DPI: CCI applied price
+input int         Inp_RRM_ORG_DPI_Weight                 = 1;        // DPI: Vote weight
+input int         Inp_RRM_ORG_DPI_MacdFast               = 8;        // DPI: MACD fast EMA period
+input int         Inp_RRM_ORG_DPI_MacdSlow               = 13;       // DPI: MACD slow EMA period
+input int         Inp_RRM_ORG_DPI_RedSignalType          = 3;        // DPI: Red line type (1=EMA_A 2=EMA_B 3=EMA_C 4=EMA_D 5=Double)
+input int         Inp_RRM_ORG_DPI_RedEMA_A               = 5;        // DPI: Red EMA period A (type 1)
+input int         Inp_RRM_ORG_DPI_RedEMA_B               = 8;        // DPI: Red EMA period B (type 2)
+input int         Inp_RRM_ORG_DPI_RedEMA_C               = 13;       // DPI: Red EMA period C (type 3, default)
+input int         Inp_RRM_ORG_DPI_RedEMA_D               = 21;       // DPI: Red EMA period D (type 4)
+input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst      = 5;        // DPI: Double-smooth first EMA
+input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond     = 8;        // DPI: Double-smooth second EMA
+input int         Inp_RRM_ORG_DPI_CCI_Period             = 13;       // DPI: CCI period
+input bool        Inp_RRM_ORG_DPI_Decel_Filter           = true;     // DPI: Block entry on DPI histogram deceleration
+input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // DPI: Use raw histogram direction for vote (skip CCI-reset check)
 input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = true;     // DPI: Use DPI histogram growth as boost
 input group " ";
 input group "═══ RRM_ORG: DPI GREEN Histogram Logic ═══"
@@ -1213,10 +1213,10 @@ input int         Inp_RRM_ORG_CciPeriod            = 14;             // RRM_ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Candle Body Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_CandleBody_RequireDir = true;          // RRM_ORG CBody Require direction
-input int         Inp_RRM_ORG_CandleBody_AvgPeriod  = 10;            // RRM_ORG CBody Average period
-input int         Inp_RRM_ORG_CandleBody_CheckBars  = 1;             // RRM_ORG CBody Bars to check
-input double      Inp_RRM_ORG_CandleBody_MaxMult    = 3.0;           // RRM_ORG CBody Max multiplier
+input bool        Inp_RRM_ORG_CandleBody_RequireDir   = true;        // RRM_ORG CBody Require direction
+input int         Inp_RRM_ORG_CandleBody_AvgPeriod    = 10;          // RRM_ORG CBody Average period
+input int         Inp_RRM_ORG_CandleBody_CheckBars    = 1;           // RRM_ORG CBody Bars to check
+input double      Inp_RRM_ORG_CandleBody_MaxMult      = 3.0;         // RRM_ORG CBody Max multiplier
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: CI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1242,7 +1242,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: PSAR Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_Vote_AllowPsarFlip   = true;           // RRM_ORG PSAR Enable Flip
-input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 4;              // RRM_ORG PSAR Flip delay (-1=persistent, 0-10=bars after flip)
+input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 5;              // RRM_ORG PSAR Flip delay (-1=persistent, 0-10=bars after flip)
 input int         Inp_RRM_ORG_PSAR_FlipGraceBars   = 0;              // RRM_ORG PSAR Ignore vote for N bars after an adverse flip (0=disabled)
 input double      Inp_RRM_ORG_PsarStep             = 0.05;           // RRM_ORG PSAR Step
 input double      Inp_RRM_ORG_PsarMax              = 0.5;            // RRM_ORG PSAR Max
