@@ -1660,7 +1660,7 @@ Zone 2 groups the inputs that are **always editable** under any preset:
 - `--- ✅ Operator Gates: Spread Limits ---` — `MaxSpreadPips`
 - `--- ✅ Operator Gates: Session Time Filter ---` — `UseTime`, `StartHour`, `EndHour`
 - `--- ✅ Operator Gates: News Filter ---` — `UseNews`, `NewsFile`, `NewsPre`, `NewsPost`
-- `--- ✅ Indicator Vote: MTF Confirmation ---` — `Inp_Ind_MTF_Enabled`, `Inp_MTF_TF1`, `Inp_MTF_TF2`, `Inp_MTF_EMA_Fast`, `Inp_MTF_EMA_Slow` (legacy HTF inputs remain deprecated for migration)
+- `--- ✅ Global Filter: MTF Confirmation ---` — `Inp_Filter_MTF_Enable`, `Inp_Filter_MTF_TF1`, `Inp_Filter_MTF_TF2`, `Inp_Filter_MTF_EMA_Fast`, `Inp_Filter_MTF_EMA_Slow` (legacy HTF inputs remain deprecated for migration)
 - `--- ✅ UI: Status Panel ---`, `--- ✅ UI: Cockpit Panel ---`, `--- ✅ UI: Signal Markers ---`, `--- ✅ UI: Colors & Framing ---`
 - `--- ✅ Diagnostics ---`, `--- ✅ Reporting ---`
 
