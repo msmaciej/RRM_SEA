@@ -15,7 +15,7 @@
 // Step 2: MARKET BIAS - Determine trend direction (LONG/SHORT/NEUTRAL)
 // Step 3: AUTOSTRAT SIGNAL - Generate entry timing signal
 // Step 4: SIGNAL VALIDATION - Verify signal matches bias
-// Step 5: HTF FILTER - Check higher timeframe alignment
+// Step 5: MTF FILTER - Check higher timeframe alignment (global filter)
 // Step 6: RRM GATES - Optional pullback/divergence checks
 // Step 7: VOTING BYPASS - Check if voting required
 // Step 8: INDICATOR VOTING - Get indicator consensus
@@ -111,7 +111,7 @@ struct SRejectionStats {
    int exits_dpi_hist;                          // Trades closed by DPI histogram exit
    int passed_phase_age,  rejected_phase_age;  // MinPhaseConfirmBars not met
    int passed_htf_align,  rejected_htf_align;  // Legacy field retained for compatibility
-   int passed_mtf,        rejected_mtf;        // MTF vote alignment statistics
+   int passed_mtf,        rejected_mtf;        // MTF global filter statistics
 
    // ── PHASE A.1: TE-side gates (incremented from SEA_TradeExecutor via AddTeStats) ──
    int passed_te_open_delay,    rejected_te_open_delay;
@@ -478,16 +478,18 @@ private:
    {
       if(h_fast == INVALID_HANDLE || h_slow == INVALID_HANDLE)
          return 0;
-
-      double fast[2], slow[2];
+   
+      double fast[];  // ✅ DYNAMIC ALLOCATION
+      double slow[];  // ✅ DYNAMIC ALLOCATION
+      
+      ArraySetAsSeries(fast, true);  // ✅ Now valid
+      ArraySetAsSeries(slow, true);  // ✅ Now valid
+      
       if(CopyBuffer(h_fast, 0, 0, 2, fast) != 2) return 0;
       if(CopyBuffer(h_slow, 0, 0, 2, slow) != 2) return 0;
 
-      ArraySetAsSeries(fast, true);
-      ArraySetAsSeries(slow, true);
-
       // Legacy compatibility mode: single-EMA slope behavior (old HTF filter)
-      if(m_settings.MTF_EMA_Fast == m_settings.MTF_EMA_Slow)
+      if(m_settings.Filter_MTF_EMA_Fast == m_settings.Filter_MTF_EMA_Slow)
       {
          double pip = GlobalPipSize(m_symbol);
          if(pip <= 0.0) return 0;
@@ -497,7 +499,7 @@ private:
          return 0;
       }
 
-      if(m_settings.MTF_RequirePhase)
+      if(m_settings.Filter_MTF_RequirePhase)
       {
          double pip = GlobalPipSize(m_symbol);
          if(pip <= 0.0) return 0;
@@ -521,9 +523,9 @@ private:
       return "-";
    }
 
-   int Vote_MTF(const int bias, const int v_shift, string &reason, string &diag)
+   int CheckMTFFilter(const int bias, string &reason, string &diag)
    {
-      if(!m_settings.Ind_MTF_Enabled)
+      if(!m_settings.Filter_MTF_Enable)
       {
          reason = "MTF_DISABLED";
          diag   = "[MTF] Disabled";
@@ -531,11 +533,11 @@ private:
       }
 
       int mtf_tf1 = GetMTFBias(h_mtf_tf1_fast, h_mtf_tf1_slow);
-      string tf1_label = EnumToString(m_settings.MTF_TF1);
+      string tf1_label = EnumToString(m_settings.Filter_MTF_TF1);
 
       bool single_tf_mode = (h_mtf_tf2_fast == INVALID_HANDLE ||
-                             m_settings.MTF_TF2 == PERIOD_CURRENT ||
-                             m_settings.MTF_TF2 == m_settings.MTF_TF1);
+                             m_settings.Filter_MTF_TF2 == PERIOD_CURRENT ||
+                             m_settings.Filter_MTF_TF2 == m_settings.Filter_MTF_TF1);
 
       if(single_tf_mode)
       {
@@ -559,9 +561,9 @@ private:
       }
 
       int mtf_tf2 = GetMTFBias(h_mtf_tf2_fast, h_mtf_tf2_slow);
-      string tf2_label = EnumToString(m_settings.MTF_TF2);
+      string tf2_label = EnumToString(m_settings.Filter_MTF_TF2);
 
-      if(m_settings.MTF_StrictAlignment)
+      if(m_settings.Filter_MTF_StrictAlignment)
       {
          if(bias == mtf_tf1 && bias == mtf_tf2)
          {
@@ -2614,7 +2616,7 @@ public:
       m_telemetry.diag_layer_s = m_diag_layer_s;
       m_telemetry.phase_detection_enabled = (m_settings.BiasMode == BIAS_4EMA && m_settings.PhaseDetectionEnabled);
       m_telemetry.layer_detection_enabled = (m_settings.EnableLayerDetection && m_settings.BiasMode == BIAS_4EMA);
-      if(!m_settings.Ind_MTF_Enabled)
+      if(!m_settings.Filter_MTF_Enable)
          m_telemetry.mtf_status = "N/A";
    }
 
@@ -3338,7 +3340,7 @@ public:
       if(m_settings.Ind_SmaConverge_Enabled && m_stats.rejected_sma_converge > worst_cnt) { worst_cnt=m_stats.rejected_sma_converge; worst_ind="SmaConverge"; }
       if(m_settings.Ind_Atr_Enabled        && m_stats.rejected_atr        > worst_cnt) { worst_cnt=m_stats.rejected_atr;        worst_ind="ATR"; }
       if(m_settings.Ind_Dpi_Enabled        && m_stats.rejected_dpi        > worst_cnt) { worst_cnt=m_stats.rejected_dpi;        worst_ind="DPI"; }
-      if(m_settings.Ind_MTF_Enabled        && m_stats.rejected_mtf        > worst_cnt) { worst_cnt=m_stats.rejected_mtf;        worst_ind="MTF"; }
+      if(m_settings.Filter_MTF_Enable        && m_stats.rejected_mtf        > worst_cnt) { worst_cnt=m_stats.rejected_mtf;        worst_ind="MTF"; }
       if(worst_ind != "" && m_stats.total_bars > 0 && worst_cnt * 100.0 / m_stats.total_bars > 30) {
          any_rec = true;
          PrintFormat("Priority 3: %s is the top indicator bottleneck (%.1f%% blocked).", worst_ind, worst_cnt * 100.0 / m_stats.total_bars);
@@ -3355,7 +3357,7 @@ public:
    {
       int shift = m_settings.ma_v_shift;
       count = 0;
-      ArrayResize(out, 18); // 17 possible indicators + 1 spare
+      ArrayResize(out, 17); // 16 possible indicators + 1 spare
       
       // We use the EXACT same shift used for the numerical calculation
       int v_shift = m_settings.Vote_EvalShift;
@@ -3585,17 +3587,6 @@ public:
          out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
-      if(m_settings.Ind_MTF_Enabled)
-      {
-         string mtf_reason = "", mtf_diag = "";
-         int mtf_vote = Vote_MTF(current_bias, v_shift, mtf_reason, mtf_diag);
-         out[count].name    = "MTF";
-         out[count].enabled = true;
-         out[count].state   = (mtf_vote == 1) ? (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "PASS")) : "FLAT";
-         out[count].reason  = mtf_diag;
-         out[count].vote_result = (mtf_vote == 1) ? 1 : 0;
-         count++;
-      }
       ArrayResize(out, count);
    }
 
@@ -3702,14 +3693,14 @@ public:
       h_fractals = (need_fractals ? iFractals(m_symbol, PERIOD_CURRENT) : INVALID_HANDLE);
       
       // B. Create MTF confirmation handles (if enabled)
-      if(m_settings.Ind_MTF_Enabled) {
-         h_mtf_tf1_fast = iMA(m_symbol, m_settings.MTF_TF1, m_settings.MTF_EMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
-         h_mtf_tf1_slow = iMA(m_symbol, m_settings.MTF_TF1, m_settings.MTF_EMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
+      if(m_settings.Filter_MTF_Enable) {
+         h_mtf_tf1_fast = iMA(m_symbol, m_settings.Filter_MTF_TF1, m_settings.Filter_MTF_EMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
+         h_mtf_tf1_slow = iMA(m_symbol, m_settings.Filter_MTF_TF1, m_settings.Filter_MTF_EMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
 
-         if(m_settings.MTF_TF2 != PERIOD_CURRENT && m_settings.MTF_TF2 != m_settings.MTF_TF1)
+         if(m_settings.Filter_MTF_TF2 != PERIOD_CURRENT && m_settings.Filter_MTF_TF2 != m_settings.Filter_MTF_TF1)
          {
-            h_mtf_tf2_fast = iMA(m_symbol, m_settings.MTF_TF2, m_settings.MTF_EMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
-            h_mtf_tf2_slow = iMA(m_symbol, m_settings.MTF_TF2, m_settings.MTF_EMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
+            h_mtf_tf2_fast = iMA(m_symbol, m_settings.Filter_MTF_TF2, m_settings.Filter_MTF_EMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
+            h_mtf_tf2_slow = iMA(m_symbol, m_settings.Filter_MTF_TF2, m_settings.Filter_MTF_EMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
          }
       }
       
@@ -3730,11 +3721,11 @@ public:
          Print("CRITICAL ERROR: Failed to create VRC indicator.");
          return false;
       }
-      if(m_settings.Ind_MTF_Enabled && (h_mtf_tf1_fast == INVALID_HANDLE || h_mtf_tf1_slow == INVALID_HANDLE)) {
+      if(m_settings.Filter_MTF_Enable && (h_mtf_tf1_fast == INVALID_HANDLE || h_mtf_tf1_slow == INVALID_HANDLE)) {
          Print("CRITICAL ERROR: Failed to create MTF TF1 EMA handles.");
          return false;
       }
-      if(m_settings.Ind_MTF_Enabled && m_settings.MTF_TF2 != PERIOD_CURRENT && m_settings.MTF_TF2 != m_settings.MTF_TF1 &&
+      if(m_settings.Filter_MTF_Enable && m_settings.Filter_MTF_TF2 != PERIOD_CURRENT && m_settings.Filter_MTF_TF2 != m_settings.Filter_MTF_TF1 &&
          (h_mtf_tf2_fast == INVALID_HANDLE || h_mtf_tf2_slow == INVALID_HANDLE)) {
          Print("CRITICAL ERROR: Failed to create MTF TF2 EMA handles.");
          return false;
@@ -4765,9 +4756,6 @@ public:
       // ═══════════════════════════════════════════════════════════════
       double vote_weight = 0.0;
       bool   all_pass    = true;
-      bool   mtf_pass    = true;
-      string mtf_reason  = "";
-      string mtf_diag    = "N/A";
 
       #define CAST_VOTE_STAT(use_flag, weight_field, check_expr, stat_rej_field, stat_pass_field) \
          if(use_flag) { \
@@ -4794,23 +4782,6 @@ public:
       CAST_VOTE_STAT(m_settings.Ind_VRC_Enabled,        m_settings.Ind_VRC_Weight,        Check_VRC(bias, v_shift),        m_stats.rejected_vrc, m_stats.passed_vrc)
       CAST_VOTE_STAT(m_settings.Ind_SmaConverge_Enabled, m_settings.Ind_SmaConverge_Weight, Check_SmaConverge(v_shift),      m_stats.rejected_sma_converge, m_stats.passed_sma_converge)
       CAST_VOTE_STAT(m_settings.Ind_Dpi_Enabled,         m_settings.Ind_Dpi_Weight,         Check_DPI(bias, v_shift),         m_stats.rejected_dpi,          m_stats.passed_dpi)
-      if(m_settings.Ind_MTF_Enabled)
-      {
-         int mtf_vote = Vote_MTF(bias, v_shift, mtf_reason, mtf_diag);
-         mtf_pass = (mtf_vote == 1);
-         if(mtf_pass)
-         {
-            vote_weight += m_settings.Ind_MTF_Weight;
-            m_stats.passed_mtf++;
-         }
-         else
-         {
-            all_pass = false;
-            m_stats.rejected_mtf++;
-         }
-      }
-      m_telemetry.mtf_status = m_settings.Ind_MTF_Enabled ? mtf_diag : "N/A";
-
       #undef CAST_VOTE_STAT
 
       // Calculate indicator pass counts for telemetry (all enabled indicators, including non-directional filters)
@@ -4831,7 +4802,6 @@ public:
       if(m_settings.Ind_CandleBody_Enabled)  { s_enabled++; if(Check_CandleBody(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_CI_Enabled)          { s_enabled++; if(Check_CI(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_VRC_Enabled)         { s_enabled++; if(Check_VRC(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_MTF_Enabled)         { s_enabled++; if(mtf_pass) s_passed++; }
 
       // Always use indicator pass count for display (vote_weight is informational only, does not gate trades)
       m_diag_last_votes = s_passed;
@@ -4843,7 +4813,7 @@ public:
       bool _res_adx=false, _res_macd=false, _res_rsi=false,
            _res_cci=false, _res_mfi=false, _res_sto=false, _res_bb=false,
            _res_psar=false, _res_p123=false, _res_ross=false, _res_dpi=false,
-           _res_atr=false, _res_candle_body=false, _res_ci=false, _res_vrc=false, _res_mtf=false;
+           _res_atr=false, _res_candle_body=false, _res_ci=false, _res_vrc=false;
 
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGIN =====
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
@@ -4862,7 +4832,6 @@ public:
           if(m_settings.Ind_CandleBody_Enabled)  _res_candle_body = Check_CandleBody(bias, v_shift);
           if(m_settings.Ind_CI_Enabled)          _res_ci          = Check_CI(bias, v_shift);
           if(m_settings.Ind_VRC_Enabled)         _res_vrc         = Check_VRC(bias, v_shift);
-          if(m_settings.Ind_MTF_Enabled)         _res_mtf         = mtf_pass;
 
          if(m_settings.DebugLevel >= DEBUG_FULL) {
             string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
@@ -4950,11 +4919,6 @@ public:
                                      _res_dpi ? "PASS" : "FAIL", m_settings.Ind_Dpi_Weight));
             } else DebugLog("[IND] DPI: DISABLED → SKIP");
 
-            if(m_settings.Ind_MTF_Enabled) {
-               DebugLog(StringFormat("[IND] MTF: %s → %s (w=%d)",
-                                     mtf_diag, _res_mtf ? "PASS" : "FAIL", m_settings.Ind_MTF_Weight));
-            } else DebugLog("[IND] MTF: DISABLED → SKIP");
-
             if(m_settings.Ind_Atr_Enabled) {
                double atr_v_pips = m_diag_last_atr_pips;
                bool   atr_v_ok   = true;
@@ -5017,9 +4981,7 @@ public:
          return bias;
       }
       else {
-         m_diag_last_reason = (!mtf_pass && m_settings.Ind_MTF_Enabled)
-                              ? mtf_reason
-                              : StringFormat("NOT_ALL_PASS (%d/%d)", s_passed, s_enabled);
+         m_diag_last_reason = StringFormat("NOT_ALL_PASS (%d/%d)", s_passed, s_enabled);
          m_reject_votes++;
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
          return 0;
@@ -5530,7 +5492,7 @@ public:
       m_telemetry.votes_total = 0;
       m_telemetry.rejection_reason = SEA_STATUS_EVALUATING;
       m_telemetry.active_indicators = "0/0";
-      m_telemetry.mtf_status = (m_settings.Ind_MTF_Enabled ? "[MTF] Pending" : "N/A");
+      m_telemetry.mtf_status = (m_settings.Filter_MTF_Enable ? "[MTF] Pending" : "N/A");
       m_bars_evaluated++;
       m_stats.total_bars++;
 
@@ -5620,6 +5582,42 @@ public:
          FlushOrClearDebugBuffer(0);
          RestoreForcedDebug();
          return 0;
+      }
+
+      // ── MTF FILTER (Global pre-check, part of F) ──────────────────────
+      if(m_settings.Filter_MTF_Enable)
+      {
+         string mtf_reason = "";
+         string mtf_diag   = "";
+         int mtf_result = CheckMTFFilter(B, mtf_reason, mtf_diag);
+         m_telemetry.mtf_status = mtf_diag;
+
+         if(mtf_result == 0)
+         {
+            m_stats.rejected_mtf++;
+            m_diag_last_reason = "MTF_CONFLICT";
+            m_eval_str_F = "MTF_CONFLICT";
+            m_reject_filter++;
+
+            if(m_settings.DebugFlow)
+               DebugLog("[MTF_FILTER] MTF timeframes conflict with bias -> BLOCKED");
+
+            if(!full_eval) {
+               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+               UpdateTelemetry(0);
+               FlushOrClearDebugBuffer(0);
+               RestoreForcedDebug();
+               return 0;
+            }
+            if(m_eval_first_failure == "") m_eval_first_failure = "MTF_CONFLICT";
+            m_eval_any_failure = true;
+         }
+         else
+         {
+            m_stats.passed_mtf++;
+            if(m_settings.DebugFlow)
+               DebugLog("[MTF_FILTER] MTF aligned -> PASS");
+         }
       }
 
       // ══════════════════════════════════════════════════════════════════
@@ -5837,10 +5835,11 @@ public:
          DebugLog("");
 
          // F (FILTERS) NOTE — evaluated at TE (bar open), not at TS (bar close)
-         DebugLog("F (FILTERS) — evaluated at TE execution moment, not here:");
+         DebugLog("F (FILTERS) — spread/time/news evaluated at TE, MTF evaluated at TS:");
          DebugLog("  ⏭️  Spread: checked at TE (" + (m_settings.UseSpread ? "enabled" : "disabled") + ")");
          DebugLog("  ⏭️  Time window: checked at TE (" + (m_settings.UseTime ? "active" : "disabled") + ")");
          DebugLog("  ⏭️  News filter: checked at TE (" + (m_settings.UseNews ? "active" : "disabled") + ")");
+         DebugLog("  ✅ MTF filter: checked at TS (" + (m_settings.Filter_MTF_Enable ? "enabled" : "disabled") + ")");
          DebugLog("");
 
          // BIAS & STRUCTURE SECTION
