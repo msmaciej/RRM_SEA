@@ -635,7 +635,7 @@ void SEA_UI_UpdateCockpit(
    string sig_str = is_valid ? ((ts_telemetry.bias == 1) ? "BUY" : "SELL") : "FLAT";
    AddLine(StringFormat("STATUS:    %s", status_text), (is_valid ? Settings.clr_Pass : Settings.clr_Fail), lines, line_clrs);
    AddLine(StringFormat("SIGNAL:    %s", sig_str), v_clr, lines, line_clrs);
-   if(Settings.Ind_MTF_Enabled)
+   if(Settings.Filter_MTF_Enable)
    {
       string mtf_status = ts_telemetry.mtf_status;
       bool mtf_ok = (StringFind(mtf_status, "✓") >= 0 || StringFind(mtf_status, "agree") >= 0);
@@ -915,16 +915,16 @@ void SEA_UI_ManageChartIndicators(CSignalEngine &engine)
       ts_active++;
    }
 
-   if(Settings.Ind_MTF_Enabled)
+   if(Settings.Filter_MTF_Enable)
    {
       if(engine.GetMtfTf1FastHandle() != INVALID_HANDLE)
-         _SEA_UI_AddIndicator(0, engine.GetMtfTf1FastHandle(), StringFormat("MTF %s Fast EMA", EnumToString(Settings.MTF_TF1)), overlays);
+         _SEA_UI_AddIndicator(0, engine.GetMtfTf1FastHandle(), StringFormat("MTF %s Fast EMA", EnumToString(Settings.Filter_MTF_TF1)), overlays);
       if(engine.GetMtfTf1SlowHandle() != INVALID_HANDLE)
-         _SEA_UI_AddIndicator(0, engine.GetMtfTf1SlowHandle(), StringFormat("MTF %s Slow EMA", EnumToString(Settings.MTF_TF1)), overlays);
+         _SEA_UI_AddIndicator(0, engine.GetMtfTf1SlowHandle(), StringFormat("MTF %s Slow EMA", EnumToString(Settings.Filter_MTF_TF1)), overlays);
       if(engine.GetMtfTf2FastHandle() != INVALID_HANDLE)
-         _SEA_UI_AddIndicator(0, engine.GetMtfTf2FastHandle(), StringFormat("MTF %s Fast EMA", EnumToString(Settings.MTF_TF2)), overlays);
+         _SEA_UI_AddIndicator(0, engine.GetMtfTf2FastHandle(), StringFormat("MTF %s Fast EMA", EnumToString(Settings.Filter_MTF_TF2)), overlays);
       if(engine.GetMtfTf2SlowHandle() != INVALID_HANDLE)
-         _SEA_UI_AddIndicator(0, engine.GetMtfTf2SlowHandle(), StringFormat("MTF %s Slow EMA", EnumToString(Settings.MTF_TF2)), overlays);
+         _SEA_UI_AddIndicator(0, engine.GetMtfTf2SlowHandle(), StringFormat("MTF %s Slow EMA", EnumToString(Settings.Filter_MTF_TF2)), overlays);
    }
 
    if(Settings.TrailMode == TRAIL_FRACTAL) 
