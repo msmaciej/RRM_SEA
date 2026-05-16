@@ -829,7 +829,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_SmaConverge_Weight  = 1;
       cfg.Ind_Dpi_Enabled        = false;
       cfg.Ind_Dpi_Weight         = 1;
-   
       cfg.VoteMode               = VOTE_MODE_ALL;
       
       // ================================================================
@@ -1122,6 +1121,25 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_SmaConverge_Weight  = 1;
       cfg.Ind_Dpi_Enabled        = false;
       cfg.Ind_Dpi_Weight         = 1;
+      cfg.Ind_MTF_Enabled        = Inp_Ind_MTF_Enabled;
+      cfg.Ind_MTF_Weight         = Inp_Ind_MTF_Weight;
+      cfg.MTF_TF1                = Inp_MTF_TF1;
+      cfg.MTF_TF2                = Inp_MTF_TF2;
+      cfg.MTF_EMA_Fast           = Inp_MTF_EMA_Fast;
+      cfg.MTF_EMA_Slow           = Inp_MTF_EMA_Slow;
+      cfg.MTF_RequirePhase       = Inp_MTF_RequirePhase;
+      cfg.MTF_StrictAlignment    = Inp_MTF_StrictAlignment;
+
+      // Legacy migration from deprecated HTF inputs
+      if(Inp_Filter_UseHTF)
+      {
+         cfg.Ind_MTF_Enabled      = true;
+         cfg.MTF_TF1              = Inp_Filter_HtfPeriod;
+         cfg.MTF_TF2              = PERIOD_CURRENT;
+         cfg.MTF_EMA_Fast         = Inp_Filter_HtfEmaPeriod;
+         cfg.MTF_EMA_Slow         = Inp_Filter_HtfEmaPeriod;
+         cfg.MTF_RequirePhase     = false;
+      }
 
       // ── MACD SETTINGS: flexible via Inp_RRM_* ────────────────────────
       cfg.P_MacdFast             = Inp_RRM_MacdFast;
@@ -1608,19 +1626,33 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MinMarginLevel            = op_MinMarginLevel;
       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
 
-      // PHASE A: HTF trend filter ON by default. Trades like #075
-      // (USDJPY M5 LONG against the H1/H4 picture) are exactly what an
-      // HTF gate is meant to suppress. Operator-tunable via
-      // Inp_RRM_ORG_HtfFilter (default true) and Inp_Filter_UseHTF as a fallback.
-      cfg.UseHTF                    = Inp_RRM_ORG_HtfFilter || Inp_Filter_UseHTF;
-      cfg.HtfPeriod                 = (Inp_Filter_HtfPeriod != PERIOD_CURRENT) ? Inp_Filter_HtfPeriod
-                                    : ((_Period <= PERIOD_M5)  ? PERIOD_M30
-                                    :  (_Period <= PERIOD_M30) ? PERIOD_H1
-                                    :  (_Period <= PERIOD_H1)  ? PERIOD_H4
-                                    :                            PERIOD_D1);
-      cfg.P_HtfEma                  = (Inp_RRM_ORG_HtfEmaPeriod > 0)
-                                          ? Inp_RRM_ORG_HtfEmaPeriod
-                                          : (Inp_Filter_HtfEmaPeriod > 0 ? Inp_Filter_HtfEmaPeriod : 89);
+      // ── MTF CONFIRMATION (replaces deprecated HTF filter) ───────────────
+      cfg.Ind_MTF_Enabled           = Inp_Ind_MTF_Enabled;
+      cfg.Ind_MTF_Weight            = Inp_Ind_MTF_Weight;
+      cfg.MTF_TF1                   = Inp_MTF_TF1;
+      cfg.MTF_TF2                   = Inp_MTF_TF2;
+      cfg.MTF_EMA_Fast              = Inp_MTF_EMA_Fast;
+      cfg.MTF_EMA_Slow              = Inp_MTF_EMA_Slow;
+      cfg.MTF_RequirePhase          = Inp_MTF_RequirePhase;
+      cfg.MTF_StrictAlignment       = Inp_MTF_StrictAlignment;
+
+      // Legacy migration path for previous HTF controls
+      bool legacy_htf_enabled = (Inp_RRM_ORG_HtfFilter || Inp_Filter_UseHTF);
+      if(legacy_htf_enabled)
+      {
+         cfg.Ind_MTF_Enabled        = true;
+         cfg.MTF_TF1                = (Inp_Filter_HtfPeriod != PERIOD_CURRENT) ? Inp_Filter_HtfPeriod
+                                      : ((_Period <= PERIOD_M5)  ? PERIOD_M30
+                                      :  (_Period <= PERIOD_M30) ? PERIOD_H1
+                                      :  (_Period <= PERIOD_H1)  ? PERIOD_H4
+                                      :                            PERIOD_D1);
+         cfg.MTF_TF2                = PERIOD_CURRENT;  // legacy single-TF behavior
+         cfg.MTF_EMA_Fast           = (Inp_RRM_ORG_HtfEmaPeriod > 0)
+                                      ? Inp_RRM_ORG_HtfEmaPeriod
+                                      : (Inp_Filter_HtfEmaPeriod > 0 ? Inp_Filter_HtfEmaPeriod : 89);
+         cfg.MTF_EMA_Slow           = cfg.MTF_EMA_Fast; // slope-based legacy mode in engine
+         cfg.MTF_RequirePhase       = false;
+      }
 
       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
       cfg.AllowReEntryAfterBE       = true;

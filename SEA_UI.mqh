@@ -635,6 +635,12 @@ void SEA_UI_UpdateCockpit(
    string sig_str = is_valid ? ((ts_telemetry.bias == 1) ? "BUY" : "SELL") : "FLAT";
    AddLine(StringFormat("STATUS:    %s", status_text), (is_valid ? Settings.clr_Pass : Settings.clr_Fail), lines, line_clrs);
    AddLine(StringFormat("SIGNAL:    %s", sig_str), v_clr, lines, line_clrs);
+   if(Settings.Ind_MTF_Enabled)
+   {
+      string mtf_status = ts_telemetry.mtf_status;
+      bool mtf_ok = (StringFind(mtf_status, "✓") >= 0 || StringFind(mtf_status, "agree") >= 0);
+      AddLine(StringFormat("MTF:       %s", mtf_status), (mtf_ok ? Settings.clr_Pass : Settings.clr_Fail), lines, line_clrs);
+   }
 
    AddLine("", (color)0, lines, line_clrs); 
    
@@ -655,6 +661,7 @@ void SEA_UI_UpdateCockpit(
    string l_eq = (ts_telemetry.layer > 0) ? "+" : ((ts_telemetry.layer < 0) ? "-" : ".");
    string i_eq = (disp_votes > 0) ? "+" : ".";
    bool filter_rejected = (StringFind(status_text, "HTF")    >= 0 ||
+                           StringFind(status_text, "MTF")    >= 0 ||
                            StringFind(status_text, "Filter") >= 0 ||
                            StringFind(status_text, "TIME")   >= 0 ||
                            StringFind(status_text, "SPREAD") >= 0 ||
@@ -908,8 +915,17 @@ void SEA_UI_ManageChartIndicators(CSignalEngine &engine)
       ts_active++;
    }
 
-   if(Settings.UseHTF) 
-      _SEA_UI_AddIndicator(0, engine.GetHtfEmaHandle(), "HTF Filter", overlays);
+   if(Settings.Ind_MTF_Enabled)
+   {
+      if(engine.GetMtfTf1FastHandle() != INVALID_HANDLE)
+         _SEA_UI_AddIndicator(0, engine.GetMtfTf1FastHandle(), StringFormat("MTF %s Fast EMA", EnumToString(Settings.MTF_TF1)), overlays);
+      if(engine.GetMtfTf1SlowHandle() != INVALID_HANDLE)
+         _SEA_UI_AddIndicator(0, engine.GetMtfTf1SlowHandle(), StringFormat("MTF %s Slow EMA", EnumToString(Settings.MTF_TF1)), overlays);
+      if(engine.GetMtfTf2FastHandle() != INVALID_HANDLE)
+         _SEA_UI_AddIndicator(0, engine.GetMtfTf2FastHandle(), StringFormat("MTF %s Fast EMA", EnumToString(Settings.MTF_TF2)), overlays);
+      if(engine.GetMtfTf2SlowHandle() != INVALID_HANDLE)
+         _SEA_UI_AddIndicator(0, engine.GetMtfTf2SlowHandle(), StringFormat("MTF %s Slow EMA", EnumToString(Settings.MTF_TF2)), overlays);
+   }
 
    if(Settings.TrailMode == TRAIL_FRACTAL) 
       _SEA_UI_AddIndicator(0, engine.GetFractalHandle(), "Fractals (Trail)", overlays);

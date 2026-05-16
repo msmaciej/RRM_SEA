@@ -69,6 +69,7 @@ struct ST_SignalTelemetry {
    int    diag_layer_s;   // Raw result for L3 STRONG sub-market
    bool   phase_detection_enabled;  // True when BiasMode == BIAS_4EMA and PhaseDetectionEnabled
    bool   layer_detection_enabled;  // True when EnableLayerDetection && BiasMode == BIAS_4EMA
+   string mtf_status;               // MTF alignment status for cockpit/UI
 };
 
 // Granular per-reason rejection statistics for EvaluateTS()
@@ -109,7 +110,8 @@ struct SRejectionStats {
    int passed_dpi_decel,  rejected_dpi_decel;  // DPI histogram deceleration
    int exits_dpi_hist;                          // Trades closed by DPI histogram exit
    int passed_phase_age,  rejected_phase_age;  // MinPhaseConfirmBars not met
-   int passed_htf_align,  rejected_htf_align;  // HTF EMA slope disagrees with bias
+   int passed_htf_align,  rejected_htf_align;  // Legacy field retained for compatibility
+   int passed_mtf,        rejected_mtf;        // MTF vote alignment statistics
 
    // ── PHASE A.1: TE-side gates (incremented from SEA_TradeExecutor via AddTeStats) ──
    int passed_te_open_delay,    rejected_te_open_delay;
@@ -132,7 +134,10 @@ private:
    int h_adx, h_mfi;                     // Strength & Volume
    int h_ci, h_vrc;                      // Choppiness & Volatility Regime
    
-   int h_htf_ema; // Higher Timeframe Filter
+   int h_mtf_tf1_fast;
+   int h_mtf_tf1_slow;
+   int h_mtf_tf2_fast;
+   int h_mtf_tf2_slow;
 
    // --- 2. INTERNAL DATA ---
    ST_Settings m_settings;
@@ -469,26 +474,130 @@ private:
       return GetVal(handle, shift, buffer_num, out_valid);
    }
 
-   // ── PHASE A.1 ─────────────────────────────────────────────────────────
-   // HTF bias from the higher-timeframe EMA (h_htf_ema must be valid).
-   // Returns +1 if HTF EMA is rising, -1 if falling, 0 if flat / no data.
-   // The "rising/falling" check uses a 3-bar lookback to filter noise.
-   // Required by the HTF_BLOCKED pre-filter in EvaluateTS.
-   int GetHtfBias()
+   int GetMTFBias(const int h_fast, const int h_slow)
    {
-      if(h_htf_ema == INVALID_HANDLE) return 0;
-      double e0[];
-      ArraySetAsSeries(e0, true);
-      if(CopyBuffer(h_htf_ema, 0, 0, 3, e0) != 3) return 0;
-      // e0[0] = current bar; e0[2] = 2 bars ago
-      double diff = e0[0] - e0[2];
-      double pip  = GlobalPipSize(m_symbol);
-      if(pip <= 0.0) return 0;
-      // Require at least 0.5 pip of slope per bar to count as directional;
-      // below that, treat as flat / no signal.
-      double slope_pips_per_bar = (diff / pip) / 2.0;
-      if(slope_pips_per_bar >  0.5) return +1;
-      if(slope_pips_per_bar < -0.5) return -1;
+      if(h_fast == INVALID_HANDLE || h_slow == INVALID_HANDLE)
+         return 0;
+
+      double fast[2], slow[2];
+      if(CopyBuffer(h_fast, 0, 0, 2, fast) != 2) return 0;
+      if(CopyBuffer(h_slow, 0, 0, 2, slow) != 2) return 0;
+
+      ArraySetAsSeries(fast, true);
+      ArraySetAsSeries(slow, true);
+
+      // Legacy compatibility mode: single-EMA slope behavior (old HTF filter)
+      if(m_settings.MTF_EMA_Fast == m_settings.MTF_EMA_Slow)
+      {
+         double pip = GlobalPipSize(m_symbol);
+         if(pip <= 0.0) return 0;
+         double slope = (fast[0] - fast[1]) / pip;
+         if(slope > 0.5)  return +1;
+         if(slope < -0.5) return -1;
+         return 0;
+      }
+
+      if(m_settings.MTF_RequirePhase)
+      {
+         double pip = GlobalPipSize(m_symbol);
+         if(pip <= 0.0) return 0;
+
+         double fast_slope = (fast[0] - fast[1]) / pip;
+         double slow_slope = (slow[0] - slow[1]) / pip;
+
+         if(MathAbs(fast_slope) < 0.3 || MathAbs(slow_slope) < 0.2)
+            return 0;
+      }
+
+      if(fast[0] > slow[0]) return +1;
+      if(fast[0] < slow[0]) return -1;
+      return 0;
+   }
+
+   string MTFBiasLabel(const int mtf_bias) const
+   {
+      if(mtf_bias ==  1) return "LONG";
+      if(mtf_bias == -1) return "SHORT";
+      return "-";
+   }
+
+   int Vote_MTF(const int bias, const int v_shift, string &reason, string &diag)
+   {
+      if(!m_settings.Ind_MTF_Enabled)
+      {
+         reason = "MTF_DISABLED";
+         diag   = "[MTF] Disabled";
+         return +1;
+      }
+
+      int mtf_tf1 = GetMTFBias(h_mtf_tf1_fast, h_mtf_tf1_slow);
+      string tf1_label = EnumToString(m_settings.MTF_TF1);
+
+      bool single_tf_mode = (h_mtf_tf2_fast == INVALID_HANDLE ||
+                             m_settings.MTF_TF2 == PERIOD_CURRENT ||
+                             m_settings.MTF_TF2 == m_settings.MTF_TF1);
+
+      if(single_tf_mode)
+      {
+         if(bias == mtf_tf1)
+         {
+            reason = "MTF_TF1_ALIGNED";
+            diag = StringFormat("[MTF] %s:%s ✓", tf1_label, MTFBiasLabel(mtf_tf1));
+            return +1;
+         }
+         if(mtf_tf1 == 0)
+         {
+            reason = "MTF_TF1_UNCLEAR";
+            diag = StringFormat("[MTF] %s:- (choppy)", tf1_label);
+            return 0;
+         }
+
+         reason = "MTF_TF1_CONFLICT";
+         diag = StringFormat("[MTF] %s:%s ✗ (vs %s)",
+                            tf1_label, MTFBiasLabel(mtf_tf1), MTFBiasLabel(bias));
+         return 0;
+      }
+
+      int mtf_tf2 = GetMTFBias(h_mtf_tf2_fast, h_mtf_tf2_slow);
+      string tf2_label = EnumToString(m_settings.MTF_TF2);
+
+      if(m_settings.MTF_StrictAlignment)
+      {
+         if(bias == mtf_tf1 && bias == mtf_tf2)
+         {
+            reason = "MTF_ALL_ALIGNED";
+            diag = StringFormat("[MTF] %s:%s %s:%s ✓",
+                                tf1_label, MTFBiasLabel(mtf_tf1),
+                                tf2_label, MTFBiasLabel(mtf_tf2));
+            return +1;
+         }
+
+         reason = "MTF_CONFLICT";
+         diag = StringFormat("[MTF] %s:%s %s:%s ✗ (vs %s)",
+                             tf1_label, MTFBiasLabel(mtf_tf1),
+                             tf2_label, MTFBiasLabel(mtf_tf2),
+                             MTFBiasLabel(bias));
+         return 0;
+      }
+
+      int votes_agree = 0;
+      if(bias == mtf_tf1) votes_agree++;
+      if(bias == mtf_tf2) votes_agree++;
+
+      if(votes_agree >= 1)
+      {
+         reason = "MTF_MAJORITY";
+         diag = StringFormat("[MTF] %s:%s %s:%s (%d/2 agree)",
+                             tf1_label, MTFBiasLabel(mtf_tf1),
+                             tf2_label, MTFBiasLabel(mtf_tf2),
+                             votes_agree);
+         return +1;
+      }
+
+      reason = "MTF_ALL_DISAGREE";
+      diag = StringFormat("[MTF] %s:%s %s:%s ✗ (0/2 agree)",
+                          tf1_label, MTFBiasLabel(mtf_tf1),
+                          tf2_label, MTFBiasLabel(mtf_tf2));
       return 0;
    }
 
@@ -2505,6 +2614,8 @@ public:
       m_telemetry.diag_layer_s = m_diag_layer_s;
       m_telemetry.phase_detection_enabled = (m_settings.BiasMode == BIAS_4EMA && m_settings.PhaseDetectionEnabled);
       m_telemetry.layer_detection_enabled = (m_settings.EnableLayerDetection && m_settings.BiasMode == BIAS_4EMA);
+      if(!m_settings.Ind_MTF_Enabled)
+         m_telemetry.mtf_status = "N/A";
    }
 
 
@@ -2527,7 +2638,10 @@ public:
    int GetStoHandle() const { return h_sto; }       // ADD THIS
    int GetAdxHandle() const { return h_adx; }       // ADD THIS
    int GetBbHandle() const { return h_bb; }         // ADD THIS
-   int GetHtfEmaHandle() const { return h_htf_ema; }// ADD THIS
+   int GetMtfTf1FastHandle() const { return h_mtf_tf1_fast; }
+   int GetMtfTf1SlowHandle() const { return h_mtf_tf1_slow; }
+   int GetMtfTf2FastHandle() const { return h_mtf_tf2_fast; }
+   int GetMtfTf2SlowHandle() const { return h_mtf_tf2_slow; }
    int GetFractalHandle() const { return h_fractals; } // ADD THIS
    
    // Pattern indicators (return INVALID_HANDLE if not implemented yet)
@@ -2546,7 +2660,8 @@ public:
       h_macd = h_rsi = h_cci = h_sto = INVALID_HANDLE;
       h_atr = h_bb = h_psar = h_fractals = INVALID_HANDLE;
       h_adx = h_mfi = INVALID_HANDLE;
-      h_htf_ema = INVALID_HANDLE;
+      h_mtf_tf1_fast = h_mtf_tf1_slow = INVALID_HANDLE;
+      h_mtf_tf2_fast = h_mtf_tf2_slow = INVALID_HANDLE;
       h_ci  = INVALID_HANDLE;
       h_vrc = INVALID_HANDLE;
 
@@ -2934,9 +3049,9 @@ public:
       reasons[idx].count = m_stats.rejected_phase_age;
       reasons[idx++].pct = m_stats.rejected_phase_age * 100.0 / m_stats.total_bars;
 
-      reasons[idx].name = "HTF Block";
-      reasons[idx].count = m_stats.rejected_htf_align;
-      reasons[idx++].pct = m_stats.rejected_htf_align * 100.0 / m_stats.total_bars;
+      reasons[idx].name = "MTF Conflict";
+      reasons[idx].count = m_stats.rejected_mtf;
+      reasons[idx++].pct = m_stats.rejected_mtf * 100.0 / m_stats.total_bars;
 
       reasons[idx].name = "TE Open Delay";
       reasons[idx].count = m_stats.rejected_te_open_delay;
@@ -3038,14 +3153,7 @@ public:
                     (m_settings.MinPhaseConfirmBars > 0)
                        ? StringFormat(">=%d bars", m_settings.MinPhaseConfirmBars)
                        : "(disabled)");
-      PrintGateStat("HTF Align",
-                    m_settings.UseHTF,
-                    m_stats.passed_htf_align,
-                    m_stats.rejected_htf_align,
-                    m_settings.UseHTF
-                       ? StringFormat("%s EMA%d slope", EnumToString(m_settings.HtfPeriod), m_settings.P_HtfEma)
-                       : "(disabled)");
-      PrintGateStat("TE Open Delay",
+       PrintGateStat("TE Open Delay",
                     (m_settings.TE_OpenDelaySeconds > 0),
                     m_stats.passed_te_open_delay,
                     m_stats.rejected_te_open_delay,
@@ -3067,7 +3175,7 @@ public:
       Print("----------------------------------------------------------------");
       PrintFormat("Pre-filter blocks: %d bars (TS), %d (TE), %d exits (DPI Hist)",
                   m_stats.rejected_emafan + m_stats.rejected_dpi_decel +
-                  m_stats.rejected_phase_age + m_stats.rejected_htf_align,
+                  m_stats.rejected_phase_age,
                   m_stats.rejected_te_open_delay + m_stats.rejected_te_bc_recheck +
                   m_stats.rejected_te_spread_median,
                   m_stats.exits_dpi_hist);
@@ -3230,6 +3338,7 @@ public:
       if(m_settings.Ind_SmaConverge_Enabled && m_stats.rejected_sma_converge > worst_cnt) { worst_cnt=m_stats.rejected_sma_converge; worst_ind="SmaConverge"; }
       if(m_settings.Ind_Atr_Enabled        && m_stats.rejected_atr        > worst_cnt) { worst_cnt=m_stats.rejected_atr;        worst_ind="ATR"; }
       if(m_settings.Ind_Dpi_Enabled        && m_stats.rejected_dpi        > worst_cnt) { worst_cnt=m_stats.rejected_dpi;        worst_ind="DPI"; }
+      if(m_settings.Ind_MTF_Enabled        && m_stats.rejected_mtf        > worst_cnt) { worst_cnt=m_stats.rejected_mtf;        worst_ind="MTF"; }
       if(worst_ind != "" && m_stats.total_bars > 0 && worst_cnt * 100.0 / m_stats.total_bars > 30) {
          any_rec = true;
          PrintFormat("Priority 3: %s is the top indicator bottleneck (%.1f%% blocked).", worst_ind, worst_cnt * 100.0 / m_stats.total_bars);
@@ -3246,7 +3355,7 @@ public:
    {
       int shift = m_settings.ma_v_shift;
       count = 0;
-      ArrayResize(out, 17); // 16 possible indicators + 1 spare
+      ArrayResize(out, 18); // 17 possible indicators + 1 spare
       
       // We use the EXACT same shift used for the numerical calculation
       int v_shift = m_settings.Vote_EvalShift;
@@ -3476,6 +3585,17 @@ public:
          out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
+      if(m_settings.Ind_MTF_Enabled)
+      {
+         string mtf_reason = "", mtf_diag = "";
+         int mtf_vote = Vote_MTF(current_bias, v_shift, mtf_reason, mtf_diag);
+         out[count].name    = "MTF";
+         out[count].enabled = true;
+         out[count].state   = (mtf_vote == 1) ? (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "PASS")) : "FLAT";
+         out[count].reason  = mtf_diag;
+         out[count].vote_result = (mtf_vote == 1) ? 1 : 0;
+         count++;
+      }
       ArrayResize(out, count);
    }
 
@@ -3541,6 +3661,7 @@ public:
       m_telemetry.diag_layer_s = 0;
       m_telemetry.phase_detection_enabled = (m_settings.BiasMode == BIAS_4EMA && m_settings.PhaseDetectionEnabled);
       m_telemetry.layer_detection_enabled = (m_settings.EnableLayerDetection && m_settings.BiasMode == BIAS_4EMA);
+      m_telemetry.mtf_status = "N/A";
       ZeroMemory(m_stats);
 
       ENUM_MA_METHOD method = (m_settings.MaType == METHOD_SMA) ? MODE_SMA : MODE_EMA;
@@ -3580,9 +3701,16 @@ public:
       bool need_fractals = (m_settings.Ind_P123_Enabled || m_settings.Ind_Ross_Enabled || m_settings.TrailMode == TRAIL_FRACTAL);
       h_fractals = (need_fractals ? iFractals(m_symbol, PERIOD_CURRENT) : INVALID_HANDLE);
       
-      // B. Create HTF Filter (If Enabled)
-      if(m_settings.UseHTF) {
-         h_htf_ema = iMA(m_symbol, m_settings.HtfPeriod, m_settings.P_HtfEma, h_shift, method, PRICE_CLOSE);
+      // B. Create MTF confirmation handles (if enabled)
+      if(m_settings.Ind_MTF_Enabled) {
+         h_mtf_tf1_fast = iMA(m_symbol, m_settings.MTF_TF1, m_settings.MTF_EMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
+         h_mtf_tf1_slow = iMA(m_symbol, m_settings.MTF_TF1, m_settings.MTF_EMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
+
+         if(m_settings.MTF_TF2 != PERIOD_CURRENT && m_settings.MTF_TF2 != m_settings.MTF_TF1)
+         {
+            h_mtf_tf2_fast = iMA(m_symbol, m_settings.MTF_TF2, m_settings.MTF_EMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
+            h_mtf_tf2_slow = iMA(m_symbol, m_settings.MTF_TF2, m_settings.MTF_EMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
+         }
       }
       
       // C. Validation Checkpoints
@@ -3600,6 +3728,15 @@ public:
       }
       if(m_settings.Ind_VRC_Enabled && h_vrc == INVALID_HANDLE) {
          Print("CRITICAL ERROR: Failed to create VRC indicator.");
+         return false;
+      }
+      if(m_settings.Ind_MTF_Enabled && (h_mtf_tf1_fast == INVALID_HANDLE || h_mtf_tf1_slow == INVALID_HANDLE)) {
+         Print("CRITICAL ERROR: Failed to create MTF TF1 EMA handles.");
+         return false;
+      }
+      if(m_settings.Ind_MTF_Enabled && m_settings.MTF_TF2 != PERIOD_CURRENT && m_settings.MTF_TF2 != m_settings.MTF_TF1 &&
+         (h_mtf_tf2_fast == INVALID_HANDLE || h_mtf_tf2_slow == INVALID_HANDLE)) {
+         Print("CRITICAL ERROR: Failed to create MTF TF2 EMA handles.");
          return false;
       }
       
@@ -3632,7 +3769,10 @@ public:
       if(h_psar != INVALID_HANDLE) { IndicatorRelease(h_psar); h_psar = INVALID_HANDLE; }
       if(h_fractals != INVALID_HANDLE) { IndicatorRelease(h_fractals); h_fractals = INVALID_HANDLE; }
 
-      if(m_settings.UseHTF && h_htf_ema != INVALID_HANDLE) { IndicatorRelease(h_htf_ema); h_htf_ema = INVALID_HANDLE; }
+      if(h_mtf_tf1_fast != INVALID_HANDLE) { IndicatorRelease(h_mtf_tf1_fast); h_mtf_tf1_fast = INVALID_HANDLE; }
+      if(h_mtf_tf1_slow != INVALID_HANDLE) { IndicatorRelease(h_mtf_tf1_slow); h_mtf_tf1_slow = INVALID_HANDLE; }
+      if(h_mtf_tf2_fast != INVALID_HANDLE) { IndicatorRelease(h_mtf_tf2_fast); h_mtf_tf2_fast = INVALID_HANDLE; }
+      if(h_mtf_tf2_slow != INVALID_HANDLE) { IndicatorRelease(h_mtf_tf2_slow); h_mtf_tf2_slow = INVALID_HANDLE; }
    }
 
    // --- 7a. MA VALIDATION & REPORTING (Deterministic Diagnostics) ---
@@ -4491,27 +4631,6 @@ public:
          m_stats.passed_bias++;
       }
 
-      // HTF Filter Check
-      if(m_settings.UseHTF) {
-         double curr = GetMAVal(h_htf_ema, 1);
-         double prev = GetMAVal(h_htf_ema, 2);
-         int htf_dir = (curr > prev) ? 1 : -1;
-         if(bias != htf_dir) {
-            m_diag_last_reason = "HTF_VETO";
-            m_reject_gate++;
-            if(m_settings.DebugFlow) {
-               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               DebugLog(StringFormat("STEP 4 HTF[%s]: bias=%d htf_dir=%d → VETO", TimeToString(bar_time), bias, htf_dir));
-            }
-            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-            return 0;
-         }
-         if(m_settings.DebugFlow) {
-            datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-            DebugLog(StringFormat("STEP 4 HTF[%s]: bias=%d htf_dir=%d → PASS", TimeToString(bar_time), bias, htf_dir));
-         }
-      }
-
       return bias;
    }
 
@@ -4646,6 +4765,9 @@ public:
       // ═══════════════════════════════════════════════════════════════
       double vote_weight = 0.0;
       bool   all_pass    = true;
+      bool   mtf_pass    = true;
+      string mtf_reason  = "";
+      string mtf_diag    = "N/A";
 
       #define CAST_VOTE_STAT(use_flag, weight_field, check_expr, stat_rej_field, stat_pass_field) \
          if(use_flag) { \
@@ -4672,6 +4794,22 @@ public:
       CAST_VOTE_STAT(m_settings.Ind_VRC_Enabled,        m_settings.Ind_VRC_Weight,        Check_VRC(bias, v_shift),        m_stats.rejected_vrc, m_stats.passed_vrc)
       CAST_VOTE_STAT(m_settings.Ind_SmaConverge_Enabled, m_settings.Ind_SmaConverge_Weight, Check_SmaConverge(v_shift),      m_stats.rejected_sma_converge, m_stats.passed_sma_converge)
       CAST_VOTE_STAT(m_settings.Ind_Dpi_Enabled,         m_settings.Ind_Dpi_Weight,         Check_DPI(bias, v_shift),         m_stats.rejected_dpi,          m_stats.passed_dpi)
+      if(m_settings.Ind_MTF_Enabled)
+      {
+         int mtf_vote = Vote_MTF(bias, v_shift, mtf_reason, mtf_diag);
+         mtf_pass = (mtf_vote == 1);
+         if(mtf_pass)
+         {
+            vote_weight += m_settings.Ind_MTF_Weight;
+            m_stats.passed_mtf++;
+         }
+         else
+         {
+            all_pass = false;
+            m_stats.rejected_mtf++;
+         }
+      }
+      m_telemetry.mtf_status = m_settings.Ind_MTF_Enabled ? mtf_diag : "N/A";
 
       #undef CAST_VOTE_STAT
 
@@ -4693,6 +4831,7 @@ public:
       if(m_settings.Ind_CandleBody_Enabled)  { s_enabled++; if(Check_CandleBody(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_CI_Enabled)          { s_enabled++; if(Check_CI(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_VRC_Enabled)         { s_enabled++; if(Check_VRC(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_MTF_Enabled)         { s_enabled++; if(mtf_pass) s_passed++; }
 
       // Always use indicator pass count for display (vote_weight is informational only, does not gate trades)
       m_diag_last_votes = s_passed;
@@ -4704,7 +4843,7 @@ public:
       bool _res_adx=false, _res_macd=false, _res_rsi=false,
            _res_cci=false, _res_mfi=false, _res_sto=false, _res_bb=false,
            _res_psar=false, _res_p123=false, _res_ross=false, _res_dpi=false,
-           _res_atr=false, _res_candle_body=false, _res_ci=false, _res_vrc=false;
+           _res_atr=false, _res_candle_body=false, _res_ci=false, _res_vrc=false, _res_mtf=false;
 
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGIN =====
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
@@ -4718,11 +4857,12 @@ public:
          if(m_settings.Ind_Psar_Enabled)   _res_psar   = (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift));
          if(m_settings.Ind_P123_Enabled)   _res_p123   = Check_P123(bias, v_shift);
          if(m_settings.Ind_Ross_Enabled)   _res_ross   = Check_Ross(bias, v_shift);
-         if(m_settings.Ind_Dpi_Enabled)         _res_dpi         = Check_DPI(bias, v_shift);
-         if(m_settings.Ind_Atr_Enabled)         _res_atr         = Check_ATR(bias, v_shift);
-         if(m_settings.Ind_CandleBody_Enabled)  _res_candle_body = Check_CandleBody(bias, v_shift);
-         if(m_settings.Ind_CI_Enabled)          _res_ci          = Check_CI(bias, v_shift);
-         if(m_settings.Ind_VRC_Enabled)         _res_vrc         = Check_VRC(bias, v_shift);
+          if(m_settings.Ind_Dpi_Enabled)         _res_dpi         = Check_DPI(bias, v_shift);
+          if(m_settings.Ind_Atr_Enabled)         _res_atr         = Check_ATR(bias, v_shift);
+          if(m_settings.Ind_CandleBody_Enabled)  _res_candle_body = Check_CandleBody(bias, v_shift);
+          if(m_settings.Ind_CI_Enabled)          _res_ci          = Check_CI(bias, v_shift);
+          if(m_settings.Ind_VRC_Enabled)         _res_vrc         = Check_VRC(bias, v_shift);
+          if(m_settings.Ind_MTF_Enabled)         _res_mtf         = mtf_pass;
 
          if(m_settings.DebugLevel >= DEBUG_FULL) {
             string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
@@ -4810,6 +4950,11 @@ public:
                                      _res_dpi ? "PASS" : "FAIL", m_settings.Ind_Dpi_Weight));
             } else DebugLog("[IND] DPI: DISABLED → SKIP");
 
+            if(m_settings.Ind_MTF_Enabled) {
+               DebugLog(StringFormat("[IND] MTF: %s → %s (w=%d)",
+                                     mtf_diag, _res_mtf ? "PASS" : "FAIL", m_settings.Ind_MTF_Weight));
+            } else DebugLog("[IND] MTF: DISABLED → SKIP");
+
             if(m_settings.Ind_Atr_Enabled) {
                double atr_v_pips = m_diag_last_atr_pips;
                bool   atr_v_ok   = true;
@@ -4872,7 +5017,9 @@ public:
          return bias;
       }
       else {
-         m_diag_last_reason = StringFormat("NOT_ALL_PASS (%d/%d)", s_passed, s_enabled);
+         m_diag_last_reason = (!mtf_pass && m_settings.Ind_MTF_Enabled)
+                              ? mtf_reason
+                              : StringFormat("NOT_ALL_PASS (%d/%d)", s_passed, s_enabled);
          m_reject_votes++;
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
          return 0;
@@ -5013,27 +5160,9 @@ public:
          }
          if(m_eval_first_failure == "") m_eval_first_failure = "BIAS_ZERO";
          m_eval_any_failure = true;
-      } else {
-         m_stats.passed_bias++;
-         // HTF filter (same as in EvaluateBias for BIAS_4EMA mode)
-         if(m_settings.UseHTF) {
-            double curr = GetMAVal(h_htf_ema, 1);
-            double prev = GetMAVal(h_htf_ema, 2);
-            int htf_dir = (curr > prev) ? 1 : -1;
-            if(bias != htf_dir) {
-               m_diag_last_reason = "HTF_VETO";
-               m_reject_gate++;
-               if(m_settings.DebugFlow) {
-                  datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-                  DebugLog(StringFormat("EvaluateB[%s]: HTF VETO bias=%d htf=%d",
-                                        TimeToString(bar_time), bias, htf_dir));
-               }
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-               m_diag_last_bias = 0;
-               return 0;
-            }
-         }
-      }
+       } else {
+          m_stats.passed_bias++;
+       }
 
       m_diag_last_bias = bias;
       return bias;
@@ -5401,6 +5530,7 @@ public:
       m_telemetry.votes_total = 0;
       m_telemetry.rejection_reason = SEA_STATUS_EVALUATING;
       m_telemetry.active_indicators = "0/0";
+      m_telemetry.mtf_status = (m_settings.Ind_MTF_Enabled ? "[MTF] Pending" : "N/A");
       m_bars_evaluated++;
       m_stats.total_bars++;
 
@@ -5635,39 +5765,6 @@ public:
          }
          if(m_eval_first_failure == "") m_eval_first_failure = "PHASE_AGE";
          m_eval_any_failure = true;
-      }
-
-      // ══════════════════════════════════════════════════════════════════
-      // PRE-FILTER (PHASE A.1): HTF alignment
-      // Reject when UseHTF=true and the higher-timeframe EMA slope at
-      // shift=0 disagrees with entry bias. Catches Pattern C trades like
-      // #075 (USDJPY M5 LONG into the H1/H4 down-leg).
-      // ══════════════════════════════════════════════════════════════════
-      if(m_settings.UseHTF && h_htf_ema != INVALID_HANDLE)
-      {
-         int htf_bias = GetHtfBias();
-         if(htf_bias != 0 && htf_bias != B)
-         {
-            if(m_settings.DebugFlow)
-               PrintFormat("[TS_PREFILTER] HTF_BLOCKED: htf=%+d vs bias=%+d → TS=0",
-                           htf_bias, B);
-            m_diag_last_reason = "HTF_BLOCKED";
-            m_reject_filter++;
-            m_stats.rejected_htf_align++;
-            if(!full_eval) {
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-               UpdateTelemetry(0);
-               FlushOrClearDebugBuffer(0);
-               RestoreForcedDebug();
-               return 0;
-            }
-            if(m_eval_first_failure == "") m_eval_first_failure = "HTF_BLOCKED";
-            m_eval_any_failure = true;
-         }
-         else if(htf_bias != 0)
-         {
-            m_stats.passed_htf_align++;
-         }
       }
 
       // ── PHASE A.1: Increment passed_* counters for active gates that survived ──
