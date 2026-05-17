@@ -72,6 +72,11 @@ struct ST_SignalTelemetry {
    string mtf_status;               // MTF alignment status for cockpit/UI
 };
 
+struct SMTFSegment {
+   string text;
+   color  clr;
+};
+
 // Granular per-reason rejection statistics for EvaluateTS()
 struct SRejectionStats {
    int total_bars;
@@ -521,6 +526,23 @@ private:
       if(mtf_bias ==  1) return "LONG";
       if(mtf_bias == -1) return "SHORT";
       return "-";
+   }
+
+   string GetCompactTFLabel(const ENUM_TIMEFRAMES tf) const
+   {
+      switch(tf)
+      {
+         case PERIOD_M1:  return "M1";
+         case PERIOD_M5:  return "M5";
+         case PERIOD_M15: return "M15";
+         case PERIOD_M30: return "M30";
+         case PERIOD_H1:  return "H1";
+         case PERIOD_H4:  return "H4";
+         case PERIOD_D1:  return "D1";
+         case PERIOD_W1:  return "W1";
+         case PERIOD_MN1: return "MN";
+         default:         return "??";
+      }
    }
 
    int CheckMTFFilter(const int bias, string &reason, string &diag)
@@ -2565,9 +2587,81 @@ public:
    // Public Accessors for the UI/Cockpit
    string            GetTSStatusString() const { return m_ts_status_str; }
    string            GetTEStatusString() const { return m_te_status_str; }
-   void              SetTEStatusString(string status)  { m_te_status_str = status; } 
+   void              SetTEStatusString(string status)  { m_te_status_str = status; }
    
    ST_SignalTelemetry GetTelemetry() const { return m_telemetry; }
+
+   void GetMTFCockpitData(SMTFSegment &segments[])
+   {
+      ArrayResize(segments, 0);
+
+      if(!m_settings.Filter_MTF_Enable)
+      {
+         ArrayResize(segments, 1);
+         segments[0].text = "MTF: [DISABLED]";
+         segments[0].clr  = m_settings.clr_Disabled;
+         return;
+      }
+
+      int base_bias = m_diag_last_bias;
+      int tf1_bias  = GetMTFBias(h_mtf_tf1_fast, h_mtf_tf1_slow);
+      int tf2_bias  = 0;
+
+      bool single_tf_mode = (h_mtf_tf2_fast == INVALID_HANDLE ||
+                             m_settings.Filter_MTF_TF2 == PERIOD_CURRENT ||
+                             m_settings.Filter_MTF_TF2 == m_settings.Filter_MTF_TF1);
+
+      if(!single_tf_mode)
+         tf2_bias = GetMTFBias(h_mtf_tf2_fast, h_mtf_tf2_slow);
+
+      int idx = 0;
+      string up_arrow = ShortToString(0x2191);
+      string dn_arrow = ShortToString(0x2193);
+
+      ArrayResize(segments, idx + 1);
+      segments[idx].text = "MTF: ";
+      segments[idx].clr  = m_settings.clr_Header;
+      idx++;
+
+      ArrayResize(segments, idx + 1);
+      segments[idx].text = GetCompactTFLabel((ENUM_TIMEFRAMES)_Period);
+      segments[idx].clr  = m_settings.clr_Disabled;
+      idx++;
+
+      ArrayResize(segments, idx + 1);
+      segments[idx].text = ((base_bias == 1) ? up_arrow : (base_bias == -1) ? dn_arrow : "-") + " ";
+      segments[idx].clr  = m_settings.clr_Disabled;
+      idx++;
+
+      ArrayResize(segments, idx + 1);
+      segments[idx].text = GetCompactTFLabel(m_settings.Filter_MTF_TF1);
+      segments[idx].clr  = m_settings.clr_Disabled;
+      idx++;
+
+      color tf1_color = m_settings.clr_Disabled;
+      if(base_bias != 0 && tf1_bias != 0)
+         tf1_color = (tf1_bias == base_bias) ? m_settings.clr_Pass : m_settings.clr_Fail;
+      ArrayResize(segments, idx + 1);
+      segments[idx].text = ((tf1_bias == 1) ? up_arrow : (tf1_bias == -1) ? dn_arrow : "-") + (single_tf_mode ? "" : " ");
+      segments[idx].clr  = tf1_color;
+      idx++;
+
+      if(!single_tf_mode)
+      {
+         ArrayResize(segments, idx + 1);
+         segments[idx].text = GetCompactTFLabel(m_settings.Filter_MTF_TF2);
+         segments[idx].clr  = m_settings.clr_Disabled;
+         idx++;
+
+         color tf2_color = m_settings.clr_Disabled;
+         if(base_bias != 0 && tf2_bias != 0)
+            tf2_color = (tf2_bias == base_bias) ? m_settings.clr_Pass : m_settings.clr_Fail;
+         ArrayResize(segments, idx + 1);
+         segments[idx].text = (tf2_bias == 1) ? up_arrow : (tf2_bias == -1) ? dn_arrow : "-";
+         segments[idx].clr  = tf2_color;
+         idx++;
+      }
+   }
    
 
    // --- UNIVERSAL CLASS METHOD: UpdateTelemetry (Verified Fix) ---
