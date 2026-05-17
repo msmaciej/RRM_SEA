@@ -1407,6 +1407,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Vote: -1=persistent (every bar), 0=flip bar only, 1-10=N candles after flip
       cfg.Vote_PsarFlipDelay        = MathMax(-1, MathMin(10, Inp_RRM_ORG_Vote_PsarFlipDelay));
 
+      // P1: Layer-aware PSAR flip delay overrides
+      // -99 = use global Vote_PsarFlipDelay; otherwise override per layer.
+      // Rationale: deeper layers (L3/Strong) have slower EMA slopes that lag
+      // the PSAR flip by 1-3 bars, so they need a wider acceptance window.
+      // The dot-position check always runs first (stale flips in ranging markets
+      // are rejected regardless of window size).
+      cfg.Vote_PsarFlipDelay_W      = MathMax(-99, MathMin(10, Inp_RRM_ORG_PsarFlipDelay_W));
+      cfg.Vote_PsarFlipDelay_M      = MathMax(-99, MathMin(10, Inp_RRM_ORG_PsarFlipDelay_M));
+      cfg.Vote_PsarFlipDelay_S      = MathMax(-99, MathMin(10, Inp_RRM_ORG_PsarFlipDelay_S));
+
       // ── CANDLE BODY ───────────────────────────────────────────────────
       cfg.Ind_CandleBody_Enabled    = Inp_RRM_ORG_Use_CandleBody;
       cfg.Ind_CandleBody_Weight     = Inp_CUSTOM_Ind_CandleBody_Weight;

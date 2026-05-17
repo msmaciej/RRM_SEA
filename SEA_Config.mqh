@@ -573,6 +573,13 @@ struct ST_Settings
    
    // PSAR flip validation parameters (when Vote_AllowPsarFlip=true)
    int         Vote_PsarFlipDelay;     // Flip timer mode: -1 = PERSISTENT, 0 = FLIP_BAR, 1-10 = COUNTDOWN
+   
+   // P1: Layer-aware PSAR flip delay overrides (when > -99, overrides Vote_PsarFlipDelay per layer)
+   // -99 = use global Vote_PsarFlipDelay (no override)
+   // -1  = persistent, 0 = flip bar only, 1-10 = countdown window
+   int         Vote_PsarFlipDelay_W;  // LayerW override (-99=use global)
+   int         Vote_PsarFlipDelay_M;  // LayerM override (-99=use global)
+   int         Vote_PsarFlipDelay_S;  // LayerS override (-99=use global)
 
    // Reporting
    bool ExportCSV;
@@ -1322,6 +1329,9 @@ input group "║   📐 RRM_ORG: PSAR Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_Vote_AllowPsarFlip   = true;           // RRM_ORG PSAR Enable Flip
 input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 5;              // RRM_ORG PSAR Flip delay (-1=persistent, 0-10=bars after flip)
+input int         Inp_RRM_ORG_PsarFlipDelay_W      = -99;            // RRM_ORG PSAR Flip delay LayerW override (-99=use global, 0=flip bar, 1-10=window)
+input int         Inp_RRM_ORG_PsarFlipDelay_M      = -99;            // RRM_ORG PSAR Flip delay LayerM override (-99=use global, 0=flip bar, 1-10=window)
+input int         Inp_RRM_ORG_PsarFlipDelay_S      = -99;            // RRM_ORG PSAR Flip delay LayerS override (-99=use global, 0=flip bar, 1-10=window)
 input int         Inp_RRM_ORG_PSAR_FlipGraceBars   = 0;              // RRM_ORG PSAR Ignore vote for N bars after an adverse flip (0=disabled)
 input double      Inp_RRM_ORG_PsarStep             = 0.05;           // RRM_ORG PSAR Step
 input double      Inp_RRM_ORG_PsarMax              = 0.5;            // RRM_ORG PSAR Max
@@ -1945,6 +1955,9 @@ void InitializeConfig()
    Settings.Vote_EvalShift       = 1;
    Settings.Vote_AllowPsarFlip   = false;
    Settings.Vote_PsarFlipDelay   = (Inp_CUSTOM_Ind_PsarFlipDelay < -1) ? -1 : (Inp_CUSTOM_Ind_PsarFlipDelay > 10) ? 10 : Inp_CUSTOM_Ind_PsarFlipDelay;
+   Settings.Vote_PsarFlipDelay_W = -99;  // P1: default = use global
+   Settings.Vote_PsarFlipDelay_M = -99;  // P1: default = use global
+   Settings.Vote_PsarFlipDelay_S = -99;  // P1: default = use global
 
    Settings.MaxTotalRisk            = MathMax(0.0, Inp_RM_MaxTotalRisk);
    Settings.MaxOpenTrades           = MathMax(0, Inp_RM_MaxOpenTrades);

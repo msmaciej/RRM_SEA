@@ -1843,6 +1843,31 @@ private:
    }
 
    //+------------------------------------------------------------------+
+   // GetEffectivePsarFlipDelay — P1: Resolve layer-aware PSAR flip delay
+   //+------------------------------------------------------------------+
+   // Returns the effective delay for the current active layer.
+   // m_last_layer is set by EvaluateL() which runs BEFORE EvaluateI(),
+   // so the active layer is always known when PSAR votes.
+   // -99 = no override → fall back to global Vote_PsarFlipDelay.
+   int GetEffectivePsarFlipDelay()
+   {
+      int layer_delay = -99;
+      switch(m_last_layer)
+      {
+         case 1: layer_delay = m_settings.Vote_PsarFlipDelay_W; break;
+         case 2: layer_delay = m_settings.Vote_PsarFlipDelay_M; break;
+         case 3: layer_delay = m_settings.Vote_PsarFlipDelay_S; break;
+      }
+
+      int effective = (layer_delay > -99) ? layer_delay : m_settings.Vote_PsarFlipDelay;
+
+      if(m_settings.DebugFlow && layer_delay > -99)
+         DebugLog(StringFormat("[PSAR_FLIP_DELAY] Layer L%d override: delay=%d (global=%d)",
+                               m_last_layer, effective, m_settings.Vote_PsarFlipDelay));
+      return effective;
+   }
+
+   //+------------------------------------------------------------------+
    // Check_Psar_WithFlip
    //+------------------------------------------------------------------+
    // Vote 9 (enhanced): PSAR with countdown-based flip validation.
@@ -1850,6 +1875,7 @@ private:
    //   1. PSAR dot is on the correct side of price (basic position check)
    //   2. A flip in the matching direction has been recorded
    //   3. The flip occurred within the last Vote_PsarFlipDelay bars
+   //   P1: delay is now layer-aware via GetEffectivePsarFlipDelay()
    bool Check_PSAR_WithFlip(int bias, int shift) {
       if(IsCacheValidForShift(shift) &&
          m_ind_cache.psar_flip_result != -1 &&
@@ -1862,8 +1888,11 @@ private:
                                bias, shift, m_settings.DebugFlow ? "TRUE" : "FALSE"));
       }
 
+      // P1: Resolve effective delay (layer-aware or global fallback)
+      int effective_delay = GetEffectivePsarFlipDelay();
+
       // Fast-path: persistent mode (-1) — check dot position only, no flip tracking
-      if(m_settings.Vote_PsarFlipDelay == -1) {
+      if(effective_delay == -1) {
          bool result = Check_PSAR(bias, shift);
          if(m_settings.DebugFlow)
             DebugLog(StringFormat("[PSAR_FLIP_CHECK] PERSISTENT mode: dot check only → %s", result ? "PASS" : "FAIL"));
@@ -1917,14 +1946,15 @@ private:
                                   (bias > 0 ? "BULLISH" : "BEARISH")));
          } else {
             int bars_elapsed   = GetBarsSinceLastFlip(bias, shift);
-            int bars_remaining = m_settings.Vote_PsarFlipDelay - bars_elapsed;
-            bool is_valid      = (bars_elapsed <= m_settings.Vote_PsarFlipDelay);
+            int bars_remaining = effective_delay - bars_elapsed;
+            bool is_valid      = (bars_elapsed <= effective_delay);
 
             DebugLog(StringFormat("[PSAR_FLIP_CHECK] STEP 2: Flip recorded at %s",
                                   TimeToString(flip_time, TIME_DATE|TIME_MINUTES)));
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Flip age: %d bars | Delay limit: %d bars | Remaining: %d bars",
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Flip age: %d bars | Delay limit: %d bars (L%d) | Remaining: %d bars",
                                   bars_elapsed,
-                                  m_settings.Vote_PsarFlipDelay,
+                                  effective_delay,
+                                  m_last_layer,
                                   bars_remaining));
             DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Status: %s",
                                   is_valid ? "VALID (within delay window)" : "EXPIRED (too old)"));
@@ -1954,7 +1984,7 @@ private:
       // 3. Calculate bars since flip
       int flip_bar   = iBarShift(m_symbol, PERIOD_CURRENT, flip_time, false);
       int bars_since = (flip_bar >= 0) ? (flip_bar - shift) : INT_MAX;
-      int delay      = m_settings.Vote_PsarFlipDelay;
+      int delay      = effective_delay;  // P1: layer-aware delay
 
       if(m_settings.DebugFlow) {
          DebugLog("[PSAR_FLIP_CHECK] STEP 3: Calculate flip age");
