@@ -194,7 +194,6 @@ int SEA_UI_GetLineSpacingPx(const int configured, const int font_size)
       sp = (font_size > 0 ? (font_size + 4) : 14);
    if(sp < 8)  sp = 8;
    if(sp > 60) sp = 60;
-<<<<<<< HEAD
    return sp;
 }
 
@@ -243,56 +242,6 @@ void SEA_UI_DrawMTFSegments(CSignalEngine &signal, const int line_index)
 
 void SEA_UI_DestroyPanel(const string panel_name)
 {
-=======
-   return sp;
-}
-
-void SEA_UI_ClearMTFSegments()
-{
-   for(int i = 0; i < 10; i++)
-      ObjectDelete(0, "CP_MTF_Seg" + IntegerToString(i));
-}
-
-void SEA_UI_DrawMTFSegments(CSignalEngine &signal, const int line_index)
-{
-   SEA_UI_ClearMTFSegments();
-   if(line_index < 0) return;
-
-   SMTFSegment segments[];
-   signal.GetMTFCockpitData(segments);
-   int seg_count = ArraySize(segments);
-   if(seg_count <= 0) return;
-
-   int line_h = SEA_UI_GetLineSpacingPx(Inp_UI_CockpitLineSpacingPx, Inp_UI_CockpitFontSize);
-   int pad = Inp_UI_FramePadPx;
-   int x_cursor = Inp_UI_CockpitX + pad;
-   int y = Inp_UI_CockpitY + pad + (line_index * line_h);
-
-   for(int i = 0; i < seg_count && i < 10; i++)
-   {
-      string label_name = "CP_MTF_Seg" + IntegerToString(i);
-      if(ObjectFind(0, label_name) < 0)
-         ObjectCreate(0, label_name, OBJ_LABEL, 0, 0, 0);
-
-      ObjectSetInteger(0, label_name, OBJPROP_CORNER, (int)Inp_UI_CockpitCorner);
-      ObjectSetInteger(0, label_name, OBJPROP_XDISTANCE, x_cursor);
-      ObjectSetInteger(0, label_name, OBJPROP_YDISTANCE, y);
-      ObjectSetInteger(0, label_name, OBJPROP_COLOR, segments[i].clr);
-      ObjectSetInteger(0, label_name, OBJPROP_FONTSIZE, Inp_UI_CockpitFontSize);
-      ObjectSetInteger(0, label_name, OBJPROP_SELECTABLE, false);
-      ObjectSetInteger(0, label_name, OBJPROP_HIDDEN, true);
-      ObjectSetString(0, label_name, OBJPROP_FONT, Inp_UI_CockpitFont);
-      ObjectSetString(0, label_name, OBJPROP_TEXT, segments[i].text);
-
-      int text_width = (int)(StringLen(segments[i].text) * Inp_UI_CockpitFontSize * 0.6);
-      if(text_width < 1) text_width = 1;
-      x_cursor += text_width;
-   }
-}
-
-void SEA_UI_DestroyPanel(const string panel_name)
-{
->>>>>>> 903024247f0fa8f715d2338ce4e27fbbaace7d1f
    if(panel_name == "") return;
 
    string bg = panel_name + "_BG";
@@ -562,19 +511,11 @@ void SEA_UI_Init(const ulong magic)
    g_sea_ui_cockpit_name  = g_sea_ui_base_name + "_COCK";
 }
 
-<<<<<<< HEAD
 void SEA_UI_DestroyAll()
 {
    SEA_UI_DestroyPanel(g_sea_ui_settings_name);
    SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
    SEA_UI_ClearMTFSegments();
-=======
-void SEA_UI_DestroyAll()
-{
-   SEA_UI_DestroyPanel(g_sea_ui_settings_name);
-   SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
-   SEA_UI_ClearMTFSegments();
->>>>>>> 903024247f0fa8f715d2338ce4e27fbbaace7d1f
    
    // Clean up dedicated Master Telemetry Objects
    ObjectDelete(0, "SEA_UI_TS_MASTER");
@@ -691,17 +632,10 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
 //+------------------------------------------------------------------+
 //| COCKPIT PANEL - Full Institutional Grid & Logic Audit Restoration|
 //+------------------------------------------------------------------+
-<<<<<<< HEAD
 void SEA_UI_UpdateCockpit(
    CSignalEngine &signal,
    const ST_SignalTelemetry &ts_telemetry,
    double active_lots,
-=======
-void SEA_UI_UpdateCockpit(
-   CSignalEngine &signal,
-   const ST_SignalTelemetry &ts_telemetry,
-   double active_lots,
->>>>>>> 903024247f0fa8f715d2338ce4e27fbbaace7d1f
    double initial_risk_money,
    double active_reward_money, 
    double initial_sl_pips,
@@ -715,21 +649,12 @@ void SEA_UI_UpdateCockpit(
    string last_te_result  = "",
    string last_te_veto    = "",
    int    cooldown_bars_remaining = 0
-<<<<<<< HEAD
 ) {
    if(!Inp_UI_ShowCockpitPanel) {
       SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
       SEA_UI_ClearMTFSegments();
       return;
    }
-=======
-) {
-   if(!Inp_UI_ShowCockpitPanel) {
-      SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
-      SEA_UI_ClearMTFSegments();
-      return;
-   }
->>>>>>> 903024247f0fa8f715d2338ce4e27fbbaace7d1f
 
    string lines[]; 
    color line_clrs[];
@@ -737,15 +662,9 @@ void SEA_UI_UpdateCockpit(
    ArrayResize(line_clrs, 0);
 
    // --- COLOR RESOLUTION (Respecting Dashboard Theme) ---
-<<<<<<< HEAD
    color h_clr = Settings.clr_Header;
    color v_clr = (Settings.clr_Value != 0) ? Settings.clr_Value : clrWhite;
    int mtf_line_index = -1;
-=======
-   color h_clr = Settings.clr_Header;
-   color v_clr = (Settings.clr_Value != 0) ? Settings.clr_Value : clrWhite;
-   int mtf_line_index = -1;
->>>>>>> 903024247f0fa8f715d2338ce4e27fbbaace7d1f
 
    // --- MARKET CONTEXT (Extended Information) ---
    AddLine("--- MARKET CONTEXT ---", h_clr, lines, line_clrs);
@@ -758,7 +677,6 @@ void SEA_UI_UpdateCockpit(
    AddLine(StringFormat("SPREAD:    %.1f Pips", spread_val), v_clr, lines, line_clrs);
    AddLine(StringFormat("STOPLEVEL: %d Pips", (int)stop_lvl), v_clr, lines, line_clrs);
    
-<<<<<<< HEAD
    string status_text = SEA_UI_NormalizeStatusText(ts_telemetry.rejection_reason);
    bool is_valid = (status_text == "Valid Signal" || status_text == "OK");
    string sig_str = is_valid ? ((ts_telemetry.bias == 1) ? "BUY" : "SELL") : "FLAT";
@@ -766,15 +684,6 @@ void SEA_UI_UpdateCockpit(
    AddLine(StringFormat("SIGNAL:    %s", sig_str), v_clr, lines, line_clrs);
    mtf_line_index = ArraySize(lines);
    AddLine(" ", Settings.clr_Disabled, lines, line_clrs);
-=======
-   string status_text = SEA_UI_NormalizeStatusText(ts_telemetry.rejection_reason);
-   bool is_valid = (status_text == "Valid Signal" || status_text == "OK");
-   string sig_str = is_valid ? ((ts_telemetry.bias == 1) ? "BUY" : "SELL") : "FLAT";
-   AddLine(StringFormat("STATUS:    %s", status_text), (is_valid ? Settings.clr_Pass : Settings.clr_Fail), lines, line_clrs);
-   AddLine(StringFormat("SIGNAL:    %s", sig_str), v_clr, lines, line_clrs);
-   mtf_line_index = ArraySize(lines);
-   AddLine(" ", Settings.clr_Disabled, lines, line_clrs);
->>>>>>> 903024247f0fa8f715d2338ce4e27fbbaace7d1f
 
    AddLine("", (color)0, lines, line_clrs); 
    
@@ -950,21 +859,12 @@ void SEA_UI_UpdateCockpit(
       SEA_UI_RenderPanel(
          g_sea_ui_cockpit_name, cockpit_txt, Inp_UI_CockpitCorner, 
          Inp_UI_CockpitX, Inp_UI_CockpitY, Inp_UI_CockpitFontSize, 
-<<<<<<< HEAD
          Inp_UI_CockpitLineSpacingPx, Inp_UI_CockpitFont, line_clrs
       );
    }
 
    SEA_UI_DrawMTFSegments(signal, mtf_line_index);
 }
-=======
-         Inp_UI_CockpitLineSpacingPx, Inp_UI_CockpitFont, line_clrs
-      );
-   }
-
-   SEA_UI_DrawMTFSegments(signal, mtf_line_index);
-}
->>>>>>> 903024247f0fa8f715d2338ce4e27fbbaace7d1f
 
 //+------------------------------------------------------------------+
 //| Helper to append lines to the render arrays                      |
@@ -1060,20 +960,20 @@ void SEA_UI_ManageChartIndicators(CSignalEngine &engine)
       ts_active++;
    }
 
-   if(Settings.Filter_MTF_Enable)  // ← CHANGED: Ind_MTF_Enabled → Filter_MTF_Enable
+   if(Settings.Ind_MTF_Enabled)  // MTF indicator overlay
    {
       if(engine.GetMtfTf1FastHandle() != INVALID_HANDLE)
          _SEA_UI_AddIndicator(0, engine.GetMtfTf1FastHandle(), 
-            StringFormat("MTF %s Fast EMA", EnumToString(Settings.Filter_MTF_TF1)), overlays);  // ← CHANGED
+            StringFormat("MTF %s Fast EMA", EnumToString(Settings.MTF_TF1)), overlays);  // ← CHANGED
       if(engine.GetMtfTf1SlowHandle() != INVALID_HANDLE)
          _SEA_UI_AddIndicator(0, engine.GetMtfTf1SlowHandle(), 
-            StringFormat("MTF %s Slow EMA", EnumToString(Settings.Filter_MTF_TF1)), overlays);  // ← CHANGED
+            StringFormat("MTF %s Slow EMA", EnumToString(Settings.MTF_TF1)), overlays);  // ← CHANGED
       if(engine.GetMtfTf2FastHandle() != INVALID_HANDLE)
          _SEA_UI_AddIndicator(0, engine.GetMtfTf2FastHandle(), 
-            StringFormat("MTF %s Fast EMA", EnumToString(Settings.Filter_MTF_TF2)), overlays);  // ← CHANGED
+            StringFormat("MTF %s Fast EMA", EnumToString(Settings.MTF_TF2)), overlays);  // ← CHANGED
       if(engine.GetMtfTf2SlowHandle() != INVALID_HANDLE)
          _SEA_UI_AddIndicator(0, engine.GetMtfTf2SlowHandle(), 
-            StringFormat("MTF %s Slow EMA", EnumToString(Settings.Filter_MTF_TF2)), overlays);  // ← CHANGED
+            StringFormat("MTF %s Slow EMA", EnumToString(Settings.MTF_TF2)), overlays);  // ← CHANGED
    }
 
    if(Settings.TrailMode == TRAIL_FRACTAL) 

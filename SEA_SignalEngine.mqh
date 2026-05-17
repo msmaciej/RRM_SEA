@@ -494,7 +494,7 @@ private:
       if(CopyBuffer(h_slow, 0, 0, 2, slow) != 2) return 0;
 
       // Legacy compatibility mode: single-EMA slope behavior (old HTF filter)
-      if(m_settings.Filter_MTF_EMA_Fast == m_settings.Filter_MTF_EMA_Slow)
+      if(m_settings.MTF_EMA_Fast == m_settings.MTF_EMA_Slow)
       {
          double pip = GlobalPipSize(m_symbol);
          if(pip <= 0.0) return 0;
@@ -504,7 +504,7 @@ private:
          return 0;
       }
 
-      if(m_settings.Filter_MTF_RequirePhase)
+      if(m_settings.MTF_RequirePhase)
       {
          double pip = GlobalPipSize(m_symbol);
          if(pip <= 0.0) return 0;
@@ -547,7 +547,7 @@ private:
 
    int CheckMTFFilter(const int bias, string &reason, string &diag)
    {
-      if(!m_settings.Filter_MTF_Enable)
+      if(!m_settings.Ind_MTF_Enabled)
       {
          reason = "MTF_DISABLED";
          diag   = "[MTF] Disabled";
@@ -555,11 +555,11 @@ private:
       }
 
       int mtf_tf1 = GetMTFBias(h_mtf_tf1_fast, h_mtf_tf1_slow);
-      string tf1_label = EnumToString(m_settings.Filter_MTF_TF1);
+      string tf1_label = EnumToString(m_settings.MTF_TF1);
 
       bool single_tf_mode = (h_mtf_tf2_fast == INVALID_HANDLE ||
-                             m_settings.Filter_MTF_TF2 == PERIOD_CURRENT ||
-                             m_settings.Filter_MTF_TF2 == m_settings.Filter_MTF_TF1);
+                             m_settings.MTF_TF2 == PERIOD_CURRENT ||
+                             m_settings.MTF_TF2 == m_settings.MTF_TF1);
 
       if(single_tf_mode)
       {
@@ -583,9 +583,9 @@ private:
       }
 
       int mtf_tf2 = GetMTFBias(h_mtf_tf2_fast, h_mtf_tf2_slow);
-      string tf2_label = EnumToString(m_settings.Filter_MTF_TF2);
+      string tf2_label = EnumToString(m_settings.MTF_TF2);
 
-      if(m_settings.Filter_MTF_StrictAlignment)
+      if(m_settings.MTF_StrictAlignment)
       {
          if(bias == mtf_tf1 && bias == mtf_tf2)
          {
@@ -2636,7 +2636,7 @@ public:
    {
       ArrayResize(segments, 0);
 
-      if(!m_settings.Filter_MTF_Enable)
+      if(!m_settings.Ind_MTF_Enabled)
       {
          ArrayResize(segments, 1);
          segments[0].text = "MTF: [DISABLED]";
@@ -2649,8 +2649,8 @@ public:
       int tf2_bias  = 0;
 
       bool single_tf_mode = (h_mtf_tf2_fast == INVALID_HANDLE ||
-                             m_settings.Filter_MTF_TF2 == PERIOD_CURRENT ||
-                             m_settings.Filter_MTF_TF2 == m_settings.Filter_MTF_TF1);
+                             m_settings.MTF_TF2 == PERIOD_CURRENT ||
+                             m_settings.MTF_TF2 == m_settings.MTF_TF1);
 
       if(!single_tf_mode)
          tf2_bias = GetMTFBias(h_mtf_tf2_fast, h_mtf_tf2_slow);
@@ -2675,7 +2675,7 @@ public:
       idx++;
 
       ArrayResize(segments, idx + 1);
-      segments[idx].text = GetCompactTFLabel(m_settings.Filter_MTF_TF1);
+      segments[idx].text = GetCompactTFLabel(m_settings.MTF_TF1);
       segments[idx].clr  = m_settings.clr_Disabled;
       idx++;
 
@@ -2690,7 +2690,7 @@ public:
       if(!single_tf_mode)
       {
          ArrayResize(segments, idx + 1);
-         segments[idx].text = GetCompactTFLabel(m_settings.Filter_MTF_TF2);
+         segments[idx].text = GetCompactTFLabel(m_settings.MTF_TF2);
          segments[idx].clr  = m_settings.clr_Disabled;
          idx++;
 
@@ -2751,7 +2751,7 @@ public:
       m_telemetry.diag_layer_s = m_diag_layer_s;
       m_telemetry.phase_detection_enabled = (m_settings.BiasMode == BIAS_4EMA && m_settings.PhaseDetectionEnabled);
       m_telemetry.layer_detection_enabled = (m_settings.EnableLayerDetection && m_settings.BiasMode == BIAS_4EMA);
-      if(!m_settings.Filter_MTF_Enable)
+      if(!m_settings.Ind_MTF_Enabled)
          m_telemetry.mtf_status = "N/A";
    }
 
@@ -3475,7 +3475,7 @@ public:
       if(m_settings.Ind_SmaConverge_Enabled && m_stats.rejected_sma_converge > worst_cnt) { worst_cnt=m_stats.rejected_sma_converge; worst_ind="SmaConverge"; }
       if(m_settings.Ind_Atr_Enabled        && m_stats.rejected_atr        > worst_cnt) { worst_cnt=m_stats.rejected_atr;        worst_ind="ATR"; }
       if(m_settings.Ind_Dpi_Enabled        && m_stats.rejected_dpi        > worst_cnt) { worst_cnt=m_stats.rejected_dpi;        worst_ind="DPI"; }
-      if(m_settings.Filter_MTF_Enable        && m_stats.rejected_mtf        > worst_cnt) { worst_cnt=m_stats.rejected_mtf;        worst_ind="MTF"; }
+      if(m_settings.Ind_MTF_Enabled        && m_stats.rejected_mtf        > worst_cnt) { worst_cnt=m_stats.rejected_mtf;        worst_ind="MTF"; }
       if(worst_ind != "" && m_stats.total_bars > 0 && worst_cnt * 100.0 / m_stats.total_bars > 30) {
          any_rec = true;
          PrintFormat("Priority 3: %s is the top indicator bottleneck (%.1f%% blocked).", worst_ind, worst_cnt * 100.0 / m_stats.total_bars);
@@ -3828,14 +3828,14 @@ public:
       h_fractals = (need_fractals ? iFractals(m_symbol, PERIOD_CURRENT) : INVALID_HANDLE);
       
       // B. Create MTF confirmation handles (if enabled)
-      if(m_settings.Filter_MTF_Enable) {
-         h_mtf_tf1_fast = iMA(m_symbol, m_settings.Filter_MTF_TF1, m_settings.Filter_MTF_EMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
-         h_mtf_tf1_slow = iMA(m_symbol, m_settings.Filter_MTF_TF1, m_settings.Filter_MTF_EMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
+      if(m_settings.Ind_MTF_Enabled) {
+         h_mtf_tf1_fast = iMA(m_symbol, m_settings.MTF_TF1, m_settings.MTF_EMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
+         h_mtf_tf1_slow = iMA(m_symbol, m_settings.MTF_TF1, m_settings.MTF_EMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
 
-         if(m_settings.Filter_MTF_TF2 != PERIOD_CURRENT && m_settings.Filter_MTF_TF2 != m_settings.Filter_MTF_TF1)
+         if(m_settings.MTF_TF2 != PERIOD_CURRENT && m_settings.MTF_TF2 != m_settings.MTF_TF1)
          {
-            h_mtf_tf2_fast = iMA(m_symbol, m_settings.Filter_MTF_TF2, m_settings.Filter_MTF_EMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
-            h_mtf_tf2_slow = iMA(m_symbol, m_settings.Filter_MTF_TF2, m_settings.Filter_MTF_EMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
+            h_mtf_tf2_fast = iMA(m_symbol, m_settings.MTF_TF2, m_settings.MTF_EMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
+            h_mtf_tf2_slow = iMA(m_symbol, m_settings.MTF_TF2, m_settings.MTF_EMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
          }
       }
       
@@ -3856,11 +3856,11 @@ public:
          Print("CRITICAL ERROR: Failed to create VRC indicator.");
          return false;
       }
-      if(m_settings.Filter_MTF_Enable && (h_mtf_tf1_fast == INVALID_HANDLE || h_mtf_tf1_slow == INVALID_HANDLE)) {
+      if(m_settings.Ind_MTF_Enabled && (h_mtf_tf1_fast == INVALID_HANDLE || h_mtf_tf1_slow == INVALID_HANDLE)) {
          Print("CRITICAL ERROR: Failed to create MTF TF1 EMA handles.");
          return false;
       }
-      if(m_settings.Filter_MTF_Enable && m_settings.Filter_MTF_TF2 != PERIOD_CURRENT && m_settings.Filter_MTF_TF2 != m_settings.Filter_MTF_TF1 &&
+      if(m_settings.Ind_MTF_Enabled && m_settings.MTF_TF2 != PERIOD_CURRENT && m_settings.MTF_TF2 != m_settings.MTF_TF1 &&
          (h_mtf_tf2_fast == INVALID_HANDLE || h_mtf_tf2_slow == INVALID_HANDLE)) {
          Print("CRITICAL ERROR: Failed to create MTF TF2 EMA handles.");
          return false;
@@ -5627,7 +5627,7 @@ public:
       m_telemetry.votes_total = 0;
       m_telemetry.rejection_reason = SEA_STATUS_EVALUATING;
       m_telemetry.active_indicators = "0/0";
-      m_telemetry.mtf_status = (m_settings.Filter_MTF_Enable ? "[MTF] Pending" : "N/A");
+      m_telemetry.mtf_status = (m_settings.Ind_MTF_Enabled ? "[MTF] Pending" : "N/A");
       m_bars_evaluated++;
       m_stats.total_bars++;
 
@@ -5720,7 +5720,7 @@ public:
       }
 
       // ── MTF FILTER (Global pre-check, part of F) ──────────────────────
-      if(m_settings.Filter_MTF_Enable)
+      if(m_settings.Ind_MTF_Enabled)
       {
          string mtf_reason = "";
          string mtf_diag   = "";
@@ -5974,7 +5974,7 @@ public:
          DebugLog("  ⏭️  Spread: checked at TE (" + (m_settings.UseSpread ? "enabled" : "disabled") + ")");
          DebugLog("  ⏭️  Time window: checked at TE (" + (m_settings.UseTime ? "active" : "disabled") + ")");
          DebugLog("  ⏭️  News filter: checked at TE (" + (m_settings.UseNews ? "active" : "disabled") + ")");
-         DebugLog("  ✅ MTF filter: checked at TS (" + (m_settings.Filter_MTF_Enable ? "enabled" : "disabled") + ")");
+         DebugLog("  ✅ MTF filter: checked at TS (" + (m_settings.Ind_MTF_Enabled ? "enabled" : "disabled") + ")");
          DebugLog("");
 
          // BIAS & STRUCTURE SECTION
