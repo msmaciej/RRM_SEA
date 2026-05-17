@@ -210,6 +210,14 @@ void SEA_UI_DestroyPanel(const string panel_name)
    }
 }
 
+void SEA_UI_DeleteMTFCockpitObjects()
+{
+   if(g_sea_ui_cockpit_name == "") return;
+   ObjectDelete(0, g_sea_ui_cockpit_name + "_MTF_Header");
+   for(int i = 0; i < 10; i++)
+      ObjectDelete(0, g_sea_ui_cockpit_name + StringFormat("_MTF_Seg%d", i));
+}
+
 //+------------------------------------------------------------------+
 //| STANDALONE RENDER ENGINE - Fixes scope and array errors          |
 //+------------------------------------------------------------------+
@@ -472,6 +480,7 @@ void SEA_UI_DestroyAll()
 {
    SEA_UI_DestroyPanel(g_sea_ui_settings_name);
    SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
+   SEA_UI_DeleteMTFCockpitObjects();
    
    // Clean up dedicated Master Telemetry Objects
    ObjectDelete(0, "SEA_UI_TS_MASTER");
@@ -589,6 +598,7 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
 //| COCKPIT PANEL - Full Institutional Grid & Logic Audit Restoration|
 //+------------------------------------------------------------------+
 void SEA_UI_UpdateCockpit(
+   CSignalEngine &engine,
    const ST_SignalTelemetry &ts_telemetry, 
    double active_lots, 
    double initial_risk_money,
@@ -607,6 +617,7 @@ void SEA_UI_UpdateCockpit(
 ) {
    if(!Inp_UI_ShowCockpitPanel) { 
       SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
+      SEA_UI_DeleteMTFCockpitObjects();
       return; 
    }
 
@@ -637,9 +648,61 @@ void SEA_UI_UpdateCockpit(
    AddLine(StringFormat("SIGNAL:    %s", sig_str), v_clr, lines, line_clrs);
    if(Settings.Ind_MTF_Enabled)
    {
-      string mtf_status = ts_telemetry.mtf_status;
-      bool mtf_ok = (StringFind(mtf_status, "✓") >= 0 || StringFind(mtf_status, "agree") >= 0);
-      AddLine(StringFormat("MTF:       %s", mtf_status), (mtf_ok ? Settings.clr_Pass : Settings.clr_Fail), lines, line_clrs);
+      SMTFSegment mtf_segments[];
+      engine.GetMTFCockpitData(mtf_segments);
+      int seg_count = ArraySize(mtf_segments);
+      if(seg_count > 0)
+      {
+         AddLine(" ", (color)0, lines, line_clrs);
+
+         int line_h = SEA_UI_GetLineSpacingPx(Inp_UI_CockpitLineSpacingPx, Inp_UI_CockpitFontSize);
+         int y_mtf = Inp_UI_CockpitY + Inp_UI_FramePadPx + ((ArraySize(lines) - 1) * line_h);
+         int x_mtf = Inp_UI_CockpitX + Inp_UI_FramePadPx;
+         string mtf_prefix = "MTF:       ";
+
+         string mtf_header_label = g_sea_ui_cockpit_name + "_MTF_Header";
+         if(ObjectFind(0, mtf_header_label) < 0)
+            ObjectCreate(0, mtf_header_label, OBJ_LABEL, 0, 0, 0);
+
+         ObjectSetInteger(0, mtf_header_label, OBJPROP_CORNER, (int)Inp_UI_CockpitCorner);
+         ObjectSetInteger(0, mtf_header_label, OBJPROP_XDISTANCE, x_mtf);
+         ObjectSetInteger(0, mtf_header_label, OBJPROP_YDISTANCE, y_mtf);
+         ObjectSetInteger(0, mtf_header_label, OBJPROP_COLOR, h_clr);
+         ObjectSetInteger(0, mtf_header_label, OBJPROP_FONTSIZE, Inp_UI_CockpitFontSize);
+         ObjectSetInteger(0, mtf_header_label, OBJPROP_SELECTABLE, false);
+         ObjectSetString(0, mtf_header_label, OBJPROP_FONT, Inp_UI_CockpitFont);
+         ObjectSetString(0, mtf_header_label, OBJPROP_TEXT, mtf_prefix);
+
+         int x_cursor = x_mtf + (int)(StringLen(mtf_prefix) * Inp_UI_CockpitFontSize * 0.6);
+         for(int s = 0; s < seg_count; s++)
+         {
+            string seg_label = g_sea_ui_cockpit_name + StringFormat("_MTF_Seg%d", s);
+            if(ObjectFind(0, seg_label) < 0)
+               ObjectCreate(0, seg_label, OBJ_LABEL, 0, 0, 0);
+
+            ObjectSetInteger(0, seg_label, OBJPROP_CORNER, (int)Inp_UI_CockpitCorner);
+            ObjectSetInteger(0, seg_label, OBJPROP_XDISTANCE, x_cursor);
+            ObjectSetInteger(0, seg_label, OBJPROP_YDISTANCE, y_mtf);
+            ObjectSetInteger(0, seg_label, OBJPROP_COLOR, mtf_segments[s].clr);
+            ObjectSetInteger(0, seg_label, OBJPROP_FONTSIZE, Inp_UI_CockpitFontSize);
+            ObjectSetInteger(0, seg_label, OBJPROP_SELECTABLE, false);
+            ObjectSetString(0, seg_label, OBJPROP_FONT, Inp_UI_CockpitFont);
+            ObjectSetString(0, seg_label, OBJPROP_TEXT, mtf_segments[s].text);
+
+            x_cursor += (int)(StringLen(mtf_segments[s].text) * Inp_UI_CockpitFontSize * 0.6);
+         }
+
+         for(int s = seg_count; s < 10; s++)
+            ObjectDelete(0, g_sea_ui_cockpit_name + StringFormat("_MTF_Seg%d", s));
+      }
+      else
+      {
+         SEA_UI_DeleteMTFCockpitObjects();
+      }
+   }
+   else
+   {
+      SEA_UI_DeleteMTFCockpitObjects();
    }
 
    AddLine("", (color)0, lines, line_clrs); 

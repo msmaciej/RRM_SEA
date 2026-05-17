@@ -614,6 +614,7 @@ int OrchestrateInit()
       
       // Push the initial state to the Cockpit (Zero active trade metrics on startup)
       SEA_UI_UpdateCockpit(
+         Signal,
          telemetry, 
          0.0, // active_lots
          0.0, // initial_risk_money
@@ -881,6 +882,7 @@ void OrchestrateTick()
    }
    
    SEA_UI_UpdateCockpit(
+      Signal,
       telemetry, 
       active_lots, 
       active_risk_money, 
