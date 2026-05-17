@@ -630,6 +630,13 @@ struct ST_Settings
     double   LayerFlatRatio;               // Threshold for flat market detection (dimensionless)
     bool     LayerAllowReversalPullback;   // Allow slope sign reversal as pullback
 
+    // P2: Per-layer recovery ratio overrides (when >= 0.0, overrides LayerRecoveryRatio)
+    // -1.0 = use global LayerRecoveryRatio (no override)
+    // Deeper layers (L3) can use lower recovery ratio since their EMAs move slowly
+    double   LayerRecoveryRatio_W;       // LayerW override (-1.0=use global)
+    double   LayerRecoveryRatio_M;       // LayerM override (-1.0=use global)
+    double   LayerRecoveryRatio_S;       // LayerS override (-1.0=use global)
+
     // Diagnostics: statistics configuration
     bool Stats_TrackRejections;      // Track rejection counts per indicator
     bool Stats_TrackPasses;          // Track pass counts (positive stats)
@@ -1364,6 +1371,19 @@ input int         Inp_RRM_ORG_PhaseConfirmM30      = 0;              // RRM_ORG 
 input int         Inp_RRM_ORG_PhaseConfirmH1plus   = 0;              // RRM_ORG PhaseConfirmBars H1+
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: Pullback State Machine (P2)";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_RRM_ORG_LayerPBEnabled       = true;           // RRM_ORG Enable pullback-recovery state machine
+input int         Inp_RRM_ORG_LayerPBLookback      = 10;             // RRM_ORG Baseline slope lookback (bars, 3-20)
+input double      Inp_RRM_ORG_LayerPBPullbackRatio = 0.5;            // RRM_ORG Pullback threshold ratio (0.1-1.0, 0.5=50% weaker)
+input double      Inp_RRM_ORG_LayerPBRecoveryRatio = 0.3;            // RRM_ORG Global recovery threshold ratio (0.1-1.0, 0.3=30% strength)
+input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;            // RRM_ORG Flat threshold ratio (0.05-0.5, 0.1=10%)
+input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;           // RRM_ORG Count slope reversal as pullback
+input double      Inp_RRM_ORG_RecoveryRatio_W      = -1.0;           // RRM_ORG LayerW recovery override (-1=use global, 0.1-1.0)
+input double      Inp_RRM_ORG_RecoveryRatio_M      = -1.0;           // RRM_ORG LayerM recovery override (-1=use global, 0.1-1.0)
+input double      Inp_RRM_ORG_RecoveryRatio_S      = -1.0;           // RRM_ORG LayerS recovery override (-1=use global, 0.1-1.0)
+input group " ";
+input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: EMA Fan Filter";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_EmaFanFilter         = true;           // RRM_ORG EMA Fan Filter
@@ -2020,6 +2040,9 @@ void InitializeConfig()
     Settings.LayerRecoveryRatio          = MathMax(0.1, Inp_RRM_LayerRecoveryRatio);
     Settings.LayerFlatRatio              = MathMax(0.05, Inp_RRM_LayerFlatRatio);
     Settings.LayerAllowReversalPullback  = Inp_RRM_LayerAllowReversalPullback;
+    Settings.LayerRecoveryRatio_W        = -1.0;  // P2: default = use global
+    Settings.LayerRecoveryRatio_M        = -1.0;  // P2: default = use global
+    Settings.LayerRecoveryRatio_S        = -1.0;  // P2: default = use global
 
     // BarClose (bcX) settings
     Settings.BarClose_Enabled    = Inp_CUSTOM_BarClose_Enabled;

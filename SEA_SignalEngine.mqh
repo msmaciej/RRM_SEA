@@ -1222,8 +1222,11 @@ private:
    //+------------------------------------------------------------------+
    //| UpdateSingleLayerPullback — State machine for one layer          |
    //+------------------------------------------------------------------+
+   // P2: recovery_ratio parameter allows per-layer override.
+   // Caller passes the effective ratio (per-layer or global fallback).
    void UpdateSingleLayerPullback(int fast_ema_handle, int v_shift, int lookback,
-                                  ELayerPullbackState &state, double &baseline, string label)
+                                  ELayerPullbackState &state, double &baseline, string label,
+                                  double recovery_ratio)
    {
       double baseline_slope = 0.0;
       double ratio = CalculateSlopeRatio(fast_ema_handle, v_shift, lookback, baseline_slope);
@@ -1245,8 +1248,9 @@ private:
       bool is_recovery = false;
       if(state == LAYER_PB_DETECTED)
       {
+         // P2: use per-layer recovery_ratio instead of global
          if(baseline_bullish == current_bullish &&
-            MathAbs(ratio) >= m_settings.LayerRecoveryRatio)
+            MathAbs(ratio) >= recovery_ratio)
             is_recovery = true;
       }
 
@@ -1260,11 +1264,12 @@ private:
 
       if(m_settings.DebugFlow && state != prev_state)
       {
-         DebugLog(StringFormat("[%s_PB] State: %s -> %s | Ratio=%.2f | Baseline=%.5f",
+         DebugLog(StringFormat("[%s_PB] State: %s -> %s | Ratio=%.2f | RecoveryThreshold=%.2f | Baseline=%.5f",
                                label,
                                EnumToString(prev_state),
                                EnumToString(state),
                                ratio,
+                               recovery_ratio,
                                baseline_slope));
       }
    }
@@ -1281,13 +1286,19 @@ private:
       m_layer_pb_last_update = bar_time;
 
       int lookback = m_settings.LayerBaselineLookback;
+      double global_rr = m_settings.LayerRecoveryRatio;
+
+      // P2: Resolve per-layer recovery ratio (-1.0 = use global)
+      double rr_w = (m_settings.LayerRecoveryRatio_W >= 0.0) ? m_settings.LayerRecoveryRatio_W : global_rr;
+      double rr_m = (m_settings.LayerRecoveryRatio_M >= 0.0) ? m_settings.LayerRecoveryRatio_M : global_rr;
+      double rr_s = (m_settings.LayerRecoveryRatio_S >= 0.0) ? m_settings.LayerRecoveryRatio_S : global_rr;
 
       UpdateSingleLayerPullback(h_ema1, v_shift, lookback,
-                                m_layer_w_pb_state, m_layer_w_baseline, "LayerW");
+                                m_layer_w_pb_state, m_layer_w_baseline, "LayerW", rr_w);
       UpdateSingleLayerPullback(h_ema2, v_shift, lookback,
-                                m_layer_m_pb_state, m_layer_m_baseline, "LayerM");
+                                m_layer_m_pb_state, m_layer_m_baseline, "LayerM", rr_m);
       UpdateSingleLayerPullback(h_ema3, v_shift, lookback,
-                                m_layer_s_pb_state, m_layer_s_baseline, "LayerS");
+                                m_layer_s_pb_state, m_layer_s_baseline, "LayerS", rr_s);
    }
 
    //+------------------------------------------------------------------+

@@ -1562,6 +1562,36 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
       cfg.Gate_CandleDirection.value = 1.0;
 
+      // ── P2: PULLBACK STATE MACHINE ─────────────────────────────────
+      // Activates the NONE→DETECTED→RECOVERED state machine that already
+      // exists in SEA_SignalEngine.mqh (UpdateSingleLayerPullback).
+      // When enabled, CheckLayerPairAlign blocks layers that haven't
+      // completed a full pullback-recovery cycle. This prevents entries
+      // on continuous trending (no pullback) or mid-pullback (not yet recovered).
+      //
+      // The state machine runs per layer:
+      //   NONE → DETECTED:  slope ratio < PullbackRatio (weakened), or
+      //                     slope flattened (< FlatRatio), or slope reversed
+      //   DETECTED → RECOVERED: slope resumed bias direction AND
+      //                     ratio >= RecoveryRatio (per-layer or global)
+      //   RECOVERED → DETECTED: new pullback detected (re-entrant)
+      //
+      // Per-layer recovery ratios (P2 extension): deeper layers have slower
+      // EMAs, so they need less recovery momentum to confirm. Default values:
+      //   L1 (Weak/EMA5-EMA13):  0.4 — fast EMAs, expect clear turn
+      //   L2 (Medium/EMA13-EMA34): 0.3 — moderate, matches global default
+      //   L3 (Strong/EMA34-EMA89): 0.2 — slow EMAs, early recovery is enough
+      cfg.LayerPullbackEnabled        = Inp_RRM_ORG_LayerPBEnabled;
+      cfg.LayerBaselineLookback       = MathMax(3, MathMin(20, Inp_RRM_ORG_LayerPBLookback));
+      cfg.LayerPullbackRatio          = MathMax(0.1, MathMin(1.0, Inp_RRM_ORG_LayerPBPullbackRatio));
+      cfg.LayerRecoveryRatio          = MathMax(0.1, MathMin(1.0, Inp_RRM_ORG_LayerPBRecoveryRatio));
+      cfg.LayerFlatRatio              = MathMax(0.05, MathMin(0.5, Inp_RRM_ORG_LayerPBFlatRatio));
+      cfg.LayerAllowReversalPullback  = Inp_RRM_ORG_LayerPBAllowReversal;
+      // Per-layer recovery ratio overrides (-1.0 = use global LayerRecoveryRatio)
+      cfg.LayerRecoveryRatio_W        = Inp_RRM_ORG_RecoveryRatio_W;
+      cfg.LayerRecoveryRatio_M        = Inp_RRM_ORG_RecoveryRatio_M;
+      cfg.LayerRecoveryRatio_S        = Inp_RRM_ORG_RecoveryRatio_S;
+
       // ── VOTE EVALUATION ───────────────────────────────────────────────
       cfg.Vote_EvalShift            = 1;
 
