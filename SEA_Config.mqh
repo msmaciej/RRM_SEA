@@ -1463,6 +1463,22 @@ input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM_ORG 
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    PRESET_TOPINVESTOR — Profile Settings";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+// Conservative base (PSAR, ADX, CandleBody, CI, MTF) = always ON in this preset.
+// Moderate additions default ON. Full additions default OFF.
+input bool        Inp_TI_Use_Macd       = true;    // TI: MACD histogram slope (Moderate+)
+input bool        Inp_TI_Use_Cci        = true;    // TI: CCI zero-line (Moderate+)
+input bool        Inp_TI_Use_Bb         = true;    // TI: BB widening (Moderate+)
+input bool        Inp_TI_Use_Dpi        = false;   // TI: DPI momentum (Full)
+input bool        Inp_TI_Use_SmaConv    = false;   // TI: SMA convergence (Full)
+input bool        Inp_TI_Use_Fib        = false;   // TI: Fibonacci retracement (Full)
+input double      Inp_TI_CandleBody_MinCloseRatio = 0.0; // TI: Candle close ratio (0=off, 0.75=Full)
+input bool        Inp_TI_PhaseAllowEM   = false;   // TI: Allow Emerging phase (false=TM only)
+
+
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️  PRESETS OVERRIDES! (Step1-5)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1529,20 +1545,6 @@ input double      Inp_CUSTOM_CandleBody_MinCloseRatio = 0.0;         // CUSTOM [
 // ── CUSTOM: TRAIL_EMA period (globally available) ──
 input int         Inp_CUSTOM_TrailEMA_Period       = 9;              // CUSTOM [Trail] EMA period for TRAIL_EMA mode
 
-input group " ";
-input group "═══════════════════════════════════════════════════════";
-input group "    PRESET_TOPINVESTOR — Profile Settings";
-input group "═══════════════════════════════════════════════════════";
-// Conservative base (PSAR, ADX, CandleBody, CI, MTF) = always ON in this preset.
-// Moderate additions default ON. Full additions default OFF.
-input bool        Inp_TI_Use_Macd       = true;    // TI: MACD histogram slope (Moderate+)
-input bool        Inp_TI_Use_Cci        = true;    // TI: CCI zero-line (Moderate+)
-input bool        Inp_TI_Use_Bb         = true;    // TI: BB widening (Moderate+)
-input bool        Inp_TI_Use_Dpi        = false;   // TI: DPI momentum (Full)
-input bool        Inp_TI_Use_SmaConv    = false;   // TI: SMA convergence (Full)
-input bool        Inp_TI_Use_Fib        = false;   // TI: Fibonacci retracement (Full)
-input double      Inp_TI_CandleBody_MinCloseRatio = 0.0; // TI: Candle close ratio (0=off, 0.75=Full)
-input bool        Inp_TI_PhaseAllowEM   = false;   // TI: Allow Emerging phase (false=TM only)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 6: Pullback Gate";
 input group "╚════════════════════════════════════════════════════════╝";

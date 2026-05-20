@@ -2723,49 +2723,67 @@ public:
          tf2_bias = GetMTFBias(h_mtf_tf2_fast, h_mtf_tf2_slow);
 
       int idx = 0;
-      string up_arrow = ShortToString(0x2191);
-      string dn_arrow = ShortToString(0x2193);
+      string up_arrow = ShortToString(0x21D1);   // ⇑ double up arrow (more visible)
+      string dn_arrow = ShortToString(0x21D3);   // ⇓ double down arrow (more visible)
+      string flat_sym = ShortToString(0x2550);    // ═ double horizontal line
 
       ArrayResize(segments, idx + 1);
       segments[idx].text = "MTF: ";
       segments[idx].clr  = m_settings.clr_Header;
       idx++;
 
+      // Current TF label — WHITE for visibility
       ArrayResize(segments, idx + 1);
-      segments[idx].text = GetCompactTFLabel((ENUM_TIMEFRAMES)_Period);
+      segments[idx].text = GetCompactTFLabel((ENUM_TIMEFRAMES)_Period) + " ";
+      segments[idx].clr  = clrWhite;
+      idx++;
+
+      // Current TF bias arrow — colored by direction
+      color base_arrow_clr = (base_bias == 1) ? m_settings.clr_Pass : (base_bias == -1) ? m_settings.clr_Fail : m_settings.clr_Disabled;
+      ArrayResize(segments, idx + 1);
+      segments[idx].text = ((base_bias == 1) ? up_arrow : (base_bias == -1) ? dn_arrow : flat_sym) + " ";
+      segments[idx].clr  = base_arrow_clr;
+      idx++;
+
+      // Separator
+      ArrayResize(segments, idx + 1);
+      segments[idx].text = ShortToString(0x00BB) + " ";   // » separator
       segments[idx].clr  = m_settings.clr_Disabled;
       idx++;
 
+      // HTF1 label — WHITE for visibility
       ArrayResize(segments, idx + 1);
-      segments[idx].text = ((base_bias == 1) ? up_arrow : (base_bias == -1) ? dn_arrow : "-") + " ";
-      segments[idx].clr  = m_settings.clr_Disabled;
-      idx++;
-
-      ArrayResize(segments, idx + 1);
-      segments[idx].text = GetCompactTFLabel(m_settings.MTF_TF1);
-      segments[idx].clr  = m_settings.clr_Disabled;
+      segments[idx].text = GetCompactTFLabel(m_settings.MTF_TF1) + " ";
+      segments[idx].clr  = clrWhite;
       idx++;
 
       color tf1_color = m_settings.clr_Disabled;
       if(base_bias != 0 && tf1_bias != 0)
          tf1_color = (tf1_bias == base_bias) ? m_settings.clr_Pass : m_settings.clr_Fail;
       ArrayResize(segments, idx + 1);
-      segments[idx].text = ((tf1_bias == 1) ? up_arrow : (tf1_bias == -1) ? dn_arrow : "-") + (single_tf_mode ? "" : " ");
+      segments[idx].text = ((tf1_bias == 1) ? up_arrow : (tf1_bias == -1) ? dn_arrow : flat_sym) + (single_tf_mode ? "" : " ");
       segments[idx].clr  = tf1_color;
       idx++;
 
       if(!single_tf_mode)
       {
+         // Separator
          ArrayResize(segments, idx + 1);
-         segments[idx].text = GetCompactTFLabel(m_settings.MTF_TF2);
+         segments[idx].text = ShortToString(0x00BB) + " ";   // » separator
          segments[idx].clr  = m_settings.clr_Disabled;
+         idx++;
+
+         // HTF2 label — WHITE for visibility
+         ArrayResize(segments, idx + 1);
+         segments[idx].text = GetCompactTFLabel(m_settings.MTF_TF2) + " ";
+         segments[idx].clr  = clrWhite;
          idx++;
 
          color tf2_color = m_settings.clr_Disabled;
          if(base_bias != 0 && tf2_bias != 0)
             tf2_color = (tf2_bias == base_bias) ? m_settings.clr_Pass : m_settings.clr_Fail;
          ArrayResize(segments, idx + 1);
-         segments[idx].text = (tf2_bias == 1) ? up_arrow : (tf2_bias == -1) ? dn_arrow : "-";
+         segments[idx].text = (tf2_bias == 1) ? up_arrow : (tf2_bias == -1) ? dn_arrow : flat_sym;
          segments[idx].clr  = tf2_color;
          idx++;
       }
