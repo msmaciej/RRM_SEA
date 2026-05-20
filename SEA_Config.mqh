@@ -1135,89 +1135,106 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET: RRM_ORG";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: TAKE PROFIT TARGET";
 input group "╚════════════════════════════════════════════════════════╝";
-// Take profit mode:
+input ETPMode     Inp_RRM_ORG_TPMode               = TP_MODE_RR;     // Take profit mode
+input double      Inp_RRM_ORG_RRRatio              = 1.0;            // RR ratio for TP_MODE_RR
+//
+// Inp_RRM_ORG_TPMode - Take profit mode:
 // TP_MODE_FIXED_PIPS: TP at fixed pip distance
 // TP_MODE_RR:         TP derived from SL distance × RR ratio (recommended)
 // TP_MODE_FRACTAL:    TP at next fractal level
 // TP_MODE_PSAR_FLIP:  No fixed TP, exit on PSAR flip
 // TP_MODE_NONE:       No TP target, rely on trailing stop only (LPR mode)
-input ETPMode     Inp_RRM_ORG_TPMode               = TP_MODE_RR;     // Take profit mode
-// Risk:Reward ratio: TP distance = SL distance × RR
+//
+// Inp_RRM_ORG_RRRatio - Risk:Reward ratio: TP distance = SL distance × RR
 // Example: RR=2.0 and SL=20 pips → TP=40 pips
 // Only used when TPMode = TP_MODE_RR
 //
 // ⚠️ TP vs trailing interaction:
 // TPMode != TP_MODE_NONE → TP stays fixed, trailing runs underneath.
 // TPMode == TP_MODE_NONE → no TP cap, trailing manages full exit.
-input double      Inp_RRM_ORG_RRRatio              = 1.0;            // RR ratio for TP_MODE_RR
+//
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: INITIAL STOP LOSS PLACEMENT";
 input group "╚════════════════════════════════════════════════════════╝";
-// Initial SL placement method:
+input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;  // Initial stop loss mode
+input int         Inp_RRM_ORG_SwingLookback        = 55;             // Swing lookback bars
+//
+// Inp_RRM_ORG_SLMode - Initial SL placement method:
 // SL_MODE_SWING:      SL at recent swing high/low (lookback bars)
 // SL_MODE_PSAR_DOT:   SL at current PSAR dot + cushion
 // SL_MODE_FRACTAL:    SL at last fractal level
 // SL_MODE_FIXED_PIPS: SL at fixed pip distance from entry
 // SL_MODE_PERCENT:    SL at % distance from entry
-input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;  // Initial stop loss mode
-// Swing lookback: number of bars to scan for swing high/low.
+//
+// Inp_RRM_ORG_SwingLookback - Swing lookback: number of bars to scan for swing high/low.
 // Larger value = wider SL (major swings), smaller value = tighter SL (minor swings).
 // Typical guide: M5 21-34, M15 34-55, H1 55-89, H4 89-144.
 // Only used when SLMode = SL_MODE_SWING.
-input int         Inp_RRM_ORG_SwingLookback        = 55;             // Swing lookback bars
+//
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: HOW TO TRAIL STOP LOSS";
 input group "╚════════════════════════════════════════════════════════╝";
-// Trailing method:
+input ETrailingMode Inp_RRM_ORG_TrailMode          = TRAIL_PSAR;     // Trailing stop method
+input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR cushion mode
+input double      Inp_RRM_ORG_TrailProfitPercentLPR = 25.0;          // LPR trailing percent behind peak
+//
+// Inp_RRM_ORG_TrailMode - Trailing method:
 // TRAIL_NONE:            No trailing
 // TRAIL_PSAR:            Follow PSAR dots with cushion (RRM default)
 // TRAIL_FIXED_PIPS:      Fixed pip distance from current price
 // TRAIL_PROFIT_PERCENT:  Let Profit Run (% behind peak profit)
 // TRAIL_FRACTAL:         Trail with fractal levels
 // TRAIL_PSAR_FLIP_EXIT:  Close position on PSAR flip
-input ETrailingMode Inp_RRM_ORG_TrailMode          = TRAIL_PSAR;     // Trailing stop method
-// PSAR trailing cushion mode:
+//
+// Inp_RRM_ORG_PSAR_TrailCushionMode - PSAR trailing cushion mode:
 // PSAR_CUSHION_PIPS    = fixed pips safety buffer
 // PSAR_CUSHION_AUTO_TF = auto TF-aware cushion from preset helper
-input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR cushion mode
+//
 // Let Profit Run mode: SL trails X% behind the PEAK profit reached.
 // Example: peak=80 pips, value=25 → SL target at +60 pips.
 // Only used when TrailMode = TRAIL_PROFIT_PERCENT.
-input double      Inp_RRM_ORG_TrailProfitPercentLPR = 25.0;          // LPR trailing percent behind peak
+//
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: WHEN TO START TRAILING";
 input group "╚════════════════════════════════════════════════════════╝";
-// Trailing activation logic in PRESET_RRM_ORG:
+input bool        Inp_RRM_ORG_TrailStartsAfterBE   = false;          // Safety override: trail after BE
+//
+// Inp_RRM_ORG_TrailStartsAfterBE- Trailing activation logic in PRESET_RRM_ORG:
 // TrailTrigger is preset-managed (TRIGGER_BREAKEVEN by default).
 // Trail starts after BE lock unless safety override below is disabled.
+//
 // If custom profiles use TRIGGER_IMMEDIATE, keep BE protection in mind.
 // Force trailing to wait for BE lock before any trailing movement.
 // Recommended true for protection against trailing in loss zone.
 // In PRESET_RRM_ORG, TrailTrigger is internally set to TRIGGER_BREAKEVEN.
-input bool        Inp_RRM_ORG_TrailStartsAfterBE   = false;          // Safety override: trail after BE
+//
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: BREAKEVEN (BE) - ONE-TIME LOCK";
 input group "╚════════════════════════════════════════════════════════╝";
-// Breakeven trigger mode:
+input EBeMode     Inp_RRM_ORG_BE_Mode              = BE_MODE_TP_PROGRESS_PCT;  // Breakeven trigger mode
+input double      Inp_RRM_ORG_BE_RMultiple         = 1.0;            // BE trigger as R multiple
+input double      Inp_RRM_ORG_BE_ProgressPct       = 25.0;           // BE trigger as TP progress %
+//
+// Inp_RRM_ORG_BE_Mode - Breakeven trigger mode:
 // BE_MODE_OFF:             Breakeven disabled
 // BE_MODE_TP_PROGRESS_PCT: Move SL to BE when profit reaches X% toward TP
 // BE_MODE_R_MULTIPLE:      Move SL to BE when profit reaches X× risk (R-multiple)
-input EBeMode     Inp_RRM_ORG_BE_Mode              = BE_MODE_TP_PROGRESS_PCT;  // Breakeven trigger mode
-// BE trigger in R-multiples.
+//
+// Inp_RRM_ORG_BE_RMultiple - BE trigger in R-multiples.
 // Example: 1.0 = BE at 1R (profit equals initial risk distance).
 // Only used when BE_Mode = BE_MODE_R_MULTIPLE.
-input double      Inp_RRM_ORG_BE_RMultiple         = 1.0;            // BE trigger as R multiple
+//
 // BE trigger as percent progress toward TP.
 // Example: 33 = move to BE at one-third of the path to TP.
 // Only used when BE_Mode = BE_MODE_TP_PROGRESS_PCT.
 //
+// Inp_RRM_ORG_BE_ProgressPct - 
 // ⚠️ BE lock is one-time: once triggered, SL moves to entry+buffer and does not recalculate.
 // Buffer pips are TF-adaptive in PRESET_RRM_ORG via GetTFBasedCushion().
-input double      Inp_RRM_ORG_BE_ProgressPct       = 25.0;           // BE trigger as TP progress %
+//
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI v31 — Core Math (shared by all)";
@@ -1233,46 +1250,52 @@ input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst      = 5;        // DPI: Dou
 input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond     = 8;        // DPI: Double-smooth second EMA
 input int         Inp_RRM_ORG_DPI_CCI_Period             = 13;       // DPI: CCI period
 input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price       = PRICE_TYPICAL;  // DPI: CCI applied price
+
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Vote (I factor — ribbon direction)";
 input group "╚════════════════════════════════════════════════════════╝";
-// Yellow ribbon = BUY vote, Red ribbon = SELL vote.
-// CCI can reset ribbon color: hist>0 but CCI<0 → Red override (weakening).
 input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // DPI: Enable DPI vote in TS equation
 input int         Inp_RRM_ORG_DPI_Weight                 = 1;        // DPI: Vote weight
 input bool        Inp_RRM_ORG_DPI_UseCCIReset            = true;     // DPI: CCI can reset ribbon color (trend filter)
 input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // DPI: Skip CCI check — vote on raw histogram direction only
 input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;    // DPI: Also require GREEN overlay for vote pass
+// Yellow ribbon = BUY vote, Red ribbon = SELL vote.
+// CCI can reset ribbon color: hist>0 but CCI<0 → Red override (weakening).
+
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Pre-filter — GREEN Deceleration";
 input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_RRM_ORG_DPI_Decel_Filter           = false;     // DPI: Block entry when GREEN shrinking or disappeared
 // Blocks entry when GREEN momentum is fading or has just disappeared.
 // GREEN = Blue & hist both same side of zero (momentum confirmation).
 // GREEN shrinking = trend exhaustion / OB-OS conditions.
 // No GREEN on either bar = pass (ribbon-only setup, no momentum to decelerate).
-input bool        Inp_RRM_ORG_DPI_Decel_Filter           = true;     // DPI: Block entry when GREEN shrinking or disappeared
+
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI System B — CCI Histogram Tracking";
 input group "╚════════════════════════════════════════════════════════╝";
-// Separate deceleration system using CCI values (not ribbon/GREEN).
-// Master switch: HistTrackingEnabled. When OFF, all settings below are inactive.
 input bool        Inp_RRM_ORG_DPI_HistTrackingEnabled    = false;    // DPI: Enable CCI histogram tracking (master switch)
 input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // DPI: CCI deceleration lookback bars (needs tracking ON)
 input double      Inp_RRM_ORG_DPI_HistMomentumThreshold  = 0.0001;   // DPI: Ignore CCI-delta below this (needs tracking ON)
+// Separate deceleration system using CCI values (not ribbon/GREEN).
+// Master switch: HistTrackingEnabled. When OFF, all settings below are inactive.
+
 input group " ";
 input group "═══ RRM_ORG: DPI System B — Entry/Exit Gates ═══";
 // All require HistTrackingEnabled = true above.
 input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = false;    // DPI: Block entries when CCI momentum decelerating (needs tracking ON)
 input bool        Inp_RRM_ORG_DPI_ExitOnHistDisappear    = false;    // DPI: Close trades when CCI trend flips (needs tracking ON)
 input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // DPI: Exit when |CCI| below threshold, 0=disable (needs tracking ON)
+
 input group " ";
 input group "═══ RRM_ORG: DPI Layer Boost (needs tracking ON) ═══";
 // When layer momentum check fails, GREEN/CCI growth can override.
 // Requires HistTrackingEnabled = true to function.
 input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = true;     // DPI: Use histogram growth as layer momentum boost (needs tracking ON)
+
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Multi-Bar Momentum";
