@@ -1220,12 +1220,8 @@ input double      Inp_RRM_ORG_BE_RMultiple         = 1.0;            // BE trigg
 input double      Inp_RRM_ORG_BE_ProgressPct       = 25.0;           // BE trigger as TP progress %
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: DPI v31 Settings";
+input group "║   📐 RRM_ORG: DPI v31 — Core Math (shared by all)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // DPI: Enable DPI vote in TS equation
-input bool        Inp_RRM_ORG_DPI_UseCCIReset            = true;     // DPI: Enable CCI trend filter
-input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price       = PRICE_TYPICAL;  // DPI: CCI applied price
-input int         Inp_RRM_ORG_DPI_Weight                 = 1;        // DPI: Vote weight
 input int         Inp_RRM_ORG_DPI_MacdFast               = 8;        // DPI: MACD fast EMA period
 input int         Inp_RRM_ORG_DPI_MacdSlow               = 13;       // DPI: MACD slow EMA period
 input int         Inp_RRM_ORG_DPI_RedSignalType          = 3;        // DPI: Red line type (1=EMA_A 2=EMA_B 3=EMA_C 4=EMA_D 5=Double)
@@ -1236,20 +1232,47 @@ input int         Inp_RRM_ORG_DPI_RedEMA_D               = 21;       // DPI: Red
 input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst      = 5;        // DPI: Double-smooth first EMA
 input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond     = 8;        // DPI: Double-smooth second EMA
 input int         Inp_RRM_ORG_DPI_CCI_Period             = 13;       // DPI: CCI period
-input bool        Inp_RRM_ORG_DPI_Decel_Filter           = true;     // DPI: Block entry on DPI histogram deceleration
-input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // DPI: Use raw histogram direction for vote (skip CCI-reset check)
-input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = true;     // DPI: Use DPI histogram growth as boost
+input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price       = PRICE_TYPICAL;  // DPI: CCI applied price
 input group " ";
-input group "═══ RRM_ORG: DPI GREEN Histogram Logic ═══"
-input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;    // DPI: Enable GREEN momentum overlay (false=v29 behaviour)
-input bool        Inp_RRM_ORG_DPI_HistTrackingEnabled    = false;    // DPI: Enable histogram tracking
-input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // DPI: Deceleration lookback (bars)
-input double      Inp_RRM_ORG_DPI_HistMomentumThreshold  = 0.0001;   // DPI: Histogram momentum threshold (CCI-delta units)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: DPI Vote (I factor — ribbon direction)";
+input group "╚════════════════════════════════════════════════════════╝";
+// Yellow ribbon = BUY vote, Red ribbon = SELL vote.
+// CCI can reset ribbon color: hist>0 but CCI<0 → Red override (weakening).
+input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // DPI: Enable DPI vote in TS equation
+input int         Inp_RRM_ORG_DPI_Weight                 = 1;        // DPI: Vote weight
+input bool        Inp_RRM_ORG_DPI_UseCCIReset            = true;     // DPI: CCI can reset ribbon color (trend filter)
+input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // DPI: Skip CCI check — vote on raw histogram direction only
+input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;    // DPI: Also require GREEN overlay for vote pass
 input group " ";
-input group "═══ RRM_ORG: DPI GREEN Histogram Entry/Exit ═══"
-input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = false;    // DPI: Block entries on momentum deceleration
-input bool        Inp_RRM_ORG_DPI_ExitOnHistDisappear    = false;    // DPI: Close trades when green histogram vanishes
-input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // DPI: Exit when |CCI| below threshold (0=disable)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: DPI Pre-filter — GREEN Deceleration";
+input group "╚════════════════════════════════════════════════════════╝";
+// Blocks entry when GREEN momentum is fading or has just disappeared.
+// GREEN = Blue & hist both same side of zero (momentum confirmation).
+// GREEN shrinking = trend exhaustion / OB-OS conditions.
+// No GREEN on either bar = pass (ribbon-only setup, no momentum to decelerate).
+input bool        Inp_RRM_ORG_DPI_Decel_Filter           = true;     // DPI: Block entry when GREEN shrinking or disappeared
+input group " ";
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: DPI System B — CCI Histogram Tracking";
+input group "╚════════════════════════════════════════════════════════╝";
+// Separate deceleration system using CCI values (not ribbon/GREEN).
+// Master switch: HistTrackingEnabled. When OFF, all settings below are inactive.
+input bool        Inp_RRM_ORG_DPI_HistTrackingEnabled    = false;    // DPI: Enable CCI histogram tracking (master switch)
+input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // DPI: CCI deceleration lookback bars (needs tracking ON)
+input double      Inp_RRM_ORG_DPI_HistMomentumThreshold  = 0.0001;   // DPI: Ignore CCI-delta below this (needs tracking ON)
+input group " ";
+input group "═══ RRM_ORG: DPI System B — Entry/Exit Gates ═══";
+// All require HistTrackingEnabled = true above.
+input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = false;    // DPI: Block entries when CCI momentum decelerating (needs tracking ON)
+input bool        Inp_RRM_ORG_DPI_ExitOnHistDisappear    = false;    // DPI: Close trades when CCI trend flips (needs tracking ON)
+input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // DPI: Exit when |CCI| below threshold, 0=disable (needs tracking ON)
+input group " ";
+input group "═══ RRM_ORG: DPI Layer Boost (needs tracking ON) ═══";
+// When layer momentum check fails, GREEN/CCI growth can override.
+// Requires HistTrackingEnabled = true to function.
+input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = true;     // DPI: Use histogram growth as layer momentum boost (needs tracking ON)
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Multi-Bar Momentum";

@@ -2261,7 +2261,9 @@ private:
 
       double hist_cur = 0.0, hist_prev = 0.0;
       bool   dpi_green = false, dpi_macd_agree = false;
-      if(!ComputeDPIMainHist(v_shift, hist_cur, hist_prev, dpi_green, dpi_macd_agree))
+      double _unused_green_cur = 0.0, _unused_green_prev = 0.0;
+      if(!ComputeDPIMainHist(v_shift, hist_cur, hist_prev, dpi_green, dpi_macd_agree,
+                             _unused_green_cur, _unused_green_prev))
       {
          // Insufficient bars — DPI passes silently (neither counted as pass nor fail).
          // In VOTE_MODE_ALL this ensures DPI does not block trades when warmup data is missing.
@@ -5464,7 +5466,8 @@ public:
    // No static locals, no lambdas — safe for MQL5 on macOS/Wine.
    // ───────────────────────────────────────────────────────────────────────────
    bool ComputeDPIMainHist(int v_shift, double &out_hist_cur, double &out_hist_prev,
-                           bool &out_green, bool &out_macd_agree)
+                           bool &out_green, bool &out_macd_agree,
+                           double &out_green_mag_cur, double &out_green_mag_prev)
    {
       if(!m_settings.Ind_Dpi_Enabled) return false;
 
@@ -5500,10 +5503,12 @@ public:
       double red1     = 0.0, red2 = 0.0;  // red2 only used for double-smooth
       double hist     = 0.0;
 
-      out_hist_cur   = 0.0;
-      out_hist_prev  = 0.0;
-      out_green      = false;
-      out_macd_agree = false;
+      out_hist_cur       = 0.0;
+      out_hist_prev      = 0.0;
+      out_green          = false;
+      out_macd_agree     = false;
+      out_green_mag_cur  = 0.0;
+      out_green_mag_prev = 0.0;
 
       // Seed EMAs at the oldest bar so that initial Blue = 0 (fast = slow = seed price).
       double seed = iClose(m_symbol, PERIOD_CURRENT, bars_needed);
@@ -5512,6 +5517,9 @@ public:
       // Blue starts at 0 → Red EMA(s) start at 0 for consistency.
       red1 = 0.0;
       red2 = 0.0;
+
+      // ── Capture variables for GREEN at prev bar (v_shift+1) ──
+      double blue_prev = 0.0, hist_at_prev = 0.0;
 
       // Iterate from oldest bar toward v_shift (capturing hist at v_shift+1 en route).
       for(int i = bars_needed - 1; i >= v_shift; i--)
@@ -5539,7 +5547,11 @@ public:
          }
 
          if(i == v_shift + 1)
+         {
             out_hist_prev = hist;
+            blue_prev    = blue;
+            hist_at_prev = hist;
+         }
       }
       out_hist_cur = hist;
 
@@ -5548,6 +5560,15 @@ public:
          out_green = ((blue > 0.0 && hist > 0.0) || (blue < 0.0 && hist < 0.0));
       else
          out_green = false;
+
+      // ── GREEN magnitude: min(|Blue|, |hist|) when aligned, else 0 ──
+      // GREEN = the area from 0 to the closer of Blue/hist (both same side).
+      // Matches DPI_mc_main.mq5 rendering logic.
+      bool green_present_cur = ((blue > 0.0 && hist > 0.0) || (blue < 0.0 && hist < 0.0));
+      out_green_mag_cur  = green_present_cur ? MathMin(MathAbs(blue), MathAbs(hist)) : 0.0;
+
+      bool green_present_prev = ((blue_prev > 0.0 && hist_at_prev > 0.0) || (blue_prev < 0.0 && hist_at_prev < 0.0));
+      out_green_mag_prev = green_present_prev ? MathMin(MathAbs(blue_prev), MathAbs(hist_at_prev)) : 0.0;
 
       // out_macd_agree: trend filter flag — dual-use:
       //   DPI_UseCCIReset=true  → true when hist sign agrees with CCI sign (no CCI reset warning)
@@ -5803,33 +5824,54 @@ public:
       }
 
       // ══════════════════════════════════════════════════════════════════
-      // PRE-FILTER: DPI Momentum Deceleration
-      // Block when the directionally-aligned DPI histogram is shrinking
-      // bar-over-bar (momentum loss). Only active when DpiDecelFilterEnabled=true
-      // AND Ind_Dpi_Enabled=true. Silently passes if histogram data unavailable.
+      // PRE-FILTER: DPI GREEN Momentum Deceleration
+      // Block when GREEN histogram is shrinking or disappearing bar-over-bar.
+      // GREEN = min(|Blue|, |hist|) when Blue & hist same side of zero.
+      // Per README_SEA_DPI_mc_main.md: "Blocks entry when GREEN[shift] < GREEN[shift+1]"
+      // Only active when DpiDecelFilterEnabled=true AND Ind_Dpi_Enabled=true.
+      // Silently passes if histogram data unavailable.
       // ══════════════════════════════════════════════════════════════════
       if(m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
       {
          double hist_cur = 0.0, hist_prev = 0.0;
          bool   dpi_green = false, dpi_macd_agree = false;
-         if(ComputeDPIMainHist(v_shift, hist_cur, hist_prev, dpi_green, dpi_macd_agree))
+         double green_mag_cur = 0.0, green_mag_prev = 0.0;
+
+         if(ComputeDPIMainHist(v_shift, hist_cur, hist_prev, dpi_green, dpi_macd_agree,
+                               green_mag_cur, green_mag_prev))
          {
-            // For BUY bias: histogram should be positive and growing (main_hist > 0 and increasing)
-            // For SELL bias: histogram should be negative and decreasing (main_hist < 0 and more negative)
-            // Deceleration: aligned magnitude shrinking (|hist_cur| < |hist_prev|)
-            double mag_cur  = MathAbs(hist_cur);
-            double mag_prev = MathAbs(hist_prev);
+            // GREEN deceleration: momentum confirmation weakening or vanishing.
+            //
+            // Case 1: GREEN present on both bars but shrinking → momentum fading → BLOCK
+            // Case 2: GREEN was present, now gone → momentum just died (OB/OS) → BLOCK
+            // Case 3: GREEN absent on both bars → no momentum to decelerate → PASS
+            //         (ribbon-only setups are valid — direction without momentum
+            //          is not deceleration, it's a different market state)
+            // Case 4: GREEN was absent, now appeared → momentum arriving → PASS
 
-            bool aligned_cur  = (B > 0) ? (hist_cur  > 0.0) : (hist_cur  < 0.0);
-            bool aligned_prev = (B > 0) ? (hist_prev > 0.0) : (hist_prev < 0.0);
+            bool green_was_present = (green_mag_prev > 0.0);
+            bool green_is_present  = (green_mag_cur  > 0.0);
+            bool blocked = false;
 
-            // Only check deceleration when both bars show momentum in the same direction.
-            // The aligned_X checks ensure same-sign (no histogram flip between bars).
-            if(aligned_cur && aligned_prev && mag_cur > 0.0 && mag_prev > 0.0 && mag_cur < mag_prev)
+            if(green_was_present && green_is_present && green_mag_cur < green_mag_prev)
             {
+               // Case 1: GREEN shrinking — momentum fading
+               blocked = true;
                if(m_settings.DebugFlow)
-                  PrintFormat("[TS_PREFILTER] DPI_DECEL: histogram shrinking cur=%.5f < prev=%.5f → TS=0",
-                              mag_cur, mag_prev);
+                  PrintFormat("[TS_PREFILTER] DPI_DECEL: GREEN shrinking cur=%.6f < prev=%.6f → TS=0",
+                              green_mag_cur, green_mag_prev);
+            }
+            else if(green_was_present && !green_is_present)
+            {
+               // Case 2: GREEN just disappeared — exhaustion / OB/OS
+               blocked = true;
+               if(m_settings.DebugFlow)
+                  PrintFormat("[TS_PREFILTER] DPI_DECEL: GREEN disappeared (prev=%.6f, cur=0) → TS=0",
+                              green_mag_prev);
+            }
+
+            if(blocked)
+            {
                m_diag_last_reason = "DPI_DECEL";
                m_reject_filter++;
                m_stats.rejected_dpi_decel++;    // PHASE A.1
