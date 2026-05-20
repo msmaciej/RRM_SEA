@@ -109,6 +109,7 @@ struct SRejectionStats {
    int passed_ross,    rejected_ross;
    int passed_sma_converge, rejected_sma_converge;
    int passed_dpi,          rejected_dpi;
+   int passed_fib,          rejected_fib;
 
    // ── PHASE A.1: Pre-filter quality gates (TS=1 hardening) ──────────────
    int passed_emafan,     rejected_emafan;     // EMA fan overextension
@@ -229,6 +230,7 @@ private:
    bool     m_eval_ind_res_p123;
    bool     m_eval_ind_res_ross;
    bool     m_eval_ind_res_sma_converge;
+   bool     m_eval_ind_res_fib;
    bool     m_eval_ind_res_dpi;
    bool     m_eval_ind_res_atr;
    bool     m_eval_ind_res_candle_body;
@@ -2243,6 +2245,69 @@ private:
       return result;
    }
 
+   //+------------------------------------------------------------------+
+   //| Check_Fib: Fibonacci Retracement Depth Voter                     |
+   //| Confirms pullback depth is within 0.38–0.618 of last swing.      |
+   //| K-score element from TopInvestor methodology (globally available).|
+   //| Logic:                                                            |
+   //|   1. Find highest high and lowest low in lookback window.         |
+   //|   2. LONG:  ratio = (swing_high - close) / swing_range           |
+   //|      SHORT: ratio = (close - swing_low) / swing_range            |
+   //|   3. PASS if Fib_MinRetracement <= ratio <= Fib_MaxRetracement.  |
+   //+------------------------------------------------------------------+
+   bool Check_Fib(int bias, int shift)
+   {
+      if(!m_settings.Ind_Fib_Enabled) return true;
+
+      int lookback = m_settings.Fib_SwingLookback;
+      if(lookback < 10) lookback = 50;
+
+      int start = shift + 1;
+      int total = iBars(m_symbol, PERIOD_CURRENT);
+      if(start + lookback >= total) return true;
+
+      int hi_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, lookback, start);
+      int lo_idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, lookback, start);
+
+      if(hi_idx < 0 || lo_idx < 0) return true;
+
+      double swing_high = iHigh(m_symbol, PERIOD_CURRENT, hi_idx);
+      double swing_low  = iLow(m_symbol, PERIOD_CURRENT, lo_idx);
+      double swing_range = swing_high - swing_low;
+
+      if(swing_range <= 0.0) return false;
+
+      double current_close = iClose(m_symbol, PERIOD_CURRENT, shift);
+      double ratio = 0.0;
+
+      if(bias == 1)
+      {
+         if(hi_idx >= lo_idx) return true;
+         ratio = (swing_high - current_close) / swing_range;
+      }
+      else if(bias == -1)
+      {
+         if(lo_idx >= hi_idx) return true;
+         ratio = (current_close - swing_low) / swing_range;
+      }
+      else return true;
+
+      bool result = (ratio >= m_settings.Fib_MinRetracement &&
+                     ratio <= m_settings.Fib_MaxRetracement);
+
+      if(m_settings.DebugFlow)
+      {
+         if(m_settings.Ind_Fib_Enabled)
+            DebugLog(StringFormat("[IND_FIB] SwingH=%.5f SwingL=%.5f | Ratio=%.3f (%.1f%%) | Range=[%.2f-%.2f] | %s",
+                                  swing_high, swing_low, ratio, ratio * 100.0,
+                                  m_settings.Fib_MinRetracement,
+                                  m_settings.Fib_MaxRetracement,
+                                  result ? "PASS" : "FAIL"));
+      }
+
+      return result;
+   }
+
     //+------------------------------------------------------------------+
     //| Check_DPI: DPI v31 voter — MACD-core Blue/Red/hist architecture  |
     //| Blue(i) = EMA(Fast,close)(i) − EMA(Slow,close)(i)               |
@@ -4099,6 +4164,36 @@ public:
             return false;
          }
       }
+
+      // Close-ratio quality filter (TopInvestor 75% rule)
+      // Signal bar close must be in the "strong" portion of its range.
+      // LONG:  (close - low)  / (high - low) >= MinCloseRatio
+      // SHORT: (high - close) / (high - low) >= MinCloseRatio
+      if(m_settings.CandleBody_MinCloseRatio > 0.0)
+      {
+         double h = iHigh(m_symbol, PERIOD_CURRENT, 1);
+         double l = iLow(m_symbol, PERIOD_CURRENT, 1);
+         double c = iClose(m_symbol, PERIOD_CURRENT, 1);
+         double range = h - l;
+
+         if(range > 0.0)
+         {
+            double close_ratio = 0.0;
+            if(bias == 1)
+               close_ratio = (c - l) / range;
+            else if(bias == -1)
+               close_ratio = (h - c) / range;
+
+            if(close_ratio < m_settings.CandleBody_MinCloseRatio)
+            {
+               if(m_settings.DebugFlow)
+                  DebugLog(StringFormat("[IND_CB_RATIO] CloseRatio=%.2f < Min=%.2f | FAIL",
+                                        close_ratio, m_settings.CandleBody_MinCloseRatio));
+               return false;
+            }
+         }
+      }
+
       return true;
    }
 
@@ -4919,6 +5014,7 @@ public:
       CAST_VOTE_STAT(m_settings.Ind_VRC_Enabled,        m_settings.Ind_VRC_Weight,        Check_VRC(bias, v_shift),        m_stats.rejected_vrc, m_stats.passed_vrc)
       CAST_VOTE_STAT(m_settings.Ind_SmaConverge_Enabled, m_settings.Ind_SmaConverge_Weight, Check_SmaConverge(v_shift),      m_stats.rejected_sma_converge, m_stats.passed_sma_converge)
       CAST_VOTE_STAT(m_settings.Ind_Dpi_Enabled,         m_settings.Ind_Dpi_Weight,         Check_DPI(bias, v_shift),         m_stats.rejected_dpi,          m_stats.passed_dpi)
+      CAST_VOTE_STAT(m_settings.Ind_Fib_Enabled,         m_settings.Ind_Fib_Weight,         Check_Fib(bias, v_shift),         m_stats.rejected_fib,          m_stats.passed_fib)
       #undef CAST_VOTE_STAT
 
       // Calculate indicator pass counts for telemetry (all enabled indicators, including non-directional filters)
@@ -4935,6 +5031,7 @@ public:
       if(m_settings.Ind_Ross_Enabled)        { s_enabled++; if(Check_Ross(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_SmaConverge_Enabled) { s_enabled++; if(Check_SmaConverge(v_shift)) s_passed++; }
       if(m_settings.Ind_Dpi_Enabled)         { s_enabled++; if(Check_DPI(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_Fib_Enabled)         { s_enabled++; if(Check_Fib(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_Atr_Enabled)         { s_enabled++; if(Check_ATR(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_CandleBody_Enabled)  { s_enabled++; if(Check_CandleBody(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_CI_Enabled)          { s_enabled++; if(Check_CI(bias, v_shift)) s_passed++; }
@@ -4949,7 +5046,7 @@ public:
       // Per-indicator results for diagnostic logging
       bool _res_adx=false, _res_macd=false, _res_rsi=false,
            _res_cci=false, _res_mfi=false, _res_sto=false, _res_bb=false,
-           _res_psar=false, _res_p123=false, _res_ross=false, _res_dpi=false,
+           _res_psar=false, _res_p123=false, _res_ross=false, _res_dpi=false, _res_fib=false,
            _res_atr=false, _res_candle_body=false, _res_ci=false, _res_vrc=false;
 
       // ===== DIAGNOSTIC LOGGING FOR VOTE ANALYSIS: BEGIN =====
@@ -4965,6 +5062,7 @@ public:
          if(m_settings.Ind_P123_Enabled)   _res_p123   = Check_P123(bias, v_shift);
          if(m_settings.Ind_Ross_Enabled)   _res_ross   = Check_Ross(bias, v_shift);
           if(m_settings.Ind_Dpi_Enabled)         _res_dpi         = Check_DPI(bias, v_shift);
+          if(m_settings.Ind_Fib_Enabled)         _res_fib         = Check_Fib(bias, v_shift);
           if(m_settings.Ind_Atr_Enabled)         _res_atr         = Check_ATR(bias, v_shift);
           if(m_settings.Ind_CandleBody_Enabled)  _res_candle_body = Check_CandleBody(bias, v_shift);
           if(m_settings.Ind_CI_Enabled)          _res_ci          = Check_CI(bias, v_shift);
@@ -5102,6 +5200,7 @@ public:
       m_eval_ind_res_ross   = _res_ross;
       m_eval_ind_res_sma_converge = (m_settings.Ind_SmaConverge_Enabled ? Check_SmaConverge(v_shift) : false);
       m_eval_ind_res_dpi          = _res_dpi;
+      m_eval_ind_res_fib          = _res_fib;
       m_eval_ind_res_atr          = _res_atr;
       m_eval_ind_res_candle_body  = _res_candle_body;
       m_eval_ind_res_ci           = _res_ci;
@@ -6066,6 +6165,7 @@ public:
          if(m_settings.Ind_VRC_Enabled)         s_enabled++; else s_disabled++;
          if(m_settings.Ind_SmaConverge_Enabled) s_enabled++; else s_disabled++;
          if(m_settings.Ind_Dpi_Enabled)         s_enabled++; else s_disabled++;
+         if(m_settings.Ind_Fib_Enabled)         s_enabled++; else s_disabled++;
 
          DebugLog(StringFormat("INDICATORS (%d enabled, %d disabled):", s_enabled, s_disabled));
 
@@ -6131,6 +6231,11 @@ public:
             DebugLog(StringFormat("  %s DPI", m_eval_ind_res_dpi ? "✅" : "❌"));
             if(m_eval_ind_res_dpi) s_passed++;
          } else DebugLog("  ⏭️  DPI: disabled");
+
+         if(m_settings.Ind_Fib_Enabled) {
+            DebugLog(StringFormat("  %s Fibonacci", m_eval_ind_res_fib ? "✅" : "❌"));
+            if(m_eval_ind_res_fib) s_passed++;
+         } else DebugLog("  ⏭️  Fibonacci: disabled");
 
          if(m_settings.Ind_Atr_Enabled) {
             DebugLog(StringFormat("  %s ATR (volatility filter)", m_eval_ind_res_atr ? "✅" : "❌"));

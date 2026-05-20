@@ -214,6 +214,7 @@ string PresetToString(EStrategyPreset p)
       case PRESET_RRM:          return "RRM";
       case PRESET_RRM_ORG:      return "RRM_ORG";
       case PRESET_TEST:         return "TEST";
+      case PRESET_TOPINVESTOR:  return "TOPINVESTOR";
       default:                  return "UNKNOWN";
    }
 }
@@ -236,6 +237,8 @@ string GetPresetContractWording(EStrategyPreset preset)
          return "PRESET_RRM_ORG"; //: Original Russ Horn RRM with DPI momentum voter locked (TSI R/S/U inline); phase/layer/recovery/PSAR/CandleBody fixed; exits user-controlled.";
       case PRESET_TEST:
          return "PRESET_TEST"; //: Minimal testing mode: bypass voting (threshold=1), fixed SL/TP, no trailing.";
+      case PRESET_TOPINVESTOR:
+         return "PRESET_TOPINVESTOR"; //: TopInvestor/OXO methodology (EMA50/200 confluence); 3 profiles via Inp_TI_* toggles: Conservative(5), Moderate(8), Full(11 voters).";
       default:
          return "PRESET_ACTIVE"; //: Preset active; strategy-critical settings fixed by preset.";
    }
@@ -1746,6 +1749,322 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       ValidateRRM_ORG_ExitConfig(cfg);
       return;
    }
+
+
+   if(preset == PRESET_TOPINVESTOR)
+   {
+      // ================================================================
+      // PRESET_TOPINVESTOR — Dr Świerk's TopInvestor / OXO Methodology
+      // ================================================================
+      //
+      // Unified preset covering all 3 TopInvestor systems:
+      //   System 1: EMA bounce (Layer pullback to EMA 50/200)
+      //   System 2: Key level (Fibonacci retracement depth check)
+      //   System 3: Exhaustion (DPI momentum + MACD divergence)
+      //
+      // OXO replaced by multi-indicator voting pipeline.
+      // Three profiles via Inp_TI_* toggles:
+      //   Conservative (5 voters) = K-3 confluence
+      //   Moderate     (8 voters) = K-4/K-5 confluence
+      //   Full         (11 voters) = K-6 confluence
+      //
+      // HTF anchor: EMA 50/200 (institutional standard) via MTF voter
+      // Entry TF:   EMA 9/50/89/200 (TopInvestor template)
+      //
+      // SIGNAL FORMULA:
+      //   TS = Phase(4EMA) × Layer × BC × BD × Indicators × Filters
+      //
+      // LOCKED: Architecture, EMA periods, phase/layer structure.
+      // FLEXIBLE: Profile (Conservative/Moderate/Full via Inp_TI_*),
+      //           SL/TP/Trail, session hours, spread, news filter.
+      // ================================================================
+
+      // ── SIGNAL ARCHITECTURE: locked ──────────────────────────────────
+      cfg.BiasMode               = BIAS_4EMA;
+      cfg.AutoStrat              = STRAT_4EMA_LAYER;
+      cfg.VoteMode               = VOTE_MODE_ALL;
+      cfg.BiasEnabled            = true;
+      cfg.BiasFastID             = (int)ROLE_EMA3;
+      cfg.BiasSlowID             = (int)ROLE_EMA4;
+      cfg.MaType                 = METHOD_EMA;
+      cfg.CloseOnReverse         = false;
+      cfg.RequirePriceCross      = false;
+      cfg.MABenchmarkStrict      = false;
+      cfg.UseMACompatSizer       = false;
+
+      // ── EMA PERIODS (TopInvestor standard) ─────────────────────────
+      cfg.P_Ema1                 = 9;       // EMA9  — trailing exit reference
+      cfg.P_Ema2                 = 50;      // EMA50 — primary bounce level
+      cfg.P_Ema3                 = 89;      // EMA89 — intermediate structure
+      cfg.P_Ema4                 = 200;     // EMA200 — major trend anchor
+
+      // ── PHASE: TM-only or allow EM via user toggle ────────────────
+      cfg.PhaseDetectionEnabled     = true;
+      cfg.EnableLayerDetection      = true;
+      cfg.BlockUnorderedPhase       = true;
+      cfg.BlockEmergingPhase        = !Inp_TI_PhaseAllowEM;
+      cfg.RequireMinPhaseConfirm    = true;
+      cfg.MinPhaseConfirmBars       = (_Period <= PERIOD_M5) ? 1 : 2;
+
+      // Layer permissions
+      cfg.Trending_AllowWeakTrades   = true;
+      cfg.Trending_AllowMediumTrades = true;
+      cfg.Trending_AllowStrongTrades = true;
+      cfg.Emerging_AllowWeakTrades   = true;
+      cfg.Emerging_AllowMediumTrades = true;
+      cfg.Emerging_AllowStrongTrades = false;
+
+      // ── LAYER: pullback-recovery detection ─────────────────────────
+      cfg.LayerPullbackEnabled        = true;
+      cfg.LayerBaselineLookback       = 10;
+      cfg.LayerPullbackRatio          = 0.5;
+      cfg.LayerRecoveryRatio          = 0.3;
+      cfg.LayerFlatRatio              = 0.15;
+      cfg.LayerAllowReversalPullback  = true;
+      cfg.LayerRecoveryRatio_W        = -1.0;
+      cfg.LayerRecoveryRatio_M        = -1.0;
+      cfg.LayerRecoveryRatio_S        = -1.0;
+
+      // ── BAR CLOSE: layer-aware ─────────────────────────────────────
+      cfg.BarClose_Enabled       = true;
+      cfg.BarClose_Mode          = BC_LAYER_AWARE;
+      cfg.BarClose_DefaultEMA    = ROLE_EMA1;
+
+      // ── HIGHER TF CONFIRMATION: EMA 50/200 (institutional) ────────
+      // TopInvestor: "the secret to success is 2 timeframes higher"
+      // Uses EMA 50/200 as the institutional standard anchor
+      cfg.Ind_MTF_Enabled        = true;
+      cfg.Ind_MTF_Weight         = 1;
+      cfg.MTF_TF1                = (_Period <= PERIOD_M5)  ? PERIOD_H1
+                                 : (_Period <= PERIOD_M30) ? PERIOD_H4
+                                 : (_Period <= PERIOD_H1)  ? PERIOD_D1
+                                 :                           PERIOD_W1;
+      cfg.MTF_TF2                = PERIOD_CURRENT;
+      cfg.MTF_EMA_Fast           = 50;     // Institutional standard
+      cfg.MTF_EMA_Slow           = 200;    // Institutional standard
+      cfg.MTF_RequirePhase       = true;
+      cfg.MTF_StrictAlignment    = false;
+
+      // ── SPREAD: pair-adaptive from Zone 3C ─────────────────────────
+      cfg.MaxSpread              = op_MaxSpread;
+
+      // ══════════════════════════════════════════════════════════════
+      // CONSERVATIVE PROFILE (always on — 5 voters)
+      // ══════════════════════════════════════════════════════════════
+
+      // PSAR — direction confirmation
+      cfg.Ind_Psar_Enabled       = true;
+      cfg.P_PsarStep             = 0.02;
+      cfg.P_PsarMax              = 0.2;
+      cfg.Vote_AllowPsarFlip     = true;
+      cfg.Vote_PsarFlipDelay     = -1;
+
+      // ADX — trend strength filter ("silny trend")
+      cfg.Ind_Adx_Enabled        = true;
+      cfg.ADX_Mode               = ADX_MODE_DYNAMIC_PERCENTILE;
+      cfg.P_Adx                  = 14;
+      cfg.ADX_Percentile         = 50.0;
+      cfg.ADX_Lookback           = 100;
+      cfg.ADX_Threshold_Accumulation  = 12.0;
+      cfg.ADX_Threshold_Trending      = 25.0;
+      cfg.ADX_Threshold_Distribution  = 18.0;
+
+      // CandleBody — spike rejection + direction gate + close ratio
+      cfg.Ind_CandleBody_Enabled = true;
+      cfg.Ind_CandleBody_Weight  = 1;
+      cfg.CandleBody_AvgPeriod   = 10;
+      cfg.CandleBody_MaxMult     = 2.5;
+      cfg.CandleBody_CheckBars   = 1;
+      cfg.CandleBody_RequireDirection = true;
+      cfg.CandleBody_MinCloseRatio   = Inp_TI_CandleBody_MinCloseRatio;
+
+      // Choppiness Index — ranging market blocker
+      cfg.Ind_CI_Enabled         = true;
+      cfg.Ind_CI_Weight          = 1;
+      cfg.CI_Period              = 14;
+      cfg.CI_RangingThreshold    = 61.8;
+
+      // ══════════════════════════════════════════════════════════════
+      // MODERATE PROFILE (Inp_TI_* toggles, default ON — adds 3 voters)
+      // ══════════════════════════════════════════════════════════════
+
+      // MACD — momentum direction + optional divergence
+      cfg.Ind_Macd_Enabled       = Inp_TI_Use_Macd;
+      cfg.P_MacdFast             = 12;
+      cfg.P_MacdSlow             = 26;
+      cfg.P_MacdSig              = 9;
+      cfg.MacdVoteMode           = MACD_HISTOGRAM;
+      cfg.MacdRequireSlope       = true;
+      cfg.MacdRequireDivergence  = false;
+      cfg.MacdRequireHook        = false;
+      cfg.MacdFreshBars          = 5;
+      cfg.MacdSlopeMin           = 0.00001;
+
+      // CCI — momentum zero-line confirmation
+      cfg.Ind_Cci_Enabled        = Inp_TI_Use_Cci;
+      cfg.P_Cci                  = 14;
+      cfg.CciMode                = CCI_TREND_ZERO;
+
+      // BB Widening — volatility expansion
+      cfg.Ind_Bb_Enabled         = Inp_TI_Use_Bb;
+      cfg.BbMode                 = BB_WIDENING;
+      cfg.P_Bb                   = 20;
+      cfg.P_BbDev                = 2.0;
+
+      // ══════════════════════════════════════════════════════════════
+      // FULL PROFILE (Inp_TI_* toggles, default OFF — adds 3 voters)
+      // ══════════════════════════════════════════════════════════════
+
+      // DPI — momentum exhaustion detection (System 3)
+      cfg.Ind_Dpi_Enabled        = Inp_TI_Use_Dpi;
+      cfg.Ind_Dpi_Weight         = 1;
+      cfg.DpiDecelFilterEnabled  = Inp_TI_Use_Dpi;
+
+      // SMA Convergence — pullback detection
+      cfg.Ind_SmaConverge_Enabled = Inp_TI_Use_SmaConv;
+      cfg.Ind_SmaConverge_Weight  = 1;
+
+      // Fibonacci retracement — pullback depth check (NEW)
+      cfg.Ind_Fib_Enabled        = Inp_TI_Use_Fib;
+      cfg.Ind_Fib_Weight         = 1;
+      cfg.Fib_MinRetracement     = 0.38;
+      cfg.Fib_MaxRetracement     = 0.618;
+      cfg.Fib_SwingLookback      = 50;
+
+      // ── DISABLED (not part of TopInvestor methodology) ─────────────
+      cfg.Ind_Rsi_Enabled        = false;
+      cfg.Ind_Mfi_Enabled        = false;
+      cfg.Ind_Sto_Enabled        = false;
+      cfg.Ind_Atr_Enabled        = false;
+      cfg.Ind_VRC_Enabled        = false;
+      cfg.Ind_P123_Enabled       = false;
+      cfg.Ind_Ross_Enabled       = false;
+
+      // ── OTHER INDICATOR DEFAULTS (safe) ────────────────────────────
+      cfg.P_Atr                  = 14;
+      cfg.ATR_VoteMinPips        = 5.0;
+      cfg.ATR_VoteMaxPips        = 50.0;
+      cfg.Ind_VRC_Weight         = 1;
+      cfg.VRC_ATR_Period         = 14;
+      cfg.VRC_Lookback           = 100;
+      cfg.VRC_LowThreshold       = 33.0;
+      cfg.T_Adx                  = 20.0;
+      cfg.P_Mfi                  = 14;
+      cfg.T_MfiOB                = 80.0;
+      cfg.T_MfiOS                = 20.0;
+      cfg.MfiMode                = MFI_ZONE_FILTER;
+      cfg.P_Rsi                  = 14;
+      cfg.T_RsiOB                = 70.0;
+      cfg.T_RsiOS                = 30.0;
+      cfg.RsiMode                = RSI_TREND_ABOVE_50;
+      cfg.P_StoK                 = 5;
+      cfg.P_StoD                 = 3;
+      cfg.P_StoSlow              = 3;
+      cfg.T_StoOB                = 80.0;
+      cfg.T_StoOS                = 20.0;
+      cfg.StoMode                = STO_CROSS_SIGNAL;
+
+      // ── PULLBACK DETECTION GATES ──────────────────────────────────
+      cfg.RequireRecoveryMomentum   = false;
+      cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
+      cfg.Gate_Recovery.value       = 1.0;
+      cfg.RRM_Lookback              = (_Period <= PERIOD_M5) ? 10 : 12;
+      cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
+      cfg.Gate_EmaDiv.value         = 1.0;
+      cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
+      cfg.Gate_CandleDirection.value = 1.0;
+
+      // ── VOTE EVALUATION ───────────────────────────────────────────
+      cfg.Vote_EvalShift            = 1;
+
+      // ── RISK MANAGEMENT ───────────────────────────────────────────
+      cfg.CountBEasZeroRisk         = true;
+      cfg.FixedLotSize              = 0.0;
+
+      // ── EXIT STRATEGY ─────────────────────────────────────────────
+      cfg.ExitProfile               = EXIT_PROFILE_RRM;
+      cfg.SLMode                    = SL_MODE_SWING;
+      cfg.SwingLookback             = 20;
+      cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
+      cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
+      cfg.FixedTPPips               = 40.0;
+      cfg.SLPercent                 = 0.5;
+
+      // Trail: EMA(9) is the TopInvestor exit, PSAR is fallback
+      cfg.TrailMode                 = TRAIL_EMA;
+      cfg.TrailEMA_Period           = 9;
+      cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
+      cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
+
+      // TP: R:R based
+      cfg.TPMode                    = TP_MODE_RR;
+      cfg.TP_Enabled                = true;
+      cfg.RRRatio                   = 2.0;
+
+      // BE: move to breakeven at 1R profit
+      cfg.BE_Mode                   = BE_MODE_R_MULTIPLE;
+      cfg.RRM_BE_RMultiple          = 1.0;
+      cfg.RRM_BE_BufferPips         = GetTFBasedCushion(_Period);
+      cfg.BEThresholdPips           = 0.0;
+
+      // Trail trigger
+      ENUM_TIMEFRAMES tfTI          = (ENUM_TIMEFRAMES)_Period;
+      cfg.TrailTrigger              = TRIGGER_BREAKEVEN;
+      cfg.TrailDistancePips         = GetTFBasedCushion(tfTI);
+      cfg.TrailLockProfit           = true;
+      cfg.TrailProfitPercent        = 2.0;
+      cfg.TrailStepPips             = 5.0;
+
+      // Fractal defaults
+      cfg.FractalPeriod             = 5;
+      cfg.TPFractalOffset           = 1;
+
+      // ── SLOPE CALCULATION ─────────────────────────────────────────
+      cfg.SlopeLookbackBars         = 1;
+      cfg.ma_h_shift                = 0;
+      cfg.ma_v_shift                = 1;
+
+      // ── DRAWDOWN PROTECTION ───────────────────────────────────────
+      cfg.RRM_EnableDrawdownProtection = true;
+      cfg.RRM_MaxConsecutiveLosses  = 4;
+      cfg.RRM_MaxTradesPerDay       = 0;
+      cfg.RRM_MaxDailyDrawdownPct   = 2.0;
+
+      // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────
+      // With EMA 9/50/89/200 the fan is naturally wider than 5/13/34/89
+      // so thresholds are scaled up accordingly
+      cfg.EmaFanFilterEnabled       = true;
+      cfg.EmaFanMaxTotalPips        = (_Period <= PERIOD_M5)  ? 50.0
+                                    : (_Period <= PERIOD_M30) ? 80.0
+                                    : (_Period <= PERIOD_H1)  ? 120.0
+                                    : (_Period <= PERIOD_H4)  ? 200.0
+                                    :                           350.0;
+
+      // ── DPI DECELERATION FILTER ────────────────────────────────────
+      cfg.DpiDecelFilterEnabled     = Inp_TI_Use_Dpi;
+
+      // ── RE-ENTRY / COOLDOWN ───────────────────────────────────────
+      cfg.AllowReEntryAfterBE       = true;
+      cfg.MinBarsAfterClose         = 3;
+      cfg.MaxSpreadRetryBars        = 3;
+
+      // ── POLICY A: RESTORE OPERATOR-CONTROLLED GATES ───────────────
+      cfg.UseSpread                 = op_UseSpread;
+      cfg.UseTime                   = op_UseTime;
+      cfg.StartHr                   = op_StartHr;
+      cfg.EndHr                     = op_EndHr;
+      cfg.UseNews                   = op_UseNews;
+      cfg.NewsPre                   = op_NewsPre;
+      cfg.NewsPost                  = op_NewsPost;
+      cfg.RiskPercent               = op_RiskPercent;
+      cfg.MaxOpenTrades             = op_MaxOpenTrades;
+      cfg.MaxTotalRisk              = op_MaxTotalRisk;
+      cfg.MinMarginLevel            = op_MinMarginLevel;
+      cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
+
+      return;
+   }
+
    //+------------------------------------------------------------------+
    // PURPOSE:
    //   Sandbox environment for testing individual indicators, voting

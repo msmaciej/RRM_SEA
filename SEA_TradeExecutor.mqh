@@ -1074,6 +1074,67 @@ private:
       switch(m_settings.TrailMode) {
          case TRAIL_PSAR:
          case TRAIL_PSAR_FLIP_EXIT: m_excursion.trail_active = true; m_excursion.trail_type = "PSAR"; break;
+
+         case TRAIL_EMA:
+         {
+            m_excursion.trail_active = true;
+            m_excursion.trail_type = "EMA";
+
+            // TRAIL_EMA: exit when last closed bar crosses the trailing EMA against bias.
+            // TopInvestor rule: "exit when candle closes below EMA9 for longs, above EMA9 for shorts."
+            // Check on each tick but only react to shift=1 (last completed bar).
+            int ema_period = m_settings.TrailEMA_Period;
+            if(ema_period <= 0) ema_period = 9;
+
+            int h_trail_ema = iMA(m_symbol, PERIOD_CURRENT, ema_period,
+                                  0, MODE_EMA, PRICE_CLOSE);
+            if(h_trail_ema == INVALID_HANDLE) break;
+
+            double ema_val[];
+            ArraySetAsSeries(ema_val, true);
+            if(CopyBuffer(h_trail_ema, 0, 1, 1, ema_val) != 1)
+            {
+               IndicatorRelease(h_trail_ema);
+               break;
+            }
+            IndicatorRelease(h_trail_ema);
+
+            double bar_close = iClose(m_symbol, PERIOD_CURRENT, 1);
+            bool should_exit = false;
+            bool is_long = (type == POSITION_TYPE_BUY);
+
+            if(is_long && bar_close < ema_val[0])
+               should_exit = true;
+            else if(!is_long && bar_close > ema_val[0])
+               should_exit = true;
+
+            if(should_exit)
+            {
+               if(m_settings.DebugFlow)
+                  PrintFormat("[TRAIL_EMA] #%I64u: Close=%.5f %s EMA(%d)=%.5f -> EXIT",
+                              ticket, bar_close,
+                              is_long ? "<" : ">",
+                              ema_period, ema_val[0]);
+
+               MqlTradeRequest  req = {};
+               MqlTradeResult   res = {};
+               req.action    = TRADE_ACTION_DEAL;
+               req.position  = ticket;
+               req.symbol    = m_symbol;
+               req.volume    = PositionGetDouble(POSITION_VOLUME);
+               req.type      = is_long ? ORDER_TYPE_SELL : ORDER_TYPE_BUY;
+               req.price     = is_long ? SymbolInfoDouble(m_symbol, SYMBOL_BID)
+                                        : SymbolInfoDouble(m_symbol, SYMBOL_ASK);
+               req.deviation = 10;
+               req.comment   = StringFormat("TRAIL_EMA%d_EXIT", ema_period);
+               if(!OrderSend(req, res))
+               {
+                  if(m_settings.DebugFlow)
+                     PrintFormat("[TRAIL_EMA] OrderSend failed: retcode=%u", res.retcode);
+               }
+            }
+            break;
+         }
          case TRAIL_FRACTAL: m_excursion.trail_active = true; m_excursion.trail_type = "FRACTAL"; break;
          case TRAIL_FIXED_PIPS: m_excursion.trail_active = true; m_excursion.trail_type = "FIXED"; break;
          case TRAIL_BREAKEVEN: m_excursion.trail_active = true; m_excursion.trail_type = "BE"; break;

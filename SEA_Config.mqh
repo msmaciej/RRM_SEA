@@ -23,6 +23,7 @@ enum EStrategyPreset
    PRESET_MA,              // PRESET_MA: benchmark: MT5 MA EA compatibility
    PRESET_RRM,             // PRESET_RRM: phase-based layer detection system
    PRESET_TEST,            // PRESET_TEST: development/debugging preset
+   PRESET_TOPINVESTOR,     // PRESET_TOPINVESTOR: Dr Świerk TopInvestor / OXO methodology (EMA50/200 confluence)
    PRESET_FPM,             // PRESET_FPM: Five-Point Method (PSAR+MACD+BB+SMA10/20)
    PRESET_RRM_ORG          // PRESET_RRM_ORG: Russ Horn Original RRM with inline DPI momentum voter
 };
@@ -188,7 +189,8 @@ enum ETrailingMode
    TRAIL_NONE,             // TRAIL_NONE: no trailing stop
    TRAIL_PROFIT_PERCENT,   // TRAIL_PROFIT_PERCENT: trail at % behind peak profit
    TRAIL_PSAR,             // TRAIL_PSAR: dot trailing
-   TRAIL_PSAR_FLIP_EXIT    // TRAIL_PSAR_FLIP_EXIT: close position on PSAR flip
+   TRAIL_PSAR_FLIP_EXIT,   // TRAIL_PSAR_FLIP_EXIT: close position on PSAR flip
+   TRAIL_EMA               // TRAIL_EMA: exit when close crosses EMA against bias
 };
 enum ESLMode
 {
@@ -334,6 +336,7 @@ struct ST_Settings
    double CandleBody_MaxMult;          // Block if body > avg * multiplier
    int    CandleBody_CheckBars;        // Number of recent closed candles to check
    bool   CandleBody_RequireDirection; // CandleBody: Require signal bar to close in trade direction
+   double CandleBody_MinCloseRatio;   // CandleBody: Min close-to-range ratio (0.0=disabled, 0.75=TopInvestor 75% rule)
    
    // MT5 Moving Average benchmark compatibility
    bool   UseMACompatSizer;
@@ -372,6 +375,16 @@ struct ST_Settings
    int             MTF_EMA_Slow;         // MTF slow EMA period
    bool            MTF_RequirePhase;     // MTF: require trending phase
    bool            MTF_StrictAlignment;  // MTF: strict all-TF alignment
+
+   // Fibonacci Retracement voter
+   bool   Ind_Fib_Enabled;              // Fibonacci retracement depth voter
+   int    Ind_Fib_Weight;               // Fibonacci vote weight
+   double Fib_MinRetracement;           // Min pullback depth (default 0.38)
+   double Fib_MaxRetracement;           // Max pullback depth (default 0.618)
+   int    Fib_SwingLookback;            // Bars to find swing H/L (default 50)
+
+   // TRAIL_EMA
+   int    TrailEMA_Period;              // EMA period for trailing exit (default 9)
 
    // Voting
    EVoteMode VoteMode; // ALL/THRESHOLD: every enabled indicator must agree; vote_weight is informational only and does not gate trade decisions
@@ -1267,8 +1280,8 @@ input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Pre-filter — GREEN Deceleration";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_DPI_Decel_Filter           = false;    // DPI: Block entry when GREEN shrinking or disappeared
-input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = false;    // DPI: Block entries when CCI momentum decelerating (needs tracking ON)
+input bool        Inp_RRM_ORG_DPI_Decel_Filter           = true;    // DPI: Block entry when GREEN shrinking or disappeared
+input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = true;    // DPI: Block entries when CCI momentum decelerating (needs tracking ON)
 input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // DPI: CCI deceleration lookback bars (needs tracking ON)
 //
 // Inp_RRM_ORG_DPI_Decel_Filter - Blocks entry when GREEN momentum is fading or has just disappeared.
@@ -1502,6 +1515,34 @@ input int         Inp_CUSTOM_Ind_Rsi_Weight        = 1;              // CUSTOM [
 input int         Inp_CUSTOM_Ind_SmaConverge_Weight = 1;             // CUSTOM [SmaConv] Vote weight
 input int         Inp_CUSTOM_Ind_Sto_Weight        = 1;              // CUSTOM [Sto] Vote weight
 input int         Inp_CUSTOM_Ind_VRC_Weight        = 1;              // CUSTOM [VRC] Vote weight
+
+// ── CUSTOM: Fibonacci retracement voter (globally available) ──
+input bool        Inp_CUSTOM_Ind_Fib_Enabled       = false;          // CUSTOM [Fib] Enable
+input int         Inp_CUSTOM_Ind_Fib_Weight        = 1;              // CUSTOM [Fib] Vote weight
+input double      Inp_CUSTOM_Fib_MinRetracement    = 0.38;           // CUSTOM [Fib] Min pullback depth
+input double      Inp_CUSTOM_Fib_MaxRetracement    = 0.618;          // CUSTOM [Fib] Max pullback depth
+input int         Inp_CUSTOM_Fib_SwingLookback     = 50;             // CUSTOM [Fib] Swing search bars
+
+// ── CUSTOM: CandleBody close-ratio extension (globally available) ──
+input double      Inp_CUSTOM_CandleBody_MinCloseRatio = 0.0;         // CUSTOM [CB] Min close ratio (0=off, 0.75=TopInvestor)
+
+// ── CUSTOM: TRAIL_EMA period (globally available) ──
+input int         Inp_CUSTOM_TrailEMA_Period       = 9;              // CUSTOM [Trail] EMA period for TRAIL_EMA mode
+
+input group " ";
+input group "═══════════════════════════════════════════════════════";
+input group "    PRESET_TOPINVESTOR — Profile Settings";
+input group "═══════════════════════════════════════════════════════";
+// Conservative base (PSAR, ADX, CandleBody, CI, MTF) = always ON in this preset.
+// Moderate additions default ON. Full additions default OFF.
+input bool        Inp_TI_Use_Macd       = true;    // TI: MACD histogram slope (Moderate+)
+input bool        Inp_TI_Use_Cci        = true;    // TI: CCI zero-line (Moderate+)
+input bool        Inp_TI_Use_Bb         = true;    // TI: BB widening (Moderate+)
+input bool        Inp_TI_Use_Dpi        = false;   // TI: DPI momentum (Full)
+input bool        Inp_TI_Use_SmaConv    = false;   // TI: SMA convergence (Full)
+input bool        Inp_TI_Use_Fib        = false;   // TI: Fibonacci retracement (Full)
+input double      Inp_TI_CandleBody_MinCloseRatio = 0.0; // TI: Candle close ratio (0=off, 0.75=Full)
+input bool        Inp_TI_PhaseAllowEM   = false;   // TI: Allow Emerging phase (false=TM only)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 6: Pullback Gate";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1858,6 +1899,19 @@ void InitializeConfig()
    Settings.MTF_EMA_Slow         = MathMax(1, Inp_MTF_EMA_Slow);
    Settings.MTF_RequirePhase     = Inp_MTF_RequirePhase;
    Settings.MTF_StrictAlignment  = Inp_MTF_StrictAlignment;
+
+   // Fibonacci voter (globally available)
+   Settings.Ind_Fib_Enabled      = Inp_CUSTOM_Ind_Fib_Enabled;
+   Settings.Ind_Fib_Weight       = MathMax(1, Inp_CUSTOM_Ind_Fib_Weight);
+   Settings.Fib_MinRetracement   = MathMax(0.0, MathMin(1.0, Inp_CUSTOM_Fib_MinRetracement));
+   Settings.Fib_MaxRetracement   = MathMax(Settings.Fib_MinRetracement, MathMin(1.0, Inp_CUSTOM_Fib_MaxRetracement));
+   Settings.Fib_SwingLookback    = MathMax(10, Inp_CUSTOM_Fib_SwingLookback);
+
+   // CandleBody close-ratio extension
+   Settings.CandleBody_MinCloseRatio = MathMax(0.0, MathMin(1.0, Inp_CUSTOM_CandleBody_MinCloseRatio));
+
+   // TRAIL_EMA period
+   Settings.TrailEMA_Period      = MathMax(2, Inp_CUSTOM_TrailEMA_Period);
 
    // Voting
    Settings.VoteMode             = (Inp_CUSTOM_VoteMode_All ? VOTE_MODE_ALL : VOTE_MODE_THRESHOLD);
