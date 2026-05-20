@@ -1420,7 +1420,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: Pullback State Machine (P2)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_LayerPBEnabled       = true;           // RRM_ORG Enable pullback-recovery state machine
-input int         Inp_RRM_ORG_LayerPBLookback      = 10;             // RRM_ORG Baseline slope lookback (bars, 3-20)
+input int         Inp_RRM_ORG_LayerPBLookback      = 3;             // RRM_ORG Baseline slope lookback (bars, 3-20)
 input double      Inp_RRM_ORG_LayerPBPullbackRatio = 0.5;            // RRM_ORG Pullback threshold ratio (0.1-1.0, 0.5=50% weaker)
 input double      Inp_RRM_ORG_LayerPBRecoveryRatio = 0.3;            // RRM_ORG Global recovery threshold ratio (0.1-1.0, 0.3=30% strength)
 input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;            // RRM_ORG Flat threshold ratio (0.05-0.5, 0.1=10%)
