@@ -1294,7 +1294,7 @@ input group " ";
 input group "═══ RRM_ORG: DPI Layer Boost (needs tracking ON) ═══";
 // When layer momentum check fails, GREEN/CCI growth can override.
 // Requires HistTrackingEnabled = true to function.
-input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = true;     // DPI: Use histogram growth as layer momentum boost (needs tracking ON)
+input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = false;     // DPI: Use histogram growth as layer momentum boost (needs tracking ON)
 
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
