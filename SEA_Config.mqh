@@ -1280,8 +1280,8 @@ input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Pre-filter — GREEN Deceleration";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_DPI_Decel_Filter           = true;    // DPI: Block entry when GREEN shrinking or disappeared
-input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = true;    // DPI: Block entries when CCI momentum decelerating (needs tracking ON)
+input bool        Inp_RRM_ORG_DPI_Decel_Filter           = false;    // DPI: Block entry when GREEN shrinking or disappeared
+input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = false;    // DPI: Block entries when CCI momentum decelerating (needs tracking ON)
 input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // DPI: CCI deceleration lookback bars (needs tracking ON)
 //
 // Inp_RRM_ORG_DPI_Decel_Filter - Blocks entry when GREEN momentum is fading or has just disappeared.
@@ -1463,6 +1463,22 @@ input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM_ORG 
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    PRESET_TOPINVESTOR — Profile Settings";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+// Conservative base (PSAR, ADX, CandleBody, CI, MTF) = always ON in this preset.
+// Moderate additions default ON. Full additions default OFF.
+input bool        Inp_TI_Use_Macd       = true;    // TI: MACD histogram slope (Moderate+)
+input bool        Inp_TI_Use_Cci        = true;    // TI: CCI zero-line (Moderate+)
+input bool        Inp_TI_Use_Bb         = true;    // TI: BB widening (Moderate+)
+input bool        Inp_TI_Use_Dpi        = false;   // TI: DPI momentum (Full)
+input bool        Inp_TI_Use_SmaConv    = false;   // TI: SMA convergence (Full)
+input bool        Inp_TI_Use_Fib        = false;   // TI: Fibonacci retracement (Full)
+input double      Inp_TI_CandleBody_MinCloseRatio = 0.0; // TI: Candle close ratio (0=off, 0.75=Full)
+input bool        Inp_TI_PhaseAllowEM   = false;   // TI: Allow Emerging phase (false=TM only)
+
+
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️  PRESETS OVERRIDES! (Step1-5)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1529,20 +1545,6 @@ input double      Inp_CUSTOM_CandleBody_MinCloseRatio = 0.0;         // CUSTOM [
 // ── CUSTOM: TRAIL_EMA period (globally available) ──
 input int         Inp_CUSTOM_TrailEMA_Period       = 9;              // CUSTOM [Trail] EMA period for TRAIL_EMA mode
 
-input group " ";
-input group "═══════════════════════════════════════════════════════";
-input group "    PRESET_TOPINVESTOR — Profile Settings";
-input group "═══════════════════════════════════════════════════════";
-// Conservative base (PSAR, ADX, CandleBody, CI, MTF) = always ON in this preset.
-// Moderate additions default ON. Full additions default OFF.
-input bool        Inp_TI_Use_Macd       = true;    // TI: MACD histogram slope (Moderate+)
-input bool        Inp_TI_Use_Cci        = true;    // TI: CCI zero-line (Moderate+)
-input bool        Inp_TI_Use_Bb         = true;    // TI: BB widening (Moderate+)
-input bool        Inp_TI_Use_Dpi        = false;   // TI: DPI momentum (Full)
-input bool        Inp_TI_Use_SmaConv    = false;   // TI: SMA convergence (Full)
-input bool        Inp_TI_Use_Fib        = false;   // TI: Fibonacci retracement (Full)
-input double      Inp_TI_CandleBody_MinCloseRatio = 0.0; // TI: Candle close ratio (0=off, 0.75=Full)
-input bool        Inp_TI_PhaseAllowEM   = false;   // TI: Allow Emerging phase (false=TM only)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 6: Pullback Gate";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -2366,6 +2368,7 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
    if(cfg.Ind_VRC_Enabled)        count++;
    if(cfg.Ind_SmaConverge_Enabled) count++;
    if(cfg.Ind_Dpi_Enabled)        count++;
+   if(cfg.Ind_Fib_Enabled)        count++;
    if(cfg.Ind_MTF_Enabled)        count++;
    return count;
 }
@@ -2376,17 +2379,17 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
 string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 {
    string names[]  = {"ADX", "ATR", "BB", "CandleBody", "Choppiness Index", "CCI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC", "DPI", "MTF"};
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC", "DPI", "MTF", "Fib"};
    string shorts[] = {"ADX", "ATR", "BB", "CBody", "CI", "CCI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConv", "Stoch", "VRC", "DPI", "MTF"};
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConv", "Stoch", "VRC", "DPI", "MTF", "Fib"};
    bool enabled[]  = {cfg.Ind_Adx_Enabled, cfg.Ind_Atr_Enabled, cfg.Ind_Bb_Enabled,
                       cfg.Ind_CandleBody_Enabled, cfg.Ind_CI_Enabled, cfg.Ind_Cci_Enabled,
                       cfg.Ind_Macd_Enabled, cfg.Ind_Mfi_Enabled,
                       cfg.Ind_P123_Enabled, cfg.Ind_Psar_Enabled, cfg.Ind_Ross_Enabled,
                       cfg.Ind_Rsi_Enabled, cfg.Ind_SmaConverge_Enabled,
-                      cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled, cfg.Ind_Dpi_Enabled, cfg.Ind_MTF_Enabled};
+                      cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled, cfg.Ind_Dpi_Enabled, cfg.Ind_MTF_Enabled, cfg.Ind_Fib_Enabled};
    string list = "";
-   for(int i = 0; i < 17; i++)
+   for(int i = 0; i < 18; i++)
    {
       if(!enabled[i]) continue;
       if(list != "") list += compact ? ", " : "\n  + ";
