@@ -1262,40 +1262,41 @@ input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // DPI: Ski
 input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;    // DPI: Also require GREEN overlay for vote pass
 // Yellow ribbon = BUY vote, Red ribbon = SELL vote.
 // CCI can reset ribbon color: hist>0 but CCI<0 → Red override (weakening).
-
+//
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Pre-filter — GREEN Deceleration";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_DPI_Decel_Filter           = false;     // DPI: Block entry when GREEN shrinking or disappeared
-// Blocks entry when GREEN momentum is fading or has just disappeared.
+input bool        Inp_RRM_ORG_DPI_Decel_Filter           = false;    // DPI: Block entry when GREEN shrinking or disappeared
+input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = false;    // DPI: Block entries when CCI momentum decelerating (needs tracking ON)
+input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // DPI: CCI deceleration lookback bars (needs tracking ON)
+//
+// Inp_RRM_ORG_DPI_Decel_Filter - Blocks entry when GREEN momentum is fading or has just disappeared.
 // GREEN = Blue & hist both same side of zero (momentum confirmation).
 // GREEN shrinking = trend exhaustion / OB-OS conditions.
 // No GREEN on either bar = pass (ribbon-only setup, no momentum to decelerate).
-
+//
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI System B — CCI Histogram Tracking";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_DPI_HistTrackingEnabled    = false;    // DPI: Enable CCI histogram tracking (master switch)
-input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // DPI: CCI deceleration lookback bars (needs tracking ON)
+input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = false;     // DPI: Use histogram growth as layer momentum boost (needs tracking ON)
 input double      Inp_RRM_ORG_DPI_HistMomentumThreshold  = 0.0001;   // DPI: Ignore CCI-delta below this (needs tracking ON)
-// Separate deceleration system using CCI values (not ribbon/GREEN).
-// Master switch: HistTrackingEnabled. When OFF, all settings below are inactive.
-
-input group " ";
-input group "═══ RRM_ORG: DPI System B — Entry/Exit Gates ═══";
-// All require HistTrackingEnabled = true above.
-input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = false;    // DPI: Block entries when CCI momentum decelerating (needs tracking ON)
 input bool        Inp_RRM_ORG_DPI_ExitOnHistDisappear    = false;    // DPI: Close trades when CCI trend flips (needs tracking ON)
 input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // DPI: Exit when |CCI| below threshold, 0=disable (needs tracking ON)
-
-input group " ";
-input group "═══ RRM_ORG: DPI Layer Boost (needs tracking ON) ═══";
+//
+// Inp_RRM_ORG_DPI_HistTrackingEnabled - 
+// Separate deceleration system using CCI values (not ribbon/GREEN).
+// Master switch: HistTrackingEnabled. When OFF, all settings below are inactive.
+//
+// Inp_RRM_ORG_DPI_Histogram_Growth_Boost - LAYER BOOST (needs tracking ON)
 // When layer momentum check fails, GREEN/CCI growth can override.
 // Requires HistTrackingEnabled = true to function.
-input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = false;     // DPI: Use histogram growth as layer momentum boost (needs tracking ON)
-
+//
+// Inp_RRM_ORG_DPI_ExitOnHistDisappear - ENTRY EXIT GATES
+// All require HistTrackingEnabled = true above.
+//
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Multi-Bar Momentum";
