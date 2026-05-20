@@ -1879,7 +1879,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_MinCloseRatio   = Inp_TI_CandleBody_MinCloseRatio;
 
       // Choppiness Index — ranging market blocker
-      cfg.Ind_CI_Enabled         = true;
+      // NOTE: Requires ChoppinessIndex.ex5 custom indicator installed in MQL5/Indicators/
+      // Set to false by default; enable only if the indicator is available.
+      cfg.Ind_CI_Enabled         = false;
       cfg.Ind_CI_Weight          = 1;
       cfg.CI_Period              = 14;
       cfg.CI_RangingThreshold    = 61.8;
