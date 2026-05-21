@@ -812,6 +812,21 @@ private:
             PrintFormat("⚠️ [RRM SL FALLBACK] PSAR Anchor failed or buffer empty. Using Fixed Pips.");
             break;
          }
+         case SL_MODE_FRACTAL: {
+            double frac_level = GetFractalLevel(isBuy ? 1 : -1);
+            if(frac_level > 0.0) {
+               bool valid = isBuy ? (frac_level < price) : (frac_level > price);
+               if(!valid) {
+                  PrintFormat("⚠️ [RRM SL] Fractal anchor on wrong side. Using Fixed Pips.");
+                  break;
+               }
+               double cushion_price = m_settings.SL_SwingPipsCushion * pipSize;
+               sl = isBuy ? (frac_level - cushion_price) : (frac_level + cushion_price);
+               break;
+            }
+            PrintFormat("⚠️ [RRM SL FALLBACK] Fractal Anchor failed. Using Fixed Pips.");
+            break;
+         }
          default:
             break;
       }
@@ -2256,7 +2271,11 @@ public:
       }
       else if(m_settings.TrailMode == TRAIL_FRACTAL) {
          double val = (type == POSITION_TYPE_BUY) ? GetFractalLevel(1) : GetFractalLevel(-1);
-         if(val > 0) new_sl = val;
+         if(val > 0) {
+            // FIX: apply cushion to fractal trail (same as Swing SL cushion — instrument-scaled)
+            double cushion = m_settings.SL_SwingPipsCushion * pipSize;
+            new_sl = (type == POSITION_TYPE_BUY) ? (val - cushion) : (val + cushion);
+         }
       }
       else if(m_settings.TrailMode == TRAIL_FIXED_PIPS) {
          double trail_dist = m_settings.TrailDistancePips * pipSize;
