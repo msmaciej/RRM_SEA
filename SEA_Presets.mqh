@@ -95,7 +95,8 @@ double GetRecommendedInitialSlCushionPips()
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
    double base = 0.0;
 
-   if      (tf <= PERIOD_M5)  base = isJPY ?  3.0 :  2.0;
+   if      (tf <= PERIOD_M1)  base = isJPY ?  1.5 :  1.0;
+   else if (tf <= PERIOD_M5)  base = isJPY ?  3.0 :  2.0;
    else if (tf <= PERIOD_M30) base = isJPY ?  5.0 :  3.0;
    else if (tf <= PERIOD_H1)  base = isJPY ?  8.0 :  5.0;
    else if (tf <= PERIOD_H4)  base = isJPY ? 15.0 : 10.0;
@@ -165,7 +166,8 @@ double GetRecommendedTrailPsarCushionPips()
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
    double base = 0.0;
 
-   if      (tf <= PERIOD_M5)  base = isJPY ?  2.0 :  1.0;
+   if      (tf <= PERIOD_M1)  base = isJPY ?  1.0 :  0.5;
+   else if (tf <= PERIOD_M5)  base = isJPY ?  2.0 :  1.0;
    else if (tf <= PERIOD_M30) base = isJPY ?  3.0 :  2.0;
    else if (tf <= PERIOD_H1)  base = isJPY ?  7.0 :  5.0;
    else if (tf <= PERIOD_H4)  base = isJPY ? 10.0 :  5.0;
@@ -184,13 +186,72 @@ double GetTFBasedCushion(ENUM_TIMEFRAMES tf)
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
    double base = 0.0;
 
-   if      (tf <= PERIOD_M5)  base = isJPY ?  5.0 :  3.0;
+   if      (tf <= PERIOD_M1)  base = isJPY ?  2.0 :  1.5;
+   else if (tf <= PERIOD_M5)  base = isJPY ?  5.0 :  3.0;
    else if (tf <= PERIOD_M30) base = isJPY ?  8.0 :  5.0;
    else if (tf <= PERIOD_H1)  base = isJPY ? 12.0 :  8.0;
    else if (tf <= PERIOD_H4)  base = isJPY ? 15.0 : 10.0;
    else                       base = isJPY ? 25.0 : 15.0;
 
    return base * GetInstrumentFanMultiplier();
+}
+
+//+------------------------------------------------------------------+
+//| GetAutoHTF_TF1: one step higher timeframe                        |
+//| GetAutoHTF_TF2: two steps higher timeframe                       |
+//|                                                                    |
+//| Traded TFs: M1, M5, M15, M30, H1, H2, H4                        |
+//| TF1 = next standard TF above chart period                        |
+//| TF2 = two standard TFs above chart period                        |
+//|                                                                    |
+//| User can override by passing a valid TF > chart period.           |
+//| If override is <= chart period, auto-compute kicks in.            |
+//+------------------------------------------------------------------+
+ENUM_TIMEFRAMES GetAutoHTF_TF1(ENUM_TIMEFRAMES chart_tf = PERIOD_CURRENT)
+{
+   if(chart_tf == PERIOD_CURRENT) chart_tf = _Period;
+   switch(chart_tf)
+   {
+      case PERIOD_M1:  return PERIOD_M5;
+      case PERIOD_M5:  return PERIOD_M15;
+      case PERIOD_M15: return PERIOD_H1;
+      case PERIOD_M30: return PERIOD_H1;
+      case PERIOD_H1:  return PERIOD_H4;
+      case PERIOD_H2:  return PERIOD_H4;
+      case PERIOD_H4:  return PERIOD_D1;
+      case PERIOD_D1:  return PERIOD_W1;
+      default:         return PERIOD_D1;
+   }
+}
+
+ENUM_TIMEFRAMES GetAutoHTF_TF2(ENUM_TIMEFRAMES chart_tf = PERIOD_CURRENT)
+{
+   if(chart_tf == PERIOD_CURRENT) chart_tf = _Period;
+   switch(chart_tf)
+   {
+      case PERIOD_M1:  return PERIOD_M15;
+      case PERIOD_M5:  return PERIOD_H1;
+      case PERIOD_M15: return PERIOD_H4;
+      case PERIOD_M30: return PERIOD_H4;
+      case PERIOD_H1:  return PERIOD_D1;
+      case PERIOD_H2:  return PERIOD_D1;
+      case PERIOD_H4:  return PERIOD_W1;
+      case PERIOD_D1:  return PERIOD_MN1;
+      default:         return PERIOD_W1;
+   }
+}
+
+// Safe MTF_TF1 resolver: use user input if valid (> chart TF), otherwise auto-compute
+ENUM_TIMEFRAMES GetSafeMTF_TF1(ENUM_TIMEFRAMES user_input)
+{
+   return (user_input > _Period) ? user_input : GetAutoHTF_TF1();
+}
+
+// Safe MTF_TF2 resolver: PERIOD_CURRENT = single-TF mode; otherwise validate
+ENUM_TIMEFRAMES GetSafeMTF_TF2(ENUM_TIMEFRAMES user_input)
+{
+   if(user_input == PERIOD_CURRENT) return PERIOD_CURRENT;  // single-TF mode
+   return (user_input > _Period) ? user_input : GetAutoHTF_TF2();
 }
 
 //+------------------------------------------------------------------+
@@ -1198,23 +1259,18 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Dpi_Weight         = 1;
       cfg.Ind_MTF_Enabled        = Inp_Ind_MTF_Enabled;
       cfg.Ind_MTF_Weight         = Inp_Ind_MTF_Weight;
-      // FIX: Auto-compute MTF_TF1 if input is same or lower than chart TF
-      cfg.MTF_TF1                = (Inp_MTF_TF1 > _Period) ? Inp_MTF_TF1
-                                   : (_Period <= PERIOD_M5)  ? PERIOD_H1
-                                   : (_Period <= PERIOD_M30) ? PERIOD_H4
-                                   : (_Period <= PERIOD_H1)  ? PERIOD_D1
-                                   :                           PERIOD_W1;
-      cfg.MTF_TF2                = Inp_MTF_TF2;
+      cfg.MTF_TF1                = GetSafeMTF_TF1(Inp_MTF_TF1);
+      cfg.MTF_TF2                = GetSafeMTF_TF2(Inp_MTF_TF2);
       cfg.MTF_EMA_Fast           = Inp_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow           = Inp_MTF_EMA_Slow;
-      cfg.MTF_RequirePhase       = Inp_MTF_RequirePhase;
-      cfg.MTF_StrictAlignment    = Inp_MTF_StrictAlignment;
+      cfg.MTF_RequirePhase       = false;   // Position-only; slope kills signals due to HTF lag
+      cfg.MTF_StrictAlignment    = false;   // 1 of 2 HTFs enough; strict blocks SHORT during corrections
 
       // Legacy migration from deprecated HTF inputs
       if(Inp_Filter_UseHTF)
       {
          cfg.Ind_MTF_Enabled      = true;
-         cfg.MTF_TF1              = Inp_Filter_HtfPeriod;
+         cfg.MTF_TF1              = GetSafeMTF_TF1(Inp_Filter_HtfPeriod);
          cfg.MTF_TF2              = PERIOD_CURRENT;
          cfg.MTF_EMA_Fast         = Inp_Filter_HtfEmaPeriod;
          cfg.MTF_EMA_Slow         = Inp_Filter_HtfEmaPeriod;
@@ -1749,29 +1805,19 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── MTF CONFIRMATION (replaces deprecated HTF filter) ───────────────
       cfg.Ind_MTF_Enabled           = Inp_Ind_MTF_Enabled;
       cfg.Ind_MTF_Weight            = Inp_Ind_MTF_Weight;
-      // FIX: Auto-compute MTF_TF1 if input is same or lower than chart TF
-      // (M5 on M15 chart crashes in "Open Prices" mode and is logically wrong)
-      cfg.MTF_TF1                   = (Inp_MTF_TF1 > _Period) ? Inp_MTF_TF1
-                                      : (_Period <= PERIOD_M5)  ? PERIOD_H1
-                                      : (_Period <= PERIOD_M30) ? PERIOD_H4
-                                      : (_Period <= PERIOD_H1)  ? PERIOD_D1
-                                      :                           PERIOD_W1;
-      cfg.MTF_TF2                   = Inp_MTF_TF2;
+      cfg.MTF_TF1                   = GetSafeMTF_TF1(Inp_MTF_TF1);
+      cfg.MTF_TF2                   = GetSafeMTF_TF2(Inp_MTF_TF2);
       cfg.MTF_EMA_Fast              = Inp_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow              = Inp_MTF_EMA_Slow;
-      cfg.MTF_RequirePhase          = Inp_MTF_RequirePhase;
-      cfg.MTF_StrictAlignment       = Inp_MTF_StrictAlignment;
+      cfg.MTF_RequirePhase          = false;   // Position-only check; slope requirement kills too many signals due to HTF EMA lag
+      cfg.MTF_StrictAlignment       = false;   // At least 1 of 2 HTFs must agree (strict = both must agree → blocks SHORT during corrections)
 
       // Legacy migration path for previous HTF controls
       bool legacy_htf_enabled = (Inp_RRM_ORG_HtfFilter || Inp_Filter_UseHTF);
       if(legacy_htf_enabled)
       {
          cfg.Ind_MTF_Enabled        = true;
-         cfg.MTF_TF1                = (Inp_Filter_HtfPeriod != PERIOD_CURRENT) ? Inp_Filter_HtfPeriod
-                                      : ((_Period <= PERIOD_M5)  ? PERIOD_M30
-                                      :  (_Period <= PERIOD_M30) ? PERIOD_H1
-                                      :  (_Period <= PERIOD_H1)  ? PERIOD_H4
-                                      :                            PERIOD_D1);
+         cfg.MTF_TF1                = GetSafeMTF_TF1((Inp_Filter_HtfPeriod != PERIOD_CURRENT) ? Inp_Filter_HtfPeriod : PERIOD_CURRENT);
          cfg.MTF_TF2                = PERIOD_CURRENT;  // legacy single-TF behavior
          cfg.MTF_EMA_Fast           = (Inp_RRM_ORG_HtfEmaPeriod > 0)
                                       ? Inp_RRM_ORG_HtfEmaPeriod
@@ -1916,14 +1962,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── HIGHER TF CONFIRMATION: EMA 50/200 (institutional) ────────
       // TopInvestor: "the secret to success is 2 timeframes higher"
-      // Uses EMA 50/200 as the institutional standard anchor
+      // One HTF voter: auto-computed 2 steps above chart TF
       cfg.Ind_MTF_Enabled        = true;
       cfg.Ind_MTF_Weight         = 1;
-      cfg.MTF_TF1                = (_Period <= PERIOD_M5)  ? PERIOD_H1
-                                 : (_Period <= PERIOD_M30) ? PERIOD_H4
-                                 : (_Period <= PERIOD_H1)  ? PERIOD_D1
-                                 :                           PERIOD_W1;
-      cfg.MTF_TF2                = PERIOD_CURRENT;
+      cfg.MTF_TF1                = GetAutoHTF_TF2();   // 2 steps higher (M15→H4, H1→D1)
+      cfg.MTF_TF2                = PERIOD_CURRENT;     // single-TF mode
       cfg.MTF_EMA_Fast           = 50;     // Institutional standard
       cfg.MTF_EMA_Slow           = 200;    // Institutional standard
       cfg.MTF_RequirePhase       = true;

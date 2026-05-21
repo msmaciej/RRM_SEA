@@ -929,7 +929,7 @@ input group "║   🔍 DEBUG: DIAGNOSTICS";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_Debug_Flow                   = true;           // Debug: Print OnInit/OnTick/OnDeinit flow ... have to be true with DEBUG_SIGNALS_ONLY
 input bool        Inp_Debug_PrintEffectiveConfig   = true;           // Debug: Print effective config on init
-input EDebugLevel Inp_Debug_Level                  = DEBUG_SILENT;   // Debug: Level
+input EDebugLevel Inp_Debug_Level                  = DEBUG_INDICATORS;   // Debug: Level
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔍 DEBUG: DIAGNOSTICS: STATISTICS";
 input group "╚════════════════════════════════════════════════════════╝";

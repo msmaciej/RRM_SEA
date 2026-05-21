@@ -28,7 +28,7 @@
 // - RRM Gates: Optional quality filters (pullback, divergence)
 //
 // RETURN VALUES:
-// EvaluateTS() returns: 1 (LONG), -1 (SHORT), 0 (NO TRADE)
+// EvaluateTS() returns: 1 (signal confirmed), 0 (no trade). Direction in LastBias().
 //
 // See README.md for complete documentation
 //+------------------------------------------------------------------+
@@ -92,6 +92,7 @@ struct SRejectionStats {
 
    // Bias & Layer (passed + rejected)
    int passed_bias,         rejected_bias;
+   int passed_bias_long,    passed_bias_short;   // Direction breakdown for diagnostics
    int passed_phase,        rejected_phase;
    int passed_layer_none,   rejected_layer_none;
    int passed_layer_blocked,rejected_layer_blocked;
@@ -125,6 +126,7 @@ struct SRejectionStats {
    int passed_te_spread_median, rejected_te_spread_median;
 
    int signals_confirmed;
+   int signals_confirmed_long, signals_confirmed_short;
 };
 
 class CSignalEngine {
@@ -508,14 +510,19 @@ private:
 
       if(m_settings.MTF_RequirePhase)
       {
-         double pip = GlobalPipSize(m_symbol);
-         if(pip <= 0.0) return 0;
-
-         double fast_slope = (fast[0] - fast[1]) / pip;
-         double slow_slope = (slow[0] - slow[1]) / pip;
-
-         if(MathAbs(fast_slope) < 0.3 || MathAbs(slow_slope) < 0.2)
-            return 0;
+         // Require both EMAs to slope in the same direction as their position.
+         // This confirms the HTF trend is active, not just a leftover crossover.
+         // No fixed pip threshold — just check direction of movement.
+         bool fast_rising = (fast[0] > fast[1]);
+         bool slow_rising = (slow[0] > slow[1]);
+         bool fast_above  = (fast[0] > slow[0]);
+         
+         // Bullish phase: fast above slow AND both rising (or at least not contradicting)
+         // Bearish phase: fast below slow AND both falling
+         if(fast_above && !fast_rising && !slow_rising)
+            return 0;  // Position says bull but both EMAs falling → unclear
+         if(!fast_above && fast_rising && slow_rising)
+            return 0;  // Position says bear but both EMAs rising → unclear
       }
 
       if(fast[0] > slow[0]) return +1;
@@ -574,7 +581,7 @@ private:
          if(mtf_tf1 == 0)
          {
             reason = "MTF_TF1_UNCLEAR";
-            diag = StringFormat("[MTF] %s:- (choppy)", tf1_label);
+            diag = StringFormat("[MTF] %s:- (unclear)", tf1_label);
             return 0;
          }
 
@@ -1246,7 +1253,12 @@ private:
       double ratio = CalculateSlopeRatio(fast_ema_handle, v_shift, lookback, baseline_slope);
       baseline = baseline_slope;
       bool baseline_bullish = (baseline_slope > 0.0);
-      bool current_bullish  = (ratio > 0.0);
+      // FIX: current direction must come from the actual slope direction (current_change),
+      // not from ratio sign. ratio = current_change / baseline_slope is a MAGNITUDE measure.
+      // When both are negative (decline): neg/neg = positive ratio, which is NOT bullish.
+      double ema_now  = GetMAVal(fast_ema_handle, v_shift);
+      double ema_prev = GetMAVal(fast_ema_handle, v_shift + 1);
+      bool current_bullish  = (ema_now > ema_prev);
 
       // Keep the thresholds separate because users can tune them independently.
       // If they overlap, either threshold can trigger the pullback state.
@@ -3313,7 +3325,9 @@ public:
       Print("================================================================");
       Print("");
       Print("SUMMARY:");
-      PrintFormat("  Signals Confirmed : %d (%.2f%%)", m_stats.signals_confirmed, m_stats.signals_confirmed * 100.0 / m_stats.total_bars);
+      PrintFormat("  Signals Confirmed : %d (%.2f%%)  [LONG=%d  SHORT=%d]",
+                  m_stats.signals_confirmed, m_stats.signals_confirmed * 100.0 / m_stats.total_bars,
+                  m_stats.signals_confirmed_long, m_stats.signals_confirmed_short);
       PrintFormat("  Total Rejections  : %d (%.2f%%)", m_stats.total_bars - m_stats.signals_confirmed, (m_stats.total_bars - m_stats.signals_confirmed) * 100.0 / m_stats.total_bars);
       Print("");
       Print("================================================================");
@@ -3398,6 +3412,8 @@ public:
       PrintGateStat("Layer-Phase Rules", m_settings.EnableLayerDetection, m_stats.passed_layer_blocked, m_stats.rejected_layer_blocked, m_settings.EnableLayerDetection ? "L3 blocked in EMERGING" : "(disabled)");
       Print("----------------------------------------------------------------");
       PrintFormat("No-bias bars: %d", m_stats.rejected_bias);
+      PrintFormat("Bias direction: LONG=%d  SHORT=%d  (of %d passed)",
+                  m_stats.passed_bias_long, m_stats.passed_bias_short, m_stats.passed_bias);
       Print("");
       Print("================================================================");
       Print("3. DIRECTIONAL INDICATORS (Must agree with detected bias)");
@@ -3420,6 +3436,8 @@ public:
       PrintIndicatorStat("SmaConverge",  m_settings.Ind_SmaConverge_Enabled, m_stats.passed_sma_converge, m_stats.rejected_sma_converge);
       PrintIndicatorStat("ATR",          m_settings.Ind_Atr_Enabled, m_stats.passed_atr, m_stats.rejected_atr);
       PrintIndicatorStat("DPI",          m_settings.Ind_Dpi_Enabled, m_stats.passed_dpi,          m_stats.rejected_dpi);
+      PrintIndicatorStat("Fib",          m_settings.Ind_Fib_Enabled, m_stats.passed_fib,          m_stats.rejected_fib);
+      PrintIndicatorStat("MTF",          m_settings.Ind_MTF_Enabled, m_stats.passed_mtf,          m_stats.rejected_mtf);
       Print("----------------------------------------------------------------");
       PrintFormat("Indicators: %d enabled (ALL must pass)", GetEnabledIndicatorCount(m_settings));
       Print("");
@@ -4855,6 +4873,8 @@ public:
       }
       else {
          m_stats.passed_bias++;
+         if(bias > 0) m_stats.passed_bias_long++;
+         else         m_stats.passed_bias_short++;
       }
 
       return bias;
@@ -5218,12 +5238,28 @@ public:
          m_diag_last_reason = "OK";
          m_signals_generated++;
          m_stats.signals_confirmed++;
+         if(bias > 0) m_stats.signals_confirmed_long++;
+         else         m_stats.signals_confirmed_short++;
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=%d (ALL votes pass, weight=%.2f)", bias, vote_weight));
          return bias;
       }
       else {
          m_diag_last_reason = StringFormat("NOT_ALL_PASS (%d/%d)", s_passed, s_enabled);
          m_reject_votes++;
+         // SHORT rejection trace (temporary diagnostic)
+         if(bias < 0) {
+            string fails = "";
+            if(m_settings.Ind_Psar_Enabled && !(m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift))) fails += "PSAR ";
+            if(m_settings.Ind_Dpi_Enabled && !Check_DPI(bias, v_shift)) fails += "DPI ";
+            if(m_settings.Ind_CandleBody_Enabled && !Check_CandleBody(bias, v_shift)) fails += "CBODY ";
+            if(m_settings.Ind_MTF_Enabled && !Check_MTF(bias)) fails += "MTF ";
+            if(m_settings.Ind_Adx_Enabled && !Check_ADX(v_shift)) fails += "ADX ";
+            if(m_settings.Ind_Macd_Enabled && !Check_MACD(bias, v_shift)) fails += "MACD ";
+            if(m_settings.Ind_Cci_Enabled && !Check_CCI(bias, v_shift)) fails += "CCI ";
+            datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+            PrintFormat("[SHORT_REJECT] %s | %d/%d pass | FAILED: %s",
+                        TimeToString(bar_time, TIME_DATE|TIME_MINUTES), s_passed, s_enabled, fails);
+         }
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
          return 0;
       }
@@ -5365,6 +5401,8 @@ public:
          m_eval_any_failure = true;
        } else {
           m_stats.passed_bias++;
+          if(bias > 0) m_stats.passed_bias_long++;
+          else         m_stats.passed_bias_short++;
        }
 
       m_diag_last_bias = bias;
@@ -6063,7 +6101,8 @@ public:
       }
       else {
          // All factors passed → signal confirmed
-         final_signal = B;
+         // TS = 1 (confirmed) or 0 (rejected). Direction is in m_diag_last_bias (+1/-1).
+         final_signal = 1;
          // Note: m_diag_last_bias was already set by EvaluateB; update for consistency
          m_diag_last_bias = B;
          m_ts_status_string = StringFormat("B[%s] | P[%s] | L[L%d] | I[OK]",
@@ -6304,7 +6343,7 @@ public:
       m_ts_status_str = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
 
       // 5. Populate Final UI Telemetry Snapshot
-      m_telemetry.bias = final_signal;
+      m_telemetry.bias = m_diag_last_bias;  // Direction (+1/-1), not TS result (1/0)
       m_telemetry.phase = (int)m_diag_last_phase;
       m_telemetry.layer = (int)m_diag_layer_w | (m_diag_layer_m << 1) | (m_diag_layer_s << 2);
       m_telemetry.votes_for = m_diag_last_votes;

@@ -448,23 +448,61 @@ private:
 
    double GetSwingLevel(int direction) {
       int lb = (m_settings.SwingLookback > 0) ? m_settings.SwingLookback : 20;
+      int swing_strength = 2;  // A swing is a bar with N lower lows (or higher highs) on each side
       ResetLastError();
       
-      if(direction > 0) { 
-         int idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, lb, 1);
-         if(idx < 0) {
-            PrintFormat("⚠️ [DEBUG SL] iLowest failed! Error: %d", GetLastError());
-            return 0.0;
+      // Scan from most recent to oldest, return the FIRST (nearest) valid swing
+      for(int i = swing_strength + 1; i < lb; i++)
+      {
+         if(direction > 0)
+         {
+            // BUY: find swing LOW (bar with lower lows on both sides)
+            double low_i = iLow(m_symbol, PERIOD_CURRENT, i);
+            if(low_i <= 0.0) continue;
+            
+            bool is_swing = true;
+            for(int j = 1; j <= swing_strength; j++)
+            {
+               if(iLow(m_symbol, PERIOD_CURRENT, i - j) <= low_i ||
+                  iLow(m_symbol, PERIOD_CURRENT, i + j) <= low_i)
+               {
+                  is_swing = false;
+                  break;
+               }
+            }
+            if(is_swing) return low_i;
          }
-         return iLow(m_symbol, PERIOD_CURRENT, idx);
-      } else { 
-         int idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, lb, 1);
-         if(idx < 0) {
-            PrintFormat("⚠️ [DEBUG SL] iHighest failed! Error: %d", GetLastError());
-            return 0.0;
+         else
+         {
+            // SELL: find swing HIGH (bar with higher highs on both sides)
+            double high_i = iHigh(m_symbol, PERIOD_CURRENT, i);
+            if(high_i <= 0.0) continue;
+            
+            bool is_swing = true;
+            for(int j = 1; j <= swing_strength; j++)
+            {
+               if(iHigh(m_symbol, PERIOD_CURRENT, i - j) >= high_i ||
+                  iHigh(m_symbol, PERIOD_CURRENT, i + j) >= high_i)
+               {
+                  is_swing = false;
+                  break;
+               }
+            }
+            if(is_swing) return high_i;
          }
-         return iHigh(m_symbol, PERIOD_CURRENT, idx);
       }
+      
+      // Fallback: no swing found within lookback — use iLowest/iHighest as last resort
+      if(direction > 0) {
+         int idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, lb, 1);
+         if(idx >= 0) return iLow(m_symbol, PERIOD_CURRENT, idx);
+      } else {
+         int idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, lb, 1);
+         if(idx >= 0) return iHigh(m_symbol, PERIOD_CURRENT, idx);
+      }
+      
+      PrintFormat("⚠️ [DEBUG SL] No swing found within %d bars", lb);
+      return 0.0;
    }
 
    double GetFractalLevel(int direction) {

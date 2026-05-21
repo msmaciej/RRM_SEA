@@ -823,13 +823,13 @@ void OrchestrateTick()
       if(ts != 0)
       {
          g_ts_time   = iTime(_Symbol, PERIOD_CURRENT, 1);
-         g_ts_dir    = ts;
+         g_ts_dir    = snap_bias;   // Direction from bias (+1 LONG, -1 SHORT), NOT from ts (which is 1/0)
          g_ts_bias   = snap_bias;
          g_ts_votes  = snap_votes;
          g_ts_reason = snap_reason;
 
          if(Settings.DrawEntryLines)
-            SEA_DrawEntrySignalLine(g_ts_time, ts, snap_reason);
+            SEA_DrawEntrySignalLine(g_ts_time, snap_bias, snap_reason);
       }
       else
       {
