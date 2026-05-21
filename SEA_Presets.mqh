@@ -1888,7 +1888,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── LAYER: pullback-recovery detection ─────────────────────────
       cfg.LayerPullbackEnabled        = true;
-      cfg.LayerBaselineLookback       = 10;
+      cfg.LayerBaselineLookback       = 34;
       cfg.LayerPullbackRatio          = 0.5;
       cfg.LayerRecoveryRatio          = 0.3;
       cfg.LayerFlatRatio              = 0.15;
