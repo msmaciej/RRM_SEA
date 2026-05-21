@@ -45,6 +45,7 @@ private:
    datetime    m_last_tm_bar;      // last bar on which EvaluateTM ran (gate)
    double      m_initial_sl_price; // SL price captured at trade entry (never changes)
    datetime    m_rrm_freeze_time;
+   datetime    m_trail_ema_last_bar;   // TRAIL_EMA: last bar time checked (shift=1 evaluation only)
    datetime    m_last_marker_update;
    datetime    m_last_te_time;
    string      m_last_te_result;
@@ -1054,6 +1055,7 @@ private:
          m_excursion.entry_price = PositionGetDouble(POSITION_PRICE_OPEN);
          m_excursion.mae_pips = 0.0; m_excursion.mfe_pips = 0.0; m_excursion.current_pips = 0.0;
          m_excursion.be_reached = false; m_excursion.trail_active = false; m_excursion.trail_type = "OFF";
+         m_trail_ema_last_bar = 0;
       }
 
       ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
@@ -1080,9 +1082,21 @@ private:
             m_excursion.trail_active = true;
             m_excursion.trail_type = "EMA";
 
-            // TRAIL_EMA: exit when last closed bar crosses the trailing EMA against bias.
-            // TopInvestor rule: "exit when candle closes below EMA9 for longs, above EMA9 for shorts."
-            // Check on each tick but only react to shift=1 (last completed bar).
+            // Guard: if TrailStartsAfterBE is set, don't trail until BE has been reached
+            if(m_settings.RRM_TrailStartsAfterBE && !m_excursion.be_reached)
+               break;
+
+            // Guard: only evaluate once per new bar (shift=1, consistent with TS logic)
+            datetime bar1_time = iTime(m_symbol, PERIOD_CURRENT, 1);
+            if(bar1_time == m_trail_ema_last_bar)
+               break;
+            m_trail_ema_last_bar = bar1_time;
+
+            // TRAIL_EMA: move SL to track EMA on each bar close.
+            // TopInvestor rule: trail SL at EMA(9) level + cushion.
+            // SL never moves backwards — only forward in profit direction.
+            // If price closes beyond EMA against bias, the SL catches it naturally.
+            // Evaluated once per bar close (shift=1), consistent with TS evaluation.
             int ema_period = m_settings.TrailEMA_Period;
             if(ema_period <= 0) ema_period = 9;
 
@@ -1090,48 +1104,71 @@ private:
                                   0, MODE_EMA, PRICE_CLOSE);
             if(h_trail_ema == INVALID_HANDLE) break;
 
+            int ema_shift = m_settings.TrailEMA_Shift;
+            if(ema_shift < 1) ema_shift = 1;
+            if(ema_shift > 3) ema_shift = 3;
+
             double ema_val[];
             ArraySetAsSeries(ema_val, true);
-            if(CopyBuffer(h_trail_ema, 0, 1, 1, ema_val) != 1)
+            if(CopyBuffer(h_trail_ema, 0, ema_shift, 1, ema_val) != 1)
             {
                IndicatorRelease(h_trail_ema);
                break;
             }
             IndicatorRelease(h_trail_ema);
 
-            double bar_close = iClose(m_symbol, PERIOD_CURRENT, 1);
-            bool should_exit = false;
             bool is_long = (type == POSITION_TYPE_BUY);
+            double pipSize = GetPipSize();
+            int digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
+            double cushion = m_settings.PSAR_TrailPipsCushion * pipSize;
+            double entry = PositionGetDouble(POSITION_PRICE_OPEN);
+            double cur_sl = PositionGetDouble(POSITION_SL);
+            double cur_tp = PositionGetDouble(POSITION_TP);
+            double current_price = PositionGetDouble(POSITION_PRICE_CURRENT);
 
-            if(is_long && bar_close < ema_val[0])
-               should_exit = true;
-            else if(!is_long && bar_close > ema_val[0])
-               should_exit = true;
+            // Calculate proposed SL from EMA value + cushion
+            double new_sl = is_long
+               ? NormalizeDouble(ema_val[0] - cushion, digits)    // LONG: SL below EMA
+               : NormalizeDouble(ema_val[0] + cushion, digits);   // SHORT: SL above EMA
 
-            if(should_exit)
+            // Never move SL below entry (protect BE)
+            double be_guard = m_settings.RRM_BE_BufferPips * pipSize;
+            if(is_long && new_sl < entry + be_guard)
             {
                if(m_settings.DebugFlow)
-                  PrintFormat("[TRAIL_EMA] #%I64u: Close=%.5f %s EMA(%d)=%.5f -> EXIT",
-                              ticket, bar_close,
-                              is_long ? "<" : ">",
-                              ema_period, ema_val[0]);
+                  PrintFormat("[TRAIL_EMA] #%I64u: EMA SL=%.5f below entry+buffer=%.5f, skipped",
+                              ticket, new_sl, entry + be_guard);
+               break;
+            }
+            if(!is_long && new_sl > entry - be_guard)
+            {
+               if(m_settings.DebugFlow)
+                  PrintFormat("[TRAIL_EMA] #%I64u: EMA SL=%.5f above entry-buffer=%.5f, skipped",
+                              ticket, new_sl, entry - be_guard);
+               break;
+            }
 
-               MqlTradeRequest  req = {};
-               MqlTradeResult   res = {};
-               req.action    = TRADE_ACTION_DEAL;
-               req.position  = ticket;
-               req.symbol    = m_symbol;
-               req.volume    = PositionGetDouble(POSITION_VOLUME);
-               req.type      = is_long ? ORDER_TYPE_SELL : ORDER_TYPE_BUY;
-               req.price     = is_long ? SymbolInfoDouble(m_symbol, SYMBOL_BID)
-                                        : SymbolInfoDouble(m_symbol, SYMBOL_ASK);
-               req.deviation = 10;
-               req.comment   = StringFormat("TRAIL_EMA%d_EXIT", ema_period);
-               if(!OrderSend(req, res))
-               {
-                  if(m_settings.DebugFlow)
-                     PrintFormat("[TRAIL_EMA] OrderSend failed: retcode=%u", res.retcode);
-               }
+            // Never move SL backwards (lock profit)
+            if(m_settings.TrailLockProfit && cur_sl != 0.0)
+            {
+               if(is_long && new_sl <= cur_sl)
+                  break;
+               if(!is_long && new_sl >= cur_sl)
+                  break;
+            }
+
+            // Only move if new SL is on the correct side of current price
+            bool valid = is_long
+               ? (new_sl > cur_sl && new_sl < current_price)
+               : (cur_sl == 0.0 || new_sl < cur_sl) && (new_sl > current_price);
+
+            if(valid)
+            {
+               if(m_settings.DebugFlow)
+                  PrintFormat("[TRAIL_EMA] #%I64u: Moving SL %.5f -> %.5f | EMA(%d, shift=%d)=%.5f | cushion=%.1f pips",
+                              ticket, cur_sl, new_sl, ema_period, ema_shift, ema_val[0],
+                              m_settings.PSAR_TrailPipsCushion);
+               m_trade.PositionModify(ticket, new_sl, cur_tp);
             }
             break;
          }

@@ -218,6 +218,11 @@ void SEA_UI_DrawMTFSegments(CSignalEngine &signal, const int line_index)
    int x_cursor = Inp_UI_CockpitX + pad;
    int y = Inp_UI_CockpitY + pad + (line_index * line_h);
 
+   // Set font for accurate TextGetSize measurement
+   string font_name = Inp_UI_CockpitFont;
+   int font_size_px = -(int)(Inp_UI_CockpitFontSize * 10);  // negative = points * 10
+   TextSetFont(font_name, font_size_px);
+
    for(int i = 0; i < seg_count && i < 10; i++)
    {
       string label_name = "CP_MTF_Seg" + IntegerToString(i);
@@ -231,12 +236,15 @@ void SEA_UI_DrawMTFSegments(CSignalEngine &signal, const int line_index)
       ObjectSetInteger(0, label_name, OBJPROP_FONTSIZE, Inp_UI_CockpitFontSize);
       ObjectSetInteger(0, label_name, OBJPROP_SELECTABLE, false);
       ObjectSetInteger(0, label_name, OBJPROP_HIDDEN, true);
-      ObjectSetString(0, label_name, OBJPROP_FONT, Inp_UI_CockpitFont);
+      ObjectSetString(0, label_name, OBJPROP_FONT, font_name);
       ObjectSetString(0, label_name, OBJPROP_TEXT, segments[i].text);
 
-      int text_width = (int)(StringLen(segments[i].text) * Inp_UI_CockpitFontSize * 0.6);
-      if(text_width < 1) text_width = 1;
-      x_cursor += text_width;
+      // Accurate pixel width via TextGetSize; fallback to generous estimate
+      uint tw = 0, th = 0;
+      if(TextGetSize(segments[i].text, tw, th) && tw > 0)
+         x_cursor += (int)tw + 2;   // +2px gap between segments
+      else
+         x_cursor += (int)(StringLen(segments[i].text) * Inp_UI_CockpitFontSize * 0.85) + 4;
    }
 }
 

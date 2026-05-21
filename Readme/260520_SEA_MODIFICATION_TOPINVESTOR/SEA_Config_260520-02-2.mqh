@@ -23,18 +23,9 @@ enum EStrategyPreset
    PRESET_MA,              // PRESET_MA: benchmark: MT5 MA EA compatibility
    PRESET_RRM,             // PRESET_RRM: phase-based layer detection system
    PRESET_TEST,            // PRESET_TEST: development/debugging preset
-   PRESET_TOPINVESTOR,     // PRESET_TOPINVESTOR: Dr Świerk TopInvestor / OXO methodology (EMA50/200 confluence)
    PRESET_FPM,             // PRESET_FPM: Five-Point Method (PSAR+MACD+BB+SMA10/20)
    PRESET_RRM_ORG          // PRESET_RRM_ORG: Russ Horn Original RRM with inline DPI momentum voter
 };
-
-enum ETIProfile
-{
-   TI_CONSERVATIVE,        // CONSERVATIVE: 4 voters (PSAR, ADX, CBody, MTF)
-   TI_MODERATE,            // MODERATE: 7 voters (+ MACD, CCI, BB)
-   TI_FULL                 // FULL: 10 voters (+ DPI, SmaConv, Fib, CB 75%)
-};
-
 enum EEmaStrategy
 {
    EMA_STRAT_1_PRICE_CROSS,// EMA_STRAT_1: Buy if Price > EMA1 (Benchmark)
@@ -197,8 +188,7 @@ enum ETrailingMode
    TRAIL_NONE,             // TRAIL_NONE: no trailing stop
    TRAIL_PROFIT_PERCENT,   // TRAIL_PROFIT_PERCENT: trail at % behind peak profit
    TRAIL_PSAR,             // TRAIL_PSAR: dot trailing
-   TRAIL_PSAR_FLIP_EXIT,   // TRAIL_PSAR_FLIP_EXIT: close position on PSAR flip
-   TRAIL_EMA               // TRAIL_EMA: exit when close crosses EMA against bias
+   TRAIL_PSAR_FLIP_EXIT    // TRAIL_PSAR_FLIP_EXIT: close position on PSAR flip
 };
 enum ESLMode
 {
@@ -344,7 +334,6 @@ struct ST_Settings
    double CandleBody_MaxMult;          // Block if body > avg * multiplier
    int    CandleBody_CheckBars;        // Number of recent closed candles to check
    bool   CandleBody_RequireDirection; // CandleBody: Require signal bar to close in trade direction
-   double CandleBody_MinCloseRatio;   // CandleBody: Min close-to-range ratio (0.0=disabled, 0.75=TopInvestor 75% rule)
    
    // MT5 Moving Average benchmark compatibility
    bool   UseMACompatSizer;
@@ -383,17 +372,6 @@ struct ST_Settings
    int             MTF_EMA_Slow;         // MTF slow EMA period
    bool            MTF_RequirePhase;     // MTF: require trending phase
    bool            MTF_StrictAlignment;  // MTF: strict all-TF alignment
-
-   // Fibonacci Retracement voter
-   bool   Ind_Fib_Enabled;              // Fibonacci retracement depth voter
-   int    Ind_Fib_Weight;               // Fibonacci vote weight
-   double Fib_MinRetracement;           // Min pullback depth (default 0.38)
-   double Fib_MaxRetracement;           // Max pullback depth (default 0.618)
-   int    Fib_SwingLookback;            // Bars to find swing H/L (default 50)
-
-   // TRAIL_EMA
-   int    TrailEMA_Period;              // EMA period for trailing exit (default 9)
-   int    TrailEMA_Shift;              // EMA shift for trail SL placement (1=tight, 2=cushioned)
 
    // Voting
    EVoteMode VoteMode; // ALL/THRESHOLD: every enabled indicator must agree; vote_weight is informational only and does not gate trade decisions
@@ -1284,41 +1262,40 @@ input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // DPI: Ski
 input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;    // DPI: Also require GREEN overlay for vote pass
 // Yellow ribbon = BUY vote, Red ribbon = SELL vote.
 // CCI can reset ribbon color: hist>0 but CCI<0 → Red override (weakening).
-//
+
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Pre-filter — GREEN Deceleration";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_DPI_Decel_Filter           = false;    // DPI: Block entry when GREEN shrinking or disappeared
-input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = false;    // DPI: Block entries when CCI momentum decelerating (needs tracking ON)
-input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // DPI: CCI deceleration lookback bars (needs tracking ON)
-//
-// Inp_RRM_ORG_DPI_Decel_Filter - Blocks entry when GREEN momentum is fading or has just disappeared.
+input bool        Inp_RRM_ORG_DPI_Decel_Filter           = false;     // DPI: Block entry when GREEN shrinking or disappeared
+// Blocks entry when GREEN momentum is fading or has just disappeared.
 // GREEN = Blue & hist both same side of zero (momentum confirmation).
 // GREEN shrinking = trend exhaustion / OB-OS conditions.
 // No GREEN on either bar = pass (ribbon-only setup, no momentum to decelerate).
-//
+
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI System B — CCI Histogram Tracking";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_DPI_HistTrackingEnabled    = false;    // DPI: Enable CCI histogram tracking (master switch)
-input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = false;     // DPI: Use histogram growth as layer momentum boost (needs tracking ON)
+input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // DPI: CCI deceleration lookback bars (needs tracking ON)
 input double      Inp_RRM_ORG_DPI_HistMomentumThreshold  = 0.0001;   // DPI: Ignore CCI-delta below this (needs tracking ON)
-input bool        Inp_RRM_ORG_DPI_ExitOnHistDisappear    = false;    // DPI: Close trades when CCI trend flips (needs tracking ON)
-input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // DPI: Exit when |CCI| below threshold, 0=disable (needs tracking ON)
-//
-// Inp_RRM_ORG_DPI_HistTrackingEnabled - 
 // Separate deceleration system using CCI values (not ribbon/GREEN).
 // Master switch: HistTrackingEnabled. When OFF, all settings below are inactive.
-//
-// Inp_RRM_ORG_DPI_Histogram_Growth_Boost - LAYER BOOST (needs tracking ON)
+
+input group " ";
+input group "═══ RRM_ORG: DPI System B — Entry/Exit Gates ═══";
+// All require HistTrackingEnabled = true above.
+input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = false;    // DPI: Block entries when CCI momentum decelerating (needs tracking ON)
+input bool        Inp_RRM_ORG_DPI_ExitOnHistDisappear    = false;    // DPI: Close trades when CCI trend flips (needs tracking ON)
+input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // DPI: Exit when |CCI| below threshold, 0=disable (needs tracking ON)
+
+input group " ";
+input group "═══ RRM_ORG: DPI Layer Boost (needs tracking ON) ═══";
 // When layer momentum check fails, GREEN/CCI growth can override.
 // Requires HistTrackingEnabled = true to function.
-//
-// Inp_RRM_ORG_DPI_ExitOnHistDisappear - ENTRY EXIT GATES
-// All require HistTrackingEnabled = true above.
-//
+input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = true;     // DPI: Use histogram growth as layer momentum boost (needs tracking ON)
+
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Multi-Bar Momentum";
@@ -1443,7 +1420,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: Pullback State Machine (P2)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_LayerPBEnabled       = true;           // RRM_ORG Enable pullback-recovery state machine
-input int         Inp_RRM_ORG_LayerPBLookback      = 3;             // RRM_ORG Baseline slope lookback (bars, 3-20)
+input int         Inp_RRM_ORG_LayerPBLookback      = 10;             // RRM_ORG Baseline slope lookback (bars, 3-20)
 input double      Inp_RRM_ORG_LayerPBPullbackRatio = 0.5;            // RRM_ORG Pullback threshold ratio (0.1-1.0, 0.5=50% weaker)
 input double      Inp_RRM_ORG_LayerPBRecoveryRatio = 0.3;            // RRM_ORG Global recovery threshold ratio (0.1-1.0, 0.3=30% strength)
 input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;            // RRM_ORG Flat threshold ratio (0.05-0.5, 0.1=10%)
@@ -1469,16 +1446,6 @@ input bool        Inp_RRM_ORG_ForceDDProtection    = false;          // RRM_ORG 
 input int         Inp_RRM_ORG_DDMaxConsecLosses    = 4;              // RRM_ORG Override max consecutive losses (0=use Inp_RRM_*)
 input int         Inp_RRM_ORG_DDMaxTradesPerDay    = 15;             // RRM_ORG Override max trades per day (0=use Inp_RRM_*)
 input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM_ORG Override max daily DD % (0=use Inp_RRM_*)
-
-input group " ";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    PRESET_TOPINVESTOR — Profile Settings";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-// Conservative (4 voters): PSAR, ADX, CandleBody, MTF
-// Moderate     (7 voters): + MACD, CCI, BB
-// Full         (10 voters): + DPI, SmaConv, Fib + CandleBody 75% ratio
-input ETIProfile  Inp_TI_Profile        = TI_MODERATE;  // TI: Quick Profile Select
-input bool        Inp_TI_PhaseAllowEM   = true;   // TI: Allow Emerging phase (false=TM only)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1534,21 +1501,6 @@ input int         Inp_CUSTOM_Ind_Rsi_Weight        = 1;              // CUSTOM [
 input int         Inp_CUSTOM_Ind_SmaConverge_Weight = 1;             // CUSTOM [SmaConv] Vote weight
 input int         Inp_CUSTOM_Ind_Sto_Weight        = 1;              // CUSTOM [Sto] Vote weight
 input int         Inp_CUSTOM_Ind_VRC_Weight        = 1;              // CUSTOM [VRC] Vote weight
-
-// ── CUSTOM: Fibonacci retracement voter (globally available) ──
-input bool        Inp_CUSTOM_Ind_Fib_Enabled       = false;          // CUSTOM [Fib] Enable
-input int         Inp_CUSTOM_Ind_Fib_Weight        = 1;              // CUSTOM [Fib] Vote weight
-input double      Inp_CUSTOM_Fib_MinRetracement    = 0.38;           // CUSTOM [Fib] Min pullback depth
-input double      Inp_CUSTOM_Fib_MaxRetracement    = 0.618;          // CUSTOM [Fib] Max pullback depth
-input int         Inp_CUSTOM_Fib_SwingLookback     = 50;             // CUSTOM [Fib] Swing search bars
-
-// ── CUSTOM: CandleBody close-ratio extension (globally available) ──
-input double      Inp_CUSTOM_CandleBody_MinCloseRatio = 0.0;         // CUSTOM [CB] Min close ratio (0=off, 0.75=TopInvestor)
-
-// ── CUSTOM: TRAIL_EMA period (globally available) ──
-input int         Inp_CUSTOM_TrailEMA_Period       = 9;              // CUSTOM [Trail] EMA period for TRAIL_EMA mode
-input int         Inp_CUSTOM_TrailEMA_Shift        = 1;              // CUSTOM [Trail] EMA shift (1=current bar, 2=one bar cushion)
-
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 6: Pullback Gate";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1905,20 +1857,6 @@ void InitializeConfig()
    Settings.MTF_EMA_Slow         = MathMax(1, Inp_MTF_EMA_Slow);
    Settings.MTF_RequirePhase     = Inp_MTF_RequirePhase;
    Settings.MTF_StrictAlignment  = Inp_MTF_StrictAlignment;
-
-   // Fibonacci voter (globally available)
-   Settings.Ind_Fib_Enabled      = Inp_CUSTOM_Ind_Fib_Enabled;
-   Settings.Ind_Fib_Weight       = MathMax(1, Inp_CUSTOM_Ind_Fib_Weight);
-   Settings.Fib_MinRetracement   = MathMax(0.0, MathMin(1.0, Inp_CUSTOM_Fib_MinRetracement));
-   Settings.Fib_MaxRetracement   = MathMax(Settings.Fib_MinRetracement, MathMin(1.0, Inp_CUSTOM_Fib_MaxRetracement));
-   Settings.Fib_SwingLookback    = MathMax(10, Inp_CUSTOM_Fib_SwingLookback);
-
-   // CandleBody close-ratio extension
-   Settings.CandleBody_MinCloseRatio = MathMax(0.0, MathMin(1.0, Inp_CUSTOM_CandleBody_MinCloseRatio));
-
-   // TRAIL_EMA period
-   Settings.TrailEMA_Period      = MathMax(2, Inp_CUSTOM_TrailEMA_Period);
-   Settings.TrailEMA_Shift       = MathMax(1, MathMin(3, Inp_CUSTOM_TrailEMA_Shift));
 
    // Voting
    Settings.VoteMode             = (Inp_CUSTOM_VoteMode_All ? VOTE_MODE_ALL : VOTE_MODE_THRESHOLD);
@@ -2373,7 +2311,6 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
    if(cfg.Ind_VRC_Enabled)        count++;
    if(cfg.Ind_SmaConverge_Enabled) count++;
    if(cfg.Ind_Dpi_Enabled)        count++;
-   if(cfg.Ind_Fib_Enabled)        count++;
    if(cfg.Ind_MTF_Enabled)        count++;
    return count;
 }
@@ -2384,17 +2321,17 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
 string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 {
    string names[]  = {"ADX", "ATR", "BB", "CandleBody", "Choppiness Index", "CCI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC", "DPI", "MTF", "Fib"};
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC", "DPI", "MTF"};
    string shorts[] = {"ADX", "ATR", "BB", "CBody", "CI", "CCI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConv", "Stoch", "VRC", "DPI", "MTF", "Fib"};
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConv", "Stoch", "VRC", "DPI", "MTF"};
    bool enabled[]  = {cfg.Ind_Adx_Enabled, cfg.Ind_Atr_Enabled, cfg.Ind_Bb_Enabled,
                       cfg.Ind_CandleBody_Enabled, cfg.Ind_CI_Enabled, cfg.Ind_Cci_Enabled,
                       cfg.Ind_Macd_Enabled, cfg.Ind_Mfi_Enabled,
                       cfg.Ind_P123_Enabled, cfg.Ind_Psar_Enabled, cfg.Ind_Ross_Enabled,
                       cfg.Ind_Rsi_Enabled, cfg.Ind_SmaConverge_Enabled,
-                      cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled, cfg.Ind_Dpi_Enabled, cfg.Ind_MTF_Enabled, cfg.Ind_Fib_Enabled};
+                      cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled, cfg.Ind_Dpi_Enabled, cfg.Ind_MTF_Enabled};
    string list = "";
-   for(int i = 0; i < 18; i++)
+   for(int i = 0; i < 17; i++)
    {
       if(!enabled[i]) continue;
       if(list != "") list += compact ? ", " : "\n  + ";

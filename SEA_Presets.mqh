@@ -93,12 +93,19 @@ double GetRecommendedInitialSlCushionPips()
 
    ENUM_TIMEFRAMES tf = _Period;
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
+   double base = 0.0;
 
-   if      (tf <= PERIOD_M5)  return isJPY ?  3.0 :  2.0;    // Covers M1 through M5
-   else if (tf <= PERIOD_M30) return isJPY ?  5.0 :  3.0;    // Covers M6 through M30
-   else if (tf <= PERIOD_H1)  return isJPY ?  8.0 :  5.0;    // Covers H1
-   else if (tf <= PERIOD_H4)  return isJPY ? 15.0 : 10.0;    // Covers H2 through H4
-   else                       return isJPY ? 25.0 : 15.0;    // Covers H6, D1, W1, MN1
+   if      (tf <= PERIOD_M5)  base = isJPY ?  3.0 :  2.0;
+   else if (tf <= PERIOD_M30) base = isJPY ?  5.0 :  3.0;
+   else if (tf <= PERIOD_H1)  base = isJPY ?  8.0 :  5.0;
+   else if (tf <= PERIOD_H4)  base = isJPY ? 15.0 : 10.0;
+   else                       base = isJPY ? 25.0 : 15.0;
+
+   // Scale for non-forex instruments (Gold, indices, crypto have wider pip ranges)
+   double mult = GetInstrumentFanMultiplier();
+   // For cushion, use sqrt of multiplier — full multiplier would be too aggressive
+   // Gold: sqrt(20) ≈ 4.5x → 2 pips becomes ~9 pips cushion on M5
+   return base * MathSqrt(mult);
 }
 
 //+------------------------------------------------------------------+
@@ -147,6 +154,7 @@ double GetMarginLevelAdjustment()
 }
 
 // TF+JPY-aware trailing cushion mapping (smaller, suited for TRAIL_PSAR + PSAR_CUSHION_PIPS)
+// Also scales for non-forex instruments via GetInstrumentFanMultiplier()
 double GetRecommendedTrailPsarCushionPips()
 {
    if(Settings.Override_Trail_Cushion > 0.0)
@@ -154,12 +162,15 @@ double GetRecommendedTrailPsarCushionPips()
 
    ENUM_TIMEFRAMES tf = _Period;
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
+   double base = 0.0;
 
-   if      (tf <= PERIOD_M5)  return isJPY ?  2.0 :  1.0;    // Covers M1 through M5
-   else if (tf <= PERIOD_M30) return isJPY ?  3.0 :  2.0;    // Covers M16 through M30
-   else if (tf <= PERIOD_H1)  return isJPY ?  7.0 :  5.0;    // Covers H1
-   else if (tf <= PERIOD_H4)  return isJPY ? 10.0 :  5.0;    // Covers H2 through H4
-   else                       return isJPY ? 25.0 : 15.0;    // Covers H6, D1, W1, MN1
+   if      (tf <= PERIOD_M5)  base = isJPY ?  2.0 :  1.0;
+   else if (tf <= PERIOD_M30) base = isJPY ?  3.0 :  2.0;
+   else if (tf <= PERIOD_H1)  base = isJPY ?  7.0 :  5.0;
+   else if (tf <= PERIOD_H4)  base = isJPY ? 10.0 :  5.0;
+   else                       base = isJPY ? 25.0 : 15.0;
+
+   return base * MathSqrt(GetInstrumentFanMultiplier());
 }
 
 // TF+JPY-aware breakeven/trail cushion values
@@ -168,14 +179,74 @@ double GetTFBasedCushion(ENUM_TIMEFRAMES tf)
    if(Settings.Override_BE_Cushion > 0.0)
       return Settings.Override_BE_Cushion;
 
-   if(tf == PERIOD_CURRENT) tf = _Period; // Safe fallback just in case
+   if(tf == PERIOD_CURRENT) tf = _Period;
    bool isJPY = (StringFind(_Symbol, "JPY") >= 0);
+   double base = 0.0;
 
-   if      (tf <= PERIOD_M5)  return isJPY ?  5.0 :  3.0;    // Covers M1 through M5
-   else if (tf <= PERIOD_M30) return isJPY ?  8.0 :  5.0;    // Covers M6 through M30
-   else if (tf <= PERIOD_H1)  return isJPY ? 12.0 :  8.0;    // Covers H1
-   else if (tf <= PERIOD_H4)  return isJPY ? 15.0 : 10.0;    // Covers H2 through H4
-   else                       return isJPY ? 25.0 : 15.0;    // Covers H6, D1, W1, MN1
+   if      (tf <= PERIOD_M5)  base = isJPY ?  5.0 :  3.0;
+   else if (tf <= PERIOD_M30) base = isJPY ?  8.0 :  5.0;
+   else if (tf <= PERIOD_H1)  base = isJPY ? 12.0 :  8.0;
+   else if (tf <= PERIOD_H4)  base = isJPY ? 15.0 : 10.0;
+   else                       base = isJPY ? 25.0 : 15.0;
+
+   return base * MathSqrt(GetInstrumentFanMultiplier());
+}
+
+//+------------------------------------------------------------------+
+//| GetInstrumentFanMultiplier: EMA Fan pip threshold scaling         |
+//|                                                                    |
+//| EMA Fan thresholds are defined as FX base values.                  |
+//| Non-forex instruments have much wider EMA spreads in pips,         |
+//| so the base threshold must be multiplied accordingly.              |
+//|                                                                    |
+//| Returns: multiplier to apply to the FX base EmaFanMaxTotalPips.    |
+//|   Forex         : 1.0x (base)                                      |
+//|   JPY pairs     : 1.5x (wider spreads in pip terms)                |
+//|   Gold (XAU)    : 20.0x (Gold pips are ~100x larger than forex)    |
+//|   Silver (XAG)  : 10.0x                                           |
+//|   Indices       : 15.0x (NAS100, US30, DAX, SPX, etc.)            |
+//|   Oil (WTI/Brent): 8.0x                                           |
+//|   Crypto (BTC)  : 25.0x                                           |
+//+------------------------------------------------------------------+
+double GetInstrumentFanMultiplier()
+{
+   string sym = _Symbol;
+   double mult = 1.0;
+   string inst_class = "Forex";
+
+   // Gold
+   if(StringFind(sym, "XAU") >= 0 || StringFind(sym, "GOLD") >= 0)
+      { mult = 20.0; inst_class = "Gold"; }
+   // Silver
+   else if(StringFind(sym, "XAG") >= 0 || StringFind(sym, "SILVER") >= 0)
+      { mult = 10.0; inst_class = "Silver"; }
+   // Crypto
+   else if(StringFind(sym, "BTC") >= 0 || StringFind(sym, "ETH") >= 0 ||
+           StringFind(sym, "CRYPTO") >= 0)
+      { mult = 25.0; inst_class = "Crypto"; }
+   // Indices
+   else if(StringFind(sym, "NAS") >= 0 || StringFind(sym, "US30") >= 0 ||
+           StringFind(sym, "US500") >= 0 || StringFind(sym, "SPX") >= 0 ||
+           StringFind(sym, "SP500") >= 0 || StringFind(sym, "NDX") >= 0 ||
+           StringFind(sym, "GER") >= 0 || StringFind(sym, "DAX") >= 0 ||
+           StringFind(sym, "UK100") >= 0 || StringFind(sym, "FTSE") >= 0 ||
+           StringFind(sym, "JP225") >= 0 || StringFind(sym, "NIKKEI") >= 0 ||
+           StringFind(sym, "FRA40") >= 0 || StringFind(sym, "AUS200") >= 0 ||
+           StringFind(sym, "STOXX") >= 0 || StringFind(sym, "HSI") >= 0)
+      { mult = 15.0; inst_class = "Index"; }
+   // Oil
+   else if(StringFind(sym, "WTI") >= 0 || StringFind(sym, "BRENT") >= 0 ||
+           StringFind(sym, "OIL") >= 0 || StringFind(sym, "CL") >= 0 ||
+           StringFind(sym, "USOIL") >= 0 || StringFind(sym, "UKOIL") >= 0)
+      { mult = 8.0; inst_class = "Oil"; }
+   // JPY pairs
+   else if(StringFind(sym, "JPY") >= 0)
+      { mult = 1.5; inst_class = "Forex-JPY"; }
+
+   PrintFormat("📐 [EMA_FAN] %s detected as %s | fan multiplier: %.1fx",
+               sym, inst_class, mult);
+
+   return mult;
 }
 
 // TF-based swing lookback for FPM preset — prevents anchor landing on wrong side
@@ -1319,7 +1390,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       //   M15/H1: consider 40–60 pips; H4+: 80–120 pips.
       // JPY pairs: GlobalPipSize() returns the correct pip unit automatically.
       cfg.EmaFanFilterEnabled       = true;
-      cfg.EmaFanMaxTotalPips        = 25.0;
+      cfg.EmaFanMaxTotalPips        = 25.0 * GetInstrumentFanMultiplier();
 
       // ── DPI DECELERATION FILTER ────────────────────────────────────────
       // DPI voter not enabled in PRESET_RRM base; filter stays inactive.
@@ -1717,11 +1788,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // late-trend chases like #075 are blocked while fresh impulses pass.
       // Operator-tunable via Inp_RRM_ORG_EmaFanFilter and Inp_RRM_ORG_EmaFan_*.
       cfg.EmaFanFilterEnabled       = Inp_RRM_ORG_EmaFanFilter;
-      cfg.EmaFanMaxTotalPips        = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_EmaFan_M5Pips
+      double rrm_org_fan_base       = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_EmaFan_M5Pips
                                     : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_EmaFan_M30Pips
                                     : (_Period <= PERIOD_H1)  ? Inp_RRM_ORG_EmaFan_H1Pips
                                     : (_Period <= PERIOD_H4)  ? Inp_RRM_ORG_EmaFan_H4Pips
                                     :                           Inp_RRM_ORG_EmaFan_DailyPips;
+      cfg.EmaFanMaxTotalPips        = rrm_org_fan_base * GetInstrumentFanMultiplier();
 
       // ── DPI DECELERATION FILTER ────────────────────────────────────────
       // PHASE A: now actually active because Ind_Dpi_Enabled is true above.
@@ -1876,7 +1948,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_MaxMult     = 2.5;
       cfg.CandleBody_CheckBars   = 1;
       cfg.CandleBody_RequireDirection = true;
-      cfg.CandleBody_MinCloseRatio   = Inp_TI_CandleBody_MinCloseRatio;
+      cfg.CandleBody_MinCloseRatio   = (Inp_TI_Profile >= TI_FULL) ? 0.75 : 0.0;
 
       // Choppiness Index — ranging market blocker
       // NOTE: Requires ChoppinessIndex.ex5 custom indicator installed in MQL5/Indicators/
@@ -1887,11 +1959,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CI_RangingThreshold    = 61.8;
 
       // ══════════════════════════════════════════════════════════════
-      // MODERATE PROFILE (Inp_TI_* toggles, default ON — adds 3 voters)
+      // Profile-derived indicator toggles:
+      //   CONSERVATIVE: only the base voters above
+      //   MODERATE:     + MACD, CCI, BB
+      //   FULL:         + DPI, SmaConv, Fib, CandleBody 75% ratio
       // ══════════════════════════════════════════════════════════════
+      bool is_moderate = (Inp_TI_Profile >= TI_MODERATE);
+      bool is_full     = (Inp_TI_Profile >= TI_FULL);
 
-      // MACD — momentum direction + optional divergence
-      cfg.Ind_Macd_Enabled       = Inp_TI_Use_Macd;
+      // MACD — momentum direction (Moderate+)
+      cfg.Ind_Macd_Enabled       = is_moderate;
       cfg.P_MacdFast             = 12;
       cfg.P_MacdSlow             = 26;
       cfg.P_MacdSig              = 9;
@@ -1902,32 +1979,30 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MacdFreshBars          = 5;
       cfg.MacdSlopeMin           = 0.00001;
 
-      // CCI — momentum zero-line confirmation
-      cfg.Ind_Cci_Enabled        = Inp_TI_Use_Cci;
+      // CCI — momentum zero-line confirmation (Moderate+)
+      cfg.Ind_Cci_Enabled        = is_moderate;
       cfg.P_Cci                  = 14;
       cfg.CciMode                = CCI_TREND_ZERO;
 
-      // BB Widening — volatility expansion
-      cfg.Ind_Bb_Enabled         = Inp_TI_Use_Bb;
+      // BB Widening — volatility expansion (Moderate+)
+      cfg.Ind_Bb_Enabled         = is_moderate;
       cfg.BbMode                 = BB_WIDENING;
       cfg.P_Bb                   = 20;
       cfg.P_BbDev                = 2.0;
 
-      // ══════════════════════════════════════════════════════════════
-      // FULL PROFILE (Inp_TI_* toggles, default OFF — adds 3 voters)
-      // ══════════════════════════════════════════════════════════════
+      // ── FULL additions ────────────────────────────────────────────
 
-      // DPI — momentum exhaustion detection (System 3)
-      cfg.Ind_Dpi_Enabled        = Inp_TI_Use_Dpi;
+      // DPI — momentum exhaustion detection (Full)
+      cfg.Ind_Dpi_Enabled        = is_full;
       cfg.Ind_Dpi_Weight         = 1;
-      cfg.DpiDecelFilterEnabled  = Inp_TI_Use_Dpi;
+      cfg.DpiDecelFilterEnabled  = is_full;
 
-      // SMA Convergence — pullback detection
-      cfg.Ind_SmaConverge_Enabled = Inp_TI_Use_SmaConv;
+      // SMA Convergence — pullback detection (Full)
+      cfg.Ind_SmaConverge_Enabled = is_full;
       cfg.Ind_SmaConverge_Weight  = 1;
 
-      // Fibonacci retracement — pullback depth check (NEW)
-      cfg.Ind_Fib_Enabled        = Inp_TI_Use_Fib;
+      // Fibonacci retracement — pullback depth check (Full)
+      cfg.Ind_Fib_Enabled        = is_full;
       cfg.Ind_Fib_Weight         = 1;
       cfg.Fib_MinRetracement     = 0.38;
       cfg.Fib_MaxRetracement     = 0.618;
@@ -1986,7 +2061,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── EXIT STRATEGY ─────────────────────────────────────────────
       cfg.ExitProfile               = EXIT_PROFILE_RRM;
       cfg.SLMode                    = SL_MODE_SWING;
-      cfg.SwingLookback             = 20;
+      // SwingLookback scaled by instrument: Gold/indices have wider swings
+      // Forex M5: 20 bars. Gold M5: 40 bars. Indices M5: 35 bars.
+      double swing_mult = MathSqrt(GetInstrumentFanMultiplier());
+      cfg.SwingLookback             = (int)MathRound(20.0 * MathMax(1.0, swing_mult / 2.0));
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
       cfg.FixedTPPips               = 40.0;
@@ -1995,6 +2073,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Trail: EMA(9) is the TopInvestor exit, PSAR is fallback
       cfg.TrailMode                 = TRAIL_EMA;
       cfg.TrailEMA_Period           = 9;
+      cfg.TrailEMA_Shift            = 1;      // 1=tight (TopInvestor standard), 2=one bar cushion
       cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
       cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
 
@@ -2034,16 +2113,21 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────
       // With EMA 9/50/89/200 the fan is naturally wider than 5/13/34/89
-      // so thresholds are scaled up accordingly
+      // Base values are for FX; GetInstrumentFanMultiplier() scales for Gold/indices/oil/crypto
       cfg.EmaFanFilterEnabled       = true;
-      cfg.EmaFanMaxTotalPips        = (_Period <= PERIOD_M5)  ? 50.0
+      double ti_fan_base            = (_Period <= PERIOD_M5)  ? 50.0
                                     : (_Period <= PERIOD_M30) ? 80.0
                                     : (_Period <= PERIOD_H1)  ? 120.0
                                     : (_Period <= PERIOD_H4)  ? 200.0
                                     :                           350.0;
+      cfg.EmaFanMaxTotalPips        = ti_fan_base * GetInstrumentFanMultiplier();
+      PrintFormat("📐 [TOPINVESTOR] EMA Fan threshold: %.1f pips (base=%.1f × multiplier)",
+                  cfg.EmaFanMaxTotalPips, ti_fan_base);
+      PrintFormat("📐 [TOPINVESTOR] SL: SWING lookback=%d | cushion=%.1f pips | BE buffer=%.1f pips",
+                  cfg.SwingLookback, cfg.SL_SwingPipsCushion, cfg.RRM_BE_BufferPips);
 
       // ── DPI DECELERATION FILTER ────────────────────────────────────
-      cfg.DpiDecelFilterEnabled     = Inp_TI_Use_Dpi;
+      cfg.DpiDecelFilterEnabled     = (Inp_TI_Profile >= TI_FULL);
 
       // ── RE-ENTRY / COOLDOWN ───────────────────────────────────────
       cfg.AllowReEntryAfterBE       = true;
