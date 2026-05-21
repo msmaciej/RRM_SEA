@@ -766,7 +766,13 @@ void OrchestrateTick()
       
       if(today_date != g_last_trade_date)
       {
+         // FIX: Reset ALL daily protection counters — including consecutive losses.
+         // Without this, hitting MaxConsecutiveLosses creates a permanent deadlock:
+         // no trades → no wins → counter never resets → EA frozen forever.
+         if(Settings.DebugFlow && g_consecutive_losses > 0)
+            PrintFormat("[RRM_DD_RESET] New day: resetting consecutive_losses from %d → 0", g_consecutive_losses);
          g_trades_today = 0;
+         g_consecutive_losses = 0;
          g_last_trade_date = today_date;
          g_daily_starting_balance = AccountInfoDouble(ACCOUNT_BALANCE);
       }

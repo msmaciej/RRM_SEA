@@ -889,7 +889,7 @@ private:
             break;
          case SL_MODE_FRACTAL:
             anchor = GetFractalLevel(isBuy ? 1 : -1);
-            cushion_pips = 0.0; 
+            cushion_pips = m_settings.SL_SwingPipsCushion;  // FIX: was 0.0 — use same cushion as Swing
             break;
          case SL_MODE_PERCENT: {
             double sl_pips = (price * m_settings.SLPercent / 100.0) / pipSize;

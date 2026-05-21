@@ -103,9 +103,10 @@ double GetRecommendedInitialSlCushionPips()
 
    // Scale for non-forex instruments (Gold, indices, crypto have wider pip ranges)
    double mult = GetInstrumentFanMultiplier();
-   // For cushion, use sqrt of multiplier — full multiplier would be too aggressive
-   // Gold: sqrt(20) ≈ 4.5x → 2 pips becomes ~9 pips cushion on M5
-   return base * MathSqrt(mult);
+   // Use full multiplier — cushion is measured in the same pip units as the fan threshold.
+   // Gold: 2 pips × 20.0 = 40 pips ($0.40) cushion on M5 — meaningful protection.
+   // Previous sqrt(20) ≈ 4.5x produced only 8.9 pips ($0.089) — essentially zero.
+   return base * mult;
 }
 
 //+------------------------------------------------------------------+
@@ -170,7 +171,7 @@ double GetRecommendedTrailPsarCushionPips()
    else if (tf <= PERIOD_H4)  base = isJPY ? 10.0 :  5.0;
    else                       base = isJPY ? 25.0 : 15.0;
 
-   return base * MathSqrt(GetInstrumentFanMultiplier());
+   return base * GetInstrumentFanMultiplier();
 }
 
 // TF+JPY-aware breakeven/trail cushion values
@@ -189,7 +190,7 @@ double GetTFBasedCushion(ENUM_TIMEFRAMES tf)
    else if (tf <= PERIOD_H4)  base = isJPY ? 15.0 : 10.0;
    else                       base = isJPY ? 25.0 : 15.0;
 
-   return base * MathSqrt(GetInstrumentFanMultiplier());
+   return base * GetInstrumentFanMultiplier();
 }
 
 //+------------------------------------------------------------------+
@@ -2499,7 +2500,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       // RRM DRAWDOWN PROTECTION (Enabled for testing safety)
       // ================================================================
-      cfg.RRM_EnableDrawdownProtection = false; // ✅ Enabled
+      cfg.RRM_EnableDrawdownProtection = true;  // ✅ Enabled
       cfg.RRM_MaxConsecutiveLosses  = 5;        // ✅ 3: Stop after 3 losses
       cfg.RRM_MaxTradesPerDay       = 12;       // ✅ 12: Limit overtrading
       cfg.RRM_MaxDailyDrawdownPct   = 6.0;      // ✅ 6: Stop if -6% day
