@@ -627,6 +627,18 @@ private:
       return 0;
    }
 
+   //+------------------------------------------------------------------+
+   //| Check_MTF — Bool wrapper for MTF voter (EvaluateIndicatorX)      |
+   //| Uses the same CheckMTFFilter logic but returns true/false        |
+   //| for CAST_VOTE_STAT compatibility.                                |
+   //+------------------------------------------------------------------+
+   bool Check_MTF(int bias)
+   {
+      string reason = "";
+      string diag   = "";
+      return (CheckMTFFilter(bias, reason, diag) != 0);
+   }
+
    // Version 1: No error reporting (backward compatible)
    bool GetBuf(int handle, int buf_idx, int shift, double &arr[]) {
       int ignored_error = 0;
@@ -5006,6 +5018,7 @@ public:
       CAST_VOTE_STAT(m_settings.Ind_SmaConverge_Enabled, m_settings.Ind_SmaConverge_Weight, Check_SmaConverge(v_shift),      m_stats.rejected_sma_converge, m_stats.passed_sma_converge)
       CAST_VOTE_STAT(m_settings.Ind_Dpi_Enabled,         m_settings.Ind_Dpi_Weight,         Check_DPI(bias, v_shift),         m_stats.rejected_dpi,          m_stats.passed_dpi)
       CAST_VOTE_STAT(m_settings.Ind_Fib_Enabled,         m_settings.Ind_Fib_Weight,         Check_Fib(bias, v_shift),         m_stats.rejected_fib,          m_stats.passed_fib)
+      CAST_VOTE_STAT(m_settings.Ind_MTF_Enabled,         m_settings.Ind_MTF_Weight,         Check_MTF(bias),                  m_stats.rejected_mtf,          m_stats.passed_mtf)
       #undef CAST_VOTE_STAT
 
       // Calculate indicator pass counts for telemetry (all enabled indicators, including non-directional filters)
@@ -5027,6 +5040,7 @@ public:
       if(m_settings.Ind_CandleBody_Enabled)  { s_enabled++; if(Check_CandleBody(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_CI_Enabled)          { s_enabled++; if(Check_CI(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_VRC_Enabled)         { s_enabled++; if(Check_VRC(bias, v_shift)) s_passed++; }
+      if(m_settings.Ind_MTF_Enabled)         { s_enabled++; if(Check_MTF(bias)) s_passed++; }
 
       // Always use indicator pass count for display (vote_weight is informational only, does not gate trades)
       m_diag_last_votes = s_passed;
@@ -5830,40 +5844,15 @@ public:
          return 0;
       }
 
-      // ── MTF FILTER (Global pre-check, part of F) ──────────────────────
+      // ── MTF: moved to indicator voting (EvaluateIndicatorX) ─────────
+      // MTF is a voter with weight Ind_MTF_Weight, not a hard gate.
+      // Telemetry updated inside EvaluateIndicatorX alongside other voters.
       if(m_settings.Ind_MTF_Enabled)
       {
          string mtf_reason = "";
          string mtf_diag   = "";
-         int mtf_result = CheckMTFFilter(B, mtf_reason, mtf_diag);
+         CheckMTFFilter(B, mtf_reason, mtf_diag);
          m_telemetry.mtf_status = mtf_diag;
-
-         if(mtf_result == 0)
-         {
-            m_stats.rejected_mtf++;
-            m_diag_last_reason = "MTF_CONFLICT";
-            m_eval_str_F = "MTF_CONFLICT";
-            m_reject_filter++;
-
-            if(m_settings.DebugFlow)
-               DebugLog("[MTF_FILTER] MTF timeframes conflict with bias -> BLOCKED");
-
-            if(!full_eval) {
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-               UpdateTelemetry(0);
-               FlushOrClearDebugBuffer(0);
-               RestoreForcedDebug();
-               return 0;
-            }
-            if(m_eval_first_failure == "") m_eval_first_failure = "MTF_CONFLICT";
-            m_eval_any_failure = true;
-         }
-         else
-         {
-            m_stats.passed_mtf++;
-            if(m_settings.DebugFlow)
-               DebugLog("[MTF_FILTER] MTF aligned -> PASS");
-         }
       }
 
       // ══════════════════════════════════════════════════════════════════

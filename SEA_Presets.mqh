@@ -1198,7 +1198,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Dpi_Weight         = 1;
       cfg.Ind_MTF_Enabled        = Inp_Ind_MTF_Enabled;
       cfg.Ind_MTF_Weight         = Inp_Ind_MTF_Weight;
-      cfg.MTF_TF1                = Inp_MTF_TF1;
+      // FIX: Auto-compute MTF_TF1 if input is same or lower than chart TF
+      cfg.MTF_TF1                = (Inp_MTF_TF1 > _Period) ? Inp_MTF_TF1
+                                   : (_Period <= PERIOD_M5)  ? PERIOD_H1
+                                   : (_Period <= PERIOD_M30) ? PERIOD_H4
+                                   : (_Period <= PERIOD_H1)  ? PERIOD_D1
+                                   :                           PERIOD_W1;
       cfg.MTF_TF2                = Inp_MTF_TF2;
       cfg.MTF_EMA_Fast           = Inp_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow           = Inp_MTF_EMA_Slow;
@@ -1744,7 +1749,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── MTF CONFIRMATION (replaces deprecated HTF filter) ───────────────
       cfg.Ind_MTF_Enabled           = Inp_Ind_MTF_Enabled;
       cfg.Ind_MTF_Weight            = Inp_Ind_MTF_Weight;
-      cfg.MTF_TF1                   = Inp_MTF_TF1;
+      // FIX: Auto-compute MTF_TF1 if input is same or lower than chart TF
+      // (M5 on M15 chart crashes in "Open Prices" mode and is logically wrong)
+      cfg.MTF_TF1                   = (Inp_MTF_TF1 > _Period) ? Inp_MTF_TF1
+                                      : (_Period <= PERIOD_M5)  ? PERIOD_H1
+                                      : (_Period <= PERIOD_M30) ? PERIOD_H4
+                                      : (_Period <= PERIOD_H1)  ? PERIOD_D1
+                                      :                           PERIOD_W1;
       cfg.MTF_TF2                   = Inp_MTF_TF2;
       cfg.MTF_EMA_Fast              = Inp_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow              = Inp_MTF_EMA_Slow;
