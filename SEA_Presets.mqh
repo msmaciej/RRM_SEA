@@ -665,9 +665,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
    // Universal cushion-field defaults (presets may override). Ensures ATR/PERCENT
    // fields are always valid even for presets that only use PIPS mode.
-   cfg.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_RRM_TrailCushionAtrPeriod);
-   cfg.PSAR_TrailCushionAtrMult   = MathMax(0.0, Inp_RRM_TrailCushionAtrMult);
-   cfg.PSAR_TrailCushionPct       = MathMax(0.0, Inp_RRM_TrailCushionPct);
+   cfg.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_TrailCushionAtrPeriod);
+   cfg.PSAR_TrailCushionAtrMult   = MathMax(0.0, Inp_TrailCushionAtrMult);
+   cfg.PSAR_TrailCushionPct       = MathMax(0.0, Inp_TrailCushionPct);
 
    // ================================================================
    // Policy A: Universal Operational Filters (User Always Controls)
@@ -1557,11 +1557,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.UseMACompatSizer       = false;
       cfg.VoteMode               = VOTE_MODE_ALL;
 
-      // ── EMA PERIODS: locked to RRM standard ──────────────────────────
-      cfg.P_Ema1                 = Inp_RRM_Ema1Period;
-      cfg.P_Ema2                 = Inp_RRM_Ema2Period;
-      cfg.P_Ema3                 = Inp_RRM_Ema3Period;
-      cfg.P_Ema4                 = Inp_RRM_Ema4Period;
+      // ── EMA PERIODS: RRM_ORG-owned (defaults match RRM standard 5/13/34/89) ──
+      cfg.P_Ema1                 = Inp_RRM_ORG_Ema1Period;
+      cfg.P_Ema2                 = Inp_RRM_ORG_Ema2Period;
+      cfg.P_Ema3                 = Inp_RRM_ORG_Ema3Period;
+      cfg.P_Ema4                 = Inp_RRM_ORG_Ema4Period;
 
       // ── DPI v31: controlled via Inp_RRM_ORG_Ind_Dpi_Enabled (replaces removed Inp_RRM_ORG_ForceDpiOn) ──
       // PHASE A: was opt-in (false). The "ORG" suffix marks the original
@@ -1606,7 +1606,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── CANDLE BODY ───────────────────────────────────────────────────
       cfg.Ind_CandleBody_Enabled    = Inp_RRM_ORG_Use_CandleBody;
-      cfg.Ind_CandleBody_Weight     = Inp_CUSTOM_Ind_CandleBody_Weight;
+      cfg.Ind_CandleBody_Weight     = Inp_RRM_ORG_CandleBody_Weight;
       cfg.CandleBody_AvgPeriod      = Inp_RRM_ORG_CandleBody_AvgPeriod;
       cfg.CandleBody_MaxMult        = Inp_RRM_ORG_CandleBody_MaxMult;
       cfg.CandleBody_CheckBars      = Inp_RRM_ORG_CandleBody_CheckBars;
@@ -1631,7 +1631,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Rsi_Enabled        = Inp_RRM_ORG_Use_Rsi;
       cfg.Ind_Sto_Enabled        = Inp_RRM_ORG_Use_Stoch;
       cfg.Ind_SmaConverge_Enabled   = false;
-      cfg.Ind_SmaConverge_Weight    = Inp_CUSTOM_Ind_SmaConverge_Weight;
+      cfg.Ind_SmaConverge_Weight    = Inp_RRM_ORG_SmaConverge_Weight;
       cfg.Ind_VRC_Enabled        = Inp_RRM_ORG_Use_VRC;
 
       // ── ADX SETTINGS: safe defaults (disabled) ────────────────────────
@@ -1810,7 +1810,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SLPercent                 = 0.5;
 
       cfg.TrailMode                 = Inp_RRM_ORG_TrailMode;
-      cfg.RRM_TrailPsarShiftDelay   = (Inp_RRM_TrailPsarShiftDelay < 1) ? 1 : (Inp_RRM_TrailPsarShiftDelay > 3) ? 3 : Inp_RRM_TrailPsarShiftDelay; // PSAR DOT trail shift (TRAILING only); default 2 for flip stability
+      cfg.RRM_TrailPsarShiftDelay   = (Inp_RRM_ORG_TrailPsarShiftDelay < 1) ? 1 : (Inp_RRM_ORG_TrailPsarShiftDelay > 3) ? 3 : Inp_RRM_ORG_TrailPsarShiftDelay; // PSAR DOT trail shift (TRAILING only); default 2 for flip stability
       cfg.RRM_TrailStartsAfterBE    = Inp_RRM_ORG_TrailStartsAfterBE;
       cfg.TrailProfitPercentLPR     = Inp_RRM_ORG_TrailProfitPercentLPR;
       cfg.PSAR_TrailCushionMode     = Inp_RRM_ORG_PSAR_TrailCushionMode;

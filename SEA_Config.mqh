@@ -1053,10 +1053,10 @@ input group "╔═════════════════════�
 input group "║   📐 RRM: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETrailingMode Inp_RRM_TrailMode              = TRAIL_PSAR;     // RRM Trailing stop mode
-input EPsarTrailCushionMode Inp_RRM_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR trail cushion mode (PIPS / ATR / PERCENT)
-input int         Inp_RRM_TrailCushionAtrPeriod    = 14;             // Cushion ATR period (ATR mode)
-input double      Inp_RRM_TrailCushionAtrMult      = 0.5;            // Cushion ATR multiplier (ATR mode): cushion = ATR × this
-input double      Inp_RRM_TrailCushionPct          = 0.04;           // Cushion % of price (PERCENT mode + safety floor), e.g. 0.04 = 0.04%
+input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // GLOBAL PSAR trail cushion mode (PIPS / ATR / PERCENT) — default for CUSTOM & seed
+input int         Inp_TrailCushionAtrPeriod        = 14;             // GLOBAL cushion ATR period (ATR mode)
+input double      Inp_TrailCushionAtrMult          = 0.5;            // GLOBAL cushion ATR multiplier (ATR mode): cushion = ATR × this
+input double      Inp_TrailCushionPct              = 0.04;           // GLOBAL cushion % of price (PERCENT mode + safety floor), e.g. 0.04 = 0.04%
 input bool        Inp_RRM_TrailStartsAfterBE       = false;          // Start trailing only after BE is reached
 input bool        Inp_RRM_FreezeTrailOnFlip        = true;           // Freeze trail on PSAR flip
 input int         Inp_RRM_TrailPsarShiftDelay      = 2;              // PSAR DOT trailing shift (1..3) — bars back the SAR dot is read (TRAILING only)
@@ -1505,6 +1505,13 @@ input group "╚═════════════════════�
 input bool        Inp_RRM_ORG_RequireRecoveryIntraday = true;        // RRM_ORG Require recovery <M15
 input bool        Inp_RRM_ORG_HtfFilter            = false;          // RRM_ORG HTF Trend Filter
 input int         Inp_RRM_ORG_HtfEmaPeriod         = 89;             // RRM_ORG HTF EMA period (0=use Inp_Filter_HtfEmaPeriod)
+input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM_ORG EMA1 Period (was borrowing Inp_RRM_Ema1Period)
+input int         Inp_RRM_ORG_Ema2Period           = 13;             // RRM_ORG EMA2 Period (was borrowing Inp_RRM_Ema2Period)
+input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM_ORG EMA3 Period (was borrowing Inp_RRM_Ema3Period)
+input int         Inp_RRM_ORG_Ema4Period           = 89;             // RRM_ORG EMA4 Period (was borrowing Inp_RRM_Ema4Period)
+input int         Inp_RRM_ORG_CandleBody_Weight    = 1;              // RRM_ORG CandleBody vote weight (was borrowing Inp_CUSTOM_*)
+input int         Inp_RRM_ORG_SmaConverge_Weight   = 1;              // RRM_ORG SmaConverge vote weight (was borrowing Inp_CUSTOM_*)
+input int         Inp_RRM_ORG_TrailPsarShiftDelay  = 2;              // RRM_ORG PSAR DOT trail shift 1..3 (TRAILING only; was borrowing Inp_RRM_*)
 input group " ";
 input int         Inp_RRM_ORG_PhaseConfirmM5       = 0;              // RRM_ORG PhaseConfirmBars <M5
 input int         Inp_RRM_ORG_PhaseConfirmM30      = 0;              // RRM_ORG PhaseConfirmBars <M30
@@ -2152,10 +2159,10 @@ void InitializeConfig()
    Settings.TrailLockProfit      = Inp_CUSTOM_TrailLockProfit;
    Settings.TP_Enabled           = Inp_CUSTOM_TP_Enabled;
    Settings.TrailMode            = Inp_CUSTOM_TrailMode;
-   Settings.PSAR_TrailCushionMode= Inp_RRM_PSAR_TrailCushionMode;
-   Settings.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_RRM_TrailCushionAtrPeriod);
-   Settings.PSAR_TrailCushionAtrMult   = MathMax(0.0, Inp_RRM_TrailCushionAtrMult);
-   Settings.PSAR_TrailCushionPct       = MathMax(0.0, Inp_RRM_TrailCushionPct);
+   Settings.PSAR_TrailCushionMode= Inp_PSAR_TrailCushionMode;
+   Settings.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_TrailCushionAtrPeriod);
+   Settings.PSAR_TrailCushionAtrMult   = MathMax(0.0, Inp_TrailCushionAtrMult);
+   Settings.PSAR_TrailCushionPct       = MathMax(0.0, Inp_TrailCushionPct);
    Settings.PSAR_TrailDelay      = (Inp_RRM_TrailPsarShiftDelay < 1) ? 1 : (Inp_RRM_TrailPsarShiftDelay > 3) ? 3 : Inp_RRM_TrailPsarShiftDelay; // DEPRECATED: mirrors RRM_TrailPsarShiftDelay so legacy refs stay consistent
 
    Settings.ExitProfile             = Inp_CUSTOM_ExitProfile;
