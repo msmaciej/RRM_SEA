@@ -954,7 +954,6 @@ input bool        Inp_UI_DrawEntryLines            = true;           // UI: Draw
 input bool        Inp_UI_DrawTradeLines            = true;           // UI: Draw trade management lines
 input bool        Inp_UI_UseCustomColors           = true;           // UI: Use custom panel colors
 input color       Inp_UI_FontColor                 = clrYellow;      // UI: font color
-input int         Inp_UI_PanelBgAlpha              = 110;            // UI: Panel background alpha (0..255)
 input int         Inp_UI_FramePadPx                = 6;              // UI: Panel padding (px)
 
 input group " ";
@@ -1060,7 +1059,6 @@ input double      Inp_RRM_TrailCushionAtrMult      = 0.5;            // Cushion 
 input double      Inp_RRM_TrailCushionPct          = 0.04;           // Cushion % of price (PERCENT mode + safety floor), e.g. 0.04 = 0.04%
 input bool        Inp_RRM_TrailStartsAfterBE       = false;          // Start trailing only after BE is reached
 input bool        Inp_RRM_FreezeTrailOnFlip        = true;           // Freeze trail on PSAR flip
-input int         Inp_RRM_PSAR_TrailDelay          = 1;              // [DEPRECATED] superseded by Inp_RRM_TrailPsarShiftDelay
 input int         Inp_RRM_TrailPsarShiftDelay      = 2;              // PSAR DOT trailing shift (1..3) — bars back the SAR dot is read (TRAILING only)
 // input string   Inp_PSAR_TrailCushion_Note       = "PSAR trail cushion auto-set by timeframe (M15=3, H1=7, H4=10 pips)"
 // input string   Inp_RRM_Trail_Info               = "RRM trailing: PSAR-based with bar shift delay for flip stability";
@@ -1421,7 +1419,6 @@ input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Recovery Sensitivity Tuning (Phase B)";
 input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_RRM_ORG_Layer_SlopeTolerance    = 0.0;         // Layer: Flat-slope tolerance in pips (0=strict both EMAs rising/falling)
 input double      Inp_RRM_ORG_BarClose_PipTolerance   = 0.0;         // BarClose: Allow close within N pips of target EMA (0=strict close>EMA)
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1589,10 +1586,8 @@ input int         Inp_CUSTOM_Ema4Period            = 89;             // CUSTOM E
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 3: Entry Signal (Timing Strategy)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_RRM_EnableInCustom    = false;          // CUSTOM Entry RRM Enable In Custom 
 input bool        Inp_CUSTOM_CloseOnReverse        = false;          // CUSTOM Entry Close On REverse
 input EAutoStrategy  Inp_CUSTOM_AutoStrat          = STRAT_2EMA_POSITION;  // CUSTOM Entry AutoStrat
-input double      Inp_CUSTOM_LayerTolerance        = 0.01;           // CUSTOM Entry Layer Tolerance (DEPRECATED)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 4: Bar Close (bcX - Candle Close Beyond EMA)";
 input group "╚════════════════════════════════════════════════════════╝";

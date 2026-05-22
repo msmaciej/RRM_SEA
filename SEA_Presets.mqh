@@ -1298,6 +1298,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Always off in RRM (not part of RRM methodology):
       cfg.Ind_Atr_Enabled        = false;
       cfg.Ind_CI_Enabled         = Inp_RRM_Use_CI; // Intentional: PRESET_RRM now exposes the CI toggle in its own preset block.
+      cfg.CI_Period              = Inp_RRM_CiPeriod;            // CI now configurable in RRM (was ignoring this input)
+      cfg.CI_RangingThreshold    = Inp_RRM_CiRangingThreshold;  // CI now configurable in RRM (was ignoring this input)
       cfg.Ind_VRC_Enabled        = false;
       cfg.Ind_P123_Enabled       = false;
       cfg.Ind_Ross_Enabled       = false;
@@ -1616,9 +1618,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Atr_Enabled        = Inp_RRM_ORG_Use_Atr;
       cfg.Ind_Bb_Enabled         = Inp_RRM_ORG_Use_Bb;
       cfg.Ind_CandleBody_Enabled = Inp_RRM_ORG_Use_CandleBody;
-      cfg.Ind_Cci_Enabled        = false;
+      // CCI/MACD: normally OFF because DPI (the I-factor) replaces them in RRM_ORG.
+      // Kept as inputs for A/B testing: set DPI off + these on to compare DPI vs MACD+CCI.
+      // Do NOT run DPI and MACD+CCI together — that double-counts the momentum signal.
+      cfg.Ind_Cci_Enabled        = Inp_RRM_ORG_Use_Cci;
       cfg.Ind_CI_Enabled         = Inp_RRM_ORG_Use_CI;
-      cfg.Ind_Macd_Enabled       = false;
+      cfg.Ind_Macd_Enabled       = Inp_RRM_ORG_Use_Macd;
       cfg.Ind_Mfi_Enabled        = Inp_RRM_ORG_Use_Mfi;
       cfg.Ind_Psar_Enabled       = Inp_RRM_ORG_Use_Psar;
       cfg.Ind_P123_Enabled       = Inp_RRM_ORG_Use_P123;
