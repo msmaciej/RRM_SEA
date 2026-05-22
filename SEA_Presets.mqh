@@ -663,6 +663,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    // Do NOT modify cfg.PrintEffectiveConfig / cfg.DebugFlow
    // Do NOT modify UI toggles or reporting toggles (ExportCSV, ExportUseCommonFiles)
 
+   // Universal cushion-field defaults (presets may override). Ensures ATR/PERCENT
+   // fields are always valid even for presets that only use PIPS mode.
+   cfg.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_RRM_TrailCushionAtrPeriod);
+   cfg.PSAR_TrailCushionAtrMult   = MathMax(0.0, Inp_RRM_TrailCushionAtrMult);
+   cfg.PSAR_TrailCushionPct       = MathMax(0.0, Inp_RRM_TrailCushionPct);
+
    // ================================================================
    // Policy A: Universal Operational Filters (User Always Controls)
    // 
@@ -1803,7 +1809,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_TrailStartsAfterBE    = Inp_RRM_ORG_TrailStartsAfterBE;
       cfg.TrailProfitPercentLPR     = Inp_RRM_ORG_TrailProfitPercentLPR;
       cfg.PSAR_TrailCushionMode     = Inp_RRM_ORG_PSAR_TrailCushionMode;
-      cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
+      cfg.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_RRM_ORG_TrailCushionAtrPeriod);
+      cfg.PSAR_TrailCushionAtrMult   = MathMax(0.0, Inp_RRM_ORG_TrailCushionAtrMult);
+      cfg.PSAR_TrailCushionPct       = MathMax(0.0, Inp_RRM_ORG_TrailCushionPct);
+      cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips(); // legacy PIPS-mode value; used only when cushion mode = PIPS
       cfg.BE_Mode                   = Inp_RRM_ORG_BE_Mode;
       cfg.RRM_BE_RMultiple          = Inp_RRM_ORG_BE_RMultiple;
       cfg.RRM_BE_ProgressPct        = Inp_RRM_ORG_BE_ProgressPct;

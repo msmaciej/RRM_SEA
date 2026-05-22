@@ -186,7 +186,9 @@ enum EVolatilityRegime {
 //+------------------------------------------------------------------+
 enum EPsarTrailCushionMode
 {
-   PSAR_CUSHION_PIPS       // PSAR: Fixed pips cushion
+   PSAR_CUSHION_PIPS,      // Fixed pips × pipSize (legacy)
+   PSAR_CUSHION_ATR,       // ATR(period) × multiplier (volatility-aware, universal)
+   PSAR_CUSHION_PERCENT    // Percent of price (price × pct/100, universal)
 };
 enum ETrailTrigger
 {
@@ -588,6 +590,9 @@ struct ST_Settings
    // TS - Trailing SL / TP / BE
    ETrailingMode       TrailMode;
    EPsarTrailCushionMode PSAR_TrailCushionMode;
+   int                 PSAR_TrailCushionAtrPeriod;  // ATR period for PSAR_CUSHION_ATR
+   double              PSAR_TrailCushionAtrMult;    // ATR multiplier for PSAR_CUSHION_ATR
+   double              PSAR_TrailCushionPct;        // % of price for PSAR_CUSHION_PERCENT and the safety floor
    double              PSAR_TrailPipsCushion;
    int                 PSAR_TrailDelay;       // PSAR trailing bar-shift delay (1-3)
 
@@ -1049,7 +1054,10 @@ input group "╔═════════════════════�
 input group "║   📐 RRM: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETrailingMode Inp_RRM_TrailMode              = TRAIL_PSAR;     // RRM Trailing stop mode
-input EPsarTrailCushionMode Inp_RRM_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR trail cushion mode
+input EPsarTrailCushionMode Inp_RRM_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR trail cushion mode (PIPS / ATR / PERCENT)
+input int         Inp_RRM_TrailCushionAtrPeriod    = 14;             // Cushion ATR period (ATR mode)
+input double      Inp_RRM_TrailCushionAtrMult      = 0.5;            // Cushion ATR multiplier (ATR mode): cushion = ATR × this
+input double      Inp_RRM_TrailCushionPct          = 0.04;           // Cushion % of price (PERCENT mode + safety floor), e.g. 0.04 = 0.04%
 input bool        Inp_RRM_TrailStartsAfterBE       = false;          // Start trailing only after BE is reached
 input bool        Inp_RRM_FreezeTrailOnFlip        = true;           // Freeze trail on PSAR flip
 input int         Inp_RRM_PSAR_TrailDelay          = 1;              // [DEPRECATED] superseded by Inp_RRM_TrailPsarShiftDelay
@@ -1233,7 +1241,10 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: HOW TO TRAIL STOP LOSS";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETrailingMode Inp_RRM_ORG_TrailMode          = TRAIL_PSAR;     // Trailing stop method
-input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR cushion mode
+input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // PSAR cushion mode (PIPS / ATR / PERCENT)
+input int         Inp_RRM_ORG_TrailCushionAtrPeriod = 14;            // RRM_ORG cushion ATR period (ATR mode)
+input double      Inp_RRM_ORG_TrailCushionAtrMult   = 0.5;           // RRM_ORG cushion ATR multiplier (cushion = ATR × this)
+input double      Inp_RRM_ORG_TrailCushionPct       = 0.04;          // RRM_ORG cushion % of price (PERCENT mode + safety floor)
 input double      Inp_RRM_ORG_TrailProfitPercentLPR = 25.0;          // LPR trailing percent behind peak
 //
 // Inp_RRM_ORG_TrailMode - Trailing method:
@@ -2147,6 +2158,9 @@ void InitializeConfig()
    Settings.TP_Enabled           = Inp_CUSTOM_TP_Enabled;
    Settings.TrailMode            = Inp_CUSTOM_TrailMode;
    Settings.PSAR_TrailCushionMode= Inp_RRM_PSAR_TrailCushionMode;
+   Settings.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_RRM_TrailCushionAtrPeriod);
+   Settings.PSAR_TrailCushionAtrMult   = MathMax(0.0, Inp_RRM_TrailCushionAtrMult);
+   Settings.PSAR_TrailCushionPct       = MathMax(0.0, Inp_RRM_TrailCushionPct);
    Settings.PSAR_TrailDelay      = (Inp_RRM_TrailPsarShiftDelay < 1) ? 1 : (Inp_RRM_TrailPsarShiftDelay > 3) ? 3 : Inp_RRM_TrailPsarShiftDelay; // DEPRECATED: mirrors RRM_TrailPsarShiftDelay so legacy refs stay consistent
 
    Settings.ExitProfile             = Inp_CUSTOM_ExitProfile;

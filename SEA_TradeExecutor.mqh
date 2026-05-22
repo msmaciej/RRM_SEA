@@ -32,6 +32,7 @@ private:
    // Indicator Handles (Fixes Asynchronous CopyBuffer failures)
    int         m_h_psar;
    int         m_h_fractals;
+   int         m_h_cushion_atr;  // ATR handle for PSAR_CUSHION_ATR (cached)
    
    // Telemetry Cache
    datetime    m_last_trade_bar;
@@ -200,6 +201,7 @@ private:
    void ReleaseHandles() {
       if(m_h_psar != INVALID_HANDLE) { IndicatorRelease(m_h_psar); m_h_psar = INVALID_HANDLE; }
       if(m_h_fractals != INVALID_HANDLE) { IndicatorRelease(m_h_fractals); m_h_fractals = INVALID_HANDLE; }
+      if(m_h_cushion_atr != INVALID_HANDLE) { IndicatorRelease(m_h_cushion_atr); m_h_cushion_atr = INVALID_HANDLE; }
    }
 
    void GetSymbolCurrencies(string sym, string &base, string &quote) {
@@ -1065,6 +1067,51 @@ private:
    }
 
    //+------------------------------------------------------------------+
+   //| RESOLVE TRAIL CUSHION as a PRICE distance.                        |
+   //| Priority: manual override (pips) -> mode (ATR / PERCENT / PIPS)   |
+   //| -> percent-of-price safety floor. Never returns <= 0 while a      |
+   //| valid price exists, so a position is never left without cushion.  |
+   //+------------------------------------------------------------------+
+   double ResolveTrailCushionPrice(double pipSize) {
+      // 1) Manual override always wins, interpreted as fixed pips.
+      if(m_settings.Override_Trail_Cushion > 0.0)
+         return m_settings.Override_Trail_Cushion * pipSize;
+
+      double mid = 0.0;
+      double bid = SymbolInfoDouble(m_symbol, SYMBOL_BID);
+      double ask = SymbolInfoDouble(m_symbol, SYMBOL_ASK);
+      if(bid > 0.0 && ask > 0.0) mid = (bid + ask) / 2.0;
+      else                       mid = bid > 0.0 ? bid : ask;
+
+      double pct_floor = (mid > 0.0 && m_settings.PSAR_TrailCushionPct > 0.0)
+                         ? mid * (m_settings.PSAR_TrailCushionPct / 100.0) : 0.0;
+
+      double cushion = 0.0;
+      switch(m_settings.PSAR_TrailCushionMode) {
+         case PSAR_CUSHION_ATR: {
+            if(m_h_cushion_atr != INVALID_HANDLE) {
+               double a[1];
+               if(CopyBuffer(m_h_cushion_atr, 0, 1, 1, a) == 1 && a[0] > 0.0)
+                  cushion = a[0] * m_settings.PSAR_TrailCushionAtrMult;
+            }
+            if(cushion <= 0.0) cushion = pct_floor; // ATR not ready -> percent floor
+            break;
+         }
+         case PSAR_CUSHION_PERCENT:
+            cushion = pct_floor;
+            break;
+         case PSAR_CUSHION_PIPS:
+         default:
+            cushion = m_settings.PSAR_TrailPipsCushion * pipSize;
+            break;
+      }
+
+      // Final safety: never zero cushion if we have a price to floor against.
+      if(cushion <= 0.0 && pct_floor > 0.0) cushion = pct_floor;
+      return cushion;
+   }
+
+   //+------------------------------------------------------------------+
    //| SHARED PSAR TRAIL SL: single source of truth for both trail paths|
    //| Resolves the trailing shift (RRM_TrailPsarShiftDelay, clamped     |
    //| 1..3), fetches the SAR dot at that shift, and applies the cushion. |
@@ -1080,7 +1127,7 @@ private:
       if(shift > 3) shift = 3;
       double psar = GetPSARAnchor(shift);
       if(psar <= 0.0) return 0.0;
-      double cushion = m_settings.PSAR_TrailPipsCushion * pipSize;
+      double cushion = ResolveTrailCushionPrice(pipSize);
       return isBuy ? NormalizeDouble(psar - cushion, digits)
                    : NormalizeDouble(psar + cushion, digits);
    }
@@ -1353,7 +1400,7 @@ public:
                        m_te_rej_open_delay(0), m_te_rej_bc_recheck(0), m_te_rej_spread_median(0),
                        m_te_pass_open_delay(0), m_te_pass_bc_recheck(0), m_te_pass_spread_median(0),
                        m_spread_history_count(0), m_spread_history_idx(0),
-                       m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), // CACHED HANDLES
+                       m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), m_h_cushion_atr(INVALID_HANDLE), // CACHED HANDLES
                        m_dpi_hist_current(0.0), m_dpi_hist_trend(0), m_dpi_hist_decelerating(false), m_dpi_hist_green_present(false),
                        m_exits_dpi_hist(0)
    {
@@ -1457,15 +1504,21 @@ public:
       // FIX Bug4: use m_symbol instead of _Symbol for multi-symbol correctness
       m_h_psar = iSAR(m_symbol, PERIOD_CURRENT, m_settings.P_PsarStep, m_settings.P_PsarMax);
       m_h_fractals = iFractals(m_symbol, PERIOD_CURRENT);
+      m_h_cushion_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.PSAR_TrailCushionAtrPeriod));
    }
    
    void UpdateSettings(ST_Settings &sets) { 
       bool recreate_psar = (m_settings.P_PsarStep != sets.P_PsarStep || m_settings.P_PsarMax != sets.P_PsarMax);
+      bool recreate_atr  = (m_settings.PSAR_TrailCushionAtrPeriod != sets.PSAR_TrailCushionAtrPeriod) || (m_h_cushion_atr == INVALID_HANDLE);
       m_settings = sets; 
       if (recreate_psar) {
          if (m_h_psar != INVALID_HANDLE) IndicatorRelease(m_h_psar);
          // FIX Bug4: use m_symbol instead of _Symbol for multi-symbol correctness
          m_h_psar = iSAR(m_symbol, PERIOD_CURRENT, m_settings.P_PsarStep, m_settings.P_PsarMax);
+      }
+      if (recreate_atr) {
+         if (m_h_cushion_atr != INVALID_HANDLE) IndicatorRelease(m_h_cushion_atr);
+         m_h_cushion_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.PSAR_TrailCushionAtrPeriod));
       }
    }
 
