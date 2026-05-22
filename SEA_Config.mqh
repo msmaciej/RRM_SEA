@@ -1049,6 +1049,7 @@ input group "║   📐 RRM: (SL) Stop Loss";
 input group "╚════════════════════════════════════════════════════════╝";
 input ESLMode    Inp_RRM_SLMode                    = SL_MODE_SWING;  // RRM SL placement mode
 input int        Inp_RRM_SwingLookback             = 34;             // RRM Swing lookback bars (used with SL_MODE_SWING)
+input int        Inp_RRM_MinBarsAfterClose         = 3;              // RRM post-trade cooldown bars (0=off; was hardcoded 3)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1222,6 +1223,7 @@ input group "║   📐 RRM_ORG: INITIAL STOP LOSS PLACEMENT";
 input group "╚════════════════════════════════════════════════════════╝";
 input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;  // Initial stop loss mode
 input int         Inp_RRM_ORG_SwingLookback        = 34;             // Swing lookback bars
+input int         Inp_RRM_ORG_MinBarsAfterClose    = 3;              // RRM_ORG post-trade cooldown bars (0=off; was hardcoded 3)
 //
 // Inp_RRM_ORG_SLMode - Initial SL placement method:
 // SL_MODE_SWING:      SL at recent swing high/low (lookback bars)
@@ -1566,6 +1568,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 // Moderate     (7 voters): + MACD, CCI, BB
 // Full         (10 voters): + DPI, SmaConv, Fib + CandleBody 75% ratio
 input ETIProfile  Inp_TI_Profile        = TI_MODERATE;  // TI: Quick Profile Select
+input int         Inp_TI_MinBarsAfterClose = 3;          // TI: post-trade cooldown bars (0=off; was hardcoded 3)
 input bool        Inp_TI_PhaseAllowEM   = true;   // TI: Allow Emerging phase (false=TM only)
 
 input group " ";

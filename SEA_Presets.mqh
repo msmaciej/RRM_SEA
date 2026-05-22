@@ -1489,7 +1489,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.AllowReEntryAfterBE       = true;
 
       // ── POST-TRADE COOLDOWN ───────────────────────────────────────────
-      cfg.MinBarsAfterClose         = 3;
+      cfg.MinBarsAfterClose         = MathMax(0, Inp_RRM_MinBarsAfterClose);     // RRM cooldown (was hardcoded 3)
 
       // ── SPREAD RETRY CAP ─────────────────────────────────────────────
       cfg.MaxSpreadRetryBars        = 3;
@@ -1896,7 +1896,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.AllowReEntryAfterBE       = true;
 
       // ── POST-TRADE COOLDOWN ───────────────────────────────────────────
-      cfg.MinBarsAfterClose         = 3;
+      cfg.MinBarsAfterClose         = MathMax(0, Inp_RRM_ORG_MinBarsAfterClose); // RRM_ORG cooldown (was hardcoded 3)
 
       // ── SPREAD RETRY CAP ─────────────────────────────────────────────
       cfg.MaxSpreadRetryBars        = 3;
@@ -2262,7 +2262,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── RE-ENTRY / COOLDOWN ───────────────────────────────────────
       cfg.AllowReEntryAfterBE       = true;
-      cfg.MinBarsAfterClose         = 3;
+      cfg.MinBarsAfterClose         = MathMax(0, Inp_TI_MinBarsAfterClose);      // TOPINVESTOR cooldown (was hardcoded 3)
       cfg.MaxSpreadRetryBars        = 3;
 
       // ── POLICY A: RESTORE OPERATOR-CONTROLLED GATES ───────────────
