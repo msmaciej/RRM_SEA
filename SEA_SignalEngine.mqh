@@ -618,43 +618,25 @@ private:
       int mtf_tf2 = GetMTFBias(h_mtf_tf2_fast, h_mtf_tf2_slow);
       string tf2_label = EnumToString(m_settings.MTF_TF2);
 
-      if(m_settings.MTF_StrictAlignment)
+      // HTF is a directional gate: with two HTFs configured, BOTH must agree
+      // with the trade direction. No majority/pullback exception — a trade is
+      // only allowed in the direction of the higher-TF trend(s).
+      // (MTF_StrictAlignment is retained for compatibility but the gate is
+      //  strict-by-construction; the flag no longer relaxes it.)
+      if(bias == mtf_tf1 && bias == mtf_tf2)
       {
-         if(bias == mtf_tf1 && bias == mtf_tf2)
-         {
-            reason = "MTF_ALL_ALIGNED";
-            diag = StringFormat("[MTF] %s:%s %s:%s ✓",
-                                tf1_label, MTFBiasLabel(mtf_tf1),
-                                tf2_label, MTFBiasLabel(mtf_tf2));
-            return +1;
-         }
-
-         reason = "MTF_CONFLICT";
-         diag = StringFormat("[MTF] %s:%s %s:%s ✗ (vs %s)",
+         reason = "MTF_ALL_ALIGNED";
+         diag = StringFormat("[MTF] %s:%s %s:%s ✓",
                              tf1_label, MTFBiasLabel(mtf_tf1),
-                             tf2_label, MTFBiasLabel(mtf_tf2),
-                             MTFBiasLabel(bias));
-         return 0;
-      }
-
-      int votes_agree = 0;
-      if(bias == mtf_tf1) votes_agree++;
-      if(bias == mtf_tf2) votes_agree++;
-
-      if(votes_agree >= 1)
-      {
-         reason = "MTF_MAJORITY";
-         diag = StringFormat("[MTF] %s:%s %s:%s (%d/2 agree)",
-                             tf1_label, MTFBiasLabel(mtf_tf1),
-                             tf2_label, MTFBiasLabel(mtf_tf2),
-                             votes_agree);
+                             tf2_label, MTFBiasLabel(mtf_tf2));
          return +1;
       }
 
-      reason = "MTF_ALL_DISAGREE";
-      diag = StringFormat("[MTF] %s:%s %s:%s ✗ (0/2 agree)",
+      reason = "MTF_CONFLICT";
+      diag = StringFormat("[MTF] %s:%s %s:%s ✗ (vs %s)",
                           tf1_label, MTFBiasLabel(mtf_tf1),
-                          tf2_label, MTFBiasLabel(mtf_tf2));
+                          tf2_label, MTFBiasLabel(mtf_tf2),
+                          MTFBiasLabel(bias));
       return 0;
    }
 

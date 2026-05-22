@@ -903,7 +903,7 @@ input ENUM_TIMEFRAMES Inp_MTF_TF2                  = PERIOD_M15;  // [MTF] Confi
 input int         Inp_MTF_EMA_Fast                 = 20;          // [MTF] Fast EMA period
 input int         Inp_MTF_EMA_Slow                 = 50;          // [MTF] Slow EMA period
 input bool        Inp_MTF_RequirePhase             = true;        // [MTF] Require trending phase (filters choppy markets)
-input bool        Inp_MTF_StrictAlignment          = true;        // [MTF] Strict (all TFs agree) vs Flexible (majority)
+input bool        Inp_MTF_StrictAlignment          = true;        // [MTF] HTF directional gate: all configured HTFs must agree (retained; gate is strict)
 
 // ╔════════════════════════════════════════════════════════════════╗
 // ║ DEPRECATED: Old HTF filter (replaced by MTF indicator vote)   ║

@@ -1312,7 +1312,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Fast           = Inp_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow           = Inp_MTF_EMA_Slow;
       cfg.MTF_RequirePhase       = false;   // Position-only; slope kills signals due to HTF lag
-      cfg.MTF_StrictAlignment    = false;   // 1 of 2 HTFs enough; strict blocks SHORT during corrections
+      cfg.MTF_StrictAlignment    = Inp_MTF_StrictAlignment;   // HTF directional gate: both HTFs must agree (strict). User-controlled.
 
       // Legacy migration from deprecated HTF inputs
       if(Inp_Filter_UseHTF)
@@ -1871,7 +1871,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Fast              = Inp_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow              = Inp_MTF_EMA_Slow;
       cfg.MTF_RequirePhase          = false;   // Position-only check; slope requirement kills too many signals due to HTF EMA lag
-      cfg.MTF_StrictAlignment       = false;   // At least 1 of 2 HTFs must agree (strict = both must agree → blocks SHORT during corrections)
+      cfg.MTF_StrictAlignment       = Inp_MTF_StrictAlignment;   // HTF directional gate: trade only with higher-TF trend(s). User-controlled.
 
       // Legacy migration path for previous HTF controls
       bool legacy_htf_enabled = (Inp_RRM_ORG_HtfFilter || Inp_Filter_UseHTF);
@@ -2040,7 +2040,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Fast           = 50;     // Institutional standard
       cfg.MTF_EMA_Slow           = 200;    // Institutional standard
       cfg.MTF_RequirePhase       = true;
-      cfg.MTF_StrictAlignment    = false;
+      cfg.MTF_StrictAlignment    = Inp_MTF_StrictAlignment;   // HTF directional gate. User-controlled.
 
       // ── SPREAD: pair-adaptive from Zone 3C ─────────────────────────
       cfg.MaxSpread              = op_MaxSpread;
