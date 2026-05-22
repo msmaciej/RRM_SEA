@@ -255,20 +255,24 @@ ENUM_TIMEFRAMES GetSafeMTF_TF2(ENUM_TIMEFRAMES user_input)
 }
 
 //+------------------------------------------------------------------+
-//| GetInstrumentFanMultiplier: EMA Fan pip threshold scaling         |
+//| GetInstrumentFanMultiplier: pip threshold scaling for non-forex    |
 //|                                                                    |
-//| EMA Fan thresholds are defined as FX base values.                  |
-//| Non-forex instruments have much wider EMA spreads in pips,         |
-//| so the base threshold must be multiplied accordingly.              |
+//| Scales pip-based thresholds (SL cushion, trail cushion, BE buffer) |
+//| for instruments with wider pip ranges than standard Forex.         |
 //|                                                                    |
-//| Returns: multiplier to apply to the FX base EmaFanMaxTotalPips.    |
+//| NOTE: This multiplier works for CUSHION thresholds (which scale    |
+//| with typical bar ranges) but is INSUFFICIENT for EMA fan gap       |
+//| thresholds because EMA gaps scale with price level, not just       |
+//| volatility. See GetEmaFanMultiplier() for the fan-specific scaler. |
+//|                                                                    |
+//| Returns: multiplier to apply to FX base pip thresholds.            |
 //|   Forex         : 1.0x (base)                                      |
 //|   JPY pairs     : 1.5x (wider spreads in pip terms)                |
-//|   Gold (XAU)    : 20.0x (Gold pips are ~100x larger than forex)    |
-//|   Silver (XAG)  : 10.0x                                           |
-//|   Indices       : 15.0x (NAS100, US30, DAX, SPX, etc.)            |
-//|   Oil (WTI/Brent): 8.0x                                           |
-//|   Crypto (BTC)  : 25.0x                                           |
+//|   Gold (XAU)    : 20.0x                                            |
+//|   Silver (XAG)  : 10.0x                                            |
+//|   Indices       : 15.0x                                            |
+//|   Oil           : 8.0x                                             |
+//|   Crypto        : 25.0x                                            |
 //+------------------------------------------------------------------+
 double GetInstrumentFanMultiplier()
 {
@@ -305,10 +309,48 @@ double GetInstrumentFanMultiplier()
    else if(StringFind(sym, "JPY") >= 0)
       { mult = 1.5; inst_class = "Forex-JPY"; }
 
-   PrintFormat("📐 [EMA_FAN] %s detected as %s | fan multiplier: %.1fx",
+   PrintFormat("📐 [INSTRUMENT] %s detected as %s | cushion multiplier: %.1fx",
                sym, inst_class, mult);
 
    return mult;
+}
+
+//+------------------------------------------------------------------+
+//| GetEmaFanMultiplier: price-level-aware EMA fan gap scaling        |
+//|                                                                    |
+//| EMA gaps in pips scale with (price_level / pip_size). A 0.3%      |
+//| move on Gold ($2400, pip=$0.01) = 7200 pips vs Forex (1.10,       |
+//| pip=0.0001) = 33 pips. Static multipliers can't bridge this gap.  |
+//|                                                                    |
+//| Approach: (symbol_price / symbol_pip) / (forex_ref / forex_pip)   |
+//| This auto-adapts to any instrument's price level.                  |
+//| Falls back to static multiplier if live price unavailable.         |
+//+------------------------------------------------------------------+
+double GetEmaFanMultiplier()
+{
+   string sym = _Symbol;
+   double pip = GlobalPipSize(sym);
+   double bid = SymbolInfoDouble(sym, SYMBOL_BID);
+
+   // Forex reference: EURUSD-like, price ~1.10, pip = 0.0001
+   double fx_ref_ratio = 1.10 / 0.0001;  // = 11000
+
+   if(bid > 0.0 && pip > 0.0)
+   {
+      double sym_ratio = bid / pip;
+      double mult = sym_ratio / fx_ref_ratio;
+      // Cap between 0.5x and 10000x
+      mult = MathMax(0.5, MathMin(10000.0, mult));
+
+      PrintFormat("📐 [EMA_FAN] %s | bid=%.2f pip=%.5f | dynamic fan multiplier: %.1fx",
+                  sym, bid, pip, mult);
+      return mult;
+   }
+
+   // Fallback: use cushion multiplier (underestimates for metals but better than 1.0)
+   double fallback = GetInstrumentFanMultiplier();
+   PrintFormat("📐 [EMA_FAN] %s | price unavailable — fallback fan multiplier: %.1fx", sym, fallback);
+   return fallback;
 }
 
 // TF-based swing lookback for FPM preset — prevents anchor landing on wrong side
@@ -1452,7 +1494,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       //   M15/H1: consider 40–60 pips; H4+: 80–120 pips.
       // JPY pairs: GlobalPipSize() returns the correct pip unit automatically.
       cfg.EmaFanFilterEnabled       = true;
-      cfg.EmaFanMaxTotalPips        = 25.0 * GetInstrumentFanMultiplier();
+      cfg.EmaFanMaxTotalPips        = 25.0 * GetEmaFanMultiplier();
+      cfg.EmaFanMaxPct              = 0.0;  // Pip mode by default; user can override
 
       // ── DPI DECELERATION FILTER ────────────────────────────────────────
       // DPI voter not enabled in PRESET_RRM base; filter stays inactive.
@@ -1851,7 +1894,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
                                     : (_Period <= PERIOD_H1)  ? Inp_RRM_ORG_EmaFan_H1Pips
                                     : (_Period <= PERIOD_H4)  ? Inp_RRM_ORG_EmaFan_H4Pips
                                     :                           Inp_RRM_ORG_EmaFan_DailyPips;
-      cfg.EmaFanMaxTotalPips        = rrm_org_fan_base * GetInstrumentFanMultiplier();
+      cfg.EmaFanMaxTotalPips        = rrm_org_fan_base * GetEmaFanMultiplier();
+
+      // Percentage-based alternative: if user set EmaFan_MaxPct > 0, use it instead.
+      // This works universally across all instruments without multipliers.
+      cfg.EmaFanMaxPct              = MathMax(0.0, Inp_RRM_ORG_EmaFan_MaxPct);
+      if(cfg.EmaFanMaxPct > 0.0)
+      {
+         PrintFormat("📐 [EMA_FAN] Using percentage mode: %.3f%% (overrides pip-based threshold %.1f)",
+                     cfg.EmaFanMaxPct, cfg.EmaFanMaxTotalPips);
+      }
 
       // ── DPI DECELERATION FILTER ────────────────────────────────────────
       // PHASE A: now actually active because Ind_Dpi_Enabled is true above.
@@ -2175,7 +2227,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
                                     : (_Period <= PERIOD_H1)  ? 120.0
                                     : (_Period <= PERIOD_H4)  ? 200.0
                                     :                           350.0;
-      cfg.EmaFanMaxTotalPips        = ti_fan_base * GetInstrumentFanMultiplier();
+      cfg.EmaFanMaxTotalPips        = ti_fan_base * GetEmaFanMultiplier();
+      cfg.EmaFanMaxPct              = 0.0;  // Pip mode by default; user can override
       PrintFormat("📐 [TOPINVESTOR] EMA Fan threshold: %.1f pips (base=%.1f × multiplier)",
                   cfg.EmaFanMaxTotalPips, ti_fan_base);
       PrintFormat("📐 [TOPINVESTOR] SL: SWING lookback=%d | cushion=%.1f pips | BE buffer=%.1f pips",

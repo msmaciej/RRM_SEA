@@ -413,9 +413,14 @@ int OrchestrateInit()
    int    sym_digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
    double tick_sz    = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
    double tick_val   = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+   double tick_val_loss = 0.0;
+   SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS, tick_val_loss);
+   double contract_sz = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_CONTRACT_SIZE);
+   string acc_ccy     = AccountInfoString(ACCOUNT_CURRENCY);
+   string profit_ccy  = SymbolInfoString(_Symbol, SYMBOL_CURRENCY_PROFIT);
    bool   is_jpy     = (StringFind(_Symbol, "JPY") >= 0);
-   PrintFormat("📐 [SYMBOL] %s | digits=%d | _Point=%.6f | pip=%.6f | tick_sz=%.6f | tick_val=%.6f | isJPY=%s",
-               _Symbol, sym_digits, _Point, pip_sz, tick_sz, tick_val, (is_jpy ? "YES" : "NO"));
+   PrintFormat("📐 [SYMBOL] %s | digits=%d | _Point=%.6f | pip=%.6f | tick_sz=%.6f | tick_val=%.6f | tick_val_loss=%.6f | contract=%.0f | acc=%s | profit_ccy=%s",
+               _Symbol, sym_digits, _Point, pip_sz, tick_sz, tick_val, tick_val_loss, contract_sz, acc_ccy, profit_ccy);
    if(is_jpy && pip_sz < 0.005) {
       PrintFormat("⚠️ [SYMBOL] JPY pair detected but pip size (%.6f) looks too small — check broker digit config (expected ~0.01)", pip_sz);
    }
@@ -679,7 +684,11 @@ void OrchestrateTick()
       // Always count trades at ENTRY for accurate daily tracking (used by DrawdownProtection when enabled)
       // FIX Bug5: removed RRM_EnableDrawdownProtection gate so g_trades_today is always accurate for logging
       if(te > 0)
+      {
          g_trades_today++;
+         // Reset CCI reset-recovery state after trade execution — cycle must start fresh
+         Signal.ResetDPIResetState();
+      }
 
       g_ts_sl   = Executor.LastCachedSL();
       g_ts_lots = Executor.LastCachedLots();
@@ -751,7 +760,7 @@ void OrchestrateTick()
    g_te_retry_bar   = current_bar;
 
    // 6. TM: Trail/BE modifications — bar-close only
-   Executor.SetDPIHistogramState(Signal.GetDPIHistCurrent(), Signal.GetDPIHistTrend(), Signal.GetDPIHistDecelerating());
+   Executor.SetDPIHistogramState(Signal.GetDPIHistCurrent(), Signal.GetDPIHistTrend(), Signal.GetDPIHistDecelerating(), Signal.GetDPIHistGreenPresent());
    Executor.EvaluateTM();
    Executor.UpdateChartMarkers();
 

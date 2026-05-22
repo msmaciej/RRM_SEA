@@ -65,8 +65,9 @@ private:
 
    // ── DPI Histogram Exit: state cached from CSignalEngine each bar ──
    double      m_dpi_hist_current;       // Current CCI value from DPI tracking
-   int         m_dpi_hist_trend;         // +1 green, -1 red, 0 flat
+   int         m_dpi_hist_trend;         // +1 = CCI positive, -1 = CCI negative, 0 = flat
    bool        m_dpi_hist_decelerating;  // True if momentum decelerating
+   bool        m_dpi_hist_green_present; // True if GREEN area exists (Blue & hist aligned)
    int         m_exits_dpi_hist;         // Count of positions closed by DPI histogram exit
 
    // ── PHASE B: median-spread ring buffer for TE_SpreadMedianTicks gate ──
@@ -559,33 +560,53 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   //| CheckDPIHistogramExit — Exit when DPI green histogram vanishes   |
+   //| CheckDPIHistogramExit — Exit when GREEN histogram vanishes       |
    //| Returns: true if position should be closed                       |
+   //|                                                                   |
+   //| DPI GREEN = Blue (lead) and hist (contour) on same side of zero. |
+   //| GREEN appears BOTH above zero (bullish momentum) and below zero  |
+   //| (bearish momentum). Its presence confirms momentum alignment in  |
+   //| the given direction — it accompanies the red/yellow ribbon.      |
+   //|                                                                   |
+   //| When GREEN declines and disappears → OB/OS condition reached.    |
+   //| This typically precedes pullbacks that erode open profits.       |
+   //| Closing on GREEN disappearance locks in gains before retracement.|
+   //|                                                                   |
+   //| Direction-neutral: works for both BUY and SELL because GREEN     |
+   //| exists on both sides of zero.                                    |
+   //|                                                                   |
+   //| BUG FIX (2026-05-21): Was checking CCI sign via m_dpi_hist_trend |
+   //| (trend != 1 means "CCI not positive"), which killed all SHORTs   |
+   //| on bar 1 because bearish CCI (-1 != 1) was always true.          |
+   //| Now tracks actual GREEN presence from ComputeDPIMainHist().      |
    //+------------------------------------------------------------------+
    bool CheckDPIHistogramExit(ulong ticket)
    {
       if(!m_settings.DPI_ExitOnHistDisappear) return false;
       if(!m_settings.DPI_HistTrackingEnabled) return false;
 
-      // Exit if green histogram disappeared (trend changed to red/flat)
-      bool hist_disappeared = (m_dpi_hist_trend != 1);
-      bool below_threshold  = false;
+      // GREEN vanished = OB/OS reached, pullback likely (direction-neutral)
+      bool green_gone = !m_dpi_hist_green_present;
+      bool below_threshold = false;
 
       if(m_settings.DPI_ExitThreshold > 0.0)
          below_threshold = (MathAbs(m_dpi_hist_current) < m_settings.DPI_ExitThreshold);
 
-      if(hist_disappeared || below_threshold)
+      if(green_gone || below_threshold)
       {
          if(m_settings.DebugFlow)
          {
-            string reason = hist_disappeared
-               ? "Green histogram disappeared"
+            ENUM_POSITION_TYPE pos_type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+            string reason = green_gone
+               ? "GREEN vanished (OB/OS — pullback likely)"
                : StringFormat("CCI below threshold (%.2f < %.2f)", MathAbs(m_dpi_hist_current), m_settings.DPI_ExitThreshold);
-            PrintFormat("[DPI_EXIT] Ticket #%I64u | Reason: %s | CCI=%.2f | Trend=%s",
+            PrintFormat("[DPI_EXIT] Ticket #%I64u | Dir=%s | Reason: %s | CCI=%.2f | CCI_Trend=%s | GREEN=%s",
                         ticket,
+                        (pos_type == POSITION_TYPE_BUY) ? "BUY" : "SELL",
                         reason,
                         m_dpi_hist_current,
-                        (m_dpi_hist_trend == 1 ? "GREEN" : m_dpi_hist_trend == -1 ? "RED" : "FLAT"));
+                        (m_dpi_hist_trend == 1 ? "POS" : m_dpi_hist_trend == -1 ? "NEG" : "FLAT"),
+                        m_dpi_hist_green_present ? "YES" : "NO");
          }
          return true;
       }
@@ -671,29 +692,96 @@ private:
       if(equity <= 0.0) return 0.0;
       double risk_money = equity * (m_settings.RiskPercent / 100.0);
       if(risk_money <= 0.0) return 0.0;
-      double tick_size=0.0, tick_value=0.0;
+
+      double tick_size = 0.0, tick_value = 0.0;
       if(!SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE, tick_size) || tick_size <= 0.0) return 0.0;
-      if(!SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS, tick_value) || tick_value <= 0.0) {
-         SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE, tick_value);
+
+      // Get tick value in account currency.
+      // Priority: TICK_VALUE_LOSS (best for risk) → TICK_VALUE (fallback).
+      // Some brokers return 0 for LOSS on CFDs (metals, indices).
+      double tv_loss = 0.0, tv_generic = 0.0;
+      SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS, tv_loss);
+      SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE, tv_generic);
+
+      if(tv_loss > 0.0)
+         tick_value = tv_loss;
+      else if(tv_generic > 0.0)
+         tick_value = tv_generic;
+      else
+         return 0.0;
+
+      // ── Diagnostic: log full symbol economics on first call ──
+      // Helps diagnose wrong lot sizing on metals, JPY, non-USD accounts.
+      static bool s_first_calc = true;
+      if(s_first_calc)
+      {
+         s_first_calc = false;
+         double contract_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_CONTRACT_SIZE);
+         string acc_ccy       = AccountInfoString(ACCOUNT_CURRENCY);
+         string profit_ccy    = SymbolInfoString(m_symbol, SYMBOL_CURRENCY_PROFIT);
+         string margin_ccy    = SymbolInfoString(m_symbol, SYMBOL_CURRENCY_MARGIN);
+         double vol_min       = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN);
+         double vol_step      = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_STEP);
+
+         // Manual cross-check: for USD-quoted instruments on USD account,
+         // tick_value should ≈ contract_size × tick_size.
+         // For non-USD accounts, broker applies FX conversion.
+         double expected_tv_usd = contract_size * tick_size;
+
+         PrintFormat("📊 [LOT DIAG] %s | account_ccy=%s | profit_ccy=%s | margin_ccy=%s",
+                     m_symbol, acc_ccy, profit_ccy, margin_ccy);
+         PrintFormat("📊 [LOT DIAG] %s | contract=%.0f | tick_sz=%.5f | tv_loss=%.5f | tv_generic=%.5f | tv_used=%.5f",
+                     m_symbol, contract_size, tick_size, tv_loss, tv_generic, tick_value);
+         PrintFormat("📊 [LOT DIAG] %s | expected_tv_usd=%.5f (contract×tick) | vol_min=%.2f | vol_step=%.2f",
+                     m_symbol, expected_tv_usd, vol_min, vol_step);
+
+         // Warn if tick_value looks suspicious
+         if(acc_ccy == "USD" && expected_tv_usd > 0.0)
+         {
+            double ratio = tick_value / expected_tv_usd;
+            if(ratio < 0.5 || ratio > 2.0)
+               PrintFormat("⚠️ [LOT DIAG] %s tick_value (%.5f) differs significantly from expected (%.5f) — ratio=%.2f — check broker symbol config",
+                           m_symbol, tick_value, expected_tv_usd, ratio);
+         }
+         // Non-USD account: can't easily cross-check, but warn if tick_value is extremely
+         // large (possible pip-mode tester) or extremely small (possible broker misconfiguration)
+         if(tick_value > 50.0)
+            PrintFormat("⚠️ [LOT DIAG] %s tick_value=%.2f is unusually large for account_ccy=%s — if in Strategy Tester, ensure 'profit in deposit currency' mode",
+                        m_symbol, tick_value, acc_ccy);
       }
-      if(tick_value <= 0.0) return 0.0;
+
       double loss_per_lot = (stop_dist / tick_size) * tick_value;
       if(loss_per_lot <= 0.0) return 0.0;
       double raw_lot = risk_money / loss_per_lot;
       if(raw_lot <= 0.0) return 0.0;
+
+      // Warn if lot is being clamped to minimum (risk will exceed target)
+      double vol_min = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN);
+      if(raw_lot < vol_min && vol_min > 0.0)
+      {
+         double actual_risk_money = loss_per_lot * vol_min;
+         double actual_risk_pct = (equity > 0.0) ? (actual_risk_money / equity * 100.0) : 0.0;
+         PrintFormat("⚠️ [LOT CALC] %s raw_lot=%.4f < min_lot=%.2f — clamped to minimum. "
+                     "Actual risk: %.2f %s (%.2f%%) vs target: %.2f %s (%.2f%%)",
+                     m_symbol, raw_lot, vol_min,
+                     actual_risk_money, AccountInfoString(ACCOUNT_CURRENCY), actual_risk_pct,
+                     risk_money, AccountInfoString(ACCOUNT_CURRENCY), m_settings.RiskPercent);
+      }
+
       double large_lot_threshold = (equity / SEA_LARGE_LOT_EQUITY_BLOCK_USD) * SEA_LARGE_LOT_PER_EQUITY_BLOCK;
       double pip_size = GetPipSize();
       if(pip_size > 0.0 && raw_lot > large_lot_threshold) {
-         PrintFormat("⚠️ [CM] Very large lot computed: %.2f lots for %.1f pip SL on $%.0f equity -- check SL_MinPips setting",
-                     raw_lot, stop_dist / pip_size, equity);
+         PrintFormat("⚠️ [CM] Very large lot computed: %.2f lots for %.1f pip SL on %.0f %s equity -- check SL_MinPips setting",
+                     raw_lot, stop_dist / pip_size, equity, AccountInfoString(ACCOUNT_CURRENCY));
       }
-      PrintFormat("📊 [LOT CALC] %s | stop=%.5f | tick_sz=%.5f | tick_val=%.5f | loss_per_lot=%.4f | risk=$%.2f | raw_lot=%.4f | final_lot=%.4f",
+      PrintFormat("📊 [LOT CALC] %s | stop=%.5f | tick_sz=%.5f | tick_val=%.5f | loss_per_lot=%.4f | risk=%.2f %s | raw_lot=%.4f | final_lot=%.4f",
                   m_symbol,
                   stop_dist,
                   tick_size,
                   tick_value,
                   loss_per_lot,
                   risk_money,
+                  AccountInfoString(ACCOUNT_CURRENCY),
                   raw_lot,
                   NormalizeVolume(raw_lot));
       return NormalizeVolume(raw_lot);
@@ -1245,7 +1333,7 @@ public:
                        m_te_pass_open_delay(0), m_te_pass_bc_recheck(0), m_te_pass_spread_median(0),
                        m_spread_history_count(0), m_spread_history_idx(0),
                        m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), // CACHED HANDLES
-                       m_dpi_hist_current(0.0), m_dpi_hist_trend(0), m_dpi_hist_decelerating(false),
+                       m_dpi_hist_current(0.0), m_dpi_hist_trend(0), m_dpi_hist_decelerating(false), m_dpi_hist_green_present(false),
                        m_exits_dpi_hist(0)
    {
       m_excursion.ticket = 0; m_excursion.entry_time = 0; m_excursion.entry_price = 0.0;
@@ -1292,11 +1380,12 @@ public:
    // ── DPI Histogram Exit: state setter & stats getter ──────────────
    // Called once per bar from main EA before EvaluateTM(), so CheckDPIHistogramExit()
    // uses the current DPI state computed by CSignalEngine.
-   void SetDPIHistogramState(double current, int trend, bool decelerating)
+   void SetDPIHistogramState(double current, int trend, bool decelerating, bool green_present)
    {
       m_dpi_hist_current      = current;
       m_dpi_hist_trend        = trend;
       m_dpi_hist_decelerating = decelerating;
+      m_dpi_hist_green_present = green_present;
    }
    int ExitsDpiHist() const { return m_exits_dpi_hist; }
 

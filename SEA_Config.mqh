@@ -447,6 +447,15 @@ struct ST_Settings
    bool   DPI_BlockOnDeceleration;  // Block new entries when histogram decelerating
    bool   DPI_ExitOnHistDisappear;  // Close positions when green histogram vanishes
    double DPI_ExitThreshold;        // Exit when |CCI| falls below this value
+   // DPI CCI Reset-Recovery Entry Gate
+   // When enabled, entries are only allowed AFTER a CCI reset has occurred and recovered.
+   // A reset = CCI flipped against histogram (ribbon color changed during pullback).
+   // Recovery = CCI flipped back (ribbon color restored), held for N bars.
+   // This filters for setups where the pullback was real (CCI confirmed it)
+   // and the trend survived (CCI recovered), producing higher-reliability entries.
+   bool   DPI_RequireResetRecovery;   // Master switch: require CCI reset→recovery before entry
+   int    DPI_ResetRecoveryBars;      // Bars of recovery after CCI flip-back (0=immediate, 1+=confirmed)
+   bool   DPI_ResetRequireGreen;      // Also require GREEN to reappear during recovery
    int    VRC_ATR_Period;
    int    VRC_Lookback;
    double VRC_LowThreshold;         // Below this percentile = LOW regime (reject trade)
@@ -698,8 +707,14 @@ struct ST_Settings
    // EmaFanMaxTotalPips=25.0 is an empirically chosen starting point for M1/M5 with EMA5/13/34/89.
    // Adjust per timeframe: M15/H1 consider 40–60 pips; H4+ consider 80–120 pips.
    // JPY pairs (~3-digit): GlobalPipSize() returns the correct pip unit; no special-casing needed.
+   //
+   // EmaFanMaxPct: normalized alternative — gap as % of midprice. Works universally across
+   // all instruments (Forex, Gold, Silver, indices, crypto) without multipliers.
+   // If EmaFanMaxPct > 0, it takes priority over EmaFanMaxTotalPips.
+   // Reference: 0.36% ≈ 40 pips on EURUSD ≈ $8.60 on Gold ≈ 54 pips on USDJPY.
    bool   EmaFanFilterEnabled;
    double EmaFanMaxTotalPips;
+   double EmaFanMaxPct;            // Max EMA1-EMA4 gap as % of price (0=use pips mode)
 
    // DPI momentum deceleration filter — block TS=1 when directionally-aligned DPI histogram shrinks
    // Only activates when DpiDecelFilterEnabled=true AND Ind_Dpi_Enabled=true.
@@ -859,7 +874,7 @@ input int         Inp_VETO_TE_SpreadMedianTicks    = 0;          // Spread media
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 INDICATOR: MTF (Multi-Timeframe Confirmation)     ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Ind_MTF_Enabled              = false;       // [MTF] Enable MTF vote
+input bool        Inp_Ind_MTF_Enabled              = true;       // [MTF] Enable MTF vote
 input int         Inp_Ind_MTF_Weight               = 1;           // [MTF] Vote weight
 input ENUM_TIMEFRAMES Inp_MTF_TF1                  = PERIOD_M5;   // [MTF] Confirmation TF1 (primary)
 input ENUM_TIMEFRAMES Inp_MTF_TF2                  = PERIOD_M15;  // [MTF] Confirmation TF2 (PERIOD_CURRENT = single TF mode)
@@ -929,7 +944,7 @@ input group "║   🔍 DEBUG: DIAGNOSTICS";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_Debug_Flow                   = true;           // Debug: Print OnInit/OnTick/OnDeinit flow ... have to be true with DEBUG_SIGNALS_ONLY
 input bool        Inp_Debug_PrintEffectiveConfig   = true;           // Debug: Print effective config on init
-input EDebugLevel Inp_Debug_Level                  = DEBUG_INDICATORS;   // Debug: Level
+input EDebugLevel Inp_Debug_Level                  = DEBUG_SILENT;   // Debug: Level
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔍 DEBUG: DIAGNOSTICS: STATISTICS";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -941,7 +956,7 @@ input bool        Inp_Debug_Stats_FullEvaluation   = true;           // Stats: E
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔬 DEBUG: TARGETED BAR EVALUATION";
 input group "╚════════════════════════════════════════════════════════╝";
-input EDebugLevel Inp_Debug_EvalMode               = DEBUG_FULL;     // Forced eval: debug level to apply
+input EDebugLevel Inp_Debug_EvalMode               = DEBUG_SUMMARY;     // Forced eval: debug level to apply
 input datetime    Inp_Debug_EvalFrom               = 0;              // Debug window: force eval print from (0=off)
 input datetime    Inp_Debug_EvalTo                 = 0;              // Debug window: force eval print to (0=off; use with From)
 input datetime    Inp_Debug_EvalAt                 = 0;              // Debug pinpoint: force eval at exact bar time (0=off)
@@ -1152,6 +1167,7 @@ input group "║   📐 RRM: EMA Fan Filter";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_EmaFanFilterEnabled      = false;          // RRM: EMA FAN Filter
 input double      Inp_RRM_EmaFanMaxTotalPips       = 0.0;            // RRM: EMA1–EMA4 max gap pips (0=disabled; M1/M5 start: 25.0)
+input double      Inp_RRM_EmaFanMaxPct             = 0.0;            // RRM: EMA1–EMA4 max gap % of price (0=use pips; 0.36≈40pip EURUSD)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1161,7 +1177,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: TAKE PROFIT TARGET";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETPMode     Inp_RRM_ORG_TPMode               = TP_MODE_RR;     // Take profit mode
-input double      Inp_RRM_ORG_RRRatio              = 1.0;            // RR ratio for TP_MODE_RR
+input double      Inp_RRM_ORG_RRRatio              = 1.25;            // RR ratio for TP_MODE_RR
 //
 // Inp_RRM_ORG_TPMode - Take profit mode:
 // TP_MODE_FIXED_PIPS: TP at fixed pip distance
@@ -1182,7 +1198,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: INITIAL STOP LOSS PLACEMENT";
 input group "╚════════════════════════════════════════════════════════╝";
 input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;  // Initial stop loss mode
-input int         Inp_RRM_ORG_SwingLookback        = 55;             // Swing lookback bars
+input int         Inp_RRM_ORG_SwingLookback        = 34;             // Swing lookback bars
 //
 // Inp_RRM_ORG_SLMode - Initial SL placement method:
 // SL_MODE_SWING:      SL at recent swing high/low (lookback bars)
@@ -1321,6 +1337,36 @@ input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // DPI: Exi
 //
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: DPI System C — CCI Reset-Recovery Gate";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_RRM_ORG_DPI_RequireResetRecovery  = false;    // DPI: Require CCI reset→recovery cycle before entry
+input int         Inp_RRM_ORG_DPI_ResetRecoveryBars     = 1;        // DPI: Recovery bars after CCI flip-back (0=immediate)
+input bool        Inp_RRM_ORG_DPI_ResetRequireGreen     = false;    // DPI: Also require GREEN reappearance during recovery
+//
+// Inp_RRM_ORG_DPI_RequireResetRecovery — CCI RESET-RECOVERY ENTRY GATE
+// Requires HistTrackingEnabled = true and DPI_UseCCIReset = true.
+//
+// When enabled, the entry pipeline tracks the CCI reset lifecycle:
+//   1. IDLE: Ribbon color correct for bias (CCI agrees with hist). Waiting for reset.
+//   2. RESET_DETECTED: CCI flipped against hist → ribbon color changed (pullback).
+//   3. RECOVERY_COUNTING: CCI flipped back → ribbon color recovered. Counting bars.
+//   4. ENTRY_ALLOWED: Recovery held for N bars. Entry gate opens.
+//
+// This ensures entries only happen AFTER a proven pullback (CCI reset confirmed it)
+// where the trend survived (CCI recovered). Higher reliability than entering
+// during continuous GREEN — waits for the OB/OS reset cycle to complete.
+//
+// Inp_RRM_ORG_DPI_ResetRecoveryBars:
+//   0 = entry allowed immediately when CCI recovers (flip-back bar)
+//   1 = one bar of recovery required (confirms it's not a single-bar fake)
+//   2+ = multiple bars (stricter, fewer trades, higher confidence)
+//
+// Inp_RRM_ORG_DPI_ResetRequireGreen:
+//   When true, recovery also requires GREEN to reappear (Blue+hist aligned again).
+//   Stricter: not just CCI agreeing, but full momentum alignment restored.
+//
+input group " ";
+input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Multi-Bar Momentum";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_BarClose_Require_Progressive_Momentum = false; // RRM_ORG BarClose Momentum
@@ -1404,7 +1450,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: PSAR Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_Vote_AllowPsarFlip   = true;           // RRM_ORG PSAR Enable Flip
-input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 5;              // RRM_ORG PSAR Flip delay (-1=persistent, 0-10=bars after flip)
+input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 3;              // RRM_ORG PSAR Flip delay (-1=persistent, 0-10=bars after flip)
 input int         Inp_RRM_ORG_PsarFlipDelay_W      = -99;            // RRM_ORG PSAR Flip delay LayerW override (-99=use global, 0=flip bar, 1-10=window)
 input int         Inp_RRM_ORG_PsarFlipDelay_M      = -99;            // RRM_ORG PSAR Flip delay LayerM override (-99=use global, 0=flip bar, 1-10=window)
 input int         Inp_RRM_ORG_PsarFlipDelay_S      = -99;            // RRM_ORG PSAR Flip delay LayerS override (-99=use global, 0=flip bar, 1-10=window)
@@ -1461,6 +1507,7 @@ input double      Inp_RRM_ORG_EmaFan_M30Pips       = 40.0;           // RRM_ORG 
 input double      Inp_RRM_ORG_EmaFan_H1Pips        = 60.0;           // RRM_ORG pips H1
 input double      Inp_RRM_ORG_EmaFan_H4Pips        = 100.0;          // RRM_ORG pips H4
 input double      Inp_RRM_ORG_EmaFan_DailyPips     = 180.0;          // RRM_ORG pips D1+
+input double      Inp_RRM_ORG_EmaFan_MaxPct        = 0.0;            // RRM_ORG max gap % of price (>0 overrides pips; universal for all instruments)
 input double      Inp_RRM_ORG_JpyGateMultiplier    = 1.3;            // RRM_ORG JPY Gate Multiplier (1.0=disabled)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Drawdown Protection";
@@ -2028,6 +2075,10 @@ void InitializeConfig()
     Settings.DPI_BlockOnDeceleration     = Inp_RRM_ORG_DPI_BlockOnDeceleration;
     Settings.DPI_ExitOnHistDisappear     = Inp_RRM_ORG_DPI_ExitOnHistDisappear;
     Settings.DPI_ExitThreshold           = MathMax(0.0, Inp_RRM_ORG_DPI_ExitThreshold);
+    // DPI CCI Reset-Recovery
+    Settings.DPI_RequireResetRecovery    = Inp_RRM_ORG_DPI_RequireResetRecovery;
+    Settings.DPI_ResetRecoveryBars       = MathMax(0, Inp_RRM_ORG_DPI_ResetRecoveryBars);
+    Settings.DPI_ResetRequireGreen       = Inp_RRM_ORG_DPI_ResetRequireGreen;
     // Choppiness Index
     Settings.CI_Period             = MathMax(5, Inp_CUSTOM_Ind_CI_Period);
     Settings.CI_RangingThreshold   = MathMax(0.0, Inp_CUSTOM_Ind_CI_RangingThreshold);
@@ -2170,6 +2221,7 @@ void InitializeConfig()
    // EMA fan overextension filter: disabled by default (presets override)
    Settings.EmaFanFilterEnabled   = Inp_RRM_EmaFanFilterEnabled;
    Settings.EmaFanMaxTotalPips    = Inp_RRM_EmaFanMaxTotalPips;
+   Settings.EmaFanMaxPct          = MathMax(0.0, Inp_RRM_EmaFanMaxPct);
 
    // DPI momentum deceleration filter: disabled by default (presets override)
    Settings.DpiDecelFilterEnabled = Inp_RRM_ORG_DPI_Decel_Filter;

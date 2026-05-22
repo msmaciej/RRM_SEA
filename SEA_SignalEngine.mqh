@@ -254,9 +254,20 @@ private:
    double   m_dpi_hist_values[DPI_HIST_BUFFER_CAPACITY]; // Rolling buffer of histogram values
    int      m_dpi_hist_buffer_size;      // Current number of values in buffer
    double   m_dpi_hist_current;          // Current histogram value
-   int      m_dpi_hist_trend;            // +1 = green (bullish), -1 = red (bearish), 0 = flat
+   int      m_dpi_hist_trend;            // +1 = CCI positive, -1 = CCI negative, 0 = flat
    bool     m_dpi_hist_decelerating;     // True if momentum is decreasing
+   bool     m_dpi_hist_green_present;    // True if GREEN area exists (Blue & hist same side of zero)
    datetime m_dpi_hist_last_update;      // Last update timestamp
+
+   // CCI Reset-Recovery state machine
+   // Tracks the cycle: CCI agrees → CCI resets (flips) → CCI recovers → entry allowed
+   //   0 = IDLE:               CCI agrees with hist. Waiting for a reset.
+   //   1 = RESET_DETECTED:     CCI flipped against hist (ribbon color changed). Pullback.
+   //   2 = RECOVERY_COUNTING:  CCI flipped back. Counting recovery bars.
+   //   3 = ENTRY_ALLOWED:      Recovery confirmed for N bars. Entry gate open.
+   int      m_dpi_reset_state;           // Current state (0-3)
+   int      m_dpi_reset_recovery_bars;   // Bars counted since CCI recovered
+   bool     m_dpi_reset_macd_agree_prev; // Previous bar's CCI-hist agreement (for edge detection)
 
    // --- 2k. INDICATOR RESULT CACHE (eliminates duplicate checks per bar) ---
    struct SIndicatorCache {
@@ -1141,8 +1152,12 @@ private:
    //|                                                                   |
    //| Called once per bar in EvaluateTS() to update histogram state.   |
    //| Calculates:                                                       |
-   //|   - Current histogram value (from ComputeDPI_CCI)                |
-   //|   - Trend direction (+1 green, -1 red, 0 flat)                   |
+   //|   - Current CCI value (from ComputeDPI_CCI)                      |
+   //|   - CCI trend direction (+1 positive, -1 negative, 0 flat)       |
+   //|   - GREEN presence (Blue & hist aligned on same side of zero)    |
+   //|     GREEN above zero = bullish momentum confirmation             |
+   //|     GREEN below zero = bearish momentum confirmation             |
+   //|     GREEN declining/vanished = OB/OS, pullback likely            |
    //|   - Deceleration (momentum decreasing over lookback period)      |
    //|                                                                   |
    //| Returns: void (updates internal state only)                      |
@@ -1168,13 +1183,115 @@ private:
       m_dpi_hist_values[0] = cci;
       if(m_dpi_hist_buffer_size < DPI_HIST_BUFFER_CAPACITY) m_dpi_hist_buffer_size++;
 
-      // Determine trend direction
-      if(cci > 0.0)      m_dpi_hist_trend = 1;   // Green (bullish)
-      else if(cci < 0.0) m_dpi_hist_trend = -1;  // Red (bearish)
+      // Determine CCI trend direction (note: this is CCI sign, NOT green presence)
+      if(cci > 0.0)      m_dpi_hist_trend = 1;   // CCI positive
+      else if(cci < 0.0) m_dpi_hist_trend = -1;  // CCI negative
       else               m_dpi_hist_trend = 0;   // Flat
+
+      // ── GREEN presence: Blue and hist on same side of zero ──
+      // GREEN exists both above zero (bullish) and below zero (bearish).
+      // It represents momentum alignment, not direction.
+      // Uses ComputeDPIMainHist to get actual Blue/hist state.
+      m_dpi_hist_green_present = false;
+      {
+         double hist_cur = 0.0, hist_prev = 0.0;
+         bool   dpi_green = false, dpi_macd_agree = false;
+         double green_mag_cur = 0.0, green_mag_prev = 0.0;
+         if(ComputeDPIMainHist(v_shift, hist_cur, hist_prev, dpi_green, dpi_macd_agree,
+                               green_mag_cur, green_mag_prev))
+         {
+            m_dpi_hist_green_present = (green_mag_cur > 0.0);
+         }
+      }
 
       // Detect deceleration (momentum decreasing)
       m_dpi_hist_decelerating = false;
+
+      // ── CCI Reset-Recovery State Machine ──────────────────────────────
+      // Tracks: CCI agrees → resets (pullback) → recovers → entry allowed.
+      // Uses dpi_macd_agree from ComputeDPIMainHist (hist sign == CCI sign).
+      // State transitions happen once per bar, edge-detected.
+      if(m_settings.DPI_RequireResetRecovery && m_settings.DPI_HistTrackingEnabled && m_settings.DPI_UseCCIReset)
+      {
+         // Get current CCI-hist agreement (same as ribbon color check)
+         bool macd_agree_now = false;
+         {
+            double h_cur = 0.0, h_prev = 0.0;
+            bool   g = false, ma = false;
+            double gm_c = 0.0, gm_p = 0.0;
+            if(ComputeDPIMainHist(v_shift, h_cur, h_prev, g, ma, gm_c, gm_p))
+               macd_agree_now = ma;
+         }
+
+         int prev_state = m_dpi_reset_state;
+
+         switch(m_dpi_reset_state)
+         {
+            case 0: // IDLE — CCI agrees, waiting for reset
+               if(!macd_agree_now && m_dpi_reset_macd_agree_prev)
+               {
+                  // CCI just flipped against histogram → reset detected
+                  m_dpi_reset_state = 1;
+                  m_dpi_reset_recovery_bars = 0;
+               }
+               break;
+
+            case 1: // RESET_DETECTED — CCI disagrees (pullback in progress)
+               if(macd_agree_now && !m_dpi_reset_macd_agree_prev)
+               {
+                  // CCI just flipped back → recovery starting
+                  m_dpi_reset_state = 2;
+                  m_dpi_reset_recovery_bars = 0;
+               }
+               break;
+
+            case 2: // RECOVERY_COUNTING — CCI recovered, counting bars
+               if(!macd_agree_now)
+               {
+                  // CCI flipped against again before recovery confirmed → back to reset
+                  m_dpi_reset_state = 1;
+                  m_dpi_reset_recovery_bars = 0;
+               }
+               else
+               {
+                  m_dpi_reset_recovery_bars++;
+
+                  // Check if GREEN is also required
+                  bool green_ok = (!m_settings.DPI_ResetRequireGreen || m_dpi_hist_green_present);
+
+                  if(m_dpi_reset_recovery_bars >= m_settings.DPI_ResetRecoveryBars && green_ok)
+                  {
+                     // Recovery confirmed
+                     m_dpi_reset_state = 3;
+                  }
+               }
+               break;
+
+            case 3: // ENTRY_ALLOWED — gate is open
+               if(!macd_agree_now)
+               {
+                  // New reset started → cycle again
+                  m_dpi_reset_state = 1;
+                  m_dpi_reset_recovery_bars = 0;
+               }
+               // Stays in ENTRY_ALLOWED while CCI agrees (entry can happen any bar)
+               // Resets to IDLE after a trade is taken (done externally via ResetDPIResetState)
+               break;
+         }
+
+         m_dpi_reset_macd_agree_prev = macd_agree_now;
+
+         if(m_settings.DebugFlow && m_dpi_reset_state != prev_state)
+         {
+            string s_prev = (prev_state==0?"IDLE":prev_state==1?"RESET_DETECTED":prev_state==2?"RECOVERY_COUNTING":"ENTRY_ALLOWED");
+            string s_now  = (m_dpi_reset_state==0?"IDLE":m_dpi_reset_state==1?"RESET_DETECTED":m_dpi_reset_state==2?"RECOVERY_COUNTING":"ENTRY_ALLOWED");
+            DebugLog(StringFormat("[DPI_RESET] %s → %s | agree=%s | green=%s | recovery_bars=%d/%d",
+                                  s_prev, s_now,
+                                  macd_agree_now ? "YES" : "NO",
+                                  m_dpi_hist_green_present ? "YES" : "NO",
+                                  m_dpi_reset_recovery_bars, m_settings.DPI_ResetRecoveryBars));
+         }
+      }
       int lookback_max = DPI_HIST_BUFFER_CAPACITY - 1;
       int lookback = MathMax(1, MathMin(lookback_max, m_settings.DPI_HistDecelLookback));
       if(m_dpi_hist_buffer_size >= lookback + 1)
@@ -1206,9 +1323,10 @@ private:
       // Debug logging
       if(m_settings.DebugFlow)
       {
-         DebugLog(StringFormat("[DPI_HIST] CCI=%.2f | Trend=%s | Decel=%s | Buffer=%d/%d",
+         DebugLog(StringFormat("[DPI_HIST] CCI=%.2f | CCI_Trend=%s | GREEN=%s | Decel=%s | Buffer=%d/%d",
                                cci,
-                               (m_dpi_hist_trend == 1 ? "GREEN" : m_dpi_hist_trend == -1 ? "RED" : "FLAT"),
+                               (m_dpi_hist_trend == 1 ? "POS" : m_dpi_hist_trend == -1 ? "NEG" : "FLAT"),
+                               m_dpi_hist_green_present ? "YES" : "NO",
                                m_dpi_hist_decelerating ? "YES" : "NO",
                                m_dpi_hist_buffer_size, DPI_HIST_BUFFER_CAPACITY));
       }
@@ -2987,7 +3105,13 @@ public:
    double GetDPIHistCurrent()      const { return m_dpi_hist_current; }
    int    GetDPIHistTrend()        const { return m_dpi_hist_trend; }
    bool   GetDPIHistDecelerating() const { return m_dpi_hist_decelerating; }
+   bool   GetDPIHistGreenPresent() const { return m_dpi_hist_green_present; }
    int    GetDPIHistBufferSize()   const { return m_dpi_hist_buffer_size; }
+   int    GetDPIResetState()       const { return m_dpi_reset_state; }
+   int    GetDPIResetRecoveryBars()const { return m_dpi_reset_recovery_bars; }
+
+   // Called after a trade is taken to reset the cycle back to IDLE
+   void   ResetDPIResetState()           { m_dpi_reset_state = 0; m_dpi_reset_recovery_bars = 0; }
 
    //+------------------------------------------------------------------+
    //| Layer Pullback-Recovery Diagnostic Getters                       |
@@ -3351,7 +3475,9 @@ public:
                     m_stats.passed_emafan,
                     m_stats.rejected_emafan,
                     m_settings.EmaFanFilterEnabled
-                       ? StringFormat("%.1f pips max", m_settings.EmaFanMaxTotalPips)
+                       ? (m_settings.EmaFanMaxPct > 0.0
+                          ? StringFormat("%.3f%% max", m_settings.EmaFanMaxPct)
+                          : StringFormat("%.1f pips max", m_settings.EmaFanMaxTotalPips))
                        : "(disabled)");
       PrintGateStat("DPI Decel",
                     (m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled),
@@ -3836,7 +3962,11 @@ public:
       m_dpi_hist_current = 0.0;
       m_dpi_hist_trend = 0;
       m_dpi_hist_decelerating = false;
+      m_dpi_hist_green_present = false;
       m_dpi_hist_last_update = 0;
+      m_dpi_reset_state = 0;
+      m_dpi_reset_recovery_bars = 0;
+      m_dpi_reset_macd_agree_prev = false;
       m_layer_w_pb_state = LAYER_PB_NONE;
       m_layer_m_pb_state = LAYER_PB_NONE;
       m_layer_s_pb_state = LAYER_PB_NONE;
@@ -5903,10 +6033,10 @@ public:
       // Block when EMA1–EMA4 spread > threshold AND still expanding.
       // Avoids chasing overextended trend runs.
       // EmaFanMaxTotalPips=25.0 is a starting default for M1/M5; review per TF.
-      // JPY pairs (~3-digit pricing): GlobalPipSize() already returns the correct
-      // pip unit so the comparison works without special-casing.
+      // EmaFanMaxPct is the normalized alternative: gap as % of midprice.
+      // When EmaFanMaxPct > 0, percentage mode takes priority (universal, no multipliers).
       // ══════════════════════════════════════════════════════════════════
-      if(m_settings.EmaFanFilterEnabled && m_settings.EmaFanMaxTotalPips > 0.0)
+      if(m_settings.EmaFanFilterEnabled && (m_settings.EmaFanMaxTotalPips > 0.0 || m_settings.EmaFanMaxPct > 0.0))
       {
          double pip  = GlobalPipSize(m_symbol);
          double e1_1 = GetMAVal(h_ema1, v_shift);
@@ -5914,16 +6044,46 @@ public:
          double e1_2 = GetMAVal(h_ema1, v_shift + 1);
          double e4_2 = GetMAVal(h_ema4, v_shift + 1);
 
-         if(e1_1 > 0.0 && e4_1 > 0.0 && e1_2 > 0.0 && e4_2 > 0.0 && pip > 0.0)
+         if(e1_1 > 0.0 && e4_1 > 0.0 && e1_2 > 0.0 && e4_2 > 0.0)
          {
-            double gap_now  = MathAbs(e1_1 - e4_1) / pip;
-            double gap_prev = MathAbs(e1_2 - e4_2) / pip;
+            bool overextended = false;
 
-            if(gap_now > m_settings.EmaFanMaxTotalPips && gap_now > gap_prev)
+            if(m_settings.EmaFanMaxPct > 0.0)
             {
-               if(m_settings.DebugFlow)
-                  PrintFormat("[TS_PREFILTER] EMA_FAN: gap_now=%.1f pips > max=%.1f (prev=%.1f) → TS=0",
-                              gap_now, m_settings.EmaFanMaxTotalPips, gap_prev);
+               // Percentage mode: gap as % of midprice — universal across all instruments
+               double midprice_now  = (e1_1 + e4_1) / 2.0;
+               double midprice_prev = (e1_2 + e4_2) / 2.0;
+               if(midprice_now > 0.0 && midprice_prev > 0.0)
+               {
+                  double pct_now  = MathAbs(e1_1 - e4_1) / midprice_now  * 100.0;
+                  double pct_prev = MathAbs(e1_2 - e4_2) / midprice_prev * 100.0;
+
+                  if(pct_now > m_settings.EmaFanMaxPct && pct_now > pct_prev)
+                  {
+                     overextended = true;
+                     if(m_settings.DebugFlow)
+                        PrintFormat("[TS_PREFILTER] EMA_FAN: gap_now=%.3f%% > max=%.3f%% (prev=%.3f%%) → TS=0",
+                                    pct_now, m_settings.EmaFanMaxPct, pct_prev);
+                  }
+               }
+            }
+            else if(pip > 0.0)
+            {
+               // Pip mode: original behavior with instrument multiplier
+               double gap_now  = MathAbs(e1_1 - e4_1) / pip;
+               double gap_prev = MathAbs(e1_2 - e4_2) / pip;
+
+               if(gap_now > m_settings.EmaFanMaxTotalPips && gap_now > gap_prev)
+               {
+                  overextended = true;
+                  if(m_settings.DebugFlow)
+                     PrintFormat("[TS_PREFILTER] EMA_FAN: gap_now=%.1f pips > max=%.1f (prev=%.1f) → TS=0",
+                                 gap_now, m_settings.EmaFanMaxTotalPips, gap_prev);
+               }
+            }
+
+            if(overextended)
+            {
                m_diag_last_reason = "EMA_OVEREXT";
                m_reject_filter++;
                m_stats.rejected_emafan++;       // PHASE A.1
@@ -6002,6 +6162,39 @@ public:
                if(m_eval_first_failure == "") m_eval_first_failure = "DPI_DECEL";
                m_eval_any_failure = true;
             }
+         }
+      }
+
+      // ══════════════════════════════════════════════════════════════════
+      // PRE-FILTER: DPI CCI Reset-Recovery Gate
+      // Only allow entry after a CCI reset→recovery cycle has completed.
+      // Reset = CCI flipped against hist (ribbon color changed during pullback).
+      // Recovery = CCI flipped back and held for N bars.
+      // This ensures we only enter after a proven pullback where the trend survived.
+      // ══════════════════════════════════════════════════════════════════
+      if(m_settings.DPI_RequireResetRecovery && m_settings.DPI_HistTrackingEnabled && m_settings.DPI_UseCCIReset)
+      {
+         if(m_dpi_reset_state != 3) // Not ENTRY_ALLOWED
+         {
+            if(m_settings.DebugFlow)
+            {
+               string s_name = (m_dpi_reset_state==0?"IDLE":m_dpi_reset_state==1?"RESET_DETECTED":m_dpi_reset_state==2?"RECOVERY_COUNTING":"ENTRY_ALLOWED");
+               PrintFormat("[TS_PREFILTER] DPI_RESET_RECOVERY: state=%s (need ENTRY_ALLOWED) recovery=%d/%d → TS=0",
+                           s_name,
+                           m_dpi_reset_recovery_bars, m_settings.DPI_ResetRecoveryBars);
+            }
+
+            m_diag_last_reason = "DPI_RESET_WAIT";
+            m_reject_filter++;
+            if(!full_eval) {
+               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+               UpdateTelemetry(0);
+               FlushOrClearDebugBuffer(0);
+               RestoreForcedDebug();
+               return 0;
+            }
+            if(m_eval_first_failure == "") m_eval_first_failure = "DPI_RESET_WAIT";
+            m_eval_any_failure = true;
          }
       }
 
@@ -6546,7 +6739,8 @@ public:
       if(ema2 == EMPTY_VALUE || ema3 == EMPTY_VALUE || ema4 == EMPTY_VALUE)
          return PHASE_UNORDERED;
       
-      // TM: perfect ascending/descending stack
+      // TM: perfect ascending/descending stack (pure positional — no slopes)
+      // Slopes are validated downstream by the Entry Layer system.
       if(ema2 > ema3 && ema3 > ema4) return PHASE_TRENDING_UP;
       if(ema4 > ema3 && ema3 > ema2) return PHASE_TRENDING_DN;
       
