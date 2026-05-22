@@ -497,8 +497,8 @@ int OrchestrateInit()
       if(Inp_CUSTOM_TrailMode == TRAIL_PSAR || Settings.TrailMode == TRAIL_PSAR)
       {
          PrintFormat("  PSAR Cushion (TF-based): %.1f pips", Settings.PSAR_TrailPipsCushion);
-         PrintFormat("  PSAR Delay Input:      %d bars", Inp_RRM_PSAR_TrailDelay);
-         PrintFormat("  PSAR Delay Settings:   %d bars", Settings.PSAR_TrailDelay);
+         PrintFormat("  PSAR Trail Shift (live):   %d bars", Settings.RRM_TrailPsarShiftDelay);
+         PrintFormat("  PSAR Delay (deprecated):   %d bars (mirrors trail shift)", Settings.PSAR_TrailDelay);
          PrintFormat("  RRM StartAfterBE Input:    %s", Inp_RRM_TrailStartsAfterBE ? "true" : "false");
          PrintFormat("  RRM StartAfterBE Settings: %s", Settings.RRM_TrailStartsAfterBE ? "true" : "false");
       }

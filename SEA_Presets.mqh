@@ -1771,6 +1771,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.LayerRecoveryRatio_M        = Inp_RRM_ORG_RecoveryRatio_M;
       cfg.LayerRecoveryRatio_S        = Inp_RRM_ORG_RecoveryRatio_S;
 
+      // VPRR: Volume Pullback-Recovery Ratio (institutional participation confirmation)
+      cfg.VPRR_Enabled        = Inp_RRM_ORG_VPRR_Enabled;
+      cfg.VPRR_VolumeType     = (int)Inp_RRM_ORG_VPRR_VolumeType;
+      cfg.VPRR_RecoveryBars   = MathMax(1, MathMin(10, Inp_RRM_ORG_VPRR_RecoveryBars));
+      cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
+      cfg.VPRR_MinRatio       = MathMax(0.1, Inp_RRM_ORG_VPRR_MinRatio);
+      cfg.VPRR_Weight         = MathMax(1, Inp_RRM_ORG_VPRR_Weight);
+
       // ── VOTE EVALUATION ───────────────────────────────────────────────
       cfg.Vote_EvalShift            = 1;
 
@@ -1791,6 +1799,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SLPercent                 = 0.5;
 
       cfg.TrailMode                 = Inp_RRM_ORG_TrailMode;
+      cfg.RRM_TrailPsarShiftDelay   = (Inp_RRM_TrailPsarShiftDelay < 1) ? 1 : (Inp_RRM_TrailPsarShiftDelay > 3) ? 3 : Inp_RRM_TrailPsarShiftDelay; // PSAR DOT trail shift (TRAILING only); default 2 for flip stability
       cfg.RRM_TrailStartsAfterBE    = Inp_RRM_ORG_TrailStartsAfterBE;
       cfg.TrailProfitPercentLPR     = Inp_RRM_ORG_TrailProfitPercentLPR;
       cfg.PSAR_TrailCushionMode     = Inp_RRM_ORG_PSAR_TrailCushionMode;

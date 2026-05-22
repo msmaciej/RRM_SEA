@@ -1065,6 +1065,27 @@ private:
    }
 
    //+------------------------------------------------------------------+
+   //| SHARED PSAR TRAIL SL: single source of truth for both trail paths|
+   //| Resolves the trailing shift (RRM_TrailPsarShiftDelay, clamped     |
+   //| 1..3), fetches the SAR dot at that shift, and applies the cushion. |
+   //| NOTE: governs TRAILING only. Initial SL placement (SL_MODE_PSAR_DOT|
+   //| in CalcEntrySL) intentionally keeps GetPSARAnchor(1) — the freshest|
+   //| dot — because entry-risk sizing wants the closest valid stop, while|
+   //| trailing wants flip-stability via the shift.                       |
+   //| Returns the proposed SL price, or 0.0 if the anchor is unavailable.|
+   //+------------------------------------------------------------------+
+   double CalcPsarTrailAnchorSL(bool isBuy, double pipSize, int digits) {
+      int shift = m_settings.RRM_TrailPsarShiftDelay;
+      if(shift < 1) shift = 1;
+      if(shift > 3) shift = 3;
+      double psar = GetPSARAnchor(shift);
+      if(psar <= 0.0) return 0.0;
+      double cushion = m_settings.PSAR_TrailPipsCushion * pipSize;
+      return isBuy ? NormalizeDouble(psar - cushion, digits)
+                   : NormalizeDouble(psar + cushion, digits);
+   }
+
+   //+------------------------------------------------------------------+
    //| REFACTORED: STRICT TRAILING MANAGEMENT (No Double Scaling)       |
    //+------------------------------------------------------------------+
    void RRM_ManageStrictNoATR(ulong ticket) {
@@ -1154,8 +1175,8 @@ private:
          else return;
       }
 
-      double cushion = m_settings.PSAR_TrailPipsCushion * pipSize;
-      double new_sl  = isBuy ? NormalizeDouble(psar - cushion, digits) : NormalizeDouble(psar + cushion, digits);
+      double new_sl = CalcPsarTrailAnchorSL(isBuy, pipSize, digits);
+      if(new_sl == 0.0) return;
 
       double be_guard = m_settings.RRM_BE_BufferPips * pipSize;
       if(isBuy) {
@@ -2387,14 +2408,7 @@ public:
       if(!should_trail) return;
 
       if(m_settings.TrailMode == TRAIL_PSAR) {
-         int psar_shift = m_settings.PSAR_TrailDelay;
-         if(psar_shift < 1) psar_shift = 1;
-         if(psar_shift > 3) psar_shift = 3;
-         double psar = GetPSARAnchor(psar_shift);
-         if(psar > 0.0) {
-            double cushion = m_settings.PSAR_TrailPipsCushion * pipSize;
-            new_sl = (type == POSITION_TYPE_BUY) ? (psar - cushion) : (psar + cushion);
-         }
+         new_sl = CalcPsarTrailAnchorSL(type == POSITION_TYPE_BUY, pipSize, digits);
       }
       else if(m_settings.TrailMode == TRAIL_FRACTAL) {
          double val = (type == POSITION_TYPE_BUY) ? GetFractalLevel(1) : GetFractalLevel(-1);

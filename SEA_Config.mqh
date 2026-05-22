@@ -83,6 +83,13 @@ enum ELayerPullbackState
    LAYER_PB_DETECTED,    // Pullback or flat phase observed
    LAYER_PB_RECOVERED    // Recovery confirmed (ready to trade)
 };
+// VPRR: Volume Pullback-Recovery Ratio — volume source selection
+enum EVPRRVolumeType
+{
+   VPRR_VOL_AUTO=0,      // Try VOLUME_REAL, fall back to VOLUME_TICK if unavailable
+   VPRR_VOL_REAL=1,      // Force VOLUME_REAL (exchange volume; metals/indices/equities/futures)
+   VPRR_VOL_TICK=2       // Force VOLUME_TICK (tick count; available everywhere, poor on forex)
+};
 enum EManualSide
 {
    SIDE_BOTH,              // SIDE_BOTH ... L-S: Allow both long and short trades
@@ -668,6 +675,16 @@ struct ST_Settings
     double   LayerRecoveryRatio_M;       // LayerM override (-1.0=use global)
     double   LayerRecoveryRatio_S;       // LayerS override (-1.0=use global)
 
+    // VPRR: Volume Pullback-Recovery Ratio (institutional participation confirmation)
+    // Measures avg volume during recovery vs avg volume during pullback.
+    // Ratio >= MinRatio => institutions backing the recovery (PASS).
+    bool     VPRR_Enabled;               // Master toggle (default false = no-op)
+    int      VPRR_VolumeType;            // EVPRRVolumeType: 0=AUTO, 1=REAL, 2=TICK
+    int      VPRR_RecoveryBars;          // Recovery bars to measure (clamped 1-10, default 3)
+    int      VPRR_MinRecoveryBars;       // Min recovery bars before ratio is valid (default RecoveryBars-1)
+    double   VPRR_MinRatio;              // Min recovery/pullback ratio to PASS (default 1.0)
+    int      VPRR_Weight;                // Vote weight (default 1)
+
     // Diagnostics: statistics configuration
     bool Stats_TrackRejections;      // Track rejection counts per indicator
     bool Stats_TrackPasses;          // Track pass counts (positive stats)
@@ -1035,8 +1052,8 @@ input ETrailingMode Inp_RRM_TrailMode              = TRAIL_PSAR;     // RRM Trai
 input EPsarTrailCushionMode Inp_RRM_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // PSAR trail cushion mode
 input bool        Inp_RRM_TrailStartsAfterBE       = false;          // Start trailing only after BE is reached
 input bool        Inp_RRM_FreezeTrailOnFlip        = true;           // Freeze trail on PSAR flip
-input int         Inp_RRM_PSAR_TrailDelay          = 1;              // PSAR trailing delay
-input int         Inp_RRM_TrailPsarShiftDelay      = 1;              // PSAR shift delay
+input int         Inp_RRM_PSAR_TrailDelay          = 1;              // [DEPRECATED] superseded by Inp_RRM_TrailPsarShiftDelay
+input int         Inp_RRM_TrailPsarShiftDelay      = 2;              // PSAR DOT trailing shift (1..3) — bars back the SAR dot is read (TRAILING only)
 // input string   Inp_PSAR_TrailCushion_Note       = "PSAR trail cushion auto-set by timeframe (M15=3, H1=7, H4=10 pips)"
 // input string   Inp_RRM_Trail_Info               = "RRM trailing: PSAR-based with bar shift delay for flip stability";
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1497,6 +1514,15 @@ input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;           // RRM_ORG 
 input double      Inp_RRM_ORG_RecoveryRatio_W      = -1.0;           // RRM_ORG LayerW recovery override (-1=use global, 0.1-1.0)
 input double      Inp_RRM_ORG_RecoveryRatio_M      = -1.0;           // RRM_ORG LayerM recovery override (-1=use global, 0.1-1.0)
 input double      Inp_RRM_ORG_RecoveryRatio_S      = -1.0;           // RRM_ORG LayerS recovery override (-1=use global, 0.1-1.0)
+input group " ";
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📊 RRM_ORG: VPRR Volume Confirmation";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool            Inp_RRM_ORG_VPRR_Enabled      = false;          // RRM_ORG Volume Pullback-Recovery Ratio (OFF=no-op; ON for metals/indices/equities)
+input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType   = VPRR_VOL_AUTO;  // RRM_ORG VPRR volume source (Auto=real then tick fallback)
+input int             Inp_RRM_ORG_VPRR_RecoveryBars = 3;              // RRM_ORG VPRR recovery measurement bars (1-10)
+input double          Inp_RRM_ORG_VPRR_MinRatio     = 1.0;            // RRM_ORG VPRR min ratio (1.0 = recovery vol >= pullback vol)
+input int             Inp_RRM_ORG_VPRR_Weight       = 1;              // RRM_ORG VPRR vote weight
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: EMA Fan Filter";
@@ -2121,7 +2147,7 @@ void InitializeConfig()
    Settings.TP_Enabled           = Inp_CUSTOM_TP_Enabled;
    Settings.TrailMode            = Inp_CUSTOM_TrailMode;
    Settings.PSAR_TrailCushionMode= Inp_RRM_PSAR_TrailCushionMode;
-   Settings.PSAR_TrailDelay      = (Inp_RRM_PSAR_TrailDelay < 1) ? 1 : (Inp_RRM_PSAR_TrailDelay > 3) ? 3 : Inp_RRM_PSAR_TrailDelay;
+   Settings.PSAR_TrailDelay      = (Inp_RRM_TrailPsarShiftDelay < 1) ? 1 : (Inp_RRM_TrailPsarShiftDelay > 3) ? 3 : Inp_RRM_TrailPsarShiftDelay; // DEPRECATED: mirrors RRM_TrailPsarShiftDelay so legacy refs stay consistent
 
    Settings.ExitProfile             = Inp_CUSTOM_ExitProfile;
    Settings.BE_Mode                 = Inp_CUSTOM_BE_Mode;
@@ -2202,6 +2228,14 @@ void InitializeConfig()
     Settings.LayerRecoveryRatio_W        = -1.0;  // P2: default = use global
     Settings.LayerRecoveryRatio_M        = -1.0;  // P2: default = use global
     Settings.LayerRecoveryRatio_S        = -1.0;  // P2: default = use global
+
+    // VPRR defaults (disabled — only RRM_ORG preset wires it on)
+    Settings.VPRR_Enabled         = false;
+    Settings.VPRR_VolumeType      = (int)VPRR_VOL_AUTO;
+    Settings.VPRR_RecoveryBars    = 3;
+    Settings.VPRR_MinRecoveryBars = 2;
+    Settings.VPRR_MinRatio        = 1.0;
+    Settings.VPRR_Weight          = 1;
 
     // BarClose (bcX) settings
     Settings.BarClose_Enabled    = Inp_CUSTOM_BarClose_Enabled;

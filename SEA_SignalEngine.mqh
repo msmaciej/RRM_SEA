@@ -70,6 +70,11 @@ struct ST_SignalTelemetry {
    bool   phase_detection_enabled;  // True when BiasMode == BIAS_4EMA and PhaseDetectionEnabled
    bool   layer_detection_enabled;  // True when EnableLayerDetection && BiasMode == BIAS_4EMA
    string mtf_status;               // MTF alignment status for cockpit/UI
+   bool   vprr_enabled;             // VPRR voter active
+   double vprr_ratio;               // Active-layer VPRR ratio (recovery_vol / pullback_vol)
+   double vprr_min_ratio;           // Configured pass threshold
+   bool   vprr_pass;                // Whether the active-layer ratio passed
+   string vprr_vol_source;          // "REAL" or "TICK" — which volume feed is in use
 };
 
 struct SMTFSegment {
@@ -111,6 +116,7 @@ struct SRejectionStats {
    int passed_sma_converge, rejected_sma_converge;
    int passed_dpi,          rejected_dpi;
    int passed_fib,          rejected_fib;
+   int passed_vprr,         rejected_vprr;
 
    // ── PHASE A.1: Pre-filter quality gates (TS=1 hardening) ──────────────
    int passed_emafan,     rejected_emafan;     // EMA fan overextension
@@ -181,6 +187,13 @@ private:
     double              m_layer_m_baseline;   // LayerM baseline slope
     double              m_layer_s_baseline;   // LayerS baseline slope
     datetime            m_layer_pb_last_update; // Last update timestamp
+    // --- 2c.2 VPRR VOLUME TRACKING (per layer) ---
+    double   m_layer_w_vol_pb_avg, m_layer_m_vol_pb_avg, m_layer_s_vol_pb_avg;     // Running avg pullback volume
+    int      m_layer_w_vol_pb_bars, m_layer_m_vol_pb_bars, m_layer_s_vol_pb_bars;  // Bars counted in DETECTED
+    double   m_layer_w_vol_rec_avg, m_layer_m_vol_rec_avg, m_layer_s_vol_rec_avg;  // Running avg recovery volume
+    int      m_layer_w_vol_rec_bars, m_layer_m_vol_rec_bars, m_layer_s_vol_rec_bars; // Bars counted in RECOVERED
+    double   m_layer_w_vprr, m_layer_m_vprr, m_layer_s_vprr;                       // Final ratios
+    bool     m_vprr_last_real;   // True if the last volume read used VOLUME_REAL (for UI source label)
 
     // --- 2d. REJECTION STATISTICS ---
     int         m_bars_evaluated;     // Total bars evaluated by EvaluateTS()
@@ -1359,13 +1372,52 @@ private:
    }
 
    //+------------------------------------------------------------------+
+   //| GetCurrentBarVolume — VPRR volume reader (real-first, tick-back) |
+   //+------------------------------------------------------------------+
+   // Reads the volume of the closed bar at 'shift'. Honors VPRR_VolumeType:
+   //   AUTO/REAL: try CopyRealVolume; if it returns a positive value, use it.
+   //   AUTO (on zero/fail) and TICK: fall back to CopyTickVolume.
+   // Records which source was used in m_vprr_last_real for the UI label.
+   long GetCurrentBarVolume(int shift)
+   {
+      if(m_settings.VPRR_VolumeType == VPRR_VOL_REAL ||
+         m_settings.VPRR_VolumeType == VPRR_VOL_AUTO)
+      {
+         long real_vol[];
+         if(CopyRealVolume(m_symbol, PERIOD_CURRENT, shift, 1, real_vol) == 1 && real_vol[0] > 0)
+         {
+            m_vprr_last_real = true;
+            return real_vol[0];
+         }
+         // REAL forced but unavailable → nothing usable; AUTO continues to tick.
+         if(m_settings.VPRR_VolumeType == VPRR_VOL_REAL)
+         {
+            m_vprr_last_real = false;
+            return 0;
+         }
+      }
+      long tick_vol[];
+      if(CopyTickVolume(m_symbol, PERIOD_CURRENT, shift, 1, tick_vol) == 1)
+      {
+         m_vprr_last_real = false;
+         return tick_vol[0];
+      }
+      return 0;
+   }
+
+   //+------------------------------------------------------------------+
    //| UpdateSingleLayerPullback — State machine for one layer          |
    //+------------------------------------------------------------------+
    // P2: recovery_ratio parameter allows per-layer override.
    // Caller passes the effective ratio (per-layer or global fallback).
+   // VPRR: volume tracking fields are passed by reference and accumulated
+   // per state. Caller guards once-per-bar, so averages are bar-accurate.
    void UpdateSingleLayerPullback(int fast_ema_handle, int v_shift, int lookback,
                                   ELayerPullbackState &state, double &baseline, string label,
-                                  double recovery_ratio)
+                                  double recovery_ratio,
+                                  double &vol_pb_avg, int &vol_pb_bars,
+                                  double &vol_rec_avg, int &vol_rec_bars,
+                                  double &vprr)
    {
       double baseline_slope = 0.0;
       double ratio = CalculateSlopeRatio(fast_ema_handle, v_shift, lookback, baseline_slope);
@@ -1416,6 +1468,46 @@ private:
                                recovery_ratio,
                                baseline_slope));
       }
+
+      // ── VPRR: volume tracking per (post-transition) state ──────────────
+      // Runs once per bar (caller guards via m_layer_pb_last_update).
+      if(m_settings.VPRR_Enabled)
+      {
+         long vol_current = GetCurrentBarVolume(v_shift);
+
+         if(state == LAYER_PB_DETECTED)
+         {
+            // Fresh entry into DETECTED (incl. RECOVERED→DETECTED relapse):
+            // restart recovery measurement so a stale ratio can't carry over.
+            if(prev_state != LAYER_PB_DETECTED)
+            {
+               vol_rec_avg = 0.0;
+               vol_rec_bars = 0;
+               vprr = 0.0;
+            }
+            // Accumulate running average of pullback volume.
+            vol_pb_avg = ((vol_pb_avg * vol_pb_bars) + (double)vol_current) / (vol_pb_bars + 1);
+            vol_pb_bars++;
+         }
+         else if(state == LAYER_PB_RECOVERED)
+         {
+            // Measure recovery volume over the first N bars only.
+            if(vol_rec_bars < m_settings.VPRR_RecoveryBars)
+            {
+               vol_rec_avg = ((vol_rec_avg * vol_rec_bars) + (double)vol_current) / (vol_rec_bars + 1);
+               vol_rec_bars++;
+            }
+            // Compute ratio once enough recovery bars are collected.
+            if(vol_rec_bars >= m_settings.VPRR_MinRecoveryBars && vol_pb_avg > 0.0)
+               vprr = vol_rec_avg / vol_pb_avg;
+         }
+         else // LAYER_PB_NONE
+         {
+            vol_pb_avg = 0.0; vol_pb_bars = 0;
+            vol_rec_avg = 0.0; vol_rec_bars = 0;
+            vprr = 0.0;
+         }
+      }
    }
 
    //+------------------------------------------------------------------+
@@ -1438,11 +1530,60 @@ private:
       double rr_s = (m_settings.LayerRecoveryRatio_S >= 0.0) ? m_settings.LayerRecoveryRatio_S : global_rr;
 
       UpdateSingleLayerPullback(h_ema1, v_shift, lookback,
-                                m_layer_w_pb_state, m_layer_w_baseline, "LayerW", rr_w);
+                                m_layer_w_pb_state, m_layer_w_baseline, "LayerW", rr_w,
+                                m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
+                                m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr);
       UpdateSingleLayerPullback(h_ema2, v_shift, lookback,
-                                m_layer_m_pb_state, m_layer_m_baseline, "LayerM", rr_m);
+                                m_layer_m_pb_state, m_layer_m_baseline, "LayerM", rr_m,
+                                m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
+                                m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr);
       UpdateSingleLayerPullback(h_ema3, v_shift, lookback,
-                                m_layer_s_pb_state, m_layer_s_baseline, "LayerS", rr_s);
+                                m_layer_s_pb_state, m_layer_s_baseline, "LayerS", rr_s,
+                                m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
+                                m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr);
+   }
+
+   //+------------------------------------------------------------------+
+   //| GetActiveLayerVPRR — ratio for the layer that won (m_last_layer) |
+   //+------------------------------------------------------------------+
+   // m_last_layer is set by EvaluateL() which runs BEFORE EvaluateI(),
+   // so the active layer is resolved by the time the voter calls this.
+   double GetActiveLayerVPRR()
+   {
+      switch(m_last_layer)
+      {
+         case 1: return m_layer_w_vprr;
+         case 2: return m_layer_m_vprr;
+         case 3: return m_layer_s_vprr;
+      }
+      return 0.0;
+   }
+
+   //+------------------------------------------------------------------+
+   //| Check_VPRR — voter: recovery volume must back the recovery       |
+   //+------------------------------------------------------------------+
+   bool Check_VPRR(int v_shift)
+   {
+      double active_vprr = GetActiveLayerVPRR();
+      bool pass = (active_vprr >= m_settings.VPRR_MinRatio);
+
+      if(m_settings.DebugFlow)
+      {
+         double pb_avg = 0.0, rec_avg = 0.0;
+         int pb_bars = 0, rec_bars = 0;
+         switch(m_last_layer)
+         {
+            case 1: pb_avg=m_layer_w_vol_pb_avg; pb_bars=m_layer_w_vol_pb_bars; rec_avg=m_layer_w_vol_rec_avg; rec_bars=m_layer_w_vol_rec_bars; break;
+            case 2: pb_avg=m_layer_m_vol_pb_avg; pb_bars=m_layer_m_vol_pb_bars; rec_avg=m_layer_m_vol_rec_avg; rec_bars=m_layer_m_vol_rec_bars; break;
+            case 3: pb_avg=m_layer_s_vol_pb_avg; pb_bars=m_layer_s_vol_pb_bars; rec_avg=m_layer_s_vol_rec_avg; rec_bars=m_layer_s_vol_rec_bars; break;
+         }
+         DebugLog(StringFormat("[IND_VPRR] L%d | Ratio=%.2f (Min=%.2f) | PB_vol=%.0f (%d bars) | REC_vol=%.0f (%d bars) | Src=%s | %s",
+                               m_last_layer, active_vprr, m_settings.VPRR_MinRatio,
+                               pb_avg, pb_bars, rec_avg, rec_bars,
+                               m_vprr_last_real ? "REAL" : "TICK",
+                               pass ? "PASS" : "FAIL"));
+      }
+      return pass;
    }
 
    //+------------------------------------------------------------------+
@@ -2953,6 +3094,12 @@ public:
       m_telemetry.layer_detection_enabled = (m_settings.EnableLayerDetection && m_settings.BiasMode == BIAS_4EMA);
       if(!m_settings.Ind_MTF_Enabled)
          m_telemetry.mtf_status = "N/A";
+      // VPRR telemetry for the cockpit panel
+      m_telemetry.vprr_enabled    = m_settings.VPRR_Enabled;
+      m_telemetry.vprr_ratio      = GetActiveLayerVPRR();
+      m_telemetry.vprr_min_ratio  = m_settings.VPRR_MinRatio;
+      m_telemetry.vprr_pass       = (m_telemetry.vprr_ratio >= m_settings.VPRR_MinRatio);
+      m_telemetry.vprr_vol_source = m_vprr_last_real ? "REAL" : "TICK";
    }
 
 
@@ -3564,6 +3711,7 @@ public:
       PrintIndicatorStat("DPI",          m_settings.Ind_Dpi_Enabled, m_stats.passed_dpi,          m_stats.rejected_dpi);
       PrintIndicatorStat("Fib",          m_settings.Ind_Fib_Enabled, m_stats.passed_fib,          m_stats.rejected_fib);
       PrintIndicatorStat("MTF",          m_settings.Ind_MTF_Enabled, m_stats.passed_mtf,          m_stats.rejected_mtf);
+      PrintIndicatorStat("VPRR",         m_settings.VPRR_Enabled,    m_stats.passed_vprr,         m_stats.rejected_vprr);
       Print("----------------------------------------------------------------");
       PrintFormat("Indicators: %d enabled (ALL must pass)", GetEnabledIndicatorCount(m_settings));
       Print("");
@@ -3974,6 +4122,13 @@ public:
       m_layer_m_baseline = 0.0;
       m_layer_s_baseline = 0.0;
       m_layer_pb_last_update = 0;
+      // VPRR volume tracking reset
+      m_layer_w_vol_pb_avg = 0.0; m_layer_m_vol_pb_avg = 0.0; m_layer_s_vol_pb_avg = 0.0;
+      m_layer_w_vol_pb_bars = 0;  m_layer_m_vol_pb_bars = 0;  m_layer_s_vol_pb_bars = 0;
+      m_layer_w_vol_rec_avg = 0.0; m_layer_m_vol_rec_avg = 0.0; m_layer_s_vol_rec_avg = 0.0;
+      m_layer_w_vol_rec_bars = 0;  m_layer_m_vol_rec_bars = 0;  m_layer_s_vol_rec_bars = 0;
+      m_layer_w_vprr = 0.0; m_layer_m_vprr = 0.0; m_layer_s_vprr = 0.0;
+      m_vprr_last_real = false;
       m_diag_last_bias = 0;
       m_diag_last_votes = 0;
       m_diag_last_reason = "";
@@ -4006,6 +4161,11 @@ public:
       m_telemetry.phase_detection_enabled = (m_settings.BiasMode == BIAS_4EMA && m_settings.PhaseDetectionEnabled);
       m_telemetry.layer_detection_enabled = (m_settings.EnableLayerDetection && m_settings.BiasMode == BIAS_4EMA);
       m_telemetry.mtf_status = "N/A";
+      m_telemetry.vprr_enabled    = m_settings.VPRR_Enabled;
+      m_telemetry.vprr_ratio      = 0.0;
+      m_telemetry.vprr_min_ratio  = m_settings.VPRR_MinRatio;
+      m_telemetry.vprr_pass       = false;
+      m_telemetry.vprr_vol_source = "—";
       ZeroMemory(m_stats);
 
       ENUM_MA_METHOD method = (m_settings.MaType == METHOD_SMA) ? MODE_SMA : MODE_EMA;
@@ -5169,6 +5329,7 @@ public:
       CAST_VOTE_STAT(m_settings.Ind_Dpi_Enabled,         m_settings.Ind_Dpi_Weight,         Check_DPI(bias, v_shift),         m_stats.rejected_dpi,          m_stats.passed_dpi)
       CAST_VOTE_STAT(m_settings.Ind_Fib_Enabled,         m_settings.Ind_Fib_Weight,         Check_Fib(bias, v_shift),         m_stats.rejected_fib,          m_stats.passed_fib)
       CAST_VOTE_STAT(m_settings.Ind_MTF_Enabled,         m_settings.Ind_MTF_Weight,         Check_MTF(bias),                  m_stats.rejected_mtf,          m_stats.passed_mtf)
+      CAST_VOTE_STAT(m_settings.VPRR_Enabled,            m_settings.VPRR_Weight,            Check_VPRR(v_shift),              m_stats.rejected_vprr,         m_stats.passed_vprr)
       #undef CAST_VOTE_STAT
 
       // Calculate indicator pass counts for telemetry (all enabled indicators, including non-directional filters)

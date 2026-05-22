@@ -765,6 +765,19 @@ void SEA_UI_UpdateCockpit(
       AddLine("  LAYER: N/A (phase detection off)", Settings.clr_Disabled, lines, line_clrs);
    }
 
+   // VPRR: Volume Pullback-Recovery Ratio (only shown when the voter is on)
+   if(ts_telemetry.vprr_enabled)
+   {
+      string vprr_sym = ts_telemetry.vprr_pass ? "[+]" : "[.]";
+      color  vprr_clr = ts_telemetry.vprr_pass ? Settings.clr_Pass : Settings.clr_Disabled;
+      AddLine(StringFormat("  VPRR:  %.2f (min %.2f) %s  Vol:%s",
+                           ts_telemetry.vprr_ratio,
+                           ts_telemetry.vprr_min_ratio,
+                           vprr_sym,
+                           ts_telemetry.vprr_vol_source),
+              vprr_clr, lines, line_clrs);
+   }
+
    // 3. INDICATOR AUDIT (Detailed MACD, CCI, PSAR restoration)
    string ind_parts[];
    int ind_count = StringSplit(ts_telemetry.active_indicators, '\n', ind_parts);
