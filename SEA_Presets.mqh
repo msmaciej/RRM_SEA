@@ -782,6 +782,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_SmaConverge_Weight  = 1;
       cfg.Ind_Dpi_Enabled        = false;   // DPI not used in FPM methodology
       cfg.Ind_Dpi_Weight         = 1;
+      cfg.Ind_MTF_Enabled        = false;   // MTF not part of FPM methodology
 
       // ── PSAR SETTINGS ─────────────────────────────────────────────────
       // Condition 1: PSAR crossed below price (for buy) = PSAR dot below price
@@ -1013,6 +1014,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_SmaConverge_Weight  = 1;
       cfg.Ind_Dpi_Enabled        = false;
       cfg.Ind_Dpi_Weight         = 1;
+      cfg.Ind_MTF_Enabled        = false;   // MTF disabled: benchmark mode has all voting off
       cfg.VoteMode               = VOTE_MODE_ALL;
       
       // ================================================================
@@ -2373,6 +2375,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_SmaConverge_Weight    = 1;
       cfg.Ind_Dpi_Enabled           = false;
       cfg.Ind_Dpi_Weight            = 1;
+      cfg.Ind_MTF_Enabled           = false;   // MTF disabled: test preset uses fixed indicator set
    
       // BAR CLOSE (bcX) CONFIGURATION
       cfg.BarClose_Enabled          = true;           // true
