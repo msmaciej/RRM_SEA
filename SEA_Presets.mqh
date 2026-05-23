@@ -804,6 +804,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MacdRequireSlope       = false;
       cfg.MacdRequireDivergence  = false;
       cfg.MacdRequireHook        = false;
+      cfg.MacdHistDecelEnabled   = false;  // Not applicable: FPM uses MACD_CROSSOVER_N (event-based), not directional histogram
       cfg.MacdFreshBars          = 5;                  // Valid for 5 bars after cross (25 min on M5; allows Bias to confirm)
       cfg.MacdSlopeMin           = 0.00001;
 
@@ -1078,6 +1079,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MacdRequireSlope       = false;
       cfg.MacdRequireDivergence  = false;
       cfg.MacdRequireHook        = false;
+      cfg.MacdHistDecelEnabled   = false;  // TEST preset: decel filter off — isolation mode for indicator debugging
       cfg.MacdFreshBars          = 3;
       cfg.MacdSlopeMin           = 0.00001;
       
@@ -1327,6 +1329,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MacdRequireSlope       = Inp_RRM_MacdSlope;
       cfg.MacdRequireDivergence  = Inp_RRM_MacdDiv;
       cfg.MacdRequireHook        = false;
+      cfg.MacdHistDecelEnabled   = Inp_RRM_MacdHistDecel;  // Decel pre-filter: block when histogram shrinking (analogous to DPI_BlockOnDeceleration)
       cfg.MacdFreshBars          = 3;
       cfg.MacdSlopeMin           = 0.00001;
 
@@ -1664,6 +1667,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MacdRequireSlope          = Inp_RRM_ORG_MacdSlope;
       cfg.MacdRequireDivergence     = Inp_RRM_ORG_MacdDiv;
       cfg.MacdRequireHook           = false;
+      cfg.MacdHistDecelEnabled      = false;  // RRM_ORG uses DPI voter (not MACD histogram) as its momentum gate — decel handled via DPI_BlockOnDeceleration
       cfg.P_MacdFast                = Inp_RRM_ORG_MacdFast;
       cfg.P_MacdSlow                = Inp_RRM_ORG_MacdSlow;
       cfg.P_MacdSig                 = Inp_RRM_ORG_MacdSig;
@@ -2120,6 +2124,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MacdRequireSlope       = true;               // LOCKED: histogram must be sloping in trade direction; flat histogram = no momentum = no trade in TI
       cfg.MacdRequireDivergence  = false;              // LOCKED: divergence is not part of TI MACD voter; enabling it would filter out valid momentum entries
       cfg.MacdRequireHook        = false;              // LOCKED: hook (reversal of histogram) is not a TI entry signal
+      cfg.MacdHistDecelEnabled   = false;              // LOCKED: TI uses MacdRequireSlope=true which already enforces acceleration; double-filter not needed
       cfg.MacdFreshBars          = Inp_TI_MACD_FreshBars;
       cfg.MacdSlopeMin           = Inp_TI_MACD_SlopeMin;
 

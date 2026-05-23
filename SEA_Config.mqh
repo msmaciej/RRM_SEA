@@ -516,6 +516,7 @@ struct ST_Settings
    bool          MacdRequireHook;       // Filter: require histogram flip
    int           MacdFreshBars;         // For _N modes: fresh signal validity
    double        MacdSlopeMin;          // Min slope threshold (0=disabled)
+   bool          MacdHistDecelEnabled;  // Filter D: block when MACD histogram shrinking bar-over-bar (momentum decelerating)
    ERsiMode   RsiMode;
    ECciMode   CciMode;
    EStochMode StoMode;
@@ -1150,6 +1151,7 @@ input group "║   📐 RRM: MACD Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_MacdSlope                = false;           // RRM MACD: slope
 input bool        Inp_RRM_MacdDiv                  = false;           // RRM MACD: div
+input bool        Inp_RRM_MacdHistDecel            = true;            // RRM MACD: block when histogram shrinking bar-over-bar (decel pre-filter, analogous to DPI_BlockOnDeceleration)
 input EMacdVoteMode Inp_RRM_MacdMode               = MACD_ZERO_AND_HIST; // RRM MACD: mode
 input int         Inp_RRM_MacdFast                 = 12;             // RRM MACD: Fast (12)
 input int         Inp_RRM_MacdSlow                 = 26;             // RRM MACD: Slow (26)
@@ -2155,6 +2157,7 @@ void InitializeConfig()
    Settings.MacdRequireDivergence= Inp_CUSTOM_Ind_Macd_RequireDivergence;
    Settings.MacdRequireHook      = Inp_CUSTOM_Ind_Macd_RequireHook;
    Settings.MacdFreshBars        = Inp_CUSTOM_Ind_Macd_FreshBars;
+   Settings.MacdHistDecelEnabled = false;  // RRM-only pre-filter; set true by PRESET_RRM via Inp_RRM_MacdHistDecel
    Settings.MacdSlopeMin         = Inp_CUSTOM_Ind_Macd_SlopeMin;
    Settings.RsiMode              = Inp_CUSTOM_Ind_Rsi_Mode;
    Settings.CciMode              = Inp_CUSTOM_Ind_Cci_Mode;

@@ -1823,6 +1823,25 @@ private:
          }
       }
 
+      // Filter D: Histogram Deceleration (analogous to DPI_BlockOnDeceleration for RRM)
+      // Blocks when the MACD histogram is shrinking bar-over-bar — momentum weakening
+      // even though direction is still correct. Prevents entering into fading moves.
+      // Condition: |h[shift]| < |h[shift+1]| AND both same sign (direction still holds).
+      if(m_settings.MacdHistDecelEnabled) {
+         double h_prev = GetVal(h_macd, shift + 1, 0) - GetVal(h_macd, shift + 1, 1);
+         bool same_sign = (h > 0 && h_prev > 0) || (h < 0 && h_prev < 0);
+         if(same_sign && MathAbs(h) < MathAbs(h_prev)) {
+            if(m_settings.DebugFlow)
+               DebugLog(StringFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | hist=%.6f prev=%.6f | Result: FAIL (hist decel — momentum shrinking)",
+                                     m, s, h, h_prev));
+            m_ind_cache.cached_bias = bias;
+            m_ind_cache.macd_main = m;
+            m_ind_cache.macd_signal = s;
+            m_ind_cache.macd_result = 0;
+            return false;
+         }
+      }
+
       m_ind_cache.cached_bias = bias;
       m_ind_cache.macd_main = m;
       m_ind_cache.macd_signal = s;
