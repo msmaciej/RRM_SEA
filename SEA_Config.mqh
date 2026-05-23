@@ -1498,7 +1498,7 @@ input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG 
 input int         Inp_RRM_ORG_Ema4Period           = 89;             // RRM ORG QA: EMA4 period
 input int         Inp_RRM_ORG_CandleBody_Weight    = 1;              // RRM ORG QA: CandleBody vote weight
 input int         Inp_RRM_ORG_SmaConverge_Weight   = 1;              // RRM ORG QA: SmaConverge vote weight
-input int         Inp_RRM_ORG_TrailPsarShiftDelay  = 2;              // RRM ORG QA: PSAR trail shift (1–3 bars back)
+input int         Inp_RRM_ORG_TrailPsarShiftDelay  = 1;              // RRM ORG QA: PSAR trail shift (1–3 bars back)
 input group " ";
 input int         Inp_RRM_ORG_PhaseConfirmM5       = 0;              // RRM ORG QA: PhaseConfirmBars <M5
 input int         Inp_RRM_ORG_PhaseConfirmM30      = 0;              // RRM ORG QA: PhaseConfirmBars <M30
