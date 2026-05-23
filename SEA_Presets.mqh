@@ -1438,16 +1438,19 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TrailMode                 = Inp_RRM_TrailMode;
       cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
       cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
-      cfg.BE_Mode                   = BE_MODE_R_MULTIPLE;
 
       // ── ADVANCED TRAILING TRIGGER ─────────────────────────────────────
       ENUM_TIMEFRAMES tf            = (ENUM_TIMEFRAMES)_Period;
       cfg.TrailTrigger              = TRIGGER_BREAKEVEN;
       cfg.TrailDistancePips         = GetTFBasedCushion(tf);
-      cfg.BEThresholdPips           = GetTFBasedCushion(tf);
       cfg.TrailLockProfit           = true;              // true
       cfg.TrailProfitPercent        = 2.0;
       cfg.TrailStepPips             = 5.0;
+
+      // -- BE
+      cfg.BE_Mode                   = BE_MODE_R_MULTIPLE;
+      cfg.BEThresholdPips           = GetTFBasedCushion(tf);
+      cfg.RRM_BE_RMultiple          = Inp_RRM_BE_RMultiple;
 
       // ── FRACTAL SL/TP DEFAULTS ────────────────────────────────────────
       cfg.FractalPeriod             = 5;

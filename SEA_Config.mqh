@@ -1035,7 +1035,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM: (TP) Take Profit - Risk Reward Ratio";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETPMode     Inp_RRM_TPMode                   = TP_MODE_RR;     // RRM TP: mode
-input double      Inp_RRM_RRRatio                  = 1.0;            // RRM TP: RRM R:R ratio (used with TP_MODE_RR)
+input double      Inp_RRM_RRRatio                  = 1.25;            // RRM TP: RRM R:R ratio (used with TP_MODE_RR)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: (SL) Stop Loss";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1046,7 +1046,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETrailingMode Inp_RRM_TrailMode              = TRAIL_PSAR;     // RRM TS: Trailing stop mode
-input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // RRM TS: GLOBAL PSAR trail cushion mode (PIPS / ATR / PERCENT) — default for CUSTOM & seed
+input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // RRM TS: GLOBAL PSAR trail cushion mode (PIPS / ATR / PERCENT) — default for CUSTOM & seed
 input int         Inp_TrailCushionAtrPeriod        = 14;             // RRM TS: GLOBAL cushion ATR period (ATR mode)
 input double      Inp_TrailCushionAtrMult          = 0.5;            // RRM TS: GLOBAL cushion ATR multiplier (ATR mode): cushion = ATR × this
 input double      Inp_TrailCushionPct              = 0.04;           // RRM TS: GLOBAL cushion % of price (PERCENT mode + safety floor), e.g. 0.04 = 0.04%
@@ -1058,7 +1058,7 @@ input int         Inp_RRM_TrailPsarShiftDelay      = 2;              // RRM TS: 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛑 RRM: (BE) Breakeven (% Progress)";
 input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_RRM_BE_ProgressPct           = 10.0;           // RRM BE: BE at % to TP
+input double      Inp_RRM_BE_ProgressPct           = 50.0;           // RRM BE: BE at % to TP
 input double      Inp_RRM_BE_RMultiple             = 1.0;            // RRM BE: BE at R-multiple
 // input string   Inp_RRM_BE_Buffer_Note           = "BE buffer auto-set by timeframe (M15=5, H1=10, H4=20 pips)";
 // input string   Inp_RRM_BE_Example               = "Example: SL=10, TP=30 (3:1), BE@33% → triggers at +10 pips; SL locks at entry + TF-cushion";
@@ -1073,7 +1073,7 @@ input group "║   📐 RRM: Layer Pullback-Recovery Detection";
 input group "╚════════════════════════════════════════════════════════╝";
 // Recommended pullback mode: pure ratio mathematics (Inp_RRM_LayerPullbackRatio / Inp_RRM_LayerRecoveryRatio / Inp_RRM_LayerFlatRatio).
 // This Layer system is independent from legacy RRM gate fields below.
-input bool        Inp_RRM_LayerPullbackEnabled     = false;          // RRM Layer PB: Layer PB: Enable pullback-recovery detection
+input bool        Inp_RRM_LayerPullbackEnabled     = true;          // RRM Layer PB: Layer PB: Enable pullback-recovery detection
 input bool        Inp_RRM_LayerAllowReversalPullback = true;         // RRM Layer PB: Layer PB: Count slope reversal as pullback
 input int         Inp_RRM_LayerBaselineLookback    = 10;             // RRM Layer PB: Layer PB: Baseline slope lookback (bars, recommended 3+)
 input double      Inp_RRM_LayerPullbackRatio       = 0.5;            // RRM Layer PB: Layer PB: Pullback threshold ratio (min 0.1)
@@ -1092,8 +1092,8 @@ input group "╚═════════════════════�
 input bool        Inp_RRM_Use_Adx                  = false;          // RRM Ind: ADX vote enabled
 input bool        Inp_RRM_Use_Bb                   = false;          // RRM Ind: BB vote enabled
 input bool        Inp_RRM_Use_CandleBody           = true;           // RRM Ind: CBody vote enabled
-input bool        Inp_RRM_Use_Cci                  = false;          // RRM Ind: CCI vote enabled
-input bool        Inp_RRM_Use_CI                   = true;           // RRM Ind: CI vote enabled
+input bool        Inp_RRM_Use_Cci                  = true;          // RRM Ind: CCI vote enabled
+input bool        Inp_RRM_Use_CI                   = false;           // RRM Ind: CI vote enabled
 input bool        Inp_RRM_Use_Macd                 = true;           // RRM Ind: MACD vote enabled
 input bool        Inp_RRM_Use_Mfi                  = false;          // RRM Ind: MFI vote enabled
 input bool        Inp_RRM_Use_Psar                 = true;           // RRM Ind: PSAR vote enabled
@@ -1125,9 +1125,9 @@ input group "╔═════════════════════�
 input group "║   📐 RRM: Candle Body Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_CandleBody_RequireDir    = true;           // RRM CBody: Require direction
-input int         Inp_RRM_CandleBody_AvgPeriod     = 15;             // RRM CBody: Average period
-input int         Inp_RRM_CandleBody_CheckBars     = 1;              // RRM CBody: Bars to check
-input double      Inp_RRM_CandleBody_MaxMult       = 3.5;            // RRM CBody: Max multiplier
+input int         Inp_RRM_CandleBody_AvgPeriod     = 5;             // RRM CBody: Average period
+input int         Inp_RRM_CandleBody_CheckBars     = 3;              // RRM CBody: Bars to check
+input double      Inp_RRM_CandleBody_MaxMult       = 4;            // RRM CBody: Max multiplier
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: CI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1143,8 +1143,8 @@ input int         Inp_RRM_Ema4Period               = 89;             // RRM EMA:
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: MACD Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_MacdSlope                = true;           // RRM MACD: slope
-input bool        Inp_RRM_MacdDiv                  = true;           // RRM MACD: div
+input bool        Inp_RRM_MacdSlope                = false;           // RRM MACD: slope
+input bool        Inp_RRM_MacdDiv                  = false;           // RRM MACD: div
 input EMacdVoteMode Inp_RRM_MacdMode               = MACD_ZERO_AND_HIST; // RRM MACD: mode
 input int         Inp_RRM_MacdFast                 = 12;             // RRM MACD: Fast (12)
 input int         Inp_RRM_MacdSlow                 = 26;             // RRM MACD: Slow (26)
@@ -1210,7 +1210,7 @@ input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // RRM ORG 
 input int         Inp_RRM_ORG_DPI_Weight                 = 1;        // RRM ORG DPI: Vote weight
 input bool        Inp_RRM_ORG_DPI_UseCCIReset            = true;     // RRM ORG DPI: CCI can reset ribbon color (trend filter)
 input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
-input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;    // RRM ORG DPI: Also require GREEN overlay for vote pass
+input bool        Inp_RRM_ORG_DPI_UseGreenHist           = true;    // RRM ORG DPI: Also require GREEN overlay for vote pass
 // Yellow ribbon = BUY vote, Red ribbon = SELL vote.
 // CCI can reset ribbon color: hist>0 but CCI<0 → Red override (weakening).
 //
@@ -1249,7 +1249,7 @@ input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI System C — CCI Reset-Recovery Gate";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_DPI_RequireResetRecovery  = false;     // RRM ORG DPI: Require CCI reset→recovery cycle before entry
+input bool        Inp_RRM_ORG_DPI_RequireResetRecovery  = true;     // RRM ORG DPI: Require CCI reset→recovery cycle before entry
 input int         Inp_RRM_ORG_DPI_ResetRecoveryBars     = 1;         // RRM ORG DPI: Recovery bars after CCI flip-back (0=immediate)
 input bool        Inp_RRM_ORG_DPI_ResetRequireGreen     = false;     // RRM ORG DPI: Also require GREEN reappearance during recovery
 //
@@ -1436,9 +1436,9 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: Candle Body Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_CandleBody_RequireDir   = true;        // RRM ORG CBody: CBody Require direction
-input int         Inp_RRM_ORG_CandleBody_AvgPeriod    = 10;          // RRM ORG CBody: CBody Average period
-input int         Inp_RRM_ORG_CandleBody_CheckBars    = 1;           // RRM ORG CBody: CBody Bars to check
-input double      Inp_RRM_ORG_CandleBody_MaxMult      = 3.0;         // RRM ORG CBody: CBody Max multiplier
+input int         Inp_RRM_ORG_CandleBody_AvgPeriod    = 5;           // RRM ORG CBody: CBody Average period
+input int         Inp_RRM_ORG_CandleBody_CheckBars    = 3;           // RRM ORG CBody: CBody Bars to check
+input double      Inp_RRM_ORG_CandleBody_MaxMult      = 4.0;         // RRM ORG CBody: CBody Max multiplier
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: CI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1464,7 +1464,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: PSAR Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_Vote_AllowPsarFlip   = true;           // RRM ORG PSAR: PSAR Enable Flip
-input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 3;              // RRM ORG PSAR: PSAR Flip delay (-1=persistent, 0-10=bars after flip)
+input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 2;              // RRM ORG PSAR: PSAR Flip delay (-1=persistent, 0-10=bars after flip)
 input int         Inp_RRM_ORG_PsarFlipDelay_W      = -99;            // RRM ORG PSAR: PSAR Flip delay LayerW override (-99=use global, 0=flip bar, 1-10=window)
 input int         Inp_RRM_ORG_PsarFlipDelay_M      = -99;            // RRM ORG PSAR: PSAR Flip delay LayerM override (-99=use global, 0=flip bar, 1-10=window)
 input int         Inp_RRM_ORG_PsarFlipDelay_S      = -99;            // RRM ORG PSAR: PSAR Flip delay LayerS override (-99=use global, 0=flip bar, 1-10=window)
@@ -1491,7 +1491,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: Phase A Quality Gates";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_RequireRecoveryIntraday = true;        // RRM ORG QA: Require recovery <M15
-input bool        Inp_RRM_ORG_HtfFilter            = false;          // RRM ORG QA: HTF Trend Filter
+input bool        Inp_RRM_ORG_HtfFilter            = true;           // RRM ORG QA: HTF Trend Filter
 input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM ORG QA: EMA1 period
 input int         Inp_RRM_ORG_Ema2Period           = 13;             // RRM ORG QA: EMA2 period
 input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG QA: EMA3 period
@@ -1775,11 +1775,11 @@ input double      Inp_CUSTOM_Ind_Bb_Dev            = 2.0;            // Ind [BB]
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 CBody (Candle Body - Votes Against Overextended Candles (news/spikes))";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_Ind_CandleBody_Enabled    = false;      // Ind [CBody]: Enable CB
+input bool        Inp_CUSTOM_Ind_CandleBody_Enabled    = true;      // Ind [CBody]: Enable CB
 input bool        Inp_CUSTOM_Ind_CandleBody_RequireDirection = true; // Ind [CBody]: Require DIR
-input int         Inp_CUSTOM_Ind_CandleBody_AvgPeriod  = 10;         // Ind [CBody]: Average body period
-input int         Inp_CUSTOM_Ind_CandleBody_CheckBars  = 1;          // Ind [CBody]: Bars to check
-input double      Inp_CUSTOM_Ind_CandleBody_MaxMult    = 3.0;        // Ind [CBody]: Max body multiplier
+input int         Inp_CUSTOM_Ind_CandleBody_AvgPeriod  = 5;         // Ind [CBody]: Average body period
+input int         Inp_CUSTOM_Ind_CandleBody_CheckBars  = 3;          // Ind [CBody]: Bars to check
+input double      Inp_CUSTOM_Ind_CandleBody_MaxMult    = 4.0;        // Ind [CBody]: Max body multiplier
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 CCI (Commodity Channel Index - Momentum Oscilator)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1934,7 +1934,7 @@ input double      Inp_CUSTOM_TrailDistancePips     = 5.0;            // Custom: 
 input double      Inp_CUSTOM_BEThresholdPips       = 5.0;            // Custom: BE Pips
 // Trail trigger: % of RISK (R-multiple based)
 // Examples: 50 = 0.5R, 100 = 1.0R, 150 = 1.5R
-input double      Inp_CUSTOM_TrailProfitPercent    = 10.0;           // Custom: Trail trigger as % of risk for TRIGGER_PROFIT_PERCENT
+input double      Inp_CUSTOM_TrailProfitPercent    = 50.0;           // Custom: Trail trigger as % of risk for TRIGGER_PROFIT_PERCENT
 input double      Inp_CUSTOM_TrailStepPips         = 5.0;            // Custom: Trail Step Pips
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   ⚖️ (BE) BREAK-EVEN (CUSTOM only)";
@@ -1946,7 +1946,7 @@ input EBeMode     Inp_CUSTOM_BE_Mode               = BE_MODE_TP_PROGRESS_PCT; //
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛡 (TE) COOLDOWN BARS Post-Trade Protection";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_CUSTOM_MinBarsAfterClose      = 1;             // Custom: TE: Min bars cooldown (0=off)
+input int         Inp_CUSTOM_MinBarsAfterClose      = 2;             // Custom: TE: Min bars cooldown (0=off)
 input int         Inp_CUSTOM_MinBarsAfterWeekendGap = 2;             // Custom: TS: Bars skip weekend gap (0=off, recommended 1-2)
 
 //+------------------------------------------------------------------+
