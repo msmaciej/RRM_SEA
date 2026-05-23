@@ -1316,17 +1316,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_RequirePhase       = false;   // Position-only; slope kills signals due to HTF lag
       cfg.MTF_StrictAlignment    = Inp_MTF_StrictAlignment;   // HTF directional gate: both HTFs must agree (strict). User-controlled.
 
-      // Legacy migration from deprecated HTF inputs
-      if(Inp_Filter_UseHTF)
-      {
-         cfg.Ind_MTF_Enabled      = true;
-         cfg.MTF_TF1              = GetSafeMTF_TF1(Inp_Filter_HtfPeriod);
-         cfg.MTF_TF2              = PERIOD_CURRENT;
-         cfg.MTF_EMA_Fast         = Inp_Filter_HtfEmaPeriod;
-         cfg.MTF_EMA_Slow         = Inp_Filter_HtfEmaPeriod;
-         cfg.MTF_RequirePhase     = false;
-      }
-
       // ── MACD SETTINGS: flexible via Inp_RRM_* ────────────────────────
       cfg.P_MacdFast             = Inp_RRM_MacdFast;
       cfg.P_MacdSlow             = Inp_RRM_MacdSlow;
@@ -1878,17 +1867,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_RequirePhase          = false;   // Position-only check; slope requirement kills too many signals due to HTF EMA lag
       cfg.MTF_StrictAlignment       = Inp_MTF_StrictAlignment;   // HTF directional gate: trade only with higher-TF trend(s). User-controlled.
 
-      // Legacy migration path for previous HTF controls
-      bool legacy_htf_enabled = (Inp_RRM_ORG_HtfFilter || Inp_Filter_UseHTF);
-      if(legacy_htf_enabled)
+      // Legacy HTF filter: Inp_RRM_ORG_HtfFilter overrides the MTF inputs with
+      // single-TF slope-based behaviour (MTF_EMA_Fast == MTF_EMA_Slow triggers
+      // the slope path in GetMTFBias()).  TF and EMA period are taken from the
+      // modern Inp_MTF_TF1 / Inp_MTF_EMA_Fast inputs so users only need those.
+      if(Inp_RRM_ORG_HtfFilter)
       {
          cfg.Ind_MTF_Enabled        = true;
-         cfg.MTF_TF1                = GetSafeMTF_TF1((Inp_Filter_HtfPeriod != PERIOD_CURRENT) ? Inp_Filter_HtfPeriod : PERIOD_CURRENT);
-         cfg.MTF_TF2                = PERIOD_CURRENT;  // legacy single-TF behavior
-         cfg.MTF_EMA_Fast           = (Inp_RRM_ORG_HtfEmaPeriod > 0)
-                                      ? Inp_RRM_ORG_HtfEmaPeriod
-                                      : (Inp_Filter_HtfEmaPeriod > 0 ? Inp_Filter_HtfEmaPeriod : 89);
-         cfg.MTF_EMA_Slow           = cfg.MTF_EMA_Fast; // slope-based legacy mode in engine
+         cfg.MTF_TF1                = GetSafeMTF_TF1(Inp_MTF_TF1);
+         cfg.MTF_TF2                = PERIOD_CURRENT;  // single-TF behaviour
+         cfg.MTF_EMA_Fast           = Inp_MTF_EMA_Fast;
+         cfg.MTF_EMA_Slow           = Inp_MTF_EMA_Fast; // equal periods → slope mode in engine
          cfg.MTF_RequirePhase       = false;
       }
 

@@ -905,15 +905,6 @@ input int         Inp_MTF_EMA_Slow                 = 50;             // Veto MTF
 input bool        Inp_MTF_RequirePhase             = true;           // Veto MTF: require trending phase
 input bool        Inp_MTF_StrictAlignment          = true;           // Veto MTF: strict gate — all HTFs must agree
 
-// ╔════════════════════════════════════════════════════════════════╗
-// ║ DEPRECATED: Old HTF filter (replaced by MTF indicator vote)   ║
-// ║ Legacy inputs kept for backward compatibility migration        ║
-// ╚════════════════════════════════════════════════════════════════╝
-input bool        Inp_Filter_UseHTF                = false;       // Veto MTF: DEPRECATED → use Inp_Ind_MTF_Enabled
-input ENUM_TIMEFRAMES Inp_Filter_HtfPeriod         = PERIOD_H4;   // Veto MTF: DEPRECATED → use Inp_MTF_TF1
-input int         Inp_Filter_HtfEmaPeriod          = 89;          // Veto MTF: DEPRECATED → use Inp_MTF_EMA_Fast/Slow
-input int         Inp_RRM_ORG_HtfEmaPeriod         = 89;          // Veto MTF: DEPRECATED → use Inp_MTF_EMA_Fast/Slow
-
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ✅✅ UI (GLOBAL)";
