@@ -1391,7 +1391,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EnableLayerDetection      = true;           // true
       cfg.BlockUnorderedPhase       = true;           // true
       cfg.BlockEmergingPhase        = true;           // true: EM phase = no trades; TM phase = trades allowed
-      cfg.MinPhaseConfirmBars     = (_Period <= PERIOD_M5) ? 0 : 1;        // M1 through M5: No delay needed on the fastest intraday presets
+      cfg.MinPhaseConfirmBars    = (_Period <= PERIOD_M5) ? 0 : 1;       // M1-M5: instant; M15+: require 1 bar confirmation
+      cfg.RequireMinPhaseConfirm = (cfg.MinPhaseConfirmBars > 0);        // CRITICAL: without this, m_diag_phase_confirm_bars stays 0 → pre-filter blocks ALL bars
 
       // Layer permissions per phase (per RRM methodology PNGs):
       //   TRENDING:  Weak + Medium + Strong trades allowed (user-controllable via Inp_RRM_Allow*)
@@ -1405,7 +1406,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Emerging_AllowStrongTrades = false;  // STRONG always blocked in EMERGING per RRM methodology
 
       // ── PULLBACK DETECTION GATES ──────────────────────────────────────
-      cfg.RequireRecoveryMomentum   = false;   // Wick-touch recovery valid on M1/M5
+      cfg.RequireRecoveryMomentum      = false;   // Wick-touch recovery valid on M1/M5
+      cfg.LayerPullbackEnabled         = Inp_RRM_LayerPullbackEnabled;
+      cfg.LayerBaselineLookback        = Inp_RRM_LayerBaselineLookback;
+      cfg.LayerPullbackRatio           = Inp_RRM_LayerPullbackRatio;
+      cfg.LayerRecoveryRatio           = Inp_RRM_LayerRecoveryRatio;
+      cfg.LayerFlatRatio               = Inp_RRM_LayerFlatRatio;
+      cfg.LayerAllowReversalPullback   = Inp_RRM_LayerAllowReversalPullback;
+      cfg.LayerRecoveryRatio_W         = -1.0;  // use global LayerRecoveryRatio
+      cfg.LayerRecoveryRatio_M         = -1.0;
+      cfg.LayerRecoveryRatio_S         = -1.0;
 
       cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
       cfg.Gate_Recovery.value       = 1.0;
@@ -1438,6 +1448,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TrailMode                 = Inp_RRM_TrailMode;
       cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
       cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
+      cfg.RRM_TrailPsarShiftDelay   = Inp_RRM_TrailPsarShiftDelay;
+      cfg.RRM_FreezeTrailOnFlip     = Inp_RRM_FreezeTrailOnFlip;
+      cfg.RRM_TrailStartsAfterBE    = Inp_RRM_TrailStartsAfterBE;
 
       // ── ADVANCED TRAILING TRIGGER ─────────────────────────────────────
       ENUM_TIMEFRAMES tf            = (ENUM_TIMEFRAMES)_Period;
@@ -1451,6 +1464,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BE_Mode                   = BE_MODE_R_MULTIPLE;
       cfg.BEThresholdPips           = GetTFBasedCushion(tf);
       cfg.RRM_BE_RMultiple          = Inp_RRM_BE_RMultiple;
+      cfg.RRM_BE_ProgressPct        = Inp_RRM_BE_ProgressPct;
+      cfg.RRM_BE_BufferPips         = GetTFBasedCushion(tf);  // M15=5p M1=1.5p H1=8p — CRITICAL: was missing, caused 0 trades
 
       // ── FRACTAL SL/TP DEFAULTS ────────────────────────────────────────
       cfg.FractalPeriod             = 5;
@@ -1489,15 +1504,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MaxSpreadRetryBars        = 3;
 
       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────────
-      // EmaFanMaxTotalPips=25.0 is an empirically chosen starting point for
-      // M1/M5 charts with the standard EMA5/13/34/89 fan. It represents the
-      // approximate fan width at which trend exhaustion typically begins on
-      // major FX pairs (e.g. EURUSD, GBPUSD). Adjust per instrument and TF:
-      //   M15/H1: consider 40–60 pips; H4+: 80–120 pips.
-      // JPY pairs: GlobalPipSize() returns the correct pip unit automatically.
-      cfg.EmaFanFilterEnabled       = true;
-      cfg.EmaFanMaxTotalPips        = 25.0 * GetEmaFanMultiplier();
-      cfg.EmaFanMaxPct              = 0.0;  // Pip mode by default; user can override
+      // Inp_RRM_EmaFanFilterEnabled=false by default — user opt-in.
+      // When enabled: Inp_RRM_EmaFanMaxTotalPips sets the pip threshold,
+      // Inp_RRM_EmaFanMaxPct sets the % threshold (0=use pips).
+      // Recommended starting values: M1/M5=25p, M15/H1=40-60p, H4+=80-120p.
+      cfg.EmaFanFilterEnabled       = Inp_RRM_EmaFanFilterEnabled;
+      cfg.EmaFanMaxTotalPips        = (Inp_RRM_EmaFanMaxTotalPips > 0.0)
+                                         ? Inp_RRM_EmaFanMaxTotalPips * GetEmaFanMultiplier()
+                                         : 25.0 * GetEmaFanMultiplier();
+      cfg.EmaFanMaxPct              = Inp_RRM_EmaFanMaxPct;
 
       // ── DPI DECELERATION FILTER ────────────────────────────────────────
       // DPI voter not enabled in PRESET_RRM base; filter stays inactive.
