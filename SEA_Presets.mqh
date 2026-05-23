@@ -1446,6 +1446,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SwingLookback             = Inp_RRM_SwingLookback;
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
+      cfg.SL_AtrPeriod              = Inp_RRM_SL_AtrPeriod;   // Used when SLMode = SL_MODE_ATR
+      cfg.SL_AtrMult                = Inp_RRM_SL_AtrMult;     // Used when SLMode = SL_MODE_ATR
       cfg.FixedTPPips               = 40.0;
       cfg.SLPercent                 = 0.5;
 
@@ -1500,6 +1502,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
       cfg.AllowReEntryAfterBE       = true;
+      cfg.ReEntryLotScalePct        = MathMax(0, MathMin(100, Inp_RRM_ReEntryLotScalePct));  // 0=full size; 50=half-size re-entry
 
       // ── POST-TRADE COOLDOWN ───────────────────────────────────────────
       cfg.MinBarsAfterClose         = MathMax(0, Inp_RRM_MinBarsAfterClose);     // RRM cooldown (was hardcoded 3)
@@ -1820,6 +1823,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SwingLookback             = Inp_RRM_ORG_SwingLookback;
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
+      cfg.SL_AtrPeriod              = Inp_RRM_ORG_SL_AtrPeriod;  // Used when SLMode = SL_MODE_ATR
+      cfg.SL_AtrMult                = Inp_RRM_ORG_SL_AtrMult;    // Used when SLMode = SL_MODE_ATR; Gold M15: try 1.0–1.5
       cfg.FixedTPPips               = 40.0;
       cfg.SLPercent                 = 0.5;
 
@@ -1908,6 +1913,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
       cfg.AllowReEntryAfterBE       = true;
+      cfg.ReEntryLotScalePct        = MathMax(0, MathMin(100, Inp_RRM_ORG_ReEntryLotScalePct));  // 0=full size; 50=half-size re-entry
 
       // ── POST-TRADE COOLDOWN ───────────────────────────────────────────
       cfg.MinBarsAfterClose         = MathMax(0, Inp_RRM_ORG_MinBarsAfterClose); // RRM_ORG cooldown (was hardcoded 3)
@@ -2225,6 +2231,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SwingLookback             = (int)MathRound(20.0 * MathMax(1.0, swing_mult / 2.0));  // LOCKED: instrument-adaptive auto-calc; hardcoding would over-tighten SL on Gold/indices
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();   // LOCKED: auto cushion per instrument/TF; hardcoding would be wrong for multi-symbol use
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();   // LOCKED: same
+      cfg.SL_AtrPeriod              = Inp_TI_SL_AtrPeriod;    // Used when SLMode = SL_MODE_ATR
+      cfg.SL_AtrMult                = Inp_TI_SL_AtrMult;      // Used when SLMode = SL_MODE_ATR
       cfg.FixedTPPips               = 40.0;            // fallback only — unused when TPMode=TP_MODE_RR
       cfg.SLPercent                 = 0.5;             // fallback only — unused when SLMode=SL_MODE_SWING
 
@@ -2290,6 +2298,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── RE-ENTRY / COOLDOWN ───────────────────────────────────────
       cfg.AllowReEntryAfterBE       = true;            // LOCKED: TI allows re-entry after BE — if the trend continues, a new pullback is a valid signal
+      cfg.ReEntryLotScalePct        = MathMax(0, MathMin(100, Inp_TI_ReEntryLotScalePct));   // 0=full size; 50=half-size re-entry
       cfg.MinBarsAfterClose         = MathMax(0, Inp_TI_MinBarsAfterClose);
       cfg.MaxSpreadRetryBars        = 3;               // LOCKED: retry blocked entries for up to 3 bars; longer retry risks entering on a stale signal
 

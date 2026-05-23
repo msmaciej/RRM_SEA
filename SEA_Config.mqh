@@ -215,7 +215,8 @@ enum ESLMode
    SL_MODE_FRACTAL,        // SL_MODE_FRACTAL: Last fractal level (Bill Williams)
    SL_MODE_PERCENT,        // SL_MODE_PERCENT: Percentage of entry price
    SL_MODE_SWING,          // SL_MODE_SWING: Recent swing high/low (SwingLookback bars)
-   SL_MODE_PSAR_DOT        // SL_MODE_PSAR_DOT: PSAR dot position
+   SL_MODE_PSAR_DOT,       // SL_MODE_PSAR_DOT: PSAR dot position (keep for FX pairs)
+   SL_MODE_ATR             // SL_MODE_ATR: Swing anchor − ATR(period) × multiplier (industry standard; prevents under-sized SL on volatile instruments)
 };
 enum ETPMode
 {
@@ -560,6 +561,8 @@ struct ST_Settings
    ETPMode  TPMode;              // How to calculate TP distance
    double   FixedTPPips;         // Fixed TP distance in pips (TP_MODE_FIXED_PIPS)
    double   SLPercent;           // SL as % of entry price (SL_MODE_PERCENT, e.g. 0.5 = 0.5%)
+   int      SL_AtrPeriod;        // ATR period for SL_MODE_ATR (default 14)
+   double   SL_AtrMult;          // ATR multiplier for SL_MODE_ATR: cushion = ATR × this (default 1.0; 0.5–1.5 range)
    double   RRRatio;             // Risk:Reward ratio (TP_MODE_RR, e.g. 2.0 = 1:2)
    int      SwingLookback;       // Bars to look back for swing high/low (SL_MODE_SWING)
 
@@ -718,6 +721,7 @@ struct ST_Settings
 
    // Re-entry after breakeven
    bool          AllowReEntryAfterBE;   // When true, bypass ALREADY_IN_POSITION if position is at BE
+   int           ReEntryLotScalePct;    // Re-entry lot scale % (0=full size; 50=half; since original is at BE, total risk stays controlled)
 
    // Post-trade cooldown
    int           MinBarsAfterClose;      // bars to wait after trade close before new entry (0 = off)
@@ -1047,7 +1051,10 @@ input group "║   📐 RRM: (SL) Stop Loss";
 input group "╚════════════════════════════════════════════════════════╝";
 input ESLMode    Inp_RRM_SLMode                    = SL_MODE_SWING;  // RRM SL: mode
 input int        Inp_RRM_SwingLookback             = 34;             // RRM SL: RRM Swing lookback bars (used with SL_MODE_SWING)
+input int        Inp_RRM_SL_AtrPeriod             = 14;             // RRM SL: ATR period (SL_MODE_ATR only)
+input double     Inp_RRM_SL_AtrMult               = 1.0;            // RRM SL: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR only; 0.5–1.5 typical)
 input int        Inp_RRM_MinBarsAfterClose         = 3;              // RRM SL: post-trade cooldown bars (0=off)
+input int        Inp_RRM_ReEntryLotScalePct        = 50;             // RRM Re-entry: lot size % for re-entry after BE (0=full size; 50=half; since original is at BE total risk stays controlled)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1312,11 +1319,15 @@ input group "║   📐 RRM_ORG: INITIAL STOP LOSS PLACEMENT";
 input group "╚════════════════════════════════════════════════════════╝";
 input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;  // RRM ORG SL: mode
 input int         Inp_RRM_ORG_SwingLookback        = 34;             // RRM ORG SL: Swing lookback bars
+input int         Inp_RRM_ORG_SL_AtrPeriod         = 14;             // RRM ORG SL: ATR period (SL_MODE_ATR only)
+input double      Inp_RRM_ORG_SL_AtrMult           = 1.0;            // RRM ORG SL: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical; Gold M15 use 1.0–1.5)
 input int         Inp_RRM_ORG_MinBarsAfterClose    = 3;              // RRM ORG SL: post-trade cooldown bars (0=off)
+input int         Inp_RRM_ORG_ReEntryLotScalePct   = 50;             // RRM ORG Re-entry: lot size % for re-entry after BE (0=full size; 50=half)
 //
 // Inp_RRM_ORG_SLMode - Initial SL placement method:
 // SL_MODE_SWING:      SL at recent swing high/low (lookback bars)
-// SL_MODE_PSAR_DOT:   SL at current PSAR dot + cushion
+// SL_MODE_ATR:        SL at swing anchor − ATR(period)×mult (industry standard; prevents under-sized SL on Gold/indices)
+// SL_MODE_PSAR_DOT:   SL at current PSAR dot + cushion (keep for FX pairs)
 // SL_MODE_FRACTAL:    SL at last fractal level
 // SL_MODE_FIXED_PIPS: SL at fixed pip distance from entry
 // SL_MODE_PERCENT:    SL at % distance from entry
@@ -1597,6 +1608,8 @@ input ETrailTrigger   Inp_TI_TrailTrigger      = TRIGGER_BREAKEVEN;  // TI Exit:
 input double          Inp_TI_TrailStepPips     = 5.0;    // TI Exit: trail step (pips)
 input double          Inp_TI_TrailProfitPercent = 2.0;   // TI Exit: trail lock profit %
 input ESLMode         Inp_TI_SLMode            = SL_MODE_SWING;      // TI Exit: SL mode
+input int             Inp_TI_SL_AtrPeriod      = 14;                 // TI Exit: ATR period (SL_MODE_ATR only)
+input double          Inp_TI_SL_AtrMult        = 1.0;                // TI Exit: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical)
 input ETPMode         Inp_TI_TPMode            = TP_MODE_RR;         // TI Exit: TP mode
 input double          Inp_TI_RRRatio           = 2.0;    // TI Exit: R:R ratio
 input EBeMode         Inp_TI_BE_Mode           = BE_MODE_R_MULTIPLE; // TI Exit: BE mode
@@ -1629,6 +1642,7 @@ input group "║   📐 TOPINVESTOR: Quick Profile                        ║";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETIProfile  Inp_TI_Profile               = TI_MODERATE; // TI: profile select
 input int         Inp_TI_MinBarsAfterClose     = 3;      // TI: cooldown bars after close (0=off)
+input int         Inp_TI_ReEntryLotScalePct    = 50;     // TI Re-entry: lot size % for re-entry after BE (0=full size; 50=half)
 input bool        Inp_TI_PhaseAllowEM          = true;   // TI: allow Emerging phase
 
 // ════════════════════════════════════════════════════════════════
@@ -1909,6 +1923,8 @@ input int         Inp_CUSTOM_SwingLookback         = 34;             // Custom: 
 input double      Inp_CUSTOM_SL_FixedPips          = 20.0;           // Custom: SL distance (pips SL_MODE_FIXED_PIPS)
 input double      Inp_CUSTOM_SL_MinPips            = 3.0;            // Custom: Min. SL pips (0 = no user floor, broker minimum still applies)
 input double      Inp_CUSTOM_SLPercent             = 0.5;            // Custom: SL as % of entry
+input int         Inp_CUSTOM_SL_AtrPeriod           = 14;            // Custom: ATR period (SL_MODE_ATR only)
+input double      Inp_CUSTOM_SL_AtrMult             = 1.0;           // Custom: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛑 (SL) STOP LOSS FRACTAL: used with SL_FRACTAL & SL_PSAR_DOT";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -2243,6 +2259,8 @@ void InitializeConfig()
    Settings.TPMode               = Inp_CUSTOM_TPMode;
    Settings.FixedTPPips          = Inp_CUSTOM_FixedTPPips;
    Settings.SLPercent            = Inp_CUSTOM_SLPercent;
+   Settings.SL_AtrPeriod         = Inp_CUSTOM_SL_AtrPeriod;   // CUSTOM: user-controlled; overridden by TI/RRM/RRM_ORG preset blocks
+   Settings.SL_AtrMult           = Inp_CUSTOM_SL_AtrMult;     // CUSTOM: user-controlled; overridden by TI/RRM/RRM_ORG preset blocks
    Settings.RRRatio              = Inp_CUSTOM_RRRatio;
    Settings.SwingLookback        = Inp_CUSTOM_SwingLookback;
    Settings.FractalPeriod        = Inp_CUSTOM_FractalPeriod;
@@ -2368,6 +2386,7 @@ void InitializeConfig()
 
    // Re-entry after breakeven: disabled by default; enabled by RRM presets
    Settings.AllowReEntryAfterBE = false;
+   Settings.ReEntryLotScalePct  = 0;    // 0 = full size (default for CUSTOM; overridden by RRM/RRM_ORG/TI presets)
 
    // Post-trade cooldown: disabled by default; presets may override
    Settings.MinBarsAfterClose      = Inp_CUSTOM_MinBarsAfterClose;

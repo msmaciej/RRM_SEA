@@ -33,6 +33,7 @@ private:
    int         m_h_psar;
    int         m_h_fractals;
    int         m_h_cushion_atr;  // ATR handle for PSAR_CUSHION_ATR (cached)
+   int         m_h_sl_atr;       // ATR handle for SL_MODE_ATR initial SL (cached)
    
    // Telemetry Cache
    datetime    m_last_trade_bar;
@@ -202,6 +203,7 @@ private:
       if(m_h_psar != INVALID_HANDLE) { IndicatorRelease(m_h_psar); m_h_psar = INVALID_HANDLE; }
       if(m_h_fractals != INVALID_HANDLE) { IndicatorRelease(m_h_fractals); m_h_fractals = INVALID_HANDLE; }
       if(m_h_cushion_atr != INVALID_HANDLE) { IndicatorRelease(m_h_cushion_atr); m_h_cushion_atr = INVALID_HANDLE; }
+      if(m_h_sl_atr != INVALID_HANDLE) { IndicatorRelease(m_h_sl_atr); m_h_sl_atr = INVALID_HANDLE; }
    }
 
    void GetSymbolCurrencies(string sym, string &base, string &quote) {
@@ -428,6 +430,19 @@ private:
    
    double GetPipSize() const {
       return GlobalPipSize(m_symbol);
+   }
+
+   // Returns ATR value for SL_MODE_ATR initial SL. Uses shift=1 (closed bar) for consistency with other anchors.
+   double GetSLAtr() {
+      if(m_h_sl_atr == INVALID_HANDLE) {
+         PrintFormat("⚠️ [SL_ATR] Handle invalid — ATR SL cannot be computed");
+         return 0.0;
+      }
+      double a[1];
+      if(CopyBuffer(m_h_sl_atr, 0, 1, 1, a) == 1 && a[0] > 0.0)
+         return a[0];
+      PrintFormat("⚠️ [SL_ATR] CopyBuffer returned no data — ATR SL cannot be computed");
+      return 0.0;
    }
 
    double GetPSARAnchor(int shift=1) {
@@ -955,6 +970,34 @@ private:
             PrintFormat("⚠️ [RRM SL FALLBACK] Fractal Anchor failed. Using Fixed Pips.");
             break;
          }
+         case SL_MODE_ATR: {
+            // Industry standard: swing anchor − ATR(period) × multiplier.
+            // Uses same swing lookback as SL_MODE_SWING. ATR cushion prevents under-sized SL
+            // on volatile instruments (Gold, indices) where swing lows can be very tight on M15.
+            double swing_level = GetSwingLevel(isBuy ? 1 : -1);
+            if(swing_level > 0.0) {
+               bool valid = isBuy ? (swing_level < price) : (swing_level > price);
+               if(!valid) {
+                  PrintFormat("⚠️ [RRM SL ATR] Swing anchor on wrong side. Using Fixed Pips.");
+                  break;
+               }
+               double atr_val = GetSLAtr();
+               if(atr_val > 0.0) {
+                  double cushion = atr_val * m_settings.SL_AtrMult;
+                  sl = isBuy ? (swing_level - cushion) : (swing_level + cushion);
+                  PrintFormat("✅ [RRM SL ATR] swing=%.5f ATR=%.5f mult=%.2f cushion=%.5f SL=%.5f",
+                              swing_level, atr_val, m_settings.SL_AtrMult, cushion, sl);
+                  break;
+               }
+               // ATR read failed: fall back to swing + fixed pip cushion
+               PrintFormat("⚠️ [RRM SL ATR] ATR read failed — falling back to swing + fixed cushion");
+               double cushion_price = m_settings.SL_SwingPipsCushion * pipSize;
+               sl = isBuy ? (swing_level - cushion_price) : (swing_level + cushion_price);
+               break;
+            }
+            PrintFormat("⚠️ [RRM SL ATR FALLBACK] Swing anchor failed. Using Fixed Pips.");
+            break;
+         }
          default:
             break;
       }
@@ -1034,6 +1077,30 @@ private:
             anchor = GetFractalLevel(isBuy ? 1 : -1);
             cushion_pips = m_settings.SL_SwingPipsCushion;  // FIX: was 0.0 — use same cushion as Swing
             break;
+         case SL_MODE_ATR: {
+            // Industry standard: swing anchor − ATR(period) × multiplier.
+            anchor = GetSwingLevel(isBuy ? 1 : -1);
+            if(anchor > 0.0) {
+               bool valid = isBuy ? (anchor < price) : (anchor > price);
+               if(valid) {
+                  double atr_val = GetSLAtr();
+                  if(atr_val > 0.0) {
+                     double cushion = atr_val * m_settings.SL_AtrMult;
+                     double sl_atr = isBuy ? (anchor - cushion) : (anchor + cushion);
+                     PrintFormat("✅ [SL ATR] swing=%.5f ATR=%.5f mult=%.2f SL=%.5f",
+                                 anchor, atr_val, m_settings.SL_AtrMult, sl_atr);
+                     return sl_atr;
+                  }
+                  // ATR read failed: fall through to swing + fixed pip cushion
+                  PrintFormat("⚠️ [SL ATR] ATR read failed — fallback to swing + fixed cushion");
+                  cushion_pips = m_settings.SL_SwingPipsCushion;
+               } else {
+                  PrintFormat("⚠️ [SL ATR] Swing anchor wrong side — fixed pips fallback");
+                  anchor = 0.0;
+               }
+            }
+            break;
+         }
          case SL_MODE_PERCENT: {
             double sl_pips = (price * m_settings.SLPercent / 100.0) / pipSize;
             return isBuy ? (price - (sl_pips * pipSize)) : (price + (sl_pips * pipSize));
@@ -1400,7 +1467,7 @@ public:
                        m_te_rej_open_delay(0), m_te_rej_bc_recheck(0), m_te_rej_spread_median(0),
                        m_te_pass_open_delay(0), m_te_pass_bc_recheck(0), m_te_pass_spread_median(0),
                        m_spread_history_count(0), m_spread_history_idx(0),
-                       m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), m_h_cushion_atr(INVALID_HANDLE), // CACHED HANDLES
+                       m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), m_h_cushion_atr(INVALID_HANDLE), m_h_sl_atr(INVALID_HANDLE), // CACHED HANDLES
                        m_dpi_hist_current(0.0), m_dpi_hist_trend(0), m_dpi_hist_decelerating(false), m_dpi_hist_green_present(false),
                        m_exits_dpi_hist(0)
    {
@@ -1505,11 +1572,13 @@ public:
       m_h_psar = iSAR(m_symbol, PERIOD_CURRENT, m_settings.P_PsarStep, m_settings.P_PsarMax);
       m_h_fractals = iFractals(m_symbol, PERIOD_CURRENT);
       m_h_cushion_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.PSAR_TrailCushionAtrPeriod));
+      m_h_sl_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.SL_AtrPeriod));
    }
    
    void UpdateSettings(ST_Settings &sets) { 
       bool recreate_psar = (m_settings.P_PsarStep != sets.P_PsarStep || m_settings.P_PsarMax != sets.P_PsarMax);
       bool recreate_atr  = (m_settings.PSAR_TrailCushionAtrPeriod != sets.PSAR_TrailCushionAtrPeriod) || (m_h_cushion_atr == INVALID_HANDLE);
+      bool recreate_sl_atr = (m_settings.SL_AtrPeriod != sets.SL_AtrPeriod) || (m_h_sl_atr == INVALID_HANDLE);
       m_settings = sets; 
       if (recreate_psar) {
          if (m_h_psar != INVALID_HANDLE) IndicatorRelease(m_h_psar);
@@ -1519,6 +1588,10 @@ public:
       if (recreate_atr) {
          if (m_h_cushion_atr != INVALID_HANDLE) IndicatorRelease(m_h_cushion_atr);
          m_h_cushion_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.PSAR_TrailCushionAtrPeriod));
+      }
+      if (recreate_sl_atr) {
+         if (m_h_sl_atr != INVALID_HANDLE) IndicatorRelease(m_h_sl_atr);
+         m_h_sl_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.SL_AtrPeriod));
       }
    }
 
@@ -1958,6 +2031,7 @@ public:
    }
 
    void ExecuteTrade(int direction, double lots) {
+      bool is_reentry = false;  // Set true when entering alongside an existing BE position
       if(lots <= 0.0) {
          m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
       }
@@ -1986,6 +2060,7 @@ public:
          if(m_settings.AllowReEntryAfterBE) {
             ulong ticket = GetMyPosition();
             if(ticket > 0 && IsPositionAtBreakEven(ticket)) {
+               is_reentry = true;  // Mark: pyramid entry alongside a BE position
                // Fall through: allow new entry alongside existing BE position
             } else {
                m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "ALREADY_IN_POSITION"; return;
@@ -2037,6 +2112,28 @@ public:
             // Re-apply margin safety with the new lot size
             lots = AdjustLotForMargin(isBuy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, entry_price);
             // FIX Bug1: update cached lots/risk to reflect final value sent to broker
+            m_cached_lots = lots;
+            m_cached_risk = ComputeRiskPercent(lots, MathAbs(entry_price - sl));
+         }
+      }
+
+      // ── RE-ENTRY LOT SCALING ────────────────────────────────────────────
+      // When entering alongside an existing BE position (pyramid), scale lot size down.
+      // Original position is at breakeven — its risk is zero. Scaling the new entry to
+      // 50% (default) keeps total new risk controlled. 0 = full size (disabled).
+      if(is_reentry && m_settings.ReEntryLotScalePct > 0 && m_settings.ReEntryLotScalePct < 100) {
+         double scale = m_settings.ReEntryLotScalePct / 100.0;
+         double scaled_lots = NormalizeDouble(lots * scale, 2);
+         double min_lot = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN);
+         if(scaled_lots >= min_lot) {
+            PrintFormat("📊 [RE-ENTRY] Lot scaling: %.4f × %d%% = %.4f (original at BE, total risk controlled)",
+                        lots, m_settings.ReEntryLotScalePct, scaled_lots);
+            lots = scaled_lots;
+            m_cached_lots = lots;
+            m_cached_risk = ComputeRiskPercent(lots, MathAbs(entry_price - sl));
+         } else {
+            PrintFormat("⚠️ [RE-ENTRY] Scaled lots %.4f < min lot %.4f — using min lot", scaled_lots, min_lot);
+            lots = min_lot;
             m_cached_lots = lots;
             m_cached_risk = ComputeRiskPercent(lots, MathAbs(entry_price - sl));
          }
