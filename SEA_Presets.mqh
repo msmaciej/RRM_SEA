@@ -773,7 +773,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_CI_Enabled         = false;
       cfg.Ind_VRC_Enabled        = false;
       cfg.Ind_Cci_Enabled        = false;
-      cfg.Ind_Mfi_Enabled        = false;
+      cfg.Ind_Mfi_Enabled        = Inp_FPM_Ind_Mfi_Enabled;  // Volume gate: MFI>50 longs, <50 shorts (industry breakout standard)
+      cfg.P_Mfi                  = Inp_FPM_Mfi_Period;
+      cfg.T_MfiOB                = 80.0;
+      cfg.T_MfiOS                = 20.0;
+      cfg.MfiMode                = MFI_ZONE_FILTER;          // MFI>50 = bullish volume zone; <50 = bearish
       cfg.Ind_P123_Enabled       = false;
       cfg.Ind_Ross_Enabled       = false;
       cfg.Ind_Rsi_Enabled        = false;
@@ -872,10 +876,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_VRC_Weight            = 1;
       cfg.P_Cci                     = 14;
       cfg.CciMode                   = CCI_TREND_ZERO;
-      cfg.P_Mfi                     = 14;
-      cfg.T_MfiOB                   = 80.0;
-      cfg.T_MfiOS                   = 20.0;
-      cfg.MfiMode                   = MFI_ZONE_FILTER;
+      // P_Mfi / T_MfiOB / T_MfiOS / MfiMode — set above from Inp_FPM_Ind_Mfi_Enabled / Inp_FPM_Mfi_Period
       cfg.P_Rsi                     = 14;
       cfg.T_RsiOB                   = 70.0;
       cfg.T_RsiOS                   = 30.0;

@@ -1026,6 +1026,11 @@ input group "╔═════════════════════�
 input group "║   📊 FPM: SMA Convergence";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_FPM_Ind_SmaConverge_Enabled  = false;          // FPM SMA: Enable SMA convergence vote (FPM Condition 4)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📊 FPM: MFI Volume Confirmation (Condition 6)";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_FPM_Ind_Mfi_Enabled           = true;           // FPM MFI: Enable MFI volume gate (MFI>50 for longs, <50 for shorts)
+input int         Inp_FPM_Mfi_Period                = 14;             // FPM MFI: period (default 14)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
