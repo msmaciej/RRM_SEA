@@ -1985,67 +1985,71 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
 
       // ── SIGNAL ARCHITECTURE: locked ──────────────────────────────────
-      cfg.BiasMode               = BIAS_4EMA;
-      cfg.AutoStrat              = STRAT_4EMA_LAYER;
-      cfg.VoteMode               = VOTE_MODE_ALL;
-      cfg.BiasEnabled            = true;
-      cfg.BiasFastID             = (int)ROLE_EMA3;
-      cfg.BiasSlowID             = (int)ROLE_EMA4;
-      cfg.MaType                 = METHOD_EMA;
-      cfg.CloseOnReverse         = false;
-      cfg.RequirePriceCross      = false;
-      cfg.MABenchmarkStrict      = false;
-      cfg.UseMACompatSizer       = false;
+      // These define the fundamental engine of the TI methodology.
+      // Changing them would produce a different strategy, not a variant of TI.
+      cfg.BiasMode               = BIAS_4EMA;          // LOCKED: 4EMA phase detection is the TI definition; other modes break phase/layer logic entirely
+      cfg.AutoStrat              = STRAT_4EMA_LAYER;   // LOCKED: layer pullback detection requires BIAS_4EMA; any other strat ignores the layer structure
+      cfg.VoteMode               = VOTE_MODE_ALL;      // LOCKED: all voters must agree; THRESHOLD mode would let partial agreement trigger trades, undermining K-3/K-6 confluence design
+      cfg.BiasEnabled            = true;               // LOCKED: bias filter is always required
+      cfg.BiasFastID             = (int)ROLE_EMA3;     // LOCKED: EMA3(89) is the fast bias reference — TI standard; wired to Ema3 input
+      cfg.BiasSlowID             = (int)ROLE_EMA4;     // LOCKED: EMA4(200) is the slow bias reference — TI standard; wired to Ema4 input
+      cfg.MaType                 = METHOD_EMA;         // LOCKED: TopInvestor uses EMA exclusively; SMA would be a different methodology
+      cfg.CloseOnReverse         = Inp_TI_CloseOnReverse;
+      cfg.RequirePriceCross      = false;              // LOCKED: TI uses phase/layer for entry timing, not a price-cross event signal
+      cfg.MABenchmarkStrict      = false;              // LOCKED: benchmark mode is for PRESET_MA only; enabling it breaks vote logic
+      cfg.UseMACompatSizer       = false;              // LOCKED: TI uses risk-% sizer; MA compat sizer is for the benchmark preset only
 
-      // ── EMA PERIODS (TopInvestor standard) ─────────────────────────
-      cfg.P_Ema1                 = 9;       // EMA9  — trailing exit reference
-      cfg.P_Ema2                 = 50;      // EMA50 — primary bounce level
-      cfg.P_Ema3                 = 89;      // EMA89 — intermediate structure
-      cfg.P_Ema4                 = 200;     // EMA200 — major trend anchor
+      // ── EMA PERIODS (user-controlled via Inp_TI_Ema*) ─────────────
+      cfg.P_Ema1                 = Inp_TI_Ema1;   // default 9   — trailing exit reference
+      cfg.P_Ema2                 = Inp_TI_Ema2;   // default 50  — primary bounce level
+      cfg.P_Ema3                 = Inp_TI_Ema3;   // default 89  — intermediate structure
+      cfg.P_Ema4                 = Inp_TI_Ema4;   // default 200 — major trend anchor
 
       // ── PHASE: TM-only or allow EM via user toggle ────────────────
-      cfg.PhaseDetectionEnabled     = true;
-      cfg.EnableLayerDetection      = true;
-      cfg.BlockUnorderedPhase       = true;
+      cfg.PhaseDetectionEnabled     = true;            // LOCKED: phase detection is mandatory for 4EMA/layer architecture; disabling it collapses to a simple cross system
+      cfg.EnableLayerDetection      = true;            // LOCKED: layer detection is the core of System 1 (EMA bounce); disabling it removes pullback/recovery logic entirely
+      cfg.BlockUnorderedPhase       = Inp_TI_BlockUnorderedPhase;
       cfg.BlockEmergingPhase        = !Inp_TI_PhaseAllowEM;
-      cfg.RequireMinPhaseConfirm    = true;
-      cfg.MinPhaseConfirmBars       = (_Period <= PERIOD_M5) ? 1 : 2;
+      cfg.RequireMinPhaseConfirm    = Inp_TI_RequireMinPhaseConfirm;
+      cfg.MinPhaseConfirmBars       = (_Period <= PERIOD_M5) ? 1 : 2;  // LOCKED: auto-scaled by TF — shorter TFs need fewer confirm bars; hardcoding one value would over-filter on M1 or under-filter on H4
 
       // Layer permissions
-      cfg.Trending_AllowWeakTrades   = true;
-      cfg.Trending_AllowMediumTrades = true;
-      cfg.Trending_AllowStrongTrades = true;
-      cfg.Emerging_AllowWeakTrades   = true;
-      cfg.Emerging_AllowMediumTrades = true;
-      cfg.Emerging_AllowStrongTrades = false;
+      // Trending phase: all 3 layers allowed — TI trades any pullback depth in a confirmed trend
+      cfg.Trending_AllowWeakTrades   = true;           // LOCKED: weak pullbacks (L1) are valid TI entries in trending phase
+      cfg.Trending_AllowMediumTrades = true;           // LOCKED: medium pullbacks (L2) are valid TI entries in trending phase
+      cfg.Trending_AllowStrongTrades = true;           // LOCKED: strong pullbacks (L3) are valid TI entries in trending phase
+      // Emerging phase: weak and medium allowed, strong controlled by user toggle
+      cfg.Emerging_AllowWeakTrades   = true;           // LOCKED: L1 allowed in EM — less aggressive pullback, safer in emerging trend
+      cfg.Emerging_AllowMediumTrades = true;           // LOCKED: L2 allowed in EM — standard confluence depth
+      cfg.Emerging_AllowStrongTrades = Inp_TI_Emerging_AllowStrong; // user-controlled: strong EM trades are riskier (deeper pullback in unconfirmed trend)
 
       // ── LAYER: pullback-recovery detection ─────────────────────────
-      cfg.LayerPullbackEnabled        = true;
-      cfg.LayerBaselineLookback       = 34;
-      cfg.LayerPullbackRatio          = 0.5;
-      cfg.LayerRecoveryRatio          = 0.3;
-      cfg.LayerFlatRatio              = 0.15;
-      cfg.LayerAllowReversalPullback  = true;
-      cfg.LayerRecoveryRatio_W        = -1.0;
-      cfg.LayerRecoveryRatio_M        = -1.0;
-      cfg.LayerRecoveryRatio_S        = -1.0;
+      cfg.LayerPullbackEnabled        = true;          // LOCKED: pullback detection is System 1 of TI; disabling it makes the preset trade raw EMA crosses only
+      cfg.LayerBaselineLookback       = Inp_TI_LayerBaselineLookback;
+      cfg.LayerPullbackRatio          = Inp_TI_LayerPullbackRatio;
+      cfg.LayerRecoveryRatio          = Inp_TI_LayerRecoveryRatio;
+      cfg.LayerFlatRatio              = Inp_TI_LayerFlatRatio;
+      cfg.LayerAllowReversalPullback  = true;          // LOCKED: reversal pullbacks are part of the TI methodology (counter-trend bounce to EMA)
+      cfg.LayerRecoveryRatio_W        = -1.0;          // LOCKED: -1 = inherit global LayerRecoveryRatio for all sub-layers; per-layer overrides not needed in TI
+      cfg.LayerRecoveryRatio_M        = -1.0;          // LOCKED: same — uniform recovery ratio across L1/L2/L3
+      cfg.LayerRecoveryRatio_S        = -1.0;          // LOCKED: same
 
       // ── BAR CLOSE: layer-aware ─────────────────────────────────────
-      cfg.BarClose_Enabled       = true;
-      cfg.BarClose_Mode          = BC_LAYER_AWARE;
-      cfg.BarClose_DefaultEMA    = ROLE_EMA1;
+      cfg.BarClose_Enabled       = true;               // LOCKED: bar-close confirmation is required to avoid intra-bar noise entries
+      cfg.BarClose_Mode          = BC_LAYER_AWARE;     // LOCKED: layer-aware mode ties the close check to the active layer EMA (L1→EMA1, L2→EMA2, L3→EMA3); other modes ignore layer context
+      cfg.BarClose_DefaultEMA    = ROLE_EMA1;          // LOCKED: fallback EMA for BC_FIXED_EMA mode; EMA1 (fast) is the tightest valid reference
 
       // ── HIGHER TF CONFIRMATION: EMA 50/200 (institutional) ────────
       // TopInvestor: "the secret to success is 2 timeframes higher"
       // One HTF voter: auto-computed 2 steps above chart TF
-      cfg.Ind_MTF_Enabled        = true;
-      cfg.Ind_MTF_Weight         = 1;
-      cfg.MTF_TF1                = GetAutoHTF_TF2();   // 2 steps higher (M15→H4, H1→D1)
-      cfg.MTF_TF2                = PERIOD_CURRENT;     // single-TF mode
-      cfg.MTF_EMA_Fast           = 50;     // Institutional standard
-      cfg.MTF_EMA_Slow           = 200;    // Institutional standard
-      cfg.MTF_RequirePhase       = true;
-      cfg.MTF_StrictAlignment    = Inp_MTF_StrictAlignment;   // HTF directional gate. User-controlled.
+      cfg.Ind_MTF_Enabled        = true;               // LOCKED: HTF confirmation is mandatory in TI methodology
+      cfg.Ind_MTF_Weight         = 1;                  // LOCKED: one vote; weighting is informational only in VOTE_MODE_ALL
+      cfg.MTF_TF1                = GetAutoHTF_TF2();   // LOCKED: auto "2 TFs higher" rule (M15→H4, H1→D1); hardcoding a fixed TF would break multi-symbol/multi-TF usage
+      cfg.MTF_TF2                = PERIOD_CURRENT;     // LOCKED: single-TF HTF mode; second slot disabled (PERIOD_CURRENT = off)
+      cfg.MTF_EMA_Fast           = Inp_TI_MTF_EMA_Fast;   // default 50 — institutional standard
+      cfg.MTF_EMA_Slow           = Inp_TI_MTF_EMA_Slow;   // default 200 — institutional standard
+      cfg.MTF_RequirePhase       = true;               // LOCKED: HTF phase must be trending; accepting unordered HTF is a different (lower-quality) system
+      cfg.MTF_StrictAlignment    = Inp_MTF_StrictAlignment;
 
       // ── SPREAD: pair-adaptive from Zone 3C ─────────────────────────
       cfg.MaxSpread              = op_MaxSpread;
@@ -2055,38 +2059,38 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ══════════════════════════════════════════════════════════════
 
       // PSAR — direction confirmation
-      cfg.Ind_Psar_Enabled       = true;
-      cfg.P_PsarStep             = 0.02;
-      cfg.P_PsarMax              = 0.2;
-      cfg.Vote_AllowPsarFlip     = true;
-      cfg.Vote_PsarFlipDelay     = -1;
+      cfg.Ind_Psar_Enabled       = true;               // LOCKED: PSAR is a Conservative base voter; always on regardless of profile
+      cfg.P_PsarStep             = Inp_TI_Psar_Step;
+      cfg.P_PsarMax              = Inp_TI_Psar_Max;
+      cfg.Vote_AllowPsarFlip     = true;               // LOCKED: flip votes are valid TI signals (PSAR switching side = momentum confirmation)
+      cfg.Vote_PsarFlipDelay     = -1;                 // LOCKED: -1 = no delay; immediate flip acceptance is the TI standard
 
       // ADX — trend strength filter ("silny trend")
-      cfg.Ind_Adx_Enabled        = true;
-      cfg.ADX_Mode               = ADX_MODE_DYNAMIC_PERCENTILE;
-      cfg.P_Adx                  = 14;
-      cfg.ADX_Percentile         = 50.0;
-      cfg.ADX_Lookback           = 100;
-      cfg.ADX_Threshold_Accumulation  = 12.0;
-      cfg.ADX_Threshold_Trending      = 25.0;
-      cfg.ADX_Threshold_Distribution  = 18.0;
+      cfg.Ind_Adx_Enabled        = true;               // LOCKED: ADX is a Conservative base voter; always on regardless of profile
+      cfg.ADX_Mode               = ADX_MODE_DYNAMIC_PERCENTILE; // LOCKED: dynamic percentile mode adapts to current market regime; static threshold would miss regime shifts (e.g. low-vol crypto vs high-vol Gold)
+      cfg.P_Adx                  = Inp_TI_ADX_Period;
+      cfg.ADX_Percentile         = Inp_TI_ADX_Percentile;
+      cfg.ADX_Lookback           = Inp_TI_ADX_Lookback;
+      cfg.ADX_Threshold_Accumulation  = Inp_TI_ADX_Threshold_Accum;
+      cfg.ADX_Threshold_Trending      = Inp_TI_ADX_Threshold_Trend;
+      cfg.ADX_Threshold_Distribution  = Inp_TI_ADX_Threshold_Dist;
 
       // CandleBody — spike rejection + direction gate + close ratio
-      cfg.Ind_CandleBody_Enabled = true;
-      cfg.Ind_CandleBody_Weight  = 1;
-      cfg.CandleBody_AvgPeriod   = 10;
-      cfg.CandleBody_MaxMult     = 2.5;
-      cfg.CandleBody_CheckBars   = 1;
-      cfg.CandleBody_RequireDirection = true;
-      cfg.CandleBody_MinCloseRatio   = (Inp_TI_Profile >= TI_FULL) ? 0.75 : 0.0;
+      cfg.Ind_CandleBody_Enabled = true;               // LOCKED: CandleBody is a Conservative base voter; always on
+      cfg.Ind_CandleBody_Weight  = 1;                  // LOCKED: one vote in VOTE_MODE_ALL; weight is informational
+      cfg.CandleBody_AvgPeriod   = Inp_TI_CandleBody_AvgPeriod;
+      cfg.CandleBody_MaxMult     = Inp_TI_CandleBody_MaxMult;
+      cfg.CandleBody_CheckBars   = 1;                  // LOCKED: check the last bar only; checking multiple bars would reject valid pullback entries that follow a spike
+      cfg.CandleBody_RequireDirection = true;          // LOCKED: candle must close in trade direction; direction-agnostic body check would allow counter-trend entries
+      cfg.CandleBody_MinCloseRatio   = (Inp_TI_Profile >= TI_FULL) ? Inp_TI_CandleBody_FullRatio : 0.0;
 
       // Choppiness Index — ranging market blocker
       // NOTE: Requires ChoppinessIndex.ex5 custom indicator installed in MQL5/Indicators/
       // Set to false by default; enable only if the indicator is available.
-      cfg.Ind_CI_Enabled         = false;
-      cfg.Ind_CI_Weight          = 1;
-      cfg.CI_Period              = 14;
-      cfg.CI_RangingThreshold    = 61.8;
+      cfg.Ind_CI_Enabled         = false;              // LOCKED off: external dependency (ChoppinessIndex.ex5 must be installed); enabling by default would crash on clean installs
+      cfg.Ind_CI_Weight          = 1;                  // weight is informational only in VOTE_MODE_ALL
+      cfg.CI_Period              = 14;                 // standard CI period — only relevant if Ind_CI_Enabled is manually set true
+      cfg.CI_RangingThreshold    = 61.8;               // standard ranging threshold (Fibonacci level) — only relevant if CI enabled
 
       // ══════════════════════════════════════════════════════════════
       // Profile-derived indicator toggles:
@@ -2099,46 +2103,51 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // MACD — momentum direction (Moderate+)
       cfg.Ind_Macd_Enabled       = is_moderate;
-      cfg.P_MacdFast             = 12;
-      cfg.P_MacdSlow             = 26;
-      cfg.P_MacdSig              = 9;
-      cfg.MacdVoteMode           = MACD_HISTOGRAM;
-      cfg.MacdRequireSlope       = true;
-      cfg.MacdRequireDivergence  = false;
-      cfg.MacdRequireHook        = false;
-      cfg.MacdFreshBars          = 5;
-      cfg.MacdSlopeMin           = 0.00001;
+      cfg.P_MacdFast             = Inp_TI_MACD_Fast;
+      cfg.P_MacdSlow             = Inp_TI_MACD_Slow;
+      cfg.P_MacdSig              = Inp_TI_MACD_Signal;
+      cfg.MacdVoteMode           = MACD_HISTOGRAM;     // LOCKED: histogram mode (acceleration) is the TI vote logic; zero-line or crossover modes measure different aspects and would require re-tuning the whole voter set
+      cfg.MacdRequireSlope       = true;               // LOCKED: histogram must be sloping in trade direction; flat histogram = no momentum = no trade in TI
+      cfg.MacdRequireDivergence  = false;              // LOCKED: divergence is not part of TI MACD voter; enabling it would filter out valid momentum entries
+      cfg.MacdRequireHook        = false;              // LOCKED: hook (reversal of histogram) is not a TI entry signal
+      cfg.MacdFreshBars          = Inp_TI_MACD_FreshBars;
+      cfg.MacdSlopeMin           = Inp_TI_MACD_SlopeMin;
 
       // CCI — momentum zero-line confirmation (Moderate+)
       cfg.Ind_Cci_Enabled        = is_moderate;
-      cfg.P_Cci                  = 14;
-      cfg.CciMode                = CCI_TREND_ZERO;
+      cfg.P_Cci                  = Inp_TI_CCI_Period;
+      cfg.CciMode                = CCI_TREND_ZERO;     // LOCKED: zero-line method (>0 bull, <0 bear) is the TI standard; impulse mode (±100) would require different thresholds and re-validation
 
       // BB Widening — volatility expansion (Moderate+)
       cfg.Ind_Bb_Enabled         = is_moderate;
-      cfg.BbMode                 = BB_WIDENING;
-      cfg.P_Bb                   = 20;
-      cfg.P_BbDev                = 2.0;
+      cfg.BbMode                 = BB_WIDENING;        // LOCKED: band-widening confirms expanding volatility at entry; mean-reversion or trend-follow modes measure opposite conditions
+      cfg.P_Bb                   = Inp_TI_BB_Period;
+      cfg.P_BbDev                = Inp_TI_BB_Deviation;
 
       // ── FULL additions ────────────────────────────────────────────
 
       // DPI — momentum exhaustion detection (Full)
       cfg.Ind_Dpi_Enabled        = is_full;
-      cfg.Ind_Dpi_Weight         = 1;
-      cfg.DpiDecelFilterEnabled  = is_full;
+      cfg.Ind_Dpi_Weight         = 1;                  // LOCKED: one vote in VOTE_MODE_ALL
+      cfg.DpiDecelFilterEnabled  = (Inp_TI_Profile >= TI_FULL);  // decel filter only meaningful when DPI is active
 
       // SMA Convergence — pullback detection (Full)
       cfg.Ind_SmaConverge_Enabled = is_full;
-      cfg.Ind_SmaConverge_Weight  = 1;
+      cfg.Ind_SmaConverge_Weight  = 1;                 // LOCKED: one vote in VOTE_MODE_ALL
 
       // Fibonacci retracement — pullback depth check (Full)
       cfg.Ind_Fib_Enabled        = is_full;
-      cfg.Ind_Fib_Weight         = 1;
-      cfg.Fib_MinRetracement     = 0.38;
-      cfg.Fib_MaxRetracement     = 0.618;
-      cfg.Fib_SwingLookback      = 50;
+      cfg.Ind_Fib_Weight         = 1;                  // LOCKED: one vote in VOTE_MODE_ALL
+      cfg.Fib_MinRetracement     = Inp_TI_Fib_MinRetracement;
+      cfg.Fib_MaxRetracement     = Inp_TI_Fib_MaxRetracement;
+      cfg.Fib_SwingLookback      = Inp_TI_Fib_SwingLookback;
 
       // ── DISABLED (not part of TopInvestor methodology) ─────────────
+      // RSI, MFI, Stochastic, ATR, VRC, P123, Ross are all disabled.
+      // TI uses PSAR+ADX+CandleBody (Conservative), MACD+CCI+BB (Moderate),
+      // DPI+SmaConv+Fib (Full). These oscillators overlap in function and
+      // would introduce redundant or conflicting votes. Enable via PRESET_CUSTOM
+      // if you want to test them in isolation.
       cfg.Ind_Rsi_Enabled        = false;
       cfg.Ind_Mfi_Enabled        = false;
       cfg.Ind_Sto_Enabled        = false;
@@ -2148,6 +2157,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Ross_Enabled       = false;
 
       // ── OTHER INDICATOR DEFAULTS (safe) ────────────────────────────
+      // These indicators are all DISABLED above (RSI, MFI, Sto, ATR, VRC).
+      // The values below are safe structural defaults that prevent uninitialized
+      // fields from causing unexpected behavior if an indicator is enabled via
+      // PRESET_CUSTOM or a future profile. They are NOT active in TI.
       cfg.P_Atr                  = 14;
       cfg.ATR_VoteMinPips        = 5.0;
       cfg.ATR_VoteMaxPips        = 50.0;
@@ -2172,84 +2185,84 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.StoMode                = STO_CROSS_SIGNAL;
 
       // ── PULLBACK DETECTION GATES ──────────────────────────────────
-      cfg.RequireRecoveryMomentum   = false;
-      cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
-      cfg.Gate_Recovery.value       = 1.0;
-      cfg.RRM_Lookback              = (_Period <= PERIOD_M5) ? 10 : 12;
-      cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
-      cfg.Gate_EmaDiv.value         = 1.0;
-      cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
-      cfg.Gate_CandleDirection.value = 1.0;
+      cfg.RequireRecoveryMomentum   = false;           // LOCKED: TI does not require a momentum candle at recovery; the layer ratio is sufficient confirmation
+      cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;  // LOCKED: auto TF scaling gives correct gate width across M1–D1 without manual adjustment
+      cfg.Gate_Recovery.value       = 1.0;             // LOCKED: baseline multiplier of 1.0; auto-scaling handles the rest
+      cfg.RRM_Lookback              = (_Period <= PERIOD_M5) ? 10 : 12;  // LOCKED: auto-scaled by TF — shorter TFs use fewer bars to stay responsive
+      cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;  // LOCKED: same auto-scaling rationale as Gate_Recovery
+      cfg.Gate_EmaDiv.value         = 1.0;             // LOCKED: baseline multiplier
+      cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;   // LOCKED: candle direction gate uses a fixed dimensionless ratio, not a pip/ATR value
+      cfg.Gate_CandleDirection.value = 1.0;            // LOCKED: ratio of 1.0 = candle must close fully in trade direction
 
       // ── VOTE EVALUATION ───────────────────────────────────────────
-      cfg.Vote_EvalShift            = 1;
+      cfg.Vote_EvalShift            = 1;               // LOCKED: evaluate on the previous closed bar (shift=1); shift=0 would evaluate on the forming bar — unreliable and repaints
 
       // ── RISK MANAGEMENT ───────────────────────────────────────────
-      cfg.CountBEasZeroRisk         = true;
-      cfg.FixedLotSize              = 0.0;
+      cfg.CountBEasZeroRisk         = true;            // LOCKED: once at BE, position is considered risk-free — correct accounting for TI's BE-first trail logic
+      cfg.FixedLotSize              = 0.0;             // LOCKED: 0 = use risk-% sizing; fixed lot would override adaptive risk management
 
       // ── EXIT STRATEGY ─────────────────────────────────────────────
-      cfg.ExitProfile               = EXIT_PROFILE_RRM;
-      cfg.SLMode                    = SL_MODE_SWING;
+      cfg.ExitProfile               = EXIT_PROFILE_RRM;   // LOCKED: RRM exit engine (swing SL + PSAR trail); not a user tunable — changing it selects a fundamentally different exit architecture
+      cfg.SLMode                    = Inp_TI_SLMode;
       // SwingLookback scaled by instrument: Gold/indices have wider swings
       // Forex M5: 20 bars. Gold M5: 40 bars. Indices M5: 35 bars.
       double swing_mult = MathSqrt(GetInstrumentFanMultiplier());
-      cfg.SwingLookback             = (int)MathRound(20.0 * MathMax(1.0, swing_mult / 2.0));
-      cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
-      cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
-      cfg.FixedTPPips               = 40.0;
-      cfg.SLPercent                 = 0.5;
+      cfg.SwingLookback             = (int)MathRound(20.0 * MathMax(1.0, swing_mult / 2.0));  // LOCKED: instrument-adaptive auto-calc; hardcoding would over-tighten SL on Gold/indices
+      cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();   // LOCKED: auto cushion per instrument/TF; hardcoding would be wrong for multi-symbol use
+      cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();   // LOCKED: same
+      cfg.FixedTPPips               = 40.0;            // fallback only — unused when TPMode=TP_MODE_RR
+      cfg.SLPercent                 = 0.5;             // fallback only — unused when SLMode=SL_MODE_SWING
 
-      // Trail: EMA(9) is the TopInvestor exit, PSAR is fallback
-      cfg.TrailMode                 = TRAIL_EMA;
-      cfg.TrailEMA_Period           = 9;
-      cfg.TrailEMA_Shift            = 1;      // 1=tight (TopInvestor standard), 2=one bar cushion
-      cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
-      cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
+      // Trail: EMA(Ema1) is the TopInvestor exit, PSAR is fallback
+      cfg.TrailMode                 = Inp_TI_TrailMode;
+      cfg.TrailEMA_Period           = Inp_TI_Ema1;    // always follows fast EMA — cannot be different from the ribbon's EMA1
+      cfg.TrailEMA_Shift            = Inp_TI_TrailEMA_Shift;
+      cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;   // LOCKED: pip-based PSAR cushion is the TI standard; ATR mode requires separate ATR calibration per instrument
+      cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();   // LOCKED: auto per instrument/TF
 
       // TP: R:R based
-      cfg.TPMode                    = TP_MODE_RR;
-      cfg.TP_Enabled                = true;
-      cfg.RRRatio                   = 2.0;
+      cfg.TPMode                    = Inp_TI_TPMode;
+      cfg.TP_Enabled                = true;            // LOCKED: TP must be enabled for RR-based sizing to work correctly
+      cfg.RRRatio                   = Inp_TI_RRRatio;
 
-      // BE: move to breakeven at 1R profit
-      cfg.BE_Mode                   = BE_MODE_R_MULTIPLE;
-      cfg.RRM_BE_RMultiple          = 1.0;
-      cfg.RRM_BE_BufferPips         = GetTFBasedCushion(_Period);
-      cfg.BEThresholdPips           = 0.0;
+      // BE: move to breakeven at N×R profit
+      cfg.BE_Mode                   = Inp_TI_BE_Mode;
+      cfg.RRM_BE_RMultiple          = Inp_TI_BE_RMultiple;
+      cfg.RRM_BE_BufferPips         = GetTFBasedCushion(_Period);   // LOCKED: TF-adaptive buffer; hardcoding would be wrong across M1–D1
+      cfg.BEThresholdPips           = 0.0;             // LOCKED: 0 = use R-multiple threshold (set by BE_Mode); a fixed pip threshold would conflict with RR-based logic
 
       // Trail trigger
       ENUM_TIMEFRAMES tfTI          = (ENUM_TIMEFRAMES)_Period;
-      cfg.TrailTrigger              = TRIGGER_BREAKEVEN;
-      cfg.TrailDistancePips         = GetTFBasedCushion(tfTI);
-      cfg.TrailLockProfit           = true;
-      cfg.TrailProfitPercent        = 2.0;
-      cfg.TrailStepPips             = 5.0;
+      cfg.TrailTrigger              = Inp_TI_TrailTrigger;
+      cfg.TrailDistancePips         = GetTFBasedCushion(tfTI);      // LOCKED: TF-adaptive; used as minimum trail distance before locking profit
+      cfg.TrailLockProfit           = true;            // LOCKED: always lock profit once trail is active — core of TI capital preservation
+      cfg.TrailProfitPercent        = Inp_TI_TrailProfitPercent;
+      cfg.TrailStepPips             = Inp_TI_TrailStepPips;
 
-      // Fractal defaults
-      cfg.FractalPeriod             = 5;
-      cfg.TPFractalOffset           = 1;
+      // Fractal defaults — used only when SLMode/TPMode=FRACTAL (not TI default)
+      cfg.FractalPeriod             = 5;               // LOCKED: standard Bill Williams fractal period; not used in default TI exit (swing SL + RR TP)
+      cfg.TPFractalOffset           = 1;               // LOCKED: offset of 1 bar from fractal; not used in default TI exit
 
       // ── SLOPE CALCULATION ─────────────────────────────────────────
-      cfg.SlopeLookbackBars         = 1;
-      cfg.ma_h_shift                = 0;
-      cfg.ma_v_shift                = 1;
+      cfg.SlopeLookbackBars         = 1;               // LOCKED: single-bar slope (bar[0] vs bar[1]); multi-bar slope would smooth out the signal and lag entry timing
+      cfg.ma_h_shift                = 0;               // LOCKED: horizontal shift = 0; non-zero shifts the EMA display only, not the signal logic
+      cfg.ma_v_shift                = 1;               // LOCKED: vertical shift = 1 bar back for slope calculation reference
 
       // ── DRAWDOWN PROTECTION ───────────────────────────────────────
-      cfg.RRM_EnableDrawdownProtection = true;
-      cfg.RRM_MaxConsecutiveLosses  = 4;
-      cfg.RRM_MaxTradesPerDay       = 0;
-      cfg.RRM_MaxDailyDrawdownPct   = 2.0;
+      cfg.RRM_EnableDrawdownProtection = Inp_TI_EnableDDProtection;
+      cfg.RRM_MaxConsecutiveLosses  = Inp_TI_MaxConsecutiveLosses;
+      cfg.RRM_MaxTradesPerDay       = Inp_TI_MaxTradesPerDay;
+      cfg.RRM_MaxDailyDrawdownPct   = Inp_TI_MaxDailyDrawdownPct;
 
       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────
       // With EMA 9/50/89/200 the fan is naturally wider than 5/13/34/89
       // Base values are for FX; GetInstrumentFanMultiplier() scales for Gold/indices/oil/crypto
-      cfg.EmaFanFilterEnabled       = true;
-      double ti_fan_base            = (_Period <= PERIOD_M5)  ? 50.0
-                                    : (_Period <= PERIOD_M30) ? 80.0
-                                    : (_Period <= PERIOD_H1)  ? 120.0
-                                    : (_Period <= PERIOD_H4)  ? 200.0
-                                    :                           350.0;
+      cfg.EmaFanFilterEnabled       = Inp_TI_EmaFanFilterEnabled;
+      double ti_fan_base            = (_Period <= PERIOD_M5)  ? Inp_TI_EmaFanBase_M1M5
+                                    : (_Period <= PERIOD_M30) ? Inp_TI_EmaFanBase_M6M30
+                                    : (_Period <= PERIOD_H1)  ? Inp_TI_EmaFanBase_H1
+                                    : (_Period <= PERIOD_H4)  ? Inp_TI_EmaFanBase_H2H4
+                                    :                           Inp_TI_EmaFanBase_H4Plus;
       cfg.EmaFanMaxTotalPips        = ti_fan_base * GetEmaFanMultiplier();
       cfg.EmaFanMaxPct              = 0.0;  // Pip mode by default; user can override
       PrintFormat("📐 [TOPINVESTOR] EMA Fan threshold: %.1f pips (base=%.1f × multiplier)",
@@ -2261,9 +2274,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.DpiDecelFilterEnabled     = (Inp_TI_Profile >= TI_FULL);
 
       // ── RE-ENTRY / COOLDOWN ───────────────────────────────────────
-      cfg.AllowReEntryAfterBE       = true;
-      cfg.MinBarsAfterClose         = MathMax(0, Inp_TI_MinBarsAfterClose);      // TOPINVESTOR cooldown (was hardcoded 3)
-      cfg.MaxSpreadRetryBars        = 3;
+      cfg.AllowReEntryAfterBE       = true;            // LOCKED: TI allows re-entry after BE — if the trend continues, a new pullback is a valid signal
+      cfg.MinBarsAfterClose         = MathMax(0, Inp_TI_MinBarsAfterClose);
+      cfg.MaxSpreadRetryBars        = 3;               // LOCKED: retry blocked entries for up to 3 bars; longer retry risks entering on a stale signal
 
       // ── POLICY A: RESTORE OPERATOR-CONTROLLED GATES ───────────────
       cfg.UseSpread                 = op_UseSpread;
