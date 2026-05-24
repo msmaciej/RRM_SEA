@@ -524,13 +524,16 @@ private:
    }
 
    double GetFractalLevel(int direction) {
-      int period = (m_settings.FractalPeriod > 0) ? m_settings.FractalPeriod : 5;
-      int lookback = period * 3;
-      int mode = (direction > 0) ? 1 : 0; 
+      int period  = (m_settings.FractalPeriod > 0) ? m_settings.FractalPeriod : 5;
+      // Use SwingLookback as the search window so fractal has same reach as swing SL.
+      // Previous lookback = period*3 (15 bars) was too narrow on H1/H4 — fractals need
+      // 2×period bars to form, and trending moves can push them beyond 15 bars back.
+      int lookback = MathMax(period * 3, m_settings.SwingLookback);
+      int mode = (direction > 0) ? 1 : 0;
       double r[1];
-      
+
       if(m_h_fractals == INVALID_HANDLE) return 0.0;
-      
+
       for(int i = period; i < lookback; i++) {
          if(CopyBuffer(m_h_fractals, mode, i, 1, r) > 0 && r[0] != DBL_MAX && r[0] > 0.0) {
             return r[0];
@@ -971,31 +974,34 @@ private:
             break;
          }
          case SL_MODE_ATR: {
-            // Industry standard: swing anchor − ATR(period) × multiplier.
-            // Uses same swing lookback as SL_MODE_SWING. ATR cushion prevents under-sized SL
-            // on volatile instruments (Gold, indices) where swing lows can be very tight on M15.
+            // Full fallback hierarchy:
+            // 1. Swing anchor + ATR cushion  (ideal — volatility-scaled below structure)
+            // 2. Swing anchor fails/wrong side → ATR cushion from entry price (still volatility-correct)
+            // 3. ATR read fails entirely → only then fall through to SL_MinPips floor
+            double atr_val = GetSLAtr();
             double swing_level = GetSwingLevel(isBuy ? 1 : -1);
-            if(swing_level > 0.0) {
-               bool valid = isBuy ? (swing_level < price) : (swing_level > price);
-               if(!valid) {
-                  PrintFormat("⚠️ [RRM SL ATR] Swing anchor on wrong side. Using Fixed Pips.");
-                  break;
-               }
-               double atr_val = GetSLAtr();
-               if(atr_val > 0.0) {
-                  double cushion = atr_val * m_settings.SL_AtrMult;
-                  sl = isBuy ? (swing_level - cushion) : (swing_level + cushion);
-                  PrintFormat("✅ [RRM SL ATR] swing=%.5f ATR=%.5f mult=%.2f cushion=%.5f SL=%.5f",
-                              swing_level, atr_val, m_settings.SL_AtrMult, cushion, sl);
-                  break;
-               }
-               // ATR read failed: fall back to swing + fixed pip cushion
-               PrintFormat("⚠️ [RRM SL ATR] ATR read failed — falling back to swing + fixed cushion");
-               double cushion_price = m_settings.SL_SwingPipsCushion * pipSize;
-               sl = isBuy ? (swing_level - cushion_price) : (swing_level + cushion_price);
-               break;
+            bool swing_valid = (swing_level > 0.0 &&
+                                (isBuy ? (swing_level < price) : (swing_level > price)));
+
+            if(swing_valid && atr_val > 0.0) {
+               // Best case: swing anchor − ATR×mult
+               double cushion = atr_val * m_settings.SL_AtrMult;
+               sl = isBuy ? (swing_level - cushion) : (swing_level + cushion);
+               PrintFormat("✅ [RRM SL ATR] swing=%.5f ATR=%.5f mult=%.2f SL=%.5f",
+                           swing_level, atr_val, m_settings.SL_AtrMult, sl);
             }
-            PrintFormat("⚠️ [RRM SL ATR FALLBACK] Swing anchor failed. Using Fixed Pips.");
+            else if(atr_val > 0.0) {
+               // Swing failed or wrong side — use ATR cushion from entry price
+               // Still volatility-correct; avoids fixed-pip fallback on Gold/indices
+               double cushion = atr_val * m_settings.SL_AtrMult;
+               sl = isBuy ? (price - cushion) : (price + cushion);
+               PrintFormat("⚠️ [RRM SL ATR] Swing failed — using ATR from entry: cushion=%.5f SL=%.5f",
+                           cushion, sl);
+            }
+            else {
+               // ATR completely unavailable — fall through to SL_MinPips floor below
+               PrintFormat("⚠️ [RRM SL ATR FALLBACK] ATR unavailable — SL_MinPips floor will apply");
+            }
             break;
          }
          default:
@@ -1078,26 +1084,34 @@ private:
             cushion_pips = m_settings.SL_SwingPipsCushion;  // FIX: was 0.0 — use same cushion as Swing
             break;
          case SL_MODE_ATR: {
-            // Industry standard: swing anchor − ATR(period) × multiplier.
+            // Full fallback hierarchy — ATR never falls back to raw fixed pips:
+            // 1. Swing anchor + ATR cushion (ideal)
+            // 2. Swing fails/wrong side → ATR cushion from entry price (still volatility-correct)
+            // 3. ATR entirely unavailable → fall through to SL_MinPips floor (last resort only)
+            double atr_val = GetSLAtr();
             anchor = GetSwingLevel(isBuy ? 1 : -1);
-            if(anchor > 0.0) {
-               bool valid = isBuy ? (anchor < price) : (anchor > price);
-               if(valid) {
-                  double atr_val = GetSLAtr();
-                  if(atr_val > 0.0) {
-                     double cushion = atr_val * m_settings.SL_AtrMult;
-                     double sl_atr = isBuy ? (anchor - cushion) : (anchor + cushion);
-                     PrintFormat("✅ [SL ATR] swing=%.5f ATR=%.5f mult=%.2f SL=%.5f",
-                                 anchor, atr_val, m_settings.SL_AtrMult, sl_atr);
-                     return sl_atr;
-                  }
-                  // ATR read failed: fall through to swing + fixed pip cushion
-                  PrintFormat("⚠️ [SL ATR] ATR read failed — fallback to swing + fixed cushion");
-                  cushion_pips = m_settings.SL_SwingPipsCushion;
-               } else {
-                  PrintFormat("⚠️ [SL ATR] Swing anchor wrong side — fixed pips fallback");
-                  anchor = 0.0;
-               }
+            bool swing_valid = (anchor > 0.0 &&
+                                (isBuy ? (anchor < price) : (anchor > price)));
+
+            if(swing_valid && atr_val > 0.0) {
+               double cushion = atr_val * m_settings.SL_AtrMult;
+               double sl_atr = isBuy ? (anchor - cushion) : (anchor + cushion);
+               PrintFormat("✅ [SL ATR] swing=%.5f ATR=%.5f mult=%.2f SL=%.5f",
+                           anchor, atr_val, m_settings.SL_AtrMult, sl_atr);
+               return sl_atr;
+            }
+            else if(atr_val > 0.0) {
+               // Swing failed/wrong side — ATR cushion from entry price
+               double cushion = atr_val * m_settings.SL_AtrMult;
+               double sl_atr = isBuy ? (price - cushion) : (price + cushion);
+               PrintFormat("⚠️ [SL ATR] Swing failed — ATR from entry: cushion=%.5f SL=%.5f",
+                           cushion, sl_atr);
+               return sl_atr;
+            }
+            else {
+               // ATR unavailable — SL_MinPips floor will apply below
+               PrintFormat("⚠️ [SL ATR] ATR unavailable — SL_MinPips floor will apply");
+               anchor = 0.0;
             }
             break;
          }

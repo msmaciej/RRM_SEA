@@ -316,103 +316,173 @@ double GetInstrumentFanMultiplier()
 }
 
 //+------------------------------------------------------------------+
-//| GetVPRRRecommendedMode — auto-detect VPRR settings for symbol    |
-//|                                                                    |
-//| Called at preset application time. Probes CopyRealVolume() on    |
-//| bar 1 to determine if the instrument has real exchange volume.    |
-//| Returns: enabled flag, volume type, and appropriate MinRatio.    |
-//|                                                                    |
-//| Rules:                                                             |
-//|  - Gold/Silver/Indices/Oil/Crypto: enable if real vol present     |
-//|    VolumeType=REAL, MinRatio=1.0 (institutional confirmation)     |
-//|  - FX majors/minors/exotics: enable with tick vol                 |
-//|    VolumeType=TICK, MinRatio=0.7 (looser — tick vol less precise) |
-//|  - No volume data at all: disabled                                 |
 //+------------------------------------------------------------------+
+//| GetVPRRRecommendedMode — instrument + TF aware VPRR auto-config  |
+//|                                                                    |
+//| Instrument classes (separate tuning):                             |
+//|   Gold (XAU)    — COMEX real vol, strong institutional footprint  |
+//|   Silver (XAG)  — thinner, fewer institutions, needs looser ratio |
+//|   Indices US    — CME futures, deep liquidity, strict ratio       |
+//|   Indices EU    — Eurex/LSE, thinner than US, slightly looser     |
+//|   Oil           — NYMEX/ICE futures                               |
+//|   Crypto        — exchange vol but retail-dominated, loose        |
+//|   Equities      — individual stocks (NVDA etc.), real exchange vol|
+//|   FX            — tick vol only, approximation                    |
+//|                                                                    |
+//| TF multiplier applied to MinRatio automatically:                  |
+//|   M5:  ×0.85 (noise), M15: ×1.00 (baseline),                     |
+//|   H1:  ×0.95 (fewer bars), H4+: ×0.90 (very few cycles)          |
+//| RecoveryBars reduced by 1 on M5 and H4+ when flag is set.        |
+//+------------------------------------------------------------------+
+
+// ── TF helpers ─────────────────────────────────────────────────────
+double GetVPRR_TFMultiplier(double m_M5, double m_M15, double m_H1, double m_H4Plus)
+{
+   int tf = PERIOD_CURRENT;
+   if(tf <= PERIOD_M5)  return m_M5;
+   if(tf <= PERIOD_M15) return m_M15;
+   if(tf <= PERIOD_H1)  return m_H1;
+   return m_H4Plus;  // H4, H6, H8, H12, D1, W1, MN
+}
+
+int GetVPRR_TFRecBars(int base_bars, bool reduce_flag)
+{
+   if(!reduce_flag) return base_bars;
+   int tf = PERIOD_CURRENT;
+   if(tf <= PERIOD_M5 || tf >= PERIOD_H4)
+      return MathMax(1, base_bars - 1);
+   return base_bars;
+}
+
 struct ST_VPRRAutoMode
 {
    bool   enabled;
-   int    volume_type;   // EVPRRVolumeType cast to int
+   int    volume_type;    // EVPRRVolumeType cast to int
    double min_ratio;
+   int    recovery_bars;  // Per-instrument + TF adjusted
 };
 
-ST_VPRRAutoMode GetVPRRRecommendedMode()
+ST_VPRRAutoMode GetVPRRRecommendedMode(
+   // Per-instrument MinRatio (base, before TF adjustment)
+   double mr_gold,      double mr_silver,
+   double mr_idx_us,    double mr_idx_eu,
+   double mr_oil,       double mr_crypto,
+   double mr_equities,  double mr_fx,
+   double mr_non_fx_tick,
+   // Per-instrument RecoveryBars (base, before TF adjustment)
+   int    rb_gold,      int    rb_silver,
+   int    rb_idx_us,    int    rb_idx_eu,
+   int    rb_oil,       int    rb_crypto,
+   int    rb_equities,  int    rb_fx,
+   // TF multipliers
+   double tf_m5,        double tf_m15,
+   double tf_h1,        double tf_h4plus,
+   bool   tf_reduce_rb,
+   // Default RecoveryBars fallback
+   int    rb_default
+)
 {
    ST_VPRRAutoMode result;
-   result.enabled     = false;
-   result.volume_type = (int)VPRR_VOL_AUTO;
-   result.min_ratio   = 1.0;
+   result.enabled       = false;
+   result.volume_type   = (int)VPRR_VOL_AUTO;
+   result.min_ratio     = 1.0;
+   result.recovery_bars = rb_default;
 
    string sym = _Symbol;
 
-   // ── Probe real volume on bar 1 ───────────────────────────────────
+   // ── Volume availability probe ──────────────────────────────────
    long real_vol[];
    bool has_real_vol = (CopyRealVolume(sym, PERIOD_CURRENT, 1, 1, real_vol) == 1 && real_vol[0] > 0);
-
-   // ── Probe tick volume on bar 1 as fallback ───────────────────────
    long tick_vol[];
    bool has_tick_vol = (CopyTickVolume(sym, PERIOD_CURRENT, 1, 1, tick_vol) == 1 && tick_vol[0] > 0);
 
-   // ── Classify instrument ──────────────────────────────────────────
-   bool is_metals  = (StringFind(sym, "XAU") >= 0 || StringFind(sym, "GOLD")   >= 0 ||
-                      StringFind(sym, "XAG") >= 0 || StringFind(sym, "SILVER") >= 0);
-   bool is_indices = (StringFind(sym, "NAS")  >= 0 || StringFind(sym, "US30")  >= 0 ||
-                      StringFind(sym, "US500")>= 0 || StringFind(sym, "SPX")   >= 0 ||
-                      StringFind(sym, "SP500")>= 0 || StringFind(sym, "NDX")   >= 0 ||
-                      StringFind(sym, "GER")  >= 0 || StringFind(sym, "DAX")   >= 0 ||
-                      StringFind(sym, "UK100")>= 0 || StringFind(sym, "FTSE")  >= 0 ||
-                      StringFind(sym, "JP225")>= 0 || StringFind(sym, "AUS200")>= 0 ||
-                      StringFind(sym, "STOXX")>= 0 || StringFind(sym, "FRA40") >= 0);
-   bool is_oil     = (StringFind(sym, "WTI")   >= 0 || StringFind(sym, "BRENT") >= 0 ||
-                      StringFind(sym, "OIL")   >= 0 || StringFind(sym, "USOIL") >= 0 ||
-                      StringFind(sym, "UKOIL") >= 0);
-   bool is_crypto  = (StringFind(sym, "BTC")   >= 0 || StringFind(sym, "ETH")   >= 0 ||
-                      StringFind(sym, "CRYPTO")>= 0);
-   bool is_non_fx  = (is_metals || is_indices || is_oil || is_crypto);
+   // ── Instrument classification (granular) ───────────────────────
+   bool is_gold      = (StringFind(sym, "XAU")  >= 0 || StringFind(sym, "GOLD") >= 0);
+   bool is_silver    = (StringFind(sym, "XAG")  >= 0 || StringFind(sym, "SILVER") >= 0);
+   bool is_idx_us    = (StringFind(sym, "NAS")  >= 0 || StringFind(sym, "NDX")  >= 0 ||
+                        StringFind(sym, "US30") >= 0 || StringFind(sym, "US500")>= 0 ||
+                        StringFind(sym, "SPX")  >= 0 || StringFind(sym, "SP500")>= 0 ||
+                        StringFind(sym, "DOW")  >= 0);
+   bool is_idx_eu    = (StringFind(sym, "GER")  >= 0 || StringFind(sym, "DAX")  >= 0 ||
+                        StringFind(sym, "UK100")>= 0 || StringFind(sym, "FTSE") >= 0 ||
+                        StringFind(sym, "FRA40")>= 0 || StringFind(sym, "STOXX")>= 0 ||
+                        StringFind(sym, "JP225")>= 0 || StringFind(sym, "AUS200")>=0);
+   bool is_oil       = (StringFind(sym, "WTI")  >= 0 || StringFind(sym, "BRENT")>= 0 ||
+                        StringFind(sym, "OIL")  >= 0 || StringFind(sym, "USOIL")>= 0 ||
+                        StringFind(sym, "UKOIL")>= 0);
+   bool is_crypto    = (StringFind(sym, "BTC")  >= 0 || StringFind(sym, "ETH")  >= 0 ||
+                        StringFind(sym, "CRYPTO")>=0 || StringFind(sym, "LTC")  >= 0 ||
+                        StringFind(sym, "XRP")  >= 0);
+   // Equities: individual stocks — detected by real exchange vol when no other class matches.
+   // Typical broker symbols: NVDA, AAPL, TSLA, MSFT, AMZN, GOOG (no commodity/index keyword)
+   bool is_metals    = (is_gold || is_silver);
+   bool is_indices   = (is_idx_us || is_idx_eu);
+   bool is_non_fx    = (is_metals || is_indices || is_oil || is_crypto);
+   // Equity: has real vol but no commodity/index keyword matched → individual stock
+   bool is_equity    = (!is_non_fx && has_real_vol);
 
-   if(is_non_fx)
+   // ── TF multiplier ──────────────────────────────────────────────
+   double tf_mult = GetVPRR_TFMultiplier(tf_m5, tf_m15, tf_h1, tf_h4plus);
+
+   // ── Assign base values by class, then apply TF adjustment ──────
+   if(is_non_fx || is_equity)
    {
-      // Non-FX: prefer real volume; require it to be present
       if(has_real_vol)
       {
          result.enabled     = true;
          result.volume_type = (int)VPRR_VOL_REAL;
-         result.min_ratio   = 1.0;
-         PrintFormat("📊 [VPRR AUTO] %s: non-FX instrument, real volume confirmed → ENABLED (REAL, MinRatio=1.0)", sym);
+         double base_mr; int base_rb;
+
+         if(is_gold)        { base_mr = mr_gold;      base_rb = rb_gold;      }
+         else if(is_silver) { base_mr = mr_silver;    base_rb = rb_silver;    }
+         else if(is_idx_us) { base_mr = mr_idx_us;    base_rb = rb_idx_us;    }
+         else if(is_idx_eu) { base_mr = mr_idx_eu;    base_rb = rb_idx_eu;    }
+         else if(is_oil)    { base_mr = mr_oil;       base_rb = rb_oil;       }
+         else if(is_crypto) { base_mr = mr_crypto;    base_rb = rb_crypto;    }
+         else               { base_mr = mr_equities;  base_rb = rb_equities;  }  // equity
+
+         result.min_ratio     = MathMax(0.1, base_mr * tf_mult);
+         result.recovery_bars = GetVPRR_TFRecBars(base_rb, tf_reduce_rb);
+         PrintFormat("📊 [VPRR AUTO] %s TF:%s: %s real vol → MinRatio=%.2f (base=%.2f × %.2f) RecBars=%d",
+                     sym, EnumToString(PERIOD_CURRENT),
+                     is_gold ? "Gold" : is_silver ? "Silver" :
+                     is_idx_us ? "IdxUS" : is_idx_eu ? "IdxEU" :
+                     is_oil ? "Oil" : is_crypto ? "Crypto" : "Equity",
+                     result.min_ratio, base_mr, tf_mult, result.recovery_bars);
       }
       else if(has_tick_vol)
       {
-         // Real vol unavailable (some brokers don't provide it even for metals)
-         result.enabled     = true;
-         result.volume_type = (int)VPRR_VOL_TICK;
-         result.min_ratio   = 0.8;   // Slightly looser for tick vol on non-FX
-         PrintFormat("📊 [VPRR AUTO] %s: non-FX instrument, real vol unavailable → ENABLED (TICK, MinRatio=0.8)", sym);
+         result.enabled       = true;
+         result.volume_type   = (int)VPRR_VOL_TICK;
+         result.min_ratio     = MathMax(0.1, mr_non_fx_tick * tf_mult);
+         result.recovery_bars = GetVPRR_TFRecBars(rb_default, tf_reduce_rb);
+         PrintFormat("📊 [VPRR AUTO] %s TF:%s: non-FX tick fallback → MinRatio=%.2f RecBars=%d",
+                     sym, EnumToString(PERIOD_CURRENT), result.min_ratio, result.recovery_bars);
       }
       else
-      {
-         PrintFormat("📊 [VPRR AUTO] %s: non-FX instrument but no volume data → DISABLED", sym);
-      }
+         PrintFormat("📊 [VPRR AUTO] %s: no volume data → DISABLED", sym);
    }
    else
    {
-      // FX: use tick volume with looser ratio (tick vol is less institutionally meaningful)
+      // FX: tick vol only
       if(has_tick_vol)
       {
-         result.enabled     = true;
-         result.volume_type = (int)VPRR_VOL_TICK;
-         result.min_ratio   = 0.7;
-         PrintFormat("📊 [VPRR AUTO] %s: FX instrument, tick volume available → ENABLED (TICK, MinRatio=0.7)", sym);
+         result.enabled       = true;
+         result.volume_type   = (int)VPRR_VOL_TICK;
+         result.min_ratio     = MathMax(0.1, mr_fx * tf_mult);
+         result.recovery_bars = GetVPRR_TFRecBars(rb_fx, tf_reduce_rb);
+         PrintFormat("📊 [VPRR AUTO] %s TF:%s: FX tick → MinRatio=%.2f RecBars=%d",
+                     sym, EnumToString(PERIOD_CURRENT), result.min_ratio, result.recovery_bars);
       }
       else
-      {
-         PrintFormat("📊 [VPRR AUTO] %s: FX instrument, no tick volume → DISABLED", sym);
-      }
+         PrintFormat("📊 [VPRR AUTO] %s: FX, no tick volume → DISABLED", sym);
    }
 
    return result;
 }
 
 //+------------------------------------------------------------------+
+//| GetEmaFanMultiplier
 //| GetEmaFanMultiplier: price-level-aware EMA fan gap scaling        |
 //|                                                                    |
 //| EMA gaps in pips scale with (price_level / pip_size). A 0.3%      |
@@ -624,6 +694,26 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("  Timeframe:      ", EnumToString(Period()));
    Print("");
 
+   // ── VPRR: show effective values (post-TF-multiplied), not raw inputs ──
+   Print("📊 VPRR (Volume Pullback-Recovery Ratio):");
+   if(cfg.VPRR_Enabled)
+   {
+      string vol_src = (cfg.VPRR_VolumeType == (int)VPRR_VOL_REAL) ? "REAL (exchange)"
+                     : (cfg.VPRR_VolumeType == (int)VPRR_VOL_TICK) ? "TICK (proxy)"
+                     : "AUTO";
+      Print("  Status:         ✓ ENABLED");
+      Print("  Volume source:  ", vol_src);
+      PrintFormat("  MinRatio:       %.2f  ← effective value (base × TF multiplier)", cfg.VPRR_MinRatio);
+      Print("  RecoveryBars:   ", cfg.VPRR_RecoveryBars, "  ← effective value (TF-adjusted)");
+      Print("  MinRecovBars:   ", cfg.VPRR_MinRecoveryBars);
+      Print("  Weight:         ", cfg.VPRR_Weight);
+      PrintFormat("  ℹ️  To change: adjust base inputs (MinRatio_Gold etc.) and TF multipliers");
+      PrintFormat("  ℹ️  TF multipliers: M5=×0.85  M15=×1.00  H1=×0.95  H4+=×0.90 (see VPRR TF group)");
+   }
+   else
+      Print("  Status:         ✗ DISABLED  (AutoEnable=ON: no matching real/tick volume detected)");
+   Print("");
+
    Print("📐 SLOPE CALCULATION:");
    Print("  Lookback:      ", cfg.SlopeLookbackBars, " bar(s)");
    Print("");
@@ -638,6 +728,63 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("");
 
    Print("═══════════════════════════════════════════════════════════");
+}
+
+//+------------------------------------------------------------------+
+//| PrintVPRRSummary(): called right after VPRR is configured in     |
+//| each preset. Writes effective settings to Experts log AND sets   |
+//| a chart comment so user sees effective values without the log.   |
+//+------------------------------------------------------------------+
+void PrintVPRRSummary(const ST_Settings &cfg, const string preset_name)
+{
+   string sym = _Symbol;
+   string tf  = EnumToString(PERIOD_CURRENT);
+
+   if(!cfg.VPRR_Enabled)
+   {
+      PrintFormat("📊 VPRR [%s | %s | %s]  DISABLED — no volume data or AutoEnable=OFF",
+                  preset_name, sym, tf);
+      ChartSetString(0, CHART_COMMENT,
+         StringFormat("VPRR: OFF  [%s | %s | %s]\nSet AutoEnable=ON or check volume source",
+                      preset_name, sym, tf));
+      return;
+   }
+
+   string vol_src = (cfg.VPRR_VolumeType == (int)VPRR_VOL_REAL) ? "REAL"
+                  : (cfg.VPRR_VolumeType == (int)VPRR_VOL_TICK) ? "TICK" : "AUTO";
+
+   // ── Experts log: full detail ──────────────────────────────────
+   Print("═══════════════════════════════════════════════════════════");
+   PrintFormat("📊 VPRR ACTIVE  [%s | %s | %s]", preset_name, sym, tf);
+   Print("═══════════════════════════════════════════════════════════");
+   PrintFormat("  Volume source : %s", vol_src);
+   PrintFormat("  MinRatio      : %.2f  ← effective (base × TF multiplier)", cfg.VPRR_MinRatio);
+   PrintFormat("  RecoveryBars  : %d    ← effective (TF-adjusted)", cfg.VPRR_RecoveryBars);
+   PrintFormat("  MinRecovBars  : %d", cfg.VPRR_MinRecoveryBars);
+   PrintFormat("  Weight        : %d", cfg.VPRR_Weight);
+   Print("  ─────────────────────────────────────────────────────────");
+   Print("  Tune base values in MT5 inputs → VPRR Per-Instrument group.");
+   Print("  TF multiplier auto-applies: M5×0.85  M15×1.00  H1×0.95  H4+×0.90");
+   Print("  Switch instrument or TF → restart EA → values auto-update.");
+   Print("═══════════════════════════════════════════════════════════");
+
+   // ── Chart comment: visible directly on the chart ──────────────
+   // Effective values shown — no log-digging required.
+   // Refreshed on every EA start, instrument switch, or TF change.
+   ChartSetString(0, CHART_COMMENT,
+      StringFormat(
+         "━━━ VPRR ACTIVE ━━━\n"
+         "Preset : %s\n"
+         "Symbol : %s  |  TF: %s\n"
+         "Source : %s\n"
+         "MinRatio: %.2f  (effective)\n"
+         "RecBars : %d   (effective)\n"
+         "━━━━━━━━━━━━━━━━━━━\n"
+         "Tune: MT5 inputs → VPRR group\n"
+         "M5×0.85  M15×1.00  H1×0.95  H4+×0.90\n"
+         "Restart EA after instrument/TF change",
+         preset_name, sym, tf, vol_src,
+         cfg.VPRR_MinRatio, cfg.VPRR_RecoveryBars));
 }
 
 //+------------------------------------------------------------------+
@@ -1002,6 +1149,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SwingLookback             = GetFPMSwingLookback();
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
+      cfg.SL_MinPips                = GetRecommendedInitialSlCushionPips();  // Instrument-aware minimum SL floor: prevents tiny-SL fallback from computing oversized lots
+      cfg.SL_WidenToMinimum         = true;  // Widen rather than block when SL too close — ensures trade always gets a sane SL
       cfg.SL_FixedPips              = Inp_FPM_SLFixedPips;
 
       // TP: User-selected mode
@@ -1543,6 +1692,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SwingLookback             = Inp_RRM_SwingLookback;
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
+      cfg.SL_MinPips                = GetRecommendedInitialSlCushionPips();  // Instrument-aware minimum SL floor: prevents tiny-SL fallback from computing oversized lots
+      cfg.SL_WidenToMinimum         = true;  // Widen rather than block when SL too close — ensures trade always gets a sane SL
       cfg.SL_AtrPeriod              = Inp_RRM_SL_AtrPeriod;   // Used when SLMode = SL_MODE_ATR
       cfg.SL_AtrMult                = Inp_RRM_SL_AtrMult;     // Used when SLMode = SL_MODE_ATR
       cfg.FixedTPPips               = 40.0;
@@ -1603,6 +1754,39 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── POST-TRADE COOLDOWN ───────────────────────────────────────────
       cfg.MinBarsAfterClose         = MathMax(0, Inp_RRM_MinBarsAfterClose);     // RRM cooldown (was hardcoded 3)
+
+      // ── VPRR: Volume Pullback-Recovery Ratio ──────────────────────────
+      if(Inp_RRM_VPRR_AutoEnable)
+      {
+         ST_VPRRAutoMode vprr_auto = GetVPRRRecommendedMode(
+            Inp_VPRR_MinRatio_Gold,      Inp_VPRR_MinRatio_Silver,
+            Inp_VPRR_MinRatio_IndicesUS, Inp_VPRR_MinRatio_IndicesEU,
+            Inp_VPRR_MinRatio_Oil,       Inp_VPRR_MinRatio_Crypto,
+            Inp_VPRR_MinRatio_Equities,  Inp_VPRR_MinRatio_FX,
+            Inp_VPRR_MinRatio_NonFXTick,
+            Inp_VPRR_RecBars_Gold,       Inp_VPRR_RecBars_Silver,
+            Inp_VPRR_RecBars_IndicesUS,  Inp_VPRR_RecBars_IndicesEU,
+            Inp_VPRR_RecBars_Oil,        Inp_VPRR_RecBars_Crypto,
+            Inp_VPRR_RecBars_Equities,   Inp_VPRR_RecBars_FX,
+            Inp_VPRR_TF_Mult_M5,         Inp_VPRR_TF_Mult_M15,
+            Inp_VPRR_TF_Mult_H1,         Inp_VPRR_TF_Mult_H4Plus,
+            Inp_VPRR_TF_ReduceRecBars,   Inp_RRM_VPRR_RecoveryBars
+         );
+         cfg.VPRR_Enabled         = vprr_auto.enabled;
+         cfg.VPRR_VolumeType      = vprr_auto.volume_type;
+         cfg.VPRR_MinRatio        = vprr_auto.min_ratio;
+         cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, vprr_auto.recovery_bars));
+      }
+      else
+      {
+         cfg.VPRR_Enabled         = Inp_RRM_VPRR_Enabled;
+         cfg.VPRR_VolumeType      = (int)Inp_RRM_VPRR_VolumeType;
+         cfg.VPRR_MinRatio        = MathMax(0.1, Inp_VPRR_MinRatio_FX);
+         cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, Inp_RRM_VPRR_RecoveryBars));
+      }
+      cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
+      cfg.VPRR_Weight          = MathMax(1, Inp_RRM_VPRR_Weight);
+      PrintVPRRSummary(cfg, "RRM");
 
       // ── SPREAD RETRY CAP ─────────────────────────────────────────────
       cfg.MaxSpreadRetryBars        = 3;
@@ -1897,24 +2081,39 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.LayerRecoveryRatio_S        = Inp_RRM_ORG_RecoveryRatio_S;
 
       // VPRR: Volume Pullback-Recovery Ratio (institutional participation confirmation)
-      // AutoEnable=true: probe instrument + volume at preset-apply time; override manual settings.
+      // AutoEnable=true: probe instrument + volume at preset-apply time; per-instrument settings applied.
       // AutoEnable=false: respect Inp_RRM_ORG_VPRR_Enabled / VolumeType / MinRatio manually.
       if(Inp_RRM_ORG_VPRR_AutoEnable)
       {
-         ST_VPRRAutoMode vprr_auto = GetVPRRRecommendedMode();
+         ST_VPRRAutoMode vprr_auto = GetVPRRRecommendedMode(
+            Inp_VPRR_MinRatio_Gold,      Inp_VPRR_MinRatio_Silver,
+            Inp_VPRR_MinRatio_IndicesUS, Inp_VPRR_MinRatio_IndicesEU,
+            Inp_VPRR_MinRatio_Oil,       Inp_VPRR_MinRatio_Crypto,
+            Inp_VPRR_MinRatio_Equities,  Inp_VPRR_MinRatio_FX,
+            Inp_VPRR_MinRatio_NonFXTick,
+            Inp_VPRR_RecBars_Gold,       Inp_VPRR_RecBars_Silver,
+            Inp_VPRR_RecBars_IndicesUS,  Inp_VPRR_RecBars_IndicesEU,
+            Inp_VPRR_RecBars_Oil,        Inp_VPRR_RecBars_Crypto,
+            Inp_VPRR_RecBars_Equities,   Inp_VPRR_RecBars_FX,
+            Inp_VPRR_TF_Mult_M5,         Inp_VPRR_TF_Mult_M15,
+            Inp_VPRR_TF_Mult_H1,         Inp_VPRR_TF_Mult_H4Plus,
+            Inp_VPRR_TF_ReduceRecBars,   Inp_RRM_ORG_VPRR_RecoveryBars
+         );
          cfg.VPRR_Enabled     = vprr_auto.enabled;
          cfg.VPRR_VolumeType  = vprr_auto.volume_type;
          cfg.VPRR_MinRatio    = vprr_auto.min_ratio;
+         cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, vprr_auto.recovery_bars));
       }
       else
       {
-         cfg.VPRR_Enabled     = Inp_RRM_ORG_VPRR_Enabled;
-         cfg.VPRR_VolumeType  = (int)Inp_RRM_ORG_VPRR_VolumeType;
-         cfg.VPRR_MinRatio    = MathMax(0.1, Inp_RRM_ORG_VPRR_MinRatio);
+         cfg.VPRR_Enabled         = Inp_RRM_ORG_VPRR_Enabled;
+         cfg.VPRR_VolumeType      = (int)Inp_RRM_ORG_VPRR_VolumeType;
+         cfg.VPRR_MinRatio        = MathMax(0.1, Inp_VPRR_MinRatio_FX);
+         cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, Inp_RRM_ORG_VPRR_RecoveryBars));
       }
-      cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, Inp_RRM_ORG_VPRR_RecoveryBars));
       cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
       cfg.VPRR_Weight          = MathMax(1, Inp_RRM_ORG_VPRR_Weight);
+      PrintVPRRSummary(cfg, "RRM_ORG");
 
       // ── VOTE EVALUATION ───────────────────────────────────────────────
       cfg.Vote_EvalShift            = 1;
@@ -1932,6 +2131,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SwingLookback             = Inp_RRM_ORG_SwingLookback;
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
+      cfg.SL_MinPips                = GetRecommendedInitialSlCushionPips();  // Instrument-aware minimum SL floor: prevents tiny-SL fallback from computing oversized lots
+      cfg.SL_WidenToMinimum         = true;  // Widen rather than block when SL too close — ensures trade always gets a sane SL
       cfg.SL_AtrPeriod              = Inp_RRM_ORG_SL_AtrPeriod;  // Used when SLMode = SL_MODE_ATR
       cfg.SL_AtrMult                = Inp_RRM_ORG_SL_AtrMult;    // Used when SLMode = SL_MODE_ATR; Gold M15: try 1.0–1.5
       cfg.FixedTPPips               = 40.0;
@@ -2340,6 +2541,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SwingLookback             = (int)MathRound(20.0 * MathMax(1.0, swing_mult / 2.0));  // LOCKED: instrument-adaptive auto-calc; hardcoding would over-tighten SL on Gold/indices
       cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();   // LOCKED: auto cushion per instrument/TF; hardcoding would be wrong for multi-symbol use
       cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();   // LOCKED: same
+      cfg.SL_MinPips                = GetRecommendedInitialSlCushionPips();  // Instrument-aware minimum SL floor
+      cfg.SL_WidenToMinimum         = true;
       cfg.SL_AtrPeriod              = Inp_TI_SL_AtrPeriod;    // Used when SLMode = SL_MODE_ATR
       cfg.SL_AtrMult                = Inp_TI_SL_AtrMult;      // Used when SLMode = SL_MODE_ATR
       cfg.FixedTPPips               = 40.0;            // fallback only — unused when TPMode=TP_MODE_RR
@@ -2409,6 +2612,40 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.AllowReEntryAfterBE       = true;            // LOCKED: TI allows re-entry after BE — if the trend continues, a new pullback is a valid signal
       cfg.ReEntryLotScalePct        = MathMax(0, MathMin(100, Inp_TI_ReEntryLotScalePct));   // 0=full size; 50=half-size re-entry
       cfg.MinBarsAfterClose         = MathMax(0, Inp_TI_MinBarsAfterClose);
+
+      // ── VPRR: Volume Pullback-Recovery Ratio ──────────────────────────
+      if(Inp_TI_VPRR_AutoEnable)
+      {
+         ST_VPRRAutoMode vprr_auto = GetVPRRRecommendedMode(
+            Inp_VPRR_MinRatio_Gold,      Inp_VPRR_MinRatio_Silver,
+            Inp_VPRR_MinRatio_IndicesUS, Inp_VPRR_MinRatio_IndicesEU,
+            Inp_VPRR_MinRatio_Oil,       Inp_VPRR_MinRatio_Crypto,
+            Inp_VPRR_MinRatio_Equities,  Inp_VPRR_MinRatio_FX,
+            Inp_VPRR_MinRatio_NonFXTick,
+            Inp_VPRR_RecBars_Gold,       Inp_VPRR_RecBars_Silver,
+            Inp_VPRR_RecBars_IndicesUS,  Inp_VPRR_RecBars_IndicesEU,
+            Inp_VPRR_RecBars_Oil,        Inp_VPRR_RecBars_Crypto,
+            Inp_VPRR_RecBars_Equities,   Inp_VPRR_RecBars_FX,
+            Inp_VPRR_TF_Mult_M5,         Inp_VPRR_TF_Mult_M15,
+            Inp_VPRR_TF_Mult_H1,         Inp_VPRR_TF_Mult_H4Plus,
+            Inp_VPRR_TF_ReduceRecBars,   Inp_TI_VPRR_RecoveryBars
+         );
+         cfg.VPRR_Enabled         = vprr_auto.enabled;
+         cfg.VPRR_VolumeType      = vprr_auto.volume_type;
+         cfg.VPRR_MinRatio        = vprr_auto.min_ratio;
+         cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, vprr_auto.recovery_bars));
+      }
+      else
+      {
+         cfg.VPRR_Enabled         = Inp_TI_VPRR_Enabled;
+         cfg.VPRR_VolumeType      = (int)Inp_TI_VPRR_VolumeType;
+         cfg.VPRR_MinRatio        = MathMax(0.1, Inp_VPRR_MinRatio_FX);
+         cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, Inp_TI_VPRR_RecoveryBars));
+      }
+      cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
+      cfg.VPRR_Weight          = MathMax(1, Inp_TI_VPRR_Weight);
+      PrintVPRRSummary(cfg, "TOPINVESTOR");
+
       cfg.MaxSpreadRetryBars        = 3;               // LOCKED: retry blocked entries for up to 3 bars; longer retry risks entering on a stale signal
 
       // ── POLICY A: RESTORE OPERATOR-CONTROLLED GATES ───────────────

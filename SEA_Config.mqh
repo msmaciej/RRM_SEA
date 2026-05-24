@@ -211,12 +211,12 @@ enum ETrailingMode
 };
 enum ESLMode
 {
-   SL_MODE_FIXED_PIPS,     // SL_MODE_FIXED_PIPS: Fixed pips (default)
-   SL_MODE_FRACTAL,        // SL_MODE_FRACTAL: Last fractal level (Bill Williams)
-   SL_MODE_PERCENT,        // SL_MODE_PERCENT: Percentage of entry price
-   SL_MODE_SWING,          // SL_MODE_SWING: Recent swing high/low (SwingLookback bars)
-   SL_MODE_PSAR_DOT,       // SL_MODE_PSAR_DOT: PSAR dot position (keep for FX pairs)
-   SL_MODE_ATR             // SL_MODE_ATR: Swing anchor − ATR(period) × multiplier (industry standard; prevents under-sized SL on volatile instruments)
+   SL_MODE_FIXED_PIPS  = 0, // SL_MODE_FIXED_PIPS: Fixed pips distance from entry
+   SL_MODE_FRACTAL     = 1, // SL_MODE_FRACTAL: Last fractal level (Bill Williams)
+   SL_MODE_PERCENT     = 2, // SL_MODE_PERCENT: Percentage of entry price
+   SL_MODE_SWING       = 3, // SL_MODE_SWING: Recent swing high/low (SwingLookback bars)
+   SL_MODE_PSAR_DOT    = 4, // SL_MODE_PSAR_DOT: PSAR dot position (keep for FX pairs)
+   SL_MODE_ATR         = 5  // SL_MODE_ATR: Swing anchor − ATR(period) × multiplier (industry standard; prevents under-sized SL on volatile instruments)
 };
 enum ETPMode
 {
@@ -1056,6 +1056,14 @@ input double     Inp_RRM_SL_AtrMult                = 1.0;            // RRM SL: 
 input int        Inp_RRM_MinBarsAfterClose         = 3;              // RRM SL: post-trade cooldown bars (0=off)
 input int        Inp_RRM_ReEntryLotScalePct        = 50;             // RRM Re-entry: lot size % for re-entry after BE (0=full size; 50=half; since original is at BE total risk stays controlled)
 input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📊 RRM: VPRR Volume Confirmation";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool            Inp_RRM_VPRR_AutoEnable        = true;          // RRM VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual toggle below)
+input bool            Inp_RRM_VPRR_Enabled           = false;         // RRM VPRR: Manual enable (only used when AutoEnable=OFF)
+input EVPRRVolumeType Inp_RRM_VPRR_VolumeType        = VPRR_VOL_AUTO; // RRM VPRR: Volume source (Auto=real then tick fallback)
+input int             Inp_RRM_VPRR_RecoveryBars      = 5;             // RRM VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
+input int             Inp_RRM_VPRR_Weight            = 1;             // RRM VPRR: Vote weight
+input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETrailingMode Inp_RRM_TrailMode              = TRAIL_PSAR;     // RRM TS: Trailing stop mode
@@ -1534,14 +1542,42 @@ input double      Inp_RRM_ORG_RecoveryRatio_W      = -1.0;           // RRM ORG 
 input double      Inp_RRM_ORG_RecoveryRatio_M      = -1.0;           // RRM ORG PB: LayerM recovery override (-1=use global, 0.1-1.0)
 input double      Inp_RRM_ORG_RecoveryRatio_S      = -1.0;           // RRM ORG PB: LayerS recovery override (-1=use global, 0.1-1.0)
 input group "╔════════════════════════════════════════════════════════╗";
+input group " ";
+input group "    📊 VPRR: Shared Per-Instrument + Timeframe Tuning";
+input group "    (used by RRM / RRM_ORG / TOPINVESTOR presets)";
+// Effective MinRatio = base x TF multiplier (auto-applied at EA start).
+// Restart EA after instrument or TF change to auto-update settings.
+input double          Inp_VPRR_MinRatio_Gold       = 1.0;   // VPRR Gold (XAU): MinRatio base (M15:1.0; TF mult auto-scales)
+input int             Inp_VPRR_RecBars_Gold         = 3;    // VPRR Gold: RecoveryBars base
+input double          Inp_VPRR_MinRatio_Silver      = 0.9;  // VPRR Silver (XAG): MinRatio base (thinner market, 0.85-1.0)
+input int             Inp_VPRR_RecBars_Silver       = 2;    // VPRR Silver: RecoveryBars base
+input double          Inp_VPRR_MinRatio_IndicesUS   = 1.1;  // VPRR US Indices (NAS/US30/SPX): MinRatio base (1.1-1.3; NY session 14:30-21:00 UTC)
+input int             Inp_VPRR_RecBars_IndicesUS    = 3;    // VPRR US Indices: RecoveryBars base
+input double          Inp_VPRR_MinRatio_IndicesEU   = 1.0;  // VPRR EU Indices (DAX/FTSE): MinRatio base (1.0-1.2; Frankfurt/London 07:00-15:30 UTC)
+input int             Inp_VPRR_RecBars_IndicesEU    = 3;    // VPRR EU Indices: RecoveryBars base
+input double          Inp_VPRR_MinRatio_Oil         = 0.9;  // VPRR Oil (WTI/Brent): MinRatio base (0.9-1.0)
+input int             Inp_VPRR_RecBars_Oil          = 3;    // VPRR Oil: RecoveryBars base
+input double          Inp_VPRR_MinRatio_Crypto      = 0.7;  // VPRR Crypto (BTC/ETH): MinRatio base (0.7-0.8; retail-dominated)
+input int             Inp_VPRR_RecBars_Crypto       = 2;    // VPRR Crypto: RecoveryBars base
+input double          Inp_VPRR_MinRatio_Equities    = 1.0;  // VPRR Equities (NVDA/AAPL etc.): MinRatio base (0.9-1.1)
+input int             Inp_VPRR_RecBars_Equities     = 2;    // VPRR Equities: RecoveryBars base (fast institutional execution)
+input double          Inp_VPRR_MinRatio_FX          = 0.7;  // VPRR FX: MinRatio base (0.6-0.7; tick vol approximation)
+input int             Inp_VPRR_RecBars_FX           = 3;    // VPRR FX: RecoveryBars base
+input double          Inp_VPRR_MinRatio_NonFXTick   = 0.8;  // VPRR non-FX tick fallback: MinRatio
+// TF auto-multiplier: M5x0.85  M15x1.00  H1x0.95  H4+x0.90 (see chart comment for effective value)
+input double          Inp_VPRR_TF_Mult_M5           = 0.85; // VPRR TF: M5 multiplier (noisier, loosen 15%%)
+input double          Inp_VPRR_TF_Mult_M15          = 1.00; // VPRR TF: M15 multiplier (baseline)
+input double          Inp_VPRR_TF_Mult_H1           = 0.95; // VPRR TF: H1 multiplier (fewer bars, loosen slightly)
+input double          Inp_VPRR_TF_Mult_H4Plus       = 0.90; // VPRR TF: H4+ multiplier (very few cycles, loosen)
+input bool            Inp_VPRR_TF_ReduceRecBars     = true; // VPRR TF: Reduce RecBars by 1 on H4+ and M5
+
 input group "║   📊 RRM_ORG: VPRR Volume Confirmation";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool            Inp_RRM_ORG_VPRR_AutoEnable   = true;           // RRM ORG VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual Enabled toggle below)
 input bool            Inp_RRM_ORG_VPRR_Enabled      = false;          // RRM ORG VPRR: Manual enable (only used when AutoEnable=OFF)
 input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType   = VPRR_VOL_AUTO;  // RRM ORG VPRR: VPRR volume source (Auto=real then tick fallback)
-input int             Inp_RRM_ORG_VPRR_RecoveryBars = 5;              // RRM ORG VPRR: VPRR recovery measurement bars (1-10)
-input double          Inp_RRM_ORG_VPRR_MinRatio     = 1.0;            // RRM ORG VPRR: VPRR min ratio (manual override; auto sets 1.0 for real-vol, 0.7 for tick-vol FX)
-input int             Inp_RRM_ORG_VPRR_Weight       = 1;              // RRM ORG VPRR: VPRR vote weight
+input int             Inp_RRM_ORG_VPRR_RecoveryBars = 5;              // RRM ORG VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
+input int             Inp_RRM_ORG_VPRR_Weight       = 1;              // RRM ORG VPRR: Vote weight
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: EMA Fan Filter";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1644,6 +1680,14 @@ input group "╚═════════════════════�
 input ETIProfile  Inp_TI_Profile               = TI_MODERATE;        // TI: profile select
 input int         Inp_TI_MinBarsAfterClose     = 3;                  // TI: cooldown bars after close (0=off)
 input int         Inp_TI_ReEntryLotScalePct    = 50;                 // TI Re-entry: lot size % for re-entry after BE (0=full size; 50=half)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📊 TI: VPRR Volume Confirmation";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool            Inp_TI_VPRR_AutoEnable         = true;          // TI VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual toggle below)
+input bool            Inp_TI_VPRR_Enabled            = false;         // TI VPRR: Manual enable (only used when AutoEnable=OFF)
+input EVPRRVolumeType Inp_TI_VPRR_VolumeType         = VPRR_VOL_AUTO; // TI VPRR: Volume source (Auto=real then tick fallback)
+input int             Inp_TI_VPRR_RecoveryBars       = 5;             // TI VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
+input int             Inp_TI_VPRR_Weight             = 1;             // TI VPRR: Vote weight
 input bool        Inp_TI_PhaseAllowEM          = true;               // TI: allow Emerging phase
 
 // ════════════════════════════════════════════════════════════════
