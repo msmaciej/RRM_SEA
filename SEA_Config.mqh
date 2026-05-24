@@ -403,8 +403,12 @@ struct ST_Settings
    int    Fib_SwingLookback;           // Bars to find swing H/L (default 50)
 
    // TRAIL_EMA
-   int    TrailEMA_Period;             // EMA period for trailing exit (default 9)
-   int    TrailEMA_Shift;              // EMA shift for trail SL placement (1=tight, 2=cushioned)
+   int    TrailEMA_Period;             // EMA period for trailing (0=use ribbon role below)
+   int    TrailEMA_RibbonRole;         // 0=EMA1,1=EMA2,2=EMA3,3=EMA4 (used when TrailEMA_Period=0)
+   int    TrailEMA_Shift;              // bar shift for EMA read: 1=last closed bar, 2=two bars back, etc.
+   double TrailEMA_CushionPips;        // EMA trail cushion in pips (0 = use ATR mode if mult>0, else PSAR fallback)
+   double TrailEMA_CushionAtrMult;     // EMA trail cushion as ATR multiple (0=disabled; recommended 0.05-0.15 for H1)
+   int    TrailEMA_CushionAtrPeriod;   // ATR period for EMA cushion (default 14)
 
    // Voting
    EVoteMode VoteMode; // ALL/THRESHOLD: every enabled indicator must agree; vote_weight is informational only and does not gate trade decisions
@@ -953,8 +957,8 @@ input string      Inp_UI_PanelFont                 = "Arial";        // UI: Font
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: COCKPIT PANEL";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_UI_ShowCockpitPanel          = false;          // UI CP: COCKPIT PANEL (off by default)
-input ENUM_BASE_CORNER  Inp_UI_CockpitCorner       = CORNER_RIGHT_UPPER; // UI CP: corner
+input bool        Inp_UI_ShowCockpitPanel          = true;           // UI CP: COCKPIT PANEL
+input ENUM_BASE_CORNER  Inp_UI_CockpitCorner       = CORNER_LEFT_UPPER; // UI CP: corner
 input int         Inp_UI_CockpitX                  = 30;             // UI CP: Cockpit panel X (px)
 input int         Inp_UI_CockpitY                  = 30;             // UI CP: Cockpit panel Y (px)
 input group "╔════════════════════════════════════════════════════════╗";
@@ -976,8 +980,8 @@ input int         Inp_UI_PanelY                    = 30;             // UI SP: S
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: VPRR PANEL";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_UI_ShowVPRRPanel             = false;          // UI VP: VPRR panel (off by default)
-input ENUM_BASE_CORNER Inp_UI_VPRRCorner           = CORNER_LEFT_UPPER; // UI VP: VPRR panel corner
+input bool        Inp_UI_ShowVPRRPanel             = true;           // UI VP: VPRR panel
+input ENUM_BASE_CORNER Inp_UI_VPRRCorner           = CORNER_RIGHT_UPPER; // UI VP: VPRR panel corner
 input int         Inp_UI_VPRR_X                    = 30;             // UI VP: VPRR panel X (px)
 input int         Inp_UI_VPRR_Y                    = 30;             // UI VP: VPRR panel Y (px)
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1430,7 +1434,7 @@ input int         Inp_RRM_ORG_ReEntryLotScalePct   = 50;             // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: HOW TO TRAIL STOP LOSS";
 input group "╚════════════════════════════════════════════════════════╝";
-input ETrailingMode Inp_RRM_ORG_TrailMode          = TRAIL_PSAR;     // RRM ORG TS: Trailing stop method
+input ETrailingMode Inp_RRM_ORG_TrailMode          = TRAIL_EMA;     // RRM ORG TS: Trailing stop method
 input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // RRM ORG TS: PSAR cushion mode (PIPS / ATR / PERCENT)
 input int         Inp_RRM_ORG_TrailCushionAtrPeriod = 14;            // RRM ORG TS: cushion ATR period (ATR mode)
 input double      Inp_RRM_ORG_TrailCushionAtrMult   = 0.5;           // RRM ORG TS: cushion ATR multiplier (cushion = ATR × this)
@@ -1454,8 +1458,14 @@ input double      Inp_RRM_ORG_TrailProfitPercentLPR = 25.0;          // RRM ORG 
 // Only used when TrailMode = TRAIL_PROFIT_PERCENT.
 //
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: WHEN TO START TRAILING";
+input group "║   📐 RRM_ORG: EMA trail SL: WHEN TO START TRAILING";
 input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_ORG_TrailEMA_Period       = 0;             // RRM ORG TS: EMA period (0=use ribbon role selector below)
+input EEmaRole    Inp_RRM_ORG_TrailEMA_RibbonRole   = ROLE_EMA2;     // RRM ORG TS: which ribbon EMA to trail (EMA1=5,EMA2=13,EMA3=34,EMA4=89) when Period=0
+input int         Inp_RRM_ORG_TrailEMA_Shift        = 1;             // RRM ORG TS: bar shift for EMA read (1=last closed bar, 2=two bars back, 3=three bars back)
+input double      Inp_RRM_ORG_TrailEMA_CushionPips  = 0.0;           // RRM ORG TS: EMA trail cushion pips (0=use ATR mode)
+input double      Inp_RRM_ORG_TrailEMA_CushionAtrMult = 0.1;         // RRM ORG TS: EMA cushion = ATR×this (0=disabled; 0.1=recommended)
+input int         Inp_RRM_ORG_TrailEMA_CushionAtrPeriod = 14;        // RRM ORG TS: ATR period for EMA cushion
 input bool        Inp_RRM_ORG_TrailStartsAfterBE   = false;          // RRM ORG TS: Safety override: trail after BE
 //
 // Inp_RRM_ORG_TrailStartsAfterBE- Trailing activation logic in PRESET_RRM_ORG:
@@ -1471,8 +1481,8 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: BREAKEVEN (BE) - ONE-TIME LOCK";
 input group "╚════════════════════════════════════════════════════════╝";
 input EBeMode     Inp_RRM_ORG_BE_Mode              = BE_MODE_TP_PROGRESS_PCT;  // RRM ORG BE: Breakeven trigger mode
-input double      Inp_RRM_ORG_BE_RMultiple         = 1.0;            // RRM ORG BE: BE trigger as R multiple
-input double      Inp_RRM_ORG_BE_ProgressPct       = 70.0;           // RRM ORG BE: BE trigger as TP progress %
+input double      Inp_RRM_ORG_BE_RMultiple         = 0.6;            // RRM ORG BE: BE trigger as R multiple
+input double      Inp_RRM_ORG_BE_ProgressPct       = 10.0;           // RRM ORG BE: BE trigger as TP progress %
 //
 // Inp_RRM_ORG_BE_Mode - Breakeven trigger mode:
 // BE_MODE_OFF:             Breakeven disabled
@@ -2224,8 +2234,12 @@ void InitializeConfig()
    Settings.CandleBody_MinCloseRatio = MathMax(0.0, MathMin(1.0, Inp_CUSTOM_CandleBody_MinCloseRatio));
 
    // TRAIL_EMA period
-   Settings.TrailEMA_Period      = MathMax(2, Inp_CUSTOM_TrailEMA_Period);
-   Settings.TrailEMA_Shift       = MathMax(1, MathMin(3, Inp_CUSTOM_TrailEMA_Shift));
+   Settings.TrailEMA_Period           = MathMax(0, Inp_CUSTOM_TrailEMA_Period);
+   Settings.TrailEMA_RibbonRole       = 0;  // CUSTOM: EMA1 as fallback
+   Settings.TrailEMA_Shift            = MathMax(1, MathMin(5, Inp_CUSTOM_TrailEMA_Shift));
+   Settings.TrailEMA_CushionPips      = 0.0;   // CUSTOM: set via preset or direct cfg override
+   Settings.TrailEMA_CushionAtrMult   = 0.0;   // CUSTOM: 0 = disabled (falls back to pip or PSAR)
+   Settings.TrailEMA_CushionAtrPeriod = 14;
 
    // Voting
    Settings.VoteMode             = (Inp_CUSTOM_VoteMode_All ? VOTE_MODE_ALL : VOTE_MODE_THRESHOLD);

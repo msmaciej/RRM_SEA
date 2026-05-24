@@ -34,6 +34,7 @@ private:
    int         m_h_fractals;
    int         m_h_cushion_atr;  // ATR handle for PSAR_CUSHION_ATR (cached)
    int         m_h_sl_atr;       // ATR handle for SL_MODE_ATR initial SL (cached)
+   int         m_h_trail_ema_atr; // ATR handle for TRAIL_EMA cushion (cached)
    
    // Telemetry Cache
    datetime    m_last_trade_bar;
@@ -204,6 +205,7 @@ private:
       if(m_h_fractals != INVALID_HANDLE) { IndicatorRelease(m_h_fractals); m_h_fractals = INVALID_HANDLE; }
       if(m_h_cushion_atr != INVALID_HANDLE) { IndicatorRelease(m_h_cushion_atr); m_h_cushion_atr = INVALID_HANDLE; }
       if(m_h_sl_atr != INVALID_HANDLE) { IndicatorRelease(m_h_sl_atr); m_h_sl_atr = INVALID_HANDLE; }
+      if(m_h_trail_ema_atr != INVALID_HANDLE) { IndicatorRelease(m_h_trail_ema_atr); m_h_trail_ema_atr = INVALID_HANDLE; }
    }
 
    void GetSymbolCurrencies(string sym, string &base, string &quote) {
@@ -1422,7 +1424,10 @@ private:
       }
 
       // TRAILING
-      if(m_settings.TrailMode != TRAIL_PSAR && m_settings.TrailMode != TRAIL_PROFIT_PERCENT) return;
+      // Allow TRAIL_EMA to pass through (handled below); all other non-PSAR modes exit here
+      if(m_settings.TrailMode != TRAIL_PSAR &&
+         m_settings.TrailMode != TRAIL_PROFIT_PERCENT &&
+         m_settings.TrailMode != TRAIL_EMA) return;
       if(m_settings.RRM_TrailStartsAfterBE && !m_rrm_be_reached) return;
 
       // SAFETY: delay trailing until the position has earned a minimum R-multiple of
@@ -1442,6 +1447,102 @@ private:
       if(m_settings.TrailMode == TRAIL_PROFIT_PERCENT) {
          double lpr_sl = CalculateProfitPercentTrailSL(ticket, pos_type, entry, cur_price, cur_sl, pipSize, digits);
          if(lpr_sl != 0.0 && IsModifyAllowed()) m_trade.PositionModify(ticket, lpr_sl, cur_tp);
+         return;
+      }
+
+      // TRAIL_EMA dispatch inside RRM_ManageStrictNoATR.
+      // Previously skipped by the early-return guard above. Now the guard allows
+      // TRAIL_EMA through, and we handle it here with BE-guard + lock-profit intact.
+      // PSAR_TrailPipsCushion is reused as EMA cushion (already instrument-scaled).
+      if(m_settings.TrailMode == TRAIL_EMA) {
+         datetime bar1_time = iTime(m_symbol, PERIOD_CURRENT, 1);
+         if(bar1_time == m_trail_ema_last_bar) return;
+         m_trail_ema_last_bar = bar1_time;
+
+         // Period: preset resolver should have set this; fallback chain just in case
+         int ema_period = m_settings.TrailEMA_Period;
+         if(ema_period <= 0) {
+            // Resolve from ribbon role at runtime (preset may not have had periods yet)
+            switch(m_settings.TrailEMA_RibbonRole) {
+               case 1:  ema_period = m_settings.P_Ema2; break;  // ROLE_EMA2 = 13
+               case 2:  ema_period = m_settings.P_Ema3; break;  // ROLE_EMA3 = 34
+               case 3:  ema_period = m_settings.P_Ema4; break;  // ROLE_EMA4 = 89
+               default: ema_period = m_settings.P_Ema1; break;  // ROLE_EMA1 = 5
+            }
+         }
+         if(ema_period <= 0) ema_period = 13; // absolute fallback: EMA13
+
+         int h_ema = iMA(m_symbol, PERIOD_CURRENT, ema_period, 0, MODE_EMA, PRICE_CLOSE);
+         if(h_ema == INVALID_HANDLE) return;
+
+         // shift: how many bars back to read EMA. 1=last closed bar (default, tight).
+         // Higher values (2-5) give progressively more room — EMA was lower N bars ago.
+         int ema_shift = m_settings.TrailEMA_Shift;
+         if(ema_shift < 1) ema_shift = 1;
+         if(ema_shift > 5) ema_shift = 5;
+
+         double ema_val[];
+         ArraySetAsSeries(ema_val, true);
+         if(CopyBuffer(h_ema, 0, ema_shift, 1, ema_val) != 1) { IndicatorRelease(h_ema); return; }
+         IndicatorRelease(h_ema);
+
+         // EMA cushion priority: ATR-based > fixed pips > PSAR fallback.
+         // ATR mode auto-scales with instrument volatility — recommended for Gold/Silver.
+         // Example H1 Gold: ATR≈17, mult=0.10 → cushion ≈ 1.7 pts ($1.70) — tight but noise-proof.
+         double ema_cushion_pips = 0.0;
+         if(m_settings.TrailEMA_CushionAtrMult > 0.0) {
+            // ATR mode: cushion = ATR(period) × multiplier, converted to pips.
+            // Uses cached m_h_trail_ema_atr handle (initialized in Init/UpdateSettings).
+            if(m_h_trail_ema_atr != INVALID_HANDLE) {
+               double atr_val[];
+               ArraySetAsSeries(atr_val, true);
+               if(CopyBuffer(m_h_trail_ema_atr, 0, 1, 1, atr_val) == 1 && atr_val[0] > 0.0)
+                  ema_cushion_pips = (atr_val[0] / pipSize) * m_settings.TrailEMA_CushionAtrMult;
+            }
+         }
+         if(ema_cushion_pips <= 0.0 && m_settings.TrailEMA_CushionPips > 0.0)
+            ema_cushion_pips = m_settings.TrailEMA_CushionPips;  // fixed pip fallback
+         if(ema_cushion_pips <= 0.0)
+            ema_cushion_pips = m_settings.PSAR_TrailPipsCushion; // last resort
+         double cushion = ema_cushion_pips * pipSize;
+         double new_sl  = isBuy
+            ? NormalizeDouble(ema_val[0] - cushion, digits)
+            : NormalizeDouble(ema_val[0] + cushion, digits);
+
+         double be_guard = m_settings.RRM_BE_BufferPips * pipSize;
+         if(isBuy  && new_sl < entry + be_guard) return;
+         if(!isBuy && new_sl > entry - be_guard) return;
+
+         if(m_settings.TrailLockProfit && cur_sl != 0.0) {
+            if(isBuy  && new_sl <= cur_sl) return;
+            if(!isBuy && new_sl >= cur_sl) return;
+         }
+
+         // TP guard: SL must not cross or touch TP — MT5 rejects with "invalid stops".
+         // When EMA trail pushes SL past the TP level the trade has already run its
+         // full target; close it immediately rather than silently doing nothing.
+         if(cur_tp > 0.0) {
+            bool sl_past_tp = isBuy ? (new_sl >= cur_tp) : (new_sl <= cur_tp);
+            if(sl_past_tp) {
+               if(m_settings.DebugFlow)
+                  PrintFormat("[TRAIL_EMA/RRM] #%I64u: SL %.5f past TP %.5f — closing at market",
+                              ticket, new_sl, cur_tp);
+               if(IsModifyAllowed()) m_trade.PositionClose(ticket);
+               return;
+            }
+         }
+
+         bool valid = isBuy
+            ? (new_sl > cur_sl && new_sl < cur_price)
+            : ((cur_sl == 0.0 || new_sl < cur_sl) && new_sl > cur_price);
+
+         if(valid && IsModifyAllowed()) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[TRAIL_EMA/RRM] #%I64u: SL %.5f -> %.5f | EMA(%d,sh=%d)=%.5f cushion=%.1fp",
+                           ticket, cur_sl, new_sl, ema_period, ema_shift, ema_val[0],
+                           ema_cushion_pips);
+            m_trade.PositionModify(ticket, new_sl, cur_tp);
+         }
          return;
       }
 
@@ -1561,7 +1662,7 @@ private:
 
             int ema_shift = m_settings.TrailEMA_Shift;
             if(ema_shift < 1) ema_shift = 1;
-            if(ema_shift > 3) ema_shift = 3;
+            if(ema_shift > 5) ema_shift = 5;
 
             double ema_val[];
             ArraySetAsSeries(ema_val, true);
@@ -1612,6 +1713,15 @@ private:
                   break;
             }
 
+            // TP guard: close at market if EMA trail has pushed SL past TP level
+            if(cur_tp > 0.0) {
+               bool sl_past_tp = is_long ? (new_sl >= cur_tp) : (new_sl <= cur_tp);
+               if(sl_past_tp) {
+                  if(IsModifyAllowed()) m_trade.PositionClose(ticket);
+                  break;
+               }
+            }
+
             // Only move if new SL is on the correct side of current price
             bool valid = is_long
                ? (new_sl > cur_sl && new_sl < current_price)
@@ -1646,7 +1756,7 @@ public:
                        m_te_rej_open_delay(0), m_te_rej_bc_recheck(0), m_te_rej_spread_median(0),
                        m_te_pass_open_delay(0), m_te_pass_bc_recheck(0), m_te_pass_spread_median(0),
                        m_spread_history_count(0), m_spread_history_idx(0),
-                       m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), m_h_cushion_atr(INVALID_HANDLE), m_h_sl_atr(INVALID_HANDLE), // CACHED HANDLES
+                       m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), m_h_cushion_atr(INVALID_HANDLE), m_h_sl_atr(INVALID_HANDLE), m_h_trail_ema_atr(INVALID_HANDLE), // CACHED HANDLES
                        m_dpi_hist_current(0.0), m_dpi_hist_trend(0), m_dpi_hist_decelerating(false), m_dpi_hist_green_present(false),
                        m_exits_dpi_hist(0)
    {
@@ -1752,12 +1862,14 @@ public:
       m_h_fractals = iFractals(m_symbol, PERIOD_CURRENT);
       m_h_cushion_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.PSAR_TrailCushionAtrPeriod));
       m_h_sl_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.SL_AtrPeriod));
+      m_h_trail_ema_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.TrailEMA_CushionAtrPeriod > 0 ? m_settings.TrailEMA_CushionAtrPeriod : 14));
    }
    
    void UpdateSettings(ST_Settings &sets) { 
       bool recreate_psar = (m_settings.P_PsarStep != sets.P_PsarStep || m_settings.P_PsarMax != sets.P_PsarMax);
       bool recreate_atr  = (m_settings.PSAR_TrailCushionAtrPeriod != sets.PSAR_TrailCushionAtrPeriod) || (m_h_cushion_atr == INVALID_HANDLE);
-      bool recreate_sl_atr = (m_settings.SL_AtrPeriod != sets.SL_AtrPeriod) || (m_h_sl_atr == INVALID_HANDLE);
+      bool recreate_sl_atr     = (m_settings.SL_AtrPeriod != sets.SL_AtrPeriod) || (m_h_sl_atr == INVALID_HANDLE);
+      bool recreate_trail_ema_atr = (m_settings.TrailEMA_CushionAtrPeriod != sets.TrailEMA_CushionAtrPeriod) || (m_h_trail_ema_atr == INVALID_HANDLE);
       m_settings = sets; 
       if (recreate_psar) {
          if (m_h_psar != INVALID_HANDLE) IndicatorRelease(m_h_psar);
@@ -1771,6 +1883,11 @@ public:
       if (recreate_sl_atr) {
          if (m_h_sl_atr != INVALID_HANDLE) IndicatorRelease(m_h_sl_atr);
          m_h_sl_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.SL_AtrPeriod));
+      }
+      if (recreate_trail_ema_atr) {
+         if (m_h_trail_ema_atr != INVALID_HANDLE) IndicatorRelease(m_h_trail_ema_atr);
+         int ema_atr_p = MathMax(1, m_settings.TrailEMA_CushionAtrPeriod > 0 ? m_settings.TrailEMA_CushionAtrPeriod : 14);
+         m_h_trail_ema_atr = iATR(m_symbol, PERIOD_CURRENT, ema_atr_p);
       }
    }
 

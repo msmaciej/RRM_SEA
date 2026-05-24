@@ -1,4 +1,4 @@
-﻿//+-------------------------------------------------------------------+
+//+-------------------------------------------------------------------+
 //|                                                  SEA_Presets.mqh  |
 //|                                   Copyright 2026, SimpleEA System |
 //| DESCRIPTION: Preset definitions: overwrite strategy-critical fields|
@@ -2141,6 +2141,33 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SLPercent                 = 0.5;
 
       cfg.TrailMode                 = Inp_RRM_ORG_TrailMode;
+      // TRAIL_EMA: set period/shift so RRM_ManageStrictNoATR uses the right EMA.
+      // Period=0 means "use ribbon EMA1 (P_Ema1)" — handled as fallback in executor.
+      // TRAIL_EMA period resolution:
+      //   Period > 0  → use that explicit period directly
+      //   Period = 0  → use the ribbon EMA selected by RibbonRole
+      //     ROLE_EMA1 (0) = cfg.P_Ema1 (default 5)   — very tight, not recommended for trailing
+      //     ROLE_EMA2 (1) = cfg.P_Ema2 (default 13)  — good balance: responsive but some distance
+      //     ROLE_EMA3 (2) = cfg.P_Ema3 (default 34)  — slower, gives trend more room
+      //     ROLE_EMA4 (3) = cfg.P_Ema4 (default 89)  — very slow, maximum trend-following room
+      cfg.TrailEMA_RibbonRole       = (int)Inp_RRM_ORG_TrailEMA_RibbonRole;
+      if(Inp_RRM_ORG_TrailEMA_Period > 0) {
+         cfg.TrailEMA_Period        = Inp_RRM_ORG_TrailEMA_Period;
+      } else {
+         switch((EEmaRole)cfg.TrailEMA_RibbonRole) {
+            case ROLE_EMA1: cfg.TrailEMA_Period = cfg.P_Ema1; break;
+            case ROLE_EMA2: cfg.TrailEMA_Period = cfg.P_Ema2; break;
+            case ROLE_EMA3: cfg.TrailEMA_Period = cfg.P_Ema3; break;
+            case ROLE_EMA4: cfg.TrailEMA_Period = cfg.P_Ema4; break;
+            default:        cfg.TrailEMA_Period = cfg.P_Ema2; break;  // safe fallback
+         }
+      }
+      cfg.TrailEMA_Shift            = MathMax(1, MathMin(5, Inp_RRM_ORG_TrailEMA_Shift));
+      // EMA trail cushion: ATR-based is the recommended mode (auto-scales with instrument volatility).
+      // Priority: ATR mult > pip value > PSAR_TrailPipsCushion fallback (in executor).
+      cfg.TrailEMA_CushionPips         = MathMax(0.0, Inp_RRM_ORG_TrailEMA_CushionPips);
+      cfg.TrailEMA_CushionAtrMult      = MathMax(0.0, Inp_RRM_ORG_TrailEMA_CushionAtrMult);
+      cfg.TrailEMA_CushionAtrPeriod    = MathMax(1,   Inp_RRM_ORG_TrailEMA_CushionAtrPeriod);
       cfg.RRM_TrailPsarShiftDelay   = (Inp_RRM_ORG_TrailPsarShiftDelay < 1) ? 1 : (Inp_RRM_ORG_TrailPsarShiftDelay > 3) ? 3 : Inp_RRM_ORG_TrailPsarShiftDelay; // PSAR DOT trail shift (TRAILING only); default 2 for flip stability
       cfg.RRM_TrailStartsAfterBE    = Inp_RRM_ORG_TrailStartsAfterBE;
       cfg.TrailProfitPercentLPR     = Inp_RRM_ORG_TrailProfitPercentLPR;
