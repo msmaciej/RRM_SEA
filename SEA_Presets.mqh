@@ -945,6 +945,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    const EExitProfile op_ExitProfile = cfg.ExitProfile;
 
    
+#ifdef SEA_PRESET_FPM
    if(preset == PRESET_FPM)
    {
       // ================================================================
@@ -1217,7 +1218,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    }
    
    
+#endif // SEA_PRESET_FPM
+
    if(preset == PRESET_MA)
+#ifdef SEA_PRESET_MA
    {
       // ================================================================
       // PRESET_MA: MT5 Moving Average Benchmark
@@ -1497,7 +1501,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    }
 
    if(preset == PRESET_RRM)
+#endif // SEA_PRESET_MA
+
    {
+#ifdef SEA_PRESET_RRM_FAMILY
       // ================================================================
       // PRESET_RRM: RRM Methodology — Phase-Based Trend Pullback
       // ================================================================
@@ -1814,7 +1821,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
    if(preset == PRESET_RRM_ORG)
    {
+#endif // SEA_PRESET_RRM_FAMILY
+
       // ================================================================
+#ifdef SEA_PRESET_RRM_ORG
       // PRESET_RRM_ORG: Original Russ Horn RRM with Inline DPI Voter
       // ================================================================
       //
@@ -2315,7 +2325,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    if(preset == PRESET_TOPINVESTOR)
    {
       // ================================================================
+#endif // SEA_PRESET_RRM_ORG
+
       // PRESET_TOPINVESTOR — Dr Świerk's TopInvestor / OXO Methodology
+#ifdef SEA_PRESET_TOPINVESTOR
       // ================================================================
       //
       // Unified preset covering all 3 TopInvestor systems:
@@ -2725,6 +2738,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    {
       // ================================================================
       // PRESET_TEST: EA System Testing Mode
+#endif // SEA_PRESET_TOPINVESTOR
+
       // ================================================================
       //
       // FORMULA:

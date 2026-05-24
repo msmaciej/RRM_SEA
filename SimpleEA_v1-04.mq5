@@ -1,4 +1,4 @@
-﻿//+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
 //|                                           SimpleEA_v1-04.mq5     |
 //|                       Copyright © 2025 Maciej Jerzy Szczech (MJS)|
 //|                      RRM Simple EA - macOS + Wine + MT5 + MQL5   |
@@ -293,9 +293,11 @@ void PrintEffectiveConfig()
          " h_shift=", Settings.ma_h_shift,
          " v_shift=", Settings.ma_v_shift);
 
+#ifdef SEA_PRESET_MA
    if(Settings.MABenchmarkStrict)
       Print("MA Benchmark Inputs: MaxRisk=", Inp_MA_MaximumRiskPct, "% Dec=", Inp_MA_DecreaseFactor,
             " Period=", Inp_MA_Period, " Shift=", Inp_MA_Shift);
+#endif // SEA_PRESET_MA
 
    Print("Effective EMA periods: ", Settings.P_Ema1, ",", Settings.P_Ema2, ",", Settings.P_Ema3, ",", Settings.P_Ema4);
    Print("Effective MACD periods: ", Settings.P_MacdFast, ",", Settings.P_MacdSlow, ",", Settings.P_MacdSig);
@@ -502,8 +504,16 @@ int OrchestrateInit()
       EBeMode be_input_active;
       switch(Inp_Global_Preset)
       {
+#ifdef SEA_PRESET_RRM_ORG
          case PRESET_RRM_ORG:    be_input_active = Inp_RRM_ORG_BE_Mode; break;
+#else
+         case PRESET_RRM_ORG:    be_input_active = Inp_CUSTOM_BE_Mode;  break;
+#endif
+#ifdef SEA_PRESET_TOPINVESTOR
          case PRESET_TOPINVESTOR:be_input_active = Inp_TI_BE_Mode;      break;
+#else
+         case PRESET_TOPINVESTOR:be_input_active = Inp_CUSTOM_BE_Mode;  break;
+#endif
          default:                be_input_active = Inp_CUSTOM_BE_Mode;  break;
       }
       PrintFormat("  Preset:       %s", EnumToString(Inp_Global_Preset));
@@ -526,7 +536,9 @@ int OrchestrateInit()
          PrintFormat("  PSAR Cushion (TF-based): %.1f pips", Settings.PSAR_TrailPipsCushion);
          PrintFormat("  PSAR Trail Shift (live):   %d bars", Settings.RRM_TrailPsarShiftDelay);
          PrintFormat("  PSAR Delay (deprecated):   %d bars (mirrors trail shift)", Settings.PSAR_TrailDelay);
+#ifdef SEA_PRESET_RRM_FAMILY
          PrintFormat("  RRM StartAfterBE Input:    %s", Inp_RRM_TrailStartsAfterBE ? "true" : "false");
+#endif // SEA_PRESET_RRM_FAMILY
          PrintFormat("  RRM StartAfterBE Settings: %s", Settings.RRM_TrailStartsAfterBE ? "true" : "false");
       }
       Print("");

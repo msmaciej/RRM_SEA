@@ -16,6 +16,17 @@
 //#define SEA_PRESET_RRM
 #define SEA_PRESET_RRM_ORG
 //#define SEA_PRESET_TOPINVESTOR
+//
+//
+// DO NOT EDIT BELOW — auto-derived helper:
+// SEA_PRESET_RRM_FAMILY = defined when RRM or RRM_ORG is active.
+// Covers the shared Inp_RRM_* inputs used by both presets.
+#ifdef SEA_PRESET_RRM
+#define SEA_PRESET_RRM_FAMILY
+#endif
+#ifdef SEA_PRESET_RRM_ORG
+#define SEA_PRESET_RRM_FAMILY
+#endif
 // ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -1062,8 +1073,8 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 #endif // SEA_PRESET_MA
 
-#ifdef SEA_PRESET_FPM
 input group "    📐 PRESET: FPM";
+#ifdef SEA_PRESET_FPM
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 FPM: (TP) Take Profit Settings";
@@ -1104,11 +1115,11 @@ input int         Inp_FPM_Mfi_Period                = 14;            // FPM MFI:
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    📐 PRESET: RRM";
 #endif // SEA_PRESET_FPM
 
-#ifdef SEA_PRESET_RRM
-input group "    📐 PRESET: RRM";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+#ifdef SEA_PRESET_RRM_FAMILY
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: (TP) Take Profit - Risk Reward Ratio";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1288,12 +1299,12 @@ input double      Inp_RRM_EmaFanMaxPct             = 0.0;            // RRM Fan:
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-#endif // SEA_PRESET_RRM
-
-#ifdef SEA_PRESET_RRM_ORG
 input group "    📐 PRESET: RRM_ORG: DPI";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+#endif // SEA_PRESET_RRM_FAMILY
+
 input group "╔════════════════════════════════════════════════════════╗";
+#ifdef SEA_PRESET_RRM_ORG
 input group "║   📐 RRM_ORG: DPI v31 — Core Math (shared by all)";
 input group "╚════════════════════════════════════════════════════════╝";
 input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price       = PRICE_TYPICAL;  // RRM ORG DPI: CCI applied price
@@ -1721,13 +1732,13 @@ input int         Inp_RRM_ORG_VPRR_Weight_VRC      = 1;              // RRM ORG 
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-#endif // SEA_PRESET_RRM_ORG
-
-#ifdef SEA_PRESET_TOPINVESTOR
 input group "    📐 PRESET: TOPINVESTOR";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 
+#endif // SEA_PRESET_RRM_ORG
+
 // ════════════════════════════════════════════════════════════════
+#ifdef SEA_PRESET_TOPINVESTOR
 // TOPINVESTOR: STANDARD — methodology defaults.
 // Change only when testing or adapting to different instruments.
 // ════════════════════════════════════════════════════════════════
@@ -1861,12 +1872,12 @@ input double      Inp_TI_CandleBody_FullRatio      = 0.75;           // TI Full:
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-#endif // SEA_PRESET_TOPINVESTOR
-
 input group "    ⚠️  PRESETS OVERRIDES! (Step1-5)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 1: Bias (Major Trend Direction)";
+#endif // SEA_PRESET_TOPINVESTOR
+
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_CUSTOM_BiasEnabled           = true;           // Override: Bias Enabled
 input EBiasMode   Inp_CUSTOM_BiasMode              = BIAS_2EMA;      // Override: Bias Mode: Manual, 2-EMA, 4-EMA
