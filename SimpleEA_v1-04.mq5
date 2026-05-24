@@ -810,6 +810,29 @@ void OrchestrateTick()
       }
    }
 
+   // 7b. ACCOUNT-LEVEL SAFETY GUARDS (preset-independent; run regardless of
+   //     RRM_EnableDrawdownProtection). All default to 0 = disabled.
+   //     g_peak_equity / current_equity are tracked every tick in step 2 above.
+   if(!drawdown_blocked && Settings.Safety_MaxEquityDrawdownPct > 0.0 && g_peak_equity > 0.0)
+   {
+      double equity_dd_pct = (g_peak_equity - current_equity) / g_peak_equity * 100.0;
+      if(equity_dd_pct >= Settings.Safety_MaxEquityDrawdownPct)
+      {
+         if(Settings.DebugFlow)
+            PrintFormat("[SAFETY] Trading PAUSED: equity drawdown %.2f%% >= limit %.2f%% (peak=%.2f equity=%.2f)",
+                        equity_dd_pct, Settings.Safety_MaxEquityDrawdownPct, g_peak_equity, current_equity);
+         drawdown_blocked = true;
+      }
+   }
+
+   if(!drawdown_blocked && Settings.Safety_MinEquityFloor > 0.0 && current_equity <= Settings.Safety_MinEquityFloor)
+   {
+      if(Settings.DebugFlow)
+         PrintFormat("[SAFETY] Trading PAUSED: equity %.2f <= floor %.2f",
+                     current_equity, Settings.Safety_MinEquityFloor);
+      drawdown_blocked = true;
+   }
+
    // --- LOCAL DATA HOLDERS ---
    int          snap_bias   = 0;
    int          snap_votes  = 0;
@@ -1223,19 +1246,39 @@ void PrintSignalEfficiency()
    Print("");
 
    // ── Component Efficiency ──
-   // Shows each enabled indicator's pass rate relative to bias-confirmed bars.
+   // Shows each enabled indicator's pass rate.
    // DYNAMIC: only enabled indicators appear (controlled by Settings flags).
-   Print("Component Efficiency (Pass Rate Among Bias-Confirmed Bars)");
-   int    bias_passed = st.passed_bias;
-   double bias_rate   = bias_passed * 100.0 / total_bars;
+   //
+   // DENOMINATOR NOTE (bugfix): the per-indicator pass counters in
+   // EvaluateIndicatorX are incremented for EVERY evaluated bar when
+   // Stats_FullEvaluation = true (voters do not early-return on bias==0).
+   // Dividing those all-bar counts by bias-confirmed bars produced
+   // impossible >100% rates (e.g. CandleBody 113.5%). The correct, self-
+   // consistent denominator for the indicator pass counts is total_bars,
+   // which is exactly the population those counters are tallied over
+   // (passed_X + rejected_X == total_bars). The header is corrected to
+   // reflect that this is a pass rate over all evaluated bars.
+   Print("Component Efficiency (Pass Rate Over All Evaluated Bars)");
+   int    bias_passed   = st.passed_bias;
+   double bias_rate     = bias_passed * 100.0 / total_bars;
+   // Denominator for indicator pass counts. In full-evaluation mode the
+   // voters run on every bar, so the population is total_bars. In early-
+   // return mode (Stats_FullEvaluation = false) the voters only run after
+   // bias confirmation, so the population is bias_passed.
+   int    ind_denom     = Settings.Stats_FullEvaluation ? total_bars : bias_passed;
+   string denom_label   = Settings.Stats_FullEvaluation ? "all bars" : "bias-confirmed";
    PrintFormat("  ├─ Bias detection          : %.1f%% (%d / %d bars)",
                bias_rate, bias_passed, total_bars);
-   Print("  └─ When bias ≠ 0:");
+   PrintFormat("  └─ Indicators (denominator = %s):", denom_label);
 
-   // Build a list of enabled indicators with their pass counts
-   // Array size = total supported indicator slots (14: MACD, PSAR, CCI, RSI, ADX, MFI, Sto, BB, P123, Ross, CandleBody, CI, VRC, ATR)
+   // Build a list of enabled indicators with their pass counts.
+   // Array size = all supported voter slots (19): MACD, PSAR, CCI, RSI, ADX,
+   // MFI, Sto, BB, P123, Ross, CandleBody, CI, VRC, ATR, SmaConverge, DPI,
+   // Fib, MTF, VPRR. (Previously this list omitted DPI/MTF/VPRR/Sma/Fib, so
+   // enabled voters such as DPI and VPRR were silently absent from the report
+   // even though they were gating signals.)
    struct SIndEntry { string name; int passed; };
-   SIndEntry inds[14];
+   SIndEntry inds[19];
    int ind_count = 0;
 
    if(Settings.Ind_Macd_Enabled)
@@ -1266,6 +1309,16 @@ void PrintSignalEfficiency()
       { inds[ind_count].name = "VRC";        inds[ind_count++].passed = st.passed_vrc; }
    if(Settings.Ind_Atr_Enabled)
       { inds[ind_count].name = "ATR";        inds[ind_count++].passed = st.passed_atr; }
+   if(Settings.Ind_SmaConverge_Enabled)
+      { inds[ind_count].name = "SmaConverge"; inds[ind_count++].passed = st.passed_sma_converge; }
+   if(Settings.Ind_Dpi_Enabled)
+      { inds[ind_count].name = "DPI";        inds[ind_count++].passed = st.passed_dpi; }
+   if(Settings.Ind_Fib_Enabled)
+      { inds[ind_count].name = "Fib";        inds[ind_count++].passed = st.passed_fib; }
+   if(Settings.Ind_MTF_Enabled)
+      { inds[ind_count].name = "MTF";        inds[ind_count++].passed = st.passed_mtf; }
+   if(Settings.VPRR_Enabled)
+      { inds[ind_count].name = "VPRR";       inds[ind_count++].passed = st.passed_vprr; }
 
    if(ind_count == 0)
       Print("      └─ (no indicators enabled)");
@@ -1273,10 +1326,10 @@ void PrintSignalEfficiency()
    {
       for(int i = 0; i < ind_count; i++)
       {
-         double rate   = (bias_passed > 0) ? inds[i].passed * 100.0 / bias_passed : 0.0;
+         double rate   = (ind_denom > 0) ? inds[i].passed * 100.0 / ind_denom : 0.0;
          string branch = (i < ind_count - 1) ? "      ├─ " : "      └─ ";
          PrintFormat("%s%-12s : %.1f%% (%d / %d)", branch,
-                     inds[i].name, rate, inds[i].passed, bias_passed);
+                     inds[i].name, rate, inds[i].passed, ind_denom);
       }
    }
    Print("");

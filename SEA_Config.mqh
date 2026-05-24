@@ -647,6 +647,13 @@ struct ST_Settings
    int      RRM_MaxConsecutiveLosses;
    int      RRM_MaxTradesPerDay;
    double   RRM_MaxDailyDrawdownPct;
+
+   // ── Optional Account-Level Safety Guards (all OFF/0 by default) ──
+   // These are independent of the daily-scoped RRM Drawdown Protection above
+   // and are NOT zeroed by preset overrides, so they work under any preset.
+   double   Safety_MaxEquityDrawdownPct;   // Pause new entries if peak→trough equity DD ≥ this %. 0 = off.
+   double   Safety_MinEquityFloor;         // Pause new entries if equity ≤ this absolute value. 0 = off.
+   double   Safety_MinRewardRiskRatio;     // Reject entries whose TP:SL ratio < this. 0 = off.
    
    // Phase detection settings
    bool     PhaseDetectionEnabled;        // Master switch for phase system
@@ -1107,6 +1114,15 @@ input bool        Inp_RRM_EnableDrawdownProtection = false;          // RRM DP: 
 input int         Inp_RRM_MaxConsecutiveLosses     = 10;             // RRM DP: Max consecutive losses before pause
 input int         Inp_RRM_MaxTradesPerDay          = 50;             // RRM DP: Max trades per day
 input double      Inp_RRM_MaxDailyDrawdownPct      = 3.0;            // RRM DP: Max daily drawdown %
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🛡️ ACCOUNT-LEVEL SAFETY GUARDS (optional, OFF by default)";
+input group "╚════════════════════════════════════════════════════════╝";
+// These guards are preset-independent: they are NOT cleared by preset overrides,
+// so they remain active under PRESET_RRM/FPM/etc. All default to 0 = disabled,
+// so enabling none reproduces existing backtest behavior exactly.
+input double      Inp_Safety_MaxEquityDrawdownPct  = 0.0;            // SAFETY: Pause new entries if peak→trough equity DD ≥ % (0=off)
+input double      Inp_Safety_MinEquityFloor        = 0.0;            // SAFETY: Pause new entries if equity ≤ absolute value (0=off)
+input double      Inp_Safety_MinRewardRiskRatio    = 0.0;            // SAFETY: Reject entries with TP:SL ratio below this (0=off)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Indicators — Enable/Disable";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -2404,6 +2420,12 @@ void InitializeConfig()
    Settings.RRM_MaxConsecutiveLosses     = Inp_RRM_MaxConsecutiveLosses;
    Settings.RRM_MaxTradesPerDay          = Inp_RRM_MaxTradesPerDay;
    Settings.RRM_MaxDailyDrawdownPct      = Inp_RRM_MaxDailyDrawdownPct;
+
+   // Account-level safety guards (preset-independent; mapped here so they are
+   // never cleared by preset overrides applied later in ApplyPreset()).
+   Settings.Safety_MaxEquityDrawdownPct  = Inp_Safety_MaxEquityDrawdownPct;
+   Settings.Safety_MinEquityFloor        = Inp_Safety_MinEquityFloor;
+   Settings.Safety_MinRewardRiskRatio    = Inp_Safety_MinRewardRiskRatio;
 
     Settings.SlopeLookbackBars      = 1;
     Settings.LayerPullbackEnabled        = Inp_RRM_LayerPullbackEnabled;

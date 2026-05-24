@@ -432,6 +432,58 @@ private:
       return GlobalPipSize(m_symbol);
    }
 
+   // ─────────────────────────────────────────────────────────────────────────
+   // IsModifyAllowed — guard for SL/TP modifications (bugfix)
+   //
+   // The trailing-stop and break-even paths previously called PositionModify()
+   // unconditionally on every management tick. When a tick was processed while
+   // the symbol's trading session was closed (e.g. the 23:00 hour and weekend
+   // gaps seen in the tester), the server rejected the modify with
+   // "[Market closed]" / "failed modify". These rejections are harmless to the
+   // account but flood the journal with errors and waste a modify attempt.
+   //
+   // This helper returns false when a modify would certainly be rejected:
+   //   • the symbol is not in a full-trading mode, or
+   //   • the current server time is outside the symbol's trade session.
+   // Modify paths short-circuit on false, so management simply resumes on the
+   // next tick once the session reopens. No strategy behavior changes — only
+   // doomed modify attempts are skipped.
+   // ─────────────────────────────────────────────────────────────────────────
+   bool IsModifyAllowed() const {
+      // 1) Symbol must permit full trading (not CLOSEONLY / DISABLED / LONGONLY-only, etc.)
+      long trade_mode = SymbolInfoInteger(m_symbol, SYMBOL_TRADE_MODE);
+      if(trade_mode == SYMBOL_TRADE_MODE_DISABLED || trade_mode == SYMBOL_TRADE_MODE_CLOSEONLY)
+         return false;
+
+      // 2) Current server time must fall inside an active trade session for today.
+      datetime now = TimeCurrent();
+      MqlDateTime mdt;
+      TimeToStruct(now, mdt);
+      ENUM_DAY_OF_WEEK dow = (ENUM_DAY_OF_WEEK)mdt.day_of_week;
+
+      // Seconds-since-midnight for the current server time.
+      int now_sec = mdt.hour * 3600 + mdt.min * 60 + mdt.sec;
+
+      datetime from = 0, to = 0;
+      bool any_session = false;
+      for(int s = 0; SymbolInfoSessionTrade(m_symbol, dow, s, from, to); s++) {
+         any_session = true;
+         // Session boundaries are returned as seconds-since-midnight (date part is 1970-01-01).
+         int from_sec = (int)from;
+         int to_sec   = (int)to;
+         if(now_sec >= from_sec && now_sec < to_sec)
+            return true;   // inside an open trade session
+      }
+
+      // If the broker exposes no session table for this symbol we cannot prove
+      // the market is closed — fall back to allowing the modify (preserves prior
+      // behavior on brokers without session metadata).
+      if(!any_session)
+         return true;
+
+      return false;   // sessions exist but 'now' is outside all of them → closed
+   }
+
    // Returns ATR value for SL_MODE_ATR initial SL. Uses shift=1 (closed bar) for consistency with other anchors.
    double GetSLAtr() {
       if(m_h_sl_atr == INVALID_HANDLE) {
@@ -1260,7 +1312,7 @@ private:
             double be_sl = isBuy ? NormalizeDouble(entry + be_buffer, digits) : NormalizeDouble(entry - be_buffer, digits);
             bool already_locked = isBuy ? (cur_sl >= be_sl) : (cur_sl != 0.0 && cur_sl <= be_sl);
             if(already_locked || (isBuy ? (be_sl > cur_sl) : (cur_sl == 0.0 || be_sl < cur_sl))) {
-               if(already_locked || m_trade.PositionModify(ticket, be_sl, cur_tp)) {
+               if(already_locked || (IsModifyAllowed() && m_trade.PositionModify(ticket, be_sl, cur_tp))) {
                   SetPositionBETriggered(ticket, true);
                   m_rrm_be_reached = true;
                   if(!already_locked) cur_sl = be_sl;
@@ -1276,7 +1328,7 @@ private:
 
       if(m_settings.TrailMode == TRAIL_PROFIT_PERCENT) {
          double lpr_sl = CalculateProfitPercentTrailSL(ticket, pos_type, entry, cur_price, cur_sl, pipSize, digits);
-         if(lpr_sl != 0.0) m_trade.PositionModify(ticket, lpr_sl, cur_tp);
+         if(lpr_sl != 0.0 && IsModifyAllowed()) m_trade.PositionModify(ticket, lpr_sl, cur_tp);
          return;
       }
 
@@ -1330,7 +1382,7 @@ private:
       }
 
       bool can_move = isBuy ? (new_sl > cur_sl && new_sl < cur_price) : ((cur_sl == 0.0 || new_sl < cur_sl) && new_sl > cur_price);
-      if(can_move) m_trade.PositionModify(ticket, new_sl, cur_tp);
+      if(can_move && IsModifyAllowed()) m_trade.PositionModify(ticket, new_sl, cur_tp);
    }
 
    void UpdatePositionExcursion(ulong ticket) {
@@ -1452,7 +1504,7 @@ private:
                ? (new_sl > cur_sl && new_sl < current_price)
                : (cur_sl == 0.0 || new_sl < cur_sl) && (new_sl > current_price);
 
-            if(valid)
+            if(valid && IsModifyAllowed())
             {
                if(m_settings.DebugFlow)
                   PrintFormat("[TRAIL_EMA] #%I64u: Moving SL %.5f -> %.5f | EMA(%d, shift=%d)=%.5f | cushion=%.1f pips",
@@ -2204,6 +2256,30 @@ public:
          m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; return;
       }
 
+      // ── SAFETY: minimum reward:risk gate (optional, 0 = disabled) ──
+      // Rejects entries whose TP:SL geometry is unfavorable. Only applies when a
+      // TP exists (tp>0); strategies that exit via trailing/PSAR-flip (tp==0)
+      // have no fixed reward to measure and are intentionally exempt.
+      if(m_settings.Safety_MinRewardRiskRatio > 0.0 && sl > 0.0 && tp > 0.0)
+      {
+         double risk_dist   = MathAbs(entry_price - sl);
+         double reward_dist = MathAbs(tp - entry_price);
+         if(risk_dist > 0.0)
+         {
+            double rr = reward_dist / risk_dist;
+            if(rr < m_settings.Safety_MinRewardRiskRatio)
+            {
+               PrintFormat("🚫 [SAFETY] Entry blocked: R:R %.2f < min %.2f (risk=%.1f pips reward=%.1f pips)",
+                           rr, m_settings.Safety_MinRewardRiskRatio,
+                           risk_dist / GetPipSize(), reward_dist / GetPipSize());
+               m_last_te_time   = iTime(m_symbol, PERIOD_CURRENT, 0);
+               m_last_te_result = "BLOCKED";
+               m_last_te_reason = "RR_BELOW_MIN";
+               return;
+            }
+         }
+      }
+
       if(m_trade.PositionOpen(m_symbol, type, lots, entry_price, sl, tp, comment)) {
          m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "ENTERED";
          m_last_trade_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
@@ -2643,7 +2719,7 @@ public:
             if(improves && new_sl > current_price && step_ok) modify = true;
          }
          
-         if(modify) {
+         if(modify && IsModifyAllowed()) {
             m_trade.PositionModify(ticket, new_sl, current_tp);
          }
       }
