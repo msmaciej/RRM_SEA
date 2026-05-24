@@ -744,9 +744,12 @@ void PrintVPRRSummary(const ST_Settings &cfg, const string preset_name)
    {
       PrintFormat("📊 VPRR [%s | %s | %s]  DISABLED — no volume data or AutoEnable=OFF",
                   preset_name, sym, tf);
-      ChartSetString(0, CHART_COMMENT,
-         StringFormat("VPRR: OFF  [%s | %s | %s]\nSet AutoEnable=ON or check volume source",
-                      preset_name, sym, tf));
+      if(Inp_UI_ShowVPRRComment)
+         ChartSetString(0, CHART_COMMENT,
+            StringFormat("VPRR: OFF  [%s | %s | %s]\nSet AutoEnable=ON or check volume source",
+                         preset_name, sym, tf));
+      else
+         ChartSetString(0, CHART_COMMENT, ""); // ensure no stale comment left on chart
       return;
    }
 
@@ -771,20 +774,25 @@ void PrintVPRRSummary(const ST_Settings &cfg, const string preset_name)
    // ── Chart comment: visible directly on the chart ──────────────
    // Effective values shown — no log-digging required.
    // Refreshed on every EA start, instrument switch, or TF change.
-   ChartSetString(0, CHART_COMMENT,
-      StringFormat(
-         "━━━ VPRR ACTIVE ━━━\n"
-         "Preset : %s\n"
-         "Symbol : %s  |  TF: %s\n"
-         "Source : %s\n"
-         "MinRatio: %.2f  (effective)\n"
-         "RecBars : %d   (effective)\n"
-         "━━━━━━━━━━━━━━━━━━━\n"
-         "Tune: MT5 inputs → VPRR group\n"
-         "M5×0.85  M15×1.00  H1×0.95  H4+×0.90\n"
-         "Restart EA after instrument/TF change",
-         preset_name, sym, tf, vol_src,
-         cfg.VPRR_MinRatio, cfg.VPRR_RecoveryBars));
+   // Gated by Inp_UI_ShowVPRRComment (default OFF) so the chart stays clean
+   // unless the user opts in. The full detail above always goes to the log.
+   if(Inp_UI_ShowVPRRComment)
+      ChartSetString(0, CHART_COMMENT,
+         StringFormat(
+            "━━━ VPRR ACTIVE ━━━\n"
+            "Preset : %s\n"
+            "Symbol : %s  |  TF: %s\n"
+            "Source : %s\n"
+            "MinRatio: %.2f  (effective)\n"
+            "RecBars : %d   (effective)\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "Tune: MT5 inputs → VPRR group\n"
+            "M5×0.85  M15×1.00  H1×0.95  H4+×0.90\n"
+            "Restart EA after instrument/TF change",
+            preset_name, sym, tf, vol_src,
+            cfg.VPRR_MinRatio, cfg.VPRR_RecoveryBars));
+   else
+      ChartSetString(0, CHART_COMMENT, ""); // keep chart clean when toggle is off
 }
 
 //+------------------------------------------------------------------+

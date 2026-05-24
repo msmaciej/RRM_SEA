@@ -884,6 +884,22 @@ input double      Inp_RM_MarginAdj_JPY             = 0.9;            // RM Margi
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "║   🛡️ ACCOUNT-LEVEL SAFETY GUARDS (optional, OFF by default)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+// These guards are preset-independent: they are NOT cleared by preset overrides,
+// so they remain active under PRESET_RRM/FPM/etc. All default to 0 = disabled,
+// so enabling none reproduces existing backtest behavior exactly.
+input double      Inp_Safety_MaxEquityDrawdownPct  = 0.0;            // SAFETY: Pause new entries if peak→trough equity DD ≥ % (0=off)
+input double      Inp_Safety_MinEquityFloor        = 0.0;            // SAFETY: Pause new entries if equity ≤ absolute value (0=off)
+input double      Inp_Safety_MinRewardRiskRatio    = 0.0;            // SAFETY: Reject entries with TP:SL ratio below this (0=off)
+input bool        Inp_Safety_CountBEInAggregateRisk = false;         // SAFETY: Count BE positions toward MaxTotalRisk (closes pyramiding gap)
+input int         Inp_Safety_MaxPositionsPerDir    = 0;              // SAFETY: Max concurrent positions per direction (0=off)
+input bool        Inp_Safety_DelayTrailUntilR      = false;          // SAFETY: Delay trailing until open profit reaches R-multiple
+input double      Inp_Safety_TrailActivateR        = 0.0;            // SAFETY: R-multiple of profit before trailing engages (0=off)
+input bool        Inp_Safety_RequirePriorAtBEToAdd = false;         // SAFETY: New trade only if all open same-symbol positions are at BE+ (staged risk)
+
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🚫✅ VETO CONTROLS (GLOBAL)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
@@ -931,8 +947,8 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: COCKPIT PANEL";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_UI_ShowCockpitPanel          = true;           // UI CP: COCKPIT PANEL
-input ENUM_BASE_CORNER  Inp_UI_CockpitCorner       = CORNER_LEFT_UPPER; // UI CP: corner
+input bool        Inp_UI_ShowCockpitPanel          = true;          // UI CP: COCKPIT PANEL (on-chart info; off by default)
+input ENUM_BASE_CORNER  Inp_UI_CockpitCorner       = CORNER_LEFT_UPPER; // UI CP: corner (right side avoids chart-comment overlap top-left)
 input int         Inp_UI_CockpitX                  = 30;             // UI CP: Cockpit panel X (px)
 input int         Inp_UI_CockpitY                  = 30;             // UI CP: Cockpit panel Y (px)
 input int         Inp_UI_CockpitFontSize           = 10;             // UI CP: Cockpit panel font size
@@ -950,7 +966,8 @@ input group "╔═════════════════════�
 input group "║   🎨 UI: STATUS PANEL";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_UI_ShowStatusPanel           = false;          // UI SP: STATUS PANEL
-input ENUM_BASE_CORNER Inp_UI_PanelCorner          = CORNER_LEFT_UPPER; // UI SP: Status panel corner
+input ENUM_BASE_CORNER Inp_UI_PanelCorner          = CORNER_RIGHT_UPPER; // UI SP: Status panel corner (right side avoids chart-comment overlap)
+input bool        Inp_UI_ShowVPRRComment           = true;          // UI: Show VPRR ACTIVE summary as chart comment (off by default)
 input bool        Inp_UI_ManageChartIndicators     = false;          // UI SP: Auto-add/remove chart indicators
 input int         Inp_UI_PanelX                    = 30;             // UI SP: Status panel X (px)
 input int         Inp_UI_PanelY                    = 30;             // UI SP: Status panel Y (px)
@@ -1070,14 +1087,6 @@ input double     Inp_RRM_SL_AtrMult                = 1.0;            // RRM SL: 
 input int        Inp_RRM_MinBarsAfterClose         = 3;              // RRM SL: post-trade cooldown bars (0=off)
 input int        Inp_RRM_ReEntryLotScalePct        = 50;             // RRM Re-entry: lot size % for re-entry after BE (0=full size; 50=half; since original is at BE total risk stays controlled)
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📊 RRM: VPRR Volume Confirmation";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool            Inp_RRM_VPRR_AutoEnable        = true;          // RRM VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual toggle below)
-input bool            Inp_RRM_VPRR_Enabled           = false;         // RRM VPRR: Manual enable (only used when AutoEnable=OFF)
-input EVPRRVolumeType Inp_RRM_VPRR_VolumeType        = VPRR_VOL_AUTO; // RRM VPRR: Volume source (Auto=real then tick fallback)
-input int             Inp_RRM_VPRR_RecoveryBars      = 5;             // RRM VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
-input int             Inp_RRM_VPRR_Weight            = 1;             // RRM VPRR: Vote weight
-input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETrailingMode Inp_RRM_TrailMode              = TRAIL_PSAR;     // RRM TS: Trailing stop mode
@@ -1122,20 +1131,6 @@ input int         Inp_RRM_MaxConsecutiveLosses     = 10;             // RRM DP: 
 input int         Inp_RRM_MaxTradesPerDay          = 50;             // RRM DP: Max trades per day
 input double      Inp_RRM_MaxDailyDrawdownPct      = 3.0;            // RRM DP: Max daily drawdown %
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🛡️ ACCOUNT-LEVEL SAFETY GUARDS (optional, OFF by default)";
-input group "╚════════════════════════════════════════════════════════╝";
-// These guards are preset-independent: they are NOT cleared by preset overrides,
-// so they remain active under PRESET_RRM/FPM/etc. All default to 0 = disabled,
-// so enabling none reproduces existing backtest behavior exactly.
-input double      Inp_Safety_MaxEquityDrawdownPct  = 0.0;            // SAFETY: Pause new entries if peak→trough equity DD ≥ % (0=off)
-input double      Inp_Safety_MinEquityFloor        = 0.0;            // SAFETY: Pause new entries if equity ≤ absolute value (0=off)
-input double      Inp_Safety_MinRewardRiskRatio    = 0.0;            // SAFETY: Reject entries with TP:SL ratio below this (0=off)
-input bool        Inp_Safety_CountBEInAggregateRisk = false;         // SAFETY: Count BE positions toward MaxTotalRisk (closes pyramiding gap)
-input int         Inp_Safety_MaxPositionsPerDir    = 0;              // SAFETY: Max concurrent positions per direction (0=off)
-input bool        Inp_Safety_DelayTrailUntilR      = false;          // SAFETY: Delay trailing until open profit reaches R-multiple
-input double      Inp_Safety_TrailActivateR        = 0.0;            // SAFETY: R-multiple of profit before trailing engages (0=off)
-input bool        Inp_Safety_RequirePriorAtBEToAdd = false;         // SAFETY: New trade only if all open same-symbol positions are at BE+ (staged risk)
-input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Indicators — Enable/Disable";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_Use_Adx                  = false;          // RRM Ind: ADX vote enabled
@@ -1148,6 +1143,16 @@ input bool        Inp_RRM_Use_Mfi                  = false;          // RRM Ind:
 input bool        Inp_RRM_Use_Psar                 = true;           // RRM Ind: PSAR vote enabled
 input bool        Inp_RRM_Use_Rsi                  = false;          // RRM Ind: RSI vote enabled
 input bool        Inp_RRM_Use_Stoch                = false;          // RRM Ind: STO vote enabled
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📊 RRM: VPRR Volume Confirmation";
+input group "╚════════════════════════════════════════════════════════╝";
+input EVPRRVolumeType Inp_RRM_VPRR_VolumeType      = VPRR_VOL_AUTO;  // RRM VPRR: Volume source (Auto=real then tick fallback)
+input bool        Inp_RRM_VPRR_AutoEnable          = true;           // RRM VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual toggle below)
+input bool        Inp_RRM_VPRR_Enabled             = false;          // RRM VPRR: Manual enable (only used when AutoEnable=OFF)
+input int         Inp_RRM_VPRR_RecoveryBars        = 5;              // RRM VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
+input int         Inp_RRM_VPRR_Weight              = 1;              // RRM VPRR: Vote weight
+
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: ADX Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1241,6 +1246,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI v31 — Core Math (shared by all)";
 input group "╚════════════════════════════════════════════════════════╝";
+input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price       = PRICE_TYPICAL;  // RRM ORG DPI: CCI applied price
 input int         Inp_RRM_ORG_DPI_MacdFast               = 8;        // RRM ORG DPI: MACD fast EMA period
 input int         Inp_RRM_ORG_DPI_MacdSlow               = 13;       // RRM ORG DPI: MACD slow EMA period
 input int         Inp_RRM_ORG_DPI_RedSignalType          = 3;        // RRM ORG DPI: Red line type (1=EMA_A 2=EMA_B 3=EMA_C 4=EMA_D 5=Double)
@@ -1251,7 +1257,6 @@ input int         Inp_RRM_ORG_DPI_RedEMA_D               = 21;       // RRM ORG 
 input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst      = 5;        // RRM ORG DPI: Double-smooth first EMA
 input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond     = 8;        // RRM ORG DPI: Double-smooth second EMA
 input int         Inp_RRM_ORG_DPI_CCI_Period             = 13;       // RRM ORG DPI: CCI period
-input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price       = PRICE_TYPICAL;  // RRM ORG DPI: CCI applied price
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Vote (I factor — ribbon direction)";
@@ -1299,9 +1304,9 @@ input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI System C — CCI Reset-Recovery Gate";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_DPI_RequireResetRecovery  = true;      // RRM ORG DPI: Require CCI reset→recovery cycle before entry
-input int         Inp_RRM_ORG_DPI_ResetRecoveryBars     = 1;         // RRM ORG DPI: Recovery bars after CCI flip-back (0=immediate)
-input bool        Inp_RRM_ORG_DPI_ResetRequireGreen     = false;     // RRM ORG DPI: Also require GREEN reappearance during recovery
+input bool        Inp_RRM_ORG_DPI_RequireResetRecovery   = true;     // RRM ORG DPI: Require CCI reset→recovery cycle before entry
+input int         Inp_RRM_ORG_DPI_ResetRecoveryBars      = 1;        // RRM ORG DPI: Recovery bars after CCI flip-back (0=immediate)
+input bool        Inp_RRM_ORG_DPI_ResetRequireGreen      = false;    // RRM ORG DPI: Also require GREEN reappearance during recovery
 //
 // Inp_RRM_ORG_DPI_RequireResetRecovery — CCI RESET-RECOVERY ENTRY GATE
 // Requires HistTrackingEnabled = true and DPI_UseCCIReset = true.
@@ -1325,6 +1330,49 @@ input bool        Inp_RRM_ORG_DPI_ResetRequireGreen     = false;     // RRM ORG 
 //   When true, recovery also requires GREEN to reappear (Blue+hist aligned again).
 //   Stricter: not just CCI agreeing, but full momentum alignment restored.
 //
+
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    📊 VPRR: Shared Per-Instrument + Timeframe Tuning";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "    (used by RRM / RRM_ORG / TOPINVESTOR presets)";
+input group "╚════════════════════════════════════════════════════════╝";
+// Effective MinRatio = base x TF multiplier (auto-applied at EA start).
+// Restart EA after instrument or TF change to auto-update settings.
+input double          Inp_VPRR_MinRatio_Gold             = 1.0;      // VPRR Gold (XAU): MinRatio base (M15:1.0; TF mult auto-scales)
+input int             Inp_VPRR_RecBars_Gold              = 3;        // VPRR Gold: RecoveryBars base
+
+input double          Inp_VPRR_MinRatio_Silver           = 0.9;      // VPRR Silver (XAG): MinRatio base (thinner market, 0.85-1.0)
+input int             Inp_VPRR_RecBars_Silver            = 2;        // VPRR Silver: RecoveryBars base
+
+input double          Inp_VPRR_MinRatio_IndicesUS        = 1.1;      // VPRR US Indices (NAS/US30/SPX): MinRatio base (1.1-1.3; NY session 14:30-21:00 UTC)
+input int             Inp_VPRR_RecBars_IndicesUS         = 3;        // VPRR US Indices: RecoveryBars base
+
+input double          Inp_VPRR_MinRatio_IndicesEU        = 1.0;      // VPRR EU Indices (DAX/FTSE): MinRatio base (1.0-1.2; Frankfurt/London 07:00-15:30 UTC)
+input int             Inp_VPRR_RecBars_IndicesEU         = 3;        // VPRR EU Indices: RecoveryBars base
+
+input double          Inp_VPRR_MinRatio_Oil              = 0.9;      // VPRR Oil (WTI/Brent): MinRatio base (0.9-1.0)
+input int             Inp_VPRR_RecBars_Oil               = 3;        // VPRR Oil: RecoveryBars base
+
+input double          Inp_VPRR_MinRatio_Crypto           = 0.7;      // VPRR Crypto (BTC/ETH): MinRatio base (0.7-0.8; retail-dominated)
+input int             Inp_VPRR_RecBars_Crypto            = 2;        // VPRR Crypto: RecoveryBars base
+
+input double          Inp_VPRR_MinRatio_Equities         = 1.0;      // VPRR Equities (NVDA/AAPL etc.): MinRatio base (0.9-1.1)
+input int             Inp_VPRR_RecBars_Equities          = 2;        // VPRR Equities: RecoveryBars base (fast institutional execution)
+
+input double          Inp_VPRR_MinRatio_FX               = 0.7;      // VPRR FX: MinRatio base (0.6-0.7; tick vol approximation)
+input int             Inp_VPRR_RecBars_FX                = 3;        // VPRR FX: RecoveryBars base
+input double          Inp_VPRR_MinRatio_NonFXTick        = 0.8;      // VPRR non-FX tick fallback: MinRatio
+
+// TF auto-multiplier: M5x0.85  M15x1.00  H1x0.95  H4+x0.90 (see chart comment for effective value)
+input bool            Inp_VPRR_TF_ReduceRecBars          = true; // VPRR TF: Reduce RecBars by 1 on H4+ and M5
+input double          Inp_VPRR_TF_Mult_M5                = 0.85; // VPRR TF: M5 multiplier (noisier, loosen 15%%)
+input double          Inp_VPRR_TF_Mult_M15               = 1.00; // VPRR TF: M15 multiplier (baseline)
+input double          Inp_VPRR_TF_Mult_H1                = 0.95; // VPRR TF: H1 multiplier (fewer bars, loosen slightly)
+input double          Inp_VPRR_TF_Mult_H4Plus            = 0.90; // VPRR TF: H4+ multiplier (very few cycles, loosen)
+
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET: RRM_ORG";
@@ -1437,7 +1485,14 @@ input double      Inp_RRM_ORG_BE_ProgressPct       = 70.0;           // RRM ORG 
 // ⚠️ BE lock is one-time: once triggered, SL moves to entry+buffer and does not recalculate.
 // Buffer pips are TF-adaptive in PRESET_RRM_ORG via GetTFBasedCushion().
 //
-
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📊 RRM_ORG: VPRR Volume Confirmation";
+input group "╚════════════════════════════════════════════════════════╝";
+input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType        = VPRR_VOL_AUTO;  // RRM ORG VPRR: VPRR volume source (Auto=real then tick fallback)
+input bool            Inp_RRM_ORG_VPRR_AutoEnable        = true;           // RRM ORG VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual Enabled toggle below)
+input bool            Inp_RRM_ORG_VPRR_Enabled           = false;          // RRM ORG VPRR: Manual enable (only used when AutoEnable=OFF)
+input int             Inp_RRM_ORG_VPRR_RecoveryBars      = 5;              // RRM ORG VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
+input int             Inp_RRM_ORG_VPRR_Weight            = 1;              // RRM ORG VPRR: Vote weight
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Multi-Bar Momentum";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1553,7 +1608,6 @@ input int         Inp_RRM_ORG_Ema4Period           = 89;             // RRM ORG 
 input int         Inp_RRM_ORG_CandleBody_Weight    = 1;              // RRM ORG QA: CandleBody vote weight
 input int         Inp_RRM_ORG_SmaConverge_Weight   = 1;              // RRM ORG QA: SmaConverge vote weight
 input int         Inp_RRM_ORG_TrailPsarShiftDelay  = 1;              // RRM ORG QA: PSAR trail shift (1–3 bars back)
-input group " ";
 input int         Inp_RRM_ORG_PhaseConfirmM5       = 0;              // RRM ORG QA: PhaseConfirmBars <M5
 input int         Inp_RRM_ORG_PhaseConfirmM30      = 0;              // RRM ORG QA: PhaseConfirmBars <M30
 input int         Inp_RRM_ORG_PhaseConfirmH1plus   = 0;              // RRM ORG QA: PhaseConfirmBars H1+
@@ -1569,43 +1623,6 @@ input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;           // RRM ORG 
 input double      Inp_RRM_ORG_RecoveryRatio_W      = -1.0;           // RRM ORG PB: LayerW recovery override (-1=use global, 0.1-1.0)
 input double      Inp_RRM_ORG_RecoveryRatio_M      = -1.0;           // RRM ORG PB: LayerM recovery override (-1=use global, 0.1-1.0)
 input double      Inp_RRM_ORG_RecoveryRatio_S      = -1.0;           // RRM ORG PB: LayerS recovery override (-1=use global, 0.1-1.0)
-input group "╔════════════════════════════════════════════════════════╗";
-input group " ";
-input group "    📊 VPRR: Shared Per-Instrument + Timeframe Tuning";
-input group "    (used by RRM / RRM_ORG / TOPINVESTOR presets)";
-// Effective MinRatio = base x TF multiplier (auto-applied at EA start).
-// Restart EA after instrument or TF change to auto-update settings.
-input double          Inp_VPRR_MinRatio_Gold       = 1.0;   // VPRR Gold (XAU): MinRatio base (M15:1.0; TF mult auto-scales)
-input int             Inp_VPRR_RecBars_Gold         = 3;    // VPRR Gold: RecoveryBars base
-input double          Inp_VPRR_MinRatio_Silver      = 0.9;  // VPRR Silver (XAG): MinRatio base (thinner market, 0.85-1.0)
-input int             Inp_VPRR_RecBars_Silver       = 2;    // VPRR Silver: RecoveryBars base
-input double          Inp_VPRR_MinRatio_IndicesUS   = 1.1;  // VPRR US Indices (NAS/US30/SPX): MinRatio base (1.1-1.3; NY session 14:30-21:00 UTC)
-input int             Inp_VPRR_RecBars_IndicesUS    = 3;    // VPRR US Indices: RecoveryBars base
-input double          Inp_VPRR_MinRatio_IndicesEU   = 1.0;  // VPRR EU Indices (DAX/FTSE): MinRatio base (1.0-1.2; Frankfurt/London 07:00-15:30 UTC)
-input int             Inp_VPRR_RecBars_IndicesEU    = 3;    // VPRR EU Indices: RecoveryBars base
-input double          Inp_VPRR_MinRatio_Oil         = 0.9;  // VPRR Oil (WTI/Brent): MinRatio base (0.9-1.0)
-input int             Inp_VPRR_RecBars_Oil          = 3;    // VPRR Oil: RecoveryBars base
-input double          Inp_VPRR_MinRatio_Crypto      = 0.7;  // VPRR Crypto (BTC/ETH): MinRatio base (0.7-0.8; retail-dominated)
-input int             Inp_VPRR_RecBars_Crypto       = 2;    // VPRR Crypto: RecoveryBars base
-input double          Inp_VPRR_MinRatio_Equities    = 1.0;  // VPRR Equities (NVDA/AAPL etc.): MinRatio base (0.9-1.1)
-input int             Inp_VPRR_RecBars_Equities     = 2;    // VPRR Equities: RecoveryBars base (fast institutional execution)
-input double          Inp_VPRR_MinRatio_FX          = 0.7;  // VPRR FX: MinRatio base (0.6-0.7; tick vol approximation)
-input int             Inp_VPRR_RecBars_FX           = 3;    // VPRR FX: RecoveryBars base
-input double          Inp_VPRR_MinRatio_NonFXTick   = 0.8;  // VPRR non-FX tick fallback: MinRatio
-// TF auto-multiplier: M5x0.85  M15x1.00  H1x0.95  H4+x0.90 (see chart comment for effective value)
-input double          Inp_VPRR_TF_Mult_M5           = 0.85; // VPRR TF: M5 multiplier (noisier, loosen 15%%)
-input double          Inp_VPRR_TF_Mult_M15          = 1.00; // VPRR TF: M15 multiplier (baseline)
-input double          Inp_VPRR_TF_Mult_H1           = 0.95; // VPRR TF: H1 multiplier (fewer bars, loosen slightly)
-input double          Inp_VPRR_TF_Mult_H4Plus       = 0.90; // VPRR TF: H4+ multiplier (very few cycles, loosen)
-input bool            Inp_VPRR_TF_ReduceRecBars     = true; // VPRR TF: Reduce RecBars by 1 on H4+ and M5
-
-input group "║   📊 RRM_ORG: VPRR Volume Confirmation";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool            Inp_RRM_ORG_VPRR_AutoEnable   = true;           // RRM ORG VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual Enabled toggle below)
-input bool            Inp_RRM_ORG_VPRR_Enabled      = false;          // RRM ORG VPRR: Manual enable (only used when AutoEnable=OFF)
-input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType   = VPRR_VOL_AUTO;  // RRM ORG VPRR: VPRR volume source (Auto=real then tick fallback)
-input int             Inp_RRM_ORG_VPRR_RecoveryBars = 5;              // RRM ORG VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
-input int             Inp_RRM_ORG_VPRR_Weight       = 1;              // RRM ORG VPRR: Vote weight
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: EMA Fan Filter";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1637,129 +1654,130 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 TOPINVESTOR: STANDARD — EMA Ribbon                ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_TI_Ema1                  = 9;                  // TI EMA: EMA1 period (trailing exit ref)
-input int         Inp_TI_Ema2                  = 50;                 // TI EMA: EMA2 period (primary bounce)
-input int         Inp_TI_Ema3                  = 89;                 // TI EMA: EMA3 period (intermediate structure)
-input int         Inp_TI_Ema4                  = 200;                // TI EMA: EMA4 period (major trend anchor)
+input int         Inp_TI_Ema1                      = 9;              // TI EMA: EMA1 period (trailing exit ref)
+input int         Inp_TI_Ema2                      = 50;             // TI EMA: EMA2 period (primary bounce)
+input int         Inp_TI_Ema3                      = 89;             // TI EMA: EMA3 period (intermediate structure)
+input int         Inp_TI_Ema4                      = 200;            // TI EMA: EMA4 period (major trend anchor)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 TOPINVESTOR: STANDARD — Signal Architecture       ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_TI_BlockUnorderedPhase   = true;               // TI Arch: block unordered phase
-input bool        Inp_TI_RequireMinPhaseConfirm = true;              // TI Arch: require phase confirm bars
-input bool        Inp_TI_Emerging_AllowStrong  = false;              // TI Arch: allow strong trades in EM phase
-input bool        Inp_TI_CloseOnReverse        = false;              // TI Arch: close on bias reversal
+input bool        Inp_TI_BlockUnorderedPhase       = true;           // TI Arch: block unordered phase
+input bool        Inp_TI_RequireMinPhaseConfirm    = true;           // TI Arch: require phase confirm bars
+input bool        Inp_TI_Emerging_AllowStrong      = false;          // TI Arch: allow strong trades in EM phase
+input bool        Inp_TI_CloseOnReverse            = false;          // TI Arch: close on bias reversal
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 TOPINVESTOR: STANDARD — Layer (Pullback Detection)║";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_TI_LayerBaselineLookback = 34;                 // TI Layer: baseline lookback
-input double      Inp_TI_LayerPullbackRatio    = 0.5;                // TI Layer: pullback ratio
-input double      Inp_TI_LayerRecoveryRatio    = 0.3;                // TI Layer: recovery ratio
-input double      Inp_TI_LayerFlatRatio        = 0.15;               // TI Layer: flat tolerance ratio
+input int         Inp_TI_LayerBaselineLookback     = 34;             // TI Layer: baseline lookback
+input double      Inp_TI_LayerPullbackRatio        = 0.5;            // TI Layer: pullback ratio
+input double      Inp_TI_LayerRecoveryRatio        = 0.3;            // TI Layer: recovery ratio
+input double      Inp_TI_LayerFlatRatio            = 0.15;           // TI Layer: flat tolerance ratio
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 TOPINVESTOR: STANDARD — HTF Confirmation          ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_TI_MTF_EMA_Fast          = 50;                 // TI HTF: fast EMA period
-input int         Inp_TI_MTF_EMA_Slow          = 200;                // TI HTF: slow EMA period
+input int         Inp_TI_MTF_EMA_Fast              = 50;             // TI HTF: fast EMA period
+input int         Inp_TI_MTF_EMA_Slow              = 200;            // TI HTF: slow EMA period
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 TOPINVESTOR: STANDARD — Exit Strategy             ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input ETrailingMode   Inp_TI_TrailMode         = TRAIL_EMA;          // TI Exit: trail mode
-input int             Inp_TI_TrailEMA_Shift    = 1;                  // TI Exit: trail EMA shift (1=tight, 2=cushion)
-input ETrailTrigger   Inp_TI_TrailTrigger      = TRIGGER_BREAKEVEN;  // TI Exit: trail trigger
-input double          Inp_TI_TrailStepPips     = 5.0;                // TI Exit: trail step (pips)
-input double          Inp_TI_TrailProfitPercent = 2.0;               // TI Exit: trail lock profit %
-input ESLMode         Inp_TI_SLMode            = SL_MODE_SWING;      // TI Exit: SL mode
-input int             Inp_TI_SL_AtrPeriod      = 14;                 // TI Exit: ATR period (SL_MODE_ATR only)
-input double          Inp_TI_SL_AtrMult        = 1.0;                // TI Exit: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical)
-input ETPMode         Inp_TI_TPMode            = TP_MODE_RR;         // TI Exit: TP mode
-input double          Inp_TI_RRRatio           = 2.0;                // TI Exit: R:R ratio
-input EBeMode         Inp_TI_BE_Mode           = BE_MODE_R_MULTIPLE; // TI Exit: BE mode
-input double          Inp_TI_BE_RMultiple      = 1.0;                // TI Exit: BE trigger (N×R)
+input ETrailingMode   Inp_TI_TrailMode             = TRAIL_EMA;         // TI Exit: trail mode
+input int             Inp_TI_TrailEMA_Shift        = 1;                 // TI Exit: trail EMA shift (1=tight, 2=cushion)
+input ETrailTrigger   Inp_TI_TrailTrigger          = TRIGGER_BREAKEVEN; // TI Exit: trail trigger
+input double          Inp_TI_TrailStepPips         = 5.0;               // TI Exit: trail step (pips)
+input double          Inp_TI_TrailProfitPercent    = 2.0;               // TI Exit: trail lock profit %
+input ESLMode         Inp_TI_SLMode                = SL_MODE_SWING;     // TI Exit: SL mode
+input int             Inp_TI_SL_AtrPeriod          = 14;                // TI Exit: ATR period (SL_MODE_ATR only)
+input double          Inp_TI_SL_AtrMult            = 1.0;               // TI Exit: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical)
+input ETPMode         Inp_TI_TPMode                = TP_MODE_RR;        // TI Exit: TP mode
+input double          Inp_TI_RRRatio               = 2.0;               // TI Exit: R:R ratio
+input EBeMode         Inp_TI_BE_Mode               = BE_MODE_R_MULTIPLE; // TI Exit: BE mode
+input double          Inp_TI_BE_RMultiple          = 1.0;               // TI Exit: BE trigger (N×R)
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 TOPINVESTOR: STANDARD — EMA Fan Filter            ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_TI_EmaFanFilterEnabled   = true;               // TI Fan: enable EMA fan filter
-input double      Inp_TI_EmaFanBase_M1M5       = 50.0;               // TI Fan: max pips M1–M5
-input double      Inp_TI_EmaFanBase_M6M30      = 80.0;               // TI Fan: max pips M6–M30
-input double      Inp_TI_EmaFanBase_H1         = 120.0;              // TI Fan: max pips H1
-input double      Inp_TI_EmaFanBase_H2H4       = 200.0;              // TI Fan: max pips H2–H4
-input double      Inp_TI_EmaFanBase_H4Plus     = 350.0;              // TI Fan: max pips H4+
+input bool        Inp_TI_EmaFanFilterEnabled       = true;           // TI Fan: enable EMA fan filter
+input double      Inp_TI_EmaFanBase_M1M5           = 50.0;           // TI Fan: max pips M1–M5
+input double      Inp_TI_EmaFanBase_M6M30          = 80.0;           // TI Fan: max pips M6–M30
+input double      Inp_TI_EmaFanBase_H1             = 120.0;          // TI Fan: max pips H1
+input double      Inp_TI_EmaFanBase_H2H4           = 200.0;          // TI Fan: max pips H2–H4
+input double      Inp_TI_EmaFanBase_H4Plus         = 350.0;          // TI Fan: max pips H4+
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 TOPINVESTOR: STANDARD — Drawdown Protection       ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_TI_EnableDDProtection    = true;               // TI DD: enable
-input int         Inp_TI_MaxConsecutiveLosses  = 4;                  // TI DD: max consecutive losses
-input int         Inp_TI_MaxTradesPerDay       = 0;                  // TI DD: max trades/day (0=unlimited)
-input double      Inp_TI_MaxDailyDrawdownPct   = 2.0;                // TI DD: max daily DD %
+input bool        Inp_TI_EnableDDProtection        = true;           // TI DD: enable
+input int         Inp_TI_MaxConsecutiveLosses      = 4;              // TI DD: max consecutive losses
+input int         Inp_TI_MaxTradesPerDay           = 0;              // TI DD: max trades/day (0=unlimited)
+input double      Inp_TI_MaxDailyDrawdownPct       = 2.0;            // TI DD: max daily DD %
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📊 TOPINVESTOR: VPRR Volume Confirmation             ║";
+input group "╚════════════════════════════════════════════════════════╝";
+input EVPRRVolumeType Inp_TI_VPRR_VolumeType       = VPRR_VOL_AUTO;  // TI VPRR: Volume source (Auto=real then tick fallback)
+input bool        Inp_TI_VPRR_AutoEnable           = true;           // TI VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual toggle below)
+input bool        Inp_TI_VPRR_Enabled              = false;          // TI VPRR: Manual enable (only used when AutoEnable=OFF)
+input int         Inp_TI_VPRR_RecoveryBars         = 5;              // TI VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
+input int         Inp_TI_VPRR_Weight               = 1;              // TI VPRR: Vote weight
+input bool        Inp_TI_PhaseAllowEM              = true;           // TI: allow Emerging phase
 
 // ════════════════════════════════════════════════════════════════
 // TOPINVESTOR: Quick Profile + core toggles
 // ════════════════════════════════════════════════════════════════
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 TOPINVESTOR: Quick Profile                        ║";
+input group "║   📐 TOPINVESTOR: PROFILE                              ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input ETIProfile  Inp_TI_Profile               = TI_MODERATE;        // TI: profile select
-input int         Inp_TI_MinBarsAfterClose     = 3;                  // TI: cooldown bars after close (0=off)
-input int         Inp_TI_ReEntryLotScalePct    = 50;                 // TI Re-entry: lot size % for re-entry after BE (0=full size; 50=half)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📊 TI: VPRR Volume Confirmation";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool            Inp_TI_VPRR_AutoEnable         = true;          // TI VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual toggle below)
-input bool            Inp_TI_VPRR_Enabled            = false;         // TI VPRR: Manual enable (only used when AutoEnable=OFF)
-input EVPRRVolumeType Inp_TI_VPRR_VolumeType         = VPRR_VOL_AUTO; // TI VPRR: Volume source (Auto=real then tick fallback)
-input int             Inp_TI_VPRR_RecoveryBars       = 5;             // TI VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
-input int             Inp_TI_VPRR_Weight             = 1;             // TI VPRR: Vote weight
-input bool        Inp_TI_PhaseAllowEM          = true;               // TI: allow Emerging phase
+input ETIProfile  Inp_TI_Profile                   = TI_MODERATE;    // TI: profile select
+input int         Inp_TI_MinBarsAfterClose         = 3;              // TI: cooldown bars after close (0=off)
+input int         Inp_TI_ReEntryLotScalePct        = 50;             // TI Re-entry: lot size % for re-entry after BE (0=full size; 50=half)
 
 // ════════════════════════════════════════════════════════════════
 // TOPINVESTOR: Conservative voters — always active
 // ════════════════════════════════════════════════════════════════
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 TOPINVESTOR: Conservative voters (always active)  ║";
+input group "║   📐 TOPINVESTOR: CONSERVATIVE voters (always active)  ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_TI_Psar_Step             = 0.02;      // TI Con: PSAR step
-input double      Inp_TI_Psar_Max              = 0.2;       // TI Con: PSAR max
-input int         Inp_TI_ADX_Period            = 14;        // TI Con: ADX period
-input double      Inp_TI_ADX_Percentile        = 50.0;      // TI Con: ADX percentile threshold
-input int         Inp_TI_ADX_Lookback          = 100;       // TI Con: ADX percentile lookback
-input double      Inp_TI_ADX_Threshold_Accum   = 12.0;      // TI Con: ADX threshold Accumulation
-input double      Inp_TI_ADX_Threshold_Trend   = 25.0;      // TI Con: ADX threshold Trending
-input double      Inp_TI_ADX_Threshold_Dist    = 18.0;      // TI Con: ADX threshold Distribution
-input int         Inp_TI_CandleBody_AvgPeriod  = 10;        // TI Con: CBody avg period
-input double      Inp_TI_CandleBody_MaxMult    = 2.5;       // TI Con: CBody max spike mult
+input double      Inp_TI_Psar_Step                 = 0.02;           // TI Con: PSAR step
+input double      Inp_TI_Psar_Max                  = 0.2;            // TI Con: PSAR max
+input int         Inp_TI_ADX_Period                = 14;             // TI Con: ADX period
+input double      Inp_TI_ADX_Percentile            = 50.0;           // TI Con: ADX percentile threshold
+input int         Inp_TI_ADX_Lookback              = 100;            // TI Con: ADX percentile lookback
+input double      Inp_TI_ADX_Threshold_Accum       = 12.0;           // TI Con: ADX threshold Accumulation
+input double      Inp_TI_ADX_Threshold_Trend       = 25.0;           // TI Con: ADX threshold Trending
+input double      Inp_TI_ADX_Threshold_Dist        = 18.0;           // TI Con: ADX threshold Distribution
+input int         Inp_TI_CandleBody_AvgPeriod      = 10;             // TI Con: CBody avg period
+input double      Inp_TI_CandleBody_MaxMult        = 2.5;            // TI Con: CBody max spike mult
 
 // ════════════════════════════════════════════════════════════════
 // TOPINVESTOR: Moderate additions — active when Profile >= Moderate
 // ════════════════════════════════════════════════════════════════
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 TOPINVESTOR: Moderate additions (Profile>=Moderate)║";
+input group "║   📐 TOPINVESTOR: MODERATE additions (Profile>=Moderate)║";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_TI_MACD_Fast             = 12;        // TI Mod: MACD fast
-input int         Inp_TI_MACD_Slow             = 26;        // TI Mod: MACD slow
-input int         Inp_TI_MACD_Signal           = 9;         // TI Mod: MACD signal
-input int         Inp_TI_MACD_FreshBars        = 5;         // TI Mod: MACD fresh bars
-input double      Inp_TI_MACD_SlopeMin         = 0.00001;   // TI Mod: MACD slope min
-input int         Inp_TI_CCI_Period            = 14;        // TI Mod: CCI period
-input int         Inp_TI_BB_Period             = 20;        // TI Mod: BB period
-input double      Inp_TI_BB_Deviation          = 2.0;       // TI Mod: BB deviation
+input int         Inp_TI_MACD_Fast                 = 12;             // TI Mod: MACD fast
+input int         Inp_TI_MACD_Slow                 = 26;             // TI Mod: MACD slow
+input int         Inp_TI_MACD_Signal               = 9;              // TI Mod: MACD signal
+input int         Inp_TI_MACD_FreshBars            = 5;              // TI Mod: MACD fresh bars
+input double      Inp_TI_MACD_SlopeMin             = 0.00001;        // TI Mod: MACD slope min
+input int         Inp_TI_CCI_Period                = 14;             // TI Mod: CCI period
+input int         Inp_TI_BB_Period                 = 20;             // TI Mod: BB period
+input double      Inp_TI_BB_Deviation              = 2.0;            // TI Mod: BB deviation
 
 // ════════════════════════════════════════════════════════════════
 // TOPINVESTOR: Full additions — active when Profile >= Full
 // ════════════════════════════════════════════════════════════════
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 TOPINVESTOR: Full additions (Profile>=Full)       ║";
+input group "║   📐 TOPINVESTOR: FULL additions (Profile>=Full)       ║";
 input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_TI_Fib_MinRetracement    = 0.38;      // TI Full: Fib min retracement
-input double      Inp_TI_Fib_MaxRetracement    = 0.618;     // TI Full: Fib max retracement
-input int         Inp_TI_Fib_SwingLookback     = 50;        // TI Full: Fib swing lookback
-input double      Inp_TI_CandleBody_FullRatio  = 0.75;      // TI Full: min close ratio for body quality gate
+input double      Inp_TI_Fib_MinRetracement        = 0.38;           // TI Full: Fib min retracement
+input double      Inp_TI_Fib_MaxRetracement        = 0.618;          // TI Full: Fib max retracement
+input int         Inp_TI_Fib_SwingLookback         = 50;             // TI Full: Fib swing lookback
+input double      Inp_TI_CandleBody_FullRatio      = 0.75;           // TI Full: min close ratio for body quality gate
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1952,8 +1970,8 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 Pair Type Detection";
 input group "╚════════════════════════════════════════════════════════╝";
-// input string   Inp_Adaptive_PairInfo            = "AUTO: EURUSD/GBPUSD/USDJPY=MAJOR; XAUUSD/GOLD=GOLD; BTC/ETH=CRYPTO; TRY/ZAR/MXN=EXOTIC; others=MINOR";
 input EPairType   Inp_Adaptive_PairType            = PAIR_TYPE_AUTO; // Pair: Pair type (PAIR_TAPY_AUTO)
+// input string   Inp_Adaptive_PairInfo            = "AUTO: EURUSD/GBPUSD/USDJPY=MAJOR; XAUUSD/GOLD=GOLD; BTC/ETH=CRYPTO; TRY/ZAR/MXN=EXOTIC; others=MINOR";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 Max Spread by Pair Type (pips)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1996,8 +2014,8 @@ input int         Inp_CUSTOM_SwingLookback         = 34;             // Custom: 
 input double      Inp_CUSTOM_SL_FixedPips          = 20.0;           // Custom: SL distance (pips SL_MODE_FIXED_PIPS)
 input double      Inp_CUSTOM_SL_MinPips            = 3.0;            // Custom: Min. SL pips (0 = no user floor, broker minimum still applies)
 input double      Inp_CUSTOM_SLPercent             = 0.5;            // Custom: SL as % of entry
-input int         Inp_CUSTOM_SL_AtrPeriod           = 14;            // Custom: ATR period (SL_MODE_ATR only)
-input double      Inp_CUSTOM_SL_AtrMult             = 1.0;           // Custom: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical)
+input int         Inp_CUSTOM_SL_AtrPeriod          = 14;             // Custom: ATR period (SL_MODE_ATR only)
+input double      Inp_CUSTOM_SL_AtrMult            = 1.0;            // Custom: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛑 (SL) STOP LOSS FRACTAL: used with SL_FRACTAL & SL_PSAR_DOT";
 input group "╚════════════════════════════════════════════════════════╝";

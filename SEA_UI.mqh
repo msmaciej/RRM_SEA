@@ -279,6 +279,15 @@ void SEA_UI_RenderPanel(
    int line_h = (line_spacing_px <= 0) ? (font_size + 4) : line_spacing_px;
    int pad = Inp_UI_FramePadPx;
 
+   // Anchor each label to the side matching the chosen corner. For right-side
+   // corners we anchor text to its right edge so lines grow leftward and never
+   // run off the right of the chart, regardless of line length.
+   bool is_right = (corner == CORNER_RIGHT_UPPER || corner == CORNER_RIGHT_LOWER);
+   bool is_lower = (corner == CORNER_LEFT_LOWER  || corner == CORNER_RIGHT_LOWER);
+   ENUM_ANCHOR_POINT anchor =
+        is_right ? (is_lower ? ANCHOR_RIGHT_LOWER : ANCHOR_RIGHT_UPPER)
+                 : (is_lower ? ANCHOR_LEFT_LOWER  : ANCHOR_LEFT_UPPER);
+
    // Handle Background
    if(Inp_UI_FrameMode == UI_FRAME_BG) {
       string bg = panel_name + "_BG";
@@ -300,6 +309,7 @@ void SEA_UI_RenderPanel(
          color clr = (i < ArraySize(line_colors)) ? line_colors[i] : SEA_UI_ForeColor();
          
          ObjectSetInteger(0, ln, OBJPROP_CORNER, (int)corner);
+         ObjectSetInteger(0, ln, OBJPROP_ANCHOR, (int)anchor);
          ObjectSetInteger(0, ln, OBJPROP_XDISTANCE, x + pad);
          ObjectSetInteger(0, ln, OBJPROP_YDISTANCE, y + pad + (i * line_h));
          ObjectSetInteger(0, ln, OBJPROP_COLOR, clr);
