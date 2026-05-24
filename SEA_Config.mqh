@@ -967,13 +967,19 @@ input group "║   🎨 UI: STATUS PANEL";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_UI_ShowStatusPanel           = false;          // UI SP: STATUS PANEL
 input ENUM_BASE_CORNER Inp_UI_PanelCorner          = CORNER_RIGHT_UPPER; // UI SP: Status panel corner (right side avoids chart-comment overlap)
-input bool        Inp_UI_ShowVPRRComment           = true;          // UI: Show VPRR ACTIVE summary as chart comment (off by default)
 input bool        Inp_UI_ManageChartIndicators     = false;          // UI SP: Auto-add/remove chart indicators
 input int         Inp_UI_PanelX                    = 30;             // UI SP: Status panel X (px)
 input int         Inp_UI_PanelY                    = 30;             // UI SP: Status panel Y (px)
 input int         Inp_UI_PanelFontSize             = 10;             // UI SP: Status panel font size
 input int         Inp_UI_LineSpacingPx             = 28;             // UI SP: Status panel line spacing (px)
 input string      Inp_UI_PanelFont                 = "Arial";        // UI SP: Status panel font
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🎨 UI: VPRR PANEL";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_UI_ShowVPRRPanel             = true;          // UI VP: VPRR panel (on-chart VPRR status; off by default)
+input ENUM_BASE_CORNER Inp_UI_VPRRCorner           = CORNER_RIGHT_UPPER; // UI VP: VPRR panel corner
+input int         Inp_UI_VPRR_X                    = 30;             // UI VP: VPRR panel X (px)
+input int         Inp_UI_VPRR_Y                    = 30;             // UI VP: VPRR panel Y (px)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: SIGNAL MARKERS & COLORS";
 input group "╚════════════════════════════════════════════════════════╝";

@@ -744,12 +744,13 @@ void PrintVPRRSummary(const ST_Settings &cfg, const string preset_name)
    {
       PrintFormat("📊 VPRR [%s | %s | %s]  DISABLED — no volume data or AutoEnable=OFF",
                   preset_name, sym, tf);
-      if(Inp_UI_ShowVPRRComment)
-         ChartSetString(0, CHART_COMMENT,
-            StringFormat("VPRR: OFF  [%s | %s | %s]\nSet AutoEnable=ON or check volume source",
-                         preset_name, sym, tf));
-      else
-         ChartSetString(0, CHART_COMMENT, ""); // ensure no stale comment left on chart
+      // Show/destroy VPRR panel (user-controlled via Inp_UI_ShowVPRRPanel)
+      string off_lines[];  color off_clrs[];
+      ArrayResize(off_lines, 2);  ArrayResize(off_clrs, 2);
+      off_lines[0] = StringFormat("VPRR: OFF  [%s]", preset_name);  off_clrs[0] = clrOrangeRed;
+      off_lines[1] = "Set AutoEnable=ON or check volume source";    off_clrs[1] = clrGray;
+      SEA_UI_RenderVPRRPanel(off_lines, off_clrs);
+      ChartSetString(0, CHART_COMMENT, ""); // always clear the legacy chart comment
       return;
    }
 
@@ -771,28 +772,21 @@ void PrintVPRRSummary(const ST_Settings &cfg, const string preset_name)
    Print("  Switch instrument or TF → restart EA → values auto-update.");
    Print("═══════════════════════════════════════════════════════════");
 
-   // ── Chart comment: visible directly on the chart ──────────────
-   // Effective values shown — no log-digging required.
-   // Refreshed on every EA start, instrument switch, or TF change.
-   // Gated by Inp_UI_ShowVPRRComment (default OFF) so the chart stays clean
-   // unless the user opts in. The full detail above always goes to the log.
-   if(Inp_UI_ShowVPRRComment)
-      ChartSetString(0, CHART_COMMENT,
-         StringFormat(
-            "━━━ VPRR ACTIVE ━━━\n"
-            "Preset : %s\n"
-            "Symbol : %s  |  TF: %s\n"
-            "Source : %s\n"
-            "MinRatio: %.2f  (effective)\n"
-            "RecBars : %d   (effective)\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            "Tune: MT5 inputs → VPRR group\n"
-            "M5×0.85  M15×1.00  H1×0.95  H4+×0.90\n"
-            "Restart EA after instrument/TF change",
-            preset_name, sym, tf, vol_src,
-            cfg.VPRR_MinRatio, cfg.VPRR_RecoveryBars));
-   else
-      ChartSetString(0, CHART_COMMENT, ""); // keep chart clean when toggle is off
+   // ── On-chart VPRR panel (user-controllable position via UI VP inputs) ──
+   // Uses OBJ_LABEL objects through the shared panel renderer instead of
+   // ChartSetString(CHART_COMMENT), which has no position control and always
+   // overwrites the top-left corner, colliding with other panels.
+   string vp_lines[];  color vp_clrs[];
+   ArrayResize(vp_lines, 7);  ArrayResize(vp_clrs, 7);
+   vp_lines[0] = "VPRR ACTIVE";                                              vp_clrs[0] = clrLimeGreen;
+   vp_lines[1] = StringFormat("Preset: %s", preset_name);                    vp_clrs[1] = clrWhite;
+   vp_lines[2] = StringFormat("Symbol: %s  TF: %s", sym, tf);               vp_clrs[2] = clrWhite;
+   vp_lines[3] = StringFormat("Source: %s", vol_src);                        vp_clrs[3] = clrWhite;
+   vp_lines[4] = StringFormat("MinRatio: %.2f (eff)", cfg.VPRR_MinRatio);   vp_clrs[4] = clrGold;
+   vp_lines[5] = StringFormat("RecBars: %d (eff)", cfg.VPRR_RecoveryBars);  vp_clrs[5] = clrGold;
+   vp_lines[6] = "Tune: MT5 inputs > VPRR group";                           vp_clrs[6] = clrGray;
+   SEA_UI_RenderVPRRPanel(vp_lines, vp_clrs);
+   ChartSetString(0, CHART_COMMENT, ""); // always clear the legacy chart comment
 }
 
 //+------------------------------------------------------------------+

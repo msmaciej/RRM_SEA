@@ -18,6 +18,7 @@ ulong  g_sea_ui_magic        = 0;
 
 string g_sea_ui_settings_name = "";
 string g_sea_ui_cockpit_name  = "";
+string g_sea_ui_vprr_name     = "";
 
 string g_sea_ui_last_settings_txt = "";
 string g_sea_ui_last_cockpit_txt  = "";
@@ -527,12 +528,14 @@ void SEA_UI_Init(const ulong magic)
    g_sea_ui_base_name = StringFormat("SEA_UI_%I64d_%I64u", (long)ChartID(), g_sea_ui_magic);
    g_sea_ui_settings_name = g_sea_ui_base_name + "_SET";
    g_sea_ui_cockpit_name  = g_sea_ui_base_name + "_COCK";
+   g_sea_ui_vprr_name     = g_sea_ui_base_name + "_VPRR";
 }
 
 void SEA_UI_DestroyAll()
 {
    SEA_UI_DestroyPanel(g_sea_ui_settings_name);
    SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
+   SEA_UI_DestroyPanel(g_sea_ui_vprr_name);
    SEA_UI_ClearMTFSegments();
    
    // Clean up dedicated Master Telemetry Objects
@@ -1067,4 +1070,34 @@ void SEA_UI_ManageChartIndicators(CSignalEngine &engine)
    Print("UI: Chart indicator synchronization complete");
    Print(StringFormat("  → %d Overlays | %d Subwindows | %d TS Components Active", overlays, sw-1, ts_active));
    Print("═══════════════════════════════════════════════════════════");
+}
+
+//+------------------------------------------------------------------+
+//| SEA_UI_RenderVPRRPanel: draw/update/destroy the on-chart VPRR    |
+//| status panel using OBJ_LABEL objects (fully position-controllable |
+//| by the user via Inp_UI_ShowVPRRPanel / Corner / X / Y).          |
+//| Called from PrintVPRRSummary() in SEA_Presets.mqh.                |
+//+------------------------------------------------------------------+
+void SEA_UI_RenderVPRRPanel(const string &content_lines[], const color &line_clrs[])
+{
+   if(!Inp_UI_ShowVPRRPanel || g_sea_ui_vprr_name == "")
+   {
+      SEA_UI_DestroyPanel(g_sea_ui_vprr_name);
+      return;
+   }
+
+   // Build a single newline-delimited string for the shared renderer
+   string txt = "";
+   for(int i = 0; i < ArraySize(content_lines); i++)
+   {
+      if(i > 0) txt += "\n";
+      txt += content_lines[i];
+   }
+
+   SEA_UI_RenderPanel(
+      g_sea_ui_vprr_name, txt,
+      Inp_UI_VPRRCorner,
+      Inp_UI_VPRR_X, Inp_UI_VPRR_Y,
+      10, 18, "Arial",
+      line_clrs);
 }
