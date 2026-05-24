@@ -1106,9 +1106,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ADX_Threshold_Accumulation = 12.0;
       cfg.ADX_Threshold_Trending     = 25.0;
       cfg.ADX_Threshold_Distribution = 18.0;
-      cfg.P_Atr                     = 14;
-      cfg.ATR_VoteMinPips           = 5.0;
-      cfg.ATR_VoteMaxPips           = 50.0;
+      cfg.P_Atr                     = Inp_RRM_P_Atr;
+      cfg.ATR_VoteMinPips           = Inp_RRM_ATR_VoteMinPips;
+      cfg.ATR_VoteMaxPips           = Inp_RRM_ATR_VoteMaxPips;
       cfg.CandleBody_AvgPeriod      = 10;
       cfg.CandleBody_MaxMult        = 3.0;
       cfg.CandleBody_CheckBars      = 1;
@@ -1117,10 +1117,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CI_Period                 = 14;
       cfg.CI_RangingThreshold       = 61.8;
       cfg.Ind_CI_Weight             = 1;
-      cfg.VRC_ATR_Period            = 14;
-      cfg.VRC_Lookback              = 100;
-      cfg.VRC_LowThreshold          = 33.0;
-      cfg.Ind_VRC_Weight            = 1;
+      cfg.VRC_ATR_Period            = Inp_RRM_VRC_ATR_Period;
+      cfg.VRC_Lookback              = Inp_RRM_VRC_Lookback;
+      cfg.VRC_LowThreshold          = Inp_RRM_VRC_LowThreshold;
+      cfg.Ind_VRC_Weight            = Inp_RRM_VRC_Weight;
       cfg.P_Cci                     = 14;
       cfg.CciMode                   = CCI_TREND_ZERO;
       // P_Mfi / T_MfiOB / T_MfiOS / MfiMode — set above from Inp_FPM_Ind_Mfi_Enabled / Inp_FPM_Mfi_Period
@@ -1282,9 +1282,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ADX_Threshold_Distribution = 18.0;
       
       // ATR (Average True Range) - Voting Indicator Only
-      cfg.P_Atr                  = 14;
-      cfg.ATR_VoteMinPips        = 5.0;
-      cfg.ATR_VoteMaxPips        = 50.0;
+      cfg.P_Atr                  = Inp_RRM_P_Atr;
+      cfg.ATR_VoteMinPips        = Inp_RRM_ATR_VoteMinPips;
+      cfg.ATR_VoteMaxPips        = Inp_RRM_ATR_VoteMaxPips;
       
       // Bollinger Bands
       cfg.P_Bb                   = 20;
@@ -1304,10 +1304,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_CI_Weight          = 1;
       
       // VRC (Volatility Regime Classifier)
-      cfg.VRC_ATR_Period         = 14;
-      cfg.VRC_Lookback           = 100;
-      cfg.VRC_LowThreshold       = 33.0;
-      cfg.Ind_VRC_Weight         = 1;
+      cfg.VRC_ATR_Period         = Inp_RRM_VRC_ATR_Period;
+      cfg.VRC_Lookback           = Inp_RRM_VRC_Lookback;
+      cfg.VRC_LowThreshold       = Inp_RRM_VRC_LowThreshold;
+      cfg.Ind_VRC_Weight         = Inp_RRM_VRC_Weight;
 
       // CCI (Commodity Channel Index)
       cfg.P_Cci                  = 14;
@@ -1578,8 +1578,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MacdRequireDivergence  = Inp_RRM_MacdDiv;
       cfg.MacdRequireHook        = false;
       cfg.MacdHistDecelEnabled   = Inp_RRM_MacdHistDecel;  // Decel pre-filter: block when histogram shrinking (analogous to DPI_BlockOnDeceleration)
-      cfg.MacdFreshBars          = 3;
-      cfg.MacdSlopeMin           = 0.00001;
+      cfg.MacdFreshBars          = Inp_RRM_MacdFreshBars;
+      cfg.MacdSlopeMin           = Inp_RRM_MacdSlopeMin;
 
       // ── PSAR SETTINGS: flexible via Inp_RRM_* ────────────────────────
       cfg.P_PsarStep             = Inp_RRM_PsarStep;
@@ -1642,7 +1642,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PhaseDetectionEnabled     = true;           // true
       cfg.EnableLayerDetection      = true;           // true
       cfg.BlockUnorderedPhase       = true;           // true
-      cfg.BlockEmergingPhase        = true;           // true: EM phase = no trades; TM phase = trades allowed
+      cfg.BlockEmergingPhase        = false;           // true: EM phase = no trades; TM phase = trades allowed
       cfg.MinPhaseConfirmBars    = (_Period <= PERIOD_M5) ? 0 : 1;       // M1-M5: instant; M15+: require 1 bar confirmation
       cfg.RequireMinPhaseConfirm = (cfg.MinPhaseConfirmBars > 0);        // CRITICAL: without this, m_diag_phase_confirm_bars stays 0 → pre-filter blocks ALL bars
 
@@ -1710,11 +1710,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── ADVANCED TRAILING TRIGGER ─────────────────────────────────────
       ENUM_TIMEFRAMES tf            = (ENUM_TIMEFRAMES)_Period;
-      cfg.TrailTrigger              = TRIGGER_BREAKEVEN;
+      cfg.TrailTrigger              = Inp_RRM_TrailTrigger;
       cfg.TrailDistancePips         = GetTFBasedCushion(tf);
-      cfg.TrailLockProfit           = true;              // true
-      cfg.TrailProfitPercent        = 2.0;
-      cfg.TrailStepPips             = 5.0;
+      cfg.TrailLockProfit           = Inp_RRM_TrailLockProfit;
+      cfg.TrailProfitPercent        = 2.0;  // used when TRIGGER_PROFIT_PERCENT is active
+      cfg.TrailStepPips             = Inp_RRM_TrailStepPips;
 
       // -- BE
       cfg.BE_Mode                   = BE_MODE_R_MULTIPLE;
@@ -1751,7 +1751,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
 
       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
-      cfg.AllowReEntryAfterBE       = true;
+      cfg.AllowReEntryAfterBE       = Inp_RRM_AllowReEntryAfterBE;
       cfg.ReEntryLotScalePct        = MathMax(0, MathMin(100, Inp_RRM_ReEntryLotScalePct));  // 0=full size; 50=half-size re-entry
 
       // ── POST-TRADE COOLDOWN ───────────────────────────────────────────
@@ -1791,7 +1791,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       PrintVPRRSummary(cfg, "RRM");
 
       // ── SPREAD RETRY CAP ─────────────────────────────────────────────
-      cfg.MaxSpreadRetryBars        = 3;
+      cfg.MaxSpreadRetryBars        = MathMax(1, Inp_RRM_MaxSpreadRetryBars);
 
       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────────
       // Inp_RRM_EmaFanFilterEnabled=false by default — user opt-in.
@@ -1944,9 +1944,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ADX_Threshold_Distribution   = Inp_RRM_ORG_Adx_Thr_Distrib;
 
       // ── ATR SETTINGS: safe defaults (disabled) ────────────────────────
-      cfg.P_Atr                     = 14;
-      cfg.ATR_VoteMinPips           = 5.0;
-      cfg.ATR_VoteMaxPips           = 50.0;
+      cfg.P_Atr                     = Inp_RRM_ORG_P_Atr;
+      cfg.ATR_VoteMinPips           = Inp_RRM_ORG_ATR_VoteMinPips;
+      cfg.ATR_VoteMaxPips           = Inp_RRM_ORG_ATR_VoteMaxPips;
 
       // ── MACD SETTINGS: safe defaults (disabled) ───────────────────────
       cfg.MacdVoteMode              = Inp_RRM_ORG_MacdMode;
@@ -1957,8 +1957,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_MacdFast                = Inp_RRM_ORG_MacdFast;
       cfg.P_MacdSlow                = Inp_RRM_ORG_MacdSlow;
       cfg.P_MacdSig                 = Inp_RRM_ORG_MacdSig;
-      cfg.MacdFreshBars             = 3;
-      cfg.MacdSlopeMin              = 0.00001;
+      cfg.MacdFreshBars             = Inp_RRM_ORG_MacdFreshBars;
+      cfg.MacdSlopeMin              = Inp_RRM_ORG_MacdSlopeMin;
 
       // ── CCI/RSI/STOCH/BB/MFI: safe defaults (all disabled) ───────────
       cfg.CciMode                   = Inp_RRM_ORG_CciMode;
@@ -1989,10 +1989,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.T_MfiOB                   = Inp_RRM_ORG_Mfi_OB;
       cfg.T_MfiOS                   = Inp_RRM_ORG_Mfi_OS;
 
-      cfg.Ind_VRC_Weight            = 1;
-      cfg.VRC_ATR_Period            = 14;
-      cfg.VRC_Lookback              = 100;
-      cfg.VRC_LowThreshold          = 33.0;
+      cfg.Ind_VRC_Weight            = Inp_RRM_ORG_VPRR_Weight_VRC;
+      cfg.VRC_ATR_Period            = Inp_RRM_ORG_VRC_ATR_Period;
+      cfg.VRC_Lookback              = Inp_RRM_ORG_VRC_Lookback;
+      cfg.VRC_LowThreshold          = Inp_RRM_ORG_VRC_LowThreshold;
 
       // ── BAR CLOSE (bcX): LOCKED to layer-aware ───────────────────────
       cfg.BarClose_Mode             = BC_LAYER_AWARE;   // bcW=EMA1, bcM=EMA2, bcS=EMA3
@@ -2003,7 +2003,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PhaseDetectionEnabled     = true;
       cfg.EnableLayerDetection      = true;
       cfg.BlockUnorderedPhase       = true;           // UNORDERED → block all trades
-      cfg.BlockEmergingPhase        = true;           // true: EM phase = no trades; TM phase = trades allowed
+      cfg.BlockEmergingPhase        = false;           // true: EM phase = no trades; TM phase = trades allowed
 
       // PHASE A: TF-scaled phase-age confirmation. The previous setting
       // (0 on every TF) lets a single bar that flickers into TM after UNO
@@ -2182,12 +2182,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_BE_BufferPips         = GetTFBasedCushion(_Period);
 
       ENUM_TIMEFRAMES tfOrg         = (ENUM_TIMEFRAMES)_Period;
-      cfg.TrailTrigger              = TRIGGER_BREAKEVEN;
+      cfg.TrailTrigger              = Inp_RRM_ORG_TrailTrigger;
       cfg.TrailDistancePips         = GetTFBasedCushion(tfOrg);
       cfg.BEThresholdPips           = GetTFBasedCushion(tfOrg);
-      cfg.TrailLockProfit           = true;
-      cfg.TrailProfitPercent        = 50.0; // 50 = 0.5R trigger when TRIGGER_PROFIT_PERCENT is used
-      cfg.TrailStepPips             = 5.0;
+      cfg.TrailLockProfit           = Inp_RRM_ORG_TrailLockProfit;
+      cfg.TrailProfitPercent        = Inp_RRM_ORG_TrailProfitPercentLPR; // used when TRIGGER_PROFIT_PERCENT is active
+      cfg.TrailStepPips             = Inp_RRM_ORG_TrailStepPips;
 
       cfg.FractalPeriod             = 5;
       cfg.TPFractalOffset           = 1;
@@ -2251,14 +2251,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       }
 
       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
-      cfg.AllowReEntryAfterBE       = true;
+      cfg.AllowReEntryAfterBE       = Inp_RRM_ORG_AllowReEntryAfterBE;
       cfg.ReEntryLotScalePct        = MathMax(0, MathMin(100, Inp_RRM_ORG_ReEntryLotScalePct));  // 0=full size; 50=half-size re-entry
 
       // ── POST-TRADE COOLDOWN ───────────────────────────────────────────
       cfg.MinBarsAfterClose         = MathMax(0, Inp_RRM_ORG_MinBarsAfterClose); // RRM_ORG cooldown (was hardcoded 3)
 
       // ── SPREAD RETRY CAP ─────────────────────────────────────────────
-      cfg.MaxSpreadRetryBars        = 3;
+      cfg.MaxSpreadRetryBars        = MathMax(1, Inp_RRM_ORG_MaxSpreadRetryBars);
 
       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────────
       // PHASE A: turned ON with TF-scaled threshold. The previous setting

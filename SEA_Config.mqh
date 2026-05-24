@@ -1090,12 +1090,12 @@ input double      Inp_RRM_RRRatio                  = 1.5;            // RRM TP: 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: (SL) Stop Loss";
 input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode    Inp_RRM_SLMode                    = SL_MODE_SWING;  // RRM SL: mode
-input int        Inp_RRM_SwingLookback             = 34;             // RRM SL: RRM Swing lookback bars (used with SL_MODE_SWING)
-input int        Inp_RRM_SL_AtrPeriod              = 14;             // RRM SL: ATR period (SL_MODE_ATR only)
-input double     Inp_RRM_SL_AtrMult                = 1.0;            // RRM SL: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR only; 0.5–1.5 typical)
-input int        Inp_RRM_MinBarsAfterClose         = 3;              // RRM SL: post-trade cooldown bars (0=off)
-input int        Inp_RRM_ReEntryLotScalePct        = 50;             // RRM Re-entry: lot size % for re-entry after BE (0=full size; 50=half; since original is at BE total risk stays controlled)
+input ESLMode     Inp_RRM_SLMode                   = SL_MODE_SWING;  // RRM SL: mode
+input int         Inp_RRM_SwingLookback            = 34;             // RRM SL: RRM Swing lookback bars (used with SL_MODE_SWING)
+input int         Inp_RRM_SL_AtrPeriod             = 14;             // RRM SL: ATR period (SL_MODE_ATR only)
+input double      Inp_RRM_SL_AtrMult               = 1.0;            // RRM SL: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR only; 0.5–1.5 typical)
+input int         Inp_RRM_MinBarsAfterClose        = 3;              // RRM SL: post-trade cooldown bars (0=off)
+input int         Inp_RRM_ReEntryLotScalePct       = 50;             // RRM Re-entry: lot size % for re-entry after BE (0=full size; 50=half; since original is at BE total risk stays controlled)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1105,6 +1105,11 @@ input int         Inp_TrailCushionAtrPeriod        = 14;             // RRM TS: 
 input double      Inp_TrailCushionAtrMult          = 0.5;            // RRM TS: GLOBAL cushion ATR multiplier (ATR mode): cushion = ATR × this
 input double      Inp_TrailCushionPct              = 0.04;           // RRM TS: GLOBAL cushion % of price (PERCENT mode + safety floor), e.g. 0.04 = 0.04%
 input bool        Inp_RRM_TrailStartsAfterBE       = false;          // RRM TS: Start trailing only after BE is reached
+input bool        Inp_RRM_TrailLockProfit          = true;           // RRM TS: never move SL backwards
+input double      Inp_RRM_TrailStepPips            = 5.0;            // RRM TS: step size for fixed-step trail modes
+input ETrailTrigger Inp_RRM_TrailTrigger           = TRIGGER_BREAKEVEN; // RRM TS: when trailing becomes active
+input int         Inp_RRM_MaxSpreadRetryBars       = 3;              // RRM: bars to retry a blocked entry
+input bool        Inp_RRM_AllowReEntryAfterBE      = true;           // RRM: allow re-entry after BE stop-out
 input bool        Inp_RRM_FreezeTrailOnFlip        = true;           // RRM TS: Freeze trail on PSAR flip
 input int         Inp_RRM_TrailPsarShiftDelay      = 2;              // RRM TS: PSAR DOT trailing shift (1..3) — bars back the SAR dot is read (TRAILING only)
 // input string   Inp_PSAR_TrailCushion_Note       = "PSAR trail cushion auto-set by timeframe (M15=3, H1=7, H4=10 pips)"
@@ -1151,6 +1156,13 @@ input bool        Inp_RRM_Use_CI                   = false;          // RRM Ind:
 input bool        Inp_RRM_Use_Macd                 = true;           // RRM Ind: MACD vote enabled
 input bool        Inp_RRM_Use_Mfi                  = false;          // RRM Ind: MFI vote enabled
 input bool        Inp_RRM_Use_Psar                 = true;           // RRM Ind: PSAR vote enabled
+input int         Inp_RRM_P_Atr                    = 14;             // RRM ATR: ATR period
+input double      Inp_RRM_ATR_VoteMinPips          = 5.0;            // RRM ATR: min pips to allow trade
+input double      Inp_RRM_ATR_VoteMaxPips          = 50.0;           // RRM ATR: max pips to allow trade
+input int         Inp_RRM_VRC_Weight               = 1;              // RRM VRC: voter weight
+input int         Inp_RRM_VRC_ATR_Period           = 14;             // RRM VRC: ATR period for regime classification
+input int         Inp_RRM_VRC_Lookback             = 100;            // RRM VRC: lookback bars
+input double      Inp_RRM_VRC_LowThreshold         = 33.0;           // RRM VRC: low-volatility threshold
 input bool        Inp_RRM_Use_Rsi                  = false;          // RRM Ind: RSI vote enabled
 input bool        Inp_RRM_Use_Stoch                = false;          // RRM Ind: STO vote enabled
 
@@ -1214,6 +1226,8 @@ input EMacdVoteMode Inp_RRM_MacdMode               = MACD_ZERO_AND_HIST; // RRM 
 input int         Inp_RRM_MacdFast                 = 12;             // RRM MACD: Fast (12)
 input int         Inp_RRM_MacdSlow                 = 26;             // RRM MACD: Slow (26)
 input int         Inp_RRM_MacdSig                  = 9;              // RRM MACD: Signal (9)
+input int         Inp_RRM_MacdFreshBars            = 3;              // RRM MACD: max bars since zero-cross to be fresh
+input double      Inp_RRM_MacdSlopeMin             = 0.00001;        // RRM MACD: minimum histogram slope
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: MFI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1377,11 +1391,11 @@ input int             Inp_VPRR_RecBars_FX                = 3;        // VPRR FX:
 input double          Inp_VPRR_MinRatio_NonFXTick        = 0.8;      // VPRR non-FX tick fallback: MinRatio
 
 // TF auto-multiplier: M5x0.85  M15x1.00  H1x0.95  H4+x0.90 (see chart comment for effective value)
-input bool            Inp_VPRR_TF_ReduceRecBars          = true; // VPRR TF: Reduce RecBars by 1 on H4+ and M5
-input double          Inp_VPRR_TF_Mult_M5                = 0.85; // VPRR TF: M5 multiplier (noisier, loosen 15%%)
-input double          Inp_VPRR_TF_Mult_M15               = 1.00; // VPRR TF: M15 multiplier (baseline)
-input double          Inp_VPRR_TF_Mult_H1                = 0.95; // VPRR TF: H1 multiplier (fewer bars, loosen slightly)
-input double          Inp_VPRR_TF_Mult_H4Plus            = 0.90; // VPRR TF: H4+ multiplier (very few cycles, loosen)
+input bool            Inp_VPRR_TF_ReduceRecBars          = true;     // VPRR TF: Reduce RecBars by 1 on H4+ and M5
+input double          Inp_VPRR_TF_Mult_M5                = 0.85;     // VPRR TF: M5 multiplier (noisier, loosen 15%%)
+input double          Inp_VPRR_TF_Mult_M15               = 1.00;     // VPRR TF: M15 multiplier (baseline)
+input double          Inp_VPRR_TF_Mult_H1                = 0.95;     // VPRR TF: H1 multiplier (fewer bars, loosen slightly)
+input double          Inp_VPRR_TF_Mult_H4Plus            = 0.90;     // VPRR TF: H4+ multiplier (very few cycles, loosen)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1391,7 +1405,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: TAKE PROFIT TARGET";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETPMode     Inp_RRM_ORG_TPMode               = TP_MODE_RR;     // RRM ORG TP: mode
-input double      Inp_RRM_ORG_RRRatio              = 1.5;            // RRM ORG TP: RR ratio for TP_MODE_RR
+input double      Inp_RRM_ORG_RRRatio              = 2.5;            // RRM ORG TP: RR ratio for TP_MODE_RR
 //
 // Inp_RRM_ORG_TPMode - Take profit mode:
 // TP_MODE_FIXED_PIPS: TP at fixed pip distance
@@ -1411,7 +1425,7 @@ input double      Inp_RRM_ORG_RRRatio              = 1.5;            // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: INITIAL STOP LOSS PLACEMENT";
 input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_ATR;  // RRM ORG SL: mode
+input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;  // RRM ORG SL: mode
 input int         Inp_RRM_ORG_SwingLookback        = 34;             // RRM ORG SL: Swing lookback bars
 input int         Inp_RRM_ORG_SL_AtrPeriod         = 14;             // RRM ORG SL: ATR period (SL_MODE_ATR only)
 input double      Inp_RRM_ORG_SL_AtrMult           = 1.0;            // RRM ORG SL: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical; Gold M15 use 1.0–1.5)
@@ -1460,13 +1474,18 @@ input double      Inp_RRM_ORG_TrailProfitPercentLPR = 25.0;          // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: EMA trail SL: WHEN TO START TRAILING";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_RRM_ORG_TrailEMA_Period       = 0;             // RRM ORG TS: EMA period (0=use ribbon role selector below)
-input EEmaRole    Inp_RRM_ORG_TrailEMA_RibbonRole   = ROLE_EMA2;     // RRM ORG TS: which ribbon EMA to trail (EMA1=5,EMA2=13,EMA3=34,EMA4=89) when Period=0
-input int         Inp_RRM_ORG_TrailEMA_Shift        = 1;             // RRM ORG TS: bar shift for EMA read (1=last closed bar, 2=two bars back, 3=three bars back)
-input double      Inp_RRM_ORG_TrailEMA_CushionPips  = 0.0;           // RRM ORG TS: EMA trail cushion pips (0=use ATR mode)
+input int         Inp_RRM_ORG_TrailEMA_Period         = 0;           // RRM ORG TS: EMA period (0=use ribbon role selector below)
+input EEmaRole    Inp_RRM_ORG_TrailEMA_RibbonRole     = ROLE_EMA1;   // RRM ORG TS: which ribbon EMA to trail (EMA1=5,EMA2=13,EMA3=34,EMA4=89) when Period=0
+input int         Inp_RRM_ORG_TrailEMA_Shift          = 3;           // RRM ORG TS: bar shift for EMA read (1=last closed bar, 2=two bars back, 3=three bars back)
+input double      Inp_RRM_ORG_TrailEMA_CushionPips    = 0.0;         // RRM ORG TS: EMA trail cushion pips (0=use ATR mode)
 input double      Inp_RRM_ORG_TrailEMA_CushionAtrMult = 0.1;         // RRM ORG TS: EMA cushion = ATR×this (0=disabled; 0.1=recommended)
 input int         Inp_RRM_ORG_TrailEMA_CushionAtrPeriod = 14;        // RRM ORG TS: ATR period for EMA cushion
-input bool        Inp_RRM_ORG_TrailStartsAfterBE   = false;          // RRM ORG TS: Safety override: trail after BE
+input bool        Inp_RRM_ORG_TrailStartsAfterBE      = false;       // RRM ORG TS: Safety override: trail after BE
+input bool        Inp_RRM_ORG_TrailLockProfit         = true;        // RRM ORG TS: never move SL backwards (lock profit)
+input double      Inp_RRM_ORG_TrailStepPips           = 5.0;         // RRM ORG TS: step size for fixed-step trail modes
+input ETrailTrigger Inp_RRM_ORG_TrailTrigger          = TRIGGER_BREAKEVEN; // RRM ORG TS: when trailing becomes active
+input int         Inp_RRM_ORG_MaxSpreadRetryBars      = 3;           // RRM ORG: bars to retry a blocked entry (spread/time)
+input bool        Inp_RRM_ORG_AllowReEntryAfterBE     = true;        // RRM ORG: allow re-entry after BE stop-out
 //
 // Inp_RRM_ORG_TrailStartsAfterBE- Trailing activation logic in PRESET_RRM_ORG:
 // TrailTrigger is preset-managed (TRIGGER_BREAKEVEN by default).
@@ -1480,9 +1499,9 @@ input bool        Inp_RRM_ORG_TrailStartsAfterBE   = false;          // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: BREAKEVEN (BE) - ONE-TIME LOCK";
 input group "╚════════════════════════════════════════════════════════╝";
-input EBeMode     Inp_RRM_ORG_BE_Mode              = BE_MODE_TP_PROGRESS_PCT;  // RRM ORG BE: Breakeven trigger mode
-input double      Inp_RRM_ORG_BE_RMultiple         = 0.6;            // RRM ORG BE: BE trigger as R multiple
-input double      Inp_RRM_ORG_BE_ProgressPct       = 10.0;           // RRM ORG BE: BE trigger as TP progress %
+input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_R_MULTIPLE;  // RRM ORG BE: Breakeven trigger mode
+input double      Inp_RRM_ORG_BE_RMultiple            = 1.0;         // RRM ORG BE: BE trigger as R multiple
+input double      Inp_RRM_ORG_BE_ProgressPct          = 10.0;        // RRM ORG BE: BE trigger as TP progress %
 //
 // Inp_RRM_ORG_BE_Mode - Breakeven trigger mode:
 // BE_MODE_OFF:             Breakeven disabled
@@ -1504,16 +1523,19 @@ input double      Inp_RRM_ORG_BE_ProgressPct       = 10.0;           // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 RRM_ORG: VPRR Volume Confirmation";
 input group "╚════════════════════════════════════════════════════════╝";
-input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType        = VPRR_VOL_AUTO;  // RRM ORG VPRR: VPRR volume source (Auto=real then tick fallback)
-input bool            Inp_RRM_ORG_VPRR_AutoEnable        = true;           // RRM ORG VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual Enabled toggle below)
-input bool            Inp_RRM_ORG_VPRR_Enabled           = false;          // RRM ORG VPRR: Manual enable (only used when AutoEnable=OFF)
-input int             Inp_RRM_ORG_VPRR_RecoveryBars      = 5;              // RRM ORG VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
-input int             Inp_RRM_ORG_VPRR_Weight            = 1;              // RRM ORG VPRR: Vote weight
+input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType    = VPRR_VOL_AUTO;  // RRM ORG VPRR: VPRR volume source (Auto=real then tick fallback)
+input bool        Inp_RRM_ORG_VPRR_AutoEnable        = true;         // RRM ORG VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual Enabled toggle below)
+input bool        Inp_RRM_ORG_VPRR_Enabled           = false;        // RRM ORG VPRR: Manual enable (only used when AutoEnable=OFF)
+input int         Inp_RRM_ORG_VPRR_RecoveryBars      = 5;            // RRM ORG VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
+input int         Inp_RRM_ORG_VPRR_Weight            = 1;            // RRM ORG VPRR: Vote weight
+
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Multi-Bar Momentum";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_BarClose_Require_Progressive_Momentum = false; // RRM ORG BC: BarClose Momentum
-input int         Inp_RRM_ORG_BarClose_LookbackBars                 = 3;     // RRM ORG BC: BarClose Lookback (1-4 bars)
+input int         Inp_RRM_ORG_BarClose_LookbackBars   = 3;           // RRM ORG BC: BarClose Lookback (1-4 bars)
+input double      Inp_RRM_ORG_BarClose_PipTolerance   = 0.0;         // RRM ORG Recov: BarClose: Allow close within N pips of target EMA (0=strict close>EMA)
+
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Indicators — Enable/Disable";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1531,10 +1553,7 @@ input bool        Inp_RRM_ORG_Use_Ross             = false;          // RRM ORG 
 input bool        Inp_RRM_ORG_Use_Rsi              = false;          // RRM ORG Ind: RSI vote
 input bool        Inp_RRM_ORG_Use_Stoch            = false;          // RRM ORG Ind: STO vote
 input bool        Inp_RRM_ORG_Use_VRC              = false;          // RRM ORG Ind: VRC vote
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: Recovery Sensitivity Tuning (Phase B)";
-input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_RRM_ORG_BarClose_PipTolerance   = 0.0;         // RRM ORG Recov: BarClose: Allow close within N pips of target EMA (0=strict close>EMA)
+
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: ADX Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1546,6 +1565,12 @@ input double      Inp_RRM_ORG_Adx_Percentile       = 50.0;           // RRM ORG 
 input double      Inp_RRM_ORG_Adx_Thr_Accum        = 12.0;           // RRM ORG ADX: ADX Thr Accumulation
 input double      Inp_RRM_ORG_Adx_Thr_Trending     = 25.0;           // RRM ORG ADX: ADX Thr Trending
 input double      Inp_RRM_ORG_Adx_Thr_Distrib      = 18.0;           // RRM ORG ADX: ADX Tht Distribution
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: ATR Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_ORG_P_Atr                = 14;             // RRM ORG ATR: ATR period (used when ATR voter enabled)
+input double      Inp_RRM_ORG_ATR_VoteMinPips      = 5.0;            // RRM ORG ATR: min ATR pips to allow trade
+input double      Inp_RRM_ORG_ATR_VoteMaxPips      = 50.0;           // RRM ORG ATR: max ATR pips to allow trade
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: BB Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1572,12 +1597,14 @@ input double      Inp_RRM_ORG_CiRangingThreshold   = 61.8;           // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: MACD Settings";
 input group "╚════════════════════════════════════════════════════════╝";
+input EMacdVoteMode Inp_RRM_ORG_MacdMode           = MACD_HISTOGRAM; // RRM ORG MACD: MACD Mode
 input bool        Inp_RRM_ORG_MacdSlope            = false;          // RRM ORG MACD: MACD require SLO
 input bool        Inp_RRM_ORG_MacdDiv              = false;          // RRM ORG MACD: MACD require DIV
-input EMacdVoteMode Inp_RRM_ORG_MacdMode           = MACD_HISTOGRAM; // RRM ORG MACD: MACD Mode
 input int         Inp_RRM_ORG_MacdFast             = 8;              // RRM ORG MACD: MACD Fast
 input int         Inp_RRM_ORG_MacdSlow             = 13;             // RRM ORG MACD: MACD Slow
 input int         Inp_RRM_ORG_MacdSig              = 5;              // RRM ORG MACD: MACD Signal
+input int         Inp_RRM_ORG_MacdFreshBars        = 3;              // RRM ORG MACD: max bars since last zero-cross to be "fresh"
+input double      Inp_RRM_ORG_MacdSlopeMin         = 0.00001;        // RRM ORG MACD: minimum histogram slope magnitude
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: MFI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1657,6 +1684,14 @@ input bool        Inp_RRM_ORG_ForceDDProtection    = false;          // RRM ORG 
 input int         Inp_RRM_ORG_DDMaxConsecLosses    = 3;              // RRM ORG DD: Override max consecutive losses (0=use Inp_RRM_*)
 input int         Inp_RRM_ORG_DDMaxTradesPerDay    = 15;             // RRM ORG DD: Override max trades per day (0=use Inp_RRM_*)
 input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM ORG DD: Override max daily DD % (0=use Inp_RRM_*)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: VRC Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_RRM_ORG_VRC_Lookback         = 100;            // RRM ORG VRC: lookback bars for regime classification
+input double      Inp_RRM_ORG_VRC_LowThreshold     = 33.0;           // RRM ORG VRC: low-volatility percentile threshold
+input int         Inp_RRM_ORG_VRC_ATR_Period       = 14;             // RRM ORG VRC: ATR period for VRC calculation
+input int         Inp_RRM_ORG_VPRR_Weight_VRC      = 1;              // RRM ORG VRC: voter weight
+
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
