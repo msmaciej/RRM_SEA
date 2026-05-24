@@ -328,6 +328,7 @@ struct ST_Settings
    // Risk
    double RiskPercent;
    double MaxTotalRisk;          // Max % of account at risk simultaneously (e.g., 4.0)
+   double RiskCapMultiple;       // Hard per-trade cap: lots clamped so worst-case loss <= RiskCapMultiple × target risk (circuit breaker; default 1.5)
    int    MaxOpenTrades;         // Max number of concurrent trades (0 = no limit)
    bool   CountBEasZeroRisk;     // If true, trades at breakeven don't count toward risk
    double MarginUsageLimit;      // Max % of free margin allowed per trade (0 = use 100%)
@@ -854,6 +855,7 @@ input group "╚═════════════════════�
 input int         Inp_RM_MaxOpenTrades             = 3;              // RM: Max concurrent trades (0 = unlimited)
 input double      Inp_RM_RiskPercentDefault        = 2.0;            // RM: Default risk % per trade
 input double      Inp_RM_MaxTotalRisk              = 6.0;            // RM: Max total active risk (%; 0 = unlimited)
+input double      Inp_RM_RiskCapMultiple           = 1.5;            // RM: Hard per-trade risk cap (× target; clamps oversized lots, circuit breaker)
 input double      Inp_RM_MarginUsageLimit          = 80.0;           // RM: Max % of free margin per trade (0 = use 100%)
 input double      Inp_RM_MinMarginLevel            = 100.0;          // RM: Min margin level (%) required to allow new entries (0 = disabled)
 input double      Inp_RM_EmergencyMarginLevel      = 80.0;           // RM: Emergency margin level (%) to force-close worst position (0 = disabled)
@@ -2132,6 +2134,7 @@ void InitializeConfig()
    // === Strategy inputs ===
    Settings.CloseOnReverse          = Inp_CUSTOM_CloseOnReverse;
    Settings.RiskPercent             = Inp_RM_RiskPercentDefault;
+   Settings.RiskCapMultiple         = (Inp_RM_RiskCapMultiple > 0.0) ? Inp_RM_RiskCapMultiple : 1.5;
    Settings.FixedLotSize            = 0.0; // 0 = risk-based sizing (default)
    Settings.MaxSpread               = Inp_VETO_MaxSpread;
    Settings.UseSpread               = Inp_VETO_UseSpread;

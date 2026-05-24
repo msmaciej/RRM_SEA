@@ -897,6 +897,54 @@ private:
          PrintFormat("⚠️ [CM] Very large lot computed: %.2f lots for %.1f pip SL on %.0f %s equity -- check SL_MinPips setting",
                      raw_lot, stop_dist / pip_size, equity, AccountInfoString(ACCOUNT_CURRENCY));
       }
+
+      // ──────────────────────────────────────────────────────────────────────
+      // HARD PER-TRADE RISK CAP (circuit breaker).
+      //
+      // With RiskMoneyPerLot() the 2% target is computed correctly, so this cap
+      // should NEVER trigger in normal operation. It is a last-line defence
+      // against a silent environmental fault — a broker/symbol reporting a
+      // degenerate tick value or contract size, or a future code regression —
+      // any of which could oversize the position. Without it such a fault
+      // oversizes silently and is only discovered after a stop-out (exactly how
+      // the original 10× bug erased half the account); with it the order is
+      // clamped and the anomaly logged loudly.
+      //
+      // CRITICAL: the cap must validate against an INDEPENDENT measure of the
+      // worst-case loss, not against `loss_per_lot` (which, if itself wrong,
+      // would make the check circular and useless). We ask the terminal's own
+      // engine, OrderCalcProfit, for the actual CHF loss of `raw_lot` at the
+      // sizing stop. If that exceeds RiskCapMultiple × target risk, clamp.
+      // ──────────────────────────────────────────────────────────────────────
+      double risk_cap_mult    = (m_settings.RiskCapMultiple > 0.0) ? m_settings.RiskCapMultiple : 1.5;
+      double max_loss_allowed = risk_money * risk_cap_mult;
+
+      double ref_px = SymbolInfoDouble(m_symbol, SYMBOL_BID);
+      if(ref_px <= 0.0) ref_px = SymbolInfoDouble(m_symbol, SYMBOL_ASK);
+      double engine_loss = 0.0;   // independent worst-case loss of raw_lot at the sizing stop
+      if(ref_px > 0.0)
+      {
+         if(!OrderCalcProfit(ORDER_TYPE_BUY, m_symbol, raw_lot, ref_px, ref_px - stop_dist, engine_loss))
+            engine_loss = 0.0;   // engine call failed → fall back below
+      }
+      engine_loss = MathAbs(engine_loss);
+      // Fallback to the loss_per_lot estimate only if the engine call failed.
+      if(engine_loss <= 0.0) engine_loss = raw_lot * loss_per_lot;
+
+      if(engine_loss > max_loss_allowed && engine_loss > 0.0)
+      {
+         double scale       = max_loss_allowed / engine_loss;   // <1
+         double capped_lot  = raw_lot * scale;
+         PrintFormat("🛑 [RISK CAP] %s raw_lot=%.4f would risk %.2f %s (%.2f%%) > cap %.2f%% (%.1f× target %.2f%%). "
+                     "Clamping to %.4f lots. Investigate tick_value/contract/SL — sizing should not reach here.",
+                     m_symbol, raw_lot, engine_loss, AccountInfoString(ACCOUNT_CURRENCY),
+                     (equity > 0.0 ? engine_loss / equity * 100.0 : 0.0),
+                     (equity > 0.0 ? max_loss_allowed / equity * 100.0 : 0.0),
+                     risk_cap_mult, m_settings.RiskPercent,
+                     capped_lot);
+         raw_lot = capped_lot;
+      }
+
       PrintFormat("📊 [LOT CALC] %s | stop=%.5f | tick_sz=%.5f | tick_val=%.5f | loss_per_lot=%.4f | risk=%.2f %s | raw_lot=%.4f | final_lot=%.4f",
                   m_symbol,
                   stop_dist,
