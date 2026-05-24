@@ -1536,10 +1536,11 @@ input double      Inp_RRM_ORG_RecoveryRatio_S      = -1.0;           // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 RRM_ORG: VPRR Volume Confirmation";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool            Inp_RRM_ORG_VPRR_Enabled      = false;          // RRM ORG VPRR: Volume Pullback-Recovery Ratio (OFF=no-op; ON for metals/indices/equities)
+input bool            Inp_RRM_ORG_VPRR_AutoEnable   = true;           // RRM ORG VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual Enabled toggle below)
+input bool            Inp_RRM_ORG_VPRR_Enabled      = false;          // RRM ORG VPRR: Manual enable (only used when AutoEnable=OFF)
 input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType   = VPRR_VOL_AUTO;  // RRM ORG VPRR: VPRR volume source (Auto=real then tick fallback)
 input int             Inp_RRM_ORG_VPRR_RecoveryBars = 3;              // RRM ORG VPRR: VPRR recovery measurement bars (1-10)
-input double          Inp_RRM_ORG_VPRR_MinRatio     = 1.0;            // RRM ORG VPRR: VPRR min ratio (1.0 = recovery vol >= pullback vol)
+input double          Inp_RRM_ORG_VPRR_MinRatio     = 1.0;            // RRM ORG VPRR: VPRR min ratio (manual override; auto sets 1.0 for real-vol, 0.7 for tick-vol FX)
 input int             Inp_RRM_ORG_VPRR_Weight       = 1;              // RRM ORG VPRR: VPRR vote weight
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: EMA Fan Filter";
