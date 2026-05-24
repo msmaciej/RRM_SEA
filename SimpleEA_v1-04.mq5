@@ -639,6 +639,7 @@ int OrchestrateInit()
        Signal.LoadNews(Inp_VETO_NewsFile);
 
    SEA_UI_Init(Inp_Global_MagicNum);
+   SEA_UI_RenderDeferredVPRR();
    SEA_UI_UpdateSettingsPanel();
    {
       // Fetch the initial empty state from the Signal Engine

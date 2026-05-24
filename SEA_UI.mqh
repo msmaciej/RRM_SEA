@@ -23,6 +23,10 @@ string g_sea_ui_vprr_name     = "";
 string g_sea_ui_last_settings_txt = "";
 string g_sea_ui_last_cockpit_txt  = "";
 
+// Deferred VPRR panel content (stored during preset, rendered after SEA_UI_Init)
+string g_sea_ui_vprr_lines[];
+color  g_sea_ui_vprr_clrs[];
+
 // -----------------------------------
 // Helpers
 // -----------------------------------
@@ -214,14 +218,14 @@ void SEA_UI_DrawMTFSegments(CSignalEngine &signal, const int line_index)
    int seg_count = ArraySize(segments);
    if(seg_count <= 0) return;
 
-   int line_h = SEA_UI_GetLineSpacingPx(Inp_UI_CockpitLineSpacingPx, Inp_UI_CockpitFontSize);
+   int line_h = SEA_UI_GetLineSpacingPx(Inp_UI_PanelLineSpacingPx, Inp_UI_PanelFontSize);
    int pad = Inp_UI_FramePadPx;
    int x_cursor = Inp_UI_CockpitX + pad;
    int y = Inp_UI_CockpitY + pad + (line_index * line_h);
 
    // Set font for accurate TextGetSize measurement
-   string font_name = Inp_UI_CockpitFont;
-   int font_size_px = -(int)(Inp_UI_CockpitFontSize * 10);  // negative = points * 10
+   string font_name = Inp_UI_PanelFont;
+   int font_size_px = -(int)(Inp_UI_PanelFontSize * 10);  // negative = points * 10
    TextSetFont(font_name, font_size_px);
 
    for(int i = 0; i < seg_count && i < 10; i++)
@@ -234,7 +238,7 @@ void SEA_UI_DrawMTFSegments(CSignalEngine &signal, const int line_index)
       ObjectSetInteger(0, label_name, OBJPROP_XDISTANCE, x_cursor);
       ObjectSetInteger(0, label_name, OBJPROP_YDISTANCE, y);
       ObjectSetInteger(0, label_name, OBJPROP_COLOR, segments[i].clr);
-      ObjectSetInteger(0, label_name, OBJPROP_FONTSIZE, Inp_UI_CockpitFontSize);
+      ObjectSetInteger(0, label_name, OBJPROP_FONTSIZE, Inp_UI_PanelFontSize);
       ObjectSetInteger(0, label_name, OBJPROP_SELECTABLE, false);
       ObjectSetInteger(0, label_name, OBJPROP_HIDDEN, true);
       ObjectSetString(0, label_name, OBJPROP_FONT, font_name);
@@ -245,7 +249,7 @@ void SEA_UI_DrawMTFSegments(CSignalEngine &signal, const int line_index)
       if(TextGetSize(segments[i].text, tw, th) && tw > 0)
          x_cursor += (int)tw + 2;   // +2px gap between segments
       else
-         x_cursor += (int)(StringLen(segments[i].text) * Inp_UI_CockpitFontSize * 0.85) + 4;
+         x_cursor += (int)(StringLen(segments[i].text) * Inp_UI_PanelFontSize * 0.85) + 4;
    }
 }
 
@@ -644,7 +648,7 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
       Inp_UI_PanelX, 
       Inp_UI_PanelY, 
       Inp_UI_PanelFontSize, 
-      Inp_UI_LineSpacingPx, 
+      Inp_UI_PanelLineSpacingPx, 
       Inp_UI_PanelFont,
       line_clrs 
    );
@@ -892,8 +896,8 @@ void SEA_UI_UpdateCockpit(
       g_sea_ui_last_cockpit_txt = cockpit_txt;
       SEA_UI_RenderPanel(
          g_sea_ui_cockpit_name, cockpit_txt, Inp_UI_CockpitCorner, 
-         Inp_UI_CockpitX, Inp_UI_CockpitY, Inp_UI_CockpitFontSize, 
-         Inp_UI_CockpitLineSpacingPx, Inp_UI_CockpitFont, line_clrs
+         Inp_UI_CockpitX, Inp_UI_CockpitY, Inp_UI_PanelFontSize, 
+         Inp_UI_PanelLineSpacingPx, Inp_UI_PanelFont, line_clrs
       );
    }
 
@@ -1073,31 +1077,53 @@ void SEA_UI_ManageChartIndicators(CSignalEngine &engine)
 }
 
 //+------------------------------------------------------------------+
-//| SEA_UI_RenderVPRRPanel: draw/update/destroy the on-chart VPRR    |
-//| status panel using OBJ_LABEL objects (fully position-controllable |
-//| by the user via Inp_UI_ShowVPRRPanel / Corner / X / Y).          |
-//| Called from PrintVPRRSummary() in SEA_Presets.mqh.                |
+//| SEA_UI_StoreVPRRContent: called from PrintVPRRSummary() during   |
+//| preset application (before SEA_UI_Init). Stores content so       |
+//| SEA_UI_RenderDeferredVPRR() can draw it after panel names init.  |
 //+------------------------------------------------------------------+
-void SEA_UI_RenderVPRRPanel(const string &content_lines[], const color &line_clrs[])
+void SEA_UI_StoreVPRRContent(const string &lines[], const color &clrs[])
+{
+   int n = ArraySize(lines);
+   ArrayResize(g_sea_ui_vprr_lines, n);
+   ArrayResize(g_sea_ui_vprr_clrs, n);
+   for(int i = 0; i < n; i++)
+   {
+      g_sea_ui_vprr_lines[i] = lines[i];
+      g_sea_ui_vprr_clrs[i]  = clrs[i];
+   }
+}
+
+//+------------------------------------------------------------------+
+//| SEA_UI_RenderDeferredVPRR: called from OnInit AFTER SEA_UI_Init  |
+//| so panel names are valid. Uses shared font/spacing inputs.        |
+//+------------------------------------------------------------------+
+void SEA_UI_RenderDeferredVPRR()
 {
    if(!Inp_UI_ShowVPRRPanel || g_sea_ui_vprr_name == "")
    {
       SEA_UI_DestroyPanel(g_sea_ui_vprr_name);
       return;
    }
+   int n = ArraySize(g_sea_ui_vprr_lines);
+   if(n == 0)
+   {
+      SEA_UI_DestroyPanel(g_sea_ui_vprr_name);
+      return;
+   }
 
-   // Build a single newline-delimited string for the shared renderer
    string txt = "";
-   for(int i = 0; i < ArraySize(content_lines); i++)
+   for(int i = 0; i < n; i++)
    {
       if(i > 0) txt += "\n";
-      txt += content_lines[i];
+      txt += g_sea_ui_vprr_lines[i];
    }
 
    SEA_UI_RenderPanel(
       g_sea_ui_vprr_name, txt,
       Inp_UI_VPRRCorner,
       Inp_UI_VPRR_X, Inp_UI_VPRR_Y,
-      10, 18, "Arial",
-      line_clrs);
+      Inp_UI_PanelFontSize,
+      Inp_UI_PanelLineSpacingPx,
+      Inp_UI_PanelFont,
+      g_sea_ui_vprr_clrs);
 }

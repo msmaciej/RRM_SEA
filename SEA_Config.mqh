@@ -945,15 +945,18 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "    ✅✅ UI (GLOBAL)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🎨 UI: ALL PANELS — SHARED APPEARANCE";
+input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_UI_PanelFontSize             = 10;             // UI: Font size (all panels)
+input int         Inp_UI_PanelLineSpacingPx        = 28;             // UI: Line spacing px (all panels)
+input string      Inp_UI_PanelFont                 = "Arial";        // UI: Font name (all panels)
+input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: COCKPIT PANEL";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_UI_ShowCockpitPanel          = true;          // UI CP: COCKPIT PANEL (on-chart info; off by default)
-input ENUM_BASE_CORNER  Inp_UI_CockpitCorner       = CORNER_LEFT_UPPER; // UI CP: corner (right side avoids chart-comment overlap top-left)
+input bool        Inp_UI_ShowCockpitPanel          = false;          // UI CP: COCKPIT PANEL (off by default)
+input ENUM_BASE_CORNER  Inp_UI_CockpitCorner       = CORNER_RIGHT_UPPER; // UI CP: corner
 input int         Inp_UI_CockpitX                  = 30;             // UI CP: Cockpit panel X (px)
 input int         Inp_UI_CockpitY                  = 30;             // UI CP: Cockpit panel Y (px)
-input int         Inp_UI_CockpitFontSize           = 10;             // UI CP: Cockpit panel font size
-input int         Inp_UI_CockpitLineSpacingPx      = 28;             // UI CP: Cockpit panel line spacing (px)
-input string      Inp_UI_CockpitFont               = "Arial";        // UI CP: Cockpit panel font
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: COCKPIT PANEL COLORS";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -966,18 +969,15 @@ input group "╔═════════════════════�
 input group "║   🎨 UI: STATUS PANEL";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_UI_ShowStatusPanel           = false;          // UI SP: STATUS PANEL
-input ENUM_BASE_CORNER Inp_UI_PanelCorner          = CORNER_RIGHT_UPPER; // UI SP: Status panel corner (right side avoids chart-comment overlap)
+input ENUM_BASE_CORNER Inp_UI_PanelCorner          = CORNER_RIGHT_UPPER; // UI SP: Status panel corner
 input bool        Inp_UI_ManageChartIndicators     = false;          // UI SP: Auto-add/remove chart indicators
 input int         Inp_UI_PanelX                    = 30;             // UI SP: Status panel X (px)
 input int         Inp_UI_PanelY                    = 30;             // UI SP: Status panel Y (px)
-input int         Inp_UI_PanelFontSize             = 10;             // UI SP: Status panel font size
-input int         Inp_UI_LineSpacingPx             = 28;             // UI SP: Status panel line spacing (px)
-input string      Inp_UI_PanelFont                 = "Arial";        // UI SP: Status panel font
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: VPRR PANEL";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_UI_ShowVPRRPanel             = true;          // UI VP: VPRR panel (on-chart VPRR status; off by default)
-input ENUM_BASE_CORNER Inp_UI_VPRRCorner           = CORNER_RIGHT_UPPER; // UI VP: VPRR panel corner
+input bool        Inp_UI_ShowVPRRPanel             = false;          // UI VP: VPRR panel (off by default)
+input ENUM_BASE_CORNER Inp_UI_VPRRCorner           = CORNER_LEFT_UPPER; // UI VP: VPRR panel corner
 input int         Inp_UI_VPRR_X                    = 30;             // UI VP: VPRR panel X (px)
 input int         Inp_UI_VPRR_Y                    = 30;             // UI VP: VPRR panel Y (px)
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1407,7 +1407,7 @@ input double      Inp_RRM_ORG_RRRatio              = 1.5;            // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: INITIAL STOP LOSS PLACEMENT";
 input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;  // RRM ORG SL: mode
+input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_ATR;  // RRM ORG SL: mode
 input int         Inp_RRM_ORG_SwingLookback        = 34;             // RRM ORG SL: Swing lookback bars
 input int         Inp_RRM_ORG_SL_AtrPeriod         = 14;             // RRM ORG SL: ATR period (SL_MODE_ATR only)
 input double      Inp_RRM_ORG_SL_AtrMult           = 1.0;            // RRM ORG SL: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical; Gold M15 use 1.0–1.5)

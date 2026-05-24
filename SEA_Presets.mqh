@@ -749,7 +749,7 @@ void PrintVPRRSummary(const ST_Settings &cfg, const string preset_name)
       ArrayResize(off_lines, 2);  ArrayResize(off_clrs, 2);
       off_lines[0] = StringFormat("VPRR: OFF  [%s]", preset_name);  off_clrs[0] = clrOrangeRed;
       off_lines[1] = "Set AutoEnable=ON or check volume source";    off_clrs[1] = clrGray;
-      SEA_UI_RenderVPRRPanel(off_lines, off_clrs);
+      SEA_UI_StoreVPRRContent(off_lines, off_clrs);
       ChartSetString(0, CHART_COMMENT, ""); // always clear the legacy chart comment
       return;
    }
@@ -785,7 +785,7 @@ void PrintVPRRSummary(const ST_Settings &cfg, const string preset_name)
    vp_lines[4] = StringFormat("MinRatio: %.2f (eff)", cfg.VPRR_MinRatio);   vp_clrs[4] = clrGold;
    vp_lines[5] = StringFormat("RecBars: %d (eff)", cfg.VPRR_RecoveryBars);  vp_clrs[5] = clrGold;
    vp_lines[6] = "Tune: MT5 inputs > VPRR group";                           vp_clrs[6] = clrGray;
-   SEA_UI_RenderVPRRPanel(vp_lines, vp_clrs);
+   SEA_UI_StoreVPRRContent(vp_lines, vp_clrs);
    ChartSetString(0, CHART_COMMENT, ""); // always clear the legacy chart comment
 }
 
