@@ -1106,9 +1106,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ADX_Threshold_Accumulation = 12.0;
       cfg.ADX_Threshold_Trending     = 25.0;
       cfg.ADX_Threshold_Distribution = 18.0;
-      cfg.P_Atr                     = Inp_RRM_P_Atr;
-      cfg.ATR_VoteMinPips           = Inp_RRM_ATR_VoteMinPips;
-      cfg.ATR_VoteMaxPips           = Inp_RRM_ATR_VoteMaxPips;
+      cfg.P_Atr                     = 14;    // ATR period default
+      cfg.ATR_VoteMinPips           = 5.0;   // ATR voter range default
+      cfg.ATR_VoteMaxPips           = 50.0;  // ATR voter range default
       cfg.CandleBody_AvgPeriod      = 10;
       cfg.CandleBody_MaxMult        = 3.0;
       cfg.CandleBody_CheckBars      = 1;
@@ -1117,10 +1117,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CI_Period                 = 14;
       cfg.CI_RangingThreshold       = 61.8;
       cfg.Ind_CI_Weight             = 1;
-      cfg.VRC_ATR_Period            = Inp_RRM_VRC_ATR_Period;
-      cfg.VRC_Lookback              = Inp_RRM_VRC_Lookback;
-      cfg.VRC_LowThreshold          = Inp_RRM_VRC_LowThreshold;
-      cfg.Ind_VRC_Weight            = Inp_RRM_VRC_Weight;
+      cfg.VRC_ATR_Period            = 14;    // VRC default
+      cfg.VRC_Lookback              = 100;   // VRC default
+      cfg.VRC_LowThreshold          = 33.0;  // VRC default
+      cfg.Ind_VRC_Weight            = 1;     // VRC default
       cfg.P_Cci                     = 14;
       cfg.CciMode                   = CCI_TREND_ZERO;
       // P_Mfi / T_MfiOB / T_MfiOS / MfiMode — set above from Inp_FPM_Ind_Mfi_Enabled / Inp_FPM_Mfi_Period
@@ -1282,9 +1282,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ADX_Threshold_Distribution = 18.0;
       
       // ATR (Average True Range) - Voting Indicator Only
-      cfg.P_Atr                  = Inp_RRM_P_Atr;
-      cfg.ATR_VoteMinPips        = Inp_RRM_ATR_VoteMinPips;
-      cfg.ATR_VoteMaxPips        = Inp_RRM_ATR_VoteMaxPips;
+      cfg.P_Atr                  = 14;
+      cfg.ATR_VoteMinPips        = 5.0;
+      cfg.ATR_VoteMaxPips        = 50.0;
       
       // Bollinger Bands
       cfg.P_Bb                   = 20;
@@ -1304,10 +1304,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_CI_Weight          = 1;
       
       // VRC (Volatility Regime Classifier)
-      cfg.VRC_ATR_Period         = Inp_RRM_VRC_ATR_Period;
-      cfg.VRC_Lookback           = Inp_RRM_VRC_Lookback;
-      cfg.VRC_LowThreshold       = Inp_RRM_VRC_LowThreshold;
-      cfg.Ind_VRC_Weight         = Inp_RRM_VRC_Weight;
+      cfg.VRC_ATR_Period         = 14;
+      cfg.VRC_Lookback           = 100;
+      cfg.VRC_LowThreshold       = 33.0;
+      cfg.Ind_VRC_Weight         = 1;
 
       // CCI (Commodity Channel Index)
       cfg.P_Cci                  = 14;
@@ -2195,16 +2195,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── DRAWDOWN PROTECTION ───────────────────────────────────────────
       // PHASE A: force-on for ORG (a "quality-first" preset). User can
       // still tune the thresholds via Inp_RRM_ORG_DD* and Inp_RRM_Max* inputs.
-      cfg.RRM_EnableDrawdownProtection = Inp_RRM_ORG_ForceDDProtection || Inp_RRM_EnableDrawdownProtection;
+      cfg.RRM_EnableDrawdownProtection = Inp_RRM_ORG_ForceDDProtection; // Inp_RRM_EnableDrawdownProtection removed (cross-preset ref)
       cfg.RRM_MaxConsecutiveLosses  = (Inp_RRM_ORG_DDMaxConsecLosses > 0)
-                                          ? Inp_RRM_ORG_DDMaxConsecLosses
-                                          : (Inp_RRM_MaxConsecutiveLosses > 0 ? Inp_RRM_MaxConsecutiveLosses : 4);
+                                          ? Inp_RRM_ORG_DDMaxConsecLosses : 4;
       cfg.RRM_MaxTradesPerDay       = (Inp_RRM_ORG_DDMaxTradesPerDay > 0)
-                                          ? Inp_RRM_ORG_DDMaxTradesPerDay
-                                          : Inp_RRM_MaxTradesPerDay;
+                                          ? Inp_RRM_ORG_DDMaxTradesPerDay : 5;
       cfg.RRM_MaxDailyDrawdownPct   = (Inp_RRM_ORG_DDMaxDailyPct > 0.0)
-                                          ? Inp_RRM_ORG_DDMaxDailyPct
-                                          : (Inp_RRM_MaxDailyDrawdownPct > 0.0 ? Inp_RRM_MaxDailyDrawdownPct : 2.0);
+                                          ? Inp_RRM_ORG_DDMaxDailyPct : 2.0;
 
       // ── SLOPE CALCULATION ─────────────────────────────────────────────
       cfg.SlopeLookbackBars         = 1;

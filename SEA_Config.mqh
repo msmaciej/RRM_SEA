@@ -6,6 +6,19 @@
 
 #define SEA_STATUS_EVALUATING "Evaluating..."
 
+// ── ACTIVE PRESET SELECTOR ──────────────────────────────────────────────────
+// Uncomment EXACTLY ONE line before compiling. Only that preset's inputs
+// will be compiled, keeping total input count under MT5's 1024 limit.
+// After changing: recompile SimpleEA_v1-04.mq5 in MetaEditor.
+//
+//#define SEA_PRESET_MA
+//#define SEA_PRESET_FPM
+//#define SEA_PRESET_RRM
+#define SEA_PRESET_RRM_ORG
+//#define SEA_PRESET_TOPINVESTOR
+// ─────────────────────────────────────────────────────────────────────────────
+
+
 //+------------------------------------------------------------------+
 //| ENUMS
 //+------------------------------------------------------------------+
@@ -1027,6 +1040,14 @@ input bool        Inp_Debug_ExportUseCommonFiles   = false;          // Report: 
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+
+// ── GLOBAL: PSAR trail cushion inputs (shared by all presets) ──────────────
+input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // RRM TS: GLOBAL PSAR trail cushion mode (PIPS / ATR / PERCENT) — default for CUSTOM & seed
+input double      Inp_TrailCushionPct              = 0.04;           // RRM TS: GLOBAL cushion % of price (PERCENT mode + safety floor), e.g. 0.04 = 0.04%
+
+input int         Inp_TrailCushionAtrPeriod        = 14;             // RRM TS: GLOBAL cushion ATR period (ATR mode)
+input double      Inp_TrailCushionAtrMult          = 0.5;            // RRM TS: GLOBAL cushion ATR multiplier (ATR mode): cushion = ATR × this
+#ifdef SEA_PRESET_MA
 input group "    📐 PRESET: MA";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1039,6 +1060,9 @@ input double      Inp_MA_DecreaseFactor            = 3.0;            // MA Lot d
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+#endif // SEA_PRESET_MA
+
+#ifdef SEA_PRESET_FPM
 input group "    📐 PRESET: FPM";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1080,6 +1104,9 @@ input int         Inp_FPM_Mfi_Period                = 14;            // FPM MFI:
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+#endif // SEA_PRESET_FPM
+
+#ifdef SEA_PRESET_RRM
 input group "    📐 PRESET: RRM";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1100,10 +1127,6 @@ input group "╔═════════════════════�
 input group "║   📐 RRM: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETrailingMode Inp_RRM_TrailMode              = TRAIL_PSAR;     // RRM TS: Trailing stop mode
-input EPsarTrailCushionMode Inp_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // RRM TS: GLOBAL PSAR trail cushion mode (PIPS / ATR / PERCENT) — default for CUSTOM & seed
-input int         Inp_TrailCushionAtrPeriod        = 14;             // RRM TS: GLOBAL cushion ATR period (ATR mode)
-input double      Inp_TrailCushionAtrMult          = 0.5;            // RRM TS: GLOBAL cushion ATR multiplier (ATR mode): cushion = ATR × this
-input double      Inp_TrailCushionPct              = 0.04;           // RRM TS: GLOBAL cushion % of price (PERCENT mode + safety floor), e.g. 0.04 = 0.04%
 input bool        Inp_RRM_TrailStartsAfterBE       = false;          // RRM TS: Start trailing only after BE is reached
 input bool        Inp_RRM_TrailLockProfit          = true;           // RRM TS: never move SL backwards
 input double      Inp_RRM_TrailStepPips            = 5.0;            // RRM TS: step size for fixed-step trail modes
@@ -1265,6 +1288,9 @@ input double      Inp_RRM_EmaFanMaxPct             = 0.0;            // RRM Fan:
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+#endif // SEA_PRESET_RRM
+
+#ifdef SEA_PRESET_RRM_ORG
 input group "    📐 PRESET: RRM_ORG: DPI";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1695,6 +1721,9 @@ input int         Inp_RRM_ORG_VPRR_Weight_VRC      = 1;              // RRM ORG 
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+#endif // SEA_PRESET_RRM_ORG
+
+#ifdef SEA_PRESET_TOPINVESTOR
 input group "    📐 PRESET: TOPINVESTOR";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 
@@ -1832,6 +1861,8 @@ input double      Inp_TI_CandleBody_FullRatio      = 0.75;           // TI Full:
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+#endif // SEA_PRESET_TOPINVESTOR
+
 input group "    ⚠️  PRESETS OVERRIDES! (Step1-5)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
@@ -2216,8 +2247,8 @@ void InitializeConfig()
    Settings.CandleBody_RequireDirection = Inp_CUSTOM_Ind_CandleBody_RequireDirection;
 
    Settings.UseMACompatSizer        = false;
-   Settings.MA_MaximumRiskPct       = Inp_MA_MaximumRiskPct;
-   Settings.MA_DecreaseFactor       = Inp_MA_DecreaseFactor;
+   Settings.MA_MaximumRiskPct       = 0.02;   // default (MA preset only; overwritten by ApplyPreset)
+   Settings.MA_DecreaseFactor       = 3.0;    // default (MA preset only; overwritten by ApplyPreset)
    Settings.RequirePriceCross       = false;
    Settings.MABenchmarkStrict       = false;
 
@@ -2343,7 +2374,7 @@ void InitializeConfig()
    Settings.Ind_CandleBody_Enabled = Inp_CUSTOM_Ind_CandleBody_Enabled;
    Settings.Ind_CI_Enabled        = Inp_CUSTOM_Ind_CI_Enabled;
    Settings.Ind_VRC_Enabled       = Inp_CUSTOM_Ind_VRC_Enabled;
-   Settings.Ind_SmaConverge_Enabled = Inp_FPM_Ind_SmaConverge_Enabled;
+   Settings.Ind_SmaConverge_Enabled = false;  // default (FPM preset only; overwritten by ApplyPreset)
 
    // Weights
    Settings.Ind_Adx_Weight       = Inp_CUSTOM_Ind_Adx_Weight;
@@ -2432,19 +2463,19 @@ void InitializeConfig()
    Settings.TrailLockProfit      = Inp_CUSTOM_TrailLockProfit;
    Settings.TP_Enabled           = Inp_CUSTOM_TP_Enabled;
    Settings.TrailMode            = Inp_CUSTOM_TrailMode;
-   Settings.PSAR_TrailCushionMode= Inp_PSAR_TrailCushionMode;
-   Settings.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_TrailCushionAtrPeriod);
-   Settings.PSAR_TrailCushionAtrMult   = MathMax(0.0, Inp_TrailCushionAtrMult);
-   Settings.PSAR_TrailCushionPct       = MathMax(0.0, Inp_TrailCushionPct);
-   Settings.PSAR_TrailDelay      = (Inp_RRM_TrailPsarShiftDelay < 1) ? 1 : (Inp_RRM_TrailPsarShiftDelay > 3) ? 3 : Inp_RRM_TrailPsarShiftDelay; // DEPRECATED: mirrors RRM_TrailPsarShiftDelay so legacy refs stay consistent
+   Settings.PSAR_TrailCushionMode   = PSAR_CUSHION_ATR; // default; overwritten by ApplyPreset
+   Settings.PSAR_TrailCushionAtrPeriod = 14;  // default; overwritten by ApplyPreset
+   Settings.PSAR_TrailCushionAtrMult   = 0.5; // default; overwritten by ApplyPreset
+   Settings.PSAR_TrailCushionPct       = 0.0; // default; overwritten by ApplyPreset
+   Settings.PSAR_TrailDelay         = 2;      // default; overwritten by ApplyPreset
 
    Settings.ExitProfile             = Inp_CUSTOM_ExitProfile;
    Settings.BE_Mode                 = Inp_CUSTOM_BE_Mode;
-   Settings.RRM_BE_ProgressPct      = Inp_RRM_BE_ProgressPct;
-   Settings.RRM_BE_RMultiple        = Inp_RRM_BE_RMultiple;
-   Settings.RRM_TrailPsarShiftDelay = (Inp_RRM_TrailPsarShiftDelay < 1) ? 1 : (Inp_RRM_TrailPsarShiftDelay > 3) ? 3 : Inp_RRM_TrailPsarShiftDelay;
-   Settings.RRM_FreezeTrailOnFlip   = Inp_RRM_FreezeTrailOnFlip;
-   Settings.RRM_TrailStartsAfterBE  = Inp_RRM_TrailStartsAfterBE;
+   Settings.RRM_BE_ProgressPct      = 50.0;   // default; overwritten by ApplyPreset
+   Settings.RRM_BE_RMultiple        = 1.0;    // default; overwritten by ApplyPreset
+   Settings.RRM_TrailPsarShiftDelay = 2;      // default; overwritten by ApplyPreset
+   Settings.RRM_FreezeTrailOnFlip   = true;   // default; overwritten by ApplyPreset
+   Settings.RRM_TrailStartsAfterBE  = false;  // default; overwritten by ApplyPreset
 
    Settings.Vote_EvalShift       = 1;
    Settings.Vote_AllowPsarFlip   = false;
@@ -2501,11 +2532,10 @@ void InitializeConfig()
     Settings.AllowLayer1_Entries          = true;
     Settings.AllowLayer2_Entries          = true;
     Settings.AllowLayer3_Entries          = true;
-
-    Settings.RRM_EnableDrawdownProtection = Inp_RRM_EnableDrawdownProtection;
-   Settings.RRM_MaxConsecutiveLosses     = Inp_RRM_MaxConsecutiveLosses;
-   Settings.RRM_MaxTradesPerDay          = Inp_RRM_MaxTradesPerDay;
-   Settings.RRM_MaxDailyDrawdownPct      = Inp_RRM_MaxDailyDrawdownPct;
+   Settings.RRM_EnableDrawdownProtection = false; // default; overwritten by ApplyPreset
+   Settings.RRM_MaxConsecutiveLosses     = 4;     // default; overwritten by ApplyPreset
+   Settings.RRM_MaxTradesPerDay          = 5;     // default; overwritten by ApplyPreset
+   Settings.RRM_MaxDailyDrawdownPct      = 2.0;   // default; overwritten by ApplyPreset
 
    // Account-level safety guards (preset-independent; mapped here so they are
    // never cleared by preset overrides applied later in ApplyPreset()).
@@ -2519,12 +2549,12 @@ void InitializeConfig()
    Settings.Safety_RequirePriorAtBEToAdd = Inp_Safety_RequirePriorAtBEToAdd;
 
     Settings.SlopeLookbackBars      = 1;
-    Settings.LayerPullbackEnabled        = Inp_RRM_LayerPullbackEnabled;
-    Settings.LayerBaselineLookback       = MathMax(3, Inp_RRM_LayerBaselineLookback);
-    Settings.LayerPullbackRatio          = MathMax(0.1, Inp_RRM_LayerPullbackRatio);
-    Settings.LayerRecoveryRatio          = MathMax(0.1, Inp_RRM_LayerRecoveryRatio);
-    Settings.LayerFlatRatio              = MathMax(0.05, Inp_RRM_LayerFlatRatio);
-    Settings.LayerAllowReversalPullback  = Inp_RRM_LayerAllowReversalPullback;
+   Settings.LayerPullbackEnabled        = false;  // default; overwritten by ApplyPreset
+   Settings.LayerBaselineLookback       = 10;     // default; overwritten by ApplyPreset
+   Settings.LayerPullbackRatio          = 0.5;    // default; overwritten by ApplyPreset
+   Settings.LayerRecoveryRatio          = 0.3;    // default; overwritten by ApplyPreset
+   Settings.LayerFlatRatio              = 0.1;    // default; overwritten by ApplyPreset
+   Settings.LayerAllowReversalPullback  = true;   // default; overwritten by ApplyPreset
     Settings.LayerRecoveryRatio_W        = -1.0;  // P2: default = use global
     Settings.LayerRecoveryRatio_M        = -1.0;  // P2: default = use global
     Settings.LayerRecoveryRatio_S        = -1.0;  // P2: default = use global
@@ -2554,9 +2584,9 @@ void InitializeConfig()
    Settings.MaxSpreadRetryBars    = Inp_VETO_MaxSpreadRetryBars;
 
    // EMA fan overextension filter: disabled by default (presets override)
-   Settings.EmaFanFilterEnabled   = Inp_RRM_EmaFanFilterEnabled;
-   Settings.EmaFanMaxTotalPips    = Inp_RRM_EmaFanMaxTotalPips;
-   Settings.EmaFanMaxPct          = MathMax(0.0, Inp_RRM_EmaFanMaxPct);
+   Settings.EmaFanFilterEnabled   = false;   // default; overwritten by ApplyPreset
+   Settings.EmaFanMaxTotalPips    = 60.0;    // default; overwritten by ApplyPreset
+   Settings.EmaFanMaxPct          = 0.0;     // default; overwritten by ApplyPreset
 
    // DPI momentum deceleration filter: disabled by default (presets override)
    Settings.DpiDecelFilterEnabled = Inp_RRM_ORG_DPI_Decel_Filter;
