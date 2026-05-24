@@ -440,6 +440,20 @@ int OrchestrateInit()
       Settings.PhaseDetectionEnabled = true;
    }
 
+   // Safety synchronization: the staged-risk gate (Safety_RequirePriorAtBEToAdd)
+   // only allows a new position once all existing positions are at break-even.
+   // If break-even is disabled (BE_Mode == BE_MODE_OFF), no position ever reaches
+   // BE, so the gate would permanently block every 2nd/3rd entry — silently turning
+   // the EA into single-position mode. Warn loudly so the user enables BE_Mode
+   // (e.g. BE_MODE_TP_PROGRESS_PCT or BE_MODE_R_MULTIPLE) to make staging work.
+   if(Settings.Safety_RequirePriorAtBEToAdd && Settings.BE_Mode == BE_MODE_OFF)
+   {
+      Print("⚠️ WARNING: Safety_RequirePriorAtBEToAdd is ON but BE_Mode is OFF.");
+      Print("⚠️ The staged-risk gate needs break-even to function: with BE off, no");
+      Print("⚠️ position ever becomes risk-free, so all additional entries will be");
+      Print("⚠️ blocked (effective MaxOpenTrades=1). Enable a BE_Mode to use staging.");
+   }
+
    FlowLog("Step B1: InitializeIndicatorRegistry() (populate central indicator registry)");
    InitializeIndicatorRegistry(Settings);
 

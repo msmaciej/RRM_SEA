@@ -654,6 +654,11 @@ struct ST_Settings
    double   Safety_MaxEquityDrawdownPct;   // Pause new entries if peak→trough equity DD ≥ this %. 0 = off.
    double   Safety_MinEquityFloor;         // Pause new entries if equity ≤ this absolute value. 0 = off.
    double   Safety_MinRewardRiskRatio;     // Reject entries whose TP:SL ratio < this. 0 = off.
+   bool     Safety_CountBEInAggregateRisk; // If true, BE positions still count toward MaxTotalRisk (closes the pyramiding gap). Default false.
+   int      Safety_MaxPositionsPerDir;     // Max concurrent positions per direction (LONG/SHORT). 0 = off (use MaxOpenTrades only).
+   bool     Safety_DelayTrailUntilR;       // If true, trailing only activates after price reaches Safety_TrailActivateR multiples of risk. Default false.
+   double   Safety_TrailActivateR;         // R-multiple of open profit required before trailing engages. 0 = off.
+   bool     Safety_RequirePriorAtBEToAdd;  // If true, a new position may only open when ALL existing same-symbol positions have SL at break-even or better. Enforces the staged-risk model. Default false.
    
    // Phase detection settings
    bool     PhaseDetectionEnabled;        // Master switch for phase system
@@ -1123,6 +1128,11 @@ input group "╚═════════════════════�
 input double      Inp_Safety_MaxEquityDrawdownPct  = 0.0;            // SAFETY: Pause new entries if peak→trough equity DD ≥ % (0=off)
 input double      Inp_Safety_MinEquityFloor        = 0.0;            // SAFETY: Pause new entries if equity ≤ absolute value (0=off)
 input double      Inp_Safety_MinRewardRiskRatio    = 0.0;            // SAFETY: Reject entries with TP:SL ratio below this (0=off)
+input bool        Inp_Safety_CountBEInAggregateRisk = false;         // SAFETY: Count BE positions toward MaxTotalRisk (closes pyramiding gap)
+input int         Inp_Safety_MaxPositionsPerDir    = 0;              // SAFETY: Max concurrent positions per direction (0=off)
+input bool        Inp_Safety_DelayTrailUntilR      = false;          // SAFETY: Delay trailing until open profit reaches R-multiple
+input double      Inp_Safety_TrailActivateR        = 0.0;            // SAFETY: R-multiple of profit before trailing engages (0=off)
+input bool        Inp_Safety_RequirePriorAtBEToAdd = false;         // SAFETY: New trade only if all open same-symbol positions are at BE+ (staged risk)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Indicators — Enable/Disable";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -2426,6 +2436,11 @@ void InitializeConfig()
    Settings.Safety_MaxEquityDrawdownPct  = Inp_Safety_MaxEquityDrawdownPct;
    Settings.Safety_MinEquityFloor        = Inp_Safety_MinEquityFloor;
    Settings.Safety_MinRewardRiskRatio    = Inp_Safety_MinRewardRiskRatio;
+   Settings.Safety_CountBEInAggregateRisk = Inp_Safety_CountBEInAggregateRisk;
+   Settings.Safety_MaxPositionsPerDir    = MathMax(0, Inp_Safety_MaxPositionsPerDir);
+   Settings.Safety_DelayTrailUntilR      = Inp_Safety_DelayTrailUntilR;
+   Settings.Safety_TrailActivateR        = Inp_Safety_TrailActivateR;
+   Settings.Safety_RequirePriorAtBEToAdd = Inp_Safety_RequirePriorAtBEToAdd;
 
     Settings.SlopeLookbackBars      = 1;
     Settings.LayerPullbackEnabled        = Inp_RRM_LayerPullbackEnabled;

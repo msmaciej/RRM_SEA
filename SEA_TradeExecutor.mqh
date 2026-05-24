@@ -1326,6 +1326,20 @@ private:
       if(m_settings.TrailMode != TRAIL_PSAR && m_settings.TrailMode != TRAIL_PROFIT_PERCENT) return;
       if(m_settings.RRM_TrailStartsAfterBE && !m_rrm_be_reached) return;
 
+      // SAFETY: delay trailing until the position has earned a minimum R-multiple of
+      // open profit. This lets winners run instead of being trailed out early — the
+      // direct lever against a low reward:risk ratio. OFF by default (0 = disabled).
+      if(m_settings.Safety_DelayTrailUntilR && m_settings.Safety_TrailActivateR > 0.0 && R > 0.0) {
+         double open_profit_dist = isBuy ? (cur_price - entry) : (entry - cur_price);
+         if(open_profit_dist < m_settings.Safety_TrailActivateR * R) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[SAFETY] Trail delayed: open %.1f pips < %.2fR (%.1f pips) — letting winner run",
+                           open_profit_dist / pipSize, m_settings.Safety_TrailActivateR,
+                           (m_settings.Safety_TrailActivateR * R) / pipSize);
+            return;
+         }
+      }
+
       if(m_settings.TrailMode == TRAIL_PROFIT_PERCENT) {
          double lpr_sl = CalculateProfitPercentTrailSL(ticket, pos_type, entry, cur_price, cur_sl, pipSize, digits);
          if(lpr_sl != 0.0 && IsModifyAllowed()) m_trade.PositionModify(ticket, lpr_sl, cur_tp);
@@ -1729,7 +1743,8 @@ public:
          ulong ticket = PositionGetTicket(i);
          if(ticket == 0 || !PositionSelectByTicket(ticket)) continue;
          if(PositionGetString(POSITION_SYMBOL) != m_symbol || PositionGetInteger(POSITION_MAGIC) != (long)m_magic) continue;
-         if(m_settings.CountBEasZeroRisk && IsPositionAtBreakEven(ticket)) continue;
+         if(m_settings.CountBEasZeroRisk && !m_settings.Safety_CountBEInAggregateRisk
+            && IsPositionAtBreakEven(ticket)) continue;
          total_risk += CalculatePositionRisk(ticket);
       }
       return total_risk;
@@ -1742,6 +1757,24 @@ public:
       // BUG FIX: Use RRM_BE_BufferPips + 2.0 tolerance instead of hardcoded 2.0 pips
       double tolerance_pips = m_settings.RRM_BE_BufferPips + 2.0;
       return (sl != 0.0 && MathAbs(sl - open_price) <= tolerance_pips * GetPipSize());
+   }
+
+   // Stricter than IsPositionAtBreakEven: returns true only when the position's
+   // stop-loss has been moved to break-even OR into profit — i.e. the position can
+   // no longer produce a loss. Used by the staged-risk entry gate so that a new
+   // position is only added once every existing position is genuinely risk-free.
+   // A small tolerance allows for spread/rounding at the exact BE point.
+   bool IsPositionSLatBEorBetter(ulong ticket) {
+      if(!PositionSelectByTicket(ticket)) return false;
+      double sl = PositionGetDouble(POSITION_SL);
+      if(sl == 0.0) return false;   // no stop set → full risk → not protected
+      double open_price = PositionGetDouble(POSITION_PRICE_OPEN);
+      ENUM_POSITION_TYPE ptype = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+      double tol = 2.0 * GetPipSize();   // allow SL a couple pips below/above exact BE
+      if(ptype == POSITION_TYPE_BUY)
+         return (sl >= open_price - tol);   // SL at/above entry (minus tiny tolerance)
+      else
+         return (sl <= open_price + tol);   // SL at/below entry (plus tiny tolerance)
    }
 
    double CalculatePositionRisk(ulong ticket) {
@@ -2070,6 +2103,38 @@ public:
             PrintFormat("🚫 [RC] Open trades %d >= MaxOpenTrades %d -- trade blocked", open_count, m_settings.MaxOpenTrades);
             m_rc_veto_reason = "VETO_RC_MAX_OPEN_TRADES";
             return false;
+         }
+      }
+
+      // SAFETY: cap concurrent positions per direction (limits correlated stacked risk).
+      if(m_settings.Safety_MaxPositionsPerDir > 0) {
+         int buy_count = 0, sell_count = 0;
+         CountMyPositions(buy_count, sell_count);
+         int dir_count = isBuy ? buy_count : sell_count;
+         if(dir_count >= m_settings.Safety_MaxPositionsPerDir) {
+            PrintFormat("🚫 [SAFETY] %s positions %d >= MaxPositionsPerDir %d -- trade blocked",
+                        isBuy ? "LONG" : "SHORT", dir_count, m_settings.Safety_MaxPositionsPerDir);
+            m_rc_veto_reason = "VETO_SAFETY_MAX_PER_DIR";
+            return false;
+         }
+      }
+
+      // SAFETY: staged-risk gate. Enforces the intended model where a new position
+      // may only be added once EVERY existing same-symbol position is already at
+      // break-even or better (i.e. risk-free). This guarantees at most ONE position
+      // carries live risk at any time, so concurrent open trades cannot compound a
+      // loss beyond the single newest position's risk. Works regardless of BE_Mode
+      // configuration because it inspects actual placed stops, not internal flags.
+      if(m_settings.Safety_RequirePriorAtBEToAdd) {
+         for(int i = PositionsTotal() - 1; i >= 0; i--) {
+            ulong tk = PositionGetTicket(i);
+            if(tk == 0 || !PositionSelectByTicket(tk)) continue;
+            if(PositionGetString(POSITION_SYMBOL) != m_symbol || PositionGetInteger(POSITION_MAGIC) != (long)m_magic) continue;
+            if(!IsPositionSLatBEorBetter(tk)) {
+               PrintFormat("🚫 [SAFETY] Staged-risk gate: position #%I64u not yet at BE+ — new entry blocked", tk);
+               m_rc_veto_reason = "VETO_SAFETY_PRIOR_NOT_BE";
+               return false;
+            }
          }
       }
       if(m_settings.MaxTotalRisk > 0.0) {
