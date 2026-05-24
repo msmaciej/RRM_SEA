@@ -433,6 +433,75 @@ private:
    }
 
    // ─────────────────────────────────────────────────────────────────────────
+   // RiskMoneyPerLot — loss, in ACCOUNT (deposit) currency, of holding ONE lot
+   // from entry to a stop `stop_dist` price units away. This is the single
+   // source of truth for risk sizing and replaces all direct use of
+   // SYMBOL_TRADE_TICK_VALUE, which the MT5 tester reports incorrectly under
+   // "profit in pips for faster calculations" and on non-USD deposit accounts
+   // (observed: XAUUSD tick_value 0.10 vs true ~1.00 → 10× oversize → intended
+   // 2% stop-outs realised as ~18% losses → ~half the account erased over a few
+   // consecutive stops).
+   //
+   // We use OrderCalcProfit(), the terminal's OWN profit engine. It returns P/L
+   // in account currency with all FX conversion handled internally, correctly,
+   // for majors, JPY pairs (different tick scale) and metals alike — and it is
+   // immune to the pip-mode tick_value artifact. We compute the loss of a SELL
+   // exit `stop_dist` above entry for a long (and symmetric for short); sign is
+   // discarded — we only need the magnitude.
+   //
+   // Falls back to the contract-economics estimate only if OrderCalcProfit is
+   // unavailable for some reason. Returns 0.0 if nothing usable can be derived
+   // (callers already guard for that).
+   // ─────────────────────────────────────────────────────────────────────────
+   double RiskMoneyPerLot(double stop_dist) const {
+      if(stop_dist <= 0.0) return 0.0;
+
+      double ref_price = SymbolInfoDouble(m_symbol, SYMBOL_BID);
+      if(ref_price <= 0.0) ref_price = SymbolInfoDouble(m_symbol, SYMBOL_ASK);
+      if(ref_price <= 0.0) return 0.0;
+
+      // Engine-authoritative: P/L of 1 lot, opened at ref_price, closed
+      // stop_dist away in the losing direction. Use a BUY closed below entry.
+      double pl = 0.0;
+      if(OrderCalcProfit(ORDER_TYPE_BUY, m_symbol, 1.0, ref_price, ref_price - stop_dist, pl))
+      {
+         double loss = MathAbs(pl);
+         if(loss > 0.0) return loss;
+      }
+
+      // Fallback (should be rare): contract economics in profit ccy, FX-converted
+      // via the engine on a 1.0 price move so we still avoid the bad tick_value.
+      double one_move_pl = 0.0;
+      double contract = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_CONTRACT_SIZE);
+      if(contract > 0.0 &&
+         OrderCalcProfit(ORDER_TYPE_BUY, m_symbol, 1.0, ref_price, ref_price - 1.0, one_move_pl))
+      {
+         double per_price_unit = MathAbs(one_move_pl);   // account ccy per 1.0 price move per lot
+         if(per_price_unit > 0.0) return per_price_unit * stop_dist;
+      }
+      return 0.0;
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
+   // ResolveTickValue — per-tick loss in ACCOUNT currency, derived from
+   // RiskMoneyPerLot (engine-authoritative) rather than the broker's
+   // SYMBOL_TRADE_TICK_VALUE field, which is wrong in pip-mode / non-USD testing.
+   // Retained for the risk-percent / MaxTotalRisk callers that still express
+   // things per-tick: tick_value = RiskMoneyPerLot(tick_size).
+   // Returns 0.0 if it cannot be established (callers guard for that).
+   // ─────────────────────────────────────────────────────────────────────────
+   double ResolveTickValue() const {
+      double tick_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
+      if(tick_size <= 0.0) return 0.0;
+      double tv = RiskMoneyPerLot(tick_size);
+      if(tv > 0.0) return tv;
+      // last-resort: broker field (only reached if OrderCalcProfit failed entirely)
+      double btv = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+      if(btv <= 0.0) btv = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
+      return btv;
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
    // IsModifyAllowed — guard for SL/TP modifications (bugfix)
    //
    // The trailing-stop and break-even paths previously called PositionModify()
@@ -768,22 +837,24 @@ private:
       double tick_size = 0.0, tick_value = 0.0;
       if(!SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE, tick_size) || tick_size <= 0.0) return 0.0;
 
-      // Get tick value in account currency.
-      // Priority: TICK_VALUE_LOSS (best for risk) → TICK_VALUE (fallback).
-      // Some brokers return 0 for LOSS on CFDs (metals, indices).
-      double tv_loss = 0.0, tv_generic = 0.0;
-      SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS, tv_loss);
-      SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE, tv_generic);
+      // Tick value in ACCOUNT currency, self-corrected against contract
+      // economics (see ResolveTickValue) so the pip-mode / non-USD tester bug
+      // that reported tv=0.10 instead of ~1.00 for XAUUSD can no longer 10×
+      // the lot size.
+      tick_value = ResolveTickValue();
+      if(tick_value <= 0.0) return 0.0; // could not establish a usable value
 
-      if(tv_loss > 0.0)
-         tick_value = tv_loss;
-      else if(tv_generic > 0.0)
-         tick_value = tv_generic;
-      else
-         return 0.0;
+      // Loss of one lot from entry to the actual stop, in ACCOUNT currency,
+      // computed by the terminal's own profit engine (OrderCalcProfit). This is
+      // the value that was previously corrupted by the bad tick_value field.
+      double loss_per_lot = RiskMoneyPerLot(stop_dist);
+      if(loss_per_lot <= 0.0) {
+         // engine path failed → reconstruct from the (resolved) per-tick value
+         loss_per_lot = (stop_dist / tick_size) * tick_value;
+      }
+      if(loss_per_lot <= 0.0) return 0.0;
 
       // ── Diagnostic: log full symbol economics on first call ──
-      // Helps diagnose wrong lot sizing on metals, JPY, non-USD accounts.
       static bool s_first_calc = true;
       if(s_first_calc)
       {
@@ -794,36 +865,16 @@ private:
          string margin_ccy    = SymbolInfoString(m_symbol, SYMBOL_CURRENCY_MARGIN);
          double vol_min       = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN);
          double vol_step      = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_STEP);
-
-         // Manual cross-check: for USD-quoted instruments on USD account,
-         // tick_value should ≈ contract_size × tick_size.
-         // For non-USD accounts, broker applies FX conversion.
-         double expected_tv_usd = contract_size * tick_size;
-
+         double raw_tv_loss   = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+         double raw_tv_gen    = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
          PrintFormat("📊 [LOT DIAG] %s | account_ccy=%s | profit_ccy=%s | margin_ccy=%s",
                      m_symbol, acc_ccy, profit_ccy, margin_ccy);
-         PrintFormat("📊 [LOT DIAG] %s | contract=%.0f | tick_sz=%.5f | tv_loss=%.5f | tv_generic=%.5f | tv_used=%.5f",
-                     m_symbol, contract_size, tick_size, tv_loss, tv_generic, tick_value);
-         PrintFormat("📊 [LOT DIAG] %s | expected_tv_usd=%.5f (contract×tick) | vol_min=%.2f | vol_step=%.2f",
-                     m_symbol, expected_tv_usd, vol_min, vol_step);
-
-         // Warn if tick_value looks suspicious
-         if(acc_ccy == "USD" && expected_tv_usd > 0.0)
-         {
-            double ratio = tick_value / expected_tv_usd;
-            if(ratio < 0.5 || ratio > 2.0)
-               PrintFormat("⚠️ [LOT DIAG] %s tick_value (%.5f) differs significantly from expected (%.5f) — ratio=%.2f — check broker symbol config",
-                           m_symbol, tick_value, expected_tv_usd, ratio);
-         }
-         // Non-USD account: can't easily cross-check, but warn if tick_value is extremely
-         // large (possible pip-mode tester) or extremely small (possible broker misconfiguration)
-         if(tick_value > 50.0)
-            PrintFormat("⚠️ [LOT DIAG] %s tick_value=%.2f is unusually large for account_ccy=%s — if in Strategy Tester, ensure 'profit in deposit currency' mode",
-                        m_symbol, tick_value, acc_ccy);
+         PrintFormat("📊 [LOT DIAG] %s | contract=%.0f | tick_sz=%.5f | raw_tv_loss=%.5f | raw_tv_generic=%.5f | tv_resolved=%.5f",
+                     m_symbol, contract_size, tick_size, raw_tv_loss, raw_tv_gen, tick_value);
+         PrintFormat("📊 [LOT DIAG] %s | loss_per_lot(engine)=%.4f for stop=%.5f | vol_min=%.2f | vol_step=%.2f",
+                     m_symbol, loss_per_lot, stop_dist, vol_min, vol_step);
       }
 
-      double loss_per_lot = (stop_dist / tick_size) * tick_value;
-      if(loss_per_lot <= 0.0) return 0.0;
       double raw_lot = risk_money / loss_per_lot;
       if(raw_lot <= 0.0) return 0.0;
 
@@ -1700,8 +1751,7 @@ public:
          if(sl > 0.0) {
             double stop_dist = MathAbs(entry - sl);
             double tick_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
-            double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-            if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
+            double tick_value = ResolveTickValue();
             if(tick_size > 0.0 && tick_value > 0.0) risk_amount = (stop_dist / tick_size) * tick_value * lots;
          }
 
@@ -1786,8 +1836,7 @@ public:
 
       double stop_dist = MathAbs(open_price - sl);
       double tick_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
-      double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-      if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
+      double tick_value = ResolveTickValue();
       if(tick_size == 0.0 || tick_value == 0.0) return 0.0;
       
       double account_equity = AccountInfoDouble(ACCOUNT_EQUITY);
@@ -1799,8 +1848,7 @@ public:
       if(volume <= 0.0 || stop_dist <= 0.0) return 0.0;
 
       double tick_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
-      double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-      if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
+      double tick_value = ResolveTickValue();
       if(tick_size <= 0.0 || tick_value <= 0.0) return 0.0;
 
       double account_equity = AccountInfoDouble(ACCOUNT_EQUITY);
@@ -1879,8 +1927,7 @@ public:
          double open = PositionGetDouble(POSITION_PRICE_OPEN);
          double volume = PositionGetDouble(POSITION_VOLUME);
          double tick_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
-         double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
+         double tick_value = ResolveTickValue();
          if(tick_size > 0.0 && tick_value > 0.0) {
             return (MathAbs(open - sl) / tick_size) * tick_value * volume;
          }
@@ -1895,8 +1942,7 @@ public:
          double open       = PositionGetDouble(POSITION_PRICE_OPEN);
          double volume     = PositionGetDouble(POSITION_VOLUME);
          double tick_size  = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
-         double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
+         double tick_value = ResolveTickValue();
          if(tick_size > 0.0 && tick_value > 0.0)
             return (MathAbs(open - m_initial_sl_price) / tick_size) * tick_value * volume;
       }
@@ -1911,8 +1957,7 @@ public:
          double open = PositionGetDouble(POSITION_PRICE_OPEN);
          double volume = PositionGetDouble(POSITION_VOLUME);
          double tick_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
-         double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_PROFIT);
-         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
+         double tick_value = ResolveTickValue();
          if(tick_size > 0.0 && tick_value > 0.0) {
             return (MathAbs(tp - open) / tick_size) * tick_value * volume;
          }
@@ -1929,8 +1974,7 @@ public:
          double volume     = PositionGetDouble(POSITION_VOLUME);
          double equity     = AccountInfoDouble(ACCOUNT_EQUITY);
          double tick_size  = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
-         double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
+         double tick_value = ResolveTickValue();
          if(sl > 0.0 && tick_size > 0.0 && tick_value > 0.0 && equity > 0.0)
             return ((MathAbs(open - sl) / tick_size) * tick_value * volume / equity) * 100.0;
       }
@@ -1945,8 +1989,7 @@ public:
          double open       = PositionGetDouble(POSITION_PRICE_OPEN);
          double volume     = PositionGetDouble(POSITION_VOLUME);
          double tick_size  = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
-         double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
-         if(tick_value <= 0.0) tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
+         double tick_value = ResolveTickValue();
          if(sl > 0.0 && tick_size > 0.0 && tick_value > 0.0)
             return (MathAbs(open - sl) / tick_size) * tick_value * volume;
       }

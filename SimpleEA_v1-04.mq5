@@ -493,12 +493,25 @@ int OrchestrateInit()
       Print("");
 
       Print("Breakeven Mode:");
-      PrintFormat("  RRM Input:    %s", EnumToString(Inp_CUSTOM_BE_Mode));
-      PrintFormat("  RRM Settings: %s", EnumToString(Settings.BE_Mode));
-      PrintFormat("  ✓ Match:      %s", (Settings.BE_Mode == Inp_CUSTOM_BE_Mode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
-      if(Inp_CUSTOM_BE_Mode == BE_MODE_TP_PROGRESS_PCT || Settings.BE_Mode == BE_MODE_TP_PROGRESS_PCT)
+      // Report the input that actually feeds BE_Mode for the ACTIVE preset.
+      // Previously this always printed Inp_CUSTOM_BE_Mode, which is only the
+      // source under PRESET_CUSTOM — under PRESET_RRM_ORG (and others) it made
+      // the diagnostic falsely report "BUG DETECTED" and show the wrong input,
+      // which masked that BE_Mode was in fact being driven by the preset's own
+      // input (e.g. an optimizer pass sweeping BE_MODE_OFF).
+      EBeMode be_input_active;
+      switch(Inp_Global_Preset)
       {
-         PrintFormat("  Progress%% Input:    %.1f%%", Inp_RRM_BE_ProgressPct);
+         case PRESET_RRM_ORG:    be_input_active = Inp_RRM_ORG_BE_Mode; break;
+         case PRESET_TOPINVESTOR:be_input_active = Inp_TI_BE_Mode;      break;
+         default:                be_input_active = Inp_CUSTOM_BE_Mode;  break;
+      }
+      PrintFormat("  Preset:       %s", EnumToString(Inp_Global_Preset));
+      PrintFormat("  BE Input:     %s", EnumToString(be_input_active));
+      PrintFormat("  BE Settings:  %s", EnumToString(Settings.BE_Mode));
+      PrintFormat("  ✓ Match:      %s", (Settings.BE_Mode == be_input_active) ? "YES ✅" : "NO ❌ BUG DETECTED!");
+      if(be_input_active == BE_MODE_TP_PROGRESS_PCT || Settings.BE_Mode == BE_MODE_TP_PROGRESS_PCT)
+      {
          PrintFormat("  Progress%% Settings: %.1f%%", Settings.RRM_BE_ProgressPct);
          PrintFormat("  Buffer (TF-based):   %.1f pips", Settings.RRM_BE_BufferPips);
       }
