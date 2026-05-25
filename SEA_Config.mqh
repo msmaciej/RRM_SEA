@@ -60,14 +60,12 @@ enum EStrategyPreset
    PRESET_FPM,             // PRESET_FPM: Five-Point Method (PSAR+MACD+BB+SMA10/20)
    PRESET_RRM_ORG          // PRESET_RRM_ORG: Russ Horn Original RRM with inline DPI momentum voter
 };
-
 enum ETIProfile
 {
    TI_CONSERVATIVE,        // TI_CONSERVATIVE: 4 voters (PSAR, ADX, CBody, MTF)
    TI_MODERATE,            // TI_MODERATE: 7 voters (+ MACD, CCI, BB)
    TI_FULL                 // TI_FULL: 10 voters (+ DPI, SmaConv, Fib, CB 75%)
 };
-
 enum EEmaStrategy
 {
    EMA_STRAT_1_PRICE_CROSS,// EMA_STRAT_1: Buy if Price > EMA1 (Benchmark)
@@ -271,18 +269,11 @@ enum EExitProfile
    EXIT_PROFILE_SIMPLE,    // EXIT_PROFILE_SIMPLE: Simple: Fixed SL/TP, basic trailing
    EXIT_PROFILE_RRM        // EXIT_PROFILE_RRM: RRM: Swing-based SL, PSAR trail, no ATR multipliers
 };
-
-
 enum EGateScaleMode
 {
    GATE_SCALE_OFF,         // GATE_OFF: Gate disabled
    GATE_SCALE_FIXED,       // GATE_FIXED: Use a fixed dimensionless gate value instead of adaptive TF scaling
    GATE_SCALE_AUTO_TF      // GATE_AUTO: Auto-scale by timeframe/pair
-};
-enum EVoteMode
-{
-   VOTE_MODE_THRESHOLD,    // VOTE_THRESHOLD: all enabled indicators must agree (same as VOTE_MODE_ALL; vote_weight is informational only)
-   VOTE_MODE_ALL           // VOTE_ALL: every enabled indicator must agree (recommended)
 };
 enum EPairType
 {
@@ -337,7 +328,6 @@ struct SVoteSnapshot
 // NOTE: Architecture currently expects a global "Settings" instance of this type.
 struct ST_Settings
 {
-
    // --- UI Theme & Dashboards ---
    color clr_Header;       // Header Text Color
    color clr_Value;        // Market Data Color
@@ -430,7 +420,6 @@ struct ST_Settings
 
    // Fibonacci Retracement voter
    bool   Ind_Fib_Enabled;             // Fibonacci retracement depth voter
-   int    Ind_Fib_Weight;              // Fibonacci vote weight
    double Fib_MinRetracement;          // Min pullback depth (default 0.38)
    double Fib_MaxRetracement;          // Max pullback depth (default 0.618)
    int    Fib_SwingLookback;           // Bars to find swing H/L (default 50)
@@ -444,26 +433,10 @@ struct ST_Settings
    int    TrailEMA_CushionAtrPeriod;   // ATR period for EMA cushion (default 14)
 
    // Voting
-   EVoteMode VoteMode; // ALL/THRESHOLD: every enabled indicator must agree; vote_weight is informational only and does not gate trade decisions
 
    // Per-indicator weights (1 = standard; only used in VOTE_MODE_THRESHOLD for weighted sum)
    // In VOTE_MODE_ALL, weights are ignored — all enabled indicators must simply agree.
-   int Ind_Adx_Weight;
-   int Ind_Atr_Weight;
-   int Ind_Bb_Weight;
-   int Ind_CandleBody_Weight;
-   int Ind_Cci_Weight;
-   int Ind_CI_Weight;
-   int Ind_Mfi_Weight;
-   int Ind_Macd_Weight;
-   int Ind_Psar_Weight;
-   int Ind_P123_Weight;
-   int Ind_Ross_Weight;
-   int Ind_Rsi_Weight;
-   int Ind_SmaConverge_Weight;  // Weight for VOTE_MODE_THRESHOLD
-   int Ind_Sto_Weight;
-   int Ind_VRC_Weight;
-   int Ind_MTF_Weight;
+
 
    // Choppiness Index
    int    CI_Period;
@@ -473,7 +446,6 @@ struct ST_Settings
    bool   Ind_VRC_Enabled;
    bool   Ind_SmaConverge_Enabled;     // SMA Convergence vote (gap narrowing = pullback signal)
    bool   Ind_Dpi_Enabled;             // DPI vote (inline v31 MACD-core momentum indicator)
-   int    Ind_Dpi_Weight;              // DPI vote weight
    int    DPI_MACD_Fast;               // MACD fast EMA period (default 8)
    int    DPI_MACD_Slow;               // MACD slow EMA period (default 13)
    int    DPI_RedSignalType;           // Red signal line type: 1=EMA_A 2=EMA_B 3=EMA_C 4=EMA_D 5=Double
@@ -647,7 +619,7 @@ struct ST_Settings
    double RRM_BE_ProgressPct;          // RRM_BE trigger: % progress toward TP (0..100); used with BE_MODE_TP_PROGRESS_PCT
    double RRM_BE_RMultiple;            // RRM_BE trigger: R-multiple threshold (e.g. 1.0); used with BE_MODE_R_MULTIPLE
    double RRM_BE_BufferPips;           // RRM_BE buffer in pips
-   int    RRM_TrailPsarShiftDelay;     // RRM_PSAR trail bar-shift delay (1..3)
+   int    RRM_TrailPsarDotShift;     // RRM_PSAR trail bar-shift delay (1..3)
    bool   RRM_FreezeTrailOnFlip;       // RRM_Freeze trailing stop on PSAR flip signal
    bool   RRM_TrailStartsAfterBE;      // RRM_Delay trail activation until BE is triggered
 
@@ -742,7 +714,6 @@ struct ST_Settings
     int      VPRR_RecoveryBars;           // Recovery bars to measure (clamped 1-10, default 3)
     int      VPRR_MinRecoveryBars;        // Min recovery bars before ratio is valid (default RecoveryBars-1)
     double   VPRR_MinRatio;               // Min recovery/pullback ratio to PASS (default 1.0)
-    int      VPRR_Weight;                 // Vote weight (default 1)
 
     // Diagnostics: statistics configuration
     bool Stats_TrackRejections;           // Track rejection counts per indicator
@@ -969,7 +940,6 @@ input group "╔═════════════════════�
 input group "║   🚫 VETO: MTF (Multi-Timeframe Confirmation)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_Ind_MTF_Enabled              = true;           // Veto MTF: enable
-input int         Inp_Ind_MTF_Weight               = 1;              // Veto MTF: vote weight
 input ENUM_TIMEFRAMES Inp_MTF_TF1                  = PERIOD_M5;      // Veto MTF: TF1 (primary)
 input ENUM_TIMEFRAMES Inp_MTF_TF2                  = PERIOD_M15;     // Veto MTF: TF2 (PERIOD_CURRENT = single TF)
 input int         Inp_MTF_EMA_Fast                 = 20;             // Veto MTF: fast EMA period
@@ -1111,55 +1081,55 @@ input bool        Inp_FPM_Ind_SmaConverge_Enabled  = false;          // FPM SMA:
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 FPM: MFI Volume Confirmation";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_FPM_Ind_Mfi_Enabled           = true;          // FPM MFI: Enable MFI volume gate (MFI>50 for longs, <50 for shorts)
-input int         Inp_FPM_Mfi_Period                = 14;            // FPM MFI: period (default 14)
+input bool        Inp_FPM_Ind_Mfi_Enabled          = true;           // FPM MFI: Enable MFI volume gate (MFI>50 for longs, <50 for shorts)
+input int         Inp_FPM_Mfi_Period               = 14;             // FPM MFI: period (default 14)
 #endif // SEA_PRESET_FPM
 
 #ifdef SEA_PRESET_RRM_FAMILY
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📊 VPRR: Shared Per-Instrument + Timeframe Tuning";
+input group "    📊 VPRR: Instruments + Shared Settings";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-
 input group "╔════════════════════════════════════════════════════════╗";
-input group "    VPRR (used by RRM / RRM_ORG / TOPINVESTOR presets)";
+input group "    📊 VPRR (used by RRM/RRM_ORG/TOPINVESTOR presets)";
 input group "╚════════════════════════════════════════════════════════╝";
 // Effective MinRatio = base x TF multiplier (auto-applied at EA start).
 // Restart EA after instrument or TF change to auto-update settings.
-input double      Inp_VPRR_MinRatio_Gold             = 1.0;      // VPRR GOLD (XAU): MinRatio base (M15:1.0; TF mult auto-scales)
-input int         Inp_VPRR_RecBars_Gold              = 3;        // VPRR Gold: RecoveryBars base
+input bool        Inp_VPRR_TF_ReduceRecBars        = true;           // VPRR TF: Reduce RecBars by 1 on H4+ and M5
 
-input double      Inp_VPRR_MinRatio_Silver           = 0.9;      // VPRR SILVER (XAG): MinRatio base (thinner market, 0.85-1.0)
-input int         Inp_VPRR_RecBars_Silver            = 2;        // VPRR Silver: RecoveryBars base
+input double      Inp_VPRR_MinRatio_Gold           = 1.0;            // VPRR GOLD (XAU): MinRatio base (M15:1.0; TF mult auto-scales)
+input int         Inp_VPRR_RecBars_Gold            = 3;              // VPRR Gold: RecoveryBars base
 
-input double      Inp_VPRR_MinRatio_IndicesUS        = 1.1;      // VPRR US INDices (NAS/US30/SPX): MinRatio base (1.1-1.3; NY session 14:30-21:00 UTC)
-input int         Inp_VPRR_RecBars_IndicesUS         = 3;        // VPRR US Indices: RecoveryBars base
+input double      Inp_VPRR_MinRatio_Silver         = 0.9;            // VPRR SILVER (XAG): MinRatio base (thinner market, 0.85-1.0)
+input int         Inp_VPRR_RecBars_Silver          = 2;              // VPRR Silver: RecoveryBars base
 
-input double      Inp_VPRR_MinRatio_IndicesEU        = 1.0;      // VPRR EU INDices (DAX/FTSE): MinRatio base (1.0-1.2; Frankfurt/London 07:00-15:30 UTC)
-input int         Inp_VPRR_RecBars_IndicesEU         = 3;        // VPRR EU Indices: RecoveryBars base
+input double      Inp_VPRR_MinRatio_IndicesUS      = 1.1;            // VPRR US INDices (NAS/US30/SPX): MinRatio base (1.1-1.3; NY session 14:30-21:00 UTC)
+input int         Inp_VPRR_RecBars_IndicesUS       = 3;              // VPRR US Indices: RecoveryBars base
 
-input double      Inp_VPRR_MinRatio_Oil              = 0.9;      // VPRR Oil (WTI/Brent): MinRatio base (0.9-1.0)
-input int         Inp_VPRR_RecBars_Oil               = 3;        // VPRR Oil: RecoveryBars base
+input double      Inp_VPRR_MinRatio_IndicesEU      = 1.0;            // VPRR EU INDices (DAX/FTSE): MinRatio base (1.0-1.2; Frankfurt/London 07:00-15:30 UTC)
+input int         Inp_VPRR_RecBars_IndicesEU       = 3;              // VPRR EU Indices: RecoveryBars base
 
-input double      Inp_VPRR_MinRatio_Crypto           = 0.7;      // VPRR CRYPTO (BTC/ETH): MinRatio base (0.7-0.8; retail-dominated)
-input int         Inp_VPRR_RecBars_Crypto            = 2;        // VPRR Crypto: RecoveryBars base
+input double      Inp_VPRR_MinRatio_Oil            = 0.9;            // VPRR Oil (WTI/Brent): MinRatio base (0.9-1.0)
+input int         Inp_VPRR_RecBars_Oil             = 3;              // VPRR Oil: RecoveryBars base
 
-input double      Inp_VPRR_MinRatio_Equities         = 1.0;      // VPRR EQUITIES (NVDA/AAPL etc.): MinRatio base (0.9-1.1)
-input int         Inp_VPRR_RecBars_Equities          = 2;        // VPRR Equities: RecoveryBars base (fast institutional execution)
+input double      Inp_VPRR_MinRatio_Crypto         = 0.7;            // VPRR CRYPTO (BTC/ETH): MinRatio base (0.7-0.8; retail-dominated)
+input int         Inp_VPRR_RecBars_Crypto          = 2;              // VPRR Crypto: RecoveryBars base
 
-input double      Inp_VPRR_MinRatio_FX               = 0.7;      // VPRR FX: MinRatio base (0.6-0.7; tick vol approximation)
-input int         Inp_VPRR_RecBars_FX                = 3;        // VPRR FX: RecoveryBars base
-input double      Inp_VPRR_MinRatio_NonFXTick        = 0.8;      // VPRR non-FX tick fallback: MinRatio
+input double      Inp_VPRR_MinRatio_Equities       = 1.0;            // VPRR EQUITIES (NVDA/AAPL etc.): MinRatio base (0.9-1.1)
+input int         Inp_VPRR_RecBars_Equities        = 2;              // VPRR Equities: RecoveryBars base (fast institutional execution)
+
+input double      Inp_VPRR_MinRatio_FX             = 0.7;            // VPRR FX: MinRatio base (0.6-0.7; tick vol approximation)
+input int         Inp_VPRR_RecBars_FX              = 3;              // VPRR FX: RecoveryBars base
+input double      Inp_VPRR_MinRatio_NonFXTick      = 0.8;            // VPRR non-FX tick fallback: MinRatio
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 VPRR TF Auto-Multiplier";
 input group "╚════════════════════════════════════════════════════════╝";
 // TF auto-multiplier: M5x0.85  M15x1.00  H1x0.95  H4+x0.90 (see chart comment for effective value)
-input bool        Inp_VPRR_TF_ReduceRecBars          = true;     // VPRR TF: Reduce RecBars by 1 on H4+ and M5
-input double      Inp_VPRR_TF_Mult_M5                = 0.85;     // VPRR TF: M5 multiplier (noisier, loosen 15%%)
-input double      Inp_VPRR_TF_Mult_M15               = 1.00;     // VPRR TF: M15 multiplier (baseline)
-input double      Inp_VPRR_TF_Mult_H1                = 0.95;     // VPRR TF: H1 multiplier (fewer bars, loosen slightly)
-input double      Inp_VPRR_TF_Mult_H4Plus            = 0.90;     // VPRR TF: H4+ multiplier (very few cycles, loosen)
+input double      Inp_VPRR_TF_Mult_M5              = 0.85;           // VPRR TF: M5 multiplier (noisier, loosen 15%%)
+input double      Inp_VPRR_TF_Mult_M15             = 1.00;           // VPRR TF: M15 multiplier (baseline)
+input double      Inp_VPRR_TF_Mult_H1              = 0.95;           // VPRR TF: H1 multiplier (fewer bars, loosen slightly)
+input double      Inp_VPRR_TF_Mult_H4Plus          = 0.90;           // VPRR TF: H4+ multiplier (very few cycles, loosen)
 input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 VPRR RRM - Volume Confirmation";
@@ -1168,8 +1138,14 @@ input EVPRRVolumeType Inp_RRM_VPRR_VolumeType      = VPRR_VOL_AUTO;  // RRM VPRR
 input bool        Inp_RRM_VPRR_AutoEnable          = true;           // RRM VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual toggle below)
 input bool        Inp_RRM_VPRR_Enabled             = false;          // RRM VPRR: Manual enable (only used when AutoEnable=OFF)
 input int         Inp_RRM_VPRR_RecoveryBars        = 5;              // RRM VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
-input int         Inp_RRM_VPRR_Weight              = 1;              // RRM VPRR: Vote weight
-
+input group " ";
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📊 VPRR RRM_ORG - Volume Confirmation";
+input group "╚════════════════════════════════════════════════════════╝";
+input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType  = VPRR_VOL_AUTO;  // RRM ORG VPRR: Volume source (Auto=real then tick fallback)
+input bool        Inp_RRM_ORG_VPRR_AutoEnable      = true;           // RRM ORG VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual Enabled toggle below)
+input bool        Inp_RRM_ORG_VPRR_Enabled         = false;          // RRM ORG VPRR: Manual enable (only used when AutoEnable=OFF)
+input int         Inp_RRM_ORG_VPRR_RecoveryBars    = 5;              // RRM ORG VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
 
 
 input group " ";
@@ -1198,7 +1174,7 @@ input ETrailTrigger Inp_RRM_TrailTrigger           = TRIGGER_BREAKEVEN; // RRM T
 input bool        Inp_RRM_TrailStartsAfterBE       = false;          // RRM TS: START after BE
 input bool        Inp_RRM_TrailLockProfit          = true;           // RRM TS: NEVER move SL backwards
 input bool        Inp_RRM_FreezeTrailOnFlip        = true;           // RRM TS: FREEZE on PSAR flip
-input int         Inp_RRM_TrailPsarShiftDelay      = 2;              // RRM TS: PSAR DOT shift (1..3) (TRAIL_PSAR only)
+input int         Inp_RRM_TrailPsarDotShift        = 1;              // RRM TS: PSAR DOT shift (1..3) (TRAIL_PSAR only)
 input double      Inp_RRM_TrailStepPips            = 5.0;            // RRM TS: PIPS fixed-step
 input int         Inp_RRM_MaxSpreadRetryBars       = 3;              // RRM: SPREAD bars retry (if TE block)
 input bool        Inp_RRM_AllowReEntryAfterBE      = true;           // RRM: ALLOW re-entry after BE
@@ -1348,7 +1324,6 @@ input double      Inp_RRM_Sto_OS                   = 20.0;           // RRM STO:
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: VRC Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_RRM_VRC_Weight               = 1;              // RRM VRC: voter weight
 input int         Inp_RRM_VRC_ATR_Period           = 14;             // RRM VRC: ATR period for regime classification
 input int         Inp_RRM_VRC_Lookback             = 100;            // RRM VRC: lookback bars
 input double      Inp_RRM_VRC_LowThreshold         = 33.0;           // RRM VRC: low-volatility threshold
@@ -1378,7 +1353,6 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: DPI Vote (I factor — ribbon direction)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // RRM ORG DPI: Enable DPI vote in TS equation
-input int         Inp_RRM_ORG_DPI_Weight                 = 1;        // RRM ORG DPI: Vote weight
 input bool        Inp_RRM_ORG_DPI_UseCCIReset            = true;     // RRM ORG DPI: CCI can reset ribbon color (trend filter)
 input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
 input bool        Inp_RRM_ORG_DPI_UseGreenHist           = true;     // RRM ORG DPI: Also require GREEN overlay for vote pass
@@ -1592,12 +1566,7 @@ input bool        Inp_RRM_ORG_Use_Rsi              = false;          // RRM ORG 
 input bool        Inp_RRM_ORG_Use_Stoch            = false;          // RRM ORG Ind: STO vote
 input bool        Inp_RRM_ORG_Use_VRC              = false;          // RRM ORG Ind: VRC vote
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: Indicators — Weights";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_RRM_ORG_CandleBody_Weight    = 1;              // RRM ORG QA: CandleBody vote weight
-input int         Inp_RRM_ORG_SmaConverge_Weight   = 1;              // RRM ORG QA: SmaConverge vote weight
-input int         Inp_RRM_ORG_VPRR_Weight_VRC      = 1;              // RRM ORG VRC: voter weight
-input int         Inp_RRM_ORG_VPRR_Weight          = 1;              // RRM ORG VPRR: Vote weight
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: ADX Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1667,7 +1636,7 @@ input group "║   📐 RRM_ORG: PSAR Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_Vote_AllowPsarFlip   = true;           // RRM ORG PSAR: PSAR Enable Flip
 input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 5;              // RRM ORG PSAR: PSAR Flip delay (-1=persistent, 0-10=bars after flip)
-input int         Inp_RRM_ORG_TrailPsarShiftDelay  = 1;              // RRM ORG QA: PSAR trail shift (1–3 bars back)
+input int         Inp_RRM_ORG_TrailPsarDotShift    = 1;              // RRM ORG QA: PSAR trail shift (1–3 bars back)
 input int         Inp_RRM_ORG_PsarFlipDelay_W      = -99;            // RRM ORG PSAR: PSAR Flip delay LayerW override (-99=use global, 0=flip bar, 1-10=window)
 input int         Inp_RRM_ORG_PsarFlipDelay_M      = -99;            // RRM ORG PSAR: PSAR Flip delay LayerM override (-99=use global, 0=flip bar, 1-10=window)
 input int         Inp_RRM_ORG_PsarFlipDelay_S      = -99;            // RRM ORG PSAR: PSAR Flip delay LayerS override (-99=use global, 0=flip bar, 1-10=window)
@@ -1740,14 +1709,6 @@ input bool        Inp_RRM_ORG_ForceDDProtection    = false;          // RRM ORG 
 input int         Inp_RRM_ORG_DDMaxConsecLosses    = 3;              // RRM ORG DD: Override max consecutive losses (0=use Inp_RRM_*)
 input int         Inp_RRM_ORG_DDMaxTradesPerDay    = 15;             // RRM ORG DD: Override max trades per day (0=use Inp_RRM_*)
 input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM ORG DD: Override max daily DD % (0=use Inp_RRM_*)
-input group " ";
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📊 RRM_ORG: VPRR Volume Confirmation";
-input group "╚════════════════════════════════════════════════════════╝";
-input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType    = VPRR_VOL_AUTO;  // RRM ORG VPRR: VPRR volume source (Auto=real then tick fallback)
-input bool        Inp_RRM_ORG_VPRR_AutoEnable        = true;         // RRM ORG VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual Enabled toggle below)
-input bool        Inp_RRM_ORG_VPRR_Enabled           = false;        // RRM ORG VPRR: Manual enable (only used when AutoEnable=OFF)
-input int         Inp_RRM_ORG_VPRR_RecoveryBars      = 5;            // RRM ORG VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
 #endif // SEA_PRESET_RRM_ORG
 
 #ifdef SEA_PRESET_TOPINVESTOR
@@ -1823,7 +1784,6 @@ input EVPRRVolumeType Inp_TI_VPRR_VolumeType       = VPRR_VOL_AUTO;  // TI VPRR:
 input bool        Inp_TI_VPRR_AutoEnable           = true;           // TI VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual toggle below)
 input bool        Inp_TI_VPRR_Enabled              = false;          // TI VPRR: Manual enable (only used when AutoEnable=OFF)
 input int         Inp_TI_VPRR_RecoveryBars         = 5;              // TI VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
-input int         Inp_TI_VPRR_Weight               = 1;              // TI VPRR: Vote weight
 input bool        Inp_TI_PhaseAllowEM              = true;           // TI: allow Emerging phase
 
 // ════════════════════════════════════════════════════════════════
@@ -1884,24 +1844,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "    ⚠️  CUSTOM PRESETS OVERRIDES! (Step1-5)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🔧 STEP 0: Voting Weight Configuration";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_VoteMode_All          = true;           // Override: VOTE All
-input int         Inp_CUSTOM_Ind_Adx_Weight        = 1;              // Override: [ADX] Vote weight
-input int         Inp_CUSTOM_Ind_Atr_Weight        = 1;              // Override: [ATR] Vote weight
-input int         Inp_CUSTOM_Ind_Bb_Weight         = 1;              // Override: [BB] Vote weight
-input int         Inp_CUSTOM_Ind_CandleBody_Weight = 1;              // Override: [CBody] Vote weight
-input int         Inp_CUSTOM_Ind_Cci_Weight        = 1;              // Override: [CCI] Vote weight
-input int         Inp_CUSTOM_Ind_CI_Weight         = 1;              // Override: [CI] Vote weight
-input int         Inp_CUSTOM_Ind_Macd_Weight       = 1;              // Override: [MACD] Vote weight
-input int         Inp_CUSTOM_Ind_Mfi_Weight        = 1;              // Override: [MFI] Vote weight
-input int         Inp_CUSTOM_Ind_P123_Weight       = 1;              // Override: [P123] Vote weight
-input int         Inp_CUSTOM_Ind_Psar_Weight       = 1;              // Override: [PSAR] Vote weight
-input int         Inp_CUSTOM_Ind_Ross_Weight       = 1;              // Override: [Ross] Vote weight
-input int         Inp_CUSTOM_Ind_Rsi_Weight        = 1;              // Override: [RSI] Vote weight
-input int         Inp_CUSTOM_Ind_SmaConverge_Weight = 1;             // Override: [SmaConv] Vote weight
-input int         Inp_CUSTOM_Ind_Sto_Weight        = 1;              // Override: [Sto] Vote weight
-input int         Inp_CUSTOM_Ind_VRC_Weight        = 1;              // Override: [VRC] Vote weight
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 1: BIAS (Major Trend Direction)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1940,7 +1883,6 @@ input group "╔═════════════════════�
 input group "║   📊 STEP 5: Fibonacci Retracement Voter";
 input group "╚═══════════════════════════════════════════════════════╝";
 input bool        Inp_CUSTOM_Ind_Fib_Enabled       = false;          // Override: [Fib] Enable
-input int         Inp_CUSTOM_Ind_Fib_Weight        = 1;              // Override: [Fib] Vote weight
 input double      Inp_CUSTOM_Fib_MinRetracement    = 0.38;           // Override: [Fib] Min pullback depth
 input double      Inp_CUSTOM_Fib_MaxRetracement    = 0.618;          // Override: [Fib] Max pullback depth
 input int         Inp_CUSTOM_Fib_SwingLookback     = 50;             // Override: [Fib] Swing search bars
@@ -2307,7 +2249,6 @@ void InitializeConfig()
    Settings.NewsPre              = Inp_VETO_NewsPreMinutes;
    Settings.NewsPost             = Inp_VETO_NewsPostMinutes;
    Settings.Ind_MTF_Enabled      = Inp_Ind_MTF_Enabled;
-   Settings.Ind_MTF_Weight       = MathMax(1, Inp_Ind_MTF_Weight);
    Settings.MTF_TF1              = Inp_MTF_TF1;
    Settings.MTF_TF2              = Inp_MTF_TF2;
    Settings.MTF_EMA_Fast         = MathMax(1, Inp_MTF_EMA_Fast);
@@ -2317,7 +2258,6 @@ void InitializeConfig()
 
    // Fibonacci voter (globally available)
    Settings.Ind_Fib_Enabled      = Inp_CUSTOM_Ind_Fib_Enabled;
-   Settings.Ind_Fib_Weight       = MathMax(1, Inp_CUSTOM_Ind_Fib_Weight);
    Settings.Fib_MinRetracement   = MathMax(0.0, MathMin(1.0, Inp_CUSTOM_Fib_MinRetracement));
    Settings.Fib_MaxRetracement   = MathMax(Settings.Fib_MinRetracement, MathMin(1.0, Inp_CUSTOM_Fib_MaxRetracement));
    Settings.Fib_SwingLookback    = MathMax(10, Inp_CUSTOM_Fib_SwingLookback);
@@ -2334,7 +2274,6 @@ void InitializeConfig()
    Settings.TrailEMA_CushionAtrPeriod = 14;
 
    // Voting
-   Settings.VoteMode             = (Inp_CUSTOM_VoteMode_All ? VOTE_MODE_ALL : VOTE_MODE_THRESHOLD);
 
    // Indicator periods / thresholds
    Settings.P_Ema1               = Inp_CUSTOM_Ema1Period;
@@ -2372,7 +2311,6 @@ void InitializeConfig()
    Settings.P_Atr                = Inp_CUSTOM_Ind_Atr_Period;
 
    // Modes
-   Settings.MacdVoteMode         = Inp_CUSTOM_Ind_Macd_Mode;
    Settings.MacdRequireSlope     = Inp_CUSTOM_Ind_Macd_RequireSlope;
    Settings.MacdRequireDivergence= Inp_CUSTOM_Ind_Macd_RequireDivergence;
    Settings.MacdRequireHook      = Inp_CUSTOM_Ind_Macd_RequireHook;
@@ -2403,26 +2341,10 @@ void InitializeConfig()
    Settings.Ind_SmaConverge_Enabled = false;  // default (FPM preset only; overwritten by ApplyPreset)
 
    // Weights
-   Settings.Ind_Adx_Weight       = Inp_CUSTOM_Ind_Adx_Weight;
-   Settings.Ind_Macd_Weight      = Inp_CUSTOM_Ind_Macd_Weight;
-   Settings.Ind_Rsi_Weight       = Inp_CUSTOM_Ind_Rsi_Weight;
-   Settings.Ind_Cci_Weight       = Inp_CUSTOM_Ind_Cci_Weight;
-   Settings.Ind_Mfi_Weight       = Inp_CUSTOM_Ind_Mfi_Weight;
-   Settings.Ind_Sto_Weight       = Inp_CUSTOM_Ind_Sto_Weight;
-   Settings.Ind_Bb_Weight        = Inp_CUSTOM_Ind_Bb_Weight;
-   Settings.Ind_Psar_Weight      = Inp_CUSTOM_Ind_Psar_Weight;
-   Settings.Ind_P123_Weight      = Inp_CUSTOM_Ind_P123_Weight;
-   Settings.Ind_Ross_Weight      = Inp_CUSTOM_Ind_Ross_Weight;
-   Settings.Ind_Atr_Weight       = Inp_CUSTOM_Ind_Atr_Weight;
-   Settings.Ind_CandleBody_Weight = Inp_CUSTOM_Ind_CandleBody_Weight;
-   Settings.Ind_CI_Weight         = Inp_CUSTOM_Ind_CI_Weight;
-   Settings.Ind_VRC_Weight        = Inp_CUSTOM_Ind_VRC_Weight;
-   Settings.Ind_SmaConverge_Weight = Inp_CUSTOM_Ind_SmaConverge_Weight;
-   Settings.Ind_MTF_Weight         = MathMax(1, Inp_Ind_MTF_Weight);
+
 
    // DPI v31 (disabled by default; enabled and parameterised by PRESET_RRM_ORG)
    Settings.Ind_Dpi_Enabled             = Inp_RRM_ORG_DPI_Enabled;
-   Settings.Ind_Dpi_Weight              = Inp_RRM_ORG_DPI_Weight;
    Settings.DPI_MACD_Fast               = MathMax(1, Inp_RRM_ORG_DPI_MacdFast);
    Settings.DPI_MACD_Slow               = MathMax(1, Inp_RRM_ORG_DPI_MacdSlow);
    Settings.DPI_RedSignalType           = MathMax(1, MathMin(5, Inp_RRM_ORG_DPI_RedSignalType));
@@ -2499,7 +2421,7 @@ void InitializeConfig()
    Settings.BE_Mode                 = Inp_CUSTOM_BE_Mode;
    Settings.RRM_BE_ProgressPct      = 50.0;   // default; overwritten by ApplyPreset
    Settings.RRM_BE_RMultiple        = 1.0;    // default; overwritten by ApplyPreset
-   Settings.RRM_TrailPsarShiftDelay = 2;      // default; overwritten by ApplyPreset
+   Settings.RRM_TrailPsarDotShift = 2;      // default; overwritten by ApplyPreset
    Settings.RRM_FreezeTrailOnFlip   = true;   // default; overwritten by ApplyPreset
    Settings.RRM_TrailStartsAfterBE  = false;  // default; overwritten by ApplyPreset
 
@@ -2591,7 +2513,6 @@ void InitializeConfig()
     Settings.VPRR_RecoveryBars    = 3;
     Settings.VPRR_MinRecoveryBars = 2;
     Settings.VPRR_MinRatio        = 1.0;
-    Settings.VPRR_Weight          = 1;
 
     // BarClose (bcX) settings
     Settings.BarClose_Enabled    = Inp_CUSTOM_BarClose_Enabled;
@@ -2663,7 +2584,6 @@ struct SIndicatorMeta {
    string name;               // Full display name (e.g. "CandleBody")
    string short_name;         // Compact code for UI (e.g. "CBody")
    bool   is_enabled;         // Cached enabled state (set at init time)
-   int    weight;             // Vote weight (1 for most indicators)
    bool   prefers_subwindow;  // Indicates if the UI should draw this in a subwindow
 };
 
@@ -2677,121 +2597,87 @@ void InitializeIndicatorRegistry(const ST_Settings &cfg)
    int i = 0;
    g_indicator_registry[i].name       = "ADX";
    g_indicator_registry[i].short_name = "ADX";
-   g_indicator_registry[i].is_enabled = cfg.Ind_Adx_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_Adx_Weight;
-   g_indicator_registry[i].prefers_subwindow = true;
+   g_indicator_registry[i].is_enabled = cfg.Ind_Adx_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
    i++;
    
    g_indicator_registry[i].name       = "ATR";
    g_indicator_registry[i].short_name = "ATR";
-   g_indicator_registry[i].is_enabled = cfg.Ind_Atr_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_Atr_Weight;
-   g_indicator_registry[i].prefers_subwindow = true;
+   g_indicator_registry[i].is_enabled = cfg.Ind_Atr_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
    i++;
 
    g_indicator_registry[i].name       = "BB";
    g_indicator_registry[i].short_name = "BB";
-   g_indicator_registry[i].is_enabled = cfg.Ind_Bb_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_Bb_Weight;
-   g_indicator_registry[i].prefers_subwindow = false;
+   g_indicator_registry[i].is_enabled = cfg.Ind_Bb_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
    i++;
 
    g_indicator_registry[i].name       = "CandleBody";
    g_indicator_registry[i].short_name = "CBody";
-   g_indicator_registry[i].is_enabled = cfg.Ind_CandleBody_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_CandleBody_Weight;
-   g_indicator_registry[i].prefers_subwindow = false;
+   g_indicator_registry[i].is_enabled = cfg.Ind_CandleBody_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
    i++;
    
    g_indicator_registry[i].name       = "Choppiness Index";
    g_indicator_registry[i].short_name = "CI";
-   g_indicator_registry[i].is_enabled = cfg.Ind_CI_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_CI_Weight;
-   g_indicator_registry[i].prefers_subwindow = true;
+   g_indicator_registry[i].is_enabled = cfg.Ind_CI_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
    i++;
 
    g_indicator_registry[i].name       = "CCI";
    g_indicator_registry[i].short_name = "CCI";
-   g_indicator_registry[i].is_enabled = cfg.Ind_Cci_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_Cci_Weight;
-   g_indicator_registry[i].prefers_subwindow = true;
+   g_indicator_registry[i].is_enabled = cfg.Ind_Cci_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
    i++;
 
    g_indicator_registry[i].name       = "MACD";
    g_indicator_registry[i].short_name = "MACD";
-   g_indicator_registry[i].is_enabled = cfg.Ind_Macd_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_Macd_Weight;
-   g_indicator_registry[i].prefers_subwindow = true;
+   g_indicator_registry[i].is_enabled = cfg.Ind_Macd_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
    i++;
 
    g_indicator_registry[i].name       = "MFI";
    g_indicator_registry[i].short_name = "MFI";
-   g_indicator_registry[i].is_enabled = cfg.Ind_Mfi_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_Mfi_Weight;
-   g_indicator_registry[i].prefers_subwindow = true;
+   g_indicator_registry[i].is_enabled = cfg.Ind_Mfi_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
    i++;
 
    g_indicator_registry[i].name       = "P123";
    g_indicator_registry[i].short_name = "P123";
-   g_indicator_registry[i].is_enabled = cfg.Ind_P123_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_P123_Weight;
-   g_indicator_registry[i].prefers_subwindow = false;
+   g_indicator_registry[i].is_enabled = cfg.Ind_P123_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
    i++;
    
    g_indicator_registry[i].name       = "PSAR";
    g_indicator_registry[i].short_name = "PSAR";
-   g_indicator_registry[i].is_enabled = cfg.Ind_Psar_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_Psar_Weight;
-   g_indicator_registry[i].prefers_subwindow = false;
+   g_indicator_registry[i].is_enabled = cfg.Ind_Psar_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
    i++;
 
    g_indicator_registry[i].name       = "Ross";
    g_indicator_registry[i].short_name = "Ross";
-   g_indicator_registry[i].is_enabled = cfg.Ind_Ross_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_Ross_Weight;
-   g_indicator_registry[i].prefers_subwindow = false;
+   g_indicator_registry[i].is_enabled = cfg.Ind_Ross_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
    i++;
 
    g_indicator_registry[i].name       = "RSI";
    g_indicator_registry[i].short_name = "RSI";
-   g_indicator_registry[i].is_enabled = cfg.Ind_Rsi_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_Rsi_Weight;
-   g_indicator_registry[i].prefers_subwindow = true;
+   g_indicator_registry[i].is_enabled = cfg.Ind_Rsi_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
    i++;
    
    g_indicator_registry[i].name       = "Stochastic";
    g_indicator_registry[i].short_name = "Stoch";
-   g_indicator_registry[i].is_enabled = cfg.Ind_Sto_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_Sto_Weight;
-   g_indicator_registry[i].prefers_subwindow = true;
+   g_indicator_registry[i].is_enabled = cfg.Ind_Sto_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
    i++;
 
    g_indicator_registry[i].name       = "VRC";
    g_indicator_registry[i].short_name = "VRC";
-   g_indicator_registry[i].is_enabled = cfg.Ind_VRC_Enabled;
-   g_indicator_registry[i].weight     = cfg.Ind_VRC_Weight;
-   g_indicator_registry[i].prefers_subwindow = false;
+   g_indicator_registry[i].is_enabled = cfg.Ind_VRC_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
    i++;
 
    g_indicator_registry[i].name             = "SmaConverge";
    g_indicator_registry[i].short_name       = "SmaConv";
-   g_indicator_registry[i].is_enabled       = cfg.Ind_SmaConverge_Enabled;
-   g_indicator_registry[i].weight           = cfg.Ind_SmaConverge_Weight;
-   g_indicator_registry[i].prefers_subwindow = false;
+   g_indicator_registry[i].is_enabled       = cfg.Ind_SmaConverge_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
    i++;
 
    g_indicator_registry[i].name             = "DPI";
    g_indicator_registry[i].short_name       = "DPI";
-   g_indicator_registry[i].is_enabled       = cfg.Ind_Dpi_Enabled;
-   g_indicator_registry[i].weight           = cfg.Ind_Dpi_Weight;
-   g_indicator_registry[i].prefers_subwindow = true;
+   g_indicator_registry[i].is_enabled       = cfg.Ind_Dpi_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
    i++;
 
    g_indicator_registry[i].name             = "MTF";
    g_indicator_registry[i].short_name       = "MTF";
-   g_indicator_registry[i].is_enabled       = cfg.Ind_MTF_Enabled;
-   g_indicator_registry[i].weight           = cfg.Ind_MTF_Weight;
-   g_indicator_registry[i].prefers_subwindow = false;
+   g_indicator_registry[i].is_enabled       = cfg.Ind_MTF_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
 }
 
 //+------------------------------------------------------------------+
