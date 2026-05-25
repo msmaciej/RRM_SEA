@@ -403,22 +403,19 @@ string SEA_UI_BuildActiveVotesList(const ST_Settings &cfg)
 {
    string output = "";
    int count = 0;
-   if(cfg.Ind_Adx_Enabled)        { output += StringFormat("  + ADX      (trend strength)  w=%d\n", cfg.Ind_Adx_Weight); count++; }
-   if(cfg.Ind_Macd_Enabled)       { output += StringFormat("  + MACD     (momentum)        w=%d\n", cfg.Ind_Macd_Weight); count++; }
-   if(cfg.Ind_Rsi_Enabled)        { output += StringFormat("  + RSI      (momentum zones)  w=%d\n", cfg.Ind_Rsi_Weight); count++; }
-   if(cfg.Ind_Cci_Enabled)        { output += StringFormat("  + CCI      (cyclical)        w=%d\n", cfg.Ind_Cci_Weight); count++; }
-   if(cfg.Ind_Mfi_Enabled)        { output += StringFormat("  + MFI      (money flow)      w=%d\n", cfg.Ind_Mfi_Weight); count++; }
-   if(cfg.Ind_Sto_Enabled)        { output += StringFormat("  + Stoch    (oscillator)      w=%d\n", cfg.Ind_Sto_Weight); count++; }
-   if(cfg.Ind_Bb_Enabled)         { output += StringFormat("  + BB       (volatility)      w=%d\n", cfg.Ind_Bb_Weight); count++; }
-   if(cfg.Ind_Psar_Enabled)       { output += StringFormat("  + PSAR     (trend dir)       w=%d\n", cfg.Ind_Psar_Weight); count++; }
-   if(cfg.Ind_P123_Enabled)       { output += StringFormat("  + P123     (123 pattern)     w=%d\n", cfg.Ind_P123_Weight); count++; }
-   if(cfg.Ind_Ross_Enabled)       { output += StringFormat("  + Ross     (Ross hook)       w=%d\n", cfg.Ind_Ross_Weight); count++; }
-   if(cfg.Ind_Atr_Enabled)        { output += StringFormat("  + ATR      (volatility rng)  w=%d\n", cfg.Ind_Atr_Weight); count++; }
-   if(cfg.Ind_CandleBody_Enabled) { output += StringFormat("  + CBody    (body filter)     w=%d\n", cfg.Ind_CandleBody_Weight); count++; }
-   if(cfg.Ind_CI_Enabled)         { output += StringFormat("  + CI       (ranging filter)  w=%d\n", cfg.Ind_CI_Weight); count++; }
-   
-   string mode_str = (cfg.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
-   return StringFormat("Step 6 · Votes (%d enabled, mode=%s):\n%s", count, mode_str, output);
+   if(cfg.Ind_Adx_Enabled)        { output += StringFormat("  + ADX      (trend strength)\n\"); count++; }
+   if(cfg.Ind_Macd_Enabled)       { output += StringFormat("  + MACD     (momentum)\n\"); count++; }
+   if(cfg.Ind_Rsi_Enabled)        { output += StringFormat("  + RSI      (momentum zones)\n\"); count++; }
+   if(cfg.Ind_Cci_Enabled)        { output += StringFormat("  + CCI      (cyclical)\n\"); count++; }
+   if(cfg.Ind_Mfi_Enabled)        { output += StringFormat("  + MFI      (money flow)\n\"); count++; }
+   if(cfg.Ind_Sto_Enabled)        { output += StringFormat("  + Stoch    (oscillator)\n\"); count++; }
+   if(cfg.Ind_Bb_Enabled)         { output += StringFormat("  + BB       (volatility)\n\"); count++; }
+   if(cfg.Ind_Psar_Enabled)       { output += StringFormat("  + PSAR     (trend dir)\n\"); count++; }
+   if(cfg.Ind_P123_Enabled)       { output += StringFormat("  + P123     (123 pattern)\n\"); count++; }
+   if(cfg.Ind_Ross_Enabled)       { output += StringFormat("  + Ross     (Ross hook)\n\"); count++; }
+   if(cfg.Ind_Atr_Enabled)        { output += StringFormat("  + ATR      (volatility rng)\n\"); count++; }
+   if(cfg.Ind_CandleBody_Enabled) { output += StringFormat("  + CBody    (body filter)\n\"); count++; }
+   if(cfg.Ind_CI_Enabled)         { output += StringFormat("  + CI       (ranging filter)\n\"); count++; }
 }
 
 string SEA_UI_BuildDisabledVotesList(const ST_Settings &cfg)
@@ -457,7 +454,7 @@ string SEA_UI_BuildIndicatorConfigs(const ST_Settings &cfg)
    if(cfg.Ind_Rsi_Enabled) output += StringFormat("  RSI: Period=%d, OB=%.0f, OS=%.0f\n", cfg.P_Rsi, cfg.T_RsiOB, cfg.T_RsiOS);
    if(cfg.Ind_Cci_Enabled) output += StringFormat("  CCI: Period=%d\n", cfg.P_Cci);
    if(cfg.Ind_Adx_Enabled) output += StringFormat("  ADX: Period=%d, Threshold=%d\n", cfg.P_Adx, cfg.T_Adx);
-   if(cfg.Ind_Sto_Enabled) output += StringFormat("  Stoch: K=%d, D=%d, Slow=%d\n", cfg.P_StoK, cfg.P_StoD, cfg.P_StoSlow);
+   if(cfg.Ind_Sto_Enabled) output += StringFormat("  Stoch: K=%d, D=%d, Slo\n\", cfg.P_StoK, cfg.P_StoD, cfg.P_StoSlow);
    if(cfg.Ind_Mfi_Enabled) output += StringFormat("  MFI: Period=%d\n", cfg.P_Mfi);
    if(cfg.Ind_Bb_Enabled)  output += StringFormat("  BB: Period=%d, Dev=%.1f\n", cfg.P_Bb, cfg.P_BbDev);
    return output;

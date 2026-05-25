@@ -1,4 +1,4 @@
-﻿//+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
 //|                                             SEA_SignalEngine.mqh |
 //|                              MJS Institutional Trading Solutions |
 //|                                                                  |
@@ -251,7 +251,6 @@ private:
    bool     m_eval_ind_res_candle_body;
    bool     m_eval_ind_res_ci;
    bool     m_eval_ind_res_vrc;
-   double   m_eval_vote_weight;          // Total vote weight from EvaluateIndicatorX (informational; does not gate trade decisions)
    bool     m_eval_all_pass;             // True if all enabled indicators passed
 
    // --- 2j. BUFFERED LOGGING (for DEBUG_SIGNALS_ONLY mode) ---
@@ -5297,40 +5296,39 @@ public:
    int EvaluateIndicatorX(int v_shift, int bias)
    {
       // ═══════════════════════════════════════════════════════════════
-      // 4. Voting Logic — All enabled indicators must agree (VOTE_MODE_ALL)
-      // vote_weight is accumulated for statistics only; trade decisions use all_pass
+      // 4. Voting Logic — All enabled indicators must agree (unanimous)
       // ═══════════════════════════════════════════════════════════════
-      double vote_weight = 0.0;
       bool   all_pass    = true;
 
-      #define CAST_VOTE_STAT(use_flag, weight_field, check_expr, stat_rej_field, stat_pass_field) \
-         if(use_flag) { \
-            bool _cv_pass = (check_expr); \
-            if(_cv_pass) { vote_weight += weight_field; stat_pass_field++; } \
-            else { all_pass = false; stat_rej_field++; } \
-         }
+      int vote_pass = 0;
+      int vote_enab = 0;
 
-      CAST_VOTE_STAT(m_settings.Ind_Adx_Enabled,    m_settings.Ind_Adx_Weight,    Check_ADX(v_shift),        m_stats.rejected_adx, m_stats.passed_adx)
-      CAST_VOTE_STAT(m_settings.Ind_Macd_Enabled,   m_settings.Ind_Macd_Weight,   Check_MACD(bias, v_shift), m_stats.rejected_macd, m_stats.passed_macd)
-      CAST_VOTE_STAT(m_settings.Ind_Rsi_Enabled,    m_settings.Ind_Rsi_Weight,    Check_RSI(bias, v_shift),  m_stats.rejected_rsi, m_stats.passed_rsi)
-      CAST_VOTE_STAT(m_settings.Ind_Cci_Enabled,    m_settings.Ind_Cci_Weight,    Check_CCI(bias, v_shift),  m_stats.rejected_cci, m_stats.passed_cci)
-      CAST_VOTE_STAT(m_settings.Ind_Mfi_Enabled,    m_settings.Ind_Mfi_Weight,    Check_MFI(bias, v_shift),  m_stats.rejected_mfi, m_stats.passed_mfi)
-      CAST_VOTE_STAT(m_settings.Ind_Sto_Enabled,    m_settings.Ind_Sto_Weight,    Check_Sto(bias, v_shift),  m_stats.rejected_sto, m_stats.passed_sto)
-      CAST_VOTE_STAT(m_settings.Ind_Bb_Enabled,     m_settings.Ind_Bb_Weight,     Check_BB(bias, v_shift),   m_stats.rejected_bb, m_stats.passed_bb)
-      CAST_VOTE_STAT(m_settings.Ind_Psar_Enabled,   m_settings.Ind_Psar_Weight,   (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)), m_stats.rejected_psar, m_stats.passed_psar)
-      CAST_VOTE_STAT(m_settings.Ind_P123_Enabled,   m_settings.Ind_P123_Weight,   Check_P123(bias, v_shift), m_stats.rejected_p123, m_stats.passed_p123)
-      CAST_VOTE_STAT(m_settings.Ind_Ross_Enabled,   m_settings.Ind_Ross_Weight,   Check_Ross(bias, v_shift), m_stats.rejected_ross, m_stats.passed_ross)
+      #define CAST_VOTE_STAT(use_flag, check_expr, stat_rej_field, stat_pass_field) \
+         { if(use_flag) { vote_enab++; bool _cv_pass = (check_expr); \
+         if(_cv_pass) { vote_pass++; stat_pass_field++; } \
+         else stat_rej_field++; } }
+
+      CAST_VOTE_STAT(m_settings.Ind_Adx_Enabled,    Check_ADX(v_shift),        m_stats.rejected_adx, m_stats.passed_adx)
+      CAST_VOTE_STAT(m_settings.Ind_Macd_Enabled,   Check_MACD(bias, v_shift), m_stats.rejected_macd, m_stats.passed_macd)
+      CAST_VOTE_STAT(m_settings.Ind_Rsi_Enabled,    Check_RSI(bias, v_shift),  m_stats.rejected_rsi, m_stats.passed_rsi)
+      CAST_VOTE_STAT(m_settings.Ind_Cci_Enabled,    Check_CCI(bias, v_shift),  m_stats.rejected_cci, m_stats.passed_cci)
+      CAST_VOTE_STAT(m_settings.Ind_Mfi_Enabled,    Check_MFI(bias, v_shift),  m_stats.rejected_mfi, m_stats.passed_mfi)
+      CAST_VOTE_STAT(m_settings.Ind_Sto_Enabled,    Check_Sto(bias, v_shift),  m_stats.rejected_sto, m_stats.passed_sto)
+      CAST_VOTE_STAT(m_settings.Ind_Bb_Enabled,     Check_BB(bias, v_shift),   m_stats.rejected_bb, m_stats.passed_bb)
+      CAST_VOTE_STAT(m_settings.Ind_Psar_Enabled,   (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)), m_stats.rejected_psar, m_stats.passed_psar)
+      CAST_VOTE_STAT(m_settings.Ind_P123_Enabled,   Check_P123(bias, v_shift), m_stats.rejected_p123, m_stats.passed_p123)
+      CAST_VOTE_STAT(m_settings.Ind_Ross_Enabled,   Check_Ross(bias, v_shift), m_stats.rejected_ross, m_stats.passed_ross)
 
       // --- NON-DIRECTIONAL SYSTEM FILTERS ---
-      CAST_VOTE_STAT(m_settings.Ind_Atr_Enabled,        m_settings.Ind_Atr_Weight,        Check_ATR(bias, v_shift),        m_stats.rejected_atr, m_stats.passed_atr)
-      CAST_VOTE_STAT(m_settings.Ind_CandleBody_Enabled, m_settings.Ind_CandleBody_Weight, Check_CandleBody(bias, v_shift), m_stats.rejected_candle_body, m_stats.passed_candle_body)
-      CAST_VOTE_STAT(m_settings.Ind_CI_Enabled,         m_settings.Ind_CI_Weight,         Check_CI(bias, v_shift),         m_stats.rejected_ci, m_stats.passed_ci)
-      CAST_VOTE_STAT(m_settings.Ind_VRC_Enabled,        m_settings.Ind_VRC_Weight,        Check_VRC(bias, v_shift),        m_stats.rejected_vrc, m_stats.passed_vrc)
-      CAST_VOTE_STAT(m_settings.Ind_SmaConverge_Enabled, m_settings.Ind_SmaConverge_Weight, Check_SmaConverge(v_shift),      m_stats.rejected_sma_converge, m_stats.passed_sma_converge)
-      CAST_VOTE_STAT(m_settings.Ind_Dpi_Enabled,         m_settings.Ind_Dpi_Weight,         Check_DPI(bias, v_shift),         m_stats.rejected_dpi,          m_stats.passed_dpi)
-      CAST_VOTE_STAT(m_settings.Ind_Fib_Enabled,         m_settings.Ind_Fib_Weight,         Check_Fib(bias, v_shift),         m_stats.rejected_fib,          m_stats.passed_fib)
-      CAST_VOTE_STAT(m_settings.Ind_MTF_Enabled,         m_settings.Ind_MTF_Weight,         Check_MTF(bias),                  m_stats.rejected_mtf,          m_stats.passed_mtf)
-      CAST_VOTE_STAT(m_settings.VPRR_Enabled,            m_settings.VPRR_Weight,            Check_VPRR(v_shift),              m_stats.rejected_vprr,         m_stats.passed_vprr)
+      CAST_VOTE_STAT(m_settings.Ind_Atr_Enabled,        Check_ATR(bias, v_shift),        m_stats.rejected_atr, m_stats.passed_atr)
+      CAST_VOTE_STAT(m_settings.Ind_CandleBody_Enabled, Check_CandleBody(bias, v_shift), m_stats.rejected_candle_body, m_stats.passed_candle_body)
+      CAST_VOTE_STAT(m_settings.Ind_CI_Enabled,         Check_CI(bias, v_shift),         m_stats.rejected_ci, m_stats.passed_ci)
+      CAST_VOTE_STAT(m_settings.Ind_VRC_Enabled,        Check_VRC(bias, v_shift),        m_stats.rejected_vrc, m_stats.passed_vrc)
+      CAST_VOTE_STAT(m_settings.Ind_SmaConverge_Enabled, Check_SmaConverge(v_shift),      m_stats.rejected_sma_converge, m_stats.passed_sma_converge)
+      CAST_VOTE_STAT(m_settings.Ind_Dpi_Enabled,         Check_DPI(bias, v_shift),         m_stats.rejected_dpi,          m_stats.passed_dpi)
+      CAST_VOTE_STAT(m_settings.Ind_Fib_Enabled,         Check_Fib(bias, v_shift),         m_stats.rejected_fib,          m_stats.passed_fib)
+      CAST_VOTE_STAT(m_settings.Ind_MTF_Enabled,         Check_MTF(bias),                  m_stats.rejected_mtf,          m_stats.passed_mtf)
+      CAST_VOTE_STAT(m_settings.VPRR_Enabled,            Check_VPRR(v_shift),              m_stats.rejected_vprr,         m_stats.passed_vprr)
       #undef CAST_VOTE_STAT
 
       // Calculate indicator pass counts for telemetry (all enabled indicators, including non-directional filters)
@@ -5354,7 +5352,7 @@ public:
       if(m_settings.Ind_VRC_Enabled)         { s_enabled++; if(Check_VRC(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_MTF_Enabled)         { s_enabled++; if(Check_MTF(bias)) s_passed++; }
 
-      // Always use indicator pass count for display (vote_weight is informational only, does not gate trades)
+      // Always use indicator pass count for display (vote_pass counts enabled indicators that passed)
       m_diag_last_votes = s_passed;
 
       m_eval_str_I = StringFormat("%d/%d", s_passed, s_enabled);
@@ -5386,53 +5384,52 @@ public:
           if(m_settings.Ind_VRC_Enabled)         _res_vrc         = Check_VRC(bias, v_shift);
 
          if(m_settings.DebugLevel >= DEBUG_FULL) {
-            string mode_str = (m_settings.VoteMode == VOTE_MODE_ALL ? "ALL" : "THRESHOLD");
-            DebugLog(StringFormat("[IND] --- Indicators (mode=%s bias=%d weight=%.2f) ---",
-                                  mode_str, bias, vote_weight));
+                        DebugLog(StringFormat("[IND] --- Indicators (mode=%s bias=%d weight=%.2f) ---",
+                                  vote_pass, vote_enab, bias));
 
             if(m_settings.Ind_Adx_Enabled) {
                double adx = GetVal(h_adx, v_shift);
-               DebugLog(StringFormat("[IND] ADX: %.2f / threshold=%.2f → %s (w=%d)",
-                                     adx, m_cachedADXThreshold, _res_adx ? "PASS" : "FAIL", m_settings.Ind_Adx_Weight));
+               DebugLog(StringFormat("[IND] ADX: %.2f / threshold=%.2f → %s",
+                                     adx, m_cachedADXThreshold, _res_adx ? "PASS" : "FAIL");
             } else DebugLog("[IND] ADX: DISABLED → SKIP");
 
             if(m_settings.Ind_Macd_Enabled) {
                double macd_m = GetVal(h_macd, v_shift, 0);
                double macd_s = GetVal(h_macd, v_shift, 1);
-               DebugLog(StringFormat("[IND] MACD: main=%.6f signal=%.6f hist=%.6f → %s (w=%d)",
-                                     macd_m, macd_s, macd_m - macd_s, _res_macd ? "PASS" : "FAIL", m_settings.Ind_Macd_Weight));
+               DebugLog(StringFormat("[IND] MACD: main=%.6f signal=%.6f hist=%.6f → %s",
+                                     macd_m, macd_s, macd_m - macd_s, _res_macd ? "PASS" : "FAIL");
             } else DebugLog("[IND] MACD: DISABLED → SKIP");
 
             if(m_settings.Ind_Rsi_Enabled) {
                double r = GetVal(h_rsi, v_shift);
-               DebugLog(StringFormat("[IND] RSI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
-                                     r, m_settings.T_RsiOB, m_settings.T_RsiOS, _res_rsi ? "PASS" : "FAIL", m_settings.Ind_Rsi_Weight));
+               DebugLog(StringFormat("[IND] RSI: %.2f (OB=%.0f OS=%.0f) → %s",
+                                     r, m_settings.T_RsiOB, m_settings.T_RsiOS, _res_rsi ? "PASS" : "FAIL");
             } else DebugLog("[IND] RSI: DISABLED → SKIP");
 
             if(m_settings.Ind_Cci_Enabled) {
                double c = GetVal(h_cci, v_shift);
-               DebugLog(StringFormat("[IND] CCI: %.2f → %s (w=%d)",
-                                     c, _res_cci ? "PASS" : "FAIL", m_settings.Ind_Cci_Weight));
+               DebugLog(StringFormat("[IND] CCI: %.2f → %s",
+                                     c, _res_cci ? "PASS" : "FAIL");
             } else DebugLog("[IND] CCI: DISABLED → SKIP");
 
             if(m_settings.Ind_Mfi_Enabled) {
                double mfi = GetVal(h_mfi, v_shift);
-               DebugLog(StringFormat("[IND] MFI: %.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
-                                     mfi, m_settings.T_MfiOB, m_settings.T_MfiOS, _res_mfi ? "PASS" : "FAIL", m_settings.Ind_Mfi_Weight));
+               DebugLog(StringFormat("[IND] MFI: %.2f (OB=%.0f OS=%.0f) → %s",
+                                     mfi, m_settings.T_MfiOB, m_settings.T_MfiOS, _res_mfi ? "PASS" : "FAIL");
             } else DebugLog("[IND] MFI: DISABLED → SKIP");
 
             if(m_settings.Ind_Sto_Enabled) {
                double sk = GetVal(h_sto, v_shift, 0);
                double sd = GetVal(h_sto, v_shift, 1);
-               DebugLog(StringFormat("[IND] Stoch: K=%.2f D=%.2f (OB=%.0f OS=%.0f) → %s (w=%d)",
-                                     sk, sd, m_settings.T_StoOB, m_settings.T_StoOS, _res_sto ? "PASS" : "FAIL", m_settings.Ind_Sto_Weight));
+               DebugLog(StringFormat("[IND] Stoch: K=%.2f D=%.2f (OB=%.0f OS=%.0f) → %s",
+                                     sk, sd, m_settings.T_StoOB, m_settings.T_StoOS, _res_sto ? "PASS" : "FAIL");
             } else DebugLog("[IND] Stoch: DISABLED → SKIP");
 
             if(m_settings.Ind_Bb_Enabled) {
                double bb_mid = GetVal(h_bb, v_shift, 0);
                double cl_bb  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-               DebugLog(StringFormat("[IND] BB: mid=%.5f close=%.5f → %s (w=%d)",
-                                     bb_mid, cl_bb, _res_bb ? "PASS" : "FAIL", m_settings.Ind_Bb_Weight));
+               DebugLog(StringFormat("[IND] BB: mid=%.5f close=%.5f → %s",
+                                     bb_mid, cl_bb, _res_bb ? "PASS" : "FAIL");
             } else DebugLog("[IND] BB: DISABLED → SKIP");
 
             if(m_settings.Ind_Psar_Enabled) {
@@ -5451,24 +5448,24 @@ public:
                                                  MathMax(0, m_settings.Vote_PsarFlipDelay - bars_since_flip));
                   }
                }
-               DebugLog(StringFormat("[IND] PSAR: dot=%.5f close=%.5f%s → %s (w=%d)",
-                                     psar_v, cl_p, flip_info, _res_psar ? "PASS" : "FAIL", m_settings.Ind_Psar_Weight));
+               DebugLog(StringFormat("[IND] PSAR: dot=%.5f close=%.5f%s → %s",
+                                     psar_v, cl_p, flip_info, _res_psar ? "PASS" : "FAIL");
             } else DebugLog("[IND] PSAR: DISABLED → SKIP");
 
             if(m_settings.Ind_P123_Enabled) {
-               DebugLog(StringFormat("[IND] P123: → %s (w=%d)", _res_p123 ? "PASS" : "FAIL", m_settings.Ind_P123_Weight));
+               DebugLog(StringFormat("[IND] P123: → %s", _res_p123 ? "PASS" : "FAIL");
             } else DebugLog("[IND] P123: DISABLED → SKIP");
 
             if(m_settings.Ind_Ross_Enabled) {
-               DebugLog(StringFormat("[IND] RossHook: → %s (w=%d)", _res_ross ? "PASS" : "FAIL", m_settings.Ind_Ross_Weight));
+               DebugLog(StringFormat("[IND] RossHook: → %s", _res_ross ? "PASS" : "FAIL");
             } else DebugLog("[IND] RossHook: DISABLED → SKIP");
 
             if(m_settings.Ind_Dpi_Enabled) {
-               DebugLog(StringFormat("[IND] DPI v31: F=%d S=%d RedType=%d CCI=%d Green=%d → %s (w=%d)",
+               DebugLog(StringFormat("[IND] DPI v31: F=%d S=%d RedType=%d CCI=%d Green=%d → %s",
                                      m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_RedSignalType,
                                      m_settings.DPI_UseCCIReset ? m_settings.DPI_CCI_Period : 0,
                                      m_settings.DPI_UseGreenHist ? 1 : 0,
-                                     _res_dpi ? "PASS" : "FAIL", m_settings.Ind_Dpi_Weight));
+                                     _res_dpi ? "PASS" : "FAIL");
             } else DebugLog("[IND] DPI: DISABLED → SKIP");
 
             if(m_settings.Ind_Atr_Enabled) {
@@ -5484,10 +5481,9 @@ public:
 
             if(m_settings.Ind_CandleBody_Enabled) {
                bool cb_ok = CheckCandleBodyIndicator(bias);
-               DebugLog(StringFormat("[IND] CandleBody: avg period=%d max=x%.1f check=%d → %s (w=%d)",
+               DebugLog(StringFormat("[IND] CandleBody: avg period=%d max=x%.1f check=%d → %s",
                                      m_settings.CandleBody_AvgPeriod, m_settings.CandleBody_MaxMult,
-                                     m_settings.CandleBody_CheckBars, cb_ok ? "PASS" : "FAIL",
-                                     m_settings.Ind_CandleBody_Weight));
+                                     m_settings.CandleBody_CheckBars, cb_ok ? "PASS" : "FAIL");
             } else
                DebugLog("[IND] CandleBody: DISABLED → SKIP");
 
@@ -5495,9 +5491,9 @@ public:
                double ci_val = CalculateCI(v_shift);
                bool ci_ok = Check_CI(bias, v_shift);
                string ci_status = (ci_val >= m_settings.CI_RangingThreshold ? "RANGING" : "TRENDING");
-               DebugLog(StringFormat("[IND] ChoppinessIndex: CI=%.1f threshold=%.1f status=%s → %s (w=%d)",
+               DebugLog(StringFormat("[IND] ChoppinessIndex: CI=%.1f threshold=%.1f status=%s → %s",
                                      ci_val, m_settings.CI_RangingThreshold, ci_status,
-                                     ci_ok ? "PASS" : "FAIL", m_settings.Ind_CI_Weight));
+                                     ci_ok ? "PASS" : "FAIL");
             } else
                DebugLog("[IND] ChoppinessIndex: DISABLED → SKIP");
          }
@@ -5522,8 +5518,7 @@ public:
       m_eval_ind_res_candle_body  = _res_candle_body;
       m_eval_ind_res_ci           = _res_ci;
       m_eval_ind_res_vrc          = _res_vrc;
-      m_eval_vote_weight    = vote_weight;
-      m_eval_all_pass       = all_pass;
+         m_eval_all_pass       = all_pass;
 
       // Apply vote mode and return result
       if(all_pass) {
@@ -5532,7 +5527,7 @@ public:
          m_stats.signals_confirmed++;
          if(bias > 0) m_stats.signals_confirmed_long++;
          else         m_stats.signals_confirmed_short++;
-         if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=%d (ALL votes pass, weight=%.2f)", bias, vote_weight));
+         if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=%d (all %d voters passed)", bias, vote_pass));
          return bias;
       }
       else {
@@ -6095,8 +6090,7 @@ public:
       m_eval_layer_w       = 0;
       m_eval_layer_m       = 0;
       m_eval_layer_s       = 0;
-      m_eval_vote_weight   = 0.0;
-      m_eval_all_pass      = false;
+         m_eval_all_pass      = false;
       m_last_layer         = 0;
       bool full_eval       = m_settings.Stats_FullEvaluation;
 
@@ -6465,15 +6459,12 @@ public:
                                             EnumToString(m_diag_last_phase),
                                             m_last_layer);
          if(m_settings.DebugFlow && final_signal != 0)
-            DebugLog(StringFormat("[RESULT] TS=%d (Votes: %.2f)", final_signal, m_eval_vote_weight));
+            DebugLog(StringFormat("[RESULT] TS=%d", final_signal));
       }
 
       // Ensure UI vote counter is up-to-date
-      // In VOTE_MODE_ALL, m_diag_last_votes is already set to indicator pass count.
-      // In VOTE_MODE_THRESHOLD, fall back to rounded vote_weight if count is unavailable.
-      if(m_settings.VoteMode == VOTE_MODE_THRESHOLD && m_eval_vote_weight > 0 && m_diag_last_votes == 0)
-         m_diag_last_votes = (int)MathRound(m_eval_vote_weight);
-
+         // m_diag_last_votes set from vote_pass above.
+      
       // ===== TS PIPELINE SUMMARY =====
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
          datetime sum_bar_time = iTime(m_symbol, PERIOD_CURRENT, m_settings.ma_v_shift);
@@ -6638,7 +6629,7 @@ public:
             double pass_pct = (double)s_passed / s_enabled * 100.0;
             DebugLog(StringFormat("VOTING: %d/%d passed (%.1f%%) - requires %s",
                                   s_passed, s_enabled, pass_pct,
-                                  m_settings.VoteMode == VOTE_MODE_ALL ? "ALL (100%)" : "THRESHOLD"));
+                                  "ALL"));
          }
          DebugLog("");
 

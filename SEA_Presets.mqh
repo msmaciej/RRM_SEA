@@ -645,7 +645,6 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("");
 
    Print("🗳️  VOTING:");
-   Print("  Mode:           ", EnumToString(cfg.VoteMode));
    Print("  Active Votes:   ", GetActiveIndicatorCount(cfg), " indicators enabled");
    Print("    ADX:     ", (cfg.Ind_Adx_Enabled ? "✓" : "✗"));
    Print("    ATR:     ", (cfg.Ind_Atr_Enabled ? "✓" : "✗"));
@@ -706,8 +705,7 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
       PrintFormat("  MinRatio:       %.2f  ← effective value (base × TF multiplier)", cfg.VPRR_MinRatio);
       Print("  RecoveryBars:   ", cfg.VPRR_RecoveryBars, "  ← effective value (TF-adjusted)");
       Print("  MinRecovBars:   ", cfg.VPRR_MinRecoveryBars);
-      Print("  Weight:         ", cfg.VPRR_Weight);
-      PrintFormat("  ℹ️  To change: adjust base inputs (MinRatio_Gold etc.) and TF multipliers");
+            PrintFormat("  ℹ️  To change: adjust base inputs (MinRatio_Gold etc.) and TF multipliers");
       PrintFormat("  ℹ️  TF multipliers: M5=×0.85  M15=×1.00  H1=×0.95  H4+=×0.90 (see VPRR TF group)");
    }
    else
@@ -765,8 +763,7 @@ void PrintVPRRSummary(const ST_Settings &cfg, const string preset_name)
    PrintFormat("  MinRatio      : %.2f  ← effective (base × TF multiplier)", cfg.VPRR_MinRatio);
    PrintFormat("  RecoveryBars  : %d    ← effective (TF-adjusted)", cfg.VPRR_RecoveryBars);
    PrintFormat("  MinRecovBars  : %d", cfg.VPRR_MinRecoveryBars);
-   PrintFormat("  Weight        : %d", cfg.VPRR_Weight);
-   Print("  ─────────────────────────────────────────────────────────");
+      Print("  ─────────────────────────────────────────────────────────");
    Print("  Tune base values in MT5 inputs → VPRR Per-Instrument group.");
    Print("  TF multiplier auto-applies: M5×0.85  M15×1.00  H1×0.95  H4+×0.90");
    Print("  Switch instrument or TF → restart EA → values auto-update.");
@@ -821,11 +818,6 @@ bool ValidatePresetConfiguration(const ST_Settings &cfg, const string preset_nam
    }
 
    // Check: VOTE_MODE_ALL recommended (Skip warning for MA mode since voting is off)
-   if(cfg.VoteMode != VOTE_MODE_ALL && !cfg.MABenchmarkStrict)
-   {
-      errors += "  ⚠️  WARNING: VoteMode is not VOTE_MODE_ALL (recommended default)\n";
-   }
-
    // Print results
    if(!valid)
    {
@@ -1003,7 +995,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RequirePriceCross      = false;
       cfg.MABenchmarkStrict      = false;
       cfg.UseMACompatSizer       = false;
-      cfg.VoteMode               = VOTE_MODE_ALL;
 
       // ── SMA PERIODS: locked (10 + 20 per cheat sheet) ────────────────
       cfg.P_Ema1                 = 10;    // SMA10
@@ -1032,9 +1023,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Rsi_Enabled        = false;
       cfg.Ind_Sto_Enabled        = false;
       cfg.Ind_SmaConverge_Enabled = false;  // Removed: contradicts trending Bias; BC_BIAS_FAST covers Condition 4
-      cfg.Ind_SmaConverge_Weight  = 1;
       cfg.Ind_Dpi_Enabled        = false;   // DPI not used in FPM methodology
-      cfg.Ind_Dpi_Weight         = 1;
       cfg.Ind_MTF_Enabled        = false;   // MTF not part of FPM methodology
 
       // ── PSAR SETTINGS ─────────────────────────────────────────────────
@@ -1116,14 +1105,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_MaxMult        = 3.0;
       cfg.CandleBody_CheckBars      = 1;
       cfg.CandleBody_RequireDirection = true;
-      cfg.Ind_CandleBody_Weight     = 1;
       cfg.CI_Period                 = 14;
       cfg.CI_RangingThreshold       = 61.8;
-      cfg.Ind_CI_Weight             = 1;
       cfg.VRC_ATR_Period            = 14;    // VRC default
       cfg.VRC_Lookback              = 100;   // VRC default
       cfg.VRC_LowThreshold          = 33.0;  // VRC default
-      cfg.Ind_VRC_Weight            = 1;     // VRC default
       cfg.P_Cci                     = 14;
       cfg.CciMode                   = CCI_TREND_ZERO;
       // P_Mfi / T_MfiOB / T_MfiOS / MfiMode — set above from Inp_FPM_Ind_Mfi_Enabled / Inp_FPM_Mfi_Period
@@ -1267,11 +1253,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Rsi_Enabled        = false;
       cfg.Ind_Sto_Enabled        = false;
       cfg.Ind_SmaConverge_Enabled = false;
-      cfg.Ind_SmaConverge_Weight  = 1;
       cfg.Ind_Dpi_Enabled        = false;
-      cfg.Ind_Dpi_Weight         = 1;
       cfg.Ind_MTF_Enabled        = false;   // MTF disabled: benchmark mode has all voting off
-      cfg.VoteMode               = VOTE_MODE_ALL;
       
       // ================================================================
       // INDICATOR PERIODS & THRESHOLDS (Alphabetical)
@@ -1302,18 +1285,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_MaxMult     = 3.0;
       cfg.CandleBody_CheckBars   = 1;
       cfg.CandleBody_RequireDirection = true;
-      cfg.Ind_CandleBody_Weight  = 1;
 
       // Choppiness Index
       cfg.CI_Period              = 14;
       cfg.CI_RangingThreshold    = 61.8;
-      cfg.Ind_CI_Weight          = 1;
       
       // VRC (Volatility Regime Classifier)
       cfg.VRC_ATR_Period         = 14;
       cfg.VRC_Lookback           = 100;
       cfg.VRC_LowThreshold       = 33.0;
-      cfg.Ind_VRC_Weight         = 1;
 
       // CCI (Commodity Channel Index)
       cfg.P_Cci                  = 14;
@@ -1536,7 +1516,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RequirePriceCross      = false;
       cfg.MABenchmarkStrict      = false;
       cfg.UseMACompatSizer       = false;
-      cfg.VoteMode               = VOTE_MODE_ALL;
 
       // ── EMA PERIODS: flexible via Inp_RRM_* ──────────────────────────
       cfg.P_Ema1                 = Inp_RRM_Ema1Period;   // default 5
@@ -1566,11 +1545,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_P123_Enabled       = false;
       cfg.Ind_Ross_Enabled       = false;
       cfg.Ind_SmaConverge_Enabled = false;
-      cfg.Ind_SmaConverge_Weight  = 1;
       cfg.Ind_Dpi_Enabled        = false;
-      cfg.Ind_Dpi_Weight         = 1;
       cfg.Ind_MTF_Enabled        = Inp_Ind_MTF_Enabled;
-      cfg.Ind_MTF_Weight         = Inp_Ind_MTF_Weight;
       cfg.MTF_TF1                = GetSafeMTF_TF1(Inp_MTF_TF1);
       cfg.MTF_TF2                = GetSafeMTF_TF2(Inp_MTF_TF2);
       cfg.MTF_EMA_Fast           = Inp_MTF_EMA_Fast;
@@ -1582,7 +1558,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_MacdFast             = Inp_RRM_MacdFast;
       cfg.P_MacdSlow             = Inp_RRM_MacdSlow;
       cfg.P_MacdSig              = Inp_RRM_MacdSig;
-      cfg.MacdVoteMode           = Inp_RRM_MacdMode;
       cfg.MacdRequireSlope       = Inp_RRM_MacdSlope;
       cfg.MacdRequireDivergence  = Inp_RRM_MacdDiv;
       cfg.MacdRequireHook        = false;
@@ -1640,7 +1615,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_MaxMult     = Inp_RRM_CandleBody_MaxMult;
       cfg.CandleBody_CheckBars   = Inp_RRM_CandleBody_CheckBars;
       cfg.CandleBody_RequireDirection = Inp_RRM_CandleBody_RequireDir;
-      cfg.Ind_CandleBody_Weight  = 1;
 
       // ── BAR CLOSE (bcX) CONFIGURATION ────────────────────────────────
       cfg.BarClose_Mode          = BC_LAYER_AWARE;
@@ -1713,7 +1687,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TrailMode                 = Inp_RRM_TrailMode;
       cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
       cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
-      cfg.RRM_TrailPsarShiftDelay   = Inp_RRM_TrailPsarShiftDelay;
+      cfg.RRM_TrailPsarDotShift   = Inp_RRM_TrailPsarDotShift;
       cfg.RRM_FreezeTrailOnFlip     = Inp_RRM_FreezeTrailOnFlip;
       cfg.RRM_TrailStartsAfterBE    = Inp_RRM_TrailStartsAfterBE;
 
@@ -1796,7 +1770,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, Inp_RRM_VPRR_RecoveryBars));
       }
       cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
-      cfg.VPRR_Weight          = MathMax(1, Inp_RRM_VPRR_Weight);
       PrintVPRRSummary(cfg, "RRM");
 
       // ── SPREAD RETRY CAP ─────────────────────────────────────────────
@@ -1866,7 +1839,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RequirePriceCross      = false;
       cfg.MABenchmarkStrict      = false;
       cfg.UseMACompatSizer       = false;
-      cfg.VoteMode               = VOTE_MODE_ALL;
 
       // ── EMA PERIODS: RRM_ORG-owned (defaults match RRM standard 5/13/34/89) ──
       cfg.P_Ema1                 = Inp_RRM_ORG_Ema1Period;
@@ -1882,7 +1854,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // pre-filter (line 4793 of SEA_SignalEngine.mqh) which was dead-code
       // until now because that filter requires Ind_Dpi_Enabled=true.
       cfg.Ind_Dpi_Enabled           = Inp_RRM_ORG_DPI_Enabled;
-      cfg.Ind_Dpi_Weight            = Inp_RRM_ORG_DPI_Weight;
       cfg.DPI_MACD_Fast             = Inp_RRM_ORG_DPI_MacdFast;           // default 8
       cfg.DPI_MACD_Slow             = Inp_RRM_ORG_DPI_MacdSlow;           // default 13
       cfg.DPI_RedSignalType         = Inp_RRM_ORG_DPI_RedSignalType;      // default 3 (EMA13)
@@ -1917,7 +1888,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── CANDLE BODY ───────────────────────────────────────────────────
       cfg.Ind_CandleBody_Enabled    = Inp_RRM_ORG_Use_CandleBody;
-      cfg.Ind_CandleBody_Weight     = Inp_RRM_ORG_CandleBody_Weight;
       cfg.CandleBody_AvgPeriod      = Inp_RRM_ORG_CandleBody_AvgPeriod;
       cfg.CandleBody_MaxMult        = Inp_RRM_ORG_CandleBody_MaxMult;
       cfg.CandleBody_CheckBars      = Inp_RRM_ORG_CandleBody_CheckBars;
@@ -1942,7 +1912,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Rsi_Enabled        = Inp_RRM_ORG_Use_Rsi;
       cfg.Ind_Sto_Enabled        = Inp_RRM_ORG_Use_Stoch;
       cfg.Ind_SmaConverge_Enabled   = false;
-      cfg.Ind_SmaConverge_Weight    = Inp_RRM_ORG_SmaConverge_Weight;
       cfg.Ind_VRC_Enabled        = Inp_RRM_ORG_Use_VRC;
 
       // ── ADX SETTINGS: safe defaults (disabled) ────────────────────────
@@ -1961,7 +1930,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ATR_VoteMaxPips           = Inp_RRM_ORG_ATR_VoteMaxPips;
 
       // ── MACD SETTINGS: safe defaults (disabled) ───────────────────────
-      cfg.MacdVoteMode              = Inp_RRM_ORG_MacdMode;
       cfg.MacdRequireSlope          = Inp_RRM_ORG_MacdSlope;
       cfg.MacdRequireDivergence     = Inp_RRM_ORG_MacdDiv;
       cfg.MacdRequireHook           = false;
@@ -2000,8 +1968,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Mfi                     = Inp_RRM_ORG_Mfi_Period;
       cfg.T_MfiOB                   = Inp_RRM_ORG_Mfi_OB;
       cfg.T_MfiOS                   = Inp_RRM_ORG_Mfi_OS;
-
-      cfg.Ind_VRC_Weight            = Inp_RRM_ORG_VPRR_Weight_VRC;
       cfg.VRC_ATR_Period            = Inp_RRM_ORG_VRC_ATR_Period;
       cfg.VRC_Lookback              = Inp_RRM_ORG_VRC_Lookback;
       cfg.VRC_LowThreshold          = Inp_RRM_ORG_VRC_LowThreshold;
@@ -2126,7 +2092,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, Inp_RRM_ORG_VPRR_RecoveryBars));
       }
       cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
-      cfg.VPRR_Weight          = MathMax(1, Inp_RRM_ORG_VPRR_Weight);
       PrintVPRRSummary(cfg, "RRM_ORG");
 
       // ── VOTE EVALUATION ───────────────────────────────────────────────
@@ -2180,7 +2145,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TrailEMA_CushionPips         = MathMax(0.0, Inp_RRM_ORG_TrailEMA_CushionPips);
       cfg.TrailEMA_CushionAtrMult      = MathMax(0.0, Inp_RRM_ORG_TrailEMA_CushionAtrMult);
       cfg.TrailEMA_CushionAtrPeriod    = MathMax(1,   Inp_RRM_ORG_TrailEMA_CushionAtrPeriod);
-      cfg.RRM_TrailPsarShiftDelay   = (Inp_RRM_ORG_TrailPsarShiftDelay < 1) ? 1 : (Inp_RRM_ORG_TrailPsarShiftDelay > 3) ? 3 : Inp_RRM_ORG_TrailPsarShiftDelay; // PSAR DOT trail shift (TRAILING only); default 2 for flip stability
+      cfg.RRM_TrailPsarDotShift   = (Inp_RRM_ORG_TrailPsarDotShift < 1) ? 1 : (Inp_RRM_ORG_TrailPsarDotShift > 3) ? 3 : Inp_RRM_ORG_TrailPsarDotShift; // PSAR DOT trail shift (TRAILING only); default 2 for flip stability
       cfg.RRM_TrailStartsAfterBE    = Inp_RRM_ORG_TrailStartsAfterBE;
       cfg.TrailProfitPercentLPR     = Inp_RRM_ORG_TrailProfitPercentLPR;
       cfg.PSAR_TrailCushionMode     = Inp_RRM_ORG_PSAR_TrailCushionMode;
@@ -2237,7 +2202,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── MTF CONFIRMATION (replaces deprecated HTF filter) ───────────────
       cfg.Ind_MTF_Enabled           = Inp_Ind_MTF_Enabled;
-      cfg.Ind_MTF_Weight            = Inp_Ind_MTF_Weight;
       cfg.MTF_TF1                   = GetSafeMTF_TF1(Inp_MTF_TF1);
       cfg.MTF_TF2                   = GetSafeMTF_TF2(Inp_MTF_TF2);
       cfg.MTF_EMA_Fast              = Inp_MTF_EMA_Fast;
@@ -2360,7 +2324,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Changing them would produce a different strategy, not a variant of TI.
       cfg.BiasMode               = BIAS_4EMA;          // LOCKED: 4EMA phase detection is the TI definition; other modes break phase/layer logic entirely
       cfg.AutoStrat              = STRAT_4EMA_LAYER;   // LOCKED: layer pullback detection requires BIAS_4EMA; any other strat ignores the layer structure
-      cfg.VoteMode               = VOTE_MODE_ALL;      // LOCKED: all voters must agree; THRESHOLD mode would let partial agreement trigger trades, undermining K-3/K-6 confluence design
       cfg.BiasEnabled            = true;               // LOCKED: bias filter is always required
       cfg.BiasFastID             = (int)ROLE_EMA3;     // LOCKED: EMA3(89) is the fast bias reference — TI standard; wired to Ema3 input
       cfg.BiasSlowID             = (int)ROLE_EMA4;     // LOCKED: EMA4(200) is the slow bias reference — TI standard; wired to Ema4 input
@@ -2414,7 +2377,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // TopInvestor: "the secret to success is 2 timeframes higher"
       // One HTF voter: auto-computed 2 steps above chart TF
       cfg.Ind_MTF_Enabled        = true;               // LOCKED: HTF confirmation is mandatory in TI methodology
-      cfg.Ind_MTF_Weight         = 1;                  // LOCKED: one vote; weighting is informational only in VOTE_MODE_ALL
       cfg.MTF_TF1                = GetAutoHTF_TF2();   // LOCKED: auto "2 TFs higher" rule (M15→H4, H1→D1); hardcoding a fixed TF would break multi-symbol/multi-TF usage
       cfg.MTF_TF2                = PERIOD_CURRENT;     // LOCKED: single-TF HTF mode; second slot disabled (PERIOD_CURRENT = off)
       cfg.MTF_EMA_Fast           = Inp_TI_MTF_EMA_Fast;   // default 50 — institutional standard
@@ -2448,7 +2410,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // CandleBody — spike rejection + direction gate + close ratio
       cfg.Ind_CandleBody_Enabled = true;               // LOCKED: CandleBody is a Conservative base voter; always on
-      cfg.Ind_CandleBody_Weight  = 1;                  // LOCKED: one vote in VOTE_MODE_ALL; weight is informational
       cfg.CandleBody_AvgPeriod   = Inp_TI_CandleBody_AvgPeriod;
       cfg.CandleBody_MaxMult     = Inp_TI_CandleBody_MaxMult;
       cfg.CandleBody_CheckBars   = 1;                  // LOCKED: check the last bar only; checking multiple bars would reject valid pullback entries that follow a spike
@@ -2459,7 +2420,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // NOTE: Requires ChoppinessIndex.ex5 custom indicator installed in MQL5/Indicators/
       // Set to false by default; enable only if the indicator is available.
       cfg.Ind_CI_Enabled         = false;              // LOCKED off: external dependency (ChoppinessIndex.ex5 must be installed); enabling by default would crash on clean installs
-      cfg.Ind_CI_Weight          = 1;                  // weight is informational only in VOTE_MODE_ALL
       cfg.CI_Period              = 14;                 // standard CI period — only relevant if Ind_CI_Enabled is manually set true
       cfg.CI_RangingThreshold    = 61.8;               // standard ranging threshold (Fibonacci level) — only relevant if CI enabled
 
@@ -2500,16 +2460,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // DPI — momentum exhaustion detection (Full)
       cfg.Ind_Dpi_Enabled        = is_full;
-      cfg.Ind_Dpi_Weight         = 1;                  // LOCKED: one vote in VOTE_MODE_ALL
       cfg.DpiDecelFilterEnabled  = (Inp_TI_Profile >= TI_FULL);  // decel filter only meaningful when DPI is active
 
       // SMA Convergence — pullback detection (Full)
       cfg.Ind_SmaConverge_Enabled = is_full;
-      cfg.Ind_SmaConverge_Weight  = 1;                 // LOCKED: one vote in VOTE_MODE_ALL
 
       // Fibonacci retracement — pullback depth check (Full)
       cfg.Ind_Fib_Enabled        = is_full;
-      cfg.Ind_Fib_Weight         = 1;                  // LOCKED: one vote in VOTE_MODE_ALL
       cfg.Fib_MinRetracement     = Inp_TI_Fib_MinRetracement;
       cfg.Fib_MaxRetracement     = Inp_TI_Fib_MaxRetracement;
       cfg.Fib_SwingLookback      = Inp_TI_Fib_SwingLookback;
@@ -2536,7 +2493,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Atr                  = 14;
       cfg.ATR_VoteMinPips        = 5.0;
       cfg.ATR_VoteMaxPips        = 50.0;
-      cfg.Ind_VRC_Weight         = 1;
       cfg.VRC_ATR_Period         = 14;
       cfg.VRC_Lookback           = 100;
       cfg.VRC_LowThreshold       = 33.0;
@@ -2684,7 +2640,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, Inp_TI_VPRR_RecoveryBars));
       }
       cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
-      cfg.VPRR_Weight          = MathMax(1, Inp_TI_VPRR_Weight);
       PrintVPRRSummary(cfg, "TOPINVESTOR");
 
       cfg.MaxSpreadRetryBars        = 3;               // LOCKED: retry blocked entries for up to 3 bars; longer retry risks entering on a stale signal
@@ -2794,17 +2749,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Rsi_Enabled           = false;
       cfg.Ind_Sto_Enabled           = false;
       cfg.Ind_SmaConverge_Enabled   = false;
-      cfg.Ind_SmaConverge_Weight    = 1;
       cfg.Ind_Dpi_Enabled           = false;
-      cfg.Ind_Dpi_Weight            = 1;
       cfg.Ind_MTF_Enabled           = false;   // MTF disabled: test preset uses fixed indicator set
    
       // BAR CLOSE (bcX) CONFIGURATION
       cfg.BarClose_Enabled          = true;           // true
       cfg.BarClose_Mode             = BC_BIAS_FAST;   // Fast
       cfg.BarClose_DefaultEMA       = ROLE_EMA1;      // Close vs EMA1
-   
-      cfg.VoteMode = VOTE_MODE_ALL;
       
       // ================================================================
       // INDICATOR PERIODS & THRESHOLDS (Alphabetical)
@@ -2839,18 +2790,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_MaxMult        = 3.0;    // ORG:  3.0   3.0
       cfg.CandleBody_CheckBars      = 3;      // ORG:  1     3
       cfg.CandleBody_RequireDirection = true;
-      cfg.Ind_CandleBody_Weight     = 1;      // ORG:  1
 
       // Choppiness Index
       cfg.CI_Period                 = 14;
       cfg.CI_RangingThreshold       = 61.8;
-      cfg.Ind_CI_Weight             = 1;
       
       // VRC (Volatility Regime Classifier)
       cfg.VRC_ATR_Period            = 14;
       cfg.VRC_Lookback              = 100;
       cfg.VRC_LowThreshold          = 33.0;
-      cfg.Ind_VRC_Weight            = 1;
       
       // CCI (Commodity Channel Index)
       cfg.CciMode                   = CCI_TREND_ZERO;

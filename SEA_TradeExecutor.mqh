@@ -1347,7 +1347,7 @@ private:
 
    //+------------------------------------------------------------------+
    //| SHARED PSAR TRAIL SL: single source of truth for both trail paths|
-   //| Resolves the trailing shift (RRM_TrailPsarShiftDelay, clamped     |
+   //| Resolves the trailing shift (RRM_TrailPsarDotShift, clamped     |
    //| 1..3), fetches the SAR dot at that shift, and applies the cushion. |
    //| NOTE: governs TRAILING only. Initial SL placement (SL_MODE_PSAR_DOT|
    //| in CalcEntrySL) intentionally keeps GetPSARAnchor(1) — the freshest|
@@ -1356,7 +1356,7 @@ private:
    //| Returns the proposed SL price, or 0.0 if the anchor is unavailable.|
    //+------------------------------------------------------------------+
    double CalcPsarTrailAnchorSL(bool isBuy, double pipSize, int digits) {
-      int shift = m_settings.RRM_TrailPsarShiftDelay;
+      int shift = m_settings.RRM_TrailPsarDotShift;
       if(shift < 1) shift = 1;
       if(shift > 3) shift = 3;
       double psar = GetPSARAnchor(shift);
@@ -1546,7 +1546,7 @@ private:
          return;
       }
 
-      int shift = m_settings.RRM_TrailPsarShiftDelay;
+      int shift = m_settings.RRM_TrailPsarDotShift;
       if(shift < 1) shift = 1;
       if(shift > 3) shift = 3;
       double psar = GetPSARAnchor(shift);

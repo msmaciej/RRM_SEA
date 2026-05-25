@@ -301,7 +301,6 @@ void PrintEffectiveConfig()
 
    Print("Effective EMA periods: ", Settings.P_Ema1, ",", Settings.P_Ema2, ",", Settings.P_Ema3, ",", Settings.P_Ema4);
    Print("Effective MACD periods: ", Settings.P_MacdFast, ",", Settings.P_MacdSlow, ",", Settings.P_MacdSig);
-   Print("MACD Mode: ", GetMACDModeDescription(Settings.MacdVoteMode, Settings.MacdRequireSlope,
                                                Settings.MacdRequireDivergence, Settings.MacdRequireHook));
 
    if(Settings.ExitProfile == EXIT_PROFILE_RRM || Inp_Global_Preset == PRESET_RRM)
@@ -312,7 +311,7 @@ void PrintEffectiveConfig()
             " BE_Mode=", EnumToString(Settings.BE_Mode));
       Print("Effective: RRM_BE_ProgressPct=", DoubleToString(Settings.RRM_BE_ProgressPct, 1),
             " RRM_BE_BufferPips=", DoubleToString(Settings.RRM_BE_BufferPips, 1),
-            " TrailPsarShiftDelay=", Settings.RRM_TrailPsarShiftDelay,
+            " TrailPsarDotShift=", Settings.RRM_TrailPsarDotShift,
             " FreezeTrailOnFlip=", (Settings.RRM_FreezeTrailOnFlip ? "true" : "false"),
             " TrailStartsAfterBE=", (Settings.RRM_TrailStartsAfterBE ? "true" : "false"));
    }
@@ -534,7 +533,7 @@ int OrchestrateInit()
       if(Inp_CUSTOM_TrailMode == TRAIL_PSAR || Settings.TrailMode == TRAIL_PSAR)
       {
          PrintFormat("  PSAR Cushion (TF-based): %.1f pips", Settings.PSAR_TrailPipsCushion);
-         PrintFormat("  PSAR Trail Shift (live):   %d bars", Settings.RRM_TrailPsarShiftDelay);
+         PrintFormat("  PSAR Trail Shift (live):   %d bars", Settings.RRM_TrailPsarDotShift);
          PrintFormat("  PSAR Delay (deprecated):   %d bars (mirrors trail shift)", Settings.PSAR_TrailDelay);
 #ifdef SEA_PRESET_RRM_FAMILY
          PrintFormat("  RRM StartAfterBE Input:    %s", Inp_RRM_TrailStartsAfterBE ? "true" : "false");
@@ -592,7 +591,6 @@ int OrchestrateInit()
       Print("  EnableLayerDetection: ", (Settings.EnableLayerDetection ? "true" : "false"));
       Print("  RequireRecoveryMomentum: ", (Settings.RequireRecoveryMomentum ? "true" : "false"));
 
-      Print("VOTING MODE: ", (Settings.VoteMode == VOTE_MODE_ALL ? "ALL (pure multiplicative)" : "THRESHOLD"));
       int enabled_count = 0;
       if(Settings.Ind_Macd_Enabled)   { Print("  + MACD");   enabled_count++; }
       if(Settings.Ind_Psar_Enabled)   { Print("  + PSAR");   enabled_count++; }
