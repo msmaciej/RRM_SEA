@@ -902,14 +902,14 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 // These guards are preset-independent: they are NOT cleared by preset overrides,
 // so they remain active under PRESET_RRM/FPM/etc. All default to 0 = disabled,
 // so enabling none reproduces existing backtest behavior exactly.
+input bool        Inp_Safety_CountBEInAggregateRisk = false;         // SAFETY: Count BE positions toward MaxTotalRisk (closes pyramiding gap)
+input int         Inp_Safety_MaxPositionsPerDir    = 2;              // SAFETY: Max concurrent positions per direction (0=off)
+input bool        Inp_Safety_DelayTrailUntilR      = false;          // SAFETY: Delay trailing until open profit reaches R-multiple
+input double      Inp_Safety_TrailActivateR        = 0.0;            // SAFETY: R-multiple of profit before trailing engages (0=off)
+input bool        Inp_Safety_RequirePriorAtBEToAdd = false;          // SAFETY: New trade only if all ar BE+ open same-symbol positions are at BE+ (staged risk)
 input double      Inp_Safety_MaxEquityDrawdownPct  = 0.0;            // SAFETY: Pause new entries if peak→trough equity DD ≥ % (0=off)
 input double      Inp_Safety_MinEquityFloor        = 0.0;            // SAFETY: Pause new entries if equity ≤ absolute value (0=off)
 input double      Inp_Safety_MinRewardRiskRatio    = 0.0;            // SAFETY: Reject entries with TP:SL ratio below this (0=off)
-input bool        Inp_Safety_CountBEInAggregateRisk = false;         // SAFETY: Count BE positions toward MaxTotalRisk (closes pyramiding gap)
-input int         Inp_Safety_MaxPositionsPerDir    = 0;              // SAFETY: Max concurrent positions per direction (0=off)
-input bool        Inp_Safety_DelayTrailUntilR      = false;          // SAFETY: Delay trailing until open profit reaches R-multiple
-input double      Inp_Safety_TrailActivateR        = 0.0;            // SAFETY: R-multiple of profit before trailing engages (0=off)
-input bool        Inp_Safety_RequirePriorAtBEToAdd = false;         // SAFETY: New trade only if all open same-symbol positions are at BE+ (staged risk)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -924,7 +924,7 @@ input double      Inp_VETO_MaxSpread               = 3.0;            // Veto Spr
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: TIME";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_VETO_UseTime                 = true;           // Veto Session: enable
+input bool        Inp_VETO_UseTime                 = false;           // Veto Session: enable
 input int         Inp_VETO_StartHr                 = 8;              // Veto Session: start hour (broker time)
 input int         Inp_VETO_EndHr                   = 18;             // Veto Session: end hour (broker time)
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1126,7 +1126,6 @@ input int         Inp_VPRR_RecBars_Equities        = 2;              // VPRR Equ
 input double      Inp_VPRR_MinRatio_FX             = 0.7;            // VPRR FX: MinRatio base (0.6-0.7; tick vol approximation)
 input int         Inp_VPRR_RecBars_FX              = 3;              // VPRR FX: RecoveryBars base
 input double      Inp_VPRR_MinRatio_NonFXTick      = 0.8;            // VPRR non-FX tick fallback: MinRatio
-input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 VPRR TF Auto-Multiplier";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1135,7 +1134,6 @@ input double      Inp_VPRR_TF_Mult_M5              = 0.85;           // VPRR TF:
 input double      Inp_VPRR_TF_Mult_M15             = 1.00;           // VPRR TF: M15 multiplier (baseline)
 input double      Inp_VPRR_TF_Mult_H1              = 0.95;           // VPRR TF: H1 multiplier (fewer bars, loosen slightly)
 input double      Inp_VPRR_TF_Mult_H4Plus          = 0.90;           // VPRR TF: H4+ multiplier (very few cycles, loosen)
-input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 VPRR RRM - Volume Confirmation";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1143,7 +1141,6 @@ input EVPRRVolumeType Inp_RRM_VPRR_VolumeType      = VPRR_VOL_AUTO;  // RRM VPRR
 input bool        Inp_RRM_VPRR_AutoEnable          = true;           // RRM VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual toggle below)
 input bool        Inp_RRM_VPRR_Enabled             = false;          // RRM VPRR: Manual enable (only used when AutoEnable=OFF)
 input int         Inp_RRM_VPRR_RecoveryBars        = 5;              // RRM VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
-input group " ";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 VPRR RRM_ORG - Volume Confirmation";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1151,7 +1148,6 @@ input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType  = VPRR_VOL_AUTO;  // RRM ORG 
 input bool        Inp_RRM_ORG_VPRR_AutoEnable      = true;           // RRM ORG VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual Enabled toggle below)
 input bool        Inp_RRM_ORG_VPRR_Enabled         = false;          // RRM ORG VPRR: Manual enable (only used when AutoEnable=OFF)
 input int         Inp_RRM_ORG_VPRR_RecoveryBars    = 5;              // RRM ORG VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
-
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1193,13 +1189,20 @@ input double      Inp_RRM_BE_RMultiple             = 1.0;            // RRM BE: 
 // input string   Inp_RRM_BE_Buffer_Note           = "BE buffer auto-set by timeframe (M15=5, H1=10, H4=20 pips)";
 // input string   Inp_RRM_BE_Example               = "Example: SL=10, TP=30 (3:1), BE@33% → triggers at +10 pips; SL locks at entry + TF-cushion";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: LAYER Filter (sub-markets)";
+input group "║   🔧 RRM: (DP) Drawdown Protection";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_RRM_EnableDrawdownProtection = false;          // RRM DP: Enable drawdown protection
+input int         Inp_RRM_MaxConsecutiveLosses     = 10;             // RRM DP: Max consecutive losses before pause
+input int         Inp_RRM_MaxTradesPerDay          = 50;             // RRM DP: Max trades per day
+input double      Inp_RRM_MaxDailyDrawdownPct      = 3.0;            // RRM DP: Max daily drawdown %
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM: LAYER WMS Filter (sub-markets)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_AllowWeak                = true;           // RRM Layer: Allow WEAK   trades (L1 EMA1/EMA2)
 input bool        Inp_RRM_AllowMedium              = true;           // RRM Layer: Allow MEDIUM trades (L2 EMA2/EMA3)
 input bool        Inp_RRM_AllowStrong              = true;           // RRM Layer: Allow STRONG trades (L3 EMA3/EMA4, TRENDING only)
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: LAYER Pullback-Recovery Detection";
+input group "║   📐 RRM: LAYER WMS Pullback-Recovery Detection";
 input group "╚════════════════════════════════════════════════════════╝";
 // Recommended pullback mode: pure ratio mathematics (Inp_RRM_LayerPullbackRatio / Inp_RRM_LayerRecoveryRatio / Inp_RRM_LayerFlatRatio).
 // This Layer system is independent from legacy RRM gate fields below.
@@ -1209,13 +1212,7 @@ input int         Inp_RRM_LayerBaselineLookback    = 10;             // RRM Laye
 input double      Inp_RRM_LayerPullbackRatio       = 0.5;            // RRM Layer PB: Layer PB: Pullback threshold ratio (min 0.1)
 input double      Inp_RRM_LayerRecoveryRatio       = 0.3;            // RRM Layer PB: Layer PB: Recovery threshold ratio (min 0.1)
 input double      Inp_RRM_LayerFlatRatio           = 0.1;            // RRM Layer PB: Layer PB: Flat threshold ratio (min 0.05; independent of pullback ratio)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🔧 RRM: (DP) Drawdown Protection";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_EnableDrawdownProtection = false;          // RRM DP: Enable drawdown protection
-input int         Inp_RRM_MaxConsecutiveLosses     = 10;             // RRM DP: Max consecutive losses before pause
-input int         Inp_RRM_MaxTradesPerDay          = 50;             // RRM DP: Max trades per day
-input double      Inp_RRM_MaxDailyDrawdownPct      = 3.0;            // RRM DP: Max daily drawdown %
+
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET: RRM INDICATORS";
@@ -1549,6 +1546,50 @@ input double      Inp_RRM_ORG_BE_ProgressPct          = 10.0;        // RRM ORG 
 // ⚠️ BE lock is one-time: once triggered, SL moves to entry+buffer and does not recalculate.
 // Buffer pips are TF-adaptive in PRESET_RRM_ORG via GetTFBasedCushion().
 //
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: (DD) Drawdown Protection";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_RRM_ORG_ForceDDProtection    = false;          // RRM ORG DD: Force DrawDown protection
+input int         Inp_RRM_ORG_DDMaxConsecLosses    = 3;              // RRM ORG DD: Override max consecutive losses (0=use Inp_RRM_*)
+input int         Inp_RRM_ORG_DDMaxTradesPerDay    = 15;             // RRM ORG DD: Override max trades per day (0=use Inp_RRM_*)
+input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM ORG DD: Override max daily DD % (0=use Inp_RRM_*)
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: QUALITY Gates";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_RRM_ORG_RequireRecoveryIntraday = true;        // RRM ORG QA: Require recovery <M15
+input bool        Inp_RRM_ORG_HtfFilter            = true;           // RRM ORG QA: HTF Trend Filter
+input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM ORG QA: EMA1 period
+input int         Inp_RRM_ORG_Ema2Period           = 13;             // RRM ORG QA: EMA2 period
+input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG QA: EMA3 period
+input int         Inp_RRM_ORG_Ema4Period           = 89;             // RRM ORG QA: EMA4 period
+input int         Inp_RRM_ORG_PhaseConfirmM5       = 0;              // RRM ORG QA: PhaseConfirmBars <M5
+input int         Inp_RRM_ORG_PhaseConfirmM30      = 0;              // RRM ORG QA: PhaseConfirmBars <M30
+input int         Inp_RRM_ORG_PhaseConfirmH1plus   = 0;              // RRM ORG QA: PhaseConfirmBars H1+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: LAYER WMS Pullback & Recovery";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_RRM_ORG_LayerPBEnabled       = true;           // RRM ORG PB: Enable pullback-recovery state machine (P2?)
+input int         Inp_RRM_ORG_LayerPBLookback      = 3;              // RRM ORG PB: Baseline slope lookback (bars, 3-20)
+input double      Inp_RRM_ORG_LayerPBPullbackRatio = 0.5;            // RRM ORG PB: Pullback threshold ratio (0.1-1.0, 0.5=50% weaker)
+input double      Inp_RRM_ORG_LayerPBRecoveryRatio = 0.3;            // RRM ORG PB: Global recovery threshold ratio (0.1-1.0, 0.3=30% strength)
+input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;            // RRM ORG PB: Flat threshold ratio (0.05-0.5, 0.1=10%)
+input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;           // RRM ORG PB: Count slope reversal as pullback
+input double      Inp_RRM_ORG_RecoveryRatio_W      = -1.0;           // RRM ORG PB: LayerW recovery override (-1=use global, 0.1-1.0)
+input double      Inp_RRM_ORG_RecoveryRatio_M      = -1.0;           // RRM ORG PB: LayerM recovery override (-1=use global, 0.1-1.0)
+input double      Inp_RRM_ORG_RecoveryRatio_S      = -1.0;           // RRM ORG PB: LayerS recovery override (-1=use global, 0.1-1.0)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: EMA Fan Filter (pips)";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_RRM_ORG_EmaFanFilter         = false;           // RRM ORG Fan: EMA Fan Filter
+input double      Inp_RRM_ORG_EmaFan_M5Pips        = 25.0;           // RRM ORG Fan: pips <M5
+input double      Inp_RRM_ORG_EmaFan_M30Pips       = 40.0;           // RRM ORG Fan: pips <M30
+input double      Inp_RRM_ORG_EmaFan_H1Pips        = 60.0;           // RRM ORG Fan: pips H1
+input double      Inp_RRM_ORG_EmaFan_H4Pips        = 100.0;          // RRM ORG Fan: pips H4
+input double      Inp_RRM_ORG_EmaFan_DailyPips     = 180.0;          // RRM ORG Fan: pips D1+
+input double      Inp_RRM_ORG_EmaFan_MaxPct        = 0.0;            // RRM ORG Fan: max gap % of price (>0 overrides pips; universal for all instruments)
+input double      Inp_RRM_ORG_JpyGateMultiplier    = 1.3;            // RRM ORG Fan: JPY Gate Multiplier (1.0=disabled)
+
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET: RRM_ORG: INDICATORS";
@@ -1570,8 +1611,6 @@ input bool        Inp_RRM_ORG_Use_Ross             = false;          // RRM ORG 
 input bool        Inp_RRM_ORG_Use_Rsi              = false;          // RRM ORG Ind: RSI vote
 input bool        Inp_RRM_ORG_Use_Stoch            = false;          // RRM ORG Ind: STO vote
 input bool        Inp_RRM_ORG_Use_VRC              = false;          // RRM ORG Ind: VRC vote
-input group "╔════════════════════════════════════════════════════════╗";
-input group "╚════════════════════════════════════════════════════════╝";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: ADX Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1670,50 +1709,6 @@ input group "╚═════════════════════�
 input int         Inp_RRM_ORG_VRC_Lookback         = 100;            // RRM ORG VRC: lookback bars for regime classification
 input double      Inp_RRM_ORG_VRC_LowThreshold     = 33.0;           // RRM ORG VRC: low-volatility percentile threshold
 input int         Inp_RRM_ORG_VRC_ATR_Period       = 14;             // RRM ORG VRC: ATR period for VRC calculation
-
-
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: Phase A Quality Gates";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_RequireRecoveryIntraday = true;        // RRM ORG QA: Require recovery <M15
-input bool        Inp_RRM_ORG_HtfFilter            = true;           // RRM ORG QA: HTF Trend Filter
-input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM ORG QA: EMA1 period
-input int         Inp_RRM_ORG_Ema2Period           = 13;             // RRM ORG QA: EMA2 period
-input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG QA: EMA3 period
-input int         Inp_RRM_ORG_Ema4Period           = 89;             // RRM ORG QA: EMA4 period
-input int         Inp_RRM_ORG_PhaseConfirmM5       = 0;              // RRM ORG QA: PhaseConfirmBars <M5
-input int         Inp_RRM_ORG_PhaseConfirmM30      = 0;              // RRM ORG QA: PhaseConfirmBars <M30
-input int         Inp_RRM_ORG_PhaseConfirmH1plus   = 0;              // RRM ORG QA: PhaseConfirmBars H1+
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: LAYER Pullback & Recovery";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_LayerPBEnabled       = true;           // RRM ORG PB: Enable pullback-recovery state machine (P2?)
-input int         Inp_RRM_ORG_LayerPBLookback      = 3;              // RRM ORG PB: Baseline slope lookback (bars, 3-20)
-input double      Inp_RRM_ORG_LayerPBPullbackRatio = 0.5;            // RRM ORG PB: Pullback threshold ratio (0.1-1.0, 0.5=50% weaker)
-input double      Inp_RRM_ORG_LayerPBRecoveryRatio = 0.3;            // RRM ORG PB: Global recovery threshold ratio (0.1-1.0, 0.3=30% strength)
-input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;            // RRM ORG PB: Flat threshold ratio (0.05-0.5, 0.1=10%)
-input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;           // RRM ORG PB: Count slope reversal as pullback
-input double      Inp_RRM_ORG_RecoveryRatio_W      = -1.0;           // RRM ORG PB: LayerW recovery override (-1=use global, 0.1-1.0)
-input double      Inp_RRM_ORG_RecoveryRatio_M      = -1.0;           // RRM ORG PB: LayerM recovery override (-1=use global, 0.1-1.0)
-input double      Inp_RRM_ORG_RecoveryRatio_S      = -1.0;           // RRM ORG PB: LayerS recovery override (-1=use global, 0.1-1.0)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: EMA Fan Filter";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_EmaFanFilter         = false;           // RRM ORG Fan: EMA Fan Filter
-input double      Inp_RRM_ORG_EmaFan_M5Pips        = 25.0;           // RRM ORG Fan: pips <M5
-input double      Inp_RRM_ORG_EmaFan_M30Pips       = 40.0;           // RRM ORG Fan: pips <M30
-input double      Inp_RRM_ORG_EmaFan_H1Pips        = 60.0;           // RRM ORG Fan: pips H1
-input double      Inp_RRM_ORG_EmaFan_H4Pips        = 100.0;          // RRM ORG Fan: pips H4
-input double      Inp_RRM_ORG_EmaFan_DailyPips     = 180.0;          // RRM ORG Fan: pips D1+
-input double      Inp_RRM_ORG_EmaFan_MaxPct        = 0.0;            // RRM ORG Fan: max gap % of price (>0 overrides pips; universal for all instruments)
-input double      Inp_RRM_ORG_JpyGateMultiplier    = 1.3;            // RRM ORG Fan: JPY Gate Multiplier (1.0=disabled)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: Drawdown Protection";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_ForceDDProtection    = false;          // RRM ORG DD: Force DrawDown protection
-input int         Inp_RRM_ORG_DDMaxConsecLosses    = 3;              // RRM ORG DD: Override max consecutive losses (0=use Inp_RRM_*)
-input int         Inp_RRM_ORG_DDMaxTradesPerDay    = 15;             // RRM ORG DD: Override max trades per day (0=use Inp_RRM_*)
-input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM ORG DD: Override max daily DD % (0=use Inp_RRM_*)
 #endif // SEA_PRESET_RRM_ORG
 
 #ifdef SEA_PRESET_TOPINVESTOR
