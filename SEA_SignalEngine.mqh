@@ -230,9 +230,9 @@ private:
    string   m_eval_str_F;                // Filter status telemetry string ("OK", "SPREAD", etc.)
    string   m_eval_str_B;                // Bias status telemetry string ("+", "POS", "SLOPE", etc.)
    string   m_eval_str_I;                // Indicator status telemetry string (e.g., "2/4")
-   int      m_eval_layer_w;              // LayerW alignment result (0/1) set by EvaluateLayerX
-   int      m_eval_layer_m;              // LayerM alignment result (0/1) set by EvaluateLayerX
-   int      m_eval_layer_s;              // LayerS alignment result (0/1) set by EvaluateLayerX
+   int      m_eval_layer_w;  // LayerW positional alignment result (0/1) — set by EvaluateL
+   int      m_eval_layer_m;  // LayerM positional alignment result (0/1) — set by EvaluateL
+   int      m_eval_layer_s;  // LayerS positional alignment result (0/1) — set by EvaluateL
    // Per-indicator results (set by EvaluateIndicatorX, read by TS_SUMMARY in EvaluateTS)
    bool     m_eval_ind_res_adx;
    bool     m_eval_ind_res_macd;
@@ -2624,26 +2624,13 @@ private:
       int dir = (hist_cur > 0.0) ? 1 : ((hist_cur < 0.0) ? -1 : 0);
 
       bool dir_ok  = (dir == bias);
-
-      // DPI_AllowTransition: also pass when histogram is rising toward zero from the wrong side.
-      // Rationale: green disappearing below zero for LONG means sell-momentum exhausting —
-      // this IS the pullback completion signal, not a contra-indicator.
-      // A histogram rising from negative toward zero (hist_cur > hist_prev, hist_cur < 0)
-      // confirms the reversal is underway even before the histogram crosses zero.
-      bool transition_ok = false;
-      if(!dir_ok && m_settings.DPI_AllowTransition)
-      {
-         // Histogram is on the wrong side of zero but rising (LONG) or falling (SHORT)
-         bool hist_recovering = (bias ==  1) ? (hist_cur > hist_prev && hist_cur < 0.0) :
-                                (bias == -1) ? (hist_cur < hist_prev && hist_cur > 0.0) : false;
-         transition_ok = hist_recovering;
-      }
-
       // DPI_IgnoreCCIForVote: bypass CCI-reset check — vote on raw histogram direction only.
+      // Useful when a valid pullback-recovery causes CCI to temporarily flip against the
+      // histogram, causing the vote to fail despite correct momentum direction.
       bool cci_ok  = (m_settings.DPI_IgnoreCCIForVote || !m_settings.DPI_UseCCIReset || dpi_macd_agree);
       bool green_ok= (!m_settings.DPI_UseGreenHist  || dpi_green);
 
-      bool result  = (dir_ok || transition_ok) && cci_ok && green_ok;
+      bool result  = dir_ok && cci_ok && green_ok;
 
       m_ind_cache.cached_bias = bias;
       m_ind_cache.dpi_result  = result ? 1 : 0;
@@ -2651,13 +2638,13 @@ private:
       if(m_settings.DebugFlow)
       {
          string sub = "";
-         if(!dir_ok && !transition_ok) sub = sub + "DIR_MISMATCH ";
-         if(transition_ok)  sub = sub + "TRANSITION ";
+         if(!dir_ok)   sub = sub + "DIR_MISMATCH ";
          if(!cci_ok)   sub = sub + "CCI_RESET ";
          if(!green_ok) sub = sub + "NO_GREEN ";
-         DebugLog(StringFormat("[IND_DPI] bias=%d hist=%.6f prev=%.6f dir=%d transition=%d green=%d → %s%s",
-                               bias, hist_cur, hist_prev, dir,
-                               transition_ok ? 1 : 0, dpi_green ? 1 : 0,
+         DebugLog(StringFormat("[IND_DPI] bias=%d hist=%.6f dir=%d green=%d cciagreed=%d ignoreCCI=%s → %s%s",
+                               bias, hist_cur, dir,
+                               dpi_green ? 1 : 0, dpi_macd_agree ? 1 : 0,
+                               m_settings.DPI_IgnoreCCIForVote ? "Y" : "N",
                                result ? "PASS" : "FAIL ",
                                result ? "" : ("(" + sub + ")")));
       }
@@ -2761,36 +2748,6 @@ private:
       return 0;
    }
 
-   // --- HARD GATES ---
-
-   //+------------------------------------------------------------------+
-   //| Detect which EMA layer is currently valid and active             |
-   //| Returns: 1=Layer1(EMA1-2), 2=Layer2(EMA2-3), 3=Layer3(EMA3-4), 0=none |
-   //| Selection: layers checked shallow-first (1→2→3); first valid    |
-   //| layer returned. Each layer is validated independently — a broken |
-   //| shallow layer does not prevent a deeper layer from being active. |
-   //+------------------------------------------------------------------+
-   int DetectActiveLayer(const int bias)
-   {
-      double e1    = GetMAVal(h_ema1, 1);
-      double e2    = GetMAVal(h_ema2, 1);
-      double e3    = GetMAVal(h_ema3, 1);
-      double e4    = GetMAVal(h_ema4, 1);
-      double price = iClose(m_symbol, PERIOD_CURRENT, 1);
-
-      if(bias == -1) {  // SHORT: faster EMA must be below slower EMA (downtrend aligned)
-         if(e1 < e2 && price <= e2) return 1;  // Layer 1 valid: EMA1-2 aligned, price within range
-         if(e2 < e3 && price <= e3) return 2;  // Layer 2 valid: EMA2-3 aligned, price within range
-         if(e3 < e4 && price <= e4) return 3;  // Layer 3 valid: EMA3-4 aligned, price within range
-      }
-      else {            // LONG: faster EMA must be above slower EMA (uptrend aligned)
-         if(e1 > e2 && price >= e2) return 1;  // Layer 1 valid: EMA1-2 aligned, price within range
-         if(e2 > e3 && price >= e3) return 2;  // Layer 2 valid: EMA2-3 aligned, price within range
-         if(e3 > e4 && price >= e4) return 3;  // Layer 3 valid: EMA3-4 aligned, price within range
-      }
-      return 0;
-   }
-
    //==========================================================================
    // CheckLayerPairAlign — Structural alignment check (position + slope)
    // Returns 1 if the EMA pair is aligned with bias direction, 0 otherwise.
@@ -2842,24 +2799,23 @@ private:
                               (bias == -1) ? (ema_fast < ema_slow) : false;
       if(!position_aligned) return 0;
 
-      // Layer validity = purely positional: fast EMA must be on the correct side of slow EMA.
-      // Single-bar slope was removed — it blocked entries during flat/recovering bars in
-      // genuine trends (all EMAs still stacked correctly but one bar consolidating).
-      // Positional alignment already captures counter-trend EMA crossovers which are the
-      // real threat. Slope per bar is redundant and too noisy on M5/M15.
-      // Bar-close direction is separately enforced by Eval_BarClose / Check_BarClose.
+      // ── Layer result: purely positional ──
+      // Slope per bar is NOT checked here — it blocked entries on consolidating bars
+      // even when all EMAs were correctly stacked (e.g. EMA1>EMA2>EMA3>EMA4 for LONG).
+      // Positional alignment already covers counter-trend crossovers.
+      // Bar-close direction is enforced separately by Eval_BarClose / Check_BarClose.
       int base_result = position_aligned ? 1 : 0;
 
       if(m_settings.LayerPullbackEnabled && base_result == 1)
       {
-         // DETECTED = actively in a pullback — block until recovery confirmed.
-         // NONE     = clean trend, no pullback seen yet — allow entry (trend continuation).
-         // RECOVERED= pullback completed, recovery confirmed — allow entry.
-         // Only DETECTED blocks; NONE and RECOVERED both permit entries.
+         // Gate logic:
+         //   NONE     = clean trend, no pullback seen yet → ALLOW (trend continuation)
+         //   DETECTED = actively in pullback → BLOCK (wait for recovery)
+         //   RECOVERED= pullback completed and recovered → ALLOW
          if(current_state == LAYER_PB_DETECTED)
          {
             if(m_settings.DebugFlow)
-               DebugLog(StringFormat("[%s] BLOCKED: in pullback (State=DETECTED, need RECOVERED)",
+               DebugLog(StringFormat("[%s] BLOCKED: pullback in progress (State=DETECTED)",
                                      layer_label));
             return 0;
          }
@@ -3242,51 +3198,6 @@ public:
    double              GetLayerWBaseline()      const { return m_layer_w_baseline; }
    double              GetLayerMBaseline()      const { return m_layer_m_baseline; }
    double              GetLayerSBaseline()      const { return m_layer_s_baseline; }
-
-   // Returns true if the given entry layer is permitted in the given phase.
-   // Requires PhaseDetectionEnabled AND EnableLayerDetection to activate filtering.
-   //
-   // 260308_PR: layer_bitfield may contain multiple layer flags OR-combined.
-   // All active layers in the bitfield must pass the phase-layer rules.
-   //
-   // Phase-layer filtering rules:
-   //   UNORDERED → Block ALL layers (L1, L2, L3)  — choppy/mixed market, no clear trend
-   //   EMERGING  → ALLOW L1/L2 only; BLOCK L3     — trend forming, avoid deep pullbacks
-   //   TRENDING  → ALLOW L1/L2/L3 (ALL layers)    — strong established trend, all depths valid
-   bool IsLayerAllowed(EEntryLayer layer_bitfield, EMarketPhase phase) const
-   {
-      if(!m_settings.PhaseDetectionEnabled || !m_settings.EnableLayerDetection)
-         return true;  // Filtering disabled - all layers allowed
-
-      if(layer_bitfield == LAYER_NONE)
-         return false;  // No layer detected - nothing to allow
-
-      bool is_emerging = (phase == PHASE_EMERGING || phase == PHASE_EMERGING_UP || phase == PHASE_EMERGING_DN);
-      bool is_trending = (phase == PHASE_TRENDING || phase == PHASE_TRENDING_UP || phase == PHASE_TRENDING_DN);
-
-      if(phase == PHASE_UNORDERED)
-      {
-         // Choppy/mixed market → Block ALL (L1, L2, L3)
-         return false;
-      }
-      else if(is_emerging)
-      {
-         // Trend forming but not confirmed → ALLOW L1/L2 only; BLOCK L3 (STRONG)
-         // Deep pullbacks (L3/Shark) are too risky before the trend is established.
-         // 260308_PR: If L3 flag is set in the bitfield, the whole signal is blocked.
-         if(IsLayerActive(layer_bitfield, LAYER_3_STRONG))
-            return false;  // L3 component blocked in EMERGING
-         return (IsLayerActive(layer_bitfield, LAYER_1_WEAK) || IsLayerActive(layer_bitfield, LAYER_2_MEDIUM));
-      }
-      else if(is_trending)
-      {
-         // Strong established trend → ALLOW ALL layers (L1/L2/L3)
-         // Deep pullbacks (L3/Shark) are valid — the trend has the strength to recover
-         return true;
-      }
-
-      return false;
-   }
 
    // KISS layer diagnostic getters
    int    DiagLayerW()        const { return m_diag_layer_w; }
@@ -5038,9 +4949,6 @@ public:
          }
          else if(m_settings.AutoStrat == STRAT_4EMA_LAYER) {
             // KISS design: pass bias directly to pipeline.
-            // Layer qualification (position+slope per EMA pair) is handled in EvaluateLayerX().
-            // Bar close confirmation is handled in EvaluateBcX().
-            // DetectLayerSignal() (wick-touch) is NOT used — it contradicts the design intent.
             entry_signal = market_bias;
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
@@ -5143,27 +5051,6 @@ public:
       return bias;
    }
 
-   // ─────────────────────────────────────────────────────────────────────────
-   // EvaluateLayerX — KISS Component: Phase + EMA pair structural alignment
-   // Checks all 3 layers (W/M/S) and stores results in m_eval_layer_{w/m/s}.
-   // Returns 1 if at least one layer is aligned, 0 if none are aligned.
-   // Guard: returns 1 (pass) when EnableLayerDetection=false or BiasMode!=BIAS_4EMA.
-   // ─────────────────────────────────────────────────────────────────────────
-   int EvaluateLayerX(int v_shift, int bias)
-   {
-      // Layer detection only applies to BIAS_4EMA phase system
-      if(!m_settings.EnableLayerDetection || m_settings.BiasMode != BIAS_4EMA)
-      {
-         m_eval_layer_w = 1;
-         m_eval_layer_m = 1;
-         m_eval_layer_s = 1;
-         m_diag_layer_w = 1;
-         m_diag_layer_m = 1;
-         m_diag_layer_s = 1;
-         if(m_settings.DebugFlow) DebugLog("STEP 3 LAYER: Disabled/N.A. (non-4EMA mode) → PASS");
-         return 1;
-      }
-
       // ═══════════════════════════════════════════════════════════════
       // KISS: Evaluate LayerX (structural alignment per EMA pair)
       // ═══════════════════════════════════════════════════════════════
@@ -5192,76 +5079,6 @@ public:
    }
 
    // ─────────────────────────────────────────────────────────────────────────
-   // EvaluateBcX — KISS Component: Bar close confirmation (bcX)
-   // Uses m_eval_layer_{w/m/s} from EvaluateLayerX to check active layers only.
-   // Layer-aware: LayerW→EMA1, LayerM→EMA2, LayerS→EMA3
-   // Returns 1 if at least one active layer has its bar close confirmed, 0 otherwise.
-   // ─────────────────────────────────────────────────────────────────────────
-   int EvaluateBcX(int v_shift, int bias)
-   {
-      // For non-4EMA modes (layer detection disabled), use a direct bc check
-      if(!m_settings.EnableLayerDetection || m_settings.BiasMode != BIAS_4EMA)
-      {
-         int bc_result = Eval_BarClose(v_shift, bias, LAYER_NONE);
-
-         if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-            DebugLog(StringFormat("[KISS] Step4 bcX=%d (non-layer mode, bias=%d, mode=%s)",
-                                  bc_result, bias, EnumToString(m_settings.BarClose_Mode)));
-         }
-         if(bc_result == 0) {
-            m_diag_last_reason = "BC_NOT_CONFIRMED";
-            m_reject_gate++;
-            if(m_settings.DebugFlow) DebugLog("STEP 4 BCX: Bar close not confirmed → REJECT");
-            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-            return 0;
-         }
-         if(m_settings.DebugFlow) DebugLog("STEP 4 BCX: Bar close confirmed → PASS");
-         return 1;
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // KISS: bcX (Bar close confirmation, layer-aware)
-      // Only evaluate bcX for active layers; inactive layers default to pass (1)
-      // ═══════════════════════════════════════════════════════════════
-      int bc_w = (m_eval_layer_w == 1) ? Eval_BarClose(v_shift, bias, LAYER_1_WEAK)   : 1;
-      int bc_m = (m_eval_layer_m == 1) ? Eval_BarClose(v_shift, bias, LAYER_2_MEDIUM) : 1;
-      int bc_s = (m_eval_layer_s == 1) ? Eval_BarClose(v_shift, bias, LAYER_3_STRONG) : 1;
-
-      if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-         DebugLog(StringFormat("[KISS] Step4 bcW=%d bcM=%d bcS=%d (bias=%d, mode=%s)",
-                               bc_w, bc_m, bc_s, bias, EnumToString(m_settings.BarClose_Mode)));
-      }
-
-      // At least one active layer must have its bcX confirmed
-      bool bc_any = ((m_eval_layer_w == 1 && bc_w == 1) ||
-                     (m_eval_layer_m == 1 && bc_m == 1) ||
-                     (m_eval_layer_s == 1 && bc_s == 1));
-
-      if(!bc_any) {
-         m_diag_last_reason = "BC_NOT_CONFIRMED";
-         m_reject_gate++;
-         if(m_settings.DebugFlow) DebugLog("STEP 4 BCX: No active layer close confirmed → REJECT");
-         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-         return 0;
-      }
-      if(m_settings.DebugFlow) DebugLog("STEP 4 BCX: Active layer close confirmed → PASS");
-
-      // Determine active setup type and store KISS diagnostics
-      string active_setup = "";
-      if(m_eval_layer_w == 1 && bc_w == 1)       active_setup = "LayerW (Weak/Ribbon) - Shallow pullback EMA1/2";
-      else if(m_eval_layer_m == 1 && bc_m == 1)  active_setup = "LayerM (Medium/Ghost) - Medium pullback EMA2/3";
-      else if(m_eval_layer_s == 1 && bc_s == 1)  active_setup = "LayerS (Strong/Shark) - Deep pullback EMA3/4";
-      else                                        active_setup = "None (no active layer confirmed)";
-
-      if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-         DebugLog(StringFormat("[KISS] Setup: %s | Bias=%d | Layers: W=%d M=%d S=%d | bcX: W=%d M=%d S=%d",
-                               active_setup, bias, m_eval_layer_w, m_eval_layer_m, m_eval_layer_s, bc_w, bc_m, bc_s));
-      }
-
-      return 1;
-   }
-
-   // ─────────────────────────────────────────────────────────────────────────
    // EvaluateIndicatorX — KISS Component: Voting consensus
    // Casts all enabled indicator votes, logs diagnostics, applies vote mode.
    // Returns bias if voting passes, 0 if consensus fails.
@@ -5279,7 +5096,7 @@ public:
       #define CAST_VOTE_STAT(use_flag, check_expr, stat_rej_field, stat_pass_field) \
          { if(use_flag) { vote_enab++; bool _cv_pass = (check_expr); \
          if(_cv_pass) { vote_pass++; stat_pass_field++; } \
-         else { stat_rej_field++; all_pass = false; } } }
+         else stat_rej_field++; } }
 
       CAST_VOTE_STAT(m_settings.Ind_Adx_Enabled,    Check_ADX(v_shift),        m_stats.rejected_adx, m_stats.passed_adx)
       CAST_VOTE_STAT(m_settings.Ind_Macd_Enabled,   Check_MACD(bias, v_shift), m_stats.rejected_macd, m_stats.passed_macd)
