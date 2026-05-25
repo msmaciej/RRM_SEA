@@ -38,6 +38,11 @@ string TFToString(ENUM_TIMEFRAMES tf = PERIOD_CURRENT) {
    return s;
 }
 
+// Forward declaration: SEA_UI_StoreVPRRContent is defined in SEA_UI.mqh
+// but called from SEA_Presets.mqh which is included first.
+void SEA_UI_StoreVPRRContent(const string &lines[], const color &clrs[]);
+
+
 
 //+------------------------------------------------------------------+
 //| ENUMS
@@ -2740,11 +2745,10 @@ void PrintIndicatorRegistry()
    Print("--- Indicator Registry (18 entries) ---");
    for(int i = 0; i < 18; i++)
    {
-      PrintFormat("  [%2d] %-12s  enabled=%-5s  weight=%d  subwindow=%-5s",
+      PrintFormat("  [%2d] %-12s  enabled=%-5s  subwindow=%-5s",
                   i,
                   g_indicator_registry[i].name,
                   (g_indicator_registry[i].is_enabled ? "true" : "false"),
-                  g_indicator_registry[i].weight,
                   (g_indicator_registry[i].prefers_subwindow ? "true" : "false"));
    }
 }

@@ -5384,52 +5384,52 @@ public:
           if(m_settings.Ind_VRC_Enabled)         _res_vrc         = Check_VRC(bias, v_shift);
 
          if(m_settings.DebugLevel >= DEBUG_FULL) {
-                        DebugLog(StringFormat("[IND] --- Indicators (mode=%s bias=%d weight=%.2f) ---",
+                        DebugLog(StringFormat("[IND] --- Indicators (pass=%d/%d bias=%d) ---",
                                   vote_pass, vote_enab, bias));
 
             if(m_settings.Ind_Adx_Enabled) {
                double adx = GetVal(h_adx, v_shift);
                DebugLog(StringFormat("[IND] ADX: %.2f / threshold=%.2f → %s",
-                                     adx, m_cachedADXThreshold, _res_adx ? "PASS" : "FAIL");
+                                     adx, m_cachedADXThreshold, _res_adx ? "PASS" : "FAIL"));
             } else DebugLog("[IND] ADX: DISABLED → SKIP");
 
             if(m_settings.Ind_Macd_Enabled) {
                double macd_m = GetVal(h_macd, v_shift, 0);
                double macd_s = GetVal(h_macd, v_shift, 1);
                DebugLog(StringFormat("[IND] MACD: main=%.6f signal=%.6f hist=%.6f → %s",
-                                     macd_m, macd_s, macd_m - macd_s, _res_macd ? "PASS" : "FAIL");
+                                     macd_m, macd_s, macd_m - macd_s, _res_macd ? "PASS" : "FAIL"));
             } else DebugLog("[IND] MACD: DISABLED → SKIP");
 
             if(m_settings.Ind_Rsi_Enabled) {
                double r = GetVal(h_rsi, v_shift);
                DebugLog(StringFormat("[IND] RSI: %.2f (OB=%.0f OS=%.0f) → %s",
-                                     r, m_settings.T_RsiOB, m_settings.T_RsiOS, _res_rsi ? "PASS" : "FAIL");
+                                     r, m_settings.T_RsiOB, m_settings.T_RsiOS, _res_rsi ? "PASS" : "FAIL"));
             } else DebugLog("[IND] RSI: DISABLED → SKIP");
 
             if(m_settings.Ind_Cci_Enabled) {
                double c = GetVal(h_cci, v_shift);
                DebugLog(StringFormat("[IND] CCI: %.2f → %s",
-                                     c, _res_cci ? "PASS" : "FAIL");
+                                     c, _res_cci ? "PASS" : "FAIL"));
             } else DebugLog("[IND] CCI: DISABLED → SKIP");
 
             if(m_settings.Ind_Mfi_Enabled) {
                double mfi = GetVal(h_mfi, v_shift);
                DebugLog(StringFormat("[IND] MFI: %.2f (OB=%.0f OS=%.0f) → %s",
-                                     mfi, m_settings.T_MfiOB, m_settings.T_MfiOS, _res_mfi ? "PASS" : "FAIL");
+                                     mfi, m_settings.T_MfiOB, m_settings.T_MfiOS, _res_mfi ? "PASS" : "FAIL"));
             } else DebugLog("[IND] MFI: DISABLED → SKIP");
 
             if(m_settings.Ind_Sto_Enabled) {
                double sk = GetVal(h_sto, v_shift, 0);
                double sd = GetVal(h_sto, v_shift, 1);
                DebugLog(StringFormat("[IND] Stoch: K=%.2f D=%.2f (OB=%.0f OS=%.0f) → %s",
-                                     sk, sd, m_settings.T_StoOB, m_settings.T_StoOS, _res_sto ? "PASS" : "FAIL");
+                                     sk, sd, m_settings.T_StoOB, m_settings.T_StoOS, _res_sto ? "PASS" : "FAIL"));
             } else DebugLog("[IND] Stoch: DISABLED → SKIP");
 
             if(m_settings.Ind_Bb_Enabled) {
                double bb_mid = GetVal(h_bb, v_shift, 0);
                double cl_bb  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
                DebugLog(StringFormat("[IND] BB: mid=%.5f close=%.5f → %s",
-                                     bb_mid, cl_bb, _res_bb ? "PASS" : "FAIL");
+                                     bb_mid, cl_bb, _res_bb ? "PASS" : "FAIL"));
             } else DebugLog("[IND] BB: DISABLED → SKIP");
 
             if(m_settings.Ind_Psar_Enabled) {
@@ -5449,15 +5449,15 @@ public:
                   }
                }
                DebugLog(StringFormat("[IND] PSAR: dot=%.5f close=%.5f%s → %s",
-                                     psar_v, cl_p, flip_info, _res_psar ? "PASS" : "FAIL");
+                                     psar_v, cl_p, flip_info, _res_psar ? "PASS" : "FAIL"));
             } else DebugLog("[IND] PSAR: DISABLED → SKIP");
 
             if(m_settings.Ind_P123_Enabled) {
-               DebugLog(StringFormat("[IND] P123: → %s", _res_p123 ? "PASS" : "FAIL");
+               DebugLog(StringFormat("[IND] P123: → %s", _res_p123 ? "PASS" : "FAIL"));
             } else DebugLog("[IND] P123: DISABLED → SKIP");
 
             if(m_settings.Ind_Ross_Enabled) {
-               DebugLog(StringFormat("[IND] RossHook: → %s", _res_ross ? "PASS" : "FAIL");
+               DebugLog(StringFormat("[IND] RossHook: → %s", _res_ross ? "PASS" : "FAIL"));
             } else DebugLog("[IND] RossHook: DISABLED → SKIP");
 
             if(m_settings.Ind_Dpi_Enabled) {
@@ -5465,7 +5465,7 @@ public:
                                      m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_RedSignalType,
                                      m_settings.DPI_UseCCIReset ? m_settings.DPI_CCI_Period : 0,
                                      m_settings.DPI_UseGreenHist ? 1 : 0,
-                                     _res_dpi ? "PASS" : "FAIL");
+                                     _res_dpi ? "PASS" : "FAIL"));
             } else DebugLog("[IND] DPI: DISABLED → SKIP");
 
             if(m_settings.Ind_Atr_Enabled) {
@@ -5473,7 +5473,7 @@ public:
                bool   atr_v_ok   = true;
                if(m_settings.ATR_VoteMinPips > 0.0 && atr_v_pips < m_settings.ATR_VoteMinPips) atr_v_ok = false;
                if(m_settings.ATR_VoteMaxPips > 0.0 && atr_v_pips > m_settings.ATR_VoteMaxPips) atr_v_ok = false;
-               DebugLog(StringFormat("[IND] ATR Vote: %.1f pips (min=%.1f max=%.1f) → %s (w=1)",
+               DebugLog(StringFormat("[IND] ATR Vote: %.1f pips (min=%.1f max=%.1f) → %s",
                                      atr_v_pips, m_settings.ATR_VoteMinPips, m_settings.ATR_VoteMaxPips,
                                      atr_v_ok ? "PASS" : "FAIL"));
             } else
@@ -5483,7 +5483,7 @@ public:
                bool cb_ok = CheckCandleBodyIndicator(bias);
                DebugLog(StringFormat("[IND] CandleBody: avg period=%d max=x%.1f check=%d → %s",
                                      m_settings.CandleBody_AvgPeriod, m_settings.CandleBody_MaxMult,
-                                     m_settings.CandleBody_CheckBars, cb_ok ? "PASS" : "FAIL");
+                                     m_settings.CandleBody_CheckBars, cb_ok ? "PASS" : "FAIL"));
             } else
                DebugLog("[IND] CandleBody: DISABLED → SKIP");
 
@@ -5493,7 +5493,7 @@ public:
                string ci_status = (ci_val >= m_settings.CI_RangingThreshold ? "RANGING" : "TRENDING");
                DebugLog(StringFormat("[IND] ChoppinessIndex: CI=%.1f threshold=%.1f status=%s → %s",
                                      ci_val, m_settings.CI_RangingThreshold, ci_status,
-                                     ci_ok ? "PASS" : "FAIL");
+                                     ci_ok ? "PASS" : "FAIL"));
             } else
                DebugLog("[IND] ChoppinessIndex: DISABLED → SKIP");
          }
