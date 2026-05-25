@@ -2624,13 +2624,26 @@ private:
       int dir = (hist_cur > 0.0) ? 1 : ((hist_cur < 0.0) ? -1 : 0);
 
       bool dir_ok  = (dir == bias);
+
+      // DPI_AllowTransition: also pass when histogram is rising toward zero from the wrong side.
+      // Rationale: green disappearing below zero for LONG means sell-momentum exhausting —
+      // this IS the pullback completion signal, not a contra-indicator.
+      // A histogram rising from negative toward zero (hist_cur > hist_prev, hist_cur < 0)
+      // confirms the reversal is underway even before the histogram crosses zero.
+      bool transition_ok = false;
+      if(!dir_ok && m_settings.DPI_AllowTransition)
+      {
+         // Histogram is on the wrong side of zero but rising (LONG) or falling (SHORT)
+         bool hist_recovering = (bias ==  1) ? (hist_cur > hist_prev && hist_cur < 0.0) :
+                                (bias == -1) ? (hist_cur < hist_prev && hist_cur > 0.0) : false;
+         transition_ok = hist_recovering;
+      }
+
       // DPI_IgnoreCCIForVote: bypass CCI-reset check — vote on raw histogram direction only.
-      // Useful when a valid pullback-recovery causes CCI to temporarily flip against the
-      // histogram, causing the vote to fail despite correct momentum direction.
       bool cci_ok  = (m_settings.DPI_IgnoreCCIForVote || !m_settings.DPI_UseCCIReset || dpi_macd_agree);
       bool green_ok= (!m_settings.DPI_UseGreenHist  || dpi_green);
 
-      bool result  = dir_ok && cci_ok && green_ok;
+      bool result  = (dir_ok || transition_ok) && cci_ok && green_ok;
 
       m_ind_cache.cached_bias = bias;
       m_ind_cache.dpi_result  = result ? 1 : 0;
@@ -2638,13 +2651,13 @@ private:
       if(m_settings.DebugFlow)
       {
          string sub = "";
-         if(!dir_ok)   sub = sub + "DIR_MISMATCH ";
+         if(!dir_ok && !transition_ok) sub = sub + "DIR_MISMATCH ";
+         if(transition_ok)  sub = sub + "TRANSITION ";
          if(!cci_ok)   sub = sub + "CCI_RESET ";
          if(!green_ok) sub = sub + "NO_GREEN ";
-         DebugLog(StringFormat("[IND_DPI] bias=%d hist=%.6f dir=%d green=%d cciagreed=%d ignoreCCI=%s → %s%s",
-                               bias, hist_cur, dir,
-                               dpi_green ? 1 : 0, dpi_macd_agree ? 1 : 0,
-                               m_settings.DPI_IgnoreCCIForVote ? "Y" : "N",
+         DebugLog(StringFormat("[IND_DPI] bias=%d hist=%.6f prev=%.6f dir=%d transition=%d green=%d → %s%s",
+                               bias, hist_cur, hist_prev, dir,
+                               transition_ok ? 1 : 0, dpi_green ? 1 : 0,
                                result ? "PASS" : "FAIL ",
                                result ? "" : ("(" + sub + ")")));
       }
@@ -2829,60 +2842,25 @@ private:
                               (bias == -1) ? (ema_fast < ema_slow) : false;
       if(!position_aligned) return 0;
 
-      // ── Slope check: use SlopeLookbackBars for timeframe-adaptive sensitivity ──
-      int lookback = m_settings.SlopeLookbackBars;
-      if(lookback < 1) lookback = 1;
-      if(lookback > 5) lookback = 5;
-
-      double ema_fast_prev = GetMAVal(h_fast, 1 + lookback);
-      double ema_slow_prev = GetMAVal(h_slow, 1 + lookback);
-      // Warmup check: EMPTY_VALUE is normal during indicator initialization
-      if(ema_fast_prev == EMPTY_VALUE || ema_slow_prev == EMPTY_VALUE) {
-         if(m_settings.DebugFlow)
-            PrintFormat("[LayerAlign] WARMUP: Previous bar EMA data not ready");
-         return 0;  // Normal during warmup period
-      }
-
-      // Data integrity check: reject suspicious zero/negative values (actual errors)
-      if((ema_fast_prev == 0.0 && ema_slow_prev == 0.0) || ema_fast_prev < 0.0 || ema_slow_prev < 0.0) {
-         if(m_settings.DebugFlow)
-            PrintFormat("[LayerAlign] ERROR: Invalid previous bar EMA data (fast=%.5f slow=%.5f)",
-                        ema_fast_prev, ema_slow_prev);
-         return 0;
-      }
-
-      bool slope_fast_aligned, slope_slow_aligned;
-
-      double slope_tol = m_settings.Layer_SlopeTolerance * GlobalPipSize(m_symbol);
-      if(slope_tol > 0.0)
-      {
-         // Tolerance mode: slope is "aligned" when EMA didn't move MORE than slope_tol
-         // in the wrong direction.  Allows flat / marginally-reversed slopes that occur
-         // during early pullback-recovery (fast EMA still decelerating but not truly reversing).
-         slope_fast_aligned = (bias ==  1) ? (ema_fast >= ema_fast_prev - slope_tol) :
-                              (bias == -1) ? (ema_fast <= ema_fast_prev + slope_tol) : false;
-         slope_slow_aligned = (bias ==  1) ? (ema_slow >= ema_slow_prev - slope_tol) :
-                              (bias == -1) ? (ema_slow <= ema_slow_prev + slope_tol) : false;
-      }
-      else
-      {
-         // Strict mode (default): both EMAs must be strictly rising (LONG) or falling (SHORT).
-         slope_fast_aligned = (bias ==  1) ? (ema_fast > ema_fast_prev) :
-                              (bias == -1) ? (ema_fast < ema_fast_prev) : false;
-         slope_slow_aligned = (bias ==  1) ? (ema_slow > ema_slow_prev) :
-                              (bias == -1) ? (ema_slow < ema_slow_prev) : false;
-      }
-
-      int base_result = (slope_fast_aligned && slope_slow_aligned) ? 1 : 0;
+      // Layer validity = purely positional: fast EMA must be on the correct side of slow EMA.
+      // Single-bar slope was removed — it blocked entries during flat/recovering bars in
+      // genuine trends (all EMAs still stacked correctly but one bar consolidating).
+      // Positional alignment already captures counter-trend EMA crossovers which are the
+      // real threat. Slope per bar is redundant and too noisy on M5/M15.
+      // Bar-close direction is separately enforced by Eval_BarClose / Check_BarClose.
+      int base_result = position_aligned ? 1 : 0;
 
       if(m_settings.LayerPullbackEnabled && base_result == 1)
       {
-         // NONE and DETECTED stay blocked until a recovery has been observed.
-         if(current_state != LAYER_PB_RECOVERED)
+         // DETECTED = actively in a pullback — block until recovery confirmed.
+         // NONE     = clean trend, no pullback seen yet — allow entry (trend continuation).
+         // RECOVERED= pullback completed, recovery confirmed — allow entry.
+         // Only DETECTED blocks; NONE and RECOVERED both permit entries.
+         if(current_state == LAYER_PB_DETECTED)
          {
             if(m_settings.DebugFlow)
-               DebugLog(StringFormat("[%s] BLOCKED by pullback gate | State=%s (need RECOVERED)",
-                                     layer_label, EnumToString(current_state)));
+               DebugLog(StringFormat("[%s] BLOCKED: in pullback (State=DETECTED, need RECOVERED)",
+                                     layer_label));
             return 0;
          }
       }
@@ -2891,14 +2869,9 @@ private:
       {
          string pair_name = (layer_type == 1) ? "LayerW(EMA1/2)" :
                             (layer_type == 2) ? "LayerM(EMA2/3)" : "LayerS(EMA3/4)";
-         double slope_tol_dbg = m_settings.Layer_SlopeTolerance * GlobalPipSize(m_symbol);
-         PrintFormat("[LayerAlign] %s | bias=%d | fast=%.5f prev=%.5f (%s) | slow=%.5f prev=%.5f (%s) | pos=%s slope=%s tol=%.5f → %s",
-                     pair_name, bias,
-                     ema_fast, ema_fast_prev, slope_fast_aligned ? "OK" : "FAIL",
-                     ema_slow, ema_slow_prev, slope_slow_aligned ? "OK" : "FAIL",
+         PrintFormat("[LayerAlign] %s | bias=%d | fast=%.5f slow=%.5f | pos=%s → %s",
+                     pair_name, bias, ema_fast, ema_slow,
                      position_aligned ? "OK" : "FAIL",
-                     (base_result == 1) ? "OK" : "FAIL",
-                     slope_tol_dbg,
                      (base_result == 1) ? "PASS" : "REJECT");
       }
 
@@ -5306,7 +5279,7 @@ public:
       #define CAST_VOTE_STAT(use_flag, check_expr, stat_rej_field, stat_pass_field) \
          { if(use_flag) { vote_enab++; bool _cv_pass = (check_expr); \
          if(_cv_pass) { vote_pass++; stat_pass_field++; } \
-         else stat_rej_field++; } }
+         else { stat_rej_field++; all_pass = false; } } }
 
       CAST_VOTE_STAT(m_settings.Ind_Adx_Enabled,    Check_ADX(v_shift),        m_stats.rejected_adx, m_stats.passed_adx)
       CAST_VOTE_STAT(m_settings.Ind_Macd_Enabled,   Check_MACD(bias, v_shift), m_stats.rejected_macd, m_stats.passed_macd)
