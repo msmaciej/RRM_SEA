@@ -444,7 +444,7 @@ ST_VPRRAutoMode GetVPRRRecommendedMode(
          result.min_ratio     = MathMax(0.1, base_mr * tf_mult);
          result.recovery_bars = GetVPRR_TFRecBars(base_rb, tf_reduce_rb);
          PrintFormat("📊 [VPRR AUTO] %s TF:%s: %s real vol → MinRatio=%.2f (base=%.2f × %.2f) RecBars=%d",
-                     sym, EnumToString(PERIOD_CURRENT),
+                     sym, TFToString(),
                      is_gold ? "Gold" : is_silver ? "Silver" :
                      is_idx_us ? "IdxUS" : is_idx_eu ? "IdxEU" :
                      is_oil ? "Oil" : is_crypto ? "Crypto" : "Equity",
@@ -457,7 +457,7 @@ ST_VPRRAutoMode GetVPRRRecommendedMode(
          result.min_ratio     = MathMax(0.1, mr_non_fx_tick * tf_mult);
          result.recovery_bars = GetVPRR_TFRecBars(rb_default, tf_reduce_rb);
          PrintFormat("📊 [VPRR AUTO] %s TF:%s: non-FX tick fallback → MinRatio=%.2f RecBars=%d",
-                     sym, EnumToString(PERIOD_CURRENT), result.min_ratio, result.recovery_bars);
+                     sym, TFToString(), result.min_ratio, result.recovery_bars);
       }
       else
          PrintFormat("📊 [VPRR AUTO] %s: no volume data → DISABLED", sym);
@@ -472,7 +472,7 @@ ST_VPRRAutoMode GetVPRRRecommendedMode(
          result.min_ratio     = MathMax(0.1, mr_fx * tf_mult);
          result.recovery_bars = GetVPRR_TFRecBars(rb_fx, tf_reduce_rb);
          PrintFormat("📊 [VPRR AUTO] %s TF:%s: FX tick → MinRatio=%.2f RecBars=%d",
-                     sym, EnumToString(PERIOD_CURRENT), result.min_ratio, result.recovery_bars);
+                     sym, TFToString(), result.min_ratio, result.recovery_bars);
       }
       else
          PrintFormat("📊 [VPRR AUTO] %s: FX, no tick volume → DISABLED", sym);
@@ -738,7 +738,7 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
 void PrintVPRRSummary(const ST_Settings &cfg, const string preset_name)
 {
    string sym = _Symbol;
-   string tf  = EnumToString(PERIOD_CURRENT);
+   string tf  = TFToString();
 
    if(!cfg.VPRR_Enabled)
    {
@@ -909,11 +909,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    // Do NOT modify cfg.PrintEffectiveConfig / cfg.DebugFlow
    // Do NOT modify UI toggles or reporting toggles (ExportCSV, ExportUseCommonFiles)
 
-   // Universal cushion-field defaults (presets may override). Ensures ATR/PERCENT
-   // fields are always valid even for presets that only use PIPS mode.
-   cfg.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_TrailCushionAtrPeriod);
-   cfg.PSAR_TrailCushionAtrMult   = MathMax(0.0, Inp_TrailCushionAtrMult);
-   cfg.PSAR_TrailCushionPct       = MathMax(0.0, Inp_TrailCushionPct);
+   // PSAR cushion seed: set from CUSTOM-specific inputs (not orphan globals).
+   // These apply when Inp_Global_Preset = PRESET_CUSTOM and TrailMode = TRAIL_PSAR.
+   // All other presets overwrite these in their own block below.
+   cfg.PSAR_TrailCushionMode      = Inp_CUSTOM_PSAR_TrailCushionMode;
+   cfg.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_CUSTOM_TrailCushionAtrPeriod);
+   cfg.PSAR_TrailCushionAtrMult   = MathMax(0.0, Inp_CUSTOM_TrailCushionAtrMult);
+   cfg.PSAR_TrailCushionPct       = MathMax(0.0, Inp_CUSTOM_TrailCushionPct);
 
    // ================================================================
    // Policy A: Universal Operational Filters (User Always Controls)
