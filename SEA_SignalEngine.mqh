@@ -5051,33 +5051,6 @@ public:
       return bias;
    }
 
-      // ═══════════════════════════════════════════════════════════════
-      // KISS: Evaluate LayerX (structural alignment per EMA pair)
-      // ═══════════════════════════════════════════════════════════════
-      m_eval_layer_w = CheckLayerPairAlign(bias, 1);
-      m_eval_layer_m = CheckLayerPairAlign(bias, 2);
-      m_eval_layer_s = CheckLayerPairAlign(bias, 3);
-
-      if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-         DebugLog(StringFormat("[KISS] Step3 LayerW=%d LayerM=%d LayerS=%d (bias=%d)", m_eval_layer_w, m_eval_layer_m, m_eval_layer_s, bias));
-      }
-
-      if(m_eval_layer_w == 0 && m_eval_layer_m == 0 && m_eval_layer_s == 0) {
-         m_diag_last_reason = "LAYER_NONE_ALIGNED";
-         m_reject_gate++;
-         if(m_settings.DebugFlow) DebugLog("STEP 3 LAYER: No layer aligned → REJECT");
-         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-         return 0;
-      }
-      if(m_settings.DebugFlow) DebugLog("STEP 3 LAYER: At least one layer aligned → PASS");
-
-      m_diag_layer_w = m_eval_layer_w;
-      m_diag_layer_m = m_eval_layer_m;
-      m_diag_layer_s = m_eval_layer_s;
-
-      return 1;
-   }
-
    // ─────────────────────────────────────────────────────────────────────────
    // EvaluateIndicatorX — KISS Component: Voting consensus
    // Casts all enabled indicator votes, logs diagnostics, applies vote mode.
