@@ -1002,6 +1002,19 @@ input bool        Inp_UI_DrawTradeLines            = true;           // UI SM: D
 input bool        Inp_UI_UseCustomColors           = true;           // UI SM: Use custom panel colors
 input color       Inp_UI_FontColor                 = clrYellow;      // UI SM: font color
 input int         Inp_UI_FramePadPx                = 6;              // UI SM: Panel padding (px)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🎨 (UI) VISUALISATION (Swing & Fractals)";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_CUSTOM_ShowSwingMarkers      = false;          // Custom: Show Swing
+input bool        Inp_CUSTOM_ShowFractalMarkers    = true;           // Custom: Show Fractal
+input bool        Inp_CUSTOM_ShowMarkerLabels      = false;          // Custom: Show Labels
+input int         Inp_CUSTOM_MarkerLookback        = 55;             // Custom: Bars (0 = all history)
+input color       Inp_CUSTOM_SwingHighColor        = clrCrimson;     // Custom: Swing High color
+input color       Inp_CUSTOM_SwingLowColor         = clrDodgerBlue;  // Custom: Swing Low color
+input int         Inp_CUSTOM_SwingMarkerSize       = 1;              // Custom: Swing Marker (1-5)
+input color       Inp_CUSTOM_FractalHighColor      = clrOrange;      // Custom: Fractal High color
+input color       Inp_CUSTOM_FractalLowColor       = clrGray;        // Custom: Fractal Low color
+input int         Inp_CUSTOM_FractalMarkerSize     = 1;              // Custom: Fractal marker (1-5)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1453,11 +1466,11 @@ input double      Inp_RRM_ORG_RRRatio              = 2.5;            // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (SL) INITIAL STOP LOSS PLACEMENT";
 input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;  // RRM ORG SL: SL_MODE_=*: *ATR, *FIXED_PIPS, *FRACTAL, *PERCENT, *PSAR_DOT, *SWING
+input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_PSAR_DOT;  // RRM ORG SL: SL_MODE_=*: *ATR, *FIXED_PIPS, *FRACTAL, *PERCENT, *PSAR_DOT, *SWING
 input int         Inp_RRM_ORG_SwingLookback        = 34;             // RRM ORG SL: SWING lookback bars
 input int         Inp_RRM_ORG_SL_AtrPeriod         = 14;             // RRM ORG SL: ATR period (SL_MODE_ATR only)
 input double      Inp_RRM_ORG_SL_AtrMult           = 1.0;            // RRM ORG SL: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical; Gold M15 use 1.0–1.5)
-input int         Inp_RRM_ORG_MinBarsAfterClose    = 3;              // RRM ORG SL: post-trade cooldown bars (0=off)
+input int         Inp_RRM_ORG_MinBarsAfterClose    = 1;              // RRM ORG SL: post-trade cooldown bars (0=off)
 input int         Inp_RRM_ORG_ReEntryLotScalePct   = 50;             // RRM ORG Re-entry: lot size % for re-entry after BE (0=full size; 50=half)
 //
 // Inp_RRM_ORG_SLMode - Initial SL placement method:
@@ -1479,8 +1492,8 @@ input group "╚═════════════════════�
 input ETrailingMode Inp_RRM_ORG_TrailMode          = TRAIL_EMA;     // RRM ORG TS: *BREAKEVEN, *EMA, *FIXED_PIPS, *FRACTAL, *NONE, *PROFIT_PERCENT, *PSAR, *PSAR_FLIP_EXIT
 input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // RRM ORG TS: PSAR cushion mode (PIPS / ATR / PERCENT)
 input int         Inp_RRM_ORG_TrailCushionAtrPeriod = 14;            // RRM ORG TS: ATR period (ATR mode)
-input double      Inp_RRM_ORG_TrailCushionAtrMult   = 0.5;           // RRM ORG TS: cushion ATR multiplier (cushion = ATR × this)
-input double      Inp_RRM_ORG_TrailCushionPct       = 0.04;          // RRM ORG TS: cushion % of price (PERCENT mode + safety floor)
+input double      Inp_RRM_ORG_TrailCushionAtrMult   = 1.0;           // RRM ORG TS: cushion ATR multiplier (cushion = ATR × this)
+input double      Inp_RRM_ORG_TrailCushionPct       = 25.0;          // RRM ORG TS: cushion % of price (PERCENT mode + safety floor)
 input double      Inp_RRM_ORG_TrailProfitPercentLPR = 25.0;          // RRM ORG TS: LPR trailing percent behind peak
 //
 // Inp_RRM_ORG_TrailMode - Trailing method:
@@ -1502,14 +1515,14 @@ input double      Inp_RRM_ORG_TrailProfitPercentLPR = 25.0;          // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (TSL) ROLE_EMA* & TRIGGER";
 input group "╚════════════════════════════════════════════════════════╝";
-input EEmaRole    Inp_RRM_ORG_TrailEMA_RibbonRole     = ROLE_EMA1;   // RRM ORG TS: which ribbon EMA to trail (EMA1=5,EMA2=13,EMA3=34,EMA4=89) when Period=0
+input EEmaRole    Inp_RRM_ORG_TrailEMA_RibbonRole     = ROLE_EMA3;   // RRM ORG TS: which ribbon EMA to trail (EMA1=5,EMA2=13,EMA3=34,EMA4=89) when Period=0
 input int         Inp_RRM_ORG_TrailEMA_Period         = 0;           // RRM ORG TS: EMA period (0=use ribbon role selector below)
-input int         Inp_RRM_ORG_TrailEMA_Shift          = 3;           // RRM ORG TS: bar shift for EMA read (1=last closed bar, 2=two bars back, 3=three bars back)
+input int         Inp_RRM_ORG_TrailEMA_Shift          = 1;           // RRM ORG TS: bar shift for EMA read (1=last closed bar, 2=two bars back, 3=three bars back)
 input double      Inp_RRM_ORG_TrailEMA_CushionPips    = 0.0;         // RRM ORG TS: EMA trail cushion pips (0=use ATR mode)
 input double      Inp_RRM_ORG_TrailEMA_CushionAtrMult = 0.1;         // RRM ORG TS: EMA cushion = ATR×this (0=disabled; 0.1=recommended)
 input int         Inp_RRM_ORG_TrailEMA_CushionAtrPeriod = 14;        // RRM ORG TS: ATR period for EMA cushion
-input ETrailTrigger Inp_RRM_ORG_TrailTrigger          = TRIGGER_BREAKEVEN; // RRM ORG TS: *BREAKEVEN, *IMMEDIATE, *PROFIT_PERCENT, *PROFIT_PIPS, *PSAR_ALIGN
-input bool        Inp_RRM_ORG_TrailStartsAfterBE      = false;       // RRM ORG TS: Safety override: trail after BE
+input ETrailTrigger Inp_RRM_ORG_TrailTrigger          = TRIGGER_IMMEDIATE; // RRM ORG TS: *BREAKEVEN, *IMMEDIATE, *PROFIT_PERCENT, *PROFIT_PIPS, *PSAR_ALIGN
+input bool        Inp_RRM_ORG_TrailStartsAfterBE      = true;       // RRM ORG TS: Safety override: trail after BE
 input bool        Inp_RRM_ORG_TrailLockProfit         = true;        // RRM ORG TS: never move SL backwards (lock profit)
 input double      Inp_RRM_ORG_TrailStepPips           = 5.0;         // RRM ORG TS: step size for fixed-step trail modes
 input int         Inp_RRM_ORG_MaxSpreadRetryBars      = 3;           // RRM ORG: SPREAD bars retry (if TE block)
@@ -1527,9 +1540,9 @@ input bool        Inp_RRM_ORG_AllowReEntryAfterBE     = true;        // RRM ORG:
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (BE) BREAKEVEN";
 input group "╚════════════════════════════════════════════════════════╝";
-input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_R_MULTIPLE;  // RRM ORG BE: Breakeven trigger mode
+input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_TP_PROGRESS_PCT;  // RRM ORG BE: Breakeven trigger mode
 input double      Inp_RRM_ORG_BE_RMultiple            = 1.0;         // RRM ORG BE: BE trigger as R multiple
-input double      Inp_RRM_ORG_BE_ProgressPct          = 10.0;        // RRM ORG BE: BE trigger as TP progress %
+input double      Inp_RRM_ORG_BE_ProgressPct          = 25.0;        // RRM ORG BE: BE trigger as TP progress %
 //
 // Inp_RRM_ORG_BE_Mode - Breakeven trigger mode:
 // BE_MODE_OFF:             Breakeven disabled
@@ -1572,7 +1585,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: LAYER WMS Pullback & Recovery";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_LayerPBEnabled       = true;           // RRM ORG PB: Enable pullback-recovery state machine (P2?)
-input int         Inp_RRM_ORG_LayerPBLookback      = 3;              // RRM ORG PB: Baseline slope lookback (bars, 3-20)
+input int         Inp_RRM_ORG_LayerPBLookback      = 21;              // RRM ORG PB: Baseline slope lookback (bars, 3-20)
 input double      Inp_RRM_ORG_LayerPBPullbackRatio = 0.5;            // RRM ORG PB: Pullback threshold ratio (0.1-1.0, 0.5=50% weaker)
 input double      Inp_RRM_ORG_LayerPBRecoveryRatio = 0.3;            // RRM ORG PB: Global recovery threshold ratio (0.1-1.0, 0.3=30% strength)
 input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;            // RRM ORG PB: Flat threshold ratio (0.05-0.5, 0.1=10%)
@@ -1846,8 +1859,6 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "    ⚠️  CUSTOM PRESETS OVERRIDES! (Step1-5)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "╚════════════════════════════════════════════════════════╝";
-input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 1: BIAS (Major Trend Direction)";
 input group "╚════════════════════════════════════════════════════════╝";
 input EBiasMode   Inp_CUSTOM_BiasMode              = BIAS_2EMA;      // Override: Bias Mode: Manual, 2-EMA, 4-EMA
@@ -1871,16 +1882,12 @@ input group "╚═════════════════════�
 input EAutoStrategy  Inp_CUSTOM_AutoStrat          = STRAT_2EMA_POSITION;  // Override: STRATegy
 input bool        Inp_CUSTOM_CloseOnReverse        = false;          // Override: Close On Reverse
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🔧 STEP 4A: Candle Close (bcX - Candle Close Beyond EMA";
+input group "║   🔧 STEP 4: Candle Close & Candle Body";
 input group "╚════════════════════════════════════════════════════════╝";
-input EBarCloseMode  Inp_CUSTOM_BarClose_Mode      = BC_LAYER_AWARE; // Override: BarClose [bcX] Mode: DISABLED/FIXED_EMA/LAYER_AWARE/BIAS_FAST
-input EEmaRole    Inp_CUSTOM_BarClose_DefaultEMA   = ROLE_EMA1;      // Override: BarClose [bcX] in FIXED mode: EMA1, EMA2, EMA3, EMA4
-input bool        Inp_CUSTOM_BarClose_Enabled      = true;           // Override: BarClose [bcX] Enable
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🔧 STEP 4B: Candle Body (min. Close Ratio)";
-input group "╚════════════════════════════════════════════════════════╝";
-// ── CUSTOM: CandleBody close-ratio extension (globally available) ──
-input double      Inp_CUSTOM_CandleBody_MinCloseRatio = 0.0;         // Override: [CB] Min close ratio (0=off, 0.75=TopInvestor)
+input EBarCloseMode  Inp_CUSTOM_BarClose_Mode      = BC_LAYER_AWARE; // Override: [CC] CClose Mode: DISABLED/FIXED_EMA/LAYER_AWARE/BIAS_FAST
+input EEmaRole    Inp_CUSTOM_BarClose_DefaultEMA   = ROLE_EMA1;      // Override: [CC] CClose in FIXED mode: EMA1, EMA2, EMA3, EMA4
+input bool        Inp_CUSTOM_BarClose_Enabled      = true;           // Override: [CC] CClose Enable
+input double      Inp_CUSTOM_CandleBody_MinCloseRatio = 0.0;         // Override: [CB] CBody Min close ratio (0=off, 0.75=TopInvestor)
 input group "╔═══════════════════════════════════════════════════════╗";
 input group "║   📊 STEP 5: Fibonacci Retracement Voter";
 input group "╚═══════════════════════════════════════════════════════╝";
@@ -1897,7 +1904,6 @@ input int         Inp_CUSTOM_Lookback              = 5;              // Override
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP X: Trail EMA (Global)";
 input group "╚════════════════════════════════════════════════════════╝";
-// ── CUSTOM: TRAIL_EMA period (globally available) ──
 input int         Inp_CUSTOM_TrailEMA_Period       = 9;              // Override: [Trail] EMA period for TRAIL_EMA mode
 input int         Inp_CUSTOM_TrailEMA_Shift        = 1;              // Override: [Trail] EMA shift (1=current bar, 2=one bar cushion)
 
@@ -2063,28 +2069,16 @@ input double      Inp_CUSTOM_SL_MinPips            = 3.0;            // Custom: 
 input double      Inp_CUSTOM_SLPercent             = 0.5;            // Custom: SL as % of entry
 input int         Inp_CUSTOM_SL_AtrPeriod          = 14;             // Custom: ATR period (SL_MODE_ATR only)
 input double      Inp_CUSTOM_SL_AtrMult            = 1.0;            // Custom: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical)
+// input group "--- SL Configuration Examples ---";
+// input string   Inp_Ex1_Header                   = "Example 1 - Simple Fixed SL: Inp_CUSTOM_SLMode=SL_MODE_FIXED_PIPS, Inp_CUSTOM_SL_FixedPips=20";
+// input string   Inp_Ex2_Header                   = "Example 2 - Swing Structure: Inp_CUSTOM_SLMode=SL_MODE_SWING, Inp_CUSTOM_SwingLookback=20";
+// input string   Inp_Ex3_Header                   = "Example 3 - Fractal SL:      Inp_CUSTOM_SLMode=SL_MODE_FRACTAL, Inp_CUSTOM_FractalPeriod=5, Inp_CUSTOM_TPFractalOffset=1";
+
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛑 (SL) STOP LOSS FRACTAL: used with SL_FRACTAL & SL_PSAR_DOT";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_CUSTOM_FractalPeriod         = 5;              // Custom: Fractal period
 input int         Inp_CUSTOM_TPFractalOffset       = 1;              // Custom: Fractal offset
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🎨 (SL) VISUALISATION (Swing & Fractals)";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_ShowSwingMarkers      = false;          // Custom: Show Swing
-input bool        Inp_CUSTOM_ShowFractalMarkers    = true;           // Custom: Show Fractal
-input bool        Inp_CUSTOM_ShowMarkerLabels      = false;          // Custom: Show Labels
-input int         Inp_CUSTOM_MarkerLookback        = 55;             // Custom: Bars (0 = all history)
-input color       Inp_CUSTOM_SwingHighColor        = clrCrimson;     // Custom: Swing High color
-input color       Inp_CUSTOM_SwingLowColor         = clrDodgerBlue;  // Custom: Swing Low color
-input int         Inp_CUSTOM_SwingMarkerSize       = 1;              // Custom: Swing Marker (1-5)
-input color       Inp_CUSTOM_FractalHighColor      = clrOrange;      // Custom: Fractal High color
-input color       Inp_CUSTOM_FractalLowColor       = clrGray;        // Custom: Fractal Low color
-input int         Inp_CUSTOM_FractalMarkerSize     = 1;              // Custom: Fractal marker (1-5)
-// input group "--- SL Configuration Examples ---";
-// input string   Inp_Ex1_Header                   = "Example 1 - Simple Fixed SL: Inp_CUSTOM_SLMode=SL_MODE_FIXED_PIPS, Inp_CUSTOM_SL_FixedPips=20";
-// input string   Inp_Ex2_Header                   = "Example 2 - Swing Structure: Inp_CUSTOM_SLMode=SL_MODE_SWING, Inp_CUSTOM_SwingLookback=20";
-// input string   Inp_Ex3_Header                   = "Example 3 - Fractal SL:      Inp_CUSTOM_SLMode=SL_MODE_FRACTAL, Inp_CUSTOM_FractalPeriod=5, Inp_CUSTOM_TPFractalOffset=1";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📈 (TS) TRAILING STOP (CUSTOM only)";
 input group "╚════════════════════════════════════════════════════════╝";
