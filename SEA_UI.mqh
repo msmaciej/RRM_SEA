@@ -16,9 +16,10 @@
 string g_sea_ui_base_name    = "";
 ulong  g_sea_ui_magic        = 0;
 
-string g_sea_ui_settings_name = "";
-string g_sea_ui_cockpit_name  = "";
-string g_sea_ui_vprr_name     = "";
+string g_sea_ui_settings_name  = "";
+string g_sea_ui_cockpit_name   = "";
+string g_sea_ui_vprr_name      = "";
+string g_sea_ui_vprr_init_name = "";   // VPRR Init Check panel (startup validation results)
 
 string g_sea_ui_last_settings_txt = "";
 string g_sea_ui_last_cockpit_txt  = "";
@@ -26,6 +27,10 @@ string g_sea_ui_last_cockpit_txt  = "";
 // Deferred VPRR panel content (stored during preset, rendered after SEA_UI_Init)
 string g_sea_ui_vprr_lines[];
 color  g_sea_ui_vprr_clrs[];
+
+// Deferred VPRR Init Check panel (stored by ValidateVPRRExternalSymbol, rendered after SEA_UI_Init)
+string g_sea_ui_vprr_init_lines[];
+color  g_sea_ui_vprr_init_clrs[];
 
 // -----------------------------------
 // Helpers
@@ -528,9 +533,10 @@ void SEA_UI_Init(const ulong magic)
 
    g_sea_ui_magic     = magic;
    g_sea_ui_base_name = StringFormat("SEA_UI_%I64d_%I64u", (long)ChartID(), g_sea_ui_magic);
-   g_sea_ui_settings_name = g_sea_ui_base_name + "_SET";
-   g_sea_ui_cockpit_name  = g_sea_ui_base_name + "_COCK";
-   g_sea_ui_vprr_name     = g_sea_ui_base_name + "_VPRR";
+   g_sea_ui_settings_name  = g_sea_ui_base_name + "_SET";
+   g_sea_ui_cockpit_name   = g_sea_ui_base_name + "_COCK";
+   g_sea_ui_vprr_name      = g_sea_ui_base_name + "_VPRR";
+   g_sea_ui_vprr_init_name = g_sea_ui_base_name + "_VPRR_INIT";
 }
 
 void SEA_UI_DestroyAll()
@@ -538,6 +544,7 @@ void SEA_UI_DestroyAll()
    SEA_UI_DestroyPanel(g_sea_ui_settings_name);
    SEA_UI_DestroyPanel(g_sea_ui_cockpit_name);
    SEA_UI_DestroyPanel(g_sea_ui_vprr_name);
+   SEA_UI_DestroyPanel(g_sea_ui_vprr_init_name);
    SEA_UI_ClearMTFSegments();
    
    // Clean up dedicated Master Telemetry Objects
@@ -1124,4 +1131,57 @@ void SEA_UI_RenderDeferredVPRR()
       Inp_UI_PanelLineSpacingPx,
       Inp_UI_PanelFont,
       g_sea_ui_vprr_clrs);
+}
+
+//+------------------------------------------------------------------+
+//| SEA_UI_StoreVPRRInitContent: called from ValidateVPRRExternal    |
+//| Symbol() to store validation results for deferred rendering.     |
+//+------------------------------------------------------------------+
+void SEA_UI_StoreVPRRInitContent(const string &lines[], const color &clrs[])
+{
+   int n = ArraySize(lines);
+   ArrayResize(g_sea_ui_vprr_init_lines, n);
+   ArrayResize(g_sea_ui_vprr_init_clrs,  n);
+   for(int i = 0; i < n; i++)
+   {
+      g_sea_ui_vprr_init_lines[i] = lines[i];
+      g_sea_ui_vprr_init_clrs[i]  = clrs[i];
+   }
+}
+
+//+------------------------------------------------------------------+
+//| SEA_UI_RenderVPRRInitPanel: renders the VPRR Init Check panel.   |
+//| Called from OnInit() after SEA_UI_Init() so panel name is valid. |
+//| Controlled by Inp_UI_ShowVPRRInitPanel (default ON).             |
+//| Set Inp_UI_ShowVPRRInitPanel=false after setup verified to hide. |
+//+------------------------------------------------------------------+
+void SEA_UI_RenderVPRRInitPanel()
+{
+   if(!Inp_UI_ShowVPRRInitPanel || g_sea_ui_vprr_init_name == "")
+   {
+      SEA_UI_DestroyPanel(g_sea_ui_vprr_init_name);
+      return;
+   }
+   int n = ArraySize(g_sea_ui_vprr_init_lines);
+   if(n == 0)
+   {
+      SEA_UI_DestroyPanel(g_sea_ui_vprr_init_name);
+      return;
+   }
+
+   string txt = "";
+   for(int i = 0; i < n; i++)
+   {
+      if(i > 0) txt += "\n";
+      txt += g_sea_ui_vprr_init_lines[i];
+   }
+
+   SEA_UI_RenderPanel(
+      g_sea_ui_vprr_init_name, txt,
+      Inp_UI_VPRRInitCorner,
+      Inp_UI_VPRRInit_X, Inp_UI_VPRRInit_Y,
+      Inp_UI_PanelFontSize,
+      Inp_UI_PanelLineSpacingPx,
+      Inp_UI_PanelFont,
+      g_sea_ui_vprr_init_clrs);
 }

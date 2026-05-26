@@ -2092,6 +2092,18 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, Inp_RRM_ORG_VPRR_RecoveryBars));
       }
       cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
+      // ── EXTERNAL SYMBOL: override VolumeType if proxy symbol is set ──
+      // When Inp_VPRR_ExternalSymbol is non-empty, it takes priority over
+      // auto-detection. This allows trading XAUUSD CFD on any broker while
+      // reading real COMEX volume from e.g. "GC" or "MGC" futures.
+      cfg.VPRR_ExternalSymbol = Inp_VPRR_ExternalSymbol;
+      if(StringLen(Inp_VPRR_ExternalSymbol) > 0)
+      {
+         cfg.VPRR_VolumeType = (int)VPRR_VOL_EXTERNAL;
+         cfg.VPRR_Enabled    = true;   // force ON — user explicitly configured a proxy
+         PrintFormat("📊 [VPRR RRM_ORG] External symbol override: VolumeType → EXTERNAL, proxy=\"%s\"",
+                     Inp_VPRR_ExternalSymbol);
+      }
       PrintVPRRSummary(cfg, "RRM_ORG");
 
       // ── VOTE EVALUATION ───────────────────────────────────────────────

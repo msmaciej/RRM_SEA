@@ -124,7 +124,8 @@ enum EVPRRVolumeType
 {
    VPRR_VOL_AUTO=0,      // VPRR_VOL_AUTO: fall back to VOLUME_TICK if unavailable
    VPRR_VOL_REAL=1,      // VPRR_VOL_REAL: exchange volume; metals/indices/equities/futures
-   VPRR_VOL_TICK=2       // VPRR_VOL_TICK: tick count; available everywhere, poor on forex
+   VPRR_VOL_TICK=2,      // VPRR_VOL_TICK: tick count; available everywhere, poor on forex
+   VPRR_VOL_EXTERNAL=3   // VPRR_VOL_EXTERNAL: CopyRealVolume from proxy symbol (e.g. "GC" for XAUUSD on CFD broker)
 };
 enum EManualSide
 {
@@ -719,6 +720,7 @@ struct ST_Settings
     int      VPRR_RecoveryBars;           // Recovery bars to measure (clamped 1-10, default 3)
     int      VPRR_MinRecoveryBars;        // Min recovery bars before ratio is valid (default RecoveryBars-1)
     double   VPRR_MinRatio;               // Min recovery/pullback ratio to PASS (default 1.0)
+    string   VPRR_ExternalSymbol;         // Proxy symbol for VPRR_VOL_EXTERNAL (e.g. "GC", "MGC"); empty = block all entries
 
     // Diagnostics: statistics configuration
     bool Stats_TrackRejections;           // Track rejection counts per indicator
@@ -993,6 +995,10 @@ input bool        Inp_UI_ShowVPRRPanel             = false;           // UI VP: 
 input ENUM_BASE_CORNER Inp_UI_VPRRCorner           = CORNER_RIGHT_LOWER; // UI VP: VPRR panel corner
 input int         Inp_UI_VPRR_X                    = 30;             // UI VP: VPRR panel X (px)
 input int         Inp_UI_VPRR_Y                    = 30;             // UI VP: VPRR panel Y (px)
+input bool        Inp_UI_ShowVPRRInitPanel          = true;           // UI VI: VPRR Init Check panel (startup validation; set false after verified)
+input ENUM_BASE_CORNER Inp_UI_VPRRInitCorner        = CORNER_LEFT_UPPER; // UI VI: VPRR Init Check panel corner
+input int         Inp_UI_VPRRInit_X                 = 20;            // UI VI: VPRR Init Check panel X (px)
+input int         Inp_UI_VPRRInit_Y                 = 50;            // UI VI: VPRR Init Check panel Y (px)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: SIGNAL MARKERS & COLORS";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1115,6 +1121,7 @@ input group "╚═════════════════════�
 // Effective MinRatio = base x TF multiplier (auto-applied at EA start).
 // Restart EA after instrument or TF change to auto-update settings.
 input bool        Inp_VPRR_TF_ReduceRecBars        = true;           // VPRR TF: Reduce RecBars by 1 on H4+ and M5
+input string      Inp_VPRR_ExternalSymbol          = "";             // VPRR EXTERNAL: proxy symbol for real volume (e.g. "GC" gold futures, "MGC" micro gold). Only used when VolumeType=VPRR_VOL_EXTERNAL. Symbol must be in Market Watch.
 
 input double      Inp_VPRR_MinRatio_Gold           = 1.0;            // VPRR GOLD (XAU): MinRatio base (M15:1.0; TF mult auto-scales)
 input int         Inp_VPRR_RecBars_Gold            = 3;              // VPRR Gold: RecoveryBars base
@@ -2509,6 +2516,7 @@ void InitializeConfig()
     Settings.VPRR_RecoveryBars    = 3;
     Settings.VPRR_MinRecoveryBars = 2;
     Settings.VPRR_MinRatio        = 1.0;
+    Settings.VPRR_ExternalSymbol  = "";
 
     // BarClose (bcX) settings
     Settings.BarClose_Enabled    = Inp_CUSTOM_BarClose_Enabled;

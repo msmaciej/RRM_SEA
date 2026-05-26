@@ -4247,6 +4247,88 @@ public:
       return ok;
    }
 
+   //+------------------------------------------------------------------+
+   //| ValidateVPRRExternalSymbol                                        |
+   //|                                                                   |
+   //| Called from OnInit() after Signal.Init() to probe which volume   |
+   //| source this broker actually provides and lock Settings accordingly.|
+   //|                                                                   |
+   //| Problem this solves:                                              |
+   //|   REAL mode with a broker that has no real volume returns 0 on   |
+   //|   every bar → VPRR ratio stays 0 → every trade blocked silently. |
+   //|   This must be caught at init, not discovered mid-session.        |
+   //|                                                                   |
+   //| Resolution logic:                                                 |
+   //|   TICK   → always available, no probe needed.                    |
+   //|   AUTO   → probes real vol; if available locks to REAL (faster,  |
+   //|             avoids per-bar retry); if absent locks to TICK.       |
+   //|   REAL   → probes real vol; if absent downgrades to TICK and      |
+   //|             logs a clear warning (never blocks init — tick is     |
+   //|             always a valid fallback for VPRR ratio tracking).     |
+   //|                                                                   |
+   //| After this call m_settings.VPRR_VolumeType is resolved to either |
+   //| VPRR_VOL_REAL or VPRR_VOL_TICK — AUTO is never left in place.   |
+   //|                                                                   |
+   //| Returns: always true (tick vol is universal fallback).            |
+   //+------------------------------------------------------------------+
+   bool ValidateVPRRExternalSymbol(const bool print_details = true)
+   {
+      if(!m_settings.VPRR_Enabled)
+      {
+         if(print_details)
+            Print("[VPRR_INIT] VPRR disabled — volume source probe skipped.");
+         return true;
+      }
+
+      // TICK: nothing to probe, always works
+      if(m_settings.VPRR_VolumeType == (int)VPRR_VOL_TICK)
+      {
+         if(print_details)
+            PrintFormat("[VPRR_INIT] Symbol='%s' | Configured=TICK | Source locked: TICK", m_symbol);
+         return true;
+      }
+
+      // Probe broker real volume on the last few closed bars
+      // (bar 0 is forming; check bars 1-3 to survive thin markets / session gaps)
+      long real_vol[1];
+      bool real_available = false;
+      for(int probe_shift = 1; probe_shift <= 3; probe_shift++)
+      {
+         if(CopyRealVolume(m_symbol, PERIOD_CURRENT, probe_shift, 1, real_vol) == 1 && real_vol[0] > 0)
+         {
+            real_available = true;
+            break;
+         }
+      }
+
+      string configured = (m_settings.VPRR_VolumeType == (int)VPRR_VOL_REAL) ? "REAL" : "AUTO";
+      bool was_real = (m_settings.VPRR_VolumeType == (int)VPRR_VOL_REAL);
+
+      if(real_available)
+      {
+         // Lock to REAL — skip per-bar tick fallback attempt entirely
+         m_settings.VPRR_VolumeType = (int)VPRR_VOL_REAL;
+         if(print_details)
+            PrintFormat("[VPRR_INIT] Symbol='%s' | Configured=%s | Broker provides real volume → Source locked: REAL",
+                        m_symbol, configured);
+      }
+      else
+      {
+         // Broker has no real volume — downgrade to TICK regardless of configuration
+         m_settings.VPRR_VolumeType = (int)VPRR_VOL_TICK;
+         if(was_real)
+            PrintFormat("[VPRR_INIT] WARNING: Symbol='%s' | Configured=REAL but broker provides NO real volume. "
+                        "Downgraded to TICK. VPRR will use tick count. "
+                        "Consider switching to a broker with exchange volume for this instrument.",
+                        m_symbol);
+         else
+            PrintFormat("[VPRR_INIT] Symbol='%s' | Configured=AUTO | Real volume unavailable → Source locked: TICK",
+                        m_symbol);
+      }
+
+      return true;   // tick vol is universal — init never fails due to volume source
+   }
+
 
    double GetATR() const { return GetVal(h_atr, 1); }
 
@@ -5069,7 +5151,7 @@ public:
       #define CAST_VOTE_STAT(use_flag, check_expr, stat_rej_field, stat_pass_field) \
          { if(use_flag) { vote_enab++; bool _cv_pass = (check_expr); \
          if(_cv_pass) { vote_pass++; stat_pass_field++; } \
-         else stat_rej_field++; } }
+         else { all_pass = false; stat_rej_field++; } } }
 
       CAST_VOTE_STAT(m_settings.Ind_Adx_Enabled,    Check_ADX(v_shift),        m_stats.rejected_adx, m_stats.passed_adx)
       CAST_VOTE_STAT(m_settings.Ind_Macd_Enabled,   Check_MACD(bias, v_shift), m_stats.rejected_macd, m_stats.passed_macd)
