@@ -4293,96 +4293,75 @@ public:
    //|                                                                   |
    //| Returns: always true (tick vol is universal fallback).            |
    //+------------------------------------------------------------------+
+   //| ValidateVPRRExternalSymbol                                        |
+   //|                                                                   |
+   //| Called from OnInit() when VPRR is enabled.                       |
+   //|                                                                   |
+   //| For EXTERNAL mode: validates the proxy symbol is accessible and   |
+   //| provides real volume. Falls back to TICK if not.                 |
+   //|                                                                   |
+   //| For AUTO/REAL/TICK: does nothing. The preset's AutoDetectVPRR()  |
+   //| already probed volume availability and set the correct type.     |
+   //| Re-probing here would corrupt the preset's decision if called    |
+   //| during a weekend or before history loads (CopyRealVolume = 0).  |
+   //+------------------------------------------------------------------+
    bool ValidateVPRRExternalSymbol(const bool print_details = true)
    {
       if(!m_settings.VPRR_Enabled)
       {
          if(print_details)
-            Print("[VPRR_INIT] VPRR disabled — volume source probe skipped.");
+            Print("[VPRR_INIT] VPRR disabled — skipped.");
          return true;
       }
 
-      // ── TICK: nothing to probe, always works ─────────────────────────
-      if(m_settings.VPRR_VolumeType == (int)VPRR_VOL_TICK)
+      // AUTO/REAL/TICK: already correctly set by AutoDetectVPRR() in preset. Do not re-probe.
+      if(m_settings.VPRR_VolumeType != (int)VPRR_VOL_EXTERNAL)
       {
          if(print_details)
-            PrintFormat("[VPRR_INIT] Symbol='%s' | Configured=TICK | Source: TICK ✅", m_symbol);
+         {
+            string src = (m_settings.VPRR_VolumeType == (int)VPRR_VOL_REAL) ? "REAL"
+                       : (m_settings.VPRR_VolumeType == (int)VPRR_VOL_TICK) ? "TICK" : "AUTO";
+            PrintFormat("[VPRR_INIT] Symbol='%s' | Source=%s (set by preset) ✅", m_symbol, src);
+         }
          return true;
       }
 
-      // ── EXTERNAL: validate proxy symbol, not primary ──────────────────
-      if(m_settings.VPRR_VolumeType == (int)VPRR_VOL_EXTERNAL)
+      // ── EXTERNAL: validate proxy symbol ──────────────────────────────
+      string proxy = m_settings.VPRR_ExternalSymbol;
+      if(StringLen(proxy) == 0)
       {
-         string proxy = m_settings.VPRR_ExternalSymbol;
-         if(StringLen(proxy) == 0)
-         {
-            Print("[VPRR_INIT] WARNING: VolumeType=EXTERNAL but VPRR_ExternalSymbol is empty. "
-                  "VPRR will fall back to tick volume. Set Inp_VPRR_ExternalSymbol (e.g. \"GC\" or \"MGC\").");
-            m_settings.VPRR_VolumeType = (int)VPRR_VOL_TICK;
-            return true;
-         }
-         // Probe proxy symbol for real volume
-         long ext_vol[1];
-         bool ext_available = false;
-         for(int probe_shift = 1; probe_shift <= 3; probe_shift++)
-         {
-            if(CopyRealVolume(proxy, PERIOD_CURRENT, probe_shift, 1, ext_vol) == 1 && ext_vol[0] > 0)
-            {
-               ext_available = true;
-               break;
-            }
-         }
-         if(ext_available)
-         {
-            if(print_details)
-               PrintFormat("[VPRR_INIT] Symbol='%s' | Proxy='%s' | Real volume confirmed → Source: EXTERNAL ✅",
-                           m_symbol, proxy);
-         }
-         else
-         {
-            PrintFormat("[VPRR_INIT] WARNING: Symbol='%s' | Proxy='%s' | No real volume from proxy. "
-                        "Is '%s' in MarketWatch? Falling back to tick volume on primary symbol.",
-                        m_symbol, proxy, proxy);
-            m_settings.VPRR_VolumeType = (int)VPRR_VOL_TICK;
-         }
+         Print("[VPRR_INIT] WARNING: VolumeType=EXTERNAL but VPRR_ExternalSymbol is empty. "
+               "Falling back to TICK. Set Inp_VPRR_ExternalSymbol (e.g. \"GC\" or \"MGC\").");
+         m_settings.VPRR_VolumeType = (int)VPRR_VOL_TICK;
          return true;
       }
 
-      // ── REAL / AUTO: probe primary symbol ────────────────────────────
-      long real_vol[1];
-      bool real_available = false;
+      long ext_vol[1];
+      bool ext_available = false;
       for(int probe_shift = 1; probe_shift <= 3; probe_shift++)
       {
-         if(CopyRealVolume(m_symbol, PERIOD_CURRENT, probe_shift, 1, real_vol) == 1 && real_vol[0] > 0)
+         if(CopyRealVolume(proxy, PERIOD_CURRENT, probe_shift, 1, ext_vol) == 1 && ext_vol[0] > 0)
          {
-            real_available = true;
+            ext_available = true;
             break;
          }
       }
 
-      string configured = (m_settings.VPRR_VolumeType == (int)VPRR_VOL_REAL) ? "REAL" : "AUTO";
-      bool was_real = (m_settings.VPRR_VolumeType == (int)VPRR_VOL_REAL);
-
-      if(real_available)
+      if(ext_available)
       {
-         m_settings.VPRR_VolumeType = (int)VPRR_VOL_REAL;   // lock AUTO → REAL
          if(print_details)
-            PrintFormat("[VPRR_INIT] Symbol='%s' | Configured=%s | Broker real volume confirmed → Source locked: REAL ✅",
-                        m_symbol, configured);
+            PrintFormat("[VPRR_INIT] Symbol='%s' | Proxy='%s' | Real volume confirmed → Source: EXTERNAL ✅",
+                        m_symbol, proxy);
       }
       else
       {
+         PrintFormat("[VPRR_INIT] WARNING: Proxy='%s' returned no real volume. "
+                     "Is it in MarketWatch? Falling back to TICK on primary symbol.",
+                     proxy);
          m_settings.VPRR_VolumeType = (int)VPRR_VOL_TICK;
-         if(was_real)
-            PrintFormat("[VPRR_INIT] WARNING: Symbol='%s' | Configured=REAL but no real volume from broker. "
-                        "Downgraded to TICK. Consider VolumeType=EXTERNAL with a futures proxy symbol.",
-                        m_symbol);
-         else
-            PrintFormat("[VPRR_INIT] Symbol='%s' | Configured=AUTO | No real volume → Source locked: TICK ⚠️",
-                        m_symbol);
       }
 
-      return true;   // tick vol is universal — init never fails due to volume source
+      return true;
    }
 
 
