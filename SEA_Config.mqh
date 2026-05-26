@@ -991,14 +991,14 @@ input int         Inp_UI_PanelY                    = 30;             // UI SP: S
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: VPRR PANEL";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_UI_ShowVPRRPanel             = false;           // UI VP: VPRR panel
+input bool        Inp_UI_ShowVPRRPanel             = false;          // UI VP: VPRR panel
 input ENUM_BASE_CORNER Inp_UI_VPRRCorner           = CORNER_RIGHT_LOWER; // UI VP: VPRR panel corner
 input int         Inp_UI_VPRR_X                    = 30;             // UI VP: VPRR panel X (px)
 input int         Inp_UI_VPRR_Y                    = 30;             // UI VP: VPRR panel Y (px)
-input bool        Inp_UI_ShowVPRRInitPanel          = true;           // UI VI: VPRR Init Check panel (startup validation; set false after verified)
-input ENUM_BASE_CORNER Inp_UI_VPRRInitCorner        = CORNER_LEFT_UPPER; // UI VI: VPRR Init Check panel corner
-input int         Inp_UI_VPRRInit_X                 = 20;            // UI VI: VPRR Init Check panel X (px)
-input int         Inp_UI_VPRRInit_Y                 = 50;            // UI VI: VPRR Init Check panel Y (px)
+input bool        Inp_UI_ShowVPRRInitPanel         = true;           // UI VI: VPRR Init Check panel (startup validation; set false after verified)
+input ENUM_BASE_CORNER Inp_UI_VPRRInitCorner       = CORNER_RIGHT_LOWER; // UI VI: VPRR Init Check panel corner
+input int         Inp_UI_VPRRInit_X                = 30;             // UI VI: VPRR Init Check panel X (px)
+input int         Inp_UI_VPRRInit_Y                = 30;             // UI VI: VPRR Init Check panel Y (px)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: SIGNAL MARKERS & COLORS";
 input group "╚════════════════════════════════════════════════════════╝";

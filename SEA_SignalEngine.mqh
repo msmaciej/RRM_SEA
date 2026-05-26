@@ -1356,11 +1356,34 @@ private:
    //| GetCurrentBarVolume — VPRR volume reader (real-first, tick-back) |
    //+------------------------------------------------------------------+
    // Reads the volume of the closed bar at 'shift'. Honors VPRR_VolumeType:
-   //   AUTO/REAL: try CopyRealVolume; if it returns a positive value, use it.
-   //   AUTO (on zero/fail) and TICK: fall back to CopyTickVolume.
+   //   AUTO/REAL:  try CopyRealVolume on m_symbol; tick fallback for AUTO.
+   //   EXTERNAL:   CopyRealVolume from proxy symbol (e.g. "GC" futures).
+   //               Falls back to tick on m_symbol if proxy returns 0.
+   //   TICK:       CopyTickVolume on m_symbol always.
    // Records which source was used in m_vprr_last_real for the UI label.
    long GetCurrentBarVolume(int shift)
    {
+      // ── EXTERNAL: read real volume from proxy symbol ─────────────────
+      if(m_settings.VPRR_VolumeType == VPRR_VOL_EXTERNAL)
+      {
+         if(StringLen(m_settings.VPRR_ExternalSymbol) > 0)
+         {
+            long ext_vol[];
+            if(CopyRealVolume(m_settings.VPRR_ExternalSymbol, PERIOD_CURRENT, shift, 1, ext_vol) == 1 && ext_vol[0] > 0)
+            {
+               m_vprr_last_real = true;
+               return ext_vol[0];
+            }
+         }
+         // Proxy unavailable or symbol not configured — fall back to tick on primary symbol
+         m_vprr_last_real = false;
+         long tick_fb[];
+         if(CopyTickVolume(m_symbol, PERIOD_CURRENT, shift, 1, tick_fb) == 1)
+            return tick_fb[0];
+         return 0;
+      }
+
+      // ── REAL / AUTO: try real volume on primary symbol ───────────────
       if(m_settings.VPRR_VolumeType == VPRR_VOL_REAL ||
          m_settings.VPRR_VolumeType == VPRR_VOL_AUTO)
       {
@@ -4259,15 +4282,14 @@ public:
    //|   This must be caught at init, not discovered mid-session.        |
    //|                                                                   |
    //| Resolution logic:                                                 |
-   //|   TICK   → always available, no probe needed.                    |
-   //|   AUTO   → probes real vol; if available locks to REAL (faster,  |
-   //|             avoids per-bar retry); if absent locks to TICK.       |
-   //|   REAL   → probes real vol; if absent downgrades to TICK and      |
-   //|             logs a clear warning (never blocks init — tick is     |
-   //|             always a valid fallback for VPRR ratio tracking).     |
-   //|                                                                   |
-   //| After this call m_settings.VPRR_VolumeType is resolved to either |
-   //| VPRR_VOL_REAL or VPRR_VOL_TICK — AUTO is never left in place.   |
+   //|   TICK     → always available, no probe needed.                  |
+   //|   AUTO     → probes real vol on primary symbol; if available     |
+   //|              locks to REAL; if absent locks to TICK.             |
+   //|   REAL     → probes real vol; if absent downgrades to TICK.      |
+   //|   EXTERNAL → probes proxy symbol (VPRR_ExternalSymbol) for real  |
+   //|              volume; if absent falls back to TICK on primary.    |
+   //|              EXTERNAL is never downgraded to REAL/AUTO — it      |
+   //|              either works or falls back to tick.                 |
    //|                                                                   |
    //| Returns: always true (tick vol is universal fallback).            |
    //+------------------------------------------------------------------+
@@ -4280,16 +4302,53 @@ public:
          return true;
       }
 
-      // TICK: nothing to probe, always works
+      // ── TICK: nothing to probe, always works ─────────────────────────
       if(m_settings.VPRR_VolumeType == (int)VPRR_VOL_TICK)
       {
          if(print_details)
-            PrintFormat("[VPRR_INIT] Symbol='%s' | Configured=TICK | Source locked: TICK", m_symbol);
+            PrintFormat("[VPRR_INIT] Symbol='%s' | Configured=TICK | Source: TICK ✅", m_symbol);
          return true;
       }
 
-      // Probe broker real volume on the last few closed bars
-      // (bar 0 is forming; check bars 1-3 to survive thin markets / session gaps)
+      // ── EXTERNAL: validate proxy symbol, not primary ──────────────────
+      if(m_settings.VPRR_VolumeType == (int)VPRR_VOL_EXTERNAL)
+      {
+         string proxy = m_settings.VPRR_ExternalSymbol;
+         if(StringLen(proxy) == 0)
+         {
+            Print("[VPRR_INIT] WARNING: VolumeType=EXTERNAL but VPRR_ExternalSymbol is empty. "
+                  "VPRR will fall back to tick volume. Set Inp_VPRR_ExternalSymbol (e.g. \"GC\" or \"MGC\").");
+            m_settings.VPRR_VolumeType = (int)VPRR_VOL_TICK;
+            return true;
+         }
+         // Probe proxy symbol for real volume
+         long ext_vol[1];
+         bool ext_available = false;
+         for(int probe_shift = 1; probe_shift <= 3; probe_shift++)
+         {
+            if(CopyRealVolume(proxy, PERIOD_CURRENT, probe_shift, 1, ext_vol) == 1 && ext_vol[0] > 0)
+            {
+               ext_available = true;
+               break;
+            }
+         }
+         if(ext_available)
+         {
+            if(print_details)
+               PrintFormat("[VPRR_INIT] Symbol='%s' | Proxy='%s' | Real volume confirmed → Source: EXTERNAL ✅",
+                           m_symbol, proxy);
+         }
+         else
+         {
+            PrintFormat("[VPRR_INIT] WARNING: Symbol='%s' | Proxy='%s' | No real volume from proxy. "
+                        "Is '%s' in MarketWatch? Falling back to tick volume on primary symbol.",
+                        m_symbol, proxy, proxy);
+            m_settings.VPRR_VolumeType = (int)VPRR_VOL_TICK;
+         }
+         return true;
+      }
+
+      // ── REAL / AUTO: probe primary symbol ────────────────────────────
       long real_vol[1];
       bool real_available = false;
       for(int probe_shift = 1; probe_shift <= 3; probe_shift++)
@@ -4306,23 +4365,20 @@ public:
 
       if(real_available)
       {
-         // Lock to REAL — skip per-bar tick fallback attempt entirely
-         m_settings.VPRR_VolumeType = (int)VPRR_VOL_REAL;
+         m_settings.VPRR_VolumeType = (int)VPRR_VOL_REAL;   // lock AUTO → REAL
          if(print_details)
-            PrintFormat("[VPRR_INIT] Symbol='%s' | Configured=%s | Broker provides real volume → Source locked: REAL",
+            PrintFormat("[VPRR_INIT] Symbol='%s' | Configured=%s | Broker real volume confirmed → Source locked: REAL ✅",
                         m_symbol, configured);
       }
       else
       {
-         // Broker has no real volume — downgrade to TICK regardless of configuration
          m_settings.VPRR_VolumeType = (int)VPRR_VOL_TICK;
          if(was_real)
-            PrintFormat("[VPRR_INIT] WARNING: Symbol='%s' | Configured=REAL but broker provides NO real volume. "
-                        "Downgraded to TICK. VPRR will use tick count. "
-                        "Consider switching to a broker with exchange volume for this instrument.",
+            PrintFormat("[VPRR_INIT] WARNING: Symbol='%s' | Configured=REAL but no real volume from broker. "
+                        "Downgraded to TICK. Consider VolumeType=EXTERNAL with a futures proxy symbol.",
                         m_symbol);
          else
-            PrintFormat("[VPRR_INIT] Symbol='%s' | Configured=AUTO | Real volume unavailable → Source locked: TICK",
+            PrintFormat("[VPRR_INIT] Symbol='%s' | Configured=AUTO | No real volume → Source locked: TICK ⚠️",
                         m_symbol);
       }
 

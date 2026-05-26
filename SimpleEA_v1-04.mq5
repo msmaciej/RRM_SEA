@@ -615,11 +615,10 @@ int OrchestrateInit()
    // ── VPRR EXTERNAL SYMBOL: startup validation ─────────────────────
    // Runs when VPRR_VOL_EXTERNAL is active (set by preset when
    // Inp_VPRR_ExternalSymbol is non-empty). Validates that the proxy
-   // symbol exists, has bars, and returns real COMEX volume.
-   // Prints a clear ✅/❌ journal summary so the operator sees the
-   // result immediately on EA attach. Does NOT block init on failure —
-   // VPRR will safely block all entries via GetCurrentBarVolume()=0.
-   if(Settings.VPRR_VolumeType == (int)VPRR_VOL_EXTERNAL)
+   // VPRR volume source validation: runs for all modes when VPRR is enabled.
+   // Probes what the broker actually provides, locks VolumeType to REAL/TICK/EXTERNAL,
+   // and prints a clear journal entry so the operator sees the result on attach.
+   if(Settings.VPRR_Enabled)
       Signal.ValidateVPRRExternalSymbol();
 
    if(Inp_UI_ManageChartIndicators)
