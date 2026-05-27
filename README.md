@@ -1,376 +1,186 @@
 # SimpleEA (RRM_SEA)
 
-SimpleEA is a professional-grade Expert Advisor for MetaTrader 5 implementing a comprehensive 9-step signal validation pipeline combining market bias analysis, multi-indicator voting, and risk-aware position management. 
+SimpleEA is a MetaTrader 5 Expert Advisor implementing a multiplicative signal validation pipeline built around four EMA ribbon market structure analysis, multi-indicator voting, and risk-aware position management.
 
-**Environment Constraints:** macOS + Wine + MT5 + **MQL5 ONLY** (no C++, no templates, no lambdas).
+**Environment:** macOS + Wine + MT5. MQL5 only — no C++, no templates, no lambdas.
 
 ---
 
-## 📊 TS Equation — Signal Evaluation Formula
+## TS Equation — Signal Evaluation
 
 ```
 TS = B × P × L × I × F
 ```
 
-Every factor is multiplicative. Any factor = 0 → TS = 0 → NO TRADE.
+Every factor is multiplicative. Any factor = 0 → TS = 0 → no trade.
 
-| Factor | Name | Purpose |
-|--------|------|---------|
-| **B** | Bias | Market direction: LONG (+1), SHORT (-1), or NONE (0) |
-| **P** | Phase / Market Type | Structural quality of the trend — permits or blocks trading |
-| **L** | Layer / Sub-market | Entry timing via pullback-recovery detection |
-| **I** | Indicators | Technical confirmations (all enabled must agree) |
-| **F** | Filters | Execution conditions: spread, session time, news |
+| Factor | Name | What it answers |
+|--------|------|-----------------|
+| **B** | Bias | Which direction is the market moving? |
+| **P** | Phase | Is the market structure suitable for trading? |
+| **L** | Layer | Is this the right bar to enter? |
+| **I** | Indicators | Do all technical confirmations agree? |
+| **F** | Filters | Are execution conditions acceptable? |
+
+TS is evaluated at bar close (shift=1). Trade execution (TE) happens at the next bar open (shift=0) after F filters are rechecked.
 
 ---
 
 ### B — Bias
 
-Direction is always determined by the **slowest available EMA pair's position** (or slope if only 1 EMA):
+Uses **EMA2(13), EMA3(34), EMA4(89)** position to classify market direction. EMA1(5) plays no role in B.
 
-| EMA count | Method | Rule |
-|-----------|--------|------|
-| 1 EMA | Slope of that EMA | Rising → LONG, Falling → SHORT |
-| 2 EMAs | Position: fast vs slow | fast > slow → LONG, fast < slow → SHORT |
-| 3 EMAs | Position: slowest pair (EMA3 vs EMA2) | same positional rule |
-| 4 EMAs | Position: slowest pair (EMA4 vs EMA3) | same positional rule |
+`DetectMarketPhase()` reads the three slow EMA positions and sets direction:
 
-The slowest pair is always the most structurally stable signal. Slopes are only used when a single EMA is configured.
+| EMA order | Market type | B |
+|-----------|-------------|---|
+| EMA2 > EMA3 > EMA4 | Trending Up (TM↑) | +1 |
+| EMA4 > EMA3 > EMA2 | Trending Down (TM↓) | −1 |
+| EMA2 > EMA4 > EMA3 | Emerging Up (EM↑) | +1 |
+| EMA3 > EMA4 > EMA2 | Emerging Down (EM↓) | −1 |
+| any other arrangement | Unordered (UNO) | 0 |
 
----
-
-### P — Phase (Market Type)
-
-Evaluated using **EMA2, EMA3, EMA4 position only**. EMA1 is ignored. No slopes.
-
-| Phase | Bullish condition | Bearish condition | Trade allowed? |
-|-------|-------------------|-------------------|----------------|
-| **TM** (Trending) | EMA2 > EMA3 > EMA4 | EMA4 > EMA3 > EMA2 | ✅ Always |
-| **EM** (Emerging) | EMA2 > **EMA4** > EMA3 | EMA3 > **EMA4** > EMA2 | ✅ If configured |
-| **UNO** (Unordered) | any other arrangement | any other arrangement | ❌ Never |
-
-Key: EM is identified by EMA4 (slowest) being sandwiched between EMA2 and EMA3. UNO is identified by EMA2 (fast) being sandwiched — or any arrangement not matching TM or EM.
+EM (Emerging) is identified by EMA4 (slowest) sandwiched between EMA2 and EMA3 — the slow backbone is being overtaken by momentum. UNO is any arrangement not matching TM or EM — no coherent structure.
 
 ---
 
-### L — Layer (Sub-market)
+### P — Phase gate
 
-Three sub-markets exist within each bias direction. Each is evaluated independently using its own EMA pair.
+Uses the same phase detected by B. Answers: *is this market type acceptable for entry?*
 
-| Layer | EMA Pair | Nickname | Priority |
-|-------|----------|----------|----------|
-| **L3** Strong / Shark | EMA3 – EMA4 | Deep pullback | **Highest** (used first) |
-| **L2** Medium / Ghost | EMA2 – EMA3 | Medium pullback | Medium |
-| **L1** Weak / Ribbon | EMA1 – EMA2 | Shallow pullback | Lowest |
+| Phase | Default behaviour |
+|-------|-------------------|
+| TM (Trending) | Always passes |
+| EM (Emerging) | Blocked by default (`BlockEmergingPhase=true` in RRM_ORG) |
+| UNO (Unordered) | Always blocked |
 
-**Priority rule**: If multiple layers are valid, take L3 first, then L2, then L1.
+In RRM_ORG only fully trending markets (TM) trade. The cockpit shows `PHASE: TRENDING UP [+]` when P passes.
 
-**Why L3 is highest probability**: The slowest EMA pair reflects the strongest structural support/resistance. A pullback to EMA3-EMA4 and recovery is the most reliable setup.
+---
 
-**Layer Sub-Equation** (per layer):
+### L — Layer (entry timing)
 
-```
-L_x = pos_x × slope_x × BC_x × BD_x
-```
+**This is where EMA1(5) enters the equation.** L evaluates three EMA pairs, each representing a depth of trend structure. It answers: *is this the right bar to enter — has there been a pullback and is the EMA pair now recovering?*
 
-Where:
-- **pos_x** — EMA_fast correctly positioned relative to EMA_slow (above for LONG, below for SHORT)
-- **slope_x** — Pullback detected (fast EMA slope flattened/moved toward slow), then recovery (fast EMA slope resumed bias direction)
-- **BC_x** (Bar Close) — Close price is beyond the fast EMA of this layer in bias direction. LONG: close > fast EMA. SHORT: close < fast EMA. Checks the closing price level regardless of wick or body size.
-- **BD_x** (Bar Direction) — Bar closed in bias direction. LONG: close > open (bullish bar). SHORT: close < open (bearish bar). A doji or opposite bar = 0 even if close is beyond the EMA.
+| Layer | EMA pair | Depth |
+|-------|----------|-------|
+| L3 Strong | EMA3(34) / EMA4(89) | Deepest — slowest structural layer |
+| L2 Medium | EMA2(13) / EMA3(34) | Mid-depth — momentum layer |
+| L1 Weak | EMA1(5) / EMA2(13) | Shallowest — fastest, entry timing |
 
-**BC and BD are independent**: A bar can close above EMA1 (BC=1) but be bearish (BD=0) → L=0. This correctly rejects uncertainty and market indecision even when price is at the right level.
+Priority walk: **L3 → L2 → L1**. First layer passing all checks wins. The active layer is shown on the cockpit as `ACTIVE LAYER: L1+L2+L3`.
 
-**Layer independence**: Each layer is evaluated on its own. If EMA1 crosses below EMA2 (L1 invalid), L2 may still be valid if EMA2 slope is pulling toward EMA3 and price closes above EMA2. The BC check is the key discriminator — it determines which layer boundary price actually respected.
+**Per-layer sub-checks (all four must pass):**
 
-### Layer Pullback-Recovery Detection
+1. **Position** — fast EMA is on the correct side of slow EMA (EMA1 > EMA2 for LONG, EMA1 < EMA2 for SHORT). Structural alignment.
 
-**Purpose:** Ensure trades enter after pullback-recovery pattern, not continuous trending.
+2. **Pullback state** — the layer must NOT be in active pullback. Each layer runs an independent state machine tracking the fast EMA's direction:
+   - `LAYER_PB_NONE` → EMA trending normally, no pullback seen → **entry allowed**
+   - `LAYER_PB_DETECTED` → EMA reversed direction vs baseline → **entry blocked**
+   - `LAYER_PB_RECOVERED` → EMA resumed trend direction after pullback → **entry allowed**
+   
+   Transition logic (one bar, pure direction sign):
+   - **Pullback** = fast EMA moves against its baseline direction on this bar
+   - **Recovery** = fast EMA resumes baseline direction on this bar
+   
+   The baseline is the EMA's direction over the past `LayerBaselineLookback` bars — used only to know what "against" means. The slope evaluated is always `EMA[shift] − EMA[shift+1]` (one bar, mathematically correct at shift=1).
 
-**Method:** Ratio-based slope analysis (instrument-agnostic, no pip thresholds)
+3. **BC (Bar Close)** — signal bar close is beyond the fast EMA in bias direction (close > EMA1 for L1 LONG, close > EMA2 for L2 LONG, close > EMA3 for L3 LONG). Checks closing price level, not wicks or body.
 
-**Settings:**
-- `LayerPullbackEnabled` (default: false) — Enable pullback-recovery detection
-- `LayerBaselineLookback` (default: 10) — Bars for baseline slope calculation
-- `LayerPullbackRatio` (default: 0.5) — Pullback threshold (0.5 = 50% weaker)
-- `LayerRecoveryRatio` (default: 0.3) — Recovery threshold (0.3 = 30% strength)
-- `LayerFlatRatio` (default: 0.1) — Flat threshold (0.1 = 10% baseline)
-- `LayerAllowReversalPullback` (default: true) — Count slope reversal as pullback
+4. **BD (Bar Direction)** — signal bar closed in bias direction (close > open for LONG, close < open for SHORT). A doji or opposing bar = fail even if close is beyond the EMA.
 
-**State Machine:**
-- `LAYER_PB_NONE` → Initial trending (no pullback yet)
-- `LAYER_PB_DETECTED` → Pullback/flat phase observed
-- `LAYER_PB_RECOVERED` → Recovery confirmed (ready to trade)
-
-**Formula:**
-```
-ratio = current_slope / baseline_slope
-```
-
-**Pullback Triggers:**
-- Slope weakened 50%+ (`|ratio| < 0.5`)
-- Slope flattened (`|ratio| < 0.1`)
-- Slope reversed direction (sign changed)
-
-**Recovery Confirmation:**
-- Slope resumed baseline direction
-- Slope strength ≥ 30% of baseline
-
-**Cross-Instrument:** Same ratio thresholds work for EURUSD, XAUUSD, GBPJPY, etc.
+BC and BD are independent. A bar can close above EMA1 (BC=1) but be bearish (BD=0) → L=0.
 
 ---
 
 ### I — Indicators
 
-All enabled technical indicators evaluated at bar close (shift=1). All must pass (VOTE_MODE_ALL):
+All enabled technical voters evaluated at bar close (shift=1). All must pass (VOTE_MODE_ALL).
 
-```
-I = MACD × PSAR × RSI × CCI × ADX × MFI × Stoch × BB × CandleBody × ...
-```
+In RRM_ORG the active voters are: **DPI + PSAR + CandleBody + MTF** = 4 voters. The cockpit shows `VOTE: 4/4` when all pass.
 
-**CandleBody** belongs here — it checks whether the bar is a spike (body > N × average body → reject). This is different from BD (which checks direction) and BC (which checks close level).
-
-Disabled indicators contribute 1 (neutral — they do not block).
+Disabled indicators contribute 1 (neutral — they do not block). VPRR is enabled only when real exchange volume is available (metals on futures-linked brokers). VPRR is never enabled for FX pairs or any instrument where only tick volume is available — tick volume is broker-specific noise, not order flow.
 
 ---
 
 ### F — Filters
 
-Execution-moment conditions checked at bar open (shift=0) during TE evaluation:
+Non-directional execution conditions checked at bar open (shift=0):
 - Spread ≤ MaxSpread
 - Session time within configured window
-- No high-impact news imminent
+- No high-impact news
+
+MTF (Multi-Timeframe alignment) is evaluated at TS time and counted as an I voter.
 
 ---
 
-### Full TS Flow
+## Source Files
+
+| File | Role |
+|------|------|
+| `SimpleEA_v1-04.mq5` | Main EA — OnInit, OnTick, OnDeinit |
+| `SEA_Config.mqh` | All settings, inputs, ST_Settings struct |
+| `SEA_Presets.mqh` | Preset definitions — RRM_ORG, RRM, TI, CUSTOM |
+| `SEA_SignalEngine.mqh` | TS equation — B, P, L, I evaluation |
+| `SEA_TradeExecutor.mqh` | TE, order management, SL/TP/trailing |
+| `SEA_UI.mqh` | Cockpit panel rendering |
+| `SEA_Reporting.mqh` | OnDeinit stats and performance report |
+| `SEA_IND_DPI_mc_main.mq5` | DPI indicator for chart (MACD+CCI, with GREEN overlay) |
+| `SEA_IND_DPI_mc_simple.mq5` | DPI indicator for chart (MACD+CCI, no GREEN) |
+| `SEA_IND_DPI_tm_simple.mq5` | DPI indicator for chart (TSI+MACD variant) |
+| `SEA_IND_VPRR_Volume.mq5` | VPRR volume indicator for chart visualisation |
+| `SEA_ServerTime_Check.mq5` | Diagnostic script — server time, CME session, VPRR proxy probe |
+
+---
+
+## Presets
+
+| Preset | Description |
+|--------|-------------|
+| `PRESET_RRM_ORG` | Core RRM method — 4EMA, TM phase only, DPI+PSAR+CandleBody+MTF voting |
+| `PRESET_RRM` | RRM variant — EM phase allowed |
+| `PRESET_CUSTOM` | All inputs user-controlled, no overrides |
+| `PRESET_MA` | Simple moving average benchmark |
+| `PRESET_TEST` | Debug bypass — threshold=1, no voting |
+
+When any non-CUSTOM preset is active it overrides all strategy-critical inputs. The EA prints the effective settings at init and displays them in the cockpit.
+
+---
+
+## DPI — Dynamic Price Indicator
+
+The EA's internal DPI matches `SEA_IND_DPI_mc_main.mq5` bar-for-bar.
 
 ```
-Bar N closes (shift=1):
-  B → direction determined
-  P → market type confirmed (UNO = stop)
-  L = pos × slope × BC × BD  (L3 checked first, then L2, then L1)
-  I → all indicators must agree
-  → TS=1: signal armed
-
-Bar N+1 opens (shift=0):
-  F → spread / session / news check
-  → TE=1: trade executed
-```
-
----
-
-## Trade Rejection (Vetoes)
-
-SimpleEA uses a layered veto system to protect capital while preserving user control.
-
-### Veto Layers
-1. **F Filters** — Execution-moment conditions (spread/time/news)
-2. **TE Quality Gates** — Optional signal refinement (disabled by default)
-3. **RC Safeguards** — Hardcoded protection (cannot be disabled)
-4. **RC Thresholds** — User-configurable risk limits
-
-See **[VETO_REFERENCE.md](docs/VETO_REFERENCE.md)** for the full veto catalog and flow.
-
-### Input Naming Convention
-All user-configurable vetoes use the `Inp_VETO_` prefix:
-- `Inp_VETO_MaxSpread` — spread veto threshold
-- `Inp_VETO_TE_RecheckBarClose` — optional TE bar-close recheck veto
-
-Risk controls keep existing risk prefixes (for example `Inp_RM_*`, `Inp_RRM_*`) and remain active through RC safeguards.
-
----
-
-## 📐 Bias Modes & Strategy Mapping
-
-SimpleEA supports 4 bias modes, each with specific strategy requirements:
-
-| BiasMode | Description | Valid Strategies | EMAs Used | Layers |
-|----------|-------------|------------------|-----------|--------|
-| `BIAS_MANUAL` | User sets fixed direction | None | 0 | ❌ |
-| `BIAS_1EMA` | Single EMA slope | `STRAT_1EMA_SLOPE` | EMA1 only | ❌ |
-| `BIAS_2EMA` | Two EMA crossover/position | `STRAT_2EMA_CROSS`<br>`STRAT_PRICE_CROSS`<br>`STRAT_2EMA_POSITION` | EMA1, EMA2 | ❌ |
-| `BIAS_4EMA` | Four EMA phase detection | `STRAT_4EMA_LAYER` | EMA1-4 | ✅ LayerW/M/S |
-
-### Strategy Details
-
-- **`STRAT_1EMA_SLOPE`**: Signal based on single EMA slope direction (up/down/flat)
-- **`STRAT_2EMA_CROSS`**: Signal generated at EMA crossover point (one-bar signal)
-- **`STRAT_PRICE_CROSS`**: Signal generated when price crosses EMA (one-bar signal)
-- **`STRAT_2EMA_POSITION`**: Signal generated when position + slopes agree (continuous)
-- **`STRAT_4EMA_LAYER`**: Signal generated on pullback-recovery patterns in EMA zones
-
----
-
-## 🗺️ Canonical Documentation Map
-The system architecture has been refactored into focused, authoritative files. Start here:
-
-* **[Step 1: Signal & Indicator Engine](Readme/README_SEA_SIGNAL_REFERENCE.md)**
-    * The 9-step TS (Trade Setup) multiplicative pipeline (`TS = Bias × Phase × Layer × Indicators`).
-    * Indicator logic (ADX Dynamic, VRC Percentiles, MACD, PSAR, etc.).
-    * Developer Guide: Centralized Indicator Registry & Plugin pattern.
-* **[Step 2: Execution & Trade Logic](Readme/README_SEA_TRADE_LOGIC.md)**
-    * The TE (Trade Entry) execution architecture at shift=0.
-    * Exit Management (SL, TP, Breakeven, and Trailing).
-    * Auto-scaling TF-based cushions and Adaptive Spread Limits.
-* **[SEA Agents Bootstrapping](Readme/README_SEA_BOOTSTRAP.md)**
-    * AI Agent Manifest and instructions for starting new chat tasks.
-* **[Preset Reference](Readme/README_SEA_PRESETS.md)**
-    * Full logic diagrams and user guides for all presets: CUSTOM, MA, RRM, TEST, FPM.
-    * Five-Point Method (PRESET_FPM) cheat sheet mapping and Zone 3C input reference.
-
----
-
-## 🏛️ System Architecture: The Modular Shift
-SimpleEA utilizes a highly modular architecture. To eliminate parameter bloat and prevent over-optimization, all configuration and preset definitions have been permanently migrated into dedicated header files:
-
-1. **`SEA_Config.mqh`**: The ultimate source of truth for all global variables, enums, and the master `ST_Settings` struct. This file manages the visual inputs in the MT5 dialog and maps them via `InitializeConfig()` into the global struct used by all other modules.
-2. **`SEA_Presets.mqh`**: Contains hardcoded strategy arrays and struct assignments. When a specific preset is selected, this file overrides the MT5 UI inputs to enforce strict, institutional-grade parameters.
-
-## ⚙️ Configuration Zones (The Architect Manual)
-
-Inputs in `SEA_Config.mqh` are visually grouped in the MT5 dialog to distinguish operator controls from preset-controlled strategy variables.
-
-### ZONE 1: Preset Selection
-Selects the core strategy mapped within `SEA_Presets.mqh`. See **[📐 Preset Reference →](Readme/README_SEA_PRESETS.md)** for full logic diagrams and user guides.
-
-| Preset | Summary | Strategy locked? | Exits locked? |
-|---|---|---|---|
-| `PRESET_CUSTOM` | All inputs respected; full user control | ✗ | ✗ |
-| `PRESET_MA` | MT5 Moving Average EA benchmark | ✓ (voting off) | ✓ fixed pips |
-| `PRESET_RRM` | Phase-based trend pullback (4EMA, PSAR+MACD+CCI) | ✓ | Partially (trail locked, SL/TP user) |
-| `PRESET_TEST` | Development / debug bypass | ✗ (threshold=1) | ✓ fixed pips |
-| `PRESET_FPM` | **Five-Point Method** — PSAR + MACD crossover + BB widening + SMA10/20 convergence + bar close | ✓ | ✗ (SL/TP/Trail user-controlled via Zone 3C) |
-
-1.  **Anti-Confusion Mapping:** When `PRESET_RRM` is active, it fully defines all strategy-critical settings via `SEA_Presets.mqh`. Strategy-related inputs in MT5 are ignored. The EA prints a clear initialization note, and the UI/Logs display the *effective* settings.
-2.  **Two-Phase Signal Timing:**
-    * **TS (Trade Setup):** Evaluated strictly on the closed candle (`shift=1`) via `GetDirection()`.
-    * **TE (Trade Entry):** Evaluated strictly on the open tick (`shift=0`) via `EvaluateTE()`, checking real-time spread, time, and news limits. 
-    * No signal evaluation occurs on forming bars. No trade execution occurs without a prior TS validation.
-3.  **Strict Multiplicative Voting:** In RRM setups, `VOTE_MODE_ALL` is enforced. Adding indicators makes the system MORE restrictive, not less. ANY indicator returning 0 kills the signal.
-
-### ZONE 2: User Controls (Policy A Gates)
-**Always editable by the user, regardless of preset.**
-* Operator Gates: Spread Limits (`MaxSpreadPips`).
-* Time/Session Filter (`StartHour`, `EndHour`).
-* News Filter & HTF Trend Filter.
-* UI, Diagnostics, and Reporting output levels.
-
-### ZONE 3A: Preset Info
-Contains the strategy-critical variables (EMA periods, Indicator toggles, Exit modes). 
-* If `PRESET_CUSTOM` is active, these inputs drive the EA. 
-* If any other preset is active, these inputs are **ignored and overridden** by the hardcoded preset to guarantee systemic integrity.
-
-### ZONE 3B & 3C: Overrides & Adaptives
-* **Zone 3B (Admin Override):** Setting `Inp_AdminOverridePreset = true` allows advanced users to test variations of strict presets without modifying source code.
-* **Zone 3C (Pair Limits):** Auto-detects pair types to apply dynamic spread limits.
-
----
-
-## ⚖️ The Preset Policy (Model A) & Architecture Rules
-
-To avoid misleading behavior and user confusion, presets are defined as **fully authoritative**.
-
-1.  **Anti-Confusion Mapping:** When `PRESET_RRM` is active, it fully defines all strategy-critical settings. Strategy-related inputs in MT5 are ignored. The EA prints a clear initialization note, and the UI/Logs display the *effective* settings.
-2.  **Two-Phase Signal Timing:**
-    * **TS (Trade Setup):** Evaluated strictly on the closed candle (`shift=1`) via `GetDirection()`.
-    * **TE (Trade Entry):** Evaluated strictly on the open tick (`shift=0`) via `EvaluateTE()`, checking real-time spread, time, and news limits. 
-    * No signal evaluation occurs on forming bars. No trade execution occurs without a prior TS validation.
-3.  **Strict Multiplicative Voting:** In RRM setups, `VOTE_MODE_ALL` is enforced. Adding indicators makes the system MORE restrictive, not less. ANY indicator returning 0 kills the signal.
-
----
-
-## 📊 System Analysis & Reporting
-
-SimpleEA automatically outputs comprehensive performance metrics directly to the `OnDeinit` log, segmented into three critical diagnostic areas:\
-
-1.  **Signal Efficiency:** Tracks total bars evaluated, TS conversion rate, and individual component pass/fail rates (e.g., "Bias=0: 56.9% rejection").
-2.  **Trade Performance:** Win rate (Long vs Short), Profit Factor, Average Win/Loss, and Consecutive streaks.
-3.  **Risk Analysis:** Maximum Absolute/Relative Drawdown, Recovery Factor, and Risk-Reward ratio profiling.
-
-*Use the `Inp_DebugLevel` (Zone 2) to control per-tick log verbosity (DEBUG_SILENT, SUMMARY, INDICATORS, FULL).*
----
-
-## 📐 DPI — Dynamic Price Indicator (v31)
-
-### Overview
-
-The EA's internal DPI is **v31-equivalent** (MACD+CCI core), matching `DPI_mc_main.mq5` bar-for-bar (same histogram sign, same green/yellow/red zone logic).
-
-### Architecture
-
-```
-Blue(i) = EMA(DPI_MACD_Fast, close)(i) − EMA(DPI_MACD_Slow, close)(i)
-Red(i)  = EMA(RedSignalType, Blue)(i)                 [or double-smooth]
+Blue(i) = EMA(MACD_Fast, close)(i) − EMA(MACD_Slow, close)(i)
+Red(i)  = EMA(RedType, Blue)(i)
 hist(i) = Blue(i) − Red(i)
 ```
 
-**Red signal line types** (`DPI_RedSignalType`):
-| Type | Method | Default period |
-|------|--------|---------------|
-| 1 | EMA_A | 5 |
-| 2 | EMA_B | 8 |
-| **3** | **EMA_C** (default) | **13** |
-| 4 | EMA_D | 21 |
-| 5 | Double-smooth (First → Second EMA) | 5 → 8 |
+Default periods: MACD fast=8, slow=13, Red signal=EMA(13) of Blue.
 
-### DPI as a Voting Indicator
+**DPI vote logic (I factor):**
+- `hist > 0` → LONG pass; `hist < 0` → SHORT pass
+- Optional CCI confirmation (`DPI_UseCCIReset=true`): requires `sign(hist) == sign(CCI)`
 
-DPI now participates in the TS equation `I` factor as a first-class voting indicator (on par with MACD, CCI, RSI, etc.). Enable with `Inp_Ind_Dpi_Enabled = true`.
+The GREEN momentum overlay is visualisation only — it does not gate the vote.
 
-**Vote logic:**
-1. **Direction**: `hist > 0` → LONG pass; `hist < 0` → SHORT pass
-2. **CCI filter** (when `DPI_UseCCIReset = true`): requires `sign(hist) == sign(CCI)` — no CCI reset warning
+---
 
-The DPI vote is driven by **ribbon color** (yellow → Long, red → Short), with optional CCI-reset confirmation (`DPI_UseCCIReset`). The GREEN momentum overlay is **visualization only** and does **not** gate the vote. Enabling or disabling GREEN (`DPI_UseGreenHist`) affects only the standalone indicator's chart appearance; the EA vote condition is unchanged.
+## VPRR — Volume Pullback-Recovery Ratio
 
-### DPI Histogram Tracking
+VPRR measures whether recovery volume exceeds pullback volume for metals instruments. It is only meaningful with real exchange volume (CME/COMEX feed via a futures-linked broker or proxy symbol).
 
-**Purpose:** Monitor DPI indicator momentum for future entry/exit filtering.
+VPRR is **never enabled** for FX pairs regardless of settings — tick volume is broker-specific tick count, not traded volume, and produces meaningless ratios.
 
-**Settings:**
-- `DPI_HistTrackingEnabled` (default: false) — Enable histogram state tracking
-- `DPI_HistMomentumThreshold` (default: 0.0001) — Minimum momentum threshold for CCI-delta changes
-- `DPI_HistDecelLookback` (default: 3) — Bars to analyze for deceleration detection
+Use `SEA_ServerTime_Check.mq5` to verify whether your broker provides real volume for a proxy symbol before enabling VPRR.
 
-**State Variables:**
-- `DPIHistCurrent` — Current CCI value (histogram proxy)
-- `DPIHistTrend` — Direction (+1 green, -1 red, 0 flat)
-- `DPIHistDecelerating` — True if momentum is decreasing
+---
 
-### DPI Histogram Entry/Exit Logic
+## Detailed Reference
 
-**Purpose:** Use DPI momentum state for trade filtering and exit management.
-
-**Entry Filtering (TS-Level):**
-- `DPI_BlockOnDeceleration` (default: false) — Reject new entries when histogram decelerating
-  - Prevents entries near overbought/oversold exhaustion points
-  - Detects momentum decay over `DPI_HistDecelLookback` bars
-  - Requires `DPI_HistTrackingEnabled = true`
-
-**Exit Management (TE-Level):**
-- `DPI_ExitOnHistDisappear` (default: false) — Close positions when green histogram vanishes
-  - Exits when DPI trend changes from GREEN to RED/FLAT
-  - Requires `DPI_HistTrackingEnabled = true`
-- `DPI_ExitThreshold` (default: 0.0) — Exit when |CCI| falls below this value (0 = disabled)
-
-**Use Cases:**
-1. **Conservative Entry:** Enable `DPI_BlockOnDeceleration` to avoid peak entries
-2. **Momentum Exit:** Enable `DPI_ExitOnHistDisappear` to close before major reversals
-3. **Threshold Exit:** Set `DPI_ExitThreshold = 20.0` to exit when CCI momentum weakens
-
-**Dependencies:**
-- Requires `DPI_HistTrackingEnabled = true` (histogram tracking infrastructure)
-- Uses DPI histogram state: `m_dpi_hist_current`, `m_dpi_hist_trend`, `m_dpi_hist_decelerating`
-
-### Standalone Indicators (Chart Visualization)
-
-The following files are at repo root for direct chart use and A/B comparison:
-- `DPI_mc_simple.mq5` — MACD+CCI core, no GREEN overlay (renamed from `DPI_v29_OK_CLEAN.mq5`)
-- `DPI_mc_main.mq5`   — MACD+CCI core with GREEN toggle (renamed from `DPI_v31_CLEAN_22_OK_FINAL_WORKING.mq5`); includes GREEN-off visual fix so `InpEnableGreen=false` renders a clean single-color `0→Blue` ribbon matching MT4 reference behavior
-- `DPI_tm_simple.mq5` — TSI+MACD math family (William Blau Ergodic); copied from `Legacy/DPI_Indicator.mq5` for A/B comparison
-- `DPI_mc_main_DOCUMENTATION.md` — full parameter reference
-
-### Legacy
-
-`Legacy/DPI_Indicator.mq5` (TSI-based), `Legacy/DPI_Indicator_v7.mq5`, `Legacy/DPI_v29_OK_CLEAN.mq5`, and `Legacy/DPI_v31_CLEAN_22_OK_FINAL_WORKING.mq5` are kept as historical reference. See `Legacy/README.md` for the full file-mapping table.
+- `Readme/README_SEA_SIGNAL_REFERENCE.md` — full indicator logic and voting details
+- `Readme/README_SEA_TRADE_LOGIC.md` — TE execution, SL/TP, trailing
+- `Readme/README_SEA_PRESETS.md` — preset configuration reference
+- `Readme/README_SEA_VETO_REFERENCE.md` — full veto and filter catalog
+- `Readme/README_SEA_BOOTSTRAP.md` — AI agent instructions
