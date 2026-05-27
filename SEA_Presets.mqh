@@ -609,10 +609,14 @@ string DetectSymbolType(const string symbol)
    if(StringFind(sym, "USDCAD") >= 0) return "MAJOR";
    if(StringFind(sym, "NZDUSD") >= 0) return "MAJOR";
    
-   // Gold
-   if(StringFind(sym, "XAUUSD") >= 0) return "GOLD";
+   // Gold (use XAU prefix — matches XAUUSD, XAUUSDm, XAUUSD. etc.)
+   if(StringFind(sym, "XAU")    >= 0) return "GOLD";
    if(StringFind(sym, "GOLD")   >= 0) return "GOLD";
-   
+
+   // Silver (was missing — XAGUSD fell through to MINOR)
+   if(StringFind(sym, "XAG")    >= 0) return "SILVER";
+   if(StringFind(sym, "SILVER") >= 0) return "SILVER";
+
    // Crypto
    if(StringFind(sym, "BTC") >= 0) return "CRYPTO";
    if(StringFind(sym, "ETH") >= 0) return "CRYPTO";
@@ -1641,13 +1645,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RequireRecoveryMomentum      = false;   // Wick-touch recovery valid on M1/M5
       cfg.LayerPullbackEnabled         = Inp_RRM_LayerPullbackEnabled;
       cfg.LayerBaselineLookback        = Inp_RRM_LayerBaselineLookback;
-      cfg.LayerPullbackRatio           = Inp_RRM_LayerPullbackRatio;
-      cfg.LayerRecoveryRatio           = Inp_RRM_LayerRecoveryRatio;
-      cfg.LayerFlatRatio               = Inp_RRM_LayerFlatRatio;
-      cfg.LayerAllowReversalPullback   = Inp_RRM_LayerAllowReversalPullback;
-      cfg.LayerRecoveryRatio_W         = -1.0;  // use global LayerRecoveryRatio
-      cfg.LayerRecoveryRatio_M         = -1.0;
-      cfg.LayerRecoveryRatio_S         = -1.0;
 
       cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
       cfg.Gate_Recovery.value       = 1.0;
@@ -2048,14 +2045,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       //   L3 (Strong/EMA34-EMA89): 0.2 — slow EMAs, early recovery is enough
       cfg.LayerPullbackEnabled        = Inp_RRM_ORG_LayerPBEnabled;
       cfg.LayerBaselineLookback       = MathMax(3, MathMin(20, Inp_RRM_ORG_LayerPBLookback));
-      cfg.LayerPullbackRatio          = MathMax(0.1, MathMin(1.0, Inp_RRM_ORG_LayerPBPullbackRatio));
-      cfg.LayerRecoveryRatio          = MathMax(0.1, MathMin(1.0, Inp_RRM_ORG_LayerPBRecoveryRatio));
-      cfg.LayerFlatRatio              = MathMax(0.05, MathMin(0.5, Inp_RRM_ORG_LayerPBFlatRatio));
-      cfg.LayerAllowReversalPullback  = Inp_RRM_ORG_LayerPBAllowReversal;
-      // Per-layer recovery ratio overrides (-1.0 = use global LayerRecoveryRatio)
-      cfg.LayerRecoveryRatio_W        = Inp_RRM_ORG_RecoveryRatio_W;
-      cfg.LayerRecoveryRatio_M        = Inp_RRM_ORG_RecoveryRatio_M;
-      cfg.LayerRecoveryRatio_S        = Inp_RRM_ORG_RecoveryRatio_S;
 
       // VPRR: Volume Pullback-Recovery Ratio (institutional participation confirmation)
       // AutoEnable=true: probe instrument + volume at preset-apply time; per-instrument settings applied.
@@ -2370,13 +2359,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── LAYER: pullback-recovery detection ─────────────────────────
       cfg.LayerPullbackEnabled        = true;          // LOCKED: pullback detection is System 1 of TI; disabling it makes the preset trade raw EMA crosses only
       cfg.LayerBaselineLookback       = Inp_TI_LayerBaselineLookback;
-      cfg.LayerPullbackRatio          = Inp_TI_LayerPullbackRatio;
-      cfg.LayerRecoveryRatio          = Inp_TI_LayerRecoveryRatio;
-      cfg.LayerFlatRatio              = Inp_TI_LayerFlatRatio;
-      cfg.LayerAllowReversalPullback  = true;          // LOCKED: reversal pullbacks are part of the TI methodology (counter-trend bounce to EMA)
-      cfg.LayerRecoveryRatio_W        = -1.0;          // LOCKED: -1 = inherit global LayerRecoveryRatio for all sub-layers; per-layer overrides not needed in TI
-      cfg.LayerRecoveryRatio_M        = -1.0;          // LOCKED: same — uniform recovery ratio across L1/L2/L3
-      cfg.LayerRecoveryRatio_S        = -1.0;          // LOCKED: same
 
       // ── BAR CLOSE: layer-aware ─────────────────────────────────────
       cfg.BarClose_Enabled       = true;               // LOCKED: bar-close confirmation is required to avoid intra-bar noise entries

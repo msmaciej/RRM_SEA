@@ -699,18 +699,7 @@ struct ST_Settings
     bool     AllowLayer3_Entries;         // Allow Layer 3 (EMA3/EMA4 touch) entries
     // Layer Pullback-Recovery Detection
     bool     LayerPullbackEnabled;        // Master enable for pullback detection
-    int      LayerBaselineLookback;       // Bars for baseline slope calculation
-    double   LayerPullbackRatio;          // Threshold for pullback detection (dimensionless)
-    double   LayerRecoveryRatio;          // Threshold for recovery confirmation (dimensionless)
-    double   LayerFlatRatio;              // Threshold for flat market detection (dimensionless)
-    bool     LayerAllowReversalPullback;  // Allow slope sign reversal as pullback
-
-    // P2: Per-layer recovery ratio overrides (when >= 0.0, overrides LayerRecoveryRatio)
-    // -1.0 = use global LayerRecoveryRatio (no override)
-    // Deeper layers (L3) can use lower recovery ratio since their EMAs move slowly
-    double   LayerRecoveryRatio_W;        // LayerW override (-1.0=use global)
-    double   LayerRecoveryRatio_M;        // LayerM override (-1.0=use global)
-    double   LayerRecoveryRatio_S;        // LayerS override (-1.0=use global)
+    int      LayerBaselineLookback;       // Bars for baseline direction lookback
 
     // VPRR: Volume Pullback-Recovery Ratio (institutional participation confirmation)
     // Measures avg volume during recovery vs avg volume during pullback.
@@ -1225,14 +1214,9 @@ input bool        Inp_RRM_AllowStrong              = true;           // RRM Laye
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: LAYER WMS Pullback-Recovery Detection";
 input group "╚════════════════════════════════════════════════════════╝";
-// Recommended pullback mode: pure ratio mathematics (Inp_RRM_LayerPullbackRatio / Inp_RRM_LayerRecoveryRatio / Inp_RRM_LayerFlatRatio).
 // This Layer system is independent from legacy RRM gate fields below.
 input bool        Inp_RRM_LayerPullbackEnabled     = true;           // RRM Layer PB: Layer PB: Enable pullback-recovery detection
-input bool        Inp_RRM_LayerAllowReversalPullback = true;         // RRM Layer PB: Layer PB: Count slope reversal as pullback
 input int         Inp_RRM_LayerBaselineLookback    = 10;             // RRM Layer PB: Layer PB: Baseline slope lookback (bars, recommended 3+)
-input double      Inp_RRM_LayerPullbackRatio       = 0.5;            // RRM Layer PB: Layer PB: Pullback threshold ratio (min 0.1)
-input double      Inp_RRM_LayerRecoveryRatio       = 0.3;            // RRM Layer PB: Layer PB: Recovery threshold ratio (min 0.1)
-input double      Inp_RRM_LayerFlatRatio           = 0.1;            // RRM Layer PB: Layer PB: Flat threshold ratio (min 0.05; independent of pullback ratio)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1593,13 +1577,6 @@ input group "║   📐 RRM_ORG: LAYER WMS Pullback & Recovery";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_LayerPBEnabled       = true;           // RRM ORG PB: Enable pullback-recovery state machine (P2?)
 input int         Inp_RRM_ORG_LayerPBLookback      = 21;              // RRM ORG PB: Baseline slope lookback (bars, 3-20)
-input double      Inp_RRM_ORG_LayerPBPullbackRatio = 0.5;            // RRM ORG PB: Pullback threshold ratio (0.1-1.0, 0.5=50% weaker)
-input double      Inp_RRM_ORG_LayerPBRecoveryRatio = 0.3;            // RRM ORG PB: Global recovery threshold ratio (0.1-1.0, 0.3=30% strength)
-input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;            // RRM ORG PB: Flat threshold ratio (0.05-0.5, 0.1=10%)
-input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;           // RRM ORG PB: Count slope reversal as pullback
-input double      Inp_RRM_ORG_RecoveryRatio_W      = -1.0;           // RRM ORG PB: LayerW recovery override (-1=use global, 0.1-1.0)
-input double      Inp_RRM_ORG_RecoveryRatio_M      = -1.0;           // RRM ORG PB: LayerM recovery override (-1=use global, 0.1-1.0)
-input double      Inp_RRM_ORG_RecoveryRatio_S      = -1.0;           // RRM ORG PB: LayerS recovery override (-1=use global, 0.1-1.0)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: EMA Fan Filter (pips)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1760,9 +1737,6 @@ input group "╔═════════════════════�
 input group "║   📐 TOPINVESTOR: STANDARD — LAYER (Pullback Detection)";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_TI_LayerBaselineLookback     = 34;             // TI Layer: baseline lookback
-input double      Inp_TI_LayerPullbackRatio        = 0.5;            // TI Layer: pullback ratio
-input double      Inp_TI_LayerRecoveryRatio        = 0.3;            // TI Layer: recovery ratio
-input double      Inp_TI_LayerFlatRatio            = 0.15;           // TI Layer: flat tolerance ratio
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 TOPINVESTOR: STANDARD — HTF Confirmation";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -2502,13 +2476,6 @@ void InitializeConfig()
     Settings.SlopeLookbackBars      = 1;
    Settings.LayerPullbackEnabled        = false;  // default; overwritten by ApplyPreset
    Settings.LayerBaselineLookback       = 10;     // default; overwritten by ApplyPreset
-   Settings.LayerPullbackRatio          = 0.5;    // default; overwritten by ApplyPreset
-   Settings.LayerRecoveryRatio          = 0.3;    // default; overwritten by ApplyPreset
-   Settings.LayerFlatRatio              = 0.1;    // default; overwritten by ApplyPreset
-   Settings.LayerAllowReversalPullback  = true;   // default; overwritten by ApplyPreset
-    Settings.LayerRecoveryRatio_W        = -1.0;  // P2: default = use global
-    Settings.LayerRecoveryRatio_M        = -1.0;  // P2: default = use global
-    Settings.LayerRecoveryRatio_S        = -1.0;  // P2: default = use global
 
     // VPRR defaults (disabled — only RRM_ORG preset wires it on)
     Settings.VPRR_Enabled         = false;
