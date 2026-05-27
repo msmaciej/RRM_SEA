@@ -2808,14 +2808,19 @@ private:
       if(m_settings.LayerPullbackEnabled && base_result == 1)
       {
          // Gate logic:
-         //   NONE     = clean trend, no pullback seen yet → ALLOW (trend continuation)
+         //   NONE     = no pullback seen yet → BLOCK (must earn recovery first)
          //   DETECTED = actively in pullback → BLOCK (wait for recovery)
-         //   RECOVERED= pullback completed and recovered → ALLOW
-         if(current_state == LAYER_PB_DETECTED)
+         //   RECOVERED= pullback completed and trend resumed → ALLOW
+         //
+         // A trade is only valid after a confirmed pullback-recovery cycle.
+         // NONE after reset (post-TS=1) means the cycle was consumed and a
+         // fresh pullback is required before the next entry is allowed.
+         // This prevents trend-extension entries with no preceding pullback.
+         if(current_state != LAYER_PB_RECOVERED)
          {
             if(m_settings.DebugFlow)
-               DebugLog(StringFormat("[%s] BLOCKED: pullback in progress (State=DETECTED)",
-                                     layer_label));
+               DebugLog(StringFormat("[%s] BLOCKED: no pullback-recovery cycle (State=%s)",
+                                     layer_label, EnumToString(current_state)));
             return 0;
          }
       }
@@ -3971,6 +3976,78 @@ public:
    }
 
 
+   //+------------------------------------------------------------------+
+   //| WarmUpLayerPullbackStates                                        |
+   //| Replay historical bars to reconstruct the correct pullback state |
+   //| at startup. Without this, all layers start NONE and block the    |
+   //| first valid signal even when a pullback-recovery cycle already   |
+   //| completed in recent history.                                     |
+   //|                                                                  |
+   //| Scan depth: LayerBaselineLookback + 60 bars. The baseline needs  |
+   //| N bars of history to establish direction; the extra 60 bars      |
+   //| covers a full pullback + recovery cycle at any reasonable TF.   |
+   //| Replay is oldest-first (high shift → low shift) so state machine |
+   //| transitions accumulate correctly.                                |
+   //+------------------------------------------------------------------+
+   void WarmUpLayerPullbackStates()
+   {
+      int lookback   = m_settings.LayerBaselineLookback;
+      int scan_depth = lookback + 60;   // baseline + room for one full cycle
+      int bars_total = iBars(m_symbol, PERIOD_CURRENT);
+      if(bars_total < scan_depth + 2) scan_depth = bars_total - 2;
+      if(scan_depth <= 0) return;
+
+      // Reset states and volume accumulators before replay
+      m_layer_w_pb_state = LAYER_PB_NONE;
+      m_layer_m_pb_state = LAYER_PB_NONE;
+      m_layer_s_pb_state = LAYER_PB_NONE;
+      m_layer_w_vol_pb_avg = 0.0; m_layer_w_vol_pb_bars = 0;
+      m_layer_w_vol_rec_avg = 0.0; m_layer_w_vol_rec_bars = 0; m_layer_w_vprr = 0.0;
+      m_layer_m_vol_pb_avg = 0.0; m_layer_m_vol_pb_bars = 0;
+      m_layer_m_vol_rec_avg = 0.0; m_layer_m_vol_rec_bars = 0; m_layer_m_vprr = 0.0;
+      m_layer_s_vol_pb_avg = 0.0; m_layer_s_vol_pb_bars = 0;
+      m_layer_s_vol_rec_avg = 0.0; m_layer_s_vol_rec_bars = 0; m_layer_s_vprr = 0.0;
+
+      // Replay oldest-to-newest: shift=scan_depth down to shift=1
+      // UpdateSingleLayerPullback reads EMA[shift] vs EMA[shift+1] — needs
+      // shift+lookback bars of history, so start at scan_depth (oldest usable).
+      for(int shift = scan_depth; shift >= 1; shift--)
+      {
+         // Guard: skip bars where EMA data isn't ready yet
+         double e1 = GetMAVal(h_ema1, shift);
+         double e2 = GetMAVal(h_ema2, shift);
+         double e3 = GetMAVal(h_ema3, shift);
+         if(e1 == EMPTY_VALUE || e2 == EMPTY_VALUE || e3 == EMPTY_VALUE) continue;
+         if(e1 == 0.0 || e2 == 0.0 || e3 == 0.0) continue;
+
+         // Force unique bar_time so the once-per-bar guard in
+         // UpdateLayerPullbackStates doesn't skip these historical bars.
+         datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, shift);
+         m_layer_pb_last_update = 0;   // reset guard so each bar processes
+
+         UpdateSingleLayerPullback(h_ema1, shift, lookback,
+                                   m_layer_w_pb_state, m_layer_w_baseline, "LayerW_WU",
+                                   m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
+                                   m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr);
+         UpdateSingleLayerPullback(h_ema2, shift, lookback,
+                                   m_layer_m_pb_state, m_layer_m_baseline, "LayerM_WU",
+                                   m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
+                                   m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr);
+         UpdateSingleLayerPullback(h_ema3, shift, lookback,
+                                   m_layer_s_pb_state, m_layer_s_baseline, "LayerS_WU",
+                                   m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
+                                   m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr);
+
+         m_layer_pb_last_update = bar_time;   // mark this bar as processed
+      }
+
+      PrintFormat("[WarmUp] Layer states after %d-bar replay: W=%s M=%s S=%s",
+                  scan_depth,
+                  EnumToString(m_layer_w_pb_state),
+                  EnumToString(m_layer_m_pb_state),
+                  EnumToString(m_layer_s_pb_state));
+   }
+
    bool Init(ST_Settings &sets, string symbol) {
       m_settings = sets;
       m_symbol   = symbol;
@@ -4126,7 +4203,17 @@ public:
          Print("CRITICAL ERROR: Failed to create MTF TF2 EMA handles.");
          return false;
       }
-      
+
+      // ── Historical warmup: reconstruct layer pullback states ──────────
+      // When the EA starts mid-trend, historical bars already contain a
+      // pullback-recovery cycle. Without scanning them, all layers start in
+      // NONE and block the first valid signal.
+      // Scan back enough bars to capture one full baseline + pullback cycle,
+      // then replay UpdateSingleLayerPullback bar-by-bar so the state machine
+      // arrives at the correct state (NONE / DETECTED / RECOVERED) at shift=1.
+      if(m_settings.LayerPullbackEnabled && m_settings.BiasMode == BIAS_4EMA)
+         WarmUpLayerPullbackStates();
+
       return true;
    }
 
@@ -6317,6 +6404,36 @@ public:
                                             m_last_layer);
          if(m_settings.DebugFlow && final_signal != 0)
             DebugLog(StringFormat("[RESULT] TS=%d", final_signal));
+
+         // ── Pullback cycle reset after TS=1 ───────────────────────────
+         // A RECOVERED state is a one-shot gate: it is earned by a pullback
+         // and consumed by a valid signal. Reset to NONE so the next entry
+         // requires a fresh pullback-recovery cycle on each layer.
+         // Without this, RECOVERED persists indefinitely, allowing entries
+         // on bars with no preceding pullback (trend extension entries).
+         // Only layers that are currently RECOVERED are reset — layers still
+         // in DETECTED (mid-pullback) or NONE are left untouched.
+         if(m_settings.LayerPullbackEnabled)
+         {
+            if(m_layer_w_pb_state == LAYER_PB_RECOVERED)
+            {
+               m_layer_w_pb_state = LAYER_PB_NONE;
+               if(m_settings.DebugFlow)
+                  DebugLog("[PB_RESET] LayerW: RECOVERED → NONE (TS=1 consumed pullback cycle)");
+            }
+            if(m_layer_m_pb_state == LAYER_PB_RECOVERED)
+            {
+               m_layer_m_pb_state = LAYER_PB_NONE;
+               if(m_settings.DebugFlow)
+                  DebugLog("[PB_RESET] LayerM: RECOVERED → NONE (TS=1 consumed pullback cycle)");
+            }
+            if(m_layer_s_pb_state == LAYER_PB_RECOVERED)
+            {
+               m_layer_s_pb_state = LAYER_PB_NONE;
+               if(m_settings.DebugFlow)
+                  DebugLog("[PB_RESET] LayerS: RECOVERED → NONE (TS=1 consumed pullback cycle)");
+            }
+         }
       }
 
       // Ensure UI vote counter is up-to-date
