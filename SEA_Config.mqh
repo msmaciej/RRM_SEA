@@ -1121,7 +1121,7 @@ input group "╚═════════════════════�
 // Effective MinRatio = base x TF multiplier (auto-applied at EA start).
 // Restart EA after instrument or TF change to auto-update settings.
 input bool        Inp_VPRR_TF_ReduceRecBars        = true;           // VPRR TF: Reduce RecBars by 1 on H4+ and M5
-input string      Inp_VPRR_ExternalSymbol          = "";             // VPRR EXTERNAL: proxy symbol for real volume (e.g. "GC" gold futures, "MGC" micro gold). Only used when VolumeType=VPRR_VOL_EXTERNAL. Symbol must be in Market Watch.
+input string      Inp_VPRR_ExternalSymbol          = "";             // VPRR EXTERNAL: proxy symbol for real volume ("GC" gold futures, "MGC" micro gold). Only used when VolumeType=VPRR_VOL_EXTERNAL. Symbol must be in Market Watch.
 
 input double      Inp_VPRR_MinRatio_Gold           = 1.0;            // VPRR GOLD (XAU): MinRatio base (M15:1.0; TF mult auto-scales)
 input int         Inp_VPRR_RecBars_Gold            = 3;              // VPRR Gold: RecoveryBars base
@@ -1165,7 +1165,7 @@ input int         Inp_RRM_VPRR_RecoveryBars        = 5;              // RRM VPRR
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 VPRR RRM_ORG - Volume Confirmation";
 input group "╚════════════════════════════════════════════════════════╝";
-input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType  = VPRR_VOL_AUTO;  // RRM ORG VPRR: Volume source (Auto=real then tick fallback)
+input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType  = VPRR_VOL_AUTO;  // RRM ORG VPRR: AUTO, EXTERNAL, REAL, TICK (Auto=real then tick fallback)
 input bool        Inp_RRM_ORG_VPRR_AutoEnable      = true;           // RRM ORG VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual Enabled toggle below)
 input bool        Inp_RRM_ORG_VPRR_Enabled         = false;          // RRM ORG VPRR: Manual enable (only used when AutoEnable=OFF)
 input int         Inp_RRM_ORG_VPRR_RecoveryBars    = 5;              // RRM ORG VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
@@ -1419,7 +1419,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: DPI System C — CCI Reset-Recovery Gate";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_DPI_RequireResetRecovery   = true;     // RRM ORG DPI: Require CCI reset→recovery cycle before entry
-input int         Inp_RRM_ORG_DPI_ResetRecoveryBars      = 1;        // RRM ORG DPI: Recovery bars after CCI flip-back (0=immediate)
+input int         Inp_RRM_ORG_DPI_ResetRecoveryBars      = 0;        // RRM ORG DPI: Recovery bars after CCI flip-back (0=immediate)
 input bool        Inp_RRM_ORG_DPI_ResetRequireGreen      = false;    // RRM ORG DPI: Also require GREEN reappearance during recovery
 //
 // Inp_RRM_ORG_DPI_RequireResetRecovery — CCI RESET-RECOVERY ENTRY GATE
