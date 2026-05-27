@@ -452,30 +452,27 @@ ST_VPRRAutoMode GetVPRRRecommendedMode(
       }
       else if(has_tick_vol)
       {
-         result.enabled       = true;
-         result.volume_type   = (int)VPRR_VOL_TICK;
-         result.min_ratio     = MathMax(0.1, mr_non_fx_tick * tf_mult);
-         result.recovery_bars = GetVPRR_TFRecBars(rb_default, tf_reduce_rb);
-         PrintFormat("📊 [VPRR AUTO] %s TF:%s: non-FX tick fallback → MinRatio=%.2f RecBars=%d",
-                     sym, TFToString(), result.min_ratio, result.recovery_bars);
+         // Tick volume is broker-specific tick count, not real traded volume.
+         // VPRR requires real exchange volume to produce a meaningful ratio.
+         // Enabling VPRR on tick data produces random pass/fail unrelated to
+         // institutional participation — disable unconditionally.
+         result.enabled = false;
+         PrintFormat("📊 [VPRR AUTO] %s: non-FX but no real volume → DISABLED (tick volume is broker noise, not order flow)",
+                     sym);
       }
       else
          PrintFormat("📊 [VPRR AUTO] %s: no volume data → DISABLED", sym);
    }
    else
    {
-      // FX: tick vol only
-      if(has_tick_vol)
-      {
-         result.enabled       = true;
-         result.volume_type   = (int)VPRR_VOL_TICK;
-         result.min_ratio     = MathMax(0.1, mr_fx * tf_mult);
-         result.recovery_bars = GetVPRR_TFRecBars(rb_fx, tf_reduce_rb);
-         PrintFormat("📊 [VPRR AUTO] %s TF:%s: FX tick → MinRatio=%.2f RecBars=%d",
-                     sym, TFToString(), result.min_ratio, result.recovery_bars);
-      }
-      else
-         PrintFormat("📊 [VPRR AUTO] %s: FX, no tick volume → DISABLED", sym);
+      // FX: VPRR disabled unconditionally.
+      // Real exchange volume is not available for FX pairs; tick volume is a
+      // broker-specific tick count with no relationship to actual order flow or
+      // institutional participation. A VPRR ratio computed from tick data is
+      // meaningless and will randomly block valid TS=1 setups.
+      result.enabled = false;
+      PrintFormat("📊 [VPRR AUTO] %s: FX → DISABLED (real volume unavailable; tick volume invalid for VPRR)",
+                  sym);
    }
 
    return result;

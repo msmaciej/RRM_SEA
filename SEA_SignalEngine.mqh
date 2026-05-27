@@ -5231,6 +5231,7 @@ public:
       if(m_settings.Ind_CI_Enabled)          { s_enabled++; if(Check_CI(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_VRC_Enabled)         { s_enabled++; if(Check_VRC(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_MTF_Enabled)         { s_enabled++; if(Check_MTF(bias)) s_passed++; }
+      if(m_settings.VPRR_Enabled)            { s_enabled++; if(Check_VPRR(v_shift)) s_passed++; }
 
       // Always use indicator pass count for display (vote_pass counts enabled indicators that passed)
       m_diag_last_votes = s_passed;

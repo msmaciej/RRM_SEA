@@ -2592,7 +2592,7 @@ struct SIndicatorMeta {
    bool   prefers_subwindow;  // Indicates if the UI should draw this in a subwindow
 };
 
-SIndicatorMeta g_indicator_registry[18];
+SIndicatorMeta g_indicator_registry[19];
 
 //+------------------------------------------------------------------+
 //| InitializeIndicatorRegistry(): Populate registry from settings    |
@@ -2683,6 +2683,11 @@ void InitializeIndicatorRegistry(const ST_Settings &cfg)
    g_indicator_registry[i].name             = "MTF";
    g_indicator_registry[i].short_name       = "MTF";
    g_indicator_registry[i].is_enabled       = cfg.Ind_MTF_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
+   i++;
+
+   g_indicator_registry[i].name             = "VPRR";
+   g_indicator_registry[i].short_name       = "VPRR";
+   g_indicator_registry[i].is_enabled       = cfg.VPRR_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
 }
 
 //+------------------------------------------------------------------+
@@ -2709,6 +2714,7 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
    if(cfg.Ind_Dpi_Enabled)        count++;
    if(cfg.Ind_Fib_Enabled)        count++;
    if(cfg.Ind_MTF_Enabled)        count++;
+   if(cfg.VPRR_Enabled)           count++;
    return count;
 }
 
@@ -2718,17 +2724,18 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
 string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 {
    string names[]  = {"ADX", "ATR", "BB", "CandleBody", "Choppiness Index", "CCI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC", "DPI", "MTF", "Fib"};
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC", "DPI", "MTF", "Fib", "VPRR"};
    string shorts[] = {"ADX", "ATR", "BB", "CBody", "CI", "CCI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConv", "Stoch", "VRC", "DPI", "MTF", "Fib"};
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConv", "Stoch", "VRC", "DPI", "MTF", "Fib", "VPRR"};
    bool enabled[]  = {cfg.Ind_Adx_Enabled, cfg.Ind_Atr_Enabled, cfg.Ind_Bb_Enabled,
                       cfg.Ind_CandleBody_Enabled, cfg.Ind_CI_Enabled, cfg.Ind_Cci_Enabled,
                       cfg.Ind_Macd_Enabled, cfg.Ind_Mfi_Enabled,
                       cfg.Ind_P123_Enabled, cfg.Ind_Psar_Enabled, cfg.Ind_Ross_Enabled,
                       cfg.Ind_Rsi_Enabled, cfg.Ind_SmaConverge_Enabled,
-                      cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled, cfg.Ind_Dpi_Enabled, cfg.Ind_MTF_Enabled, cfg.Ind_Fib_Enabled};
+                      cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled, cfg.Ind_Dpi_Enabled, cfg.Ind_MTF_Enabled, cfg.Ind_Fib_Enabled,
+                      cfg.VPRR_Enabled};
    string list = "";
-   for(int i = 0; i < 18; i++)
+   for(int i = 0; i < 19; i++)
    {
       if(!enabled[i]) continue;
       if(list != "") list += compact ? ", " : "\n  + ";
@@ -2742,8 +2749,8 @@ string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 //+------------------------------------------------------------------+
 void PrintIndicatorRegistry()
 {
-   Print("--- Indicator Registry (18 entries) ---");
-   for(int i = 0; i < 18; i++)
+   Print("--- Indicator Registry (19 entries) ---");
+   for(int i = 0; i < 19; i++)
    {
       PrintFormat("  [%2d] %-12s  enabled=%-5s  subwindow=%-5s",
                   i,
