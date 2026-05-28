@@ -52,8 +52,8 @@
 #property version        "4.00"
 #property description    "SEA Signal Scanner: mark TS=1 bars for any indicator combination on any pair/TF"
 #property indicator_chart_window
-#property indicator_buffers 0
-#property indicator_plots   0
+#property indicator_buffers 6
+#property indicator_plots   6
 
 #define SEA_BUILD_TOKEN_104001 1
 #include <RRMS\SEA_SignalEngine.mqh>
@@ -94,8 +94,23 @@ input group "--- TS Signals ---";
 input group "╚════════════════════════════════════════════════════════╝";
 input ENUM_LINE_STYLE LineStyle        = STYLE_DOT;            // Line style
 input int         LineWidth            = 1;                    // Line width
-input color       Color_Long           = clrDodgerBlue;        // LONG line color
-input color       Color_Short          = clrRed;               // SHORT line color
+input group "--- LONG colors (S=darkest  M=mid  W=lightest) ---"
+input color       Color_Long_S         = C'0,80,180';          // LONG Layer S (strong/deep)
+input color       Color_Long_M         = C'30,144,255';        // LONG Layer M (medium)
+input color       Color_Long_W         = C'135,206,250';       // LONG Layer W (weak/shallow)
+input group "--- SHORT colors (S=darkest  M=mid  W=lightest) ---"
+input color       Color_Short_S        = C'180,0,0';           // SHORT Layer S (strong/deep)
+input color       Color_Short_M        = C'255,50,50';         // SHORT Layer M (medium)
+input color       Color_Short_W        = C'255,160,160';       // SHORT Layer W (weak/shallow)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "--- Chart Overlays ---";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Show_EMAs            = true;                 // Draw EMA1/2/3/4 on chart
+input color       Color_EMA1           = C'255,255,100';       // EMA1 color (fastest)
+input color       Color_EMA2           = C'255,200,50';        // EMA2 color
+input color       Color_EMA3           = C'220,140,0';         // EMA3 color
+input color       Color_EMA4           = C'160,80,0';          // EMA4 color (slowest/darkest)
+input bool        Show_PSAR            = false;                // Draw PSAR dots on chart
 
 #define SCN_PANEL_FONT      Scn_Font
 #define SCN_PANEL_FONTSIZE  Scn_FontSize
@@ -158,7 +173,9 @@ input bool TS_MFI                = false;  // [I] MFI money flow
 input bool TS_MTF                = false;  // [I] MTF higher TF alignment
 input bool TS_PSAR               = false;  // [I] PSAR dot position
 input bool TS_PSAR_Flip          = false;  // [I] PSAR + flip window
-input bool TS_Pullback_Recovery  = true;   // [L] Pullback-Recovery layer
+input bool TS_LayerS             = true;   // [L] Pullback-Recovery Layer S: EMA3->EMA4 (strongest)
+input bool TS_LayerM             = true;   // [L] Pullback-Recovery Layer M: EMA2->EMA3 (medium)
+input bool TS_LayerW             = true;   // [L] Pullback-Recovery Layer W: EMA1->EMA2 (weakest)
 input bool TS_RSI                = false;  // [I] RSI level
 input bool TS_Stochastic         = false;  // [I] Stochastic level
 input bool TS_VPRR               = false;  // [I] VPRR volume (metals/stocks; FX=unreliable)
@@ -229,9 +246,6 @@ input double   VPRR_MinRatio        = 1.0;         // Min recovery/pullback rati
 input int      VPRR_RecovBars       = 3;           // Recovery bars to measure
 
 
-input group "--- MTF (TS_MTF = true) ---"
-
-
 //+------------------------------------------------------------------+
 //| STEP 6 — Time Window                                             |
 //| Limit signal lines to a specific date/time range.               |
@@ -257,6 +271,27 @@ string         g_pfx;
 bool           g_ok = false;
 int            g_sig_long  = 0;
 int            g_sig_short = 0;
+int            g_sig_long_s  = 0;
+int            g_sig_long_m  = 0;
+int            g_sig_long_w  = 0;
+int            g_sig_short_s = 0;
+int            g_sig_short_m = 0;
+int            g_sig_short_w = 0;
+
+// ── Overlay buffers (EMA1..4 + PSAR up/down) ───────────────────────
+double g_buf_ema1[];
+double g_buf_ema2[];
+double g_buf_ema3[];
+double g_buf_ema4[];
+double g_buf_psar_up[];    // PSAR dots below price (bull)
+double g_buf_psar_dn[];    // PSAR dots above price (bear)
+
+// ── Overlay indicator handles ──────────────────────────────────────
+int g_h_ema1 = INVALID_HANDLE;
+int g_h_ema2 = INVALID_HANDLE;
+int g_h_ema3 = INVALID_HANDLE;
+int g_h_ema4 = INVALID_HANDLE;
+int g_h_psar = INVALID_HANDLE;
 
 //+------------------------------------------------------------------+
 //| OnInit                                                           |
@@ -264,6 +299,67 @@ int            g_sig_short = 0;
 int OnInit()
 {
    g_pfx = "SCN_" + _Symbol + "_" + IntegerToString(ChartID()) + "_";
+
+   // ── Overlay buffers — always register all 6 (MT5 requires buffer count
+   //    to match #property indicator_buffers regardless of Show_* state) ──
+   SetIndexBuffer(0, g_buf_ema1,    INDICATOR_DATA);
+   SetIndexBuffer(1, g_buf_ema2,    INDICATOR_DATA);
+   SetIndexBuffer(2, g_buf_ema3,    INDICATOR_DATA);
+   SetIndexBuffer(3, g_buf_ema4,    INDICATOR_DATA);
+   SetIndexBuffer(4, g_buf_psar_up, INDICATOR_DATA);
+   SetIndexBuffer(5, g_buf_psar_dn, INDICATOR_DATA);
+
+   // ── EMA plot styles ────────────────────────────────────────────────
+   for(int i = 0; i < 4; i++)
+   {
+      color clr = (i==0)?Color_EMA1:(i==1)?Color_EMA2:(i==2)?Color_EMA3:Color_EMA4;
+      if(Show_EMAs)
+      {
+         PlotIndexSetInteger(i, PLOT_DRAW_TYPE,  DRAW_LINE);
+         PlotIndexSetInteger(i, PLOT_LINE_COLOR, clr);
+         PlotIndexSetInteger(i, PLOT_LINE_WIDTH, 1);
+         PlotIndexSetInteger(i, PLOT_LINE_STYLE, STYLE_SOLID);
+      }
+      else
+         PlotIndexSetInteger(i, PLOT_DRAW_TYPE, DRAW_NONE);
+
+      PlotIndexSetDouble(i, PLOT_EMPTY_VALUE, 0.0);
+      string lbl = "EMA" + (string)(i+1) + "(" + (string)(i==0?EMA1:i==1?EMA2:i==2?EMA3:EMA4) + ")";
+      PlotIndexSetString(i, PLOT_LABEL, lbl);
+   }
+
+   // ── PSAR plot styles — dots above/below price ──────────────────────
+   if(Show_PSAR)
+   {
+      PlotIndexSetInteger(4, PLOT_DRAW_TYPE,  DRAW_ARROW);
+      PlotIndexSetInteger(4, PLOT_ARROW,      159);        // dot symbol
+      PlotIndexSetInteger(4, PLOT_LINE_COLOR, clrLimeGreen);
+      PlotIndexSetInteger(4, PLOT_LINE_WIDTH, 2);
+      PlotIndexSetInteger(5, PLOT_DRAW_TYPE,  DRAW_ARROW);
+      PlotIndexSetInteger(5, PLOT_ARROW,      159);
+      PlotIndexSetInteger(5, PLOT_LINE_COLOR, clrOrangeRed);
+      PlotIndexSetInteger(5, PLOT_LINE_WIDTH, 2);
+   }
+   else
+   {
+      PlotIndexSetInteger(4, PLOT_DRAW_TYPE, DRAW_NONE);
+      PlotIndexSetInteger(5, PLOT_DRAW_TYPE, DRAW_NONE);
+   }
+   PlotIndexSetDouble(4, PLOT_EMPTY_VALUE, 0.0);
+   PlotIndexSetDouble(5, PLOT_EMPTY_VALUE, 0.0);
+   PlotIndexSetString(4, PLOT_LABEL, "PSAR Bull");
+   PlotIndexSetString(5, PLOT_LABEL, "PSAR Bear");
+
+   // ── Create overlay handles ─────────────────────────────────────────
+   if(Show_EMAs)
+   {
+      g_h_ema1 = iMA(_Symbol, PERIOD_CURRENT, EMA1, 0, MODE_EMA, PRICE_CLOSE);
+      g_h_ema2 = iMA(_Symbol, PERIOD_CURRENT, EMA2, 0, MODE_EMA, PRICE_CLOSE);
+      g_h_ema3 = iMA(_Symbol, PERIOD_CURRENT, EMA3, 0, MODE_EMA, PRICE_CLOSE);
+      g_h_ema4 = iMA(_Symbol, PERIOD_CURRENT, EMA4, 0, MODE_EMA, PRICE_CLOSE);
+   }
+   if(Show_PSAR)
+      g_h_psar = iSAR(_Symbol, PERIOD_CURRENT, PSAR_Step, PSAR_Max);
 
    ST_Settings s;
    BuildSettings(s);
@@ -282,7 +378,9 @@ int OnInit()
 
    // Print active components to journal so user can confirm what's running
    string active = "";
-   if(TS_Pullback_Recovery)   active += "Pullback ";
+   if(TS_LayerS)     active += "LayerS ";
+   if(TS_LayerM)     active += "LayerM ";
+   if(TS_LayerW)     active += "LayerW ";
    if(TS_DPI)        active += "DPI ";
    if(TS_PSAR_Flip)  active += "PSAR_Flip ";
    else if(TS_PSAR)  active += "PSAR ";
@@ -293,7 +391,7 @@ int OnInit()
    if(TS_CCI)        active += "CCI ";
    if(TS_MACD)       active += "MACD ";
    if(TS_Stochastic)      active += "Stoch ";
-   if(TS_BollingerBands)         active += "BB ";
+   if(TS_BollingerBands)  active += "BB ";
    if(TS_MFI)        active += "MFI ";
    if(TS_ATR)        active += "ATR ";
    if(TS_VPRR)       active += "VPRR ";
@@ -314,6 +412,11 @@ void OnDeinit(const int reason)
    ClearLines();
    g_eng_long.Release();
    g_eng_short.Release();
+   if(g_h_ema1 != INVALID_HANDLE) { IndicatorRelease(g_h_ema1); g_h_ema1 = INVALID_HANDLE; }
+   if(g_h_ema2 != INVALID_HANDLE) { IndicatorRelease(g_h_ema2); g_h_ema2 = INVALID_HANDLE; }
+   if(g_h_ema3 != INVALID_HANDLE) { IndicatorRelease(g_h_ema3); g_h_ema3 = INVALID_HANDLE; }
+   if(g_h_ema4 != INVALID_HANDLE) { IndicatorRelease(g_h_ema4); g_h_ema4 = INVALID_HANDLE; }
+   if(g_h_psar != INVALID_HANDLE) { IndicatorRelease(g_h_psar); g_h_psar = INVALID_HANDLE; }
    g_ok = false;
 }
 
@@ -330,10 +433,36 @@ int OnCalculate(const int rates_total,
 {
    if(!g_ok || rates_total < 3) return 0;
 
+   // ── Copy overlay data every call ──────────────────────────────────
+   if(Show_EMAs)
+   {
+      if(g_h_ema1 != INVALID_HANDLE) CopyBuffer(g_h_ema1, 0, 0, rates_total, g_buf_ema1);
+      if(g_h_ema2 != INVALID_HANDLE) CopyBuffer(g_h_ema2, 0, 0, rates_total, g_buf_ema2);
+      if(g_h_ema3 != INVALID_HANDLE) CopyBuffer(g_h_ema3, 0, 0, rates_total, g_buf_ema3);
+      if(g_h_ema4 != INVALID_HANDLE) CopyBuffer(g_h_ema4, 0, 0, rates_total, g_buf_ema4);
+   }
+   if(Show_PSAR && g_h_psar != INVALID_HANDLE)
+   {
+      // PSAR buffer 0 = values; split into up/down by comparing to close
+      double tmp[];
+      if(CopyBuffer(g_h_psar, 0, 0, rates_total, tmp) == rates_total)
+      {
+         ArraySetAsSeries(tmp, false);
+         for(int i = 0; i < rates_total; i++)
+         {
+            double cl = close[i];
+            if(tmp[i] < cl)  { g_buf_psar_up[i] = tmp[i]; g_buf_psar_dn[i] = 0.0; }
+            else             { g_buf_psar_up[i] = 0.0;    g_buf_psar_dn[i] = tmp[i]; }
+         }
+      }
+   }
+
    if(prev_calculated == 0)
    {
       ClearLines();
       g_sig_long = 0; g_sig_short = 0;
+      g_sig_long_s = 0; g_sig_long_m = 0; g_sig_long_w = 0;
+      g_sig_short_s = 0; g_sig_short_m = 0; g_sig_short_w = 0;
 
       // Determine scan range from DateFrom/DateTo or BarsBack
       int shift_from = 1;
@@ -407,6 +536,15 @@ void ScanBar(int shift)
       }
    }
 
+   // PSAR flip tracking must run on every bar (both engines) so the
+   // flip history accumulates correctly when scanning oldest→newest.
+   // Only runs when PSAR is enabled in settings (guard is inside wrapper).
+   if(TS_PSAR || TS_PSAR_Flip)
+   {
+      g_eng_long.Scanner_UpdatePSARFlip(shift);
+      g_eng_short.Scanner_UpdatePSARFlip(shift);
+   }
+
    if(doL) Eval(shift, g_eng_long,   1);
    if(doS) Eval(shift, g_eng_short, -1);
 }
@@ -417,28 +555,30 @@ void ScanBar(int shift)
 void Eval(int shift, CSignalEngine &eng, int bias)
 {
    // ── Pullback-Recovery ──────────────────────────────────────────
-   if(TS_Pullback_Recovery)
+   bool any_layer = (TS_LayerS || TS_LayerM || TS_LayerW);
+   if(any_layer)
    {
       eng.Scanner_UpdateLayerPullback(shift);
-      bool   ok  = false;
-      double fema = 0.0;
+      int    fired_layer = 0;  // 3=S  2=M  1=W
+      double fema        = 0.0;
 
-      if(eng.GetLayerWPullbackState()==LAYER_PB_RECOVERED)
-      {
-         double f=EMAv(EMA1,shift), sl=EMAv(EMA2,shift);
-         if((bias==1&&f>sl)||(bias==-1&&f<sl)){ok=true;fema=f;}
-      }
-      if(!ok && eng.GetLayerMPullbackState()==LAYER_PB_RECOVERED)
-      {
-         double f=EMAv(EMA2,shift), sl=EMAv(EMA3,shift);
-         if((bias==1&&f>sl)||(bias==-1&&f<sl)){ok=true;fema=f;}
-      }
-      if(!ok && eng.GetLayerSPullbackState()==LAYER_PB_RECOVERED)
+      // Priority: S first (strongest/deepest), then M, then W
+      if(!fired_layer && TS_LayerS && eng.GetLayerSPullbackState()==LAYER_PB_RECOVERED)
       {
          double f=EMAv(EMA3,shift), sl=EMAv(EMA4,shift);
-         if((bias==1&&f>sl)||(bias==-1&&f<sl)){ok=true;fema=f;}
+         if((bias==1&&f>sl)||(bias==-1&&f<sl)){fired_layer=3;fema=f;}
       }
-      if(!ok) return;
+      if(!fired_layer && TS_LayerM && eng.GetLayerMPullbackState()==LAYER_PB_RECOVERED)
+      {
+         double f=EMAv(EMA2,shift), sl=EMAv(EMA3,shift);
+         if((bias==1&&f>sl)||(bias==-1&&f<sl)){fired_layer=2;fema=f;}
+      }
+      if(!fired_layer && TS_LayerW && eng.GetLayerWPullbackState()==LAYER_PB_RECOVERED)
+      {
+         double f=EMAv(EMA1,shift), sl=EMAv(EMA2,shift);
+         if((bias==1&&f>sl)||(bias==-1&&f<sl)){fired_layer=1;fema=f;}
+      }
+      if(!fired_layer) return;
 
       double cl=iClose(_Symbol,PERIOD_CURRENT,shift);
       double op=iOpen (_Symbol,PERIOD_CURRENT,shift);
@@ -446,6 +586,77 @@ void Eval(int shift, CSignalEngine &eng, int bias)
       if(bias==-1&&cl>=fema) return;
       if(bias== 1&&cl<=op)   return;
       if(bias==-1&&cl>=op)   return;
+
+      // Pass remaining indicator checks, then draw with layer color
+      // (continue below — layer stored, checked after all other indicators)
+      // Store fired_layer in a way the rest of Eval can use it at PutLine
+      // We do this by falling through and calling PutLine with layer at the end.
+      // So we restructure: run other indicators, then draw.
+
+      // ── DPI ──────────────────────────────────────────────────────
+      if(TS_DPI)
+         if(!eng.Scanner_Check_DPI(bias, shift)) return;
+
+      // ── PSAR ─────────────────────────────────────────────────────
+      if(TS_PSAR_Flip)
+      { if(!eng.Scanner_Check_PSAR_Flip(bias, shift)) return; }
+      else if(TS_PSAR)
+      { if(!eng.Scanner_Check_PSAR(bias, shift)) return; }
+
+      // ── MTF ──────────────────────────────────────────────────────
+      if(TS_MTF)
+         if(!eng.Scanner_Check_MTF(bias)) return;
+
+      // ── CandleBody ───────────────────────────────────────────────
+      if(TS_CandleBody)
+         if(!eng.Scanner_Check_CandleBody(bias, shift)) return;
+
+      // ── ADX ──────────────────────────────────────────────────────
+      if(TS_ADX)
+         if(!eng.Scanner_Check_ADX(shift)) return;
+
+      // ── RSI ──────────────────────────────────────────────────────
+      if(TS_RSI)
+         if(!eng.Scanner_Check_RSI(bias, shift)) return;
+
+      // ── CCI ──────────────────────────────────────────────────────
+      if(TS_CCI)
+         if(!eng.Scanner_Check_CCI(bias, shift)) return;
+
+      // ── MACD ─────────────────────────────────────────────────────
+      if(TS_MACD)
+         if(!eng.Scanner_Check_MACD(bias, shift)) return;
+
+      // ── Stochastic ───────────────────────────────────────────────
+      if(TS_Stochastic)
+         if(!eng.Scanner_Check_Sto(bias, shift)) return;
+
+      // ── Bollinger Bands ──────────────────────────────────────────
+      if(TS_BollingerBands)
+         if(!eng.Scanner_Check_BB(bias, shift)) return;
+
+      // ── MFI ──────────────────────────────────────────────────────
+      if(TS_MFI)
+         if(!eng.Scanner_Check_MFI(bias, shift)) return;
+
+      // ── ATR ──────────────────────────────────────────────────────
+      if(TS_ATR)
+         if(!eng.Scanner_Check_ATR(bias, shift)) return;
+
+      // ── VPRR ─────────────────────────────────────────────────────
+      if(TS_VPRR)
+         if(!eng.Scanner_Check_VPRR(shift)) return;
+
+      // ── Choppiness Index ─────────────────────────────────────────
+      if(TS_CI)
+         if(!eng.Scanner_Check_CI(bias, shift)) return;
+
+      // ── All passed → draw with layer-specific color ───────────────
+      PutLine(iTime(_Symbol, PERIOD_CURRENT, shift), bias, fired_layer);
+      // Reset all RECOVERED states so the same cluster doesn't re-fire
+      // on the next bar. Each layer restarts its own pullback-recovery cycle.
+      eng.Scanner_ResetLayersAfterFire();
+      return;
    }
 
    // ── DPI ────────────────────────────────────────────────────────
@@ -507,7 +718,7 @@ void Eval(int shift, CSignalEngine &eng, int bias)
       if(!eng.Scanner_Check_CI(bias, shift)) return;
 
    // ── All enabled components passed → draw line ──────────────────
-   PutLine(iTime(_Symbol, PERIOD_CURRENT, shift), bias);
+   PutLine(iTime(_Symbol, PERIOD_CURRENT, shift), bias, 0);
 }
 
 //+------------------------------------------------------------------+
@@ -536,7 +747,7 @@ void BuildSettings(ST_Settings &s)
    s.BlockEmergingPhase = false;
 
    // Pullback
-   s.LayerPullbackEnabled  = TS_Pullback_Recovery;
+   s.LayerPullbackEnabled  = (TS_LayerS || TS_LayerM || TS_LayerW);
    s.LayerBaselineLookback = PB_Lookback;
 
    // DPI
@@ -755,15 +966,17 @@ void DrawInfoPanel()
    ADD("TS Components:",                                     clrSilver)
 
    // Only ON components shown — keeps panel compact
-   string cnames[]  = {"Pullback-Recovery","DPI","PSAR","PSAR Flip","MTF",
+   string cnames[]  = {"PB: Layer S (EMA3->EMA4)","PB: Layer M (EMA2->EMA3)","PB: Layer W (EMA1->EMA2)",
+                        "DPI","PSAR","PSAR Flip","MTF",
                         "CandleBody","ADX","RSI","CCI","MACD",
                         "Stochastic","Bollinger Bands","MFI","ATR","VPRR","CI"};
-   bool   cstates[] = {TS_Pullback_Recovery,TS_DPI,TS_PSAR,TS_PSAR_Flip,TS_MTF,
+   bool   cstates[] = {TS_LayerS,TS_LayerM,TS_LayerW,
+                        TS_DPI,TS_PSAR,TS_PSAR_Flip,TS_MTF,
                         TS_CandleBody,TS_ADX,TS_RSI,TS_CCI,TS_MACD,
                         TS_Stochastic,TS_BollingerBands,TS_MFI,TS_ATR,TS_VPRR,TS_CI};
 
    bool any_on = false;
-   for(int i = 0; i < 16; i++)
+   for(int i = 0; i < 18; i++)
    {
       if(!cstates[i]) continue;
       ADD("  + " + cnames[i],                                clrYellow)
@@ -788,8 +1001,23 @@ void DrawInfoPanel()
    ADD("Window: " + tw,                                      clrSilver)
 
    // ── Signal counts ───────────────────────────────────────────────
-   ADD("  LONG:  " + (string)g_sig_long,                     Color_Long)
-   ADD("  SHORT: " + (string)g_sig_short,                    Color_Short)
+   bool any_layer = (TS_LayerS || TS_LayerM || TS_LayerW);
+   if(any_layer)
+   {
+      ADD("  LONG:  " + (string)g_sig_long
+         + "  (S:" + (string)g_sig_long_s
+         + " M:" + (string)g_sig_long_m
+         + " W:" + (string)g_sig_long_w + ")",               Color_Long_M)
+      ADD("  SHORT: " + (string)g_sig_short
+         + "  (S:" + (string)g_sig_short_s
+         + " M:" + (string)g_sig_short_m
+         + " W:" + (string)g_sig_short_w + ")",              Color_Short_M)
+   }
+   else
+   {
+      ADD("  LONG:  " + (string)g_sig_long,                  Color_Long_M)
+      ADD("  SHORT: " + (string)g_sig_short,                 Color_Short_M)
+   }
 
    #undef ADD
 
@@ -807,18 +1035,40 @@ void DrawInfoPanel()
 //+------------------------------------------------------------------+
 //| PutLine / ClearLines                                             |
 //+------------------------------------------------------------------+
-void PutLine(datetime t, int bias)
+void PutLine(datetime t, int bias, int layer)
 {
-   string name = g_pfx + IntegerToString((long)t) + (bias>0?"L":"S");
+   string lbl = (layer==3?"S":(layer==2?"M":(layer==1?"W":"X")));
+   string name = g_pfx + IntegerToString((long)t) + (bias>0?"L":"S") + lbl;
    if(ObjectFind(0,name)>=0) return;
+
+   color clr;
+   if(bias > 0)
+      clr = (layer==3) ? Color_Long_S : (layer==2) ? Color_Long_M : Color_Long_W;
+   else
+      clr = (layer==3) ? Color_Short_S : (layer==2) ? Color_Short_M : Color_Short_W;
+
    ObjectCreate(0,name,OBJ_VLINE,0,t,0);
-   ObjectSetInteger(0,name,OBJPROP_COLOR,      bias>0?Color_Long:Color_Short);
+   ObjectSetInteger(0,name,OBJPROP_COLOR,      clr);
    ObjectSetInteger(0,name,OBJPROP_STYLE,      LineStyle);
    ObjectSetInteger(0,name,OBJPROP_WIDTH,      LineWidth);
    ObjectSetInteger(0,name,OBJPROP_BACK,       true);
    ObjectSetInteger(0,name,OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0,name,OBJPROP_HIDDEN,     true);
-   if(bias>0) g_sig_long++; else g_sig_short++;
+
+   if(bias > 0)
+   {
+      g_sig_long++;
+      if(layer==3) g_sig_long_s++;
+      else if(layer==2) g_sig_long_m++;
+      else g_sig_long_w++;
+   }
+   else
+   {
+      g_sig_short++;
+      if(layer==3) g_sig_short_s++;
+      else if(layer==2) g_sig_short_m++;
+      else g_sig_short_w++;
+   }
 }
 
 void ClearLines()

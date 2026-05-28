@@ -2918,6 +2918,17 @@ public:
    // These expose selected private functions needed by the scanner
    // indicator without changing the engine's internal structure.
    void   Scanner_UpdateLayerPullback(int shift) { UpdateLayerPullbackStates(shift); }
+   void   Scanner_UpdatePSARFlip(int shift)      { if(m_settings.Ind_Psar_Enabled) UpdatePSARFlipTracking(shift); }
+   // Reset all RECOVERED layers to NONE after a signal fires.
+   // Strongest-priority layer already fired; consuming all RECOVERED states
+   // prevents the same cluster re-firing on the next bar while still allowing
+   // each layer to independently start a fresh pullback-recovery cycle.
+   void   Scanner_ResetLayersAfterFire()
+   {
+      if(m_layer_s_pb_state == LAYER_PB_RECOVERED) m_layer_s_pb_state = LAYER_PB_NONE;
+      if(m_layer_m_pb_state == LAYER_PB_RECOVERED) m_layer_m_pb_state = LAYER_PB_NONE;
+      if(m_layer_w_pb_state == LAYER_PB_RECOVERED) m_layer_w_pb_state = LAYER_PB_NONE;
+   }
    bool   Scanner_Check_DPI(int bias, int shift) { return Check_DPI(bias, shift); }
    bool   Scanner_Check_PSAR(int bias, int shift){ return Check_PSAR(bias, shift); }
    bool   Scanner_Check_PSAR_Flip(int bias, int shift) { return Check_PSAR_WithFlip(bias, shift); }
