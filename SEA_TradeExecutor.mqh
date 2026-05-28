@@ -15,7 +15,7 @@ enum { __SEA_BUILD_TOKEN_MISSING_TRADEEXEC_104001 = SEA_BUILD_TOKEN_104001 };
 #define SEA_LARGE_LOT_PER_EQUITY_BLOCK 10.0
 #define SEA_MARGIN_LEVEL_UNLIMITED 999999.0
 
-#include <RRMS\SEA_Config.mqh>
+#include <RRMS\SEA_Inputs.mqh>
 #include <Trade\Trade.mqh>
 
 class CTradeExecutor {

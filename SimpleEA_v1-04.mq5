@@ -33,7 +33,7 @@ void SEA_DrawTradeExecLine(datetime event_time, int direction, double price, con
 //+------------------------------------------------------------------+
 //| MODULE INCLUDES                                                  |
 //+------------------------------------------------------------------+
-#include <RRMS\SEA_Config.mqh>
+#include <RRMS\SEA_Inputs.mqh>
 #include <RRMS\SEA_Presets.mqh>
 #include <RRMS\SEA_SignalEngine.mqh>
 #include <RRMS\SEA_TradeExecutor.mqh>

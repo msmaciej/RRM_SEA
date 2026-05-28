@@ -16,7 +16,7 @@
 // Preset system version
 #define PRESET_SYSTEM_VERSION "4.0.1"  // Major.Minor.Patch
 
-#include <RRMS\SEA_Config.mqh>
+#include <RRMS\SEA_Inputs.mqh>
 
 // ═══════════════════════════════════════════════════════════════════════
 // PRESET_RRM_ORG: EXIT MANAGEMENT CONFIGURATION EXAMPLES

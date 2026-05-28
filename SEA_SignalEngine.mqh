@@ -1400,12 +1400,18 @@ private:
                                   double &vprr)
    {
       // ── Baseline direction: sign of EMA slope over lookback bars ──────
-      // Used ONLY to establish what the trend direction was before the
-      // current bar, so we can distinguish pullback (reversal) from
-      // continuation. The baseline is a directional reference, never a
-      // magnitude divisor.
-      double ema_baseline_old = GetMAVal(fast_ema_handle, v_shift + lookback);
-      double ema_baseline_new = GetMAVal(fast_ema_handle, v_shift + 1);   // bar before current
+      // Establishes what the trend direction WAS before the current bar,
+      // so we can identify a pullback (EMA reversal vs trend).
+      //
+      // Window: EMA[shift+lookback+1] → EMA[shift+lookback]
+      // This measures the bar JUST BEFORE the lookback window, giving the
+      // cleanest single-bar signal of the pre-pullback trend direction.
+      // Using EMA[shift+1] as baseline_new was wrong: during recovery the
+      // bar before current is still in the pullback zone, making the baseline
+      // read as bullish even in a downtrend — causing recovery bars to be
+      // misclassified as pullbacks.
+      double ema_baseline_old = GetMAVal(fast_ema_handle, v_shift + lookback + 1);
+      double ema_baseline_new = GetMAVal(fast_ema_handle, v_shift + lookback);
       double baseline_slope   = ema_baseline_new - ema_baseline_old;      // sign only matters
       baseline = baseline_slope;
       bool baseline_bullish   = (baseline_slope > 0.0);
@@ -2908,7 +2914,31 @@ private:
    }
 
 public:
-   // Public Accessors for the UI/Cockpit
+   // ── Scanner API — thin public wrappers for SEA_IND_SignalScan ────
+   // These expose selected private functions needed by the scanner
+   // indicator without changing the engine's internal structure.
+   void   Scanner_UpdateLayerPullback(int shift) { UpdateLayerPullbackStates(shift); }
+   bool   Scanner_Check_DPI(int bias, int shift) { return Check_DPI(bias, shift); }
+   bool   Scanner_Check_PSAR(int bias, int shift){ return Check_PSAR(bias, shift); }
+   bool   Scanner_Check_PSAR_Flip(int bias, int shift) { return Check_PSAR_WithFlip(bias, shift); }
+   bool   Scanner_Check_MTF(int bias)            { return Check_MTF(bias); }
+   bool   Scanner_Check_ADX(int shift)           { return Check_ADX(shift); }
+   bool   Scanner_Check_ATR(int bias, int shift) { return Check_ATR(bias, shift); }
+   bool   Scanner_Check_BB(int bias, int shift)  { return Check_BB(bias, shift); }
+   bool   Scanner_Check_CandleBody(int bias, int shift) { return Check_CandleBody(bias, shift); }
+   bool   Scanner_Check_CCI(int bias, int shift) { return Check_CCI(bias, shift); }
+   bool   Scanner_Check_VPRR(int shift)          { return Check_VPRR(shift); }
+   bool   Scanner_Check_CI(int bias, int shift)  { return Check_CI(bias, shift); }
+   bool   Scanner_Check_MACD(int bias, int shift){ return Check_MACD(bias, shift); }
+   bool   Scanner_Check_MFI(int bias, int shift) { return Check_MFI(bias, shift); }
+   bool   Scanner_Check_RSI(int bias, int shift) { return Check_RSI(bias, shift); }
+   bool   Scanner_Check_Sto(int bias, int shift) { return Check_Sto(bias, shift); }
+   bool   Scanner_Check_P123(int bias, int shift){ return Check_P123(bias, shift); }
+   bool   Scanner_Check_Ross(int bias, int shift){ return Check_Ross(bias, shift); }
+   bool   Scanner_Check_VRC(int bias, int shift) { return Check_VRC(bias, shift); }
+   bool   Scanner_Check_SmaConv(int shift)       { return Check_SmaConverge(shift); }
+   bool   Scanner_Check_Fib(int bias, int shift) { return Check_Fib(bias, shift); }
+   // ─────────────────────────────────────────────────────────────────
    string            GetTSStatusString() const { return m_ts_status_str; }
    string            GetTEStatusString() const { return m_te_status_str; }
    void              SetTEStatusString(string status)  { m_te_status_str = status; }
@@ -3992,7 +4022,7 @@ public:
    void WarmUpLayerPullbackStates()
    {
       int lookback   = m_settings.LayerBaselineLookback;
-      int scan_depth = lookback + 60;   // baseline + room for one full cycle
+      int scan_depth = lookback + 61;   // baseline needs shift+lookback+1, +60 for full cycle
       int bars_total = iBars(m_symbol, PERIOD_CURRENT);
       if(bars_total < scan_depth + 2) scan_depth = bars_total - 2;
       if(scan_depth <= 0) return;
