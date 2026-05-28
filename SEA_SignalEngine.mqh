@@ -2919,11 +2919,16 @@ public:
    // indicator without changing the engine's internal structure.
    void   Scanner_UpdateLayerPullback(int shift) { UpdateLayerPullbackStates(shift); }
    void   Scanner_UpdatePSARFlip(int shift)      { if(m_settings.Ind_Psar_Enabled) UpdatePSARFlipTracking(shift); }
-   // Reset all RECOVERED layers to NONE after a signal fires.
-   // Strongest-priority layer already fired; consuming all RECOVERED states
-   // prevents the same cluster re-firing on the next bar while still allowing
-   // each layer to independently start a fresh pullback-recovery cycle.
-   void   Scanner_ResetLayersAfterFire()
+   // Reset only the fired layer to NONE — other layers keep their independent states.
+   void   Scanner_ResetLayerAfterFire(int layer)
+   {
+      if(layer == 3) m_layer_s_pb_state = LAYER_PB_NONE;
+      else if(layer == 2) m_layer_m_pb_state = LAYER_PB_NONE;
+      else if(layer == 1) m_layer_w_pb_state = LAYER_PB_NONE;
+   }
+   // Expire RECOVERED states when bias is absent — prevents stale state firing on bias return.
+   // Preserves DETECTED so an in-progress pullback keeps tracking through brief bias gaps.
+   void   Scanner_ExpireRecovered()
    {
       if(m_layer_s_pb_state == LAYER_PB_RECOVERED) m_layer_s_pb_state = LAYER_PB_NONE;
       if(m_layer_m_pb_state == LAYER_PB_RECOVERED) m_layer_m_pb_state = LAYER_PB_NONE;

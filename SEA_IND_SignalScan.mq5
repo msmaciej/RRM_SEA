@@ -231,6 +231,7 @@ input double   PSAR_Max             = 0.5;         // Maximum acceleration
 input int      PSAR_FlipBars        = 5;           // Bars after flip still valid (-1=always)
 input group "--- Pullback-Recovery ---"
 input int      PB_Lookback          = 21;          // Lookback bars for baseline
+input int      PB_MinBars           = 2;           // Min consecutive DETECTED bars before recovery valid
 input group "--- RSI---"
 input int      RSI_Period           = 14;          // RSI period
 input double   RSI_OB               = 70.0;        // Overbought level
@@ -277,6 +278,13 @@ int            g_sig_long_w  = 0;
 int            g_sig_short_s = 0;
 int            g_sig_short_m = 0;
 int            g_sig_short_w = 0;
+
+// ── Per-layer min-bars tracking (consecutive DETECTED bars) ───────
+int g_det_s_long=0, g_det_m_long=0, g_det_w_long=0;
+int g_det_s_short=0, g_det_m_short=0, g_det_w_short=0;
+// Peak DETECTED bar count just before each layer transitioned to RECOVERED
+int g_peak_s_long=0, g_peak_m_long=0, g_peak_w_long=0;
+int g_peak_s_short=0, g_peak_m_short=0, g_peak_w_short=0;
 
 double g_buf_ema1[];
 double g_buf_ema2[];
@@ -462,6 +470,10 @@ int OnCalculate(const int rates_total,
       g_sig_long = 0; g_sig_short = 0;
       g_sig_long_s = 0; g_sig_long_m = 0; g_sig_long_w = 0;
       g_sig_short_s = 0; g_sig_short_m = 0; g_sig_short_w = 0;
+      g_det_s_long=0; g_det_m_long=0; g_det_w_long=0;
+      g_det_s_short=0; g_det_m_short=0; g_det_w_short=0;
+      g_peak_s_long=0; g_peak_m_long=0; g_peak_w_long=0;
+      g_peak_s_short=0; g_peak_m_short=0; g_peak_w_short=0;
 
       // Determine scan range from DateFrom/DateTo or BarsBack
       int shift_from = 1;
@@ -537,15 +549,67 @@ void ScanBar(int shift)
 
    // PSAR flip tracking must run on every bar (both engines) so the
    // flip history accumulates correctly when scanning oldest→newest.
-   // Only runs when PSAR is enabled in settings (guard is inside wrapper).
    if(TS_PSAR || TS_PSAR_Flip)
    {
       g_eng_long.Scanner_UpdatePSARFlip(shift);
       g_eng_short.Scanner_UpdatePSARFlip(shift);
    }
 
+   // Layer pullback state must update every bar for both engines regardless of bias,
+   // so DETECTED/RECOVERED transitions are not missed during pullback bars
+   // where EMA2 briefly crosses below EMA3 (causing doL=false temporarily).
+   if(TS_LayerS || TS_LayerM || TS_LayerW)
+   {
+      g_eng_long.Scanner_UpdateLayerPullback(shift);
+      g_eng_short.Scanner_UpdateLayerPullback(shift);
+
+      // Track consecutive DETECTED bars per layer per engine for PB_MinBars enforcement
+      // When state transitions DETECTED→RECOVERED, save peak count before it resets to 0
+      int prev_det_s_long  = g_det_s_long;
+      int prev_det_m_long  = g_det_m_long;
+      int prev_det_w_long  = g_det_w_long;
+      int prev_det_s_short = g_det_s_short;
+      int prev_det_m_short = g_det_m_short;
+      int prev_det_w_short = g_det_w_short;
+
+      g_det_s_long  = (g_eng_long.GetLayerSPullbackState() ==LAYER_PB_DETECTED) ? g_det_s_long+1  : 0;
+      g_det_m_long  = (g_eng_long.GetLayerMPullbackState() ==LAYER_PB_DETECTED) ? g_det_m_long+1  : 0;
+      g_det_w_long  = (g_eng_long.GetLayerWPullbackState() ==LAYER_PB_DETECTED) ? g_det_w_long+1  : 0;
+      g_det_s_short = (g_eng_short.GetLayerSPullbackState()==LAYER_PB_DETECTED) ? g_det_s_short+1 : 0;
+      g_det_m_short = (g_eng_short.GetLayerMPullbackState()==LAYER_PB_DETECTED) ? g_det_m_short+1 : 0;
+      g_det_w_short = (g_eng_short.GetLayerWPullbackState()==LAYER_PB_DETECTED) ? g_det_w_short+1 : 0;
+
+      // Save peak when transitioning to RECOVERED (det just became 0 after being >0)
+      if(g_eng_long.GetLayerSPullbackState() ==LAYER_PB_RECOVERED && prev_det_s_long  > 0) g_peak_s_long  = prev_det_s_long;
+      if(g_eng_long.GetLayerMPullbackState() ==LAYER_PB_RECOVERED && prev_det_m_long  > 0) g_peak_m_long  = prev_det_m_long;
+      if(g_eng_long.GetLayerWPullbackState() ==LAYER_PB_RECOVERED && prev_det_w_long  > 0) g_peak_w_long  = prev_det_w_long;
+      if(g_eng_short.GetLayerSPullbackState()==LAYER_PB_RECOVERED && prev_det_s_short > 0) g_peak_s_short = prev_det_s_short;
+      if(g_eng_short.GetLayerMPullbackState()==LAYER_PB_RECOVERED && prev_det_m_short > 0) g_peak_m_short = prev_det_m_short;
+      if(g_eng_short.GetLayerWPullbackState()==LAYER_PB_RECOVERED && prev_det_w_short > 0) g_peak_w_short = prev_det_w_short;
+      // Reset peak when layer returns to NONE
+      if(g_eng_long.GetLayerSPullbackState() ==LAYER_PB_NONE) g_peak_s_long  = 0;
+      if(g_eng_long.GetLayerMPullbackState() ==LAYER_PB_NONE) g_peak_m_long  = 0;
+      if(g_eng_long.GetLayerWPullbackState() ==LAYER_PB_NONE) g_peak_w_long  = 0;
+      if(g_eng_short.GetLayerSPullbackState()==LAYER_PB_NONE) g_peak_s_short = 0;
+      if(g_eng_short.GetLayerMPullbackState()==LAYER_PB_NONE) g_peak_m_short = 0;
+      if(g_eng_short.GetLayerWPullbackState()==LAYER_PB_NONE) g_peak_w_short = 0;
+   }
+
    if(doL) Eval(shift, g_eng_long,   1);
    if(doS) Eval(shift, g_eng_short, -1);
+}
+
+int DetGet(int layer, int bias)
+{
+   if(layer==3) return (bias==1) ? g_det_s_long : g_det_s_short;
+   if(layer==2) return (bias==1) ? g_det_m_long : g_det_m_short;
+                return (bias==1) ? g_det_w_long : g_det_w_short;
+}
+int PeakGet(int layer, int bias)
+{
+   if(layer==3) return (bias==1) ? g_peak_s_long : g_peak_s_short;
+   if(layer==2) return (bias==1) ? g_peak_m_long : g_peak_m_short;
+                return (bias==1) ? g_peak_w_long : g_peak_w_short;
 }
 
 //+------------------------------------------------------------------+
@@ -557,7 +621,7 @@ void Eval(int shift, CSignalEngine &eng, int bias)
    bool any_layer = (TS_LayerS || TS_LayerM || TS_LayerW);
    if(any_layer)
    {
-      eng.Scanner_UpdateLayerPullback(shift);
+      // State already updated in ScanBar — just evaluate current state
 
       // Per-layer recovery — each layer is independent, resets only after it fires
       // No external expiry needed: state machine handles RECOVERED→DETECTED on new pullback,
@@ -574,25 +638,19 @@ void Eval(int shift, CSignalEngine &eng, int bias)
       if(!fired_layer && TS_LayerS && eng.GetLayerSPullbackState()==LAYER_PB_RECOVERED)
       {
          double e3=EMAv(EMA3,shift), e4=EMAv(EMA4,shift);
-         // LayerS: require only EMA3>EMA4 (own layer pair). Higher layers may be
-         // pulling back — that's the definition of a LayerS pullback.
          bool stack_ok = (bias==1) ? (e3>e4) : (e3<e4);
-         if(stack_ok){fired_layer=3;fema=e3;}
+         if(stack_ok && PeakGet(3,bias) >= PB_MinBars){fired_layer=3;fema=e3;}
       }
       if(!fired_layer && TS_LayerM && eng.GetLayerMPullbackState()==LAYER_PB_RECOVERED)
       {
          double e2=EMAv(EMA2,shift), e3=EMAv(EMA3,shift);
-         // LayerM: require EMA2>EMA3 (own layer pair intact). EMA1 position not required
-         // since a LayerM pullback may involve EMA2 approaching EMA3 with EMA1 below EMA2.
          bool stack_ok = (bias==1) ? (e2>e3) : (e2<e3);
-         if(stack_ok){fired_layer=2;fema=e2;}
+         if(stack_ok && PeakGet(2,bias) >= PB_MinBars){fired_layer=2;fema=e2;}
       }
       if(!fired_layer && TS_LayerW && eng.GetLayerWPullbackState()==LAYER_PB_RECOVERED)
       {
-         double e1=EMAv(EMA1,shift), e2=EMAv(EMA2,shift);
-         // LayerW: no stack check — EMA1 crossing EMA2 is a valid pullback for this layer.
-         // Bias (EMA2>EMA3>EMA4) already confirmed by ScanBar. BC/BD checks below guard entry quality.
-         fired_layer=1; fema=e1;
+         double e1=EMAv(EMA1,shift);
+         if(PeakGet(1,bias) >= PB_MinBars){fired_layer=1;fema=e1;}
       }
       if(!fired_layer) return;
 
