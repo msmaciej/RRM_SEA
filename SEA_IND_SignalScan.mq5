@@ -278,7 +278,6 @@ int            g_sig_short_s = 0;
 int            g_sig_short_m = 0;
 int            g_sig_short_w = 0;
 
-// ── Overlay buffers (EMA1..4 + PSAR up/down) ───────────────────────
 double g_buf_ema1[];
 double g_buf_ema2[];
 double g_buf_ema3[];
@@ -559,24 +558,41 @@ void Eval(int shift, CSignalEngine &eng, int bias)
    if(any_layer)
    {
       eng.Scanner_UpdateLayerPullback(shift);
-      int    fired_layer = 0;  // 3=S  2=M  1=W
+
+      // Per-layer recovery — each layer is independent, resets only after it fires
+      // No external expiry needed: state machine handles RECOVERED→DETECTED on new pullback,
+      // and EMA stack check below prevents stale RECOVERED from firing in wrong market state.
+
+      // Priority: S (strongest) → M → W; each independent
+      // Each layer also requires the full EMA stack to be intact in bias direction:
+      // LayerS: EMA3>EMA4 AND EMA2>EMA3 AND EMA1>EMA2 (all four ordered)
+      // LayerM: EMA2>EMA3 AND EMA1>EMA2 (top two layers intact)
+      // LayerW: EMA1>EMA2 (only own pair)
+      int    fired_layer = 0;
       double fema        = 0.0;
 
-      // Priority: S first (strongest/deepest), then M, then W
       if(!fired_layer && TS_LayerS && eng.GetLayerSPullbackState()==LAYER_PB_RECOVERED)
       {
-         double f=EMAv(EMA3,shift), sl=EMAv(EMA4,shift);
-         if((bias==1&&f>sl)||(bias==-1&&f<sl)){fired_layer=3;fema=f;}
+         double e3=EMAv(EMA3,shift), e4=EMAv(EMA4,shift);
+         // LayerS: require only EMA3>EMA4 (own layer pair). Higher layers may be
+         // pulling back — that's the definition of a LayerS pullback.
+         bool stack_ok = (bias==1) ? (e3>e4) : (e3<e4);
+         if(stack_ok){fired_layer=3;fema=e3;}
       }
       if(!fired_layer && TS_LayerM && eng.GetLayerMPullbackState()==LAYER_PB_RECOVERED)
       {
-         double f=EMAv(EMA2,shift), sl=EMAv(EMA3,shift);
-         if((bias==1&&f>sl)||(bias==-1&&f<sl)){fired_layer=2;fema=f;}
+         double e2=EMAv(EMA2,shift), e3=EMAv(EMA3,shift);
+         // LayerM: require EMA2>EMA3 (own layer pair intact). EMA1 position not required
+         // since a LayerM pullback may involve EMA2 approaching EMA3 with EMA1 below EMA2.
+         bool stack_ok = (bias==1) ? (e2>e3) : (e2<e3);
+         if(stack_ok){fired_layer=2;fema=e2;}
       }
       if(!fired_layer && TS_LayerW && eng.GetLayerWPullbackState()==LAYER_PB_RECOVERED)
       {
-         double f=EMAv(EMA1,shift), sl=EMAv(EMA2,shift);
-         if((bias==1&&f>sl)||(bias==-1&&f<sl)){fired_layer=1;fema=f;}
+         double e1=EMAv(EMA1,shift), e2=EMAv(EMA2,shift);
+         // LayerW: no stack check — EMA1 crossing EMA2 is a valid pullback for this layer.
+         // Bias (EMA2>EMA3>EMA4) already confirmed by ScanBar. BC/BD checks below guard entry quality.
+         fired_layer=1; fema=e1;
       }
       if(!fired_layer) return;
 
@@ -586,12 +602,6 @@ void Eval(int shift, CSignalEngine &eng, int bias)
       if(bias==-1&&cl>=fema) return;
       if(bias== 1&&cl<=op)   return;
       if(bias==-1&&cl>=op)   return;
-
-      // Pass remaining indicator checks, then draw with layer color
-      // (continue below — layer stored, checked after all other indicators)
-      // Store fired_layer in a way the rest of Eval can use it at PutLine
-      // We do this by falling through and calling PutLine with layer at the end.
-      // So we restructure: run other indicators, then draw.
 
       // ── DPI ──────────────────────────────────────────────────────
       if(TS_DPI)
@@ -651,11 +661,9 @@ void Eval(int shift, CSignalEngine &eng, int bias)
       if(TS_CI)
          if(!eng.Scanner_Check_CI(bias, shift)) return;
 
-      // ── All passed → draw with layer-specific color ───────────────
+      // ── All passed → draw; reset only the fired layer ────────────
       PutLine(iTime(_Symbol, PERIOD_CURRENT, shift), bias, fired_layer);
-      // Reset all RECOVERED states so the same cluster doesn't re-fire
-      // on the next bar. Each layer restarts its own pullback-recovery cycle.
-      eng.Scanner_ResetLayersAfterFire();
+      eng.Scanner_ResetLayerAfterFire(fired_layer);
       return;
    }
 
