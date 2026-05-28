@@ -144,95 +144,95 @@ input EScanBias MarketBias       = SBIAS_4EMA_TM;     // Bias mode
 //+------------------------------------------------------------------+
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "--- STEP4: TS Components  [true=ON  false=OFF  all ON must pass] ---";
+input group "--- STEP4: TS Equation Components  [true=ON  false=OFF  all ON must pass] ---";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input bool TS_ADX                = false;  // [I] ADX trend strength
-input bool TS_ATR                = false;  // [I] ATR volatility range
-input bool TS_BollingerBands     = false;  // [I] Bollinger Bands
-input bool TS_CandleBody         = false;  // [I] CandleBody direction
-input bool TS_CCI                = false;  // [I] CCI direction
-input bool TS_CI                 = false;  // [I] Choppiness Index
-input bool TS_DPI                = false;  // [I] DPI momentum
-input bool TS_MACD               = false;  // [I] MACD histogram
-input bool TS_MFI                = false;  // [I] MFI money flow
-input bool TS_MTF                = false;  // [I] MTF higher TF alignment
-input bool TS_PSAR               = false;  // [I] PSAR dot position
-input bool TS_PSAR_Flip          = false;  // [I] PSAR + flip window
-input bool TS_Pullback_Recovery  = true;   // [L] Pullback-Recovery layer
-input bool TS_RSI                = false;  // [I] RSI level
-input bool TS_Stochastic         = false;  // [I] Stochastic level
-input bool TS_VPRR               = false;  // [I] VPRR volume (metals/stocks; FX=unreliable)
+input bool     TS_ADX                = false;      // [I] ADX trend strength
+input bool     TS_ATR                = false;      // [I] ATR volatility range
+input bool     TS_BollingerBands     = false;      // [I] Bollinger Bands
+input bool     TS_CandleBody         = false;      // [I] CandleBody direction
+input bool     TS_CCI                = false;      // [I] CCI direction
+input bool     TS_CI                 = false;      // [I] Choppiness Index
+input bool     TS_DPI                = false;      // [I] DPI momentum
+input bool     TS_MACD               = false;      // [I] MACD histogram
+input bool     TS_MFI                = false;      // [I] MFI money flow
+input bool     TS_MTF                = false;      // [I] MTF higher TF alignment
+input bool     TS_PSAR               = false;      // [I] PSAR dot position
+input bool     TS_PSAR_Flip          = false;      // [I] PSAR + flip window
+input bool     TS_Pullback_Recovery  = true;       // [L] Pullback-Recovery layer
+input bool     TS_RSI                = false;      // [I] RSI level
+input bool     TS_Stochastic         = false;      // [I] Stochastic level
+input bool     TS_VPRR               = false;      // [I] VPRR volume (metals/stocks; FX=unreliable)
 
 //+------------------------------------------------------------------+
-//| STEP 5 — Indicators - Component Parameters                                    |
+//| STEP 5 — Indicators - Component Parameters                       |
 //| Only edit a section if the matching component is ON above.       |
 //+------------------------------------------------------------------+
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "--- STEP5: Indicators ";
+input group "--- STEP5: Indicators - TS Equation";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "--- ADX (TS_ADX = true) ---"
-input int    ADX_Period  = 14;    // ADX period
-input double ADX_MinLevel= 25.0;  // Min ADX level
-input group "--- ATR (TS_ATR = true) ---"
-input int    ATR_Period  = 14;    // ATR period
-input double ATR_MinPips = 5.0;   // Min volatility pips
-input double ATR_MaxPips = 100.0; // Max volatility pips
-input group "--- Bollinger Bands (TS_BollingerBands = true) ---"
-input int    BB_Period   = 20;    // BB period
-input double BB_Dev      = 2.0;   // Standard deviations
-input group "--- CandleBody (TS_CandleBody = true) ---"
-input int    CB_AvgPeriod = 5;    // Avg body period
-input int    CB_CheckBars = 3;    // Spike check bars
-input double CB_MaxMult   = 4.0;  // Max body multiplier
-input group "--- CCI (TS_CCI = true) ---"
-input int    CCI_Period  = 20;    // CCI period
-input double CCI_Level   = 0.0;   // CCI threshold
-input group "--- Choppiness Index (TS_CI = true) ---"
-input int    CI_Period   = 14;    // CI period
-input group "--- DPI (TS_DPI = true) ---"
-input int  DPI_Fast    = 8;    // MACD fast EMA period
-input int  DPI_Slow    = 13;   // MACD slow EMA period
-input int  DPI_Signal  = 13;   // Signal/red EMA period
-input bool DPI_CCI     = false; // Also require CCI
-input int  DPI_CCI_Per = 13;   // CCI period
-input group "--- MACD (TS_MACD = true) ---"
-input int    MACD_Fast   = 12;    // MACD fast EMA
-input int    MACD_Slow   = 26;    // MACD slow EMA
-input int    MACD_Signal = 9;     // MACD signal line
-input group "--- MFI (TS_MFI = true) ---"
-input int    MFI_Period  = 14;    // MFI period
-input double MFI_Level   = 50.0;  // MFI threshold
-input group "--- MTF (TS_MTF = true) ---"
-input ENUM_TIMEFRAMES MTF_TF  = PERIOD_H1;  // Higher timeframe
-input int             MTF_EMA = 34;          // EMA period
-input group "--- PSAR (TS_PSAR or TS_PSAR_Flip = true) ---"
-input double PSAR_Step     = 0.02;  // Acceleration step
-input double PSAR_Max      = 0.2;   // Maximum acceleration
-input int    PSAR_FlipBars = 5;     // Bars after flip still valid (-1=always)
-input group "--- Pullback-Recovery (TS_Pullback_Recovery = true) ---"
-input int  PB_Lookback = 10;  // Lookback bars for baseline
-input group "--- RSI (TS_RSI = true) ---"
-input int    RSI_Period  = 14;    // RSI period
-input double RSI_OB      = 70.0;  // Overbought level
-input double RSI_OS      = 30.0;  // Oversold level
-input group "--- Stochastic (TS_Stochastic = true) ---"
-input int    Sto_K       = 5;     // %K period
-input int    Sto_D       = 3;     // %D period
-input int    Sto_Slow    = 3;     // Slowing period
-input double Sto_OB      = 80.0;  // Overbought level
-input double Sto_OS      = 20.0;  // Oversold level
-input group "--- VPRR (TS_VPRR = true) --- real volume = metals/stocks/indices; FX = tick only, unreliable ---"
-input double VPRR_MinRatio    = 1.0;  // Min recovery/pullback ratio
-input int    VPRR_RecovBars   = 3;    // Recovery bars to measure
+input group "--- ADX  ---"
+input int      ADX_Period           = 14;          // ADX period
+input double   ADX_MinLevel         = 20.0;        // Min ADX level
+input group "--- ATR ---"
+input int      ATR_Period           = 14;          // ATR period
+input double   ATR_MinPips          = 5.0;         // Min volatility pips
+input double   ATR_MaxPips          = 50.0;        // Max volatility pips
+input group "--- Bollinger Bands ---"
+input int      BB_Period            = 20;          // BB period
+input double   BB_Dev               = 2.0;         // Standard deviations
+input group "--- CandleBody ---"
+input int      CB_AvgPeriod         = 5;           // Avg body period
+input int      CB_CheckBars         = 3;           // Spike check bars
+input double   CB_MaxMult           = 4.0;         // Max body multiplier
+input group "--- CCI ---"
+input int      CCI_Period           = 20;          // CCI period
+input double   CCI_Level            = 0.0;         // CCI threshold
+input group "--- Choppiness Index ---"
+input int      CI_Period            = 14;          // CI period
+input group "--- DPI ---"
+input int      DPI_Fast             = 8;           // MACD fast EMA period
+input int      DPI_Slow             = 13;          // MACD slow EMA period
+input int      DPI_Signal           = 13;          // Signal/red EMA period
+input bool     DPI_CCI              = true;        // Also require CCI
+input int      DPI_CCI_Per          = 13;          // CCI period
+input group "--- MACD ---"
+input int      MACD_Fast            = 8;           // MACD fast EMA
+input int      MACD_Slow            = 13;          // MACD slow EMA
+input int      MACD_Signal          = 5;           // MACD signal line
+input group "--- MFI ---"
+input int      MFI_Period           = 14;          // MFI period
+input double   MFI_Level            = 50.0;        // MFI threshold
+input group "--- MTF ---"
+input ENUM_TIMEFRAMES MTF_TF  = PERIOD_H1;         // Higher timeframe
+input int      MTF_EMA              = 34;          // EMA period
+input group "--- PSAR ---"
+input double   PSAR_Step            = 0.05;        // Acceleration step
+input double   PSAR_Max             = 0.5;         // Maximum acceleration
+input int      PSAR_FlipBars        = 5;           // Bars after flip still valid (-1=always)
+input group "--- Pullback-Recovery ---"
+input int      PB_Lookback          = 21;          // Lookback bars for baseline
+input group "--- RSI---"
+input int      RSI_Period           = 14;          // RSI period
+input double   RSI_OB               = 70.0;        // Overbought level
+input double   RSI_OS               = 30.0;        // Oversold level
+input group "--- Stochastic ---"
+input int      Sto_K                = 5;           // %K period
+input int      Sto_D                = 3;           // %D period
+input int      Sto_Slow             = 3;           // Slowing period
+input double   Sto_OB               = 80.0;        // Overbought level
+input double   Sto_OS               = 20.0;        // Oversold level
+input group "--- VPRR --- real volume = metals/stocks/indices; FX = tick only, unreliable ---"
+input double   VPRR_MinRatio        = 1.0;         // Min recovery/pullback ratio
+input int      VPRR_RecovBars       = 3;           // Recovery bars to measure
 
 
 //+------------------------------------------------------------------+
 //| STEP 6 — Time Window                                             |
-//| Limit signal lines to a specific date/time range.               |
-//| Leave DateFrom = 0 to scan from BarsBack bars ago.              |
-//| Leave DateTo   = 0 to scan up to the current bar.               |
-//| Example: DateFrom = 2026.05.21 10:00  DateTo = 2026.05.21 21:00 |
+//| Limit signal lines to a specific date/time range.                |
+//| Leave DateFrom = 0 to scan from BarsBack bars ago.               |
+//| Leave DateTo   = 0 to scan up to the current bar.                |
+//| Example: DateFrom = 2026.05.21 10:00  DateTo = 2026.05.21 21:00  |
 //+------------------------------------------------------------------+
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
