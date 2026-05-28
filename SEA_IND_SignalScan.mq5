@@ -72,153 +72,30 @@ enum EScanBias
    SBIAS_BOTH       = 6,  // Manual: test LONG and SHORT on every bar
 };
 
-//+------------------------------------------------------------------+
-//| STEP 1 — Pair and Timeframe                                      |
-//| Set these by opening the chart you want to test on.             |
-//| The scanner automatically uses that chart's symbol and TF.      |
-//+------------------------------------------------------------------+
-// (no inputs needed — comes from the chart itself)
 
 //+------------------------------------------------------------------+
-//| STEP 2 — EMA Ribbon Periods                                      |
+//| STEP 0 — Panel & Signals Display
 //+------------------------------------------------------------------+
-input group "--- EMA Ribbon  [RRM_ORG default: 5 / 13 / 34 / 89] ---"
-input int  EMA1 = 5;   // EMA1 fastest (LayerW fast EMA)
-input int  EMA2 = 13;  // EMA2 (LayerM fast EMA)
-input int  EMA3 = 34;  // EMA3 (LayerS fast EMA)
-input int  EMA4 = 89;  // EMA4 slowest
-
-//+------------------------------------------------------------------+
-//| STEP 3 — Bias / Direction                                        |
-//+------------------------------------------------------------------+
-input group "--- Market BIAS ---"
-input EScanBias MarketBias = SBIAS_4EMA_TM;  // Bias mode
-
-//+------------------------------------------------------------------+
-//| STEP 4 — Components ON/OFF                                       |
-//| Turn ON each component to include it in the signal.             |
-//| A line appears ONLY when ALL enabled components pass together.   |
-//+------------------------------------------------------------------+
-input group "--- TS Components  [true=ON  false=OFF  all ON must pass] ---"
-input bool TS_Pullback_Recovery = true;   // [L] Pullback-Recovery layer
-input bool TS_DPI                = false;  // [I] DPI momentum
-input bool TS_PSAR               = false;  // [I] PSAR dot position
-input bool TS_PSAR_Flip          = false;  // [I] PSAR + flip window
-input bool TS_MTF                = false;  // [I] MTF higher TF alignment
-input bool TS_CandleBody         = false;  // [I] CandleBody direction
-input bool TS_ADX                = false;  // [I] ADX trend strength
-input bool TS_RSI                = false;  // [I] RSI level
-input bool TS_CCI                = false;  // [I] CCI direction
-input bool TS_MACD               = false;  // [I] MACD histogram
-input bool TS_Stochastic         = false;  // [I] Stochastic level
-input bool TS_BollingerBands     = false;  // [I] Bollinger Bands
-input bool TS_MFI                = false;  // [I] MFI money flow
-input bool TS_ATR                = false;  // [I] ATR volatility range
-input bool TS_VPRR               = false;  // [I] VPRR volume (metals/stocks; FX=unreliable)
-input bool TS_CI                 = false;  // [I] Choppiness Index
-
-//+------------------------------------------------------------------+
-//| STEP 5 — Component Parameters                                    |
-//| Only edit a section if the matching component is ON above.       |
-//+------------------------------------------------------------------+
-
-input group "--- Pullback-Recovery parameters (TS_Pullback_Recovery = true) ---"
-input int  PB_Lookback = 10;  // Lookback bars for baseline
-
-input group "--- DPI parameters (TS_DPI = true) ---"
-input int  DPI_Fast    = 8;    // MACD fast EMA period
-input int  DPI_Slow    = 13;   // MACD slow EMA period
-input int  DPI_Signal  = 13;   // Signal/red EMA period
-input bool DPI_CCI     = false; // Also require CCI
-input int  DPI_CCI_Per = 13;   // CCI period
-
-input group "--- PSAR parameters (TS_PSAR or TS_PSAR_Flip = true) ---"
-input double PSAR_Step     = 0.02;  // Acceleration step
-input double PSAR_Max      = 0.2;   // Maximum acceleration
-input int    PSAR_FlipBars = 5;     // Bars after flip still valid (-1=always)
-
-input group "--- MTF parameters (TS_MTF = true) ---"
-input ENUM_TIMEFRAMES MTF_TF  = PERIOD_H1;  // Higher timeframe
-input int             MTF_EMA = 34;          // EMA period
-
-input group "--- CandleBody parameters (TS_CandleBody = true) ---"
-input int    CB_AvgPeriod = 5;    // Avg body period
-input int    CB_CheckBars = 3;    // Spike check bars
-input double CB_MaxMult   = 4.0;  // Max body multiplier
-
-input group "--- ADX parameters (TS_ADX = true) ---"
-input int    ADX_Period  = 14;    // ADX period
-input double ADX_MinLevel= 25.0;  // Min ADX level
-
-input group "--- RSI parameters (TS_RSI = true) ---"
-input int    RSI_Period  = 14;    // RSI period
-input double RSI_OB      = 70.0;  // Overbought level
-input double RSI_OS      = 30.0;  // Oversold level
-
-input group "--- CCI parameters (TS_CCI = true) ---"
-input int    CCI_Period  = 20;    // CCI period
-input double CCI_Level   = 0.0;   // CCI threshold
-
-input group "--- MACD parameters (TS_MACD = true) ---"
-input int    MACD_Fast   = 12;    // MACD fast EMA
-input int    MACD_Slow   = 26;    // MACD slow EMA
-input int    MACD_Signal = 9;     // MACD signal line
-
-input group "--- Stochastic parameters (TS_Stochastic = true) ---"
-input int    Sto_K       = 5;     // %K period
-input int    Sto_D       = 3;     // %D period
-input int    Sto_Slow    = 3;     // Slowing period
-input double Sto_OB      = 80.0;  // Overbought level
-input double Sto_OS      = 20.0;  // Oversold level
-
-input group "--- Bollinger Bands parameters (TS_BollingerBands = true) ---"
-input int    BB_Period   = 20;    // BB period
-input double BB_Dev      = 2.0;   // Standard deviations
-
-input group "--- MFI parameters (TS_MFI = true) ---"
-input int    MFI_Period  = 14;    // MFI period
-input double MFI_Level   = 50.0;  // MFI threshold
-
-input group "--- ATR parameters (TS_ATR = true) ---"
-input int    ATR_Period  = 14;    // ATR period
-input double ATR_MinPips = 5.0;   // Min volatility pips
-input double ATR_MaxPips = 100.0; // Max volatility pips
-
-input group "--- VPRR parameters (TS_VPRR = true) --- real volume = metals/stocks/indices; FX = tick only, unreliable ---"
-input double VPRR_MinRatio    = 1.0;  // Min recovery/pullback ratio
-input int    VPRR_RecovBars   = 3;    // Recovery bars to measure
-
-input group "--- Choppiness Index parameters (TS_CI = true) ---"
-input int    CI_Period   = 14;    // CI period
-
-//+------------------------------------------------------------------+
-//| STEP 5 — Time Window                                             |
-//| Limit signal lines to a specific date/time range.               |
-//| Leave DateFrom = 0 to scan from BarsBack bars ago.              |
-//| Leave DateTo   = 0 to scan up to the current bar.               |
-//| Example: DateFrom = 2026.05.21 10:00  DateTo = 2026.05.21 21:00 |
-//+------------------------------------------------------------------+
-input group "--- Time Window  [0 = no limit] ---"
-input datetime DateFrom = 0;   // From date/time (0=use BarsBack)
-input datetime DateTo   = 0;   // To date/time (0=current bar)
-input int      BarsBack = 500; // Bars back (if DateFrom=0)
-
-//+------------------------------------------------------------------+
-//| STEP 6 — Display                                                 |
-//+------------------------------------------------------------------+
-input group "--- Display ---"
-input color           Color_Long  = clrDodgerBlue; // LONG line color
-input color           Color_Short = clrRed;         // SHORT line color
-input ENUM_LINE_STYLE LineStyle   = STYLE_DOT;      // Line style
-input int             LineWidth   = 1;              // Line width
-
-input group "--- Panel position & style ---"
-input int                Scn_PanelX      = 10;             // Panel X px from corner
-input int                Scn_PanelY      = 200;            // Panel Y px (200 = below EA cockpit)
-input ENUM_BASE_CORNER   Scn_PanelCorner = CORNER_LEFT_UPPER; // Panel corner
-input string             Scn_Font        = "Arial";        // Panel font
-input int                Scn_FontSize    = 10;             // Panel font size
-input int                Scn_LineSpacing = 14;             // Panel line spacing px
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "--- STEP0: Panel ---";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input ENUM_BASE_CORNER   Scn_PanelCorner = CORNER_LEFT_UPPER;  // Panel corner
+input int         Scn_PanelX           = 30;                   // Panel X px from corner
+input int         Scn_PanelY           = 30;                   // Panel Y px (30=top; set ~300 if EA cockpit is also on chart)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "--- Panel Fonts ---";
+input group "╚════════════════════════════════════════════════════════╝";
+input string      Scn_Font             = "Arial";              // Panel font
+input int         Scn_FontSize         = 10;                   // Panel font size
+input int         Scn_LineSpacing      = 28;                   // Panel line spacing px
+input group "╔════════════════════════════════════════════════════════╗";
+input group "--- TS Signals ---";
+input group "╚════════════════════════════════════════════════════════╝";
+input ENUM_LINE_STYLE LineStyle        = STYLE_DOT;            // Line style
+input int         LineWidth            = 1;                    // Line width
+input color       Color_Long           = clrDodgerBlue;        // LONG line color
+input color       Color_Short          = clrRed;               // SHORT line color
 
 #define SCN_PANEL_FONT      Scn_Font
 #define SCN_PANEL_FONTSIZE  Scn_FontSize
@@ -226,6 +103,145 @@ input int                Scn_LineSpacing = 14;             // Panel line spacing
 #define SCN_PANEL_X         Scn_PanelX
 #define SCN_PANEL_Y         Scn_PanelY
 #define SCN_PANEL_CORNER    Scn_PanelCorner
+
+
+//+------------------------------------------------------------------+
+//| STEP 1 — Pair and Timeframe                                      |
+//| Set these by opening the chart you want to test on.              |
+//| The scanner automatically uses that chart's symbol and TF.       |
+//+------------------------------------------------------------------+
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "--- STEP1: Pair And TimeFrame ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group " No inputs needed - comes from the chart";
+
+//+------------------------------------------------------------------+
+//| STEP 2 — EMA Ribbon Periods                                      |
+//+------------------------------------------------------------------+
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "--- STEP2: EMA Ribbon  [RRM_ORG default: 5 / 13 / 34 / 89] ---";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input int         EMA1           = 5;         // EMA1 fastest (LayerW fast EMA)
+input int         EMA2           = 13;        // EMA2 (LayerM fast EMA)
+input int         EMA3           = 34;        // EMA3 (LayerS fast EMA)
+input int         EMA4           = 89;        // EMA4 slowest
+
+//+------------------------------------------------------------------+
+//| STEP 3 — Bias / Direction                                        |
+//+------------------------------------------------------------------+
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "--- STEP3: Market BIAS ---";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input EScanBias MarketBias       = SBIAS_4EMA_TM;     // Bias mode
+
+//+------------------------------------------------------------------+
+//| STEP 4 — Components ON/OFF                                       |
+//| Turn ON each component to include it in the signal.              |
+//| A line appears ONLY when ALL enabled components pass together.   |
+//+------------------------------------------------------------------+
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "--- STEP4: TS Components  [true=ON  false=OFF  all ON must pass] ---";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input bool TS_ADX                = false;  // [I] ADX trend strength
+input bool TS_ATR                = false;  // [I] ATR volatility range
+input bool TS_BollingerBands     = false;  // [I] Bollinger Bands
+input bool TS_CandleBody         = false;  // [I] CandleBody direction
+input bool TS_CCI                = false;  // [I] CCI direction
+input bool TS_CI                 = false;  // [I] Choppiness Index
+input bool TS_DPI                = false;  // [I] DPI momentum
+input bool TS_MACD               = false;  // [I] MACD histogram
+input bool TS_MFI                = false;  // [I] MFI money flow
+input bool TS_MTF                = false;  // [I] MTF higher TF alignment
+input bool TS_PSAR               = false;  // [I] PSAR dot position
+input bool TS_PSAR_Flip          = false;  // [I] PSAR + flip window
+input bool TS_Pullback_Recovery  = true;   // [L] Pullback-Recovery layer
+input bool TS_RSI                = false;  // [I] RSI level
+input bool TS_Stochastic         = false;  // [I] Stochastic level
+input bool TS_VPRR               = false;  // [I] VPRR volume (metals/stocks; FX=unreliable)
+
+//+------------------------------------------------------------------+
+//| STEP 5 — Indicators - Component Parameters                                    |
+//| Only edit a section if the matching component is ON above.       |
+//+------------------------------------------------------------------+
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "--- STEP5: Indicators ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "--- ADX (TS_ADX = true) ---"
+input int    ADX_Period  = 14;    // ADX period
+input double ADX_MinLevel= 25.0;  // Min ADX level
+input group "--- ATR (TS_ATR = true) ---"
+input int    ATR_Period  = 14;    // ATR period
+input double ATR_MinPips = 5.0;   // Min volatility pips
+input double ATR_MaxPips = 100.0; // Max volatility pips
+input group "--- Bollinger Bands (TS_BollingerBands = true) ---"
+input int    BB_Period   = 20;    // BB period
+input double BB_Dev      = 2.0;   // Standard deviations
+input group "--- CandleBody (TS_CandleBody = true) ---"
+input int    CB_AvgPeriod = 5;    // Avg body period
+input int    CB_CheckBars = 3;    // Spike check bars
+input double CB_MaxMult   = 4.0;  // Max body multiplier
+input group "--- CCI (TS_CCI = true) ---"
+input int    CCI_Period  = 20;    // CCI period
+input double CCI_Level   = 0.0;   // CCI threshold
+input group "--- Choppiness Index (TS_CI = true) ---"
+input int    CI_Period   = 14;    // CI period
+input group "--- DPI (TS_DPI = true) ---"
+input int  DPI_Fast    = 8;    // MACD fast EMA period
+input int  DPI_Slow    = 13;   // MACD slow EMA period
+input int  DPI_Signal  = 13;   // Signal/red EMA period
+input bool DPI_CCI     = false; // Also require CCI
+input int  DPI_CCI_Per = 13;   // CCI period
+input group "--- MACD (TS_MACD = true) ---"
+input int    MACD_Fast   = 12;    // MACD fast EMA
+input int    MACD_Slow   = 26;    // MACD slow EMA
+input int    MACD_Signal = 9;     // MACD signal line
+input group "--- MFI (TS_MFI = true) ---"
+input int    MFI_Period  = 14;    // MFI period
+input double MFI_Level   = 50.0;  // MFI threshold
+input group "--- MTF (TS_MTF = true) ---"
+input ENUM_TIMEFRAMES MTF_TF  = PERIOD_H1;  // Higher timeframe
+input int             MTF_EMA = 34;          // EMA period
+input group "--- PSAR (TS_PSAR or TS_PSAR_Flip = true) ---"
+input double PSAR_Step     = 0.02;  // Acceleration step
+input double PSAR_Max      = 0.2;   // Maximum acceleration
+input int    PSAR_FlipBars = 5;     // Bars after flip still valid (-1=always)
+input group "--- Pullback-Recovery (TS_Pullback_Recovery = true) ---"
+input int  PB_Lookback = 10;  // Lookback bars for baseline
+input group "--- RSI (TS_RSI = true) ---"
+input int    RSI_Period  = 14;    // RSI period
+input double RSI_OB      = 70.0;  // Overbought level
+input double RSI_OS      = 30.0;  // Oversold level
+input group "--- Stochastic (TS_Stochastic = true) ---"
+input int    Sto_K       = 5;     // %K period
+input int    Sto_D       = 3;     // %D period
+input int    Sto_Slow    = 3;     // Slowing period
+input double Sto_OB      = 80.0;  // Overbought level
+input double Sto_OS      = 20.0;  // Oversold level
+input group "--- VPRR (TS_VPRR = true) --- real volume = metals/stocks/indices; FX = tick only, unreliable ---"
+input double VPRR_MinRatio    = 1.0;  // Min recovery/pullback ratio
+input int    VPRR_RecovBars   = 3;    // Recovery bars to measure
+
+
+//+------------------------------------------------------------------+
+//| STEP 6 — Time Window                                             |
+//| Limit signal lines to a specific date/time range.               |
+//| Leave DateFrom = 0 to scan from BarsBack bars ago.              |
+//| Leave DateTo   = 0 to scan up to the current bar.               |
+//| Example: DateFrom = 2026.05.21 10:00  DateTo = 2026.05.21 21:00 |
+//+------------------------------------------------------------------+
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "--- STEP6: Time Window  [0 = no limit] ---"
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input datetime DateFrom = 0;   // From date/time (0=use BarsBack)
+input datetime DateTo   = 0;   // To date/time (0=current bar)
+input int      BarsBack = 500; // Bars back (if DateFrom=0)
+
 
 //+------------------------------------------------------------------+
 //| Globals                                                          |
@@ -632,32 +648,68 @@ void BuildSettings(ST_Settings &s)
 
 
 //+------------------------------------------------------------------+
-//| DrawInfoPanel — clean panel top-left of chart                    |
+//| SCN_RenderPanel — self-contained panel renderer for the IND     |
+//| Mirrors SEA_UI_RenderPanel but uses Scn_* inputs only.          |
+//| No dependency on Inp_UI_* or SEA_Inputs.mqh.                    |
 //+------------------------------------------------------------------+
-// Layout (each row = one OBJ_LABEL, font Courier New for alignment):
-//  ┌─ SEA Signal Scanner ──────────────────┐
-//  │ GBPUSD  M15   Bias: 4EMA TM           │
-//  │ EMA: 5 / 13 / 34 / 89                 │
-//  ├───────────────────────────────────────┤
-//  │ Components active (AND logic):         │
-//  │  Pullback  ON    DPI      ON           │
-//  │  PSAR_Flip ON    MTF      off          │
-//  │  CandleBody off  ADX      off  ...     │
-//  ├───────────────────────────────────────┤
-//  │ LONG signals (blue):  23              │
-//  │ SHORT signals (red):  31              │
-//  └───────────────────────────────────────┘
+#define SCN_PANEL_NAME  "SCN_IND_PANEL"
+#define SCN_MAX_LINES   50
+
+void SCN_RenderPanel(const string txt, const color &clrs[])
+{
+   string lines[];
+   int n = StringSplit(txt, '\n', lines);
+   if(n <= 0) return;
+
+   int  line_h   = (SCN_PANEL_SPACING > 0) ? SCN_PANEL_SPACING
+                                            : MathMax(SCN_PANEL_FONTSIZE + 4, 14);
+   int  pad       = 4;   // px padding — matches Inp_UI_FramePadPx default
+   int  x_base    = SCN_PANEL_X + pad;
+   int  y_base    = SCN_PANEL_Y + pad;
+   string font    = SCN_PANEL_FONT;
+   int   fs       = SCN_PANEL_FONTSIZE;
+
+   bool is_right = (SCN_PANEL_CORNER == CORNER_RIGHT_UPPER || SCN_PANEL_CORNER == CORNER_RIGHT_LOWER);
+   bool is_lower = (SCN_PANEL_CORNER == CORNER_LEFT_LOWER  || SCN_PANEL_CORNER == CORNER_RIGHT_LOWER);
+   ENUM_ANCHOR_POINT anchor =
+        is_right ? (is_lower ? ANCHOR_RIGHT_LOWER : ANCHOR_RIGHT_UPPER)
+                 : (is_lower ? ANCHOR_LEFT_LOWER  : ANCHOR_LEFT_UPPER);
+
+   for(int i = 0; i < SCN_MAX_LINES; i++)
+   {
+      string ln = SCN_PANEL_NAME + StringFormat("_L%02d", i);
+      if(i < n)
+      {
+         if(ObjectFind(0, ln) < 0) ObjectCreate(0, ln, OBJ_LABEL, 0, 0, 0);
+         color clr = (i < ArraySize(clrs)) ? clrs[i] : clrSilver;
+         ObjectSetInteger(0, ln, OBJPROP_CORNER,      (int)SCN_PANEL_CORNER);
+         ObjectSetInteger(0, ln, OBJPROP_ANCHOR,      (int)anchor);
+         ObjectSetInteger(0, ln, OBJPROP_XDISTANCE,   x_base);
+         ObjectSetInteger(0, ln, OBJPROP_YDISTANCE,   y_base + i * line_h);
+         ObjectSetInteger(0, ln, OBJPROP_COLOR,       clr);
+         ObjectSetInteger(0, ln, OBJPROP_FONTSIZE,    fs);
+         ObjectSetInteger(0, ln, OBJPROP_SELECTABLE,  false);
+         ObjectSetInteger(0, ln, OBJPROP_BACK,        false);
+         ObjectSetString (0, ln, OBJPROP_FONT,        font);
+         string final_txt = (lines[i] == "" || lines[i] == " ") ? " " : lines[i];
+         ObjectSetString (0, ln, OBJPROP_TEXT,        final_txt);
+      }
+      else
+         ObjectDelete(0, ln);
+   }
+}
+
+void SCN_DestroyPanel()
+{
+   for(int i = 0; i < SCN_MAX_LINES; i++)
+      ObjectDelete(0, SCN_PANEL_NAME + StringFormat("_L%02d", i));
+}
+
+//+------------------------------------------------------------------+
+//| DrawInfoPanel — build content strings and call SCN_RenderPanel   |
+//+------------------------------------------------------------------+
 void DrawInfoPanel()
 {
-   string pfx2 = g_pfx + "P_";
-   int x = SCN_PANEL_X;
-   int y = SCN_PANEL_Y;
-   bool is_bottom = (SCN_PANEL_CORNER == CORNER_LEFT_LOWER || SCN_PANEL_CORNER == CORNER_RIGHT_LOWER);
-   int  dy_abs = (SCN_PANEL_SPACING > 0) ? SCN_PANEL_SPACING : (SCN_PANEL_FONTSIZE + 4);
-   int  dy = is_bottom ? -dy_abs : dy_abs;
-   int fs = SCN_PANEL_FONTSIZE;
-   string font = SCN_PANEL_FONT;
-
    string bias_str;
    switch(MarketBias)
    {
@@ -672,38 +724,32 @@ void DrawInfoPanel()
    string sPer = EnumToString(PERIOD_CURRENT);
    StringReplace(sPer, "PERIOD_", "");
 
-   #define PL(id,yoff,txt,clr) { \
-      string _n=pfx2+(string)id; \
-      if(ObjectFind(0,_n)<0){ \
-         ObjectCreate(0,_n,OBJ_LABEL,0,0,0); \
-         ObjectSetInteger(0,_n,OBJPROP_CORNER,(int)SCN_PANEL_CORNER); \
-         ObjectSetInteger(0,_n,OBJPROP_XDISTANCE,x); \
-         ObjectSetString (0,_n,OBJPROP_FONT,font); \
-         ObjectSetInteger(0,_n,OBJPROP_FONTSIZE,fs); \
-         ObjectSetInteger(0,_n,OBJPROP_BACK,false); \
-         ObjectSetInteger(0,_n,OBJPROP_SELECTABLE,false); } \
-      ObjectSetInteger(0,_n,OBJPROP_YDISTANCE,y+yoff); \
-      ObjectSetInteger(0,_n,OBJPROP_COLOR,clr); \
-      ObjectSetString (0,_n,OBJPROP_TEXT,txt); }
+   // ── Build lines[] and clrs[] arrays ────────────────────────────
+   string lines[];
+   color  clrs[];
 
-   int r = 0;
+   // Helper lambda equivalent via macro
+   #define ADD(txt, clr) { \
+      int _sz = ArraySize(lines); \
+      ArrayResize(lines, _sz + 1); ArrayResize(clrs, _sz + 1); \
+      lines[_sz] = (txt); clrs[_sz] = (clr); }
 
    // ── Title ───────────────────────────────────────────────────────
-   PL(r, dy*r, "SEA Signal Scanner", clrWhite)             r++;
+   ADD("SEA Signal Scanner",                                 clrWhite)
 
    // ── Instrument + Bias ───────────────────────────────────────────
-   PL(r, dy*r, _Symbol + "  " + sPer, clrCyan)             r++;
-   PL(r, dy*r, "Bias:  " + bias_str, clrCyan)              r++;
-   PL(r, dy*r, "EMA:   " + (string)EMA1 + " / " + (string)EMA2
-              + " / " + (string)EMA3 + " / " + (string)EMA4, clrCyan)   r++;
+   ADD(_Symbol + "  " + sPer,                                clrCyan)
+   ADD("Bias:  " + bias_str,                                 clrCyan)
+   ADD("EMA:   " + (string)EMA1 + " / " + (string)EMA2
+      + " / " + (string)EMA3 + " / " + (string)EMA4,        clrCyan)
 
    // ── Gap ─────────────────────────────────────────────────────────
-   PL(r, dy*r, " ", clrDimGray)                             r++;
+   ADD(" ",                                                  clrDimGray)
 
    // ── Components header ───────────────────────────────────────────
-   PL(r, dy*r, "TS Components:", clrSilver)                 r++;
+   ADD("TS Components:",                                     clrSilver)
 
-   // Each component on its own line — ON in yellow, off in gray
+   // Only ON components shown — keeps panel compact
    string cnames[]  = {"Pullback-Recovery","DPI","PSAR","PSAR Flip","MTF",
                         "CandleBody","ADX","RSI","CCI","MACD",
                         "Stochastic","Bollinger Bands","MFI","ATR","VPRR","CI"};
@@ -711,48 +757,44 @@ void DrawInfoPanel()
                         TS_CandleBody,TS_ADX,TS_RSI,TS_CCI,TS_MACD,
                         TS_Stochastic,TS_BollingerBands,TS_MFI,TS_ATR,TS_VPRR,TS_CI};
 
+   bool any_on = false;
    for(int i = 0; i < 16; i++)
    {
-      if(!cstates[i]) continue;   // skip OFF components — keeps panel compact
-      PL(r, dy*r, "  + " + cnames[i], clrYellow)           r++;
+      if(!cstates[i]) continue;
+      ADD("  + " + cnames[i],                                clrYellow)
+      any_on = true;
    }
-
-   // If nothing is ON, show a note
-   bool any_on = false;
-   for(int i=0;i<16;i++) if(cstates[i]){any_on=true;break;}
    if(!any_on)
-   {
-      PL(r, dy*r, "  (none — all bias bars marked)", clrDimGray)   r++;
-   }
+      ADD("  (none — all bias bars marked)",                  clrDimGray)
 
    // ── Gap ─────────────────────────────────────────────────────────
-   PL(r, dy*r, " ", clrDimGray)                             r++;
+   ADD(" ",                                                  clrDimGray)
 
    // ── Time window ─────────────────────────────────────────────────
-   string tw = "";
+   string tw;
    if(DateFrom > 0 || DateTo > 0)
    {
       string tf = (DateFrom > 0) ? TimeToString(DateFrom, TIME_DATE|TIME_MINUTES) : "start";
       string tt = (DateTo   > 0) ? TimeToString(DateTo,   TIME_DATE|TIME_MINUTES) : "now";
-      tw = tf + " → " + tt;
+      tw = tf + " -> " + tt;
    }
    else
       tw = "last " + (string)BarsBack + " bars";
-   PL(r, dy*r, "Window: " + tw, clrSilver)   r++;
+   ADD("Window: " + tw,                                      clrSilver)
 
    // ── Signal counts ───────────────────────────────────────────────
-   PL(r, dy*r, "  LONG:  " + (string)g_sig_long,  Color_Long)    r++;
-   PL(r, dy*r, "  SHORT: " + (string)g_sig_short, Color_Short)   r++;
+   ADD("  LONG:  " + (string)g_sig_long,                     Color_Long)
+   ADD("  SHORT: " + (string)g_sig_short,                    Color_Short)
 
-   // Hide any old rows beyond current count
-   for(int i = r; i < 40; i++)
-   {
-      string _n = pfx2 + (string)i;
-      if(ObjectFind(0,_n) >= 0)
-         ObjectSetString(0, _n, OBJPROP_TEXT, "");
-   }
+   #undef ADD
 
-   #undef PL
+   // ── Render via unified renderer ──────────────────────────────────
+   // Concatenate to newline-separated string for SCN_RenderPanel
+   string txt = "";
+   for(int i = 0; i < ArraySize(lines); i++)
+      txt += lines[i] + (i < ArraySize(lines)-1 ? "\n" : "");
+
+   SCN_RenderPanel(txt, clrs);
    ChartRedraw(0);
 }
 
@@ -776,6 +818,7 @@ void PutLine(datetime t, int bias)
 
 void ClearLines()
 {
+   SCN_DestroyPanel();
    int n=ObjectsTotal(0);
    for(int i=n-1;i>=0;i--)
    {
