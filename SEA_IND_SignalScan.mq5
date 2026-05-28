@@ -144,24 +144,25 @@ input EScanBias MarketBias       = SBIAS_4EMA_TM;     // Bias mode
 //+------------------------------------------------------------------+
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "--- STEP4: TS Equation Components  [true=ON  false=OFF  all ON must pass] ---";
+input group "--- STEP4: TS Components  [true=ON  false=OFF  all ON must pass] ---";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input bool     TS_ADX                = false;      // [I] ADX trend strength
-input bool     TS_ATR                = false;      // [I] ATR volatility range
-input bool     TS_BollingerBands     = false;      // [I] Bollinger Bands
-input bool     TS_CandleBody         = false;      // [I] CandleBody direction
-input bool     TS_CCI                = false;      // [I] CCI direction
-input bool     TS_CI                 = false;      // [I] Choppiness Index
-input bool     TS_DPI                = false;      // [I] DPI momentum
-input bool     TS_MACD               = false;      // [I] MACD histogram
-input bool     TS_MFI                = false;      // [I] MFI money flow
-input bool     TS_MTF                = false;      // [I] MTF higher TF alignment
-input bool     TS_PSAR               = false;      // [I] PSAR dot position
-input bool     TS_PSAR_Flip          = false;      // [I] PSAR + flip window
-input bool     TS_Pullback_Recovery  = true;       // [L] Pullback-Recovery layer
-input bool     TS_RSI                = false;      // [I] RSI level
-input bool     TS_Stochastic         = false;      // [I] Stochastic level
-input bool     TS_VPRR               = false;      // [I] VPRR volume (metals/stocks; FX=unreliable)
+input bool TS_ADX                = false;  // [I] ADX trend strength
+input bool TS_ATR                = false;  // [I] ATR volatility range
+input bool TS_BollingerBands     = false;  // [I] Bollinger Bands
+input bool TS_CandleBody         = false;  // [I] CandleBody direction
+input bool TS_CCI                = false;  // [I] CCI direction
+input bool TS_CI                 = false;  // [I] Choppiness Index
+input bool TS_DPI                = false;  // [I] DPI momentum
+input bool TS_MACD               = false;  // [I] MACD histogram
+input bool TS_MFI                = false;  // [I] MFI money flow
+input bool TS_MTF                = false;  // [I] MTF higher TF alignment
+input bool TS_PSAR               = false;  // [I] PSAR dot position
+input bool TS_PSAR_Flip          = false;  // [I] PSAR + flip window
+input bool TS_Pullback_Recovery  = true;   // [L] Pullback-Recovery layer
+input bool TS_RSI                = false;  // [I] RSI level
+input bool TS_Stochastic         = false;  // [I] Stochastic level
+input bool TS_VPRR               = false;  // [I] VPRR volume (metals/stocks; FX=unreliable)
+
 
 //+------------------------------------------------------------------+
 //| STEP 5 — Indicators - Component Parameters                       |
@@ -204,8 +205,9 @@ input group "--- MFI ---"
 input int      MFI_Period           = 14;          // MFI period
 input double   MFI_Level            = 50.0;        // MFI threshold
 input group "--- MTF ---"
-input ENUM_TIMEFRAMES MTF_TF  = PERIOD_H1;         // Higher timeframe
-input int      MTF_EMA              = 34;          // EMA period
+input ENUM_TIMEFRAMES MTF_TF        = PERIOD_M15;  // Higher timeframe [EA: Inp_MTF_TF2]
+input int             MTF_EMA_Fast  = 20;          // Fast EMA period  [EA: Inp_MTF_EMA_Fast]
+input int             MTF_EMA_Slow  = 50;          // Slow EMA period  [EA: Inp_MTF_EMA_Slow]
 input group "--- PSAR ---"
 input double   PSAR_Step            = 0.05;        // Acceleration step
 input double   PSAR_Max             = 0.5;         // Maximum acceleration
@@ -227,12 +229,15 @@ input double   VPRR_MinRatio        = 1.0;         // Min recovery/pullback rati
 input int      VPRR_RecovBars       = 3;           // Recovery bars to measure
 
 
+input group "--- MTF (TS_MTF = true) ---"
+
+
 //+------------------------------------------------------------------+
 //| STEP 6 — Time Window                                             |
-//| Limit signal lines to a specific date/time range.                |
-//| Leave DateFrom = 0 to scan from BarsBack bars ago.               |
-//| Leave DateTo   = 0 to scan up to the current bar.                |
-//| Example: DateFrom = 2026.05.21 10:00  DateTo = 2026.05.21 21:00  |
+//| Limit signal lines to a specific date/time range.               |
+//| Leave DateFrom = 0 to scan from BarsBack bars ago.              |
+//| Leave DateTo   = 0 to scan up to the current bar.               |
+//| Example: DateFrom = 2026.05.21 10:00  DateTo = 2026.05.21 21:00 |
 //+------------------------------------------------------------------+
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -554,8 +559,8 @@ void BuildSettings(ST_Settings &s)
    s.Ind_MTF_Enabled     = TS_MTF;
    s.MTF_TF1             = MTF_TF;
    s.MTF_TF2             = PERIOD_CURRENT;
-   s.MTF_EMA_Fast        = MTF_EMA;
-   s.MTF_EMA_Slow        = MTF_EMA;
+   s.MTF_EMA_Fast        = MTF_EMA_Fast;
+   s.MTF_EMA_Slow        = MTF_EMA_Slow;
    s.MTF_RequirePhase    = false;
    s.MTF_StrictAlignment = false;
 
