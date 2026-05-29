@@ -11,6 +11,8 @@ $$TS = Bias \times Layer_{X} \times bc_{X} \times \prod_{i=1}^{n} Ind_{i} \times
 
 Where each factor returns 1 (pass/enabled), 0 (fail), or -1 (contradicts). Any 0 or -1 stops the pipeline.
 
+After all factors pass, a final **Climax (exhaustion) veto** is applied: a fully-aligned signal is still blocked when price has over-extended into a blow-off impulse (single-bar range > `ClimaxGuard_BarATRMult` × ATR, or cumulative move > `ClimaxGuard_MoveATRMult` × ATR, in the trade direction). It is a negative veto checked last — not part of the multiplicative product and not an indicator vote.
+
 ---
 
 ## Part 1: The Core Signal Pipeline

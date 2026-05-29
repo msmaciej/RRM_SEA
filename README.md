@@ -9,20 +9,25 @@ SimpleEA is a MetaTrader 5 Expert Advisor implementing a multiplicative signal v
 ## TS Equation — Signal Evaluation
 
 ```
-TS = B × P × L × I × F
+TS = B × P × L × I × F      → then Climax (exhaustion) veto
 ```
 
-Every factor is multiplicative. Any factor = 0 → TS = 0 → no trade.
+Every factor is multiplicative. Any factor = 0 → TS = 0 → no trade. After all five factors pass, a final **Climax veto** can still block the entry (see CG below).
 
 | Factor | Name | What it answers |
 |--------|------|-----------------|
 | **B** | Bias | Which direction is the market moving? |
 | **P** | Phase | Is the market structure suitable for trading? |
 | **L** | Layer | Is this the right bar to enter? |
-| **I** | Indicators | Do all technical confirmations agree? |
-| **F** | Filters | Are execution conditions acceptable? |
+| **I** | Indicators | Do **all enabled** confirmations agree? (unanimous) |
+| **F** | Filters | Are pre-entry conditions acceptable? (EMA-fan, DPI-decel, DPI reset-recovery, phase-age) |
+| **CG** | Climax veto | After B·P·L·I·F pass, is price over-extended into an exhaustion impulse? If so, block. |
 
-TS is evaluated at bar close (shift=1). Trade execution (TE) happens at the next bar open (shift=0) after F filters are rechecked.
+**I is unanimous.** When N indicators are enabled, **all N must pass** — there is no weighted or partial vote. The `I[x/y]` telemetry only reports how many passed for diagnostics; `x < y` never fires.
+
+**Climax / Exhaustion Guard (CG)** is a *veto*, not a voter. It is checked **last**, only after B·P·L·I·F have all passed, and it overrides them: a fully-aligned signal is still blocked when the recent move is an over-extended blow-off — a single bar whose range > `ClimaxGuard_BarATRMult` × ATR, or a cumulative move > `ClimaxGuard_MoveATRMult` × ATR, in the trade direction. On a block it optionally resets all layer pullback state (`ClimaxGuard_ResetPullback`) so a fresh pullback-recovery cycle is required before the next signal. Because the I factor is an AND of *positive* confirmations, the *negative* veto is deliberately kept out of it — conceptually CG is a sibling of the F `EMA_FAN` over-extension filter, separated so a climax block reads cleanly in diagnostics.
+
+TS is evaluated at bar close (shift=1) by the EA and at any historical shift by SignalScan, through the shared `EvaluateTS_AtShift(shift, bias)` core, so the EA and the scanner apply identical B·P·L·I·F·CG logic. Trade execution (TE) happens at the next bar open (shift=0) after F filters are rechecked.
 
 ---
 
@@ -121,7 +126,7 @@ MTF (Multi-Timeframe alignment) is evaluated at TS time and counted as an I vote
 | `SimpleEA_v1-04.mq5` | Main EA — OnInit, OnTick, OnDeinit |
 | `SEA_Config.mqh` | All settings, inputs, ST_Settings struct |
 | `SEA_Presets.mqh` | Preset definitions — RRM_ORG, RRM, TI, CUSTOM |
-| `SEA_SignalEngine.mqh` | TS equation — B, P, L, I evaluation |
+| `SEA_SignalEngine.mqh` | TS equation — shared `EvaluateTS_AtShift` core (B·P·L·I·F + climax veto) |
 | `SEA_TradeExecutor.mqh` | TE, order management, SL/TP/trailing |
 | `SEA_UI.mqh` | Cockpit panel rendering |
 | `SEA_Reporting.mqh` | OnDeinit stats and performance report |
