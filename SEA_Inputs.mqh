@@ -111,6 +111,13 @@ input int         Inp_MTF_EMA_Slow                 = 50;             // Veto MTF
 input bool        Inp_MTF_RequirePhase             = true;           // Veto MTF: require trending phase
 input bool        Inp_MTF_StrictAlignment          = true;           // Veto MTF: strict gate — all HTFs must agree
 
+// ── CLIMAX / EXHAUSTION GUARD (global; blocks late entries into over-extended impulses) ──
+input int         Inp_ClimaxGuard_Lookback         = 5;              // Climax: window (bars) scanned for an impulse
+input int         Inp_ClimaxGuard_ATRPeriod        = 14;             // Climax: ATR baseline period (measured pre-impulse)
+input double      Inp_ClimaxGuard_BarATRMult       = 2.0;            // Climax: single-bar range threshold (x ATR)
+input double      Inp_ClimaxGuard_MoveATRMult      = 3.0;            // Climax: cumulative move threshold (x ATR)
+input bool        Inp_ClimaxGuard_ResetPullback    = true;           // Climax: on detection reset ALL layer PB states
+
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ✅✅ UI (GLOBAL)";
@@ -732,6 +739,7 @@ input group "║   📐 RRM_ORG: QUALITY Gates";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_RequireRecoveryIntraday = true;        // RRM ORG QA: Require recovery <M15
 input bool        Inp_RRM_ORG_HtfFilter            = true;           // RRM ORG QA: HTF Trend Filter
+input bool        Inp_RRM_ORG_ClimaxGuard_Enabled  = true;           // RRM ORG: enable climax/exhaustion guard
 input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM ORG QA: EMA1 period
 input int         Inp_RRM_ORG_Ema2Period           = 13;             // RRM ORG QA: EMA2 period
 input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG QA: EMA3 period
@@ -1037,6 +1045,7 @@ input bool        Inp_CUSTOM_BlockUnorderedPhase   = true;           // Override
 input bool        Inp_CUSTOM_BlockEmergingPhase    = false;          // Override: [PH] Block trades while phase is EMERGING
 input bool        Inp_CUSTOM_EnableLayerDetection  = true;          // Override: [LY] Enable EMA-layer detection (L1/L2/L3)
 input bool        Inp_CUSTOM_LayerPullbackEnabled  = false;          // Override: [LY] Enable layer pullback-recovery state machine
+input bool        Inp_CUSTOM_ClimaxGuard_Enabled   = true;           // Override: [CG] Enable climax/exhaustion guard
 input bool        Inp_CUSTOM_VPRR_Enabled          = false;          // Override: [VP] Enable Volume Pullback-Recovery Ratio voter
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 4: Candle Close & Candle Body";
@@ -1652,6 +1661,15 @@ void InitializeConfig()
     Settings.SlopeLookbackBars      = 1;
    Settings.LayerPullbackEnabled        = Inp_CUSTOM_LayerPullbackEnabled;
    Settings.LayerBaselineLookback       = 10;     // default; overwritten by ApplyPreset
+
+   // Climax guard: params are global; enable is OFF in the base so non-opted
+   // presets are unaffected. RRM_ORG and CUSTOM opt in via ApplyPreset.
+   Settings.ClimaxGuard_Enabled         = false;
+   Settings.ClimaxGuard_Lookback        = MathMax(1, Inp_ClimaxGuard_Lookback);
+   Settings.ClimaxGuard_ATRPeriod       = MathMax(1, Inp_ClimaxGuard_ATRPeriod);
+   Settings.ClimaxGuard_BarATRMult      = MathMax(0.0, Inp_ClimaxGuard_BarATRMult);
+   Settings.ClimaxGuard_MoveATRMult     = MathMax(0.0, Inp_ClimaxGuard_MoveATRMult);
+   Settings.ClimaxGuard_ResetPullback   = Inp_ClimaxGuard_ResetPullback;
 
     // VPRR defaults (disabled — only RRM_ORG preset wires it on)
     Settings.VPRR_Enabled         = Inp_CUSTOM_VPRR_Enabled;

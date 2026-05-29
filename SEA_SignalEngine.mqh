@@ -2846,6 +2846,84 @@ private:
    }
 
    //==========================================================================
+   // Climax / Exhaustion Guard
+   //   Blocks signals that land into an over-extended impulse and (optionally)
+   //   resets ALL layer pullback-recovery states so a fresh cycle is required
+   //   before the next entry. Detection is side-effect-free; the reset is
+   //   performed explicitly by the caller via ResetAllLayerPullback().
+   //==========================================================================
+   double ManualATR(int period, int start_shift)
+   {
+      int p = MathMax(1, period);
+      double sum = 0.0; int n = 0;
+      for(int i = start_shift; i < start_shift + p; i++)
+      {
+         double h  = iHigh (m_symbol, PERIOD_CURRENT, i);
+         double l  = iLow  (m_symbol, PERIOD_CURRENT, i);
+         double pc = iClose(m_symbol, PERIOD_CURRENT, i + 1);
+         if(h == 0.0 && l == 0.0) continue;
+         double tr = MathMax(h - l, MathMax(MathAbs(h - pc), MathAbs(l - pc)));
+         sum += tr; n++;
+      }
+      return (n > 0) ? sum / n : 0.0;
+   }
+
+   void ResetAllLayerPullback()
+   {
+      m_layer_w_pb_state = LAYER_PB_NONE;
+      m_layer_m_pb_state = LAYER_PB_NONE;
+      m_layer_s_pb_state = LAYER_PB_NONE;
+      if(m_settings.DebugFlow)
+         DebugLog("[CLIMAX] All layer pullback states reset -> NONE (await fresh pullback-recovery)");
+   }
+
+   // Returns true if an over-extended impulse in `bias` direction is detected
+   // within the recent ClimaxGuard_Lookback window, measured against a
+   // pre-impulse ATR baseline (so the impulse itself does not inflate it).
+   bool DetectClimax(int bias, int shift)
+   {
+      if(!m_settings.ClimaxGuard_Enabled || bias == 0) return false;
+      int K    = MathMax(1, m_settings.ClimaxGuard_Lookback);
+      int atrp = MathMax(1, m_settings.ClimaxGuard_ATRPeriod);
+      double atr = ManualATR(atrp, shift + K);   // baseline from bars BEFORE the window
+      if(atr <= 0.0) return false;
+
+      // (1) Single over-extended bar (full range, not just body) in bias direction.
+      for(int i = shift; i < shift + K; i++)
+      {
+         double o = iOpen (m_symbol, PERIOD_CURRENT, i);
+         double c = iClose(m_symbol, PERIOD_CURRENT, i);
+         double h = iHigh (m_symbol, PERIOD_CURRENT, i);
+         double l = iLow  (m_symbol, PERIOD_CURRENT, i);
+         bool directional = (bias == 1) ? (c > o) : (c < o);
+         if(directional && (h - l) > m_settings.ClimaxGuard_BarATRMult * atr)
+         {
+            if(m_settings.DebugFlow)
+               DebugLog(StringFormat("[CLIMAX] bar[%d] range=%.5f > %.2fxATR(%.5f)",
+                                     i, h - l, m_settings.ClimaxGuard_BarATRMult, atr));
+            return true;
+         }
+      }
+
+      // (2) Cumulative directional move over the window vs ATR.
+      double c_now  = iClose(m_symbol, PERIOD_CURRENT, shift);
+      double c_prev = iClose(m_symbol, PERIOD_CURRENT, shift + K);
+      double move   = (bias == 1) ? (c_now - c_prev) : (c_prev - c_now);
+      if(move > m_settings.ClimaxGuard_MoveATRMult * atr)
+      {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[CLIMAX] move(%d bars)=%.5f > %.2fxATR(%.5f)",
+                                  K, move, m_settings.ClimaxGuard_MoveATRMult, atr));
+         return true;
+      }
+      return false;
+   }
+
+   // Scanner-facing wrappers
+   bool Scanner_DetectClimax(int bias, int shift) { return DetectClimax(bias, shift); }
+   void Scanner_ResetAllLayerPullback()           { ResetAllLayerPullback(); }
+
+   //==========================================================================
    // Eval_BarClose — Wrapper: delegates to Check_BarClose() (handle-based access)
    // layer_id: LAYER_1_WEAK / LAYER_2_MEDIUM / LAYER_3_STRONG
    //==========================================================================
@@ -6438,6 +6516,18 @@ public:
       else if(I == 0) {
          // Indicator voting failed (reason already set by EvaluateI/EvaluateIndicatorX)
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
+      }
+      else if(DetectClimax(B, v_shift)) {
+         // ── CLIMAX / EXHAUSTION GUARD (hard gate) ──
+         // B x P x L x I all aligned, but price has over-extended into an
+         // impulse. Block the entry and reset all layers so a fresh
+         // pullback-recovery cycle is required before the next signal.
+         if(m_settings.ClimaxGuard_ResetPullback)
+            ResetAllLayerPullback();
+         m_diag_last_reason = "CLIMAX_GUARD";
+         m_reject_filter++;
+         if(m_settings.DebugFlow)
+            DebugLog("[CLIMAX] TS=1 blocked - over-extended impulse; layers reset");
       }
       else {
          // All factors passed → signal confirmed

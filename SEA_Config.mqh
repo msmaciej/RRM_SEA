@@ -701,6 +701,14 @@ struct ST_Settings
     bool     LayerPullbackEnabled;        // Master enable for pullback detection
     int      LayerBaselineLookback;       // Bars for baseline direction lookback
 
+    // Climax / Exhaustion Guard (blocks late entries into over-extended impulses)
+    bool     ClimaxGuard_Enabled;         // Master enable
+    int      ClimaxGuard_Lookback;        // Window (bars) scanned for an impulse
+    int      ClimaxGuard_ATRPeriod;       // ATR baseline period (measured pre-impulse)
+    double   ClimaxGuard_BarATRMult;      // Single-bar range climax threshold (x ATR)
+    double   ClimaxGuard_MoveATRMult;     // Cumulative move climax threshold (x ATR)
+    bool     ClimaxGuard_ResetPullback;   // On detection, reset all layer PB states
+
     // VPRR: Volume Pullback-Recovery Ratio (institutional participation confirmation)
     // Measures avg volume during recovery vs avg volume during pullback.
     // Ratio >= MinRatio => institutions backing the recovery (PASS).

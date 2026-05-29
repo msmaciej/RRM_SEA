@@ -980,6 +980,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Slow             = Inp_MTF_EMA_Slow;
       cfg.MTF_RequirePhase         = false;
       cfg.MTF_StrictAlignment      = Inp_MTF_StrictAlignment;
+      cfg.ClimaxGuard_Enabled      = Inp_CUSTOM_ClimaxGuard_Enabled;   // climax/exhaustion guard
 
       // ── Directional gates: AUTO-TF scaling + JPY value-scaling ──
       bool   custom_isJpy  = (StringFind(_Symbol, "JPY") >= 0);
@@ -2378,6 +2379,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Slow              = Inp_MTF_EMA_Slow;
       cfg.MTF_RequirePhase          = false;
       cfg.MTF_StrictAlignment       = Inp_MTF_StrictAlignment;
+
+      // Climax / exhaustion guard (block late entries into over-extended impulses)
+      cfg.ClimaxGuard_Enabled       = Inp_RRM_ORG_ClimaxGuard_Enabled;
 
       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
       cfg.AllowReEntryAfterBE       = Inp_RRM_ORG_AllowReEntryAfterBE;
