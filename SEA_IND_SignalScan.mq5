@@ -671,7 +671,11 @@ void BuildSettings(ST_Settings &s)
    s.P_Ema1 = EMA1; s.P_Ema2 = EMA2; s.P_Ema3 = EMA3; s.P_Ema4 = EMA4;
    s.MaType = METHOD_EMA; s.ma_h_shift = 0; s.ma_v_shift = 0;
    s.BiasMode = BIAS_4EMA; s.BiasEnabled = true;
-   s.BlockEmergingPhase = false;
+   // Phase (P) mirrors RRM_ORG / CUSTOM so EvaluateP matches the EA:
+   //   detect phase, block UNORDERED, allow EMERGING.
+   s.PhaseDetectionEnabled = true;
+   s.BlockUnorderedPhase   = true;
+   s.BlockEmergingPhase    = false;
 
    // Pullback
    s.LayerPullbackEnabled  = (TS_LayerS || TS_LayerM || TS_LayerW);
