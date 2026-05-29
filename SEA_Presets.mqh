@@ -3031,8 +3031,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MinMarginLevel            = op_MinMarginLevel; // Policy A: restore entry margin guard
       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel; // Policy A: restore emergency margin guard
 
-      return;
-      }
+   return;
    }
    #endif // SEA_PRESET_TEST
 }
