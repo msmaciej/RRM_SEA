@@ -2994,6 +2994,7 @@ public:
    // indicator without changing the engine's internal structure.
    void   Scanner_UpdateLayerPullback(int shift) { UpdateLayerPullbackStates(shift); }
    void   Scanner_UpdatePSARFlip(int shift)      { if(m_settings.Ind_Psar_Enabled) UpdatePSARFlipTracking(shift); }
+   void   Scanner_UpdateDPIHistogramState(int shift) { UpdateDPIHistogramState(shift); }  // replays DPI reset-recovery/decel state per bar (no-op when tracking off)
    // Reset only the fired layer to NONE — other layers keep their independent states.
    void   Scanner_ResetLayerAfterFire(int layer)
    {
@@ -3020,23 +3021,107 @@ public:
    bool   Scanner_DetectClimax(int bias, int shift)     { return DetectClimax(bias, shift); }
    void   Scanner_ResetAllLayerPullback()               { ResetAllLayerPullback(); }
 
+   // Shift-aware PHASE_AGE: require the phase at `shift` to have persisted for
+   // MinPhaseConfirmBars consecutive bars. Mirrors the EA's m_diag_phase_confirm_bars
+   // gate, computed directly from DetectMarketPhase so it is valid at any shift.
+   bool PhaseAgeConfirmed(int shift)
+   {
+      int need = m_settings.MinPhaseConfirmBars;
+      if(need <= 0) return true;
+      EMarketPhase ph = DetectMarketPhase(shift);
+      for(int i = shift + 1; i <= shift + need - 1; i++)
+         if(DetectMarketPhase(i) != ph) return false;
+      return true;
+   }
+
    //==========================================================================
-   // EvaluateTS_AtShift — shared, shift-correct decision core: B*P*L*I (+climax).
+   // EvaluateF — shared F factor (pre-filters). Faithful, decision-only mirror
+   // of the inline TS_PREFILTER blocks in EvaluateTS. Returns true = pass.
+   // Each filter is gated by its own (default-off) flag, so EvaluateF is a no-op
+   // under RRM_ORG/CUSTOM defaults — behaviour-preserving until a filter is
+   // explicitly enabled. The two state-machine filters (DPI reset-recovery and
+   // DPI histogram-decel) read state that the caller must keep current for
+   // `shift`: the EA via per-tick UpdateDPIHistogramState, SignalScan via the
+   // per-bar Scanner_UpdateDPIHistogramState replay in its chronological scan.
+   //==========================================================================
+   bool EvaluateF(int shift, int bias)
+   {
+      // ── EMA fan over-extension (stateless) ──
+      if(m_settings.EmaFanFilterEnabled && (m_settings.EmaFanMaxTotalPips > 0.0 || m_settings.EmaFanMaxPct > 0.0))
+      {
+         double pip  = GlobalPipSize(m_symbol);
+         double e1_1 = GetMAVal(h_ema1, shift);
+         double e4_1 = GetMAVal(h_ema4, shift);
+         double e1_2 = GetMAVal(h_ema1, shift + 1);
+         double e4_2 = GetMAVal(h_ema4, shift + 1);
+         if(e1_1 > 0.0 && e4_1 > 0.0 && e1_2 > 0.0 && e4_2 > 0.0)
+         {
+            if(m_settings.EmaFanMaxPct > 0.0)
+            {
+               double mid_now  = (e1_1 + e4_1) / 2.0;
+               double mid_prev = (e1_2 + e4_2) / 2.0;
+               if(mid_now > 0.0 && mid_prev > 0.0)
+               {
+                  double pct_now  = MathAbs(e1_1 - e4_1) / mid_now  * 100.0;
+                  double pct_prev = MathAbs(e1_2 - e4_2) / mid_prev * 100.0;
+                  if(pct_now > m_settings.EmaFanMaxPct && pct_now > pct_prev) return false;
+               }
+            }
+            else if(pip > 0.0)
+            {
+               double gap_now  = MathAbs(e1_1 - e4_1) / pip;
+               double gap_prev = MathAbs(e1_2 - e4_2) / pip;
+               if(gap_now > m_settings.EmaFanMaxTotalPips && gap_now > gap_prev) return false;
+            }
+         }
+      }
+
+      // ── DPI GREEN momentum deceleration (stateless) ──
+      if(m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
+      {
+         double hist_cur = 0.0, hist_prev = 0.0;
+         bool   dpi_green = false, dpi_macd_agree = false;
+         double green_mag_cur = 0.0, green_mag_prev = 0.0;
+         if(ComputeDPIMainHist(shift, hist_cur, hist_prev, dpi_green, dpi_macd_agree, green_mag_cur, green_mag_prev))
+         {
+            bool green_was = (green_mag_prev > 0.0);
+            bool green_is  = (green_mag_cur  > 0.0);
+            if(green_was && green_is && green_mag_cur < green_mag_prev) return false; // shrinking
+            if(green_was && !green_is)                                  return false; // disappeared
+         }
+      }
+
+      // ── DPI CCI reset-recovery gate (state; replayed per-bar by caller) ──
+      if(m_settings.DPI_RequireResetRecovery && m_settings.DPI_HistTrackingEnabled && m_settings.DPI_UseCCIReset)
+         if(m_dpi_reset_state != 3) return false;   // not ENTRY_ALLOWED
+
+      // ── DPI histogram deceleration (state) ──
+      if(m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled)
+         if(m_dpi_hist_decelerating) return false;
+
+      // ── Phase-age confirmation (reconstructed shift-aware) ──
+      if(m_settings.MinPhaseConfirmBars > 0)
+         if(!PhaseAgeConfirmed(shift)) return false;
+
+      return true;
+   }
+
+   //==========================================================================
+   // EvaluateTS_AtShift — shared, shift-correct decision core: B*P*L*I*F (+climax).
    //   `bias` (B, +1 long / -1 short) is supplied by the caller (EvaluateB on the
    //   EA; per-direction scan in SignalScan). Returns 1 if a signal exists for
    //   that direction at `shift`, else 0. Both the EA's EvaluateTS() wrapper and
-   //   SignalScan call this so they share one B/P/L/I/climax path.
-   //   NOTE: The F factor (EMA-fan / DPI-decel / DPI reset-recovery / phase-age
-   //   pre-filters) is still applied only in the EA wrapper. Of the F filters,
-   //   only PHASE_AGE and DPI_RESET_RECOVERY are active under RRM_ORG defaults;
-   //   making F shift-aware (incl. CCI reset-recovery state replay) is the
-   //   remaining step for full B*P*L*I*F parity. SignalScan is therefore slightly
-   //   more permissive than the EA on those two gates until F is shared.
+   //   SignalScan call this so they share one B/P/L/I/F/climax path.
+   //   The F factor is a no-op under RRM_ORG/CUSTOM defaults (all pre-filters off),
+   //   so adding it is behaviour-preserving until a filter is explicitly enabled.
+   //   State-machine F filters require the caller to keep DPI state current for
+   //   `shift` (EA: per-tick; SignalScan: Scanner_UpdateDPIHistogramState replay).
    //==========================================================================
    int EvaluateTS_AtShift(int shift, int bias)
    {
       if(bias == 0)                    return 0;
       if(EvaluateP(shift, bias) == 0)  return 0;   // Phase (P) — shift-correct
+      if(!EvaluateF(shift, bias))      return 0;   // Pre-filters (F) — shift-aware / replayed
       if(EvaluateL(shift, bias) == 0)  return 0;   // Layer (L) — shift-correct
       if(EvaluateI(shift, bias) == 0)  return 0;   // Indicators (I) — shift-correct
       if(DetectClimax(bias, shift))                // Climax / exhaustion guard (checked last)
