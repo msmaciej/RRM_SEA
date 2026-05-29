@@ -231,7 +231,7 @@ input double   PSAR_Max             = 0.5;         // Maximum acceleration
 input int      PSAR_FlipBars        = 5;           // Bars after flip still valid (-1=always)
 input group "--- Pullback-Recovery ---"
 input int      PB_Lookback          = 21;          // Lookback bars for baseline
-input int      PB_MinBars           = 2;           // Min consecutive DETECTED bars before recovery valid
+input int      PB_MinBars           = 1;           // Min consecutive DETECTED bars before recovery valid
 input group "--- RSI---"
 input int      RSI_Period           = 14;          // RSI period
 input double   RSI_OB               = 70.0;        // Overbought level
@@ -555,16 +555,22 @@ void ScanBar(int shift)
       g_eng_short.Scanner_UpdatePSARFlip(shift);
    }
 
-   // Layer pullback state must update every bar for both engines regardless of bias,
-   // so DETECTED/RECOVERED transitions are not missed during pullback bars
-   // where EMA2 briefly crosses below EMA3 (causing doL=false temporarily).
+   // Layer pullback state: update only the engine matching current or last-known bias.
+   // During bias-absent bars (transitional), update neither engine to prevent
+   // cross-contamination of state between LONG and SHORT engines.
    if(TS_LayerS || TS_LayerM || TS_LayerW)
    {
-      g_eng_long.Scanner_UpdateLayerPullback(shift);
-      g_eng_short.Scanner_UpdateLayerPullback(shift);
+      if(doL) g_eng_long.Scanner_UpdateLayerPullback(shift);
+      if(doS) g_eng_short.Scanner_UpdateLayerPullback(shift);
+      // When bias is absent: reset ALL layer states (DETECTED and RECOVERED) for the idle engine.
+      // This prevents DETECTED state accumulated under the wrong bias from transitioning
+      // to RECOVERED and firing the moment bias returns.
+      if(!doL) { g_eng_long.Scanner_ResetLayerAfterFire(1); g_eng_long.Scanner_ResetLayerAfterFire(2); g_eng_long.Scanner_ResetLayerAfterFire(3);
+                 g_det_w_long=0; g_det_m_long=0; g_det_s_long=0; g_peak_w_long=0; g_peak_m_long=0; g_peak_s_long=0; }
+      if(!doS) { g_eng_short.Scanner_ResetLayerAfterFire(1); g_eng_short.Scanner_ResetLayerAfterFire(2); g_eng_short.Scanner_ResetLayerAfterFire(3);
+                 g_det_w_short=0; g_det_m_short=0; g_det_s_short=0; g_peak_w_short=0; g_peak_m_short=0; g_peak_s_short=0; }
 
       // Track consecutive DETECTED bars per layer per engine for PB_MinBars enforcement
-      // When state transitions DETECTED→RECOVERED, save peak count before it resets to 0
       int prev_det_s_long  = g_det_s_long;
       int prev_det_m_long  = g_det_m_long;
       int prev_det_w_long  = g_det_w_long;
@@ -579,14 +585,13 @@ void ScanBar(int shift)
       g_det_m_short = (g_eng_short.GetLayerMPullbackState()==LAYER_PB_DETECTED) ? g_det_m_short+1 : 0;
       g_det_w_short = (g_eng_short.GetLayerWPullbackState()==LAYER_PB_DETECTED) ? g_det_w_short+1 : 0;
 
-      // Save peak when transitioning to RECOVERED (det just became 0 after being >0)
       if(g_eng_long.GetLayerSPullbackState() ==LAYER_PB_RECOVERED && prev_det_s_long  > 0) g_peak_s_long  = prev_det_s_long;
       if(g_eng_long.GetLayerMPullbackState() ==LAYER_PB_RECOVERED && prev_det_m_long  > 0) g_peak_m_long  = prev_det_m_long;
       if(g_eng_long.GetLayerWPullbackState() ==LAYER_PB_RECOVERED && prev_det_w_long  > 0) g_peak_w_long  = prev_det_w_long;
       if(g_eng_short.GetLayerSPullbackState()==LAYER_PB_RECOVERED && prev_det_s_short > 0) g_peak_s_short = prev_det_s_short;
       if(g_eng_short.GetLayerMPullbackState()==LAYER_PB_RECOVERED && prev_det_m_short > 0) g_peak_m_short = prev_det_m_short;
       if(g_eng_short.GetLayerWPullbackState()==LAYER_PB_RECOVERED && prev_det_w_short > 0) g_peak_w_short = prev_det_w_short;
-      // Reset peak when layer returns to NONE
+
       if(g_eng_long.GetLayerSPullbackState() ==LAYER_PB_NONE) g_peak_s_long  = 0;
       if(g_eng_long.GetLayerMPullbackState() ==LAYER_PB_NONE) g_peak_m_long  = 0;
       if(g_eng_long.GetLayerWPullbackState() ==LAYER_PB_NONE) g_peak_w_long  = 0;
