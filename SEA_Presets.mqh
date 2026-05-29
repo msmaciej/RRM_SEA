@@ -937,9 +937,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
    const double op_EmergencyMarginLevel = cfg.EmergencyMarginLevel;  // Saved for PRESET_TEST exit-profile logic
    const EExitProfile op_ExitProfile = cfg.ExitProfile;
-}
+
    
-#ifdef SEA_PRESET_FPM
+   #ifdef SEA_PRESET_FPM
    if(preset == PRESET_FPM)
    {
       // ================================================================
@@ -1204,10 +1204,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       return;
    }
-#endif // SEA_PRESET_FPM
-
-
-#ifdef SEA_PRESET_MA
+   #endif // SEA_PRESET_FPM
+   
+   
+   #ifdef SEA_PRESET_MA
    if(preset == PRESET_MA)
    {
       // ================================================================
@@ -1480,10 +1480,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       return;
    }
-#endif // SEA_PRESET_MA
-
-
-#ifdef SEA_PRESET_RRM_FAMILY
+   #endif // SEA_PRESET_MA
+   
+   
+   #ifdef SEA_PRESET_RRM_FAMILY
    if(preset == PRESET_RRM)
    {
       // ================================================================
@@ -1784,10 +1784,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       return;
    }
-#endif // SEA_PRESET_RRM_FAMILY
-
-
-#ifdef SEA_PRESET_RRM_ORG
+   #endif // SEA_PRESET_RRM_FAMILY
+   
+   
+   #ifdef SEA_PRESET_RRM_ORG
    if(preset == PRESET_RRM_ORG)
    {
 
@@ -2283,10 +2283,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       ValidateRRM_ORG_ExitConfig(cfg);
       return;
    }
-#endif // SEA_PRESET_RRM_ORG
-
-
-#ifdef SEA_PRESET_TOPINVESTOR
+   #endif // SEA_PRESET_RRM_ORG
+   
+   
+   #ifdef SEA_PRESET_TOPINVESTOR
    if(preset == PRESET_TOPINVESTOR)
    {
       // ================================================================
@@ -2649,10 +2649,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       return;
    }
-#endif // SEA_PRESET_TOPINVESTOR
-
-
-#ifdef SEA_PRESET_TEST
+   #endif // SEA_PRESET_TOPINVESTOR
+   
+   
+   #ifdef SEA_PRESET_TEST
    if(preset == PRESET_TEST)
    {
       //+------------------------------------------------------------------+
@@ -3032,9 +3032,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel; // Policy A: restore emergency margin guard
 
       return;
+      }
    }
+   #endif // SEA_PRESET_TEST
 }
-#endif // SEA_PRESET_TEST
 
 //+------------------------------------------------------------------+
 //| END OF FILE                                                      |
