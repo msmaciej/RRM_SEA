@@ -3021,20 +3021,32 @@ public:
    void   Scanner_ResetAllLayerPullback()               { ResetAllLayerPullback(); }
 
    //==========================================================================
-   // EvaluateTS_AtShift — shared, shift-correct decision core (L x I x climax).
-   //   `bias` (+1 long / -1 short) is supplied by the caller (EvaluateB on the
+   // EvaluateTS_AtShift — shared, shift-correct decision core: B*P*L*I (+climax).
+   //   `bias` (B, +1 long / -1 short) is supplied by the caller (EvaluateB on the
    //   EA; per-direction scan in SignalScan). Returns 1 if a signal exists for
    //   that direction at `shift`, else 0. Both the EA's EvaluateTS() wrapper and
-   //   SignalScan call this so they share one Layer/Indicator/Climax path.
-   //   NOTE: Bias (B) is caller-provided; Phase (P) and the EMA-fan/DPI-decel
-   //   pre-filters remain in the EA wrapper pending shift-aware phase support.
+   //   SignalScan call this so they share one B/P/L/I/climax path.
+   //   NOTE: The F factor (EMA-fan / DPI-decel / DPI reset-recovery / phase-age
+   //   pre-filters) is still applied only in the EA wrapper. Of the F filters,
+   //   only PHASE_AGE and DPI_RESET_RECOVERY are active under RRM_ORG defaults;
+   //   making F shift-aware (incl. CCI reset-recovery state replay) is the
+   //   remaining step for full B*P*L*I*F parity. SignalScan is therefore slightly
+   //   more permissive than the EA on those two gates until F is shared.
    //==========================================================================
    int EvaluateTS_AtShift(int shift, int bias)
    {
       if(bias == 0)                    return 0;
-      if(EvaluateL(shift, bias) == 0)  return 0;   // Layer (pullback-recovery) — shift-correct
-      if(EvaluateI(shift, bias) == 0)  return 0;   // Indicator vote — shift-correct
-      if(DetectClimax(bias, shift))    return 0;   // Climax / exhaustion guard
+      if(EvaluateP(shift, bias) == 0)  return 0;   // Phase (P) — shift-correct
+      if(EvaluateL(shift, bias) == 0)  return 0;   // Layer (L) — shift-correct
+      if(EvaluateI(shift, bias) == 0)  return 0;   // Indicators (I) — shift-correct
+      if(DetectClimax(bias, shift))                // Climax / exhaustion guard (checked last)
+      {
+         // Mirror EA EvaluateTS: B*P*L*I aligned but price over-extended into an
+         // impulse → block and reset all layers so a fresh pullback-recovery
+         // cycle is required before the next signal.
+         if(m_settings.ClimaxGuard_ResetPullback) ResetAllLayerPullback();
+         return 0;
+      }
       return 1;
    }
    int GetLastLayer() const { return m_last_layer; }
@@ -5799,8 +5811,10 @@ public:
       if(m_settings.BiasMode != BIAS_4EMA || !m_settings.PhaseDetectionEnabled)
          return 1;  // Not applicable for non-4EMA modes → pass
 
-      // m_diag_last_phase was set by GetBias_4EMA_Direction inside EvaluateB
-      EMarketPhase phase = m_diag_last_phase;
+      // Phase at the evaluated bar. For the EA (v_shift=1) this equals the
+      // phase EvaluateB just computed; recomputing here makes EvaluateP
+      // shift-correct so SignalScan can evaluate phase at historical bars.
+      EMarketPhase phase = DetectMarketPhase(v_shift);
 
       if(m_settings.DebugFlow) {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);

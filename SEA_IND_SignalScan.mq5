@@ -628,178 +628,24 @@ int PeakGet(int layer, int bias)
 //+------------------------------------------------------------------+
 void Eval(int shift, CSignalEngine &eng, int bias)
 {
-   // ── Pullback-Recovery ──────────────────────────────────────────
-   bool any_layer = (TS_LayerS || TS_LayerM || TS_LayerW);
-   if(any_layer)
-   {
-      // State already updated in ScanBar — just evaluate current state
-
-      // Per-layer recovery — each layer is independent, resets only after it fires
-      // No external expiry needed: state machine handles RECOVERED→DETECTED on new pullback,
-      // and EMA stack check below prevents stale RECOVERED from firing in wrong market state.
-
-      // Priority: S (strongest) → M → W; each independent
-      // Each layer also requires the full EMA stack to be intact in bias direction:
-      // LayerS: EMA3>EMA4 AND EMA2>EMA3 AND EMA1>EMA2 (all four ordered)
-      // LayerM: EMA2>EMA3 AND EMA1>EMA2 (top two layers intact)
-      // LayerW: EMA1>EMA2 (only own pair)
-      int    fired_layer = 0;
-      double fema        = 0.0;
-
-      if(!fired_layer && TS_LayerS && eng.GetLayerSPullbackState()==LAYER_PB_RECOVERED)
-      {
-         double e3=EMAv(EMA3,shift), e4=EMAv(EMA4,shift);
-         bool stack_ok = (bias==1) ? (e3>e4) : (e3<e4);
-         if(stack_ok && PeakGet(3,bias) >= PB_MinBars){fired_layer=3;fema=e3;}
-      }
-      if(!fired_layer && TS_LayerM && eng.GetLayerMPullbackState()==LAYER_PB_RECOVERED)
-      {
-         double e2=EMAv(EMA2,shift), e3=EMAv(EMA3,shift);
-         bool stack_ok = (bias==1) ? (e2>e3) : (e2<e3);
-         if(stack_ok && PeakGet(2,bias) >= PB_MinBars){fired_layer=2;fema=e2;}
-      }
-      if(!fired_layer && TS_LayerW && eng.GetLayerWPullbackState()==LAYER_PB_RECOVERED)
-      {
-         double e1=EMAv(EMA1,shift);
-         if(PeakGet(1,bias) >= PB_MinBars){fired_layer=1;fema=e1;}
-      }
-      if(!fired_layer) return;
-
-      double cl=iClose(_Symbol,PERIOD_CURRENT,shift);
-      double op=iOpen (_Symbol,PERIOD_CURRENT,shift);
-      if(bias== 1&&cl<=fema) return;
-      if(bias==-1&&cl>=fema) return;
-      if(bias== 1&&cl<=op)   return;
-      if(bias==-1&&cl>=op)   return;
-
-      // ── DPI ──────────────────────────────────────────────────────
-      if(TS_DPI)
-         if(!eng.Scanner_Check_DPI(bias, shift)) return;
-
-      // ── PSAR ─────────────────────────────────────────────────────
-      if(TS_PSAR_Flip)
-      { if(!eng.Scanner_Check_PSAR_Flip(bias, shift)) return; }
-      else if(TS_PSAR)
-      { if(!eng.Scanner_Check_PSAR(bias, shift)) return; }
-
-      // ── MTF ──────────────────────────────────────────────────────
-      if(TS_MTF)
-         if(!eng.Scanner_Check_MTF(bias)) return;
-
-      // ── CandleBody ───────────────────────────────────────────────
-      if(TS_CandleBody)
-         if(!eng.Scanner_Check_CandleBody(bias, shift)) return;
-
-      // ── ADX ──────────────────────────────────────────────────────
-      if(TS_ADX)
-         if(!eng.Scanner_Check_ADX(shift)) return;
-
-      // ── RSI ──────────────────────────────────────────────────────
-      if(TS_RSI)
-         if(!eng.Scanner_Check_RSI(bias, shift)) return;
-
-      // ── CCI ──────────────────────────────────────────────────────
-      if(TS_CCI)
-         if(!eng.Scanner_Check_CCI(bias, shift)) return;
-
-      // ── MACD ─────────────────────────────────────────────────────
-      if(TS_MACD)
-         if(!eng.Scanner_Check_MACD(bias, shift)) return;
-
-      // ── Stochastic ───────────────────────────────────────────────
-      if(TS_Stochastic)
-         if(!eng.Scanner_Check_Sto(bias, shift)) return;
-
-      // ── Bollinger Bands ──────────────────────────────────────────
-      if(TS_BollingerBands)
-         if(!eng.Scanner_Check_BB(bias, shift)) return;
-
-      // ── MFI ──────────────────────────────────────────────────────
-      if(TS_MFI)
-         if(!eng.Scanner_Check_MFI(bias, shift)) return;
-
-      // ── ATR ──────────────────────────────────────────────────────
-      if(TS_ATR)
-         if(!eng.Scanner_Check_ATR(bias, shift)) return;
-
-      // ── VPRR ─────────────────────────────────────────────────────
-      if(TS_VPRR)
-         if(!eng.Scanner_Check_VPRR(shift)) return;
-
-      // ── Choppiness Index ─────────────────────────────────────────
-      if(TS_CI)
-         if(!eng.Scanner_Check_CI(bias, shift)) return;
-
-      // ── All passed → climax guard, then draw; reset only the fired layer ──
-      if(TS_ClimaxGuard && eng.Scanner_DetectClimax(bias, shift))
-      { if(CG_ResetPullback) eng.Scanner_ResetAllLayerPullback(); return; }
-      PutLine(iTime(_Symbol, PERIOD_CURRENT, shift), bias, fired_layer);
-      eng.Scanner_ResetLayerAfterFire(fired_layer);
+   // ── Shared engine: single B*P*L*I (+climax) decision path ─────────
+   // SignalScan delegates the entire signal decision to the same core the EA
+   // uses (EvaluateTS_AtShift), so the scanner and the EA apply identical
+   // Phase / Layer(pullback-recovery) / Indicator / Climax logic at the
+   // scanned bar. Bias is supplied per-direction by ScanBar; the layer
+   // pullback and PSAR-flip state were already updated there.
+   //
+   // NOTE: the F pre-filters (DPI reset-recovery, phase-age, EMA-fan,
+   // DPI-decel) are not yet in the shared core, so the scanner is slightly
+   // more permissive than the EA on those gates until F is unified. Phase (P)
+   // is a no-op here until the scanner config sets PhaseDetectionEnabled (2.4).
+   if(eng.EvaluateTS_AtShift(shift, bias) != 1)
       return;
-   }
 
-   // ── DPI ────────────────────────────────────────────────────────
-   if(TS_DPI)
-      if(!eng.Scanner_Check_DPI(bias, shift)) return;
-
-   // ── PSAR ───────────────────────────────────────────────────────
-   if(TS_PSAR_Flip)
-   { if(!eng.Scanner_Check_PSAR_Flip(bias, shift)) return; }
-   else if(TS_PSAR)
-   { if(!eng.Scanner_Check_PSAR(bias, shift)) return; }
-
-   // ── MTF ────────────────────────────────────────────────────────
-   if(TS_MTF)
-      if(!eng.Scanner_Check_MTF(bias)) return;
-
-   // ── CandleBody ─────────────────────────────────────────────────
-   if(TS_CandleBody)
-      if(!eng.Scanner_Check_CandleBody(bias, shift)) return;
-
-   // ── ADX ────────────────────────────────────────────────────────
-   if(TS_ADX)
-      if(!eng.Scanner_Check_ADX(shift)) return;
-
-   // ── RSI ────────────────────────────────────────────────────────
-   if(TS_RSI)
-      if(!eng.Scanner_Check_RSI(bias, shift)) return;
-
-   // ── CCI ────────────────────────────────────────────────────────
-   if(TS_CCI)
-      if(!eng.Scanner_Check_CCI(bias, shift)) return;
-
-   // ── MACD ───────────────────────────────────────────────────────
-   if(TS_MACD)
-      if(!eng.Scanner_Check_MACD(bias, shift)) return;
-
-   // ── Stochastic ─────────────────────────────────────────────────
-   if(TS_Stochastic)
-      if(!eng.Scanner_Check_Sto(bias, shift)) return;
-
-   // ── Bollinger Bands ────────────────────────────────────────────
-   if(TS_BollingerBands)
-      if(!eng.Scanner_Check_BB(bias, shift)) return;
-
-   // ── MFI ────────────────────────────────────────────────────────
-   if(TS_MFI)
-      if(!eng.Scanner_Check_MFI(bias, shift)) return;
-
-   // ── ATR ────────────────────────────────────────────────────────
-   if(TS_ATR)
-      if(!eng.Scanner_Check_ATR(bias, shift)) return;
-
-   // ── VPRR ───────────────────────────────────────────────────────
-   if(TS_VPRR)
-      if(!eng.Scanner_Check_VPRR(shift)) return;
-
-   // ── Choppiness Index ───────────────────────────────────────────
-   if(TS_CI)
-      if(!eng.Scanner_Check_CI(bias, shift)) return;
-
-   // ── All enabled components passed → climax guard, then draw line ──
-   if(TS_ClimaxGuard && eng.Scanner_DetectClimax(bias, shift))
-   { if(CG_ResetPullback) eng.Scanner_ResetAllLayerPullback(); return; }
-   PutLine(iTime(_Symbol, PERIOD_CURRENT, shift), bias, 0);
+   int fired_layer = eng.GetLastLayer();   // 0 when layer detection is off / N/A
+   PutLine(iTime(_Symbol, PERIOD_CURRENT, shift), bias, fired_layer);
+   if(fired_layer > 0)
+      eng.Scanner_ResetLayerAfterFire(fired_layer);
 }
 
 //+------------------------------------------------------------------+
@@ -829,6 +675,7 @@ void BuildSettings(ST_Settings &s)
 
    // Pullback
    s.LayerPullbackEnabled  = (TS_LayerS || TS_LayerM || TS_LayerW);
+   s.EnableLayerDetection  = (TS_LayerS || TS_LayerM || TS_LayerW);  // engage EvaluateL in shared core
    s.LayerBaselineLookback = PB_Lookback;
 
    // DPI
