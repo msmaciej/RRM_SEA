@@ -167,6 +167,12 @@ input bool TS_BollingerBands     = false;  // [I] Bollinger Bands
 input bool TS_CandleBody         = false;  // [I] CandleBody direction
 input bool TS_CCI                = false;  // [I] CCI direction
 input bool TS_CI                 = false;  // [I] Choppiness Index
+input bool   TS_ClimaxGuard      = true;   // [Guard] Block late entries into over-extended impulses
+input int    CG_Lookback         = 5;      // [Guard] Window (bars) scanned for an impulse
+input int    CG_ATRPeriod        = 14;     // [Guard] ATR baseline period (pre-impulse)
+input double CG_BarATRMult       = 2.0;    // [Guard] Single-bar range threshold (x ATR)
+input double CG_MoveATRMult      = 3.0;    // [Guard] Cumulative move threshold (x ATR)
+input bool   CG_ResetPullback    = true;   // [Guard] On detection reset ALL layer PB states
 input bool TS_DPI                = false;  // [I] DPI momentum
 input bool TS_MACD               = false;  // [I] MACD histogram
 input bool TS_MFI                = false;  // [I] MFI money flow
@@ -724,7 +730,9 @@ void Eval(int shift, CSignalEngine &eng, int bias)
       if(TS_CI)
          if(!eng.Scanner_Check_CI(bias, shift)) return;
 
-      // ── All passed → draw; reset only the fired layer ────────────
+      // ── All passed → climax guard, then draw; reset only the fired layer ──
+      if(TS_ClimaxGuard && eng.Scanner_DetectClimax(bias, shift))
+      { if(CG_ResetPullback) eng.Scanner_ResetAllLayerPullback(); return; }
       PutLine(iTime(_Symbol, PERIOD_CURRENT, shift), bias, fired_layer);
       eng.Scanner_ResetLayerAfterFire(fired_layer);
       return;
@@ -788,7 +796,9 @@ void Eval(int shift, CSignalEngine &eng, int bias)
    if(TS_CI)
       if(!eng.Scanner_Check_CI(bias, shift)) return;
 
-   // ── All enabled components passed → draw line ──────────────────
+   // ── All enabled components passed → climax guard, then draw line ──
+   if(TS_ClimaxGuard && eng.Scanner_DetectClimax(bias, shift))
+   { if(CG_ResetPullback) eng.Scanner_ResetAllLayerPullback(); return; }
    PutLine(iTime(_Symbol, PERIOD_CURRENT, shift), bias, 0);
 }
 
@@ -843,6 +853,14 @@ void BuildSettings(ST_Settings &s)
    s.MTF_TF2             = PERIOD_CURRENT;
    s.MTF_EMA_Fast        = MTF_EMA_Fast;
    s.MTF_EMA_Slow        = MTF_EMA_Slow;
+
+   // Climax / exhaustion guard
+   s.ClimaxGuard_Enabled       = TS_ClimaxGuard;
+   s.ClimaxGuard_Lookback      = CG_Lookback;
+   s.ClimaxGuard_ATRPeriod     = CG_ATRPeriod;
+   s.ClimaxGuard_BarATRMult    = CG_BarATRMult;
+   s.ClimaxGuard_MoveATRMult   = CG_MoveATRMult;
+   s.ClimaxGuard_ResetPullback = CG_ResetPullback;
    s.MTF_RequirePhase    = false;
    s.MTF_StrictAlignment = false;
 
