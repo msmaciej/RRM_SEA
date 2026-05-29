@@ -895,9 +895,6 @@ void ValidateRRM_ORG_ExitConfig(ST_Settings &cfg)
 
 void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 {
-   if(preset == PRESET_CUSTOM)
-      return;
-      
    // Do NOT modify cfg.PrintEffectiveConfig / cfg.DebugFlow
    // Do NOT modify UI toggles or reporting toggles (ExportCSV, ExportUseCommonFiles)
 
@@ -938,8 +935,84 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    const double op_EmergencyMarginLevel = cfg.EmergencyMarginLevel;  // Saved for PRESET_TEST exit-profile logic
    const EExitProfile op_ExitProfile = cfg.ExitProfile;
 
-   
-   #ifdef SEA_PRESET_FPM
+
+   // ════════════════════════════════════════════════════════════════
+   // PRESET_CUSTOM — universal base; defaults reproduce PRESET_RRM_ORG.
+   //
+   // Static identity fields (BiasMode, AutoStrat, ExitProfile, SL/Trail
+   // modes, RSI/STO/MACD, phase+layer toggles, R:R …) come from Inp_CUSTOM_*,
+   // whose DEFAULTS are set to RRM_ORG values in SEA_Inputs.mqh.
+   //
+   // The fields below are the ones RRM_ORG resolves at RUNTIME (TF/symbol/
+   // account-aware) or that CUSTOM's single-value inputs cannot express;
+   // they are resolved here through the SAME shared helpers RRM_ORG uses,
+   // so default CUSTOM adapts identically on any chart/timeframe.
+   //
+   // STAGE B (pending — not yet wired): DPI voter inputs, VPRR auto-config,
+   // EMA-fan scaling, TrailEMA role→period resolution, the TF-ternary
+   // lookback/drawdown fields, and JPY gate value-scaling.
+   // ════════════════════════════════════════════════════════════════
+   if(preset == PRESET_CUSTOM)
+   {
+      // ── Risk: instrument/account-aware (Policy A still lets user cap it) ──
+      cfg.RiskPercent              = GetEffectiveRiskPercent();
+
+      // ── SL floors / cushions: instrument-aware (M1≈2p … D1≈25p, JPY-adj) ──
+      cfg.SL_MinPips               = GetRecommendedInitialSlCushionPips();
+      cfg.SL_PsarPipsCushion       = GetRecommendedInitialSlCushionPips();
+      cfg.SL_SwingPipsCushion      = GetRecommendedInitialSlCushionPips();
+      cfg.SL_WidenToMinimum        = true;   // widen (not block) when SL too close
+      cfg.PSAR_TrailPipsCushion    = GetRecommendedTrailPsarCushionPips();
+      cfg.PSAR_TrailCushionAtrMult = 1.0;
+      cfg.PSAR_TrailCushionPct     = 25.0;
+
+      // ── Break-even / trail distances: TF-adaptive ──
+      cfg.RRM_BE_BufferPips        = GetTFBasedCushion(_Period);
+      cfg.TrailDistancePips        = GetTFBasedCushion(_Period);
+      cfg.BEThresholdPips          = GetTFBasedCushion(_Period);
+      cfg.RRM_TrailStartsAfterBE   = true;
+      cfg.RRM_BE_ProgressPct       = 25.0;
+
+      // ── Multi-timeframe confirmation (mirror RRM_ORG) ──
+      cfg.Ind_MTF_Enabled          = Inp_Ind_MTF_Enabled;
+      cfg.MTF_TF1                  = GetSafeMTF_TF1(Inp_MTF_TF1);
+      cfg.MTF_TF2                  = GetSafeMTF_TF2(Inp_MTF_TF2);
+      cfg.MTF_EMA_Fast             = Inp_MTF_EMA_Fast;
+      cfg.MTF_EMA_Slow             = Inp_MTF_EMA_Slow;
+      cfg.MTF_RequirePhase         = false;  // position-only; slope req kills too many
+
+      // ── Directional gates: AUTO-TF scaling (JPY value-scaling = Stage B) ──
+      cfg.Gate_Recovery.mode         = GATE_SCALE_AUTO_TF;
+      cfg.Gate_Recovery.value        = 1.0;
+      cfg.Gate_EmaDiv.mode           = GATE_SCALE_AUTO_TF;
+      cfg.Gate_EmaDiv.value          = 1.0;
+      cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
+      cfg.Gate_CandleDirection.value = 1.0;
+
+      // ── MFI dual thresholds (single Inp_CUSTOM_Ind_Mfi_Level can't be 80/20) ──
+      cfg.T_MfiOB                  = 80.0;
+      cfg.T_MfiOS                  = 20.0;
+
+      // ── Layer pullback ──
+      cfg.LayerPullbackEnabled     = true;
+      cfg.LayerBaselineLookback    = 21;
+
+      // ── Re-entry / cooldown / PSAR vote timing ──
+      cfg.AllowReEntryAfterBE      = true;
+      cfg.ReEntryLotScalePct       = 50;
+      cfg.MinBarsAfterClose        = 1;
+      cfg.Vote_PsarFlipDelay       = 5;
+
+      // ── Phase-confirmation literals ──
+      cfg.Emerging_AllowStrongTrades   = false;
+      cfg.RequireMinPhaseConfirm       = true;
+      cfg.Require_Progressive_Momentum = false;
+      cfg.ma_h_shift                   = 0;
+
+      return;
+   }
+
+#ifdef SEA_PRESET_FPM
    if(preset == PRESET_FPM)
    {
       // ================================================================

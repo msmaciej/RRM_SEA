@@ -1009,7 +1009,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 1: BIAS (Major Trend Direction)";
 input group "╚════════════════════════════════════════════════════════╝";
-input EBiasMode   Inp_CUSTOM_BiasMode              = BIAS_2EMA;      // Override: Bias Mode: Manual, 2-EMA, 4-EMA
+input EBiasMode   Inp_CUSTOM_BiasMode              = BIAS_4EMA;      // Override: Bias Mode: Manual, 2-EMA, 4-EMA
 input EManualSide Inp_CUSTOM_ManualSide            = SIDE_BOTH;      // Override: Bias Side
 input bool        Inp_CUSTOM_BiasEnabled           = true;           // Override: Bias Enabled
 input int         Inp_CUSTOM_BiasFastID            = 2;              // Override: Bias Fast ID
@@ -1027,15 +1027,15 @@ input int         Inp_CUSTOM_Ema4Period            = 89;             // Override
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 3: ENTRY Signal (Timing Strategy)";
 input group "╚════════════════════════════════════════════════════════╝";
-input EAutoStrategy  Inp_CUSTOM_AutoStrat          = STRAT_2EMA_POSITION;  // Override: STRATegy
+input EAutoStrategy  Inp_CUSTOM_AutoStrat          = STRAT_4EMA_LAYER;  // Override: STRATegy
 input bool        Inp_CUSTOM_CloseOnReverse        = false;          // Override: Close On Reverse
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 3b: PHASE / LAYER / VPRR (4-EMA Architecture)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_PhaseDetectionEnabled = false;          // Override: [PH] Enable market-phase detection (TRENDING/EMERGING/UNORDERED)
+input bool        Inp_CUSTOM_PhaseDetectionEnabled = true;          // Override: [PH] Enable market-phase detection (TRENDING/EMERGING/UNORDERED)
 input bool        Inp_CUSTOM_BlockUnorderedPhase   = true;           // Override: [PH] Block trades while phase is UNORDERED
 input bool        Inp_CUSTOM_BlockEmergingPhase    = false;          // Override: [PH] Block trades while phase is EMERGING
-input bool        Inp_CUSTOM_EnableLayerDetection  = false;          // Override: [LY] Enable EMA-layer detection (L1/L2/L3)
+input bool        Inp_CUSTOM_EnableLayerDetection  = true;          // Override: [LY] Enable EMA-layer detection (L1/L2/L3)
 input bool        Inp_CUSTOM_LayerPullbackEnabled  = false;          // Override: [LY] Enable layer pullback-recovery state machine
 input bool        Inp_CUSTOM_VPRR_Enabled          = false;          // Override: [VP] Enable Volume Pullback-Recovery Ratio voter
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1126,7 +1126,7 @@ input int         Inp_CUSTOM_Ind_Macd_Fast         = 8;              // Ind: TI 
 input int         Inp_CUSTOM_Ind_Macd_Slow         = 13;             // Ind: TI Full: [MACD] Slow EMA period
 input int         Inp_CUSTOM_Ind_Macd_Sig          = 5;              // Ind: TI Full: [MACD] Signal SMA period
 input int         Inp_CUSTOM_Ind_Macd_FreshBars    = 3;              // Ind: TI Full: [MACD] Fresh Bars validity
-input double      Inp_CUSTOM_Ind_Macd_SlopeMin     = 0.000001;       // Ind: TI Full: [MACD] Min slope change per bar
+input double      Inp_CUSTOM_Ind_Macd_SlopeMin     = 0.00001;       // Ind: TI Full: [MACD] Min slope change per bar
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 MFI (Money Flow Index - Oscillator Buying Selling Pressure)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1152,7 +1152,7 @@ input bool        Inp_CUSTOM_Ind_Ross_Enabled      = false;          // Ind: TI 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 RSI (Relative Strength Index - Monentum Oscilator)";
 input group "╚════════════════════════════════════════════════════════╝";
-input ERsiMode    Inp_CUSTOM_Ind_Rsi_Mode          = RSI_FILTER_EXTREME; // Ind: TI Full: [RSI] Mode
+input ERsiMode    Inp_CUSTOM_Ind_Rsi_Mode          = RSI_TREND_ABOVE_50; // Ind: TI Full: [RSI] Mode
 input bool        Inp_CUSTOM_Ind_Rsi_Enabled       = false;          // Ind: TI Full: [RSI] Enable RSI
 input int         Inp_CUSTOM_Ind_Rsi_Period        = 14;             // Ind: TI Full: [RSI] Period
 input double      Inp_CUSTOM_Ind_Rsi_OB            = 70.0;           // Ind: TI Full: [RSI] Overbought
@@ -1160,7 +1160,7 @@ input double      Inp_CUSTOM_Ind_Rsi_OS            = 30.0;           // Ind: TI 
 input group "╔════════════════════════════=═══════════════════════════╗";
 input group "║   📊 STO (Stochastic Oscillator - Momentum Potential Market Reversals)";
 input group "╚════════════════════════════════════════════════════════╝";
-input EStochMode  Inp_CUSTOM_Ind_Sto_Mode          = STO_ZONE_FILTER;  // Ind: TI Full: [Sto] Mode
+input EStochMode  Inp_CUSTOM_Ind_Sto_Mode          = STO_CROSS_SIGNAL;  // Ind: TI Full: [Sto] Mode
 input bool        Inp_CUSTOM_Ind_Sto_Enabled       = false;          // Ind: TI Full: [Sto] Enable STO
 input int         Inp_CUSTOM_Ind_Sto_K             = 5;              // Ind: TI Full: [Sto] %K period
 input int         Inp_CUSTOM_Ind_Sto_D             = 3;              // Ind: TI Full: [Sto] %D period
@@ -1202,19 +1202,19 @@ input group "║   🎯 (TP) TAKE PROFIT (CUSTOM only)";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETPMode     Inp_CUSTOM_TPMode                = TP_MODE_RR;     // Custom: TP mode
 input bool        Inp_CUSTOM_TP_Enabled            = true;           // Custom: Enable TP
-input double      Inp_CUSTOM_RRRatio               = 2.0;            // Custom: R:R ratio
+input double      Inp_CUSTOM_RRRatio               = 2.5;            // Custom: R:R ratio
 input double      Inp_CUSTOM_FixedTPPips           = 40.0;           // Custom: Fixed TP
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎯 EXIT PROFILES";
 input group "╚════════════════════════════════════════════════════════╝";
-input EExitProfile   Inp_CUSTOM_ExitProfile        = EXIT_PROFILE_NONE; // Custom: Exit profile
+input EExitProfile   Inp_CUSTOM_ExitProfile        = EXIT_PROFILE_RRM; // Custom: Exit profile
 // input string   Inp_Exit_Zone_Info1              = "Active for: PRESET_TEST & PRESET_CUSTOM (direct input control)";
 // input string   Inp_Exit_Zone_Info2              = "Other presets override exits with strategy-optimized values";
 // input string   Inp_CUSTOM_ExitProfile_Info      = "RRM: Swing-based SL, PSAR trail, no ATR multipliers";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛑 (SL) STOP LOSS (CUSTOM only)";
 input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode     Inp_CUSTOM_SLMode                = SL_MODE_SWING;  // Custom: SL mode
+input ESLMode     Inp_CUSTOM_SLMode                = SL_MODE_PSAR_DOT;  // Custom: SL mode
 input bool        Inp_CUSTOM_SL_WidenToMinimum     = false;          // Custom: If true: widen to min.; if false: block TE
 // input string   Inp_SL_Help1                     = "FIXED_PIPS: Simple pip distance";
 // input string   Inp_SL_Help2                     = "MODE_SWING: Recent structure high/low";
@@ -1244,14 +1244,14 @@ input EPsarTrailCushionMode Inp_CUSTOM_PSAR_TrailCushionMode = PSAR_CUSHION_ATR;
 input int         Inp_CUSTOM_TrailCushionAtrPeriod = 14;            // Custom: PSAR cushion ATR period
 input double      Inp_CUSTOM_TrailCushionAtrMult   = 0.5;           // Custom: PSAR cushion ATR multiplier (cushion = ATR × this)
 input double      Inp_CUSTOM_TrailCushionPct       = 0.04;          // Custom: PSAR cushion % of price (PERCENT mode)
-input ETrailingMode  Inp_CUSTOM_TrailMode          = TRAIL_PSAR;     // Custom: Trailing Mode
+input ETrailingMode  Inp_CUSTOM_TrailMode          = TRAIL_EMA;     // Custom: Trailing Mode
 input ETrailTrigger  Inp_CUSTOM_TrailTrigger       = TRIGGER_IMMEDIATE; // Custom: When Trail
 input bool        Inp_CUSTOM_TrailLockProfit       = true;           // Custom: Trail Lock Profit
 input double      Inp_CUSTOM_TrailDistancePips     = 5.0;            // Custom: Trail Pips
 input double      Inp_CUSTOM_BEThresholdPips       = 5.0;            // Custom: BE Pips
 // Trail trigger: % of RISK (R-multiple based)
 // Examples: 50 = 0.5R, 100 = 1.0R, 150 = 1.5R
-input double      Inp_CUSTOM_TrailProfitPercent    = 50.0;           // Custom: Trail trigger as % of risk for TRIGGER_PROFIT_PERCENT
+input double      Inp_CUSTOM_TrailProfitPercent    = 25.0;           // Custom: Trail trigger as % of risk for TRIGGER_PROFIT_PERCENT
 input double      Inp_CUSTOM_TrailStepPips         = 5.0;            // Custom: Trail Step Pips
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   ⚖️ (BE) BREAK-EVEN (CUSTOM only)";
