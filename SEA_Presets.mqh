@@ -972,23 +972,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_TrailStartsAfterBE   = Inp_RRM_ORG_TrailStartsAfterBE;
       cfg.RRM_BE_ProgressPct       = 25.0;
 
-      // ── Multi-timeframe confirmation (mirror RRM_ORG incl. HTF-filter override) ──
-      cfg.Ind_MTF_Enabled          = Inp_Ind_MTF_Enabled;
+      // ── Multi-timeframe / HTF confirmation (mirror RRM_ORG, two-TF) ──
+      cfg.Ind_MTF_Enabled          = Inp_RRM_ORG_HtfFilter;          // master HTF on/off
       cfg.MTF_TF1                  = GetSafeMTF_TF1(Inp_MTF_TF1);
-      cfg.MTF_TF2                  = GetSafeMTF_TF2(Inp_MTF_TF2);
+      cfg.MTF_TF2                  = GetSafeMTF_TF2(Inp_MTF_TF2);     // PERIOD_CURRENT=1-TF, real TF=2-TF
       cfg.MTF_EMA_Fast             = Inp_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow             = Inp_MTF_EMA_Slow;
       cfg.MTF_RequirePhase         = false;
       cfg.MTF_StrictAlignment      = Inp_MTF_StrictAlignment;
-      if(Inp_RRM_ORG_HtfFilter)   // legacy HTF filter → single-TF slope mode (default ON)
-      {
-         cfg.Ind_MTF_Enabled       = true;
-         cfg.MTF_TF1               = GetSafeMTF_TF1(Inp_MTF_TF1);
-         cfg.MTF_TF2               = PERIOD_CURRENT;       // single-TF behaviour
-         cfg.MTF_EMA_Fast          = Inp_MTF_EMA_Fast;
-         cfg.MTF_EMA_Slow          = Inp_MTF_EMA_Fast;     // equal periods → slope mode
-         cfg.MTF_RequirePhase      = false;
-      }
 
       // ── Directional gates: AUTO-TF scaling + JPY value-scaling ──
       bool   custom_isJpy  = (StringFind(_Symbol, "JPY") >= 0);
@@ -2375,28 +2366,18 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MinMarginLevel            = op_MinMarginLevel;
       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
 
-      // ── MTF CONFIRMATION (replaces deprecated HTF filter) ───────────────
-      cfg.Ind_MTF_Enabled           = Inp_Ind_MTF_Enabled;
+      // ── MTF / HTF CONFIRMATION ──────────────────────────────────────────
+      // Inp_RRM_ORG_HtfFilter = master on/off for the HTF trend filter.
+      // TF count is chosen by Inp_MTF_TF2: PERIOD_CURRENT → single-TF;
+      // a real TF (default M15) → two-TF. Fast/Slow EMA crossover per TF
+      // (Fast != Slow; equal periods would switch GetMTFBias to slope mode).
+      cfg.Ind_MTF_Enabled           = Inp_RRM_ORG_HtfFilter;
       cfg.MTF_TF1                   = GetSafeMTF_TF1(Inp_MTF_TF1);
       cfg.MTF_TF2                   = GetSafeMTF_TF2(Inp_MTF_TF2);
       cfg.MTF_EMA_Fast              = Inp_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow              = Inp_MTF_EMA_Slow;
-      cfg.MTF_RequirePhase          = false;   // Position-only check; slope requirement kills too many signals due to HTF EMA lag
-      cfg.MTF_StrictAlignment       = Inp_MTF_StrictAlignment;   // HTF directional gate: trade only with higher-TF trend(s). User-controlled.
-
-      // Legacy HTF filter: Inp_RRM_ORG_HtfFilter overrides the MTF inputs with
-      // single-TF slope-based behaviour (MTF_EMA_Fast == MTF_EMA_Slow triggers
-      // the slope path in GetMTFBias()).  TF and EMA period are taken from the
-      // modern Inp_MTF_TF1 / Inp_MTF_EMA_Fast inputs so users only need those.
-      if(Inp_RRM_ORG_HtfFilter)
-      {
-         cfg.Ind_MTF_Enabled        = true;
-         cfg.MTF_TF1                = GetSafeMTF_TF1(Inp_MTF_TF1);
-         cfg.MTF_TF2                = PERIOD_CURRENT;  // single-TF behaviour
-         cfg.MTF_EMA_Fast           = Inp_MTF_EMA_Fast;
-         cfg.MTF_EMA_Slow           = Inp_MTF_EMA_Fast; // equal periods → slope mode in engine
-         cfg.MTF_RequirePhase       = false;
-      }
+      cfg.MTF_RequirePhase          = false;
+      cfg.MTF_StrictAlignment       = Inp_MTF_StrictAlignment;
 
       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
       cfg.AllowReEntryAfterBE       = Inp_RRM_ORG_AllowReEntryAfterBE;
