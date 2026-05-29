@@ -943,21 +943,20 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    // modes, RSI/STO/MACD, phase+layer toggles, R:R …) come from Inp_CUSTOM_*,
    // whose DEFAULTS are set to RRM_ORG values in SEA_Inputs.mqh.
    //
-   // The fields below are the ones RRM_ORG resolves at RUNTIME (TF/symbol/
-   // account-aware) or that CUSTOM's single-value inputs cannot express;
-   // they are resolved here through the SAME shared helpers RRM_ORG uses,
-   // so default CUSTOM adapts identically on any chart/timeframe.
+   // Runtime-adaptive and RRM-specific voter fields are resolved here through
+   // the SAME helpers/inputs RRM_ORG uses, so default CUSTOM reproduces
+   // RRM_ORG trade-for-trade on any chart/timeframe.
    //
-   // STAGE B (pending — not yet wired): DPI voter inputs, VPRR auto-config,
-   // EMA-fan scaling, TrailEMA role→period resolution, the TF-ternary
-   // lookback/drawdown fields, and JPY gate value-scaling.
+   // NOTE: the RRM-specific voter subsystems below (DPI, EMA-fan, VPRR,
+   // JPY-gate, drawdown caps, phase-confirm) currently read the Inp_RRM_ORG_*
+   // tuning inputs so the mirror is exact with zero duplication. A later
+   // organizational pass can split these into a clearly-grouped global /
+   // Inp_CUSTOM_* namespace (see refactor notes).
    // ════════════════════════════════════════════════════════════════
    if(preset == PRESET_CUSTOM)
    {
-      // ── Risk: instrument/account-aware (Policy A still lets user cap it) ──
+      // ── Risk / SL floors / cushions (instrument-aware) ──
       cfg.RiskPercent              = GetEffectiveRiskPercent();
-
-      // ── SL floors / cushions: instrument-aware (M1≈2p … D1≈25p, JPY-adj) ──
       cfg.SL_MinPips               = GetRecommendedInitialSlCushionPips();
       cfg.SL_PsarPipsCushion       = GetRecommendedInitialSlCushionPips();
       cfg.SL_SwingPipsCushion      = GetRecommendedInitialSlCushionPips();
@@ -966,26 +965,38 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PSAR_TrailCushionAtrMult = 1.0;
       cfg.PSAR_TrailCushionPct     = 25.0;
 
-      // ── Break-even / trail distances: TF-adaptive ──
+      // ── Break-even / trail distances (TF-adaptive) ──
       cfg.RRM_BE_BufferPips        = GetTFBasedCushion(_Period);
       cfg.TrailDistancePips        = GetTFBasedCushion(_Period);
       cfg.BEThresholdPips          = GetTFBasedCushion(_Period);
-      cfg.RRM_TrailStartsAfterBE   = true;
+      cfg.RRM_TrailStartsAfterBE   = Inp_RRM_ORG_TrailStartsAfterBE;
       cfg.RRM_BE_ProgressPct       = 25.0;
 
-      // ── Multi-timeframe confirmation (mirror RRM_ORG) ──
+      // ── Multi-timeframe confirmation (mirror RRM_ORG incl. HTF-filter override) ──
       cfg.Ind_MTF_Enabled          = Inp_Ind_MTF_Enabled;
       cfg.MTF_TF1                  = GetSafeMTF_TF1(Inp_MTF_TF1);
       cfg.MTF_TF2                  = GetSafeMTF_TF2(Inp_MTF_TF2);
       cfg.MTF_EMA_Fast             = Inp_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow             = Inp_MTF_EMA_Slow;
-      cfg.MTF_RequirePhase         = false;  // position-only; slope req kills too many
+      cfg.MTF_RequirePhase         = false;
+      cfg.MTF_StrictAlignment      = Inp_MTF_StrictAlignment;
+      if(Inp_RRM_ORG_HtfFilter)   // legacy HTF filter → single-TF slope mode (default ON)
+      {
+         cfg.Ind_MTF_Enabled       = true;
+         cfg.MTF_TF1               = GetSafeMTF_TF1(Inp_MTF_TF1);
+         cfg.MTF_TF2               = PERIOD_CURRENT;       // single-TF behaviour
+         cfg.MTF_EMA_Fast          = Inp_MTF_EMA_Fast;
+         cfg.MTF_EMA_Slow          = Inp_MTF_EMA_Fast;     // equal periods → slope mode
+         cfg.MTF_RequirePhase      = false;
+      }
 
-      // ── Directional gates: AUTO-TF scaling (JPY value-scaling = Stage B) ──
+      // ── Directional gates: AUTO-TF scaling + JPY value-scaling ──
+      bool   custom_isJpy  = (StringFind(_Symbol, "JPY") >= 0);
+      double custom_jpyMul = (Inp_RRM_ORG_JpyGateMultiplier > 0.0) ? Inp_RRM_ORG_JpyGateMultiplier : 1.0;
       cfg.Gate_Recovery.mode         = GATE_SCALE_AUTO_TF;
-      cfg.Gate_Recovery.value        = 1.0;
+      cfg.Gate_Recovery.value        = custom_isJpy ? custom_jpyMul : 1.0;
       cfg.Gate_EmaDiv.mode           = GATE_SCALE_AUTO_TF;
-      cfg.Gate_EmaDiv.value          = 1.0;
+      cfg.Gate_EmaDiv.value          = custom_isJpy ? custom_jpyMul : 1.0;
       cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
       cfg.Gate_CandleDirection.value = 1.0;
 
@@ -1002,12 +1013,107 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ReEntryLotScalePct       = 50;
       cfg.MinBarsAfterClose        = 1;
       cfg.Vote_PsarFlipDelay       = 5;
+      cfg.Vote_AllowPsarFlip       = Inp_RRM_ORG_Vote_AllowPsarFlip;
 
-      // ── Phase-confirmation literals ──
+      // ── Phase confirmation + TF-adaptive lookbacks ──
       cfg.Emerging_AllowStrongTrades   = false;
       cfg.RequireMinPhaseConfirm       = true;
       cfg.Require_Progressive_Momentum = false;
       cfg.ma_h_shift                   = 0;
+      cfg.RRM_Lookback        = (_Period <= PERIOD_M1) ? 15 : (_Period <= PERIOD_M5) ? 10 : 12;
+      cfg.MinPhaseConfirmBars = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_PhaseConfirmM5
+                              : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_PhaseConfirmM30
+                              :                           Inp_RRM_ORG_PhaseConfirmH1plus;
+      cfg.RequireRecoveryMomentum = Inp_RRM_ORG_RequireRecoveryIntraday && (_Period <= PERIOD_M15);
+
+      // ── Daily-drawdown / frequency caps (RRM_ORG fallback logic) ──
+      cfg.RRM_MaxConsecutiveLosses = (Inp_RRM_ORG_DDMaxConsecLosses > 0) ? Inp_RRM_ORG_DDMaxConsecLosses : 4;
+      cfg.RRM_MaxTradesPerDay      = (Inp_RRM_ORG_DDMaxTradesPerDay > 0) ? Inp_RRM_ORG_DDMaxTradesPerDay : 5;
+      cfg.RRM_MaxDailyDrawdownPct  = (Inp_RRM_ORG_DDMaxDailyPct > 0.0)   ? Inp_RRM_ORG_DDMaxDailyPct   : 2.0;
+
+      // ── TP / PSAR-dot trail shift ──
+      cfg.TP_Enabled            = (Inp_RRM_ORG_TPMode != TP_MODE_NONE);
+      cfg.RRM_TrailPsarDotShift = (Inp_RRM_ORG_TrailPsarDotShift < 1) ? 1
+                                : (Inp_RRM_ORG_TrailPsarDotShift > 3) ? 3
+                                :  Inp_RRM_ORG_TrailPsarDotShift;
+
+      // ── EMA-fan filter: TF-adaptive base × volatility multiplier ──
+      cfg.EmaFanFilterEnabled = Inp_RRM_ORG_EmaFanFilter;
+      double custom_fan_base  = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_EmaFan_M5Pips
+                              : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_EmaFan_M30Pips
+                              : (_Period <= PERIOD_H1)  ? Inp_RRM_ORG_EmaFan_H1Pips
+                              : (_Period <= PERIOD_H4)  ? Inp_RRM_ORG_EmaFan_H4Pips
+                              :                           Inp_RRM_ORG_EmaFan_DailyPips;
+      cfg.EmaFanMaxTotalPips  = custom_fan_base * GetEmaFanMultiplier();
+
+      // ── TrailEMA: ribbon-role → period resolution (period 0 = derive from role) ──
+      cfg.TrailEMA_RibbonRole = (int)Inp_RRM_ORG_TrailEMA_RibbonRole;
+      if(Inp_RRM_ORG_TrailEMA_Period > 0)
+         cfg.TrailEMA_Period = Inp_RRM_ORG_TrailEMA_Period;
+      else
+         switch((EEmaRole)cfg.TrailEMA_RibbonRole)
+         {
+            case ROLE_EMA1: cfg.TrailEMA_Period = cfg.P_Ema1; break;
+            case ROLE_EMA2: cfg.TrailEMA_Period = cfg.P_Ema2; break;
+            case ROLE_EMA3: cfg.TrailEMA_Period = cfg.P_Ema3; break;
+            case ROLE_EMA4: cfg.TrailEMA_Period = cfg.P_Ema4; break;
+            default:        cfg.TrailEMA_Period = cfg.P_Ema2; break;
+         }
+      cfg.TrailEMA_CushionAtrMult = MathMax(0.0, Inp_RRM_ORG_TrailEMA_CushionAtrMult);
+
+      // ── DPI momentum voter (RRM_ORG's primary voter) ──
+      cfg.Ind_Dpi_Enabled            = Inp_RRM_ORG_DPI_Enabled;
+      cfg.DPI_MACD_Fast              = Inp_RRM_ORG_DPI_MacdFast;
+      cfg.DPI_MACD_Slow              = Inp_RRM_ORG_DPI_MacdSlow;
+      cfg.DPI_RedSignalType          = Inp_RRM_ORG_DPI_RedSignalType;
+      cfg.DPI_RedEMA_A               = Inp_RRM_ORG_DPI_RedEMA_A;
+      cfg.DPI_RedEMA_B               = Inp_RRM_ORG_DPI_RedEMA_B;
+      cfg.DPI_RedEMA_C               = Inp_RRM_ORG_DPI_RedEMA_C;
+      cfg.DPI_RedEMA_D               = Inp_RRM_ORG_DPI_RedEMA_D;
+      cfg.DPI_DoubleSmoothFirst      = Inp_RRM_ORG_DPI_DoubleSmoothFirst;
+      cfg.DPI_DoubleSmoothSecond     = Inp_RRM_ORG_DPI_DoubleSmoothSecond;
+      cfg.DPI_UseCCIReset            = Inp_RRM_ORG_DPI_UseCCIReset;
+      cfg.DPI_CCI_Period             = Inp_RRM_ORG_DPI_CCI_Period;
+      cfg.DPI_CCI_AppliedPrice       = (int)Inp_RRM_ORG_DPI_CCI_Price;
+      cfg.DPI_UseGreenHist           = Inp_RRM_ORG_DPI_UseGreenHist;
+      cfg.DPI_Histogram_Growth_Boost = Inp_RRM_ORG_DPI_Histogram_Growth_Boost;
+
+      // ── VPRR auto-config (volume-based pullback-recovery voter) ──
+      if(Inp_RRM_ORG_VPRR_AutoEnable)
+      {
+         ST_VPRRAutoMode custom_vprr = GetVPRRRecommendedMode(
+            Inp_VPRR_MinRatio_Gold,      Inp_VPRR_MinRatio_Silver,
+            Inp_VPRR_MinRatio_IndicesUS, Inp_VPRR_MinRatio_IndicesEU,
+            Inp_VPRR_MinRatio_Oil,       Inp_VPRR_MinRatio_Crypto,
+            Inp_VPRR_MinRatio_Equities,  Inp_VPRR_MinRatio_FX,
+            Inp_VPRR_MinRatio_NonFXTick,
+            Inp_VPRR_RecBars_Gold,       Inp_VPRR_RecBars_Silver,
+            Inp_VPRR_RecBars_IndicesUS,  Inp_VPRR_RecBars_IndicesEU,
+            Inp_VPRR_RecBars_Oil,        Inp_VPRR_RecBars_Crypto,
+            Inp_VPRR_RecBars_Equities,   Inp_VPRR_RecBars_FX,
+            Inp_VPRR_TF_Mult_M5,         Inp_VPRR_TF_Mult_M15,
+            Inp_VPRR_TF_Mult_H1,         Inp_VPRR_TF_Mult_H4Plus,
+            Inp_VPRR_TF_ReduceRecBars,   Inp_RRM_ORG_VPRR_RecoveryBars
+         );
+         cfg.VPRR_Enabled      = custom_vprr.enabled;
+         cfg.VPRR_VolumeType   = custom_vprr.volume_type;
+         cfg.VPRR_MinRatio     = custom_vprr.min_ratio;
+         cfg.VPRR_RecoveryBars = MathMax(1, MathMin(10, custom_vprr.recovery_bars));
+      }
+      else
+      {
+         cfg.VPRR_Enabled      = Inp_RRM_ORG_VPRR_Enabled;
+         cfg.VPRR_VolumeType   = (int)Inp_RRM_ORG_VPRR_VolumeType;
+         cfg.VPRR_MinRatio     = MathMax(0.1, Inp_VPRR_MinRatio_FX);
+         cfg.VPRR_RecoveryBars = MathMax(1, MathMin(10, Inp_RRM_ORG_VPRR_RecoveryBars));
+      }
+      cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
+      cfg.VPRR_ExternalSymbol  = Inp_VPRR_ExternalSymbol;
+      if(StringLen(Inp_VPRR_ExternalSymbol) > 0)
+      {
+         cfg.VPRR_VolumeType = (int)VPRR_VOL_EXTERNAL;
+         cfg.VPRR_Enabled    = true;   // user explicitly configured a proxy symbol
+      }
 
       return;
    }
