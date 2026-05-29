@@ -937,7 +937,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    
    const double op_EmergencyMarginLevel = cfg.EmergencyMarginLevel;  // Saved for PRESET_TEST exit-profile logic
    const EExitProfile op_ExitProfile = cfg.ExitProfile;
-
+}
    
 #ifdef SEA_PRESET_FPM
    if(preset == PRESET_FPM)

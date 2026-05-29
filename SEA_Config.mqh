@@ -16,7 +16,7 @@
 //#define SEA_PRESET_RRM
 #define SEA_PRESET_RRM_ORG
 //#define SEA_PRESET_TOPINVESTOR
-//
+//#define SEA_PRESET_TEST
 //
 // DO NOT EDIT BELOW — auto-derived helper:
 // SEA_PRESET_RRM_FAMILY = defined when RRM or RRM_ORG is active.
