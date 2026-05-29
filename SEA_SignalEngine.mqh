@@ -2919,10 +2919,6 @@ private:
       return false;
    }
 
-   // Scanner-facing wrappers
-   bool Scanner_DetectClimax(int bias, int shift) { return DetectClimax(bias, shift); }
-   void Scanner_ResetAllLayerPullback()           { ResetAllLayerPullback(); }
-
    //==========================================================================
    // Eval_BarClose — Wrapper: delegates to Check_BarClose() (handle-based access)
    // layer_id: LAYER_1_WEAK / LAYER_2_MEDIUM / LAYER_3_STRONG
@@ -3021,6 +3017,8 @@ public:
    bool   Scanner_Check_ATR(int bias, int shift) { return Check_ATR(bias, shift); }
    bool   Scanner_Check_BB(int bias, int shift)  { return Check_BB(bias, shift); }
    bool   Scanner_Check_CandleBody(int bias, int shift) { return Check_CandleBody(bias, shift); }
+   bool   Scanner_DetectClimax(int bias, int shift)     { return DetectClimax(bias, shift); }
+   void   Scanner_ResetAllLayerPullback()               { ResetAllLayerPullback(); }
    bool   Scanner_Check_CCI(int bias, int shift) { return Check_CCI(bias, shift); }
    bool   Scanner_Check_VPRR(int shift)          { return Check_VPRR(shift); }
    bool   Scanner_Check_CI(int bias, int shift)  { return Check_CI(bias, shift); }
