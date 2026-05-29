@@ -2768,7 +2768,8 @@ private:
    // SlopeLookbackBars: adaptive lookback from settings (default=1 for short TF,
    //   2 for H1+ swing). Higher values reduce noise sensitivity on lower timeframes.
    //==========================================================================
-   int CheckLayerPairAlign(int bias, int layer_type)
+   int CheckLayerPairAlign(int bias, int layer_type) { return CheckLayerPairAlign(bias, layer_type, 1); }
+   int CheckLayerPairAlign(int bias, int layer_type, int shift)
    {
       int h_fast = INVALID_HANDLE, h_slow = INVALID_HANDLE;
       ELayerPullbackState current_state = LAYER_PB_NONE;
@@ -2781,8 +2782,8 @@ private:
          default: return 0;
       }
 
-      double ema_fast      = GetMAVal(h_fast, 1);
-      double ema_slow      = GetMAVal(h_slow, 1);
+      double ema_fast      = GetMAVal(h_fast, shift);
+      double ema_slow      = GetMAVal(h_slow, shift);
       // Warmup check: EMPTY_VALUE is normal during indicator initialization
       if(ema_fast == EMPTY_VALUE || ema_slow == EMPTY_VALUE) {
          if(m_settings.DebugFlow)
