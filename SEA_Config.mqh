@@ -9,7 +9,7 @@
 // ── ACTIVE PRESET SELECTOR ──────────────────────────────────────────────────
 // Uncomment EXACTLY ONE line before compiling. Only that preset's inputs
 // will be compiled, keeping total input count under MT5's 1024 limit.
-// After changing: recompile SimpleEA_v1-04.mq5 in MetaEditor.
+// After changing: recompile SimpleEA_v1-05.mq5 in MetaEditor.
 //
 //#define SEA_PRESET_MA
 //#define SEA_PRESET_FPM

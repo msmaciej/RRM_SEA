@@ -49,13 +49,13 @@
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property strict
-#property version        "4.00"
+#property version        "5.00"
 #property description    "SEA Signal Scanner: mark TS=1 bars for any indicator combination on any pair/TF"
 #property indicator_chart_window
 #property indicator_buffers 6
 #property indicator_plots   6
 
-#define SEA_BUILD_TOKEN_104001 1
+#define SEA_BUILD_TOKEN_105001 1
 #include <RRMS\SEA_SignalEngine.mqh>
 
 //+------------------------------------------------------------------+

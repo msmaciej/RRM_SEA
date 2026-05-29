@@ -14,7 +14,7 @@
 #property strict
 
 // Preset system version
-#define PRESET_SYSTEM_VERSION "4.0.1"  // Major.Minor.Patch
+#define PRESET_SYSTEM_VERSION "5.0.1"  // Major.Minor.Patch
 
 #include <RRMS\SEA_Inputs.mqh>
 
@@ -315,7 +315,6 @@ double GetInstrumentFanMultiplier()
    return mult;
 }
 
-//+------------------------------------------------------------------+
 //+------------------------------------------------------------------+
 //| GetVPRRRecommendedMode — instrument + TF aware VPRR auto-config  |
 //|                                                                    |
@@ -1205,12 +1204,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       return;
    }
-   
-   
 #endif // SEA_PRESET_FPM
 
-   if(preset == PRESET_MA)
+
 #ifdef SEA_PRESET_MA
+   if(preset == PRESET_MA)
    {
       // ================================================================
       // PRESET_MA: MT5 Moving Average Benchmark
@@ -1482,12 +1480,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       return;
    }
-
-   if(preset == PRESET_RRM)
 #endif // SEA_PRESET_MA
 
-   {
+
 #ifdef SEA_PRESET_RRM_FAMILY
+   if(preset == PRESET_RRM)
+   {
       // ================================================================
       // PRESET_RRM: RRM Methodology — Phase-Based Trend Pullback
       // ================================================================
@@ -1786,14 +1784,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       return;
    }
-
-
-   if(preset == PRESET_RRM_ORG)
-   {
 #endif // SEA_PRESET_RRM_FAMILY
 
-      // ================================================================
+
 #ifdef SEA_PRESET_RRM_ORG
+   if(preset == PRESET_RRM_ORG)
+   {
+
+      // ================================================================
       // PRESET_RRM_ORG: Original Russ Horn RRM with Inline DPI Voter
       // ================================================================
       //
@@ -2285,15 +2283,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       ValidateRRM_ORG_ExitConfig(cfg);
       return;
    }
+#endif // SEA_PRESET_RRM_ORG
 
 
+#ifdef SEA_PRESET_TOPINVESTOR
    if(preset == PRESET_TOPINVESTOR)
    {
       // ================================================================
-#endif // SEA_PRESET_RRM_ORG
-
       // PRESET_TOPINVESTOR — Dr Świerk's TopInvestor / OXO Methodology
-#ifdef SEA_PRESET_TOPINVESTOR
       // ================================================================
       //
       // Unified preset covering all 3 TopInvestor systems:
@@ -2652,43 +2649,44 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       return;
    }
-
-   //+------------------------------------------------------------------+
-   // PURPOSE:
-   //   Sandbox environment for testing individual indicators, voting
-   //   combinations, and strategy components in isolation.
-   //
-   // WHAT'S CONFIGURED:
-   //   - Basic 2EMA bias structure (EMA34 vs EMA89)
-   //   - Simple fixed-pip SL/TP
-   //   - All indicators DISABLED by default
-   //   - No phase detection, no layer detection
-   //
-   // WHAT YOU MUST CONFIGURE (via inputs):
-   //   - Enable specific indicators to test (Inp_CUSTOM_Ind_Macd_Enabled, etc.)
-   //   - AutoStrat mode (STRAT_2EMA_POSITION vs STRAT_2EMA_CROSS_PRICE)
-   //   - BarClose_Mode and target EMA
-   //   - SL/TP distances
-   //   - Voting thresholds
-   //
-   // NOT FOR:
-   //   - Production trading (use PRESET_RRM)
-   //   - Benchmarking (use PRESET_MA)
-   //   - Strategy optimization (incomplete configuration)
-   //
-   // EXPECTED WORKFLOW:
-   //   1. Select PRESET_TEST
-   //   2. Enable 1-2 indicators via inputs
-   //   3. Run backtest to see their impact
-   //   4. Iterate: add more indicators, adjust settings
-   //+------------------------------------------------------------------+
-   
-   if(preset == PRESET_TEST)
-   {
-      // ================================================================
-      // PRESET_TEST: EA System Testing Mode
 #endif // SEA_PRESET_TOPINVESTOR
 
+
+#ifdef SEA_PRESET_TEST
+   if(preset == PRESET_TEST)
+   {
+      //+------------------------------------------------------------------+
+      // PURPOSE:
+      //   Sandbox environment for testing individual indicators, voting
+      //   combinations, and strategy components in isolation.
+      //
+      // WHAT'S CONFIGURED:
+      //   - Basic 2EMA bias structure (EMA34 vs EMA89)
+      //   - Simple fixed-pip SL/TP
+      //   - All indicators DISABLED by default
+      //   - No phase detection, no layer detection
+      //
+      // WHAT YOU MUST CONFIGURE (via inputs):
+      //   - Enable specific indicators to test (Inp_CUSTOM_Ind_Macd_Enabled, etc.)
+      //   - AutoStrat mode (STRAT_2EMA_POSITION vs STRAT_2EMA_CROSS_PRICE)
+      //   - BarClose_Mode and target EMA
+      //   - SL/TP distances
+      //   - Voting thresholds
+      //
+      // NOT FOR:
+      //   - Production trading (use PRESET_RRM)
+      //   - Benchmarking (use PRESET_MA)
+      //   - Strategy optimization (incomplete configuration)
+      //
+      // EXPECTED WORKFLOW:
+      //   1. Select PRESET_TEST
+      //   2. Enable 1-2 indicators via inputs
+      //   3. Run backtest to see their impact
+      //   4. Iterate: add more indicators, adjust settings
+      //+------------------------------------------------------------------+
+
+      // ================================================================
+      // PRESET_TEST: EA System Testing Mode
       // ================================================================
       //
       // FORMULA:
@@ -3035,8 +3033,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       return;
    }
-
 }
+#endif // SEA_PRESET_TEST
 
 //+------------------------------------------------------------------+
 //| END OF FILE                                                      |
