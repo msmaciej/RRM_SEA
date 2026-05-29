@@ -1030,6 +1030,15 @@ input group "╚═════════════════════�
 input EAutoStrategy  Inp_CUSTOM_AutoStrat          = STRAT_2EMA_POSITION;  // Override: STRATegy
 input bool        Inp_CUSTOM_CloseOnReverse        = false;          // Override: Close On Reverse
 input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🔧 STEP 3b: PHASE / LAYER / VPRR (4-EMA Architecture)";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_CUSTOM_PhaseDetectionEnabled = false;          // Override: [PH] Enable market-phase detection (TRENDING/EMERGING/UNORDERED)
+input bool        Inp_CUSTOM_BlockUnorderedPhase   = true;           // Override: [PH] Block trades while phase is UNORDERED
+input bool        Inp_CUSTOM_BlockEmergingPhase    = false;          // Override: [PH] Block trades while phase is EMERGING
+input bool        Inp_CUSTOM_EnableLayerDetection  = false;          // Override: [LY] Enable EMA-layer detection (L1/L2/L3)
+input bool        Inp_CUSTOM_LayerPullbackEnabled  = false;          // Override: [LY] Enable layer pullback-recovery state machine
+input bool        Inp_CUSTOM_VPRR_Enabled          = false;          // Override: [VP] Enable Volume Pullback-Recovery Ratio voter
+input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 4: Candle Close & Candle Body";
 input group "╚════════════════════════════════════════════════════════╝";
 input EBarCloseMode  Inp_CUSTOM_BarClose_Mode      = BC_LAYER_AWARE; // Override: [CC] CClose Mode: DISABLED/FIXED_EMA/LAYER_AWARE/BIAS_FAST
@@ -1607,9 +1616,9 @@ void InitializeConfig()
 
    Settings.MaxSpread = GetAdaptiveSpreadLimit(Settings.Adaptive.PairType, Settings.Adaptive);
 
-   Settings.PhaseDetectionEnabled        = false;
-   Settings.BlockUnorderedPhase          = true;
-   Settings.BlockEmergingPhase           = false;   // default off for backward compat
+   Settings.PhaseDetectionEnabled        = Inp_CUSTOM_PhaseDetectionEnabled;
+   Settings.BlockUnorderedPhase          = Inp_CUSTOM_BlockUnorderedPhase;
+   Settings.BlockEmergingPhase           = Inp_CUSTOM_BlockEmergingPhase;
    Settings.RequireMinPhaseConfirm       = false;
    Settings.MinPhaseConfirmBars          = 0;
    
@@ -1620,7 +1629,7 @@ void InitializeConfig()
    Settings.Trending_AllowMediumTrades   = true;
    Settings.Trending_AllowStrongTrades   = true;
 
-    Settings.EnableLayerDetection         = false;
+    Settings.EnableLayerDetection         = Inp_CUSTOM_EnableLayerDetection;
     Settings.AllowLayer1_Entries          = true;
     Settings.AllowLayer2_Entries          = true;
     Settings.AllowLayer3_Entries          = true;
@@ -1641,11 +1650,11 @@ void InitializeConfig()
    Settings.Safety_RequirePriorAtBEToAdd = Inp_Safety_RequirePriorAtBEToAdd;
 
     Settings.SlopeLookbackBars      = 1;
-   Settings.LayerPullbackEnabled        = false;  // default; overwritten by ApplyPreset
+   Settings.LayerPullbackEnabled        = Inp_CUSTOM_LayerPullbackEnabled;
    Settings.LayerBaselineLookback       = 10;     // default; overwritten by ApplyPreset
 
     // VPRR defaults (disabled — only RRM_ORG preset wires it on)
-    Settings.VPRR_Enabled         = false;
+    Settings.VPRR_Enabled         = Inp_CUSTOM_VPRR_Enabled;
     Settings.VPRR_VolumeType      = (int)VPRR_VOL_AUTO;
     Settings.VPRR_RecoveryBars    = 3;
     Settings.VPRR_MinRecoveryBars = 2;
