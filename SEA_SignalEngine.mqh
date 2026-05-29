@@ -3019,6 +3019,25 @@ public:
    bool   Scanner_Check_CandleBody(int bias, int shift) { return Check_CandleBody(bias, shift); }
    bool   Scanner_DetectClimax(int bias, int shift)     { return DetectClimax(bias, shift); }
    void   Scanner_ResetAllLayerPullback()               { ResetAllLayerPullback(); }
+
+   //==========================================================================
+   // EvaluateTS_AtShift — shared, shift-correct decision core (L x I x climax).
+   //   `bias` (+1 long / -1 short) is supplied by the caller (EvaluateB on the
+   //   EA; per-direction scan in SignalScan). Returns 1 if a signal exists for
+   //   that direction at `shift`, else 0. Both the EA's EvaluateTS() wrapper and
+   //   SignalScan call this so they share one Layer/Indicator/Climax path.
+   //   NOTE: Bias (B) is caller-provided; Phase (P) and the EMA-fan/DPI-decel
+   //   pre-filters remain in the EA wrapper pending shift-aware phase support.
+   //==========================================================================
+   int EvaluateTS_AtShift(int shift, int bias)
+   {
+      if(bias == 0)                    return 0;
+      if(EvaluateL(shift, bias) == 0)  return 0;   // Layer (pullback-recovery) — shift-correct
+      if(EvaluateI(shift, bias) == 0)  return 0;   // Indicator vote — shift-correct
+      if(DetectClimax(bias, shift))    return 0;   // Climax / exhaustion guard
+      return 1;
+   }
+   int GetLastLayer() const { return m_last_layer; }
    bool   Scanner_Check_CCI(int bias, int shift) { return Check_CCI(bias, shift); }
    bool   Scanner_Check_VPRR(int shift)          { return Check_VPRR(shift); }
    bool   Scanner_Check_CI(int bias, int shift)  { return Check_CI(bias, shift); }
@@ -4616,12 +4635,13 @@ public:
    // --- CANDLE DIRECTION GATE (hard gate, always active when CandleBody_RequireDirection=true) ---
    // Checks that the signal bar (shift=1) closed in the trade direction.
    // This is a binary 0/1 multiplication factor independent of the overextension voter.
-   bool CheckCandleDirectionGate(int bias) {
+   bool CheckCandleDirectionGate(int bias) { return CheckCandleDirectionGate(bias, 1); }
+   bool CheckCandleDirectionGate(int bias, int shift) {
       if(!m_settings.CandleBody_RequireDirection) return true;   // gate disabled
       if(bias == 0)                               return true;   // no directional bias to check
 
-      double o = iOpen(m_symbol, PERIOD_CURRENT, 1);
-      double c = iClose(m_symbol, PERIOD_CURRENT, 1);
+      double o = iOpen(m_symbol, PERIOD_CURRENT, shift);
+      double c = iClose(m_symbol, PERIOD_CURRENT, shift);
 
       if(bias == 1  && c <= o) {   // BUY: reject unless close strictly above open (bullish bar)
          if(m_settings.DebugFlow)
@@ -5854,9 +5874,9 @@ public:
       }
 
       // Step 1: pos × slope alignment check for all three layers
-      m_eval_layer_w = CheckLayerPairAlign(bias, 1);
-      m_eval_layer_m = CheckLayerPairAlign(bias, 2);
-      m_eval_layer_s = CheckLayerPairAlign(bias, 3);
+      m_eval_layer_w = CheckLayerPairAlign(bias, 1, v_shift);
+      m_eval_layer_m = CheckLayerPairAlign(bias, 2, v_shift);
+      m_eval_layer_s = CheckLayerPairAlign(bias, 3, v_shift);
       m_diag_layer_w = m_eval_layer_w;
       m_diag_layer_m = m_eval_layer_m;
       m_diag_layer_s = m_eval_layer_s;
@@ -5867,7 +5887,7 @@ public:
       }
 
       // Step 2: BD (Bar Direction) — same bar, applies equally to all layers
-      bool bd_pass = CheckCandleDirectionGate(bias);
+      bool bd_pass = CheckCandleDirectionGate(bias, v_shift);
 
       int lookback = MathMax(1, MathMin(4, m_settings.BarClose_LookbackBars));
       bool momentum_confirmed = true;
