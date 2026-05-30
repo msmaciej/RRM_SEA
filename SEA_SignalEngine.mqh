@@ -2995,6 +2995,29 @@ public:
    void   Scanner_UpdateLayerPullback(int shift) { UpdateLayerPullbackStates(shift); }
    void   Scanner_UpdatePSARFlip(int shift)      { if(m_settings.Ind_Psar_Enabled) UpdatePSARFlipTracking(shift); }
    void   Scanner_UpdateDPIHistogramState(int shift) { UpdateDPIHistogramState(shift); }  // replays DPI reset-recovery/decel state per bar (no-op when tracking off)
+
+   //==========================================================================
+   // Scanner_InspectBar — single-bar diagnostic for the SignalScan inspector.
+   // Computes the bias at `shift` (EvaluateB) and evaluates every TS factor
+   // INDEPENDENTLY (no short-circuit) so the caller can show the full row.
+   // Each out-param: 1 = pass, 0 = fail, -1 = N/A (only when bias=0 → B blocks).
+   // out_CG: 1 = pass (no climax), 0 = blocked by climax. Returns final TS (1/0).
+   // Must be called while the engine's layer/PSAR/DPI state is current for `shift`
+   // (i.e. from inside the chronological scan), exactly like EvaluateTS_AtShift.
+   //==========================================================================
+   int Scanner_InspectBar(int shift, int &out_bias, int &out_P, int &out_L,
+                          int &out_I, int &out_F, int &out_CG)
+   {
+      int b = EvaluateB(shift);
+      out_bias = b;
+      if(b == 0) { out_P = out_L = out_I = out_F = out_CG = -1; return 0; }
+      out_P  = EvaluateP(shift, b);
+      out_L  = EvaluateL(shift, b);
+      out_I  = EvaluateI(shift, b);
+      out_F  = EvaluateF(shift, b) ? 1 : 0;
+      out_CG = DetectClimax(b, shift) ? 0 : 1;
+      return (out_P==1 && out_L==1 && out_I==1 && out_F==1 && out_CG==1) ? 1 : 0;
+   }
    // Reset only the fired layer to NONE — other layers keep their independent states.
    void   Scanner_ResetLayerAfterFire(int layer)
    {

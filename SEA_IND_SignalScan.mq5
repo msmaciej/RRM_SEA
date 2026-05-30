@@ -112,6 +112,11 @@ input color       Color_EMA3           = C'220,140,0';         // EMA3 color
 input color       Color_EMA4           = C'160,80,0';          // EMA4 color (slowest/darkest)
 input bool        Show_PSAR            = false;                // Draw PSAR dots on chart
 
+input group "--- Bar Inspector (drag the SCN_INSPECT line) ---";
+input bool        Scn_Inspect_Enabled  = false;                // Inspector: TS factor breakdown for the marked bar
+input color       Scn_Inspect_Color    = clrGold;              // Inspector: marked-line color
+input datetime    Scn_Inspect_Time     = 0;                    // Inspector: start the line at this time (0 = latest bar); then drag to fine-tune
+
 #define SCN_PANEL_FONT      Scn_Font
 #define SCN_PANEL_FONTSIZE  Scn_FontSize
 #define SCN_PANEL_SPACING   Scn_LineSpacing
@@ -275,6 +280,15 @@ input int      BarsBack = 500; // Bars back (if DateFrom=0)
 CSignalEngine  g_eng_long;
 CSignalEngine  g_eng_short;
 string         g_pfx;
+// -- Bar inspector (marked bar via SCN_INSPECT vline) --
+string         g_insp_line  = "";
+int            g_insp_shift = -1;
+datetime       g_insp_time  = 0;
+bool           g_insp_valid = false;
+bool           g_insp_dirty = false;
+int            g_insp_bias  = 0;
+int            g_insp_P = -1, g_insp_L = -1, g_insp_I = -1, g_insp_F = -1, g_insp_CG = -1;
+int            g_insp_ts    = 0;
 bool           g_ok = false;
 int            g_sig_long  = 0;
 int            g_sig_short = 0;
@@ -312,6 +326,7 @@ int g_h_psar = INVALID_HANDLE;
 int OnInit()
 {
    g_pfx = "SCN_" + _Symbol + "_" + IntegerToString(ChartID()) + "_";
+   g_insp_line = "SCN_INSPECT_" + IntegerToString(ChartID());  // NOT under g_pfx, so ClearLines() never deletes the dragged line
 
    // ── Overlay buffers — always register all 6 (MT5 requires buffer count
    //    to match #property indicator_buffers regardless of Show_* state) ──
@@ -414,6 +429,8 @@ int OnInit()
    Print("[Scanner v4.0] ", _Symbol, " ", EnumToString(PERIOD_CURRENT),
          " | Bias: ", EnumToString((ENUM_TIMEFRAMES)MarketBias),
          " | Active: ", active);
+   if(Scn_Inspect_Enabled) CreateInspectorLine();
+
    return INIT_SUCCEEDED;
 }
 
@@ -422,6 +439,7 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+   if(ObjectFind(0, g_insp_line) >= 0) ObjectDelete(0, g_insp_line);
    ClearLines();
    g_eng_long.Release();
    g_eng_short.Release();
@@ -436,6 +454,113 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 //| OnCalculate                                                      |
 //+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| Bar Inspector helpers + marked-line resolver                     |
+//+------------------------------------------------------------------+
+string InspMark(int v){ return (v==1) ? "ok" : (v==0 ? "NO" : "--"); }
+string InspFirstFail()
+{
+   if(g_insp_P==0)  return "P (Phase)";
+   if(g_insp_L==0)  return "L (Layer)";
+   if(g_insp_I==0)  return "I (Indicators)";
+   if(g_insp_F==0)  return "F (Filters)";
+   if(g_insp_CG==0) return "CG (Climax)";
+   return "?";
+}
+
+// Resolve the marked inspector bar from the SCN_INSPECT vline. Creates a
+// draggable line when enabled, deletes it when disabled, and sets g_insp_dirty
+// when the marked bar moves (forces a full re-scan so it is re-evaluated with
+// correct per-bar state).
+void ResolveInspector()
+{
+   if(!Scn_Inspect_Enabled)
+   {
+      if(ObjectFind(0, g_insp_line) >= 0) ObjectDelete(0, g_insp_line);
+      if(g_insp_shift != -1) g_insp_dirty = true;
+      g_insp_shift = -1; g_insp_valid = false;
+      return;
+   }
+   if(ObjectFind(0, g_insp_line) < 0)   // user deleted the marker — respect it (toggle the input to restore)
+   {
+      if(g_insp_shift != -1) g_insp_dirty = true;
+      g_insp_shift = -1; g_insp_valid = false;
+      return;
+   }
+   datetime lt = (datetime)ObjectGetInteger(0, g_insp_line, OBJPROP_TIME);
+   int sh = iBarShift(_Symbol, PERIOD_CURRENT, lt, false);
+   if(sh < 1) sh = 1;
+   if(sh != g_insp_shift) { g_insp_shift = sh; g_insp_time = lt; g_insp_dirty = true; }
+}
+
+//+------------------------------------------------------------------+
+//| Inspector line creation + full-scan runner + chart events        |
+//+------------------------------------------------------------------+
+void CreateInspectorLine()
+{
+   if(ObjectFind(0, g_insp_line) >= 0) return;
+   datetime t0;
+   if(Scn_Inspect_Time > 0)
+   {
+      int sh = iBarShift(_Symbol, PERIOD_CURRENT, Scn_Inspect_Time, false);
+      if(sh < 1) sh = 1;
+      t0 = iTime(_Symbol, PERIOD_CURRENT, sh);   // snap to the nearest bar
+   }
+   else t0 = iTime(_Symbol, PERIOD_CURRENT, 1);  // default: latest bar
+   ObjectCreate(0, g_insp_line, OBJ_VLINE, 0, t0, 0);
+   ObjectSetInteger(0, g_insp_line, OBJPROP_COLOR,      Scn_Inspect_Color);
+   ObjectSetInteger(0, g_insp_line, OBJPROP_STYLE,      STYLE_SOLID);
+   ObjectSetInteger(0, g_insp_line, OBJPROP_WIDTH,      2);
+   ObjectSetInteger(0, g_insp_line, OBJPROP_BACK,       false);
+   ObjectSetInteger(0, g_insp_line, OBJPROP_SELECTABLE, true);
+   ObjectSetInteger(0, g_insp_line, OBJPROP_SELECTED,   false);
+   ObjectSetString (0, g_insp_line, OBJPROP_TOOLTIP,    "Drag to inspect this bar TS breakdown");
+}
+
+// Full chronological scan — callable from OnCalculate and OnChartEvent (drag),
+// so the marked bar is re-judged with correct per-bar state without waiting for a tick.
+void RunFullScan()
+{
+   int rates_total = Bars(_Symbol, PERIOD_CURRENT);
+   if(rates_total < 3) return;
+
+   g_insp_valid = false;   // re-prove on this scan; stays false if the marked bar is outside the window
+   ClearLines();
+   g_sig_long = 0; g_sig_short = 0;
+   g_sig_long_s = 0; g_sig_long_m = 0; g_sig_long_w = 0;
+   g_sig_short_s = 0; g_sig_short_m = 0; g_sig_short_w = 0;
+   g_det_s_long=0; g_det_m_long=0; g_det_w_long=0;
+   g_det_s_short=0; g_det_m_short=0; g_det_w_short=0;
+   g_peak_s_long=0; g_peak_m_long=0; g_peak_w_long=0;
+   g_peak_s_short=0; g_peak_m_short=0; g_peak_w_short=0;
+
+   int shift_from = 1;
+   int shift_to   = MathMin(rates_total - 2, BarsBack);
+   if(DateTo > 0)   { int s = iBarShift(_Symbol, PERIOD_CURRENT, DateTo, false);   shift_from = MathMax(1, s); }
+   if(DateFrom > 0) { int s = iBarShift(_Symbol, PERIOD_CURRENT, DateFrom, false); shift_to   = MathMin(rates_total - 2, s); }
+
+   for(int s = shift_to; s >= shift_from; s--)
+      ScanBar(s);
+   DrawInfoPanel();
+}
+
+// Instant response to dragging / deleting the SCN_INSPECT marker (no tick needed).
+void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
+{
+   if(!g_ok || !Scn_Inspect_Enabled) return;
+   if(sparam != g_insp_line)         return;
+   if(id == CHARTEVENT_OBJECT_DRAG)
+   {
+      ResolveInspector();
+      if(g_insp_dirty) { g_insp_dirty = false; RunFullScan(); }
+   }
+   else if(id == CHARTEVENT_OBJECT_DELETE)
+   {
+      g_insp_shift = -1; g_insp_valid = false;   // marker removed by user; stays gone until input is re-enabled
+      DrawInfoPanel();
+   }
+}
+
 int OnCalculate(const int rates_total,
                 const int prev_calculated,
                 const datetime &time[],
@@ -470,36 +595,12 @@ int OnCalculate(const int rates_total,
       }
    }
 
-   if(prev_calculated == 0)
+   ResolveInspector();
+
+   if(prev_calculated == 0 || g_insp_dirty)
    {
-      ClearLines();
-      g_sig_long = 0; g_sig_short = 0;
-      g_sig_long_s = 0; g_sig_long_m = 0; g_sig_long_w = 0;
-      g_sig_short_s = 0; g_sig_short_m = 0; g_sig_short_w = 0;
-      g_det_s_long=0; g_det_m_long=0; g_det_w_long=0;
-      g_det_s_short=0; g_det_m_short=0; g_det_w_short=0;
-      g_peak_s_long=0; g_peak_m_long=0; g_peak_w_long=0;
-      g_peak_s_short=0; g_peak_m_short=0; g_peak_w_short=0;
-
-      // Determine scan range from DateFrom/DateTo or BarsBack
-      int shift_from = 1;
-      int shift_to   = MathMin(rates_total - 2, BarsBack);
-
-      if(DateTo > 0)
-      {
-         int s = iBarShift(_Symbol, PERIOD_CURRENT, DateTo, false);
-         shift_from = MathMax(1, s);
-      }
-      if(DateFrom > 0)
-      {
-         int s = iBarShift(_Symbol, PERIOD_CURRENT, DateFrom, false);
-         shift_to = MathMin(rates_total - 2, s);
-      }
-
-      // Scan oldest→newest so pullback state machine accumulates correctly
-      for(int s = shift_to; s >= shift_from; s--)
-         ScanBar(s);
-      DrawInfoPanel();
+      g_insp_dirty = false;
+      RunFullScan();
    }
    else if(rates_total > prev_calculated)
    {
@@ -604,6 +705,16 @@ void ScanBar(int shift)
       if(g_eng_short.GetLayerSPullbackState()==LAYER_PB_NONE) g_peak_s_short = 0;
       if(g_eng_short.GetLayerMPullbackState()==LAYER_PB_NONE) g_peak_m_short = 0;
       if(g_eng_short.GetLayerWPullbackState()==LAYER_PB_NONE) g_peak_w_short = 0;
+   }
+
+   // Inspector capture BEFORE Eval: a fire inside Eval calls ResetLayerAfterFire,
+   // which would wipe the layer state and make this bar read TS=0 after firing.
+   if(Scn_Inspect_Enabled && shift == g_insp_shift)
+   {
+      if(doL)      g_insp_ts = g_eng_long.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG);
+      else if(doS) g_insp_ts = g_eng_short.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG);
+      else         g_insp_ts = g_eng_long.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG);
+      g_insp_valid = true;
    }
 
    if(doL) Eval(shift, g_eng_long,   1);
@@ -957,6 +1068,30 @@ void DrawInfoPanel()
    {
       ADD("  LONG:  " + (string)g_sig_long,                  Color_Long_M)
       ADD("  SHORT: " + (string)g_sig_short,                 Color_Short_M)
+   }
+
+   // -- Inspector (marked bar) --
+   if(Scn_Inspect_Enabled)
+   {
+      ADD(" ", clrDimGray)
+      ADD("Inspector (drag SCN_INSPECT):", clrGold)
+      if(!g_insp_valid)
+         ADD("  mark a bar inside the scan window", clrDimGray)
+      else
+      {
+         ADD("  Bar:  " + TimeToString(g_insp_time, TIME_DATE|TIME_MINUTES), clrSilver)
+         string _bs = (g_insp_bias>0?"LONG":(g_insp_bias<0?"SHORT":"none"));
+         color  _bc = (g_insp_bias>0?Color_Long_M:(g_insp_bias<0?Color_Short_M:clrDimGray));
+         ADD("  Bias: " + _bs, _bc)
+         if(g_insp_bias==0)
+            ADD("  TS=0  blocked by B (no bias)", clrOrangeRed)
+         else
+         {
+            ADD("  B:ok P:"+InspMark(g_insp_P)+" L:"+InspMark(g_insp_L)+" I:"+InspMark(g_insp_I)+" F:"+InspMark(g_insp_F)+" CG:"+InspMark(g_insp_CG), clrWhite)
+            if(g_insp_ts==1) ADD("  TS=1  SIGNAL", clrLime)
+            else             ADD("  TS=0  blocked by " + InspFirstFail(), clrOrangeRed)
+         }
+      }
    }
 
    #undef ADD
