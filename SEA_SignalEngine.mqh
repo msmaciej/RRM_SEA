@@ -135,6 +135,21 @@ struct SRejectionStats {
    int signals_confirmed_long, signals_confirmed_short;
 };
 
+//+------------------------------------------------------------------+
+//| Per-factor breakdown of the shared TS decision core (P*F*L*I+CG). |
+//| Filled by CSignalEngine::EvaluateTS_Breakdown. 1=pass, 0=fail,    |
+//| -1=not-evaluated (waterfall short-circuit). bias (B) is the input.|
+//+------------------------------------------------------------------+
+struct STSBreakdown
+{
+   int    P;          // phase
+   int    F;          // pre-filters (1/0)
+   string F_reason;   // sub-filter that blocked when F==0
+   int    L;          // layer
+   int    I;          // indicators (normalized 1/0)
+   int    CG;         // climax guard: 1=pass, 0=climax veto
+};
+
 class CSignalEngine {
 private:   
    // --- 1. INDICATOR HANDLES ---
@@ -164,6 +179,7 @@ private:
    int         m_diag_last_bias;
    int         m_diag_last_votes;
    string      m_diag_last_reason;
+   string      m_last_f_reason;      // which F sub-filter blocked (caller telemetry); "" = passed
    double      m_diag_last_atr_pips;
    
    string      m_ts_status_string;   // Legacy compatibility
@@ -3008,15 +3024,13 @@ public:
    int Scanner_InspectBar(int shift, int &out_bias, int &out_P, int &out_L,
                           int &out_I, int &out_F, int &out_CG)
    {
-      int b = EvaluateB(shift);
-      out_bias = b;
-      if(b == 0) { out_P = out_L = out_I = out_F = out_CG = -1; return 0; }
-      out_P  = EvaluateP(shift, b);
-      out_L  = EvaluateL(shift, b);
-      out_I  = EvaluateI(shift, b);    // clean 1/0 (normalized in the EvaluateI accessor)
-      out_F  = EvaluateF(shift, b) ? 1 : 0;
-      out_CG = DetectClimax(b, shift) ? 0 : 1;
-      return (out_P==1 && out_L==1 && out_I==1 && out_F==1 && out_CG==1) ? 1 : 0;
+      int bb = EvaluateB(shift);
+      out_bias = bb;
+      if(bb == 0) { out_P = out_L = out_I = out_F = out_CG = -1; return 0; }
+      STSBreakdown b;
+      int verdict = EvaluateTS_Breakdown(shift, bb, b, true);   // full breakdown; passive (no reset)
+      out_P = b.P; out_F = b.F; out_L = b.L; out_I = b.I; out_CG = b.CG;
+      return verdict;
    }
    // Reset only the fired layer to NONE — other layers keep their independent states.
    void   Scanner_ResetLayerAfterFire(int layer)
@@ -3069,6 +3083,8 @@ public:
    //==========================================================================
    bool EvaluateF(int shift, int bias)
    {
+      m_last_f_reason = "";   // which sub-filter blocked (for caller telemetry); "" = passed
+
       // ── EMA fan over-extension (stateless) ──
       if(m_settings.EmaFanFilterEnabled && (m_settings.EmaFanMaxTotalPips > 0.0 || m_settings.EmaFanMaxPct > 0.0))
       {
@@ -3087,14 +3103,14 @@ public:
                {
                   double pct_now  = MathAbs(e1_1 - e4_1) / mid_now  * 100.0;
                   double pct_prev = MathAbs(e1_2 - e4_2) / mid_prev * 100.0;
-                  if(pct_now > m_settings.EmaFanMaxPct && pct_now > pct_prev) return false;
+                  if(pct_now > m_settings.EmaFanMaxPct && pct_now > pct_prev) { m_last_f_reason = "EMA_OVEREXT"; return false; }
                }
             }
             else if(pip > 0.0)
             {
                double gap_now  = MathAbs(e1_1 - e4_1) / pip;
                double gap_prev = MathAbs(e1_2 - e4_2) / pip;
-               if(gap_now > m_settings.EmaFanMaxTotalPips && gap_now > gap_prev) return false;
+               if(gap_now > m_settings.EmaFanMaxTotalPips && gap_now > gap_prev) { m_last_f_reason = "EMA_OVEREXT"; return false; }
             }
          }
       }
@@ -3109,53 +3125,76 @@ public:
          {
             bool green_was = (green_mag_prev > 0.0);
             bool green_is  = (green_mag_cur  > 0.0);
-            if(green_was && green_is && green_mag_cur < green_mag_prev) return false; // shrinking
-            if(green_was && !green_is)                                  return false; // disappeared
+            if(green_was && green_is && green_mag_cur < green_mag_prev) { m_last_f_reason = "DPI_DECEL"; return false; } // shrinking
+            if(green_was && !green_is)                                  { m_last_f_reason = "DPI_DECEL"; return false; } // disappeared
          }
       }
 
       // ── DPI CCI reset-recovery gate (state; replayed per-bar by caller) ──
       if(m_settings.DPI_RequireResetRecovery && m_settings.DPI_HistTrackingEnabled && m_settings.DPI_UseCCIReset)
-         if(m_dpi_reset_state != 3) return false;   // not ENTRY_ALLOWED
+         if(m_dpi_reset_state != 3) { m_last_f_reason = "DPI_RESET_WAIT"; return false; }   // not ENTRY_ALLOWED
 
       // ── DPI histogram deceleration (state) ──
       if(m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled)
-         if(m_dpi_hist_decelerating) return false;
+         if(m_dpi_hist_decelerating) { m_last_f_reason = "DPI_DECEL"; return false; }
 
       // ── Phase-age confirmation (reconstructed shift-aware) ──
       if(m_settings.MinPhaseConfirmBars > 0)
-         if(!PhaseAgeConfirmed(shift)) return false;
+         if(!PhaseAgeConfirmed(shift)) { m_last_f_reason = "PHASE_AGE"; return false; }
 
       return true;
    }
 
    //==========================================================================
-   // EvaluateTS_AtShift — shared, shift-correct decision core: B*P*L*I*F (+climax).
-   //   `bias` (B, +1 long / -1 short) is supplied by the caller (EvaluateB on the
-   //   EA; per-direction scan in SignalScan). Returns 1 if a signal exists for
-   //   that direction at `shift`, else 0. Both the EA's EvaluateTS() wrapper and
-   //   SignalScan call this so they share one B/P/L/I/F/climax path.
-   //   The F factor is a no-op under RRM_ORG/CUSTOM defaults (all pre-filters off),
-   //   so adding it is behaviour-preserving until a filter is explicitly enabled.
-   //   State-machine F filters require the caller to keep DPI state current for
-   //   `shift` (EA: per-tick; SignalScan: Scanner_UpdateDPIHistogramState replay).
+   // EvaluateTS_Breakdown — THE single TS decision core (one source of truth).
+   //   Evaluates P*F*L*I (+climax) at `shift` for the supplied `bias` (B) and
+   //   fills `b` with each factor's outcome. Returns 1 iff every factor passes
+   //   and climax does not veto. PURE: no telemetry, no layer reset (the climax
+   //   reset side effect is the caller's responsibility). EvaluateL runs before
+   //   EvaluateI (m_last_layer dependency).
+   //   full_eval=false → waterfall (stop at first failing factor; later factors
+   //   stay -1), the fast verdict path. full_eval=true → evaluate every factor
+   //   and climax (stats / inspector). The verdict is identical either way.
+   //==========================================================================
+   int EvaluateTS_Breakdown(int shift, int bias, STSBreakdown &b, bool full_eval)
+   {
+      b.P = -1; b.F = -1; b.F_reason = ""; b.L = -1; b.I = -1; b.CG = -1;
+      if(bias == 0) return 0;
+
+      b.P = EvaluateP(shift, bias);
+      if(b.P == 0 && !full_eval) return 0;
+
+      b.F = EvaluateF(shift, bias) ? 1 : 0;
+      b.F_reason = (b.F == 1 ? "" : m_last_f_reason);
+      if(b.F == 0 && !full_eval) return 0;
+
+      b.L = EvaluateL(shift, bias);
+      if(b.L == 0 && !full_eval) return 0;
+
+      b.I = EvaluateI(shift, bias);
+      if(b.I == 0 && !full_eval) return 0;
+
+      // Climax last. In waterfall mode we only reach here when P*F*L*I all passed;
+      // in full_eval we evaluate it regardless so the inspector shows every factor
+      // independently. DetectClimax is side-effect-free (reset is the caller's job).
+      b.CG = DetectClimax(bias, shift) ? 0 : 1;
+
+      return (b.P == 1 && b.F == 1 && b.L == 1 && b.I == 1 && b.CG == 1) ? 1 : 0;
+   }
+
+   //==========================================================================
+   // EvaluateTS_AtShift — scanner/EA verdict accessor: thin waterfall wrapper
+   // over the shared core. Applies the climax layer-reset side effect (the EA's
+   // stateful behavior); the inspector path does not (it stays passive).
    //==========================================================================
    int EvaluateTS_AtShift(int shift, int bias)
    {
-      if(bias == 0)                    return 0;
-      if(EvaluateP(shift, bias) == 0)  return 0;   // Phase (P) — shift-correct
-      if(!EvaluateF(shift, bias))      return 0;   // Pre-filters (F) — shift-aware / replayed
-      if(EvaluateL(shift, bias) == 0)  return 0;   // Layer (L) — shift-correct
-      if(EvaluateI(shift, bias) == 0)  return 0;   // Indicators (I) — shift-correct
-      if(DetectClimax(bias, shift))                // Climax / exhaustion guard (checked last)
-      {
-         // Mirror EA EvaluateTS: B*P*L*I aligned but price over-extended into an
-         // impulse → block and reset all layers so a fresh pullback-recovery
-         // cycle is required before the next signal.
-         if(m_settings.ClimaxGuard_ResetPullback) ResetAllLayerPullback();
-         return 0;
-      }
-      return 1;
+      STSBreakdown b;
+      int verdict = EvaluateTS_Breakdown(shift, bias, b, false);   // waterfall
+      // b.CG==0 means P*F*L*I all passed but climax vetoed → reset layers.
+      if(b.CG == 0 && m_settings.ClimaxGuard_ResetPullback)
+         ResetAllLayerPullback();
+      return verdict;
    }
    int GetLastLayer() const { return m_last_layer; }
    bool   Scanner_Check_CCI(int bias, int shift) { return Check_CCI(bias, shift); }
@@ -6362,224 +6401,23 @@ public:
          m_telemetry.mtf_status = mtf_diag;
       }
 
-      // ══════════════════════════════════════════════════════════════════
-      // FIX Bug6: TS_PREFILTER blocks (EMA_FAN, DPI_DECEL) moved BEFORE EvaluateL
-      // so cheap guards abort the pipeline before the expensive 4-EMA LayerAlign scan.
-      // ══════════════════════════════════════════════════════════════════
-
-      // ══════════════════════════════════════════════════════════════════
-      // PRE-FILTER: EMA Fan Overextension
-      // Block when EMA1–EMA4 spread > threshold AND still expanding.
-      // Avoids chasing overextended trend runs.
-      // EmaFanMaxTotalPips=25.0 is a starting default for M1/M5; review per TF.
-      // EmaFanMaxPct is the normalized alternative: gap as % of midprice.
-      // When EmaFanMaxPct > 0, percentage mode takes priority (universal, no multipliers).
-      // ══════════════════════════════════════════════════════════════════
-      if(m_settings.EmaFanFilterEnabled && (m_settings.EmaFanMaxTotalPips > 0.0 || m_settings.EmaFanMaxPct > 0.0))
+      // ── F: Pre-filters (shared decision via EvaluateF) ──────────────────
+      // Single source for the F factor: EvaluateF is the faithful mirror of the
+      // former inline TS_PREFILTER blocks (EMA fan, DPI GREEN decel, DPI CCI
+      // reset-recovery, DPI histogram decel, phase-age) and is the SAME function
+      // SignalScan / EvaluateTS_AtShift use — so EA and scanner share ONE F path.
+      // No-op under RRM_ORG/CUSTOM defaults (all F filters off). DPI state is kept
+      // current by UpdateDPIHistogramState(v_shift) above, so the state-machine
+      // filters read valid data when enabled.
+      if(!EvaluateF(v_shift, B))
       {
-         double pip  = GlobalPipSize(m_symbol);
-         double e1_1 = GetMAVal(h_ema1, v_shift);
-         double e4_1 = GetMAVal(h_ema4, v_shift);
-         double e1_2 = GetMAVal(h_ema1, v_shift + 1);
-         double e4_2 = GetMAVal(h_ema4, v_shift + 1);
-
-         if(e1_1 > 0.0 && e4_1 > 0.0 && e1_2 > 0.0 && e4_2 > 0.0)
-         {
-            bool overextended = false;
-
-            if(m_settings.EmaFanMaxPct > 0.0)
-            {
-               // Percentage mode: gap as % of midprice — universal across all instruments
-               double midprice_now  = (e1_1 + e4_1) / 2.0;
-               double midprice_prev = (e1_2 + e4_2) / 2.0;
-               if(midprice_now > 0.0 && midprice_prev > 0.0)
-               {
-                  double pct_now  = MathAbs(e1_1 - e4_1) / midprice_now  * 100.0;
-                  double pct_prev = MathAbs(e1_2 - e4_2) / midprice_prev * 100.0;
-
-                  if(pct_now > m_settings.EmaFanMaxPct && pct_now > pct_prev)
-                  {
-                     overextended = true;
-                     if(m_settings.DebugFlow)
-                        PrintFormat("[TS_PREFILTER] EMA_FAN: gap_now=%.3f%% > max=%.3f%% (prev=%.3f%%) → TS=0",
-                                    pct_now, m_settings.EmaFanMaxPct, pct_prev);
-                  }
-               }
-            }
-            else if(pip > 0.0)
-            {
-               // Pip mode: original behavior with instrument multiplier
-               double gap_now  = MathAbs(e1_1 - e4_1) / pip;
-               double gap_prev = MathAbs(e1_2 - e4_2) / pip;
-
-               if(gap_now > m_settings.EmaFanMaxTotalPips && gap_now > gap_prev)
-               {
-                  overextended = true;
-                  if(m_settings.DebugFlow)
-                     PrintFormat("[TS_PREFILTER] EMA_FAN: gap_now=%.1f pips > max=%.1f (prev=%.1f) → TS=0",
-                                 gap_now, m_settings.EmaFanMaxTotalPips, gap_prev);
-               }
-            }
-
-            if(overextended)
-            {
-               m_diag_last_reason = "EMA_OVEREXT";
-               m_reject_filter++;
-               m_stats.rejected_emafan++;       // PHASE A.1
-               if(!full_eval) {
-                  m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-                  UpdateTelemetry(0);
-                  FlushOrClearDebugBuffer(0);
-                  RestoreForcedDebug();
-                  return 0;
-               }
-               if(m_eval_first_failure == "") m_eval_first_failure = "EMA_OVEREXT";
-               m_eval_any_failure = true;
-            }
-         }
-      }
-
-      // ══════════════════════════════════════════════════════════════════
-      // PRE-FILTER: DPI GREEN Momentum Deceleration
-      // Block when GREEN histogram is shrinking or disappearing bar-over-bar.
-      // GREEN = min(|Blue|, |hist|) when Blue & hist same side of zero.
-      // Per README_SEA_DPI_mc_main.md: "Blocks entry when GREEN[shift] < GREEN[shift+1]"
-      // Only active when DpiDecelFilterEnabled=true AND Ind_Dpi_Enabled=true.
-      // Silently passes if histogram data unavailable.
-      // ══════════════════════════════════════════════════════════════════
-      if(m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
-      {
-         double hist_cur = 0.0, hist_prev = 0.0;
-         bool   dpi_green = false, dpi_macd_agree = false;
-         double green_mag_cur = 0.0, green_mag_prev = 0.0;
-
-         if(ComputeDPIMainHist(v_shift, hist_cur, hist_prev, dpi_green, dpi_macd_agree,
-                               green_mag_cur, green_mag_prev))
-         {
-            // GREEN deceleration: momentum confirmation weakening or vanishing.
-            //
-            // Case 1: GREEN present on both bars but shrinking → momentum fading → BLOCK
-            // Case 2: GREEN was present, now gone → momentum just died (OB/OS) → BLOCK
-            // Case 3: GREEN absent on both bars → no momentum to decelerate → PASS
-            //         (ribbon-only setups are valid — direction without momentum
-            //          is not deceleration, it's a different market state)
-            // Case 4: GREEN was absent, now appeared → momentum arriving → PASS
-
-            bool green_was_present = (green_mag_prev > 0.0);
-            bool green_is_present  = (green_mag_cur  > 0.0);
-            bool blocked = false;
-
-            if(green_was_present && green_is_present && green_mag_cur < green_mag_prev)
-            {
-               // Case 1: GREEN shrinking — momentum fading
-               blocked = true;
-               if(m_settings.DebugFlow)
-                  PrintFormat("[TS_PREFILTER] DPI_DECEL: GREEN shrinking cur=%.6f < prev=%.6f → TS=0",
-                              green_mag_cur, green_mag_prev);
-            }
-            else if(green_was_present && !green_is_present)
-            {
-               // Case 2: GREEN just disappeared — exhaustion / OB/OS
-               blocked = true;
-               if(m_settings.DebugFlow)
-                  PrintFormat("[TS_PREFILTER] DPI_DECEL: GREEN disappeared (prev=%.6f, cur=0) → TS=0",
-                              green_mag_prev);
-            }
-
-            if(blocked)
-            {
-               m_diag_last_reason = "DPI_DECEL";
-               m_reject_filter++;
-               m_stats.rejected_dpi_decel++;    // PHASE A.1
-               if(!full_eval) {
-                  m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-                  UpdateTelemetry(0);
-                  FlushOrClearDebugBuffer(0);
-                  RestoreForcedDebug();
-                  return 0;
-               }
-               if(m_eval_first_failure == "") m_eval_first_failure = "DPI_DECEL";
-               m_eval_any_failure = true;
-            }
-         }
-      }
-
-      // ══════════════════════════════════════════════════════════════════
-      // PRE-FILTER: DPI CCI Reset-Recovery Gate
-      // Only allow entry after a CCI reset→recovery cycle has completed.
-      // Reset = CCI flipped against hist (ribbon color changed during pullback).
-      // Recovery = CCI flipped back and held for N bars.
-      // This ensures we only enter after a proven pullback where the trend survived.
-      // ══════════════════════════════════════════════════════════════════
-      if(m_settings.DPI_RequireResetRecovery && m_settings.DPI_HistTrackingEnabled && m_settings.DPI_UseCCIReset)
-      {
-         if(m_dpi_reset_state != 3) // Not ENTRY_ALLOWED
-         {
-            if(m_settings.DebugFlow)
-            {
-               string s_name = (m_dpi_reset_state==0?"IDLE":m_dpi_reset_state==1?"RESET_DETECTED":m_dpi_reset_state==2?"RECOVERY_COUNTING":"ENTRY_ALLOWED");
-               PrintFormat("[TS_PREFILTER] DPI_RESET_RECOVERY: state=%s (need ENTRY_ALLOWED) recovery=%d/%d → TS=0",
-                           s_name,
-                           m_dpi_reset_recovery_bars, m_settings.DPI_ResetRecoveryBars);
-            }
-
-            m_diag_last_reason = "DPI_RESET_WAIT";
-            m_reject_filter++;
-            if(!full_eval) {
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-               UpdateTelemetry(0);
-               FlushOrClearDebugBuffer(0);
-               RestoreForcedDebug();
-               return 0;
-            }
-            if(m_eval_first_failure == "") m_eval_first_failure = "DPI_RESET_WAIT";
-            m_eval_any_failure = true;
-         }
-      }
-
-      // ══════════════════════════════════════════════════════════════════
-      // PRE-FILTER (PHASE A.1): DPI Histogram Deceleration (PR #3)
-      // Uses m_dpi_hist_decelerating from UpdateDPIHistogramState() (PR #1).
-      // Rejects entries when momentum is decelerating (approaching exhaustion).
-      // ══════════════════════════════════════════════════════════════════
-      if(m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled)
-      {
-         if(m_dpi_hist_decelerating)
-         {
-            if(m_settings.DebugFlow)
-               DebugLog(StringFormat("[FILTER_DPI_DECEL] REJECT | DPI histogram decelerating (approaching exhaustion) | CCI=%.2f | Trend=%s",
-                                     m_dpi_hist_current,
-                                     (m_dpi_hist_trend == 1 ? "GREEN" : m_dpi_hist_trend == -1 ? "RED" : "FLAT")));
-            m_diag_last_reason = "DPI_DECEL";
-            m_reject_filter++;
-            m_stats.rejected_dpi_decel++;
-            if(!full_eval) {
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-               UpdateTelemetry(0);
-               FlushOrClearDebugBuffer(0);
-               RestoreForcedDebug();
-               return 0;
-            }
-            if(m_eval_first_failure == "") m_eval_first_failure = "DPI_DECEL";
-            m_eval_any_failure = true;
-         }
-      }
-
-      // ══════════════════════════════════════════════════════════════════
-      // PRE-FILTER (PHASE A.1): Phase-age confirmation
-      // Reject when MinPhaseConfirmBars > 0 and the current phase has not
-      // persisted for at least that many bars. Catches single-bar TM
-      // flickers (Pattern D in 100-trades analysis).
-      // ══════════════════════════════════════════════════════════════════
-      if(m_settings.MinPhaseConfirmBars > 0 &&
-         m_diag_phase_confirm_bars < m_settings.MinPhaseConfirmBars)
-      {
-         if(m_settings.DebugFlow)
-            PrintFormat("[TS_PREFILTER] PHASE_AGE: bars=%d < required=%d → TS=0",
-                        m_diag_phase_confirm_bars, m_settings.MinPhaseConfirmBars);
-         m_diag_last_reason = "PHASE_AGE";
+         m_diag_last_reason = m_last_f_reason;     // EMA_OVEREXT | DPI_DECEL | DPI_RESET_WAIT | PHASE_AGE
          m_reject_filter++;
-         m_stats.rejected_phase_age++;
+         if(m_last_f_reason == "EMA_OVEREXT")        m_stats.rejected_emafan++;
+         else if(m_last_f_reason == "DPI_DECEL")     m_stats.rejected_dpi_decel++;
+         else if(m_last_f_reason == "PHASE_AGE")     m_stats.rejected_phase_age++;
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[TS_PREFILTER] %s -> TS=0", m_last_f_reason));
          if(!full_eval) {
             m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
             UpdateTelemetry(0);
@@ -6587,20 +6425,20 @@ public:
             RestoreForcedDebug();
             return 0;
          }
-         if(m_eval_first_failure == "") m_eval_first_failure = "PHASE_AGE";
+         if(m_eval_first_failure == "") m_eval_first_failure = m_last_f_reason;
          m_eval_any_failure = true;
       }
-
-      // ── PHASE A.1: Increment passed_* counters for active gates that survived ──
-      // We only increment when the gate was actually evaluated (enable flag on)
-      // so the Pass% column reflects accuracy among bars where the gate fired.
-      if(m_settings.EmaFanFilterEnabled && m_settings.EmaFanMaxTotalPips > 0.0)
-         m_stats.passed_emafan++;
-      if((m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled) ||
-         (m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled))
-         m_stats.passed_dpi_decel++;
-      if(m_settings.MinPhaseConfirmBars > 0)
-         m_stats.passed_phase_age++;
+      else
+      {
+         // F passed: Pass% counters for the gates that were active (live uses full_eval=false)
+         if(m_settings.EmaFanFilterEnabled && m_settings.EmaFanMaxTotalPips > 0.0)
+            m_stats.passed_emafan++;
+         if((m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled) ||
+            (m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled))
+            m_stats.passed_dpi_decel++;
+         if(m_settings.MinPhaseConfirmBars > 0)
+            m_stats.passed_phase_age++;
+      }
 
       if(m_settings.BiasMode == BIAS_4EMA)
          UpdateLayerPullbackStates(v_shift);
