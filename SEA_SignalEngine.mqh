@@ -6371,28 +6371,13 @@ public:
       }
 
       // ── B: Bias ──────────────────────────────────────────────────
+      // B is the core's input. EvaluateB sets bias telemetry/stats and, on
+      // failure, m_eval_any_failure (BIAS_ZERO / SIGNAL_MISMATCH) internally.
       int B = EvaluateB(v_shift);
-      if(B == 0 && !full_eval) {
-         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-         UpdateTelemetry(0);
-         FlushOrClearDebugBuffer(0);
-         RestoreForcedDebug();
-         return 0;
-      }
 
-      // ── P: Phase ─────────────────────────────────────────────────
-      int P = EvaluateP(v_shift, B);
-      if(P == 0 && !full_eval) {
-         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-         UpdateTelemetry(0);
-         FlushOrClearDebugBuffer(0);
-         RestoreForcedDebug();
-         return 0;
-      }
-
-      // ── MTF: moved to indicator voting (EvaluateIndicatorX) ─────────
-      // MTF is a voter with weight Ind_MTF_Weight, not a hard gate.
-      // Telemetry updated inside EvaluateIndicatorX alongside other voters.
+      // ── MTF telemetry (voter diagnostic, not a hard gate) ──────────
+      // MTF is a voter inside EvaluateIndicatorX; here we only refresh its
+      // UI status string. Decision-irrelevant, so it runs once up front.
       if(m_settings.Ind_MTF_Enabled)
       {
          string mtf_reason = "";
@@ -6401,36 +6386,39 @@ public:
          m_telemetry.mtf_status = mtf_diag;
       }
 
-      // ── F: Pre-filters (shared decision via EvaluateF) ──────────────────
-      // Single source for the F factor: EvaluateF is the faithful mirror of the
-      // former inline TS_PREFILTER blocks (EMA fan, DPI GREEN decel, DPI CCI
-      // reset-recovery, DPI histogram decel, phase-age) and is the SAME function
-      // SignalScan / EvaluateTS_AtShift use — so EA and scanner share ONE F path.
-      // No-op under RRM_ORG/CUSTOM defaults (all F filters off). DPI state is kept
-      // current by UpdateDPIHistogramState(v_shift) above, so the state-machine
-      // filters read valid data when enabled.
-      if(!EvaluateF(v_shift, B))
+      // ── Layer-pullback state must be current before EvaluateL ───────
+      // Advanced every bar — the Stats_FullEvaluation=true default already did
+      // so; waterfall mode is now consistent with it.
+      if(m_settings.BiasMode == BIAS_4EMA)
+         UpdateLayerPullbackStates(v_shift);
+
+      // ── P·F·L·I·CG via the shared core (ONE source of truth) ────────
+      // EvaluateTS_Breakdown is the SAME evaluator SignalScan uses for its
+      // dotted-lines (EvaluateTS_AtShift) and inspector (Scanner_InspectBar).
+      // full_eval mirrors the former waterfall / full-evaluation split; the
+      // verdict is identical either way. EvaluateB/P/L record m_eval_any_failure
+      // internally — the F-factor stats are mapped from the breakdown below.
+      STSBreakdown bd;
+      EvaluateTS_Breakdown(v_shift, B, bd, full_eval);
+      int L = bd.L;   // kept for the diagnostic summary below
+      int I = bd.I;   // kept for the final-decision chain below
+
+      // ── F: stats/telemetry (EvaluateF itself only sets m_last_f_reason) ──
+      if(bd.F == 0)
       {
-         m_diag_last_reason = m_last_f_reason;     // EMA_OVEREXT | DPI_DECEL | DPI_RESET_WAIT | PHASE_AGE
+         m_diag_last_reason = bd.F_reason;     // EMA_OVEREXT | DPI_DECEL | DPI_RESET_WAIT | PHASE_AGE
          m_reject_filter++;
-         if(m_last_f_reason == "EMA_OVEREXT")        m_stats.rejected_emafan++;
-         else if(m_last_f_reason == "DPI_DECEL")     m_stats.rejected_dpi_decel++;
-         else if(m_last_f_reason == "PHASE_AGE")     m_stats.rejected_phase_age++;
+         if(bd.F_reason == "EMA_OVEREXT")        m_stats.rejected_emafan++;
+         else if(bd.F_reason == "DPI_DECEL")     m_stats.rejected_dpi_decel++;
+         else if(bd.F_reason == "PHASE_AGE")     m_stats.rejected_phase_age++;
          if(m_settings.DebugFlow)
-            DebugLog(StringFormat("[TS_PREFILTER] %s -> TS=0", m_last_f_reason));
-         if(!full_eval) {
-            m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-            UpdateTelemetry(0);
-            FlushOrClearDebugBuffer(0);
-            RestoreForcedDebug();
-            return 0;
-         }
-         if(m_eval_first_failure == "") m_eval_first_failure = m_last_f_reason;
+            DebugLog(StringFormat("[TS_PREFILTER] %s -> TS=0", bd.F_reason));
+         if(m_eval_first_failure == "") m_eval_first_failure = bd.F_reason;
          m_eval_any_failure = true;
       }
-      else
+      else if(bd.F == 1)
       {
-         // F passed: Pass% counters for the gates that were active (live uses full_eval=false)
+         // F passed: Pass% counters for the gates that were active
          if(m_settings.EmaFanFilterEnabled && m_settings.EmaFanMaxTotalPips > 0.0)
             m_stats.passed_emafan++;
          if((m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled) ||
@@ -6439,21 +6427,7 @@ public:
          if(m_settings.MinPhaseConfirmBars > 0)
             m_stats.passed_phase_age++;
       }
-
-      if(m_settings.BiasMode == BIAS_4EMA)
-         UpdateLayerPullbackStates(v_shift);
-
-      // ── L: Layer ─────────────────────────────────────────────────
-      int L = EvaluateL(v_shift, B);
-      if(L == 0 && !full_eval) {
-         m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-         UpdateTelemetry(0);
-         FlushOrClearDebugBuffer(0);
-         RestoreForcedDebug();
-         return 0;
-      }
-      // ── I: Indicators ─────────────────────────────────────────────
-      int I = EvaluateI(v_shift, B);
+      // bd.F == -1 → F not reached (waterfall stopped at B/P); no F stats, as before.
 
       // ════════════════════════════════════════════════════════════
       // FINAL DECISION: TS = B × P × L × I
@@ -6469,7 +6443,7 @@ public:
          // Indicator voting failed (reason already set by EvaluateI/EvaluateIndicatorX)
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
       }
-      else if(DetectClimax(B, v_shift)) {
+      else if(bd.CG == 0) {
          // ── CLIMAX / EXHAUSTION GUARD (hard gate) ──
          // B x P x L x I all aligned, but price has over-extended into an
          // impulse. Block the entry and reset all layers so a fresh
