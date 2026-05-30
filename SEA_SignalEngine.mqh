@@ -3013,7 +3013,7 @@ public:
       if(b == 0) { out_P = out_L = out_I = out_F = out_CG = -1; return 0; }
       out_P  = EvaluateP(shift, b);
       out_L  = EvaluateL(shift, b);
-      out_I  = EvaluateI(shift, b);
+      out_I  = EvaluateI(shift, b);    // clean 1/0 (normalized in the EvaluateI accessor)
       out_F  = EvaluateF(shift, b) ? 1 : 0;
       out_CG = DetectClimax(b, shift) ? 0 : 1;
       return (out_P==1 && out_L==1 && out_I==1 && out_F==1 && out_CG==1) ? 1 : 0;
@@ -3548,21 +3548,6 @@ public:
    }
 
    // This goes inside CSignalEngine or as a global utility
-   int CalcVoteResult(const int bias, const string state)
-   {
-      // 1. Scrub the data
-      if(state == "" || state == "NONE" || state == "WAIT") return 0;
-   
-      // 2. Logic for the UI (The 1/5, 4/5 result)
-      // We count the vote if it is ACTIVE, regardless of Bias direction.
-      // This ensures that if the Icon is Green, the counter goes UP.
-      if(state == "BUY" || state == "SELL" || state == "OK" || state == "PASS") 
-      {
-         return 1; 
-      }
-      return 0;
-   }
-
    // Prints a sorted summary of top rejection reasons to the MT5 log.
    // Call from OnDeinit() to diagnose why trades are being filtered.
    void PrintRejectionStatistics()
@@ -4002,11 +3987,11 @@ public:
    // Evaluates each enabled vote independently (BUY/SELL/FLAT) without changing internal state.
    void CaptureVoteSnapshots(SVoteSnapshot &out[], int &count, const int current_bias = 0)
    {
-      int shift = m_settings.ma_v_shift;
+      int shift = m_settings.Vote_EvalShift;   // single source: SAME bar the vote uses (was ma_v_shift)
       count = 0;
       ArrayResize(out, 17); // 16 possible indicators + 1 spare
       
-      // We use the EXACT same shift used for the numerical calculation
+      // (v_shift kept == Vote_EvalShift for the few checks already written to it)
       int v_shift = m_settings.Vote_EvalShift;
 
       if(m_settings.Ind_Adx_Enabled && h_adx != INVALID_HANDLE)
@@ -4018,7 +4003,6 @@ public:
          if(pass && m_diag_last_bias ==  1) { out[count].state = "BUY";  out[count].reason = StringFormat("(ADX=%.0f>=%.0f)", adx, m_cachedADXThreshold); }
          else if(pass && m_diag_last_bias == -1) { out[count].state = "SELL"; out[count].reason = StringFormat("(ADX=%.0f>=%.0f)", adx, m_cachedADXThreshold); }
          else                               { out[count].state = "FLAT"; out[count].reason = StringFormat("(ADX=%.0f%s%.0f)", adx, pass?">=":"<", m_cachedADXThreshold); }
-         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -4033,7 +4017,6 @@ public:
          if(b)      { out[count].state = "BUY";  out[count].reason = StringFormat("(main=%.5f>sig,>0)", m); }
          else if(s) { out[count].state = "SELL"; out[count].reason = StringFormat("(main=%.5f<sig,<0)", m); }
          else       { out[count].state = "FLAT"; out[count].reason = StringFormat("(main=%.5f,sig=%.5f)", m, sig); }
-         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -4047,7 +4030,6 @@ public:
          if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(RSI=%.0f buy)", r); }
          else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(RSI=%.0f sell)", r); }
          else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(RSI=%.0f neutral)", r); }
-         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -4061,7 +4043,6 @@ public:
          if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(CCI=%.0f>0)", c); }
          else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(CCI=%.0f<0)", c); }
          else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(CCI=%.0f)", c); }
-         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -4075,7 +4056,6 @@ public:
          if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(MFI=%.0f)", mfi); }
          else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(MFI=%.0f)", mfi); }
          else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(MFI=%.0f neutral)", mfi); }
-         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -4090,7 +4070,6 @@ public:
          if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(K=%.0f>D=%.0f)", k, d); }
          else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(K=%.0f<D=%.0f)", k, d); }
          else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(K=%.0f,D=%.0f)", k, d); }
-         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -4105,7 +4084,6 @@ public:
          if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(price>mid=%.5f)", mid); }
          else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(price<mid=%.5f)", mid); }
          else             { out[count].state = "FLAT"; out[count].reason = StringFormat("(cl=%.5f,mid=%.5f)", cl, mid); }
-         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -4119,7 +4097,6 @@ public:
          if(b)      { out[count].state = "BUY";  out[count].reason = StringFormat("(dot=%.5f<price)", p); }
          else if(s) { out[count].state = "SELL"; out[count].reason = StringFormat("(dot=%.5f>price)", p); }
          else       { out[count].state = "FLAT"; out[count].reason = "(no signal)"; }
-         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -4132,7 +4109,6 @@ public:
          if(b)      { out[count].state = "BUY";  out[count].reason = "(above fractal)"; }
          else if(s) { out[count].state = "SELL"; out[count].reason = "(below fractal)"; }
          else       { out[count].state = "FLAT"; out[count].reason = "(no breakout)"; }
-         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -4145,7 +4121,6 @@ public:
          if(b)      { out[count].state = "BUY";  out[count].reason = "(hook+trend)"; }
          else if(s) { out[count].state = "SELL"; out[count].reason = "(hook+trend)"; }
          else       { out[count].state = "FLAT"; out[count].reason = "(no hook)"; }
-         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
 
@@ -4160,7 +4135,6 @@ public:
          out[count].enabled = true;
          if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = StringFormat("(ATR=%.1fpips ok)", atr_pips); }
          else     { out[count].state = "FLAT"; out[count].reason = StringFormat("(ATR=%.1fpips out-of-range)", atr_pips); }
-         out[count].vote_result = pass ? 1 : -1;
          count++;
       }
 
@@ -4172,7 +4146,6 @@ public:
          out[count].enabled = true;
          if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = "(body ok)"; }
          else     { out[count].state = "FLAT"; out[count].reason = "(overextended)"; }
-         out[count].vote_result = pass ? 1 : -1;
          count++;
       }
 
@@ -4185,7 +4158,6 @@ public:
          out[count].enabled = true;
          if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = StringFormat("(CI=%.1f trending)", ci_val); }
          else     { out[count].state = "FLAT"; out[count].reason = StringFormat("(CI=%.1f ranging)", ci_val); }
-         out[count].vote_result = pass ? 1 : -1;
          count++;
       }
 
@@ -4205,7 +4177,6 @@ public:
             out[count].state  = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT"));
             out[count].reason = StringFormat("(NORMAL volatility ATR=%.5f)", atr);
          }
-         out[count].vote_result = (regime == VOLATILITY_LOW) ? -1 : 1;
          count++;
       }
 
@@ -4217,7 +4188,6 @@ public:
          out[count].enabled = true;
          if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = "(SMA gap converging)"; }
          else     { out[count].state = "FLAT"; out[count].reason = "(SMA gap diverging)"; }
-         out[count].vote_result = pass ? 1 : -1;
          count++;
       }
 
@@ -4231,7 +4201,6 @@ public:
          if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(F=%d S=%d RedT=%d BUY)", m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_RedSignalType); }
          else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(F=%d S=%d RedT=%d SELL)", m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_RedSignalType); }
          else             { out[count].state = "FLAT"; out[count].reason = "(no momentum or conditions not met)"; }
-         out[count].vote_result = CalcVoteResult(current_bias, out[count].state);
          count++;
       }
       ArrayResize(out, count);
@@ -6084,7 +6053,12 @@ public:
    // ─────────────────────────────────────────────────────────────────────────
    int EvaluateI(int v_shift, int bias)
    {
-      return EvaluateIndicatorX(v_shift, bias);
+      // The "I" term of the TS equation is a clean pass/fail flag (1/0), matching
+      // B*P*L*I*F. The worker EvaluateIndicatorX returns the bias value (+1 long /
+      // -1 short) on a pass for its own diagnostics/telemetry; collapse that to
+      // 1/0 here so every TS-equation consumer reads an unambiguous flag and
+      // direction stays the bias's responsibility (never re-derived from I).
+      return (EvaluateIndicatorX(v_shift, bias) != 0) ? 1 : 0;
    }
 
    // ───────────────────────────────────────────────────────────────────────────

@@ -884,8 +884,6 @@ void OrchestrateTick()
    int          snap_votes  = 0;
    string       snap_reason = "";
    EMarketPhase snap_phase  = PHASE_UNORDERED;
-   SVoteSnapshot vote_snaps[];
-   int vote_snap_count = 0;
 
    // --- STEP 2: TS — evaluate current bar close, store for NEXT bar ---
    if(!drawdown_blocked)
@@ -896,7 +894,6 @@ void OrchestrateTick()
       snap_votes  = Signal.LastVotes();
       snap_reason = Signal.LastReason();
       snap_phase  = Signal.GetLastDetectedPhase();
-      Signal.CaptureVoteSnapshots(vote_snaps, vote_snap_count, snap_bias);
 
       if(ts != 0)
       {

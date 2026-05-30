@@ -469,54 +469,6 @@ string SEA_UI_BuildIndicatorConfigs(const ST_Settings &cfg)
 //+------------------------------------------------------------------+
 //| REFACTORED: Theme-Aware Vote Breakdown (Strategy Zone)           |
 //+------------------------------------------------------------------+
-string SEA_UI_BuildVoteBreakdown(const ST_Settings &cfg, const SVoteSnapshot &votes[], int count, color &out_line_clrs[]) 
-{
-   string grid = "";
-   int cols = 3;
-   int current_row = 0;
-
-   for(int i = 0; i < count; i += cols) 
-   {
-      string line = "  ";
-      color row_color = cfg.clr_Value; // Default to neutral value color
-      bool any_pass = false;
-      bool any_fail = false;
-
-      for(int j = 0; j < cols; j++) 
-      {
-         if(i + j < count) 
-         {
-            // Determine Icon based on vote result
-            string icon = "[.]"; 
-            if(votes[i+j].vote_result == 1)  icon = "[+]";
-            else if(votes[i+j].vote_result == -1) icon = "[-]";
-
-            // Format the cell with standardized width
-            line += StringFormat("%s %-12s ", icon, votes[i+j].name);
-            if(j < cols - 1) line += "| ";
-
-            // Logic for per-line color selection based on Vote Results
-            if(votes[i+j].vote_result == 1) any_pass = true;
-            if(votes[i+j].vote_result == -1) any_fail = true;
-         }
-      }
-
-      // Final Color Assignment for the row
-      if(any_fail)      row_color = cfg.clr_Fail;
-      else if(any_pass) row_color = cfg.clr_Pass;
-      else              row_color = cfg.clr_Disabled;
-
-      // Add to output and track colors for the RenderPanel
-      grid += line + "\n";
-      
-      // Expand color array to match lines
-      int old_size = ArraySize(out_line_clrs);
-      ArrayResize(out_line_clrs, old_size + 1);
-      out_line_clrs[old_size] = row_color;
-   }
-   return grid;
-}
-
 // -----------------------------------
 // Public API
 // -----------------------------------
