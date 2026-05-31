@@ -111,6 +111,7 @@ input color       Color_EMA2           = C'255,200,50';        // EMA2 color
 input color       Color_EMA3           = C'220,140,0';         // EMA3 color
 input color       Color_EMA4           = C'160,80,0';          // EMA4 color (slowest/darkest)
 input bool        Show_PSAR            = false;                // Draw PSAR dots on chart
+input bool        Show_AllActiveIndicators = false;          // Add every enabled TS_* indicator to chart (add-only; oscillators -> sub-windows)
 
 input group "--- Bar Inspector (drag the SCN_INSPECT line) ---";
 input bool        Scn_Inspect_Enabled  = false;                // Inspector: TS factor breakdown for the marked bar
@@ -289,6 +290,53 @@ input int      BarsBack = 500; // Bars back (if DateFrom=0)
 //+------------------------------------------------------------------+
 CSignalEngine  g_eng_long;
 CSignalEngine  g_eng_short;
+
+//+------------------------------------------------------------------+
+//| Scn_AddInd — add one indicator handle to the chart (add-only).   |
+//| INVALID_HANDLE is silently skipped; failures are logged.         |
+//+------------------------------------------------------------------+
+void Scn_AddInd(const int win, const int handle, const string label)
+{
+   if(handle == INVALID_HANDLE) return;
+   if(ChartIndicatorAdd(0, win, handle))
+      PrintFormat("[Scanner] + %s (window %d)", label, win);
+   else
+      PrintFormat("[Scanner] ! add %s failed (err %d)", label, GetLastError());
+}
+
+//+------------------------------------------------------------------+
+//| Scn_AddActiveIndicators — draw every enabled TS_* voter that has |
+//| an engine handle, sharing the verdict's exact parameters.        |
+//| Add-only: existing chart indicators are preserved.               |
+//|   price overlays -> window 0 (EMA/PSAR already drawn natively)    |
+//|   oscillators     -> each appended in its own new sub-window      |
+//| DPI/VPRR are computed inline (no engine handle) -> not drawn yet. |
+//+------------------------------------------------------------------+
+void Scn_AddActiveIndicators(CSignalEngine *eng)
+{
+   if(eng == NULL) return;
+
+   // price-window overlays
+   if(TS_BollingerBands) Scn_AddInd(0, eng.GetBbHandle(), "Bollinger Bands");
+   if(TS_MTF)
+   {
+      Scn_AddInd(0, eng.GetMtfTf1FastHandle(), "MTF TF1 fast");
+      Scn_AddInd(0, eng.GetMtfTf1SlowHandle(), "MTF TF1 slow");
+      Scn_AddInd(0, eng.GetMtfTf2FastHandle(), "MTF TF2 fast");
+      Scn_AddInd(0, eng.GetMtfTf2SlowHandle(), "MTF TF2 slow");
+   }
+
+   // oscillators: each into the next free sub-window
+   if(TS_MACD)       Scn_AddInd((int)ChartGetInteger(0, CHART_WINDOWS_TOTAL), eng.GetMacdHandle(), "MACD");
+   if(TS_RSI)        Scn_AddInd((int)ChartGetInteger(0, CHART_WINDOWS_TOTAL), eng.GetRsiHandle(),  "RSI");
+   if(TS_CCI)        Scn_AddInd((int)ChartGetInteger(0, CHART_WINDOWS_TOTAL), eng.GetCciHandle(),  "CCI");
+   if(TS_MFI)        Scn_AddInd((int)ChartGetInteger(0, CHART_WINDOWS_TOTAL), eng.GetMfiHandle(),  "MFI");
+   if(TS_Stochastic) Scn_AddInd((int)ChartGetInteger(0, CHART_WINDOWS_TOTAL), eng.GetStoHandle(),  "Stochastic");
+   if(TS_ADX)        Scn_AddInd((int)ChartGetInteger(0, CHART_WINDOWS_TOTAL), eng.GetAdxHandle(),  "ADX");
+   if(TS_ATR)        Scn_AddInd((int)ChartGetInteger(0, CHART_WINDOWS_TOTAL), eng.GetAtrHandle(),  "ATR");
+   if(TS_CI)         Scn_AddInd((int)ChartGetInteger(0, CHART_WINDOWS_TOTAL), eng.GetCiHandle(),   "CI");
+}
+
 string         g_pfx;
 // -- Bar inspector (marked bar via SCN_INSPECT vline) --
 string         g_insp_line  = "";
@@ -418,6 +466,10 @@ int OnInit()
    }
 
    g_ok = true;
+
+   // Mirror every enabled TS_* voter onto the chart (Tier 1: engine-handle indicators)
+   if(Show_AllActiveIndicators)
+      Scn_AddActiveIndicators(MarketBias != SBIAS_SHORT ? GetPointer(g_eng_long) : GetPointer(g_eng_short));
 
    // Print active components to journal so user can confirm what's running
    string active = "";
