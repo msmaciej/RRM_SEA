@@ -84,11 +84,14 @@ Priority walk: **L3 → L2 → L1**. First layer passing all checks wins. The ac
    - `LAYER_PB_DETECTED` → EMA reversed direction vs baseline → **entry blocked**
    - `LAYER_PB_RECOVERED` → EMA resumed trend direction after pullback → **entry allowed**
    
-   Transition logic (one bar, pure direction sign):
-   - **Pullback** = fast EMA moves against its baseline direction on this bar
-   - **Recovery** = fast EMA resumes baseline direction on this bar
-   
-   The baseline is the EMA's direction over the past `LayerBaselineLookback` bars — used only to know what "against" means. The slope evaluated is always `EMA[shift] − EMA[shift+1]` (one bar, mathematically correct at shift=1).
+   Transition logic (magnitude-based slope ratio):
+   - **Baseline pace** = the EMA's *average* per-bar slope over its per-layer lookback window (`LayerBaselineLookback_W/M/S`, default 13/21/34 — fastest layer shortest, slowest layer longest).
+   - **Current pace** = the EMA's recent slope over the last `k` bars (`k = max(2, lookback/4)`, so the slow S-layer is smoothed more than the fast W-layer).
+   - **ratio** = |current pace| / |baseline pace|.
+   - **Pullback** = `ratio < LayerPullbackRatio` (weakened), or `< LayerFlatRatio` (flat), or a slope reversal (when `LayerAllowReversalPullback`).
+   - **Recovery** = trend direction resumed *and* `ratio >=` the layer's recovery threshold (`LayerRecoveryRatio_W/M/S`, default 0.4/0.3/0.2 — slower layers confirm on less momentum).
+
+   Averaging both sides (rather than a single-bar slope) is what lets the slow S-layer EMAs register a genuine pause without false "weakened" readings. Each layer can be enabled/disabled independently via `AllowLayer{1,2,3}_Entries` (W/M/S), and the SignalScan inspector shows all three layers' states at the inspected bar.
 
 3. **BC (Bar Close)** — signal bar close is beyond the fast EMA in bias direction (close > EMA1 for L1 LONG, close > EMA2 for L2 LONG, close > EMA3 for L3 LONG). Checks closing price level, not wicks or body.
 

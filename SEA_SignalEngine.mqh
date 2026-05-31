@@ -3073,6 +3073,54 @@ public:
       out_L_layer  = b.L_layer;
       return verdict;
    }
+
+   //+------------------------------------------------------------------+
+   //| Scanner_InspectLayers / Inspect_OneLayer                         |
+   //| Per-layer state + verdict for W/M/S INDEPENDENTLY (read-only).   |
+   //| Mirrors the EvaluateL gate per layer without the priority short- |
+   //| circuit, so the inspector can show all three layers at once.     |
+   //+------------------------------------------------------------------+
+   void Scanner_InspectLayers(int shift, int bias, string &out_w, string &out_m, string &out_s)
+   {
+      out_w = Inspect_OneLayer(shift, bias, 1);
+      out_m = Inspect_OneLayer(shift, bias, 2);
+      out_s = Inspect_OneLayer(shift, bias, 3);
+   }
+   string Inspect_OneLayer(int shift, int bias, int layer)
+   {
+      ELayerPullbackState st = (layer==1) ? m_layer_w_pb_state :
+                               (layer==2) ? m_layer_m_pb_state : m_layer_s_pb_state;
+      string st_s = (st==LAYER_PB_RECOVERED) ? "REC" : (st==LAYER_PB_DETECTED) ? "DET" : "NONE";
+
+      bool allow = (layer==1) ? m_settings.AllowLayer1_Entries :
+                   (layer==2) ? m_settings.AllowLayer2_Entries : m_settings.AllowLayer3_Entries;
+      if(!allow)     return st_s + " off";
+      if(bias == 0)  return st_s + " NO(bias)";
+
+      int align = CheckLayerPairAlign(bias, layer, shift);   // position + RECOVERED gate
+      if(align == 0)
+         return (st != LAYER_PB_RECOVERED) ? st_s + " NO(PB)" : st_s + " NO(ALIGN)";
+
+      int layer_id = (layer==1) ? LAYER_1_WEAK : (layer==2) ? LAYER_2_MEDIUM : LAYER_3_STRONG;
+      int lookback = MathMax(1, MathMin(4, m_settings.BarClose_LookbackBars));
+      int bc = Eval_BarClose(shift, bias, layer_id);
+      if(bc == 0 && lookback > 1)
+         bc = Check_BarClose_MultiBar(shift, bias, layer_id, lookback) ? 1 : 0;
+      if(bc == 0) return st_s + " NO(BC)";
+
+      if(!CheckCandleDirectionGate(bias, shift)) return st_s + " NO(BD)";
+
+      bool mom = true;
+      if(lookback > 1 && m_settings.Require_Progressive_Momentum)
+      {
+         mom = Check_Progressive_Momentum(shift, bias, lookback);
+         if(!mom && m_settings.DPI_Histogram_Growth_Boost)
+            mom = Check_DPI_Histogram_Growing(shift, bias, lookback);
+      }
+      if(!mom) return st_s + " NO(MOM)";
+
+      return st_s + " ok";
+   }
    // Reset only the fired layer to NONE — other layers keep their independent states.
    void   Scanner_ResetLayerAfterFire(int layer)
    {
@@ -6082,7 +6130,7 @@ public:
       }
 
       // Step 3: Priority walk L3 → L2 → L1; each layer also needs BC and BD
-      if(m_eval_layer_s == 1) {
+      if(m_eval_layer_s == 1 && m_settings.AllowLayer3_Entries) {
          int bc_s = Eval_BarClose(v_shift, bias, LAYER_3_STRONG);
          if(bc_s == 0 && lookback > 1)
             bc_s = Check_BarClose_MultiBar(v_shift, bias, LAYER_3_STRONG, lookback) ? 1 : 0;
@@ -6093,7 +6141,7 @@ public:
          }
       }
 
-      if(m_eval_layer_m == 1) {
+      if(m_eval_layer_m == 1 && m_settings.AllowLayer2_Entries) {
          int bc_m = Eval_BarClose(v_shift, bias, LAYER_2_MEDIUM);
          if(bc_m == 0 && lookback > 1)
             bc_m = Check_BarClose_MultiBar(v_shift, bias, LAYER_2_MEDIUM, lookback) ? 1 : 0;
@@ -6104,7 +6152,7 @@ public:
          }
       }
 
-      if(m_eval_layer_w == 1) {
+      if(m_eval_layer_w == 1 && m_settings.AllowLayer1_Entries) {
          int bc_w = Eval_BarClose(v_shift, bias, LAYER_1_WEAK);
          if(bc_w == 0 && lookback > 1)
             bc_w = Check_BarClose_MultiBar(v_shift, bias, LAYER_1_WEAK, lookback) ? 1 : 0;

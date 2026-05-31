@@ -300,6 +300,9 @@ int            g_insp_bias  = 0;
 int            g_insp_P = -1, g_insp_L = -1, g_insp_I = -1, g_insp_F = -1, g_insp_CG = -1;
 string         g_insp_P_reason="", g_insp_L_reason="", g_insp_I_reason="", g_insp_F_reason="";
 int            g_insp_L_layer = 0;
+string         g_insp_layer_w = "";
+string         g_insp_layer_m = "";
+string         g_insp_layer_s = "";
 int            g_insp_ts    = 0;
 bool           g_ok = false;
 int            g_sig_long  = 0;
@@ -762,6 +765,9 @@ void ScanBar(int shift)
       if(doL)      g_insp_ts = g_eng_long.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG, g_insp_P_reason, g_insp_L_reason, g_insp_I_reason, g_insp_F_reason, g_insp_L_layer);
       else if(doS) g_insp_ts = g_eng_short.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG, g_insp_P_reason, g_insp_L_reason, g_insp_I_reason, g_insp_F_reason, g_insp_L_layer);
       else         g_insp_ts = g_eng_long.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG, g_insp_P_reason, g_insp_L_reason, g_insp_I_reason, g_insp_F_reason, g_insp_L_layer);
+      if(doL)      g_eng_long.Scanner_InspectLayers(shift, g_insp_bias, g_insp_layer_w, g_insp_layer_m, g_insp_layer_s);
+      else if(doS) g_eng_short.Scanner_InspectLayers(shift, g_insp_bias, g_insp_layer_w, g_insp_layer_m, g_insp_layer_s);
+      else         g_eng_long.Scanner_InspectLayers(shift, g_insp_bias, g_insp_layer_w, g_insp_layer_m, g_insp_layer_s);
       g_insp_valid = true;
    }
 
@@ -850,6 +856,9 @@ void BuildSettings(ST_Settings &s)
    s.LayerRecoveryRatio_M    = PB_RecoveryRatio_M;
    s.LayerRecoveryRatio_S    = PB_RecoveryRatio_S;
    s.LayerAllowReversalPullback = PB_AllowReversal;
+   s.AllowLayer1_Entries   = TS_LayerW;   // per-layer entry toggle (W) -> walk gate
+   s.AllowLayer2_Entries   = TS_LayerM;   // (M)
+   s.AllowLayer3_Entries   = TS_LayerS;   // (S)
 
    // DPI
    s.Ind_Dpi_Enabled      = TS_DPI;
@@ -1146,6 +1155,9 @@ void DrawInfoPanel()
          else
          {
             ADD("  B:ok P:"+InspMark2(g_insp_P,g_insp_P_reason)+" L:"+InspMarkL(g_insp_L,g_insp_L_reason,g_insp_L_layer)+" I:"+InspMark2(g_insp_I,g_insp_I_reason)+" F:"+InspMark2(g_insp_F,g_insp_F_reason)+" CG:"+InspMark(g_insp_CG), clrWhite)
+            ADD("    S: " + g_insp_layer_s, (g_insp_bias>0?Color_Long_S:Color_Short_S))
+            ADD("    M: " + g_insp_layer_m, (g_insp_bias>0?Color_Long_M:Color_Short_M))
+            ADD("    W: " + g_insp_layer_w, (g_insp_bias>0?Color_Long_W:Color_Short_W))
             if(g_insp_ts==1) ADD("  TS=1  SIGNAL", clrLime)
             else             ADD("  TS=0  blocked by " + InspFirstFail(), clrOrangeRed)
          }

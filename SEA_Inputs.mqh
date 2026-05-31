@@ -764,6 +764,9 @@ input bool        Inp_RRM_ORG_LayerPBAllowReversal = SEA_DEF_LAYER_ALLOW_REVERSA
 input double      Inp_RRM_ORG_RecoveryRatio_W      = SEA_DEF_LAYER_RECOVERY_W;      // RRM ORG PB: LayerW recovery override (-1=use global)
 input double      Inp_RRM_ORG_RecoveryRatio_M      = SEA_DEF_LAYER_RECOVERY_M;      // RRM ORG PB: LayerM recovery override (-1=use global)
 input double      Inp_RRM_ORG_RecoveryRatio_S      = SEA_DEF_LAYER_RECOVERY_S;      // RRM ORG PB: LayerS recovery override (-1=use global)
+input bool        Inp_RRM_ORG_AllowLayerS          = true;                          // RRM ORG PB: allow Layer S (EMA3/4) entries
+input bool        Inp_RRM_ORG_AllowLayerM          = true;                          // RRM ORG PB: allow Layer M (EMA2/3) entries
+input bool        Inp_RRM_ORG_AllowLayerW          = true;                          // RRM ORG PB: allow Layer W (EMA1/2) entries
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: EMA Fan Filter (pips)";
 input group "╚════════════════════════════════════════════════════════╝";

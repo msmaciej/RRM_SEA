@@ -2234,6 +2234,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.LayerRecoveryRatio_M        = Inp_RRM_ORG_RecoveryRatio_M;
       cfg.LayerRecoveryRatio_S        = Inp_RRM_ORG_RecoveryRatio_S;
       cfg.LayerAllowReversalPullback  = Inp_RRM_ORG_LayerPBAllowReversal;
+      cfg.AllowLayer3_Entries         = Inp_RRM_ORG_AllowLayerS;   // S = EMA3/4
+      cfg.AllowLayer2_Entries         = Inp_RRM_ORG_AllowLayerM;   // M = EMA2/3
+      cfg.AllowLayer1_Entries         = Inp_RRM_ORG_AllowLayerW;   // W = EMA1/2
 
       // VPRR: Volume Pullback-Recovery Ratio (institutional participation confirmation)
       // AutoEnable=true: probe instrument + volume at preset-apply time; per-instrument settings applied.
