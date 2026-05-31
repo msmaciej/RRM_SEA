@@ -143,6 +143,36 @@ TS shapes *whether a setup is valid*; TE shapes *whether it is executable right 
 
 ---
 
+## SignalScan Inspector
+
+`SEA_IND_SignalScan.mq5` can mark any historical bar for inspection: drag the `SCN_INSPECT` vertical line onto a bar and the panel shows that bar's full TS breakdown, evaluating **every** factor independently (not the waterfall):
+
+```
+B:ok P:ok L:NO(BC) I:ok F:ok CG:ok
+TS=0  blocked by L (Layer)
+```
+
+Each factor reads `ok` (passed), `NO(code)` (blocked, with the reason), or `--` (not applicable — only when there is no bias, B=0). When a factor is `NO`, the code is the engine's own reason for that bar:
+
+| Factor | Code | Engine reason — meaning |
+|--------|------|-------------------------|
+| **P** | `UNORD` | `PHASE_UNORDERED` — EMAs not in a tradable order |
+| | `EMERG` | `PHASE_EMERGING` — emerging phase, blocked by preset |
+| **L** | `ALIGN` | `LAYER_NONE_ALIGNED` — no layer's EMAs stacked in bias direction yet (structural: a pullback entry can't fire here) |
+| | `BC` | `BC_NOT_CONFIRMED` — bar close not yet beyond the fast EMA in bias direction |
+| | `BD` | `CandleDir` — signal bar not closed in the bias direction |
+| | `MOM` | `MOMENTUM_NOT_CONFIRMED` — progressive-momentum / DPI-growth check failed |
+| **I** | *names* | failing voters, comma-joined (e.g. `DPI,PSAR`) — voters: DPI, PSAR, CBODY, MTF, ADX, MACD, CCI |
+| **F** | `EMAFAN` | `EMA_OVEREXT` — EMA fan over-extended |
+| | `DECEL` | `DPI_DECEL` — DPI histogram momentum decelerating |
+| | `RESET` | `DPI_RESET_WAIT` — DPI CCI reset-recovery not complete |
+| | `AGE` | `PHASE_AGE` — phase younger than `MinPhaseConfirmBars` |
+| **CG** | `climax` | climax/exhaustion veto fired *(over-threshold ATR margin ratios are a planned addition)* |
+
+When there is no bias the panel collapses to `TS=0 blocked by B (no bias)` and the per-factor line is not shown. The inspector is **passive** — it reproduces the shared `EvaluateTS_Breakdown` decision read-only and never mutates layer state.
+
+---
+
 ## Source Files
 
 | File | Role |
