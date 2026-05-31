@@ -12,14 +12,14 @@
 //+------------------------------------------------------------------+
 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    🎯 PRESET";
+input group "    🎯 PRESET SELECTOR (GLOBAL)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input ulong     Inp_Global_MagicNum                = 12345;       // Magic number (trade identifier)
 input EStrategyPreset Inp_Global_Preset            = PRESET_RRM_ORG;    // Strategy preset
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    🎯 TRADE MANAGEMENT";
+input group "    💰 TRADE MANAGEMENT / RISK (GLOBAL)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   💰 (RM) RISK MANAGEMENT (GLOBAL)";
@@ -56,7 +56,27 @@ input double      Inp_RM_MarginAdj_JPY             = 0.9;            // RM Margi
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "║   🛡️ SAFETY GUARDS (GLOBAL) OFF by default";
+input group "    🌐 PAIR / SPREAD (GLOBAL)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🔧 Pair Type Detection";
+input group "╚════════════════════════════════════════════════════════╝";
+input EPairType   Inp_Adaptive_PairType            = PAIR_TYPE_AUTO; // Pair: Pair type (PAIR_TAPY_AUTO)
+// input string   Inp_Adaptive_PairInfo            = "AUTO: EURUSD/GBPUSD/USDJPY=MAJOR; XAUUSD/GOLD=GOLD; BTC/ETH=CRYPTO; TRY/ZAR/MXN=EXOTIC; others=MINOR";
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🔧 Max Spread by Pair Type (pips)";
+input group "╚════════════════════════════════════════════════════════╝";
+input double      Inp_Adaptive_Spread_Major        = 3.0;            // Pair: Max spread major (pips)
+input double      Inp_Adaptive_Spread_Minor        = 5.0;            // Pair: Max spread minor (pips)
+input double      Inp_Adaptive_Spread_Exotic       = 11.0;           // Pair: Max spread exotic (pips)
+input double      Inp_Adaptive_Spread_Gold         = 6.0;            // Pair: Max spread gold/XAU (pips)
+input double      Inp_Adaptive_Spread_Crypto       = 50.0;           // Pair: Max spread crypto (pips)
+// input string   Inp_Adaptive_Note1               = "📝 Note: SL/TP cushions auto-adjust by timeframe (no input needed)";
+// input string   Inp_Adaptive_Note2               = "📝 M15=5 pips, H1=10 pips, H4=20 pips (see GetTFBasedCushion)";
+
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    🛡️ SAFETY GUARDS (GLOBAL) — off by default";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 // These guards are preset-independent: they are NOT cleared by preset overrides,
 // so they remain active under PRESET_RRM/FPM/etc. All default to 0 = disabled,
@@ -221,7 +241,7 @@ input bool        Inp_Debug_ExportUseCommonFiles   = false;          // Report: 
 #ifdef SEA_PRESET_MA
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📐 PRESET: MA";
+input group "    📐 PRESET_MA  (MT5 MA benchmark)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛑 MT5 Moving Average Benchmark (PRESET_MA)";
@@ -235,7 +255,7 @@ input double      Inp_MA_DecreaseFactor            = 3.0;            // MA Lot d
 #ifdef SEA_PRESET_FPM
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📐 PRESET: FPM";
+input group "    📐 PRESET_FPM";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 FPM: (TP) Take Profit Settings";
@@ -278,7 +298,7 @@ input int         Inp_FPM_Mfi_Period               = 14;             // FPM MFI:
 #ifdef SEA_PRESET_RRM_FAMILY
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📊 VPRR: Instruments + Shared Settings";
+input group "    📊 VPRR — SHARED (PRESET_RRM / RRM_ORG / TOPINVESTOR)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "    📊 VPRR (used by RRM/RRM_ORG/TOPINVESTOR presets)";
@@ -337,7 +357,7 @@ input int         Inp_RRM_ORG_VPRR_RecoveryBars    = 5;              // RRM ORG 
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📐 PRESET: RRM";
+input group "    📐 PRESET_RRM";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: (TP) Take Profit - Risk Reward Ratio";
@@ -396,7 +416,7 @@ input int         Inp_RRM_LayerBaselineLookback    = 10;             // RRM Laye
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📐 PRESET: RRM INDICATORS";
+input group "    📐 PRESET_RRM — INDICATORS";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: Indicators — Enable/Disable";
@@ -515,7 +535,7 @@ input double      Inp_RRM_VRC_LowThreshold         = 33.0;           // RRM VRC:
 #ifdef SEA_PRESET_RRM_ORG
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📐 PRESET: RRM_ORG: DPI";
+input group "    📐 PRESET_RRM_ORG — DPI";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI v31 — Core Math (shared by all)";
@@ -607,7 +627,7 @@ input bool        Inp_RRM_ORG_DPI_ResetRequireGreen      = false;    // RRM ORG 
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📐 PRESET: RRM_ORG";
+input group "    📐 PRESET_RRM_ORG  ★ ACTIVE";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (TP) TAKE PROFIT TARGET";
@@ -781,7 +801,7 @@ input double      Inp_RRM_ORG_JpyGateMultiplier    = 1.3;            // RRM ORG 
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📐 PRESET: RRM_ORG: INDICATORS";
+input group "    📐 PRESET_RRM_ORG — INDICATORS";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Indicators — Use";
@@ -903,7 +923,7 @@ input int         Inp_RRM_ORG_VRC_ATR_Period       = 14;             // RRM ORG 
 #ifdef SEA_PRESET_TOPINVESTOR
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📐 PRESET: TOPINVESTOR";
+input group "    📐 PRESET_TOPINVESTOR";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 // ════════════════════════════════════════════════════════════════
 // TOPINVESTOR: STANDARD — methodology defaults.
@@ -977,7 +997,7 @@ input bool        Inp_TI_PhaseAllowEM              = true;           // TI: allo
 // ════════════════════════════════════════════════════════════════
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📐 PRESET: TOPINVESTOR: PROFILES";
+input group "    📐 PRESET_TOPINVESTOR — PROFILES";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input ETIProfile  Inp_TI_Profile                   = TI_MODERATE;    // TI: profile select
 input int         Inp_TI_MinBarsAfterClose         = 3;              // TI: cooldown bars after close (0=off)
@@ -1027,7 +1047,7 @@ input double      Inp_TI_CandleBody_FullRatio      = 0.75;           // TI Full:
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    ⚠️  CUSTOM PRESETS OVERRIDES! (Step1-5)";
+input group "    ⚠️  PRESET_CUSTOM — SIGNAL OVERRIDES (Steps 1–6)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 1: BIAS (Major Trend Direction)";
@@ -1083,14 +1103,14 @@ input group "╚═════════════════════�
 input bool        Inp_CUSTOM_RequireRecoveryMomentum = false;        // Override: PULL recovery
 input int         Inp_CUSTOM_Lookback              = 5;              // Override: PULL lookback
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🔧 STEP X: Trail EMA (Global)";
+input group "║   🔧 STEP X: Trail EMA (PRESET_CUSTOM)";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_CUSTOM_TrailEMA_Period       = 9;              // Override: [Trail] EMA period for TRAIL_EMA mode
 input int         Inp_CUSTOM_TrailEMA_Shift        = 1;              // Override: [Trail] EMA shift (1=current bar, 2=one bar cushion)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    ⚠️  CUSTOM INDICATORS";
+input group "    ⚠️  PRESET_CUSTOM — INDICATORS";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 ADX (Average Directional Index - Strength of Market Trend)";
@@ -1199,27 +1219,7 @@ input double      Inp_CUSTOM_Ind_VRC_LowThreshold  = 33.0;           // Ind: TI 
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    🔧 PAIR SETTINGS (Type | Spread)";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🔧 Pair Type Detection";
-input group "╚════════════════════════════════════════════════════════╝";
-input EPairType   Inp_Adaptive_PairType            = PAIR_TYPE_AUTO; // Pair: Pair type (PAIR_TAPY_AUTO)
-// input string   Inp_Adaptive_PairInfo            = "AUTO: EURUSD/GBPUSD/USDJPY=MAJOR; XAUUSD/GOLD=GOLD; BTC/ETH=CRYPTO; TRY/ZAR/MXN=EXOTIC; others=MINOR";
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🔧 Max Spread by Pair Type (pips)";
-input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_Adaptive_Spread_Major        = 3.0;            // Pair: Max spread major (pips)
-input double      Inp_Adaptive_Spread_Minor        = 5.0;            // Pair: Max spread minor (pips)
-input double      Inp_Adaptive_Spread_Exotic       = 11.0;           // Pair: Max spread exotic (pips)
-input double      Inp_Adaptive_Spread_Gold         = 6.0;            // Pair: Max spread gold/XAU (pips)
-input double      Inp_Adaptive_Spread_Crypto       = 50.0;           // Pair: Max spread crypto (pips)
-// input string   Inp_Adaptive_Note1               = "📝 Note: SL/TP cushions auto-adjust by timeframe (no input needed)";
-// input string   Inp_Adaptive_Note2               = "📝 M15=5 pips, H1=10 pips, H4=20 pips (see GetTFBasedCushion)";
-
-input group " ";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    🎯 STRATEGY SETTINGS (PRESET_CUSTOM Only)";
+input group "    🎯 PRESET_CUSTOM — EXITS (TP / SL / TS / BE)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎯 (TP) TAKE PROFIT (CUSTOM only)";
