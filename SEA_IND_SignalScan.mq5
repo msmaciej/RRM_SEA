@@ -223,11 +223,22 @@ input double   CCI_Level            = 0.0;         // CCI threshold
 input group "--- Choppiness Index ---"
 input int      CI_Period            = 14;          // CI period
 input group "--- DPI ---"
-input int      DPI_Fast             = 8;           // MACD fast EMA period
-input int      DPI_Slow             = 13;          // MACD slow EMA period
-input int      DPI_Signal           = 13;          // Signal/red EMA period
-input bool     DPI_CCI              = true;        // Also require CCI
-input int      DPI_CCI_Per          = 13;          // CCI period
+input int                DPI_Fast            = SEA_DEF_DPI_MACD_FAST;       // MACD fast EMA
+input int                DPI_Slow            = SEA_DEF_DPI_MACD_SLOW;       // MACD slow EMA
+input int                DPI_RedSignalType   = SEA_DEF_DPI_RED_SIGNAL_TYPE; // Red line: 1=EMA_A 2=B 3=C 4=D 5=Double
+input int                DPI_RedEMA_A        = SEA_DEF_DPI_RED_EMA_A;       // Red EMA period A
+input int                DPI_RedEMA_B        = SEA_DEF_DPI_RED_EMA_B;       // Red EMA period B
+input int                DPI_RedEMA_C        = SEA_DEF_DPI_RED_EMA_C;       // Red EMA period C (type 3 default)
+input int                DPI_RedEMA_D        = SEA_DEF_DPI_RED_EMA_D;       // Red EMA period D
+input int                DPI_DblSmooth1      = SEA_DEF_DPI_DBLSMOOTH_1;     // Double-smooth EMA 1 (type 5)
+input int                DPI_DblSmooth2      = SEA_DEF_DPI_DBLSMOOTH_2;     // Double-smooth EMA 2 (type 5)
+input int                DPI_CCI_Per         = SEA_DEF_DPI_CCI_PERIOD;      // CCI period
+input ENUM_APPLIED_PRICE DPI_CCI_Price       = SEA_DEF_DPI_CCI_PRICE;       // CCI applied price
+input bool               DPI_UseCCIReset     = SEA_DEF_DPI_USE_CCI_RESET;   // Require CCI reset/agreement
+input bool               DPI_IgnoreCCI       = SEA_DEF_DPI_IGNORE_CCI_VOTE; // Vote on raw hist direction only
+input bool               DPI_AllowTransition = SEA_DEF_DPI_ALLOW_TRANSITION;// Pass when hist rising toward zero
+input bool               DPI_UseGreenHist    = SEA_DEF_DPI_USE_GREEN_HIST;  // Require Blue/hist green-presence
+input bool               DPI_GrowthBoost     = SEA_DEF_DPI_GROWTH_BOOST;    // Histogram-growth confirmation
 input group "--- MACD ---"
 input int      MACD_Fast            = 8;           // MACD fast EMA
 input int      MACD_Slow            = 13;          // MACD slow EMA
@@ -916,14 +927,24 @@ void BuildSettings(ST_Settings &s)
    s.AllowLayer2_Entries   = TS_LayerM;   // (M)
    s.AllowLayer3_Entries   = TS_LayerS;   // (S)
 
-   // DPI
-   s.Ind_Dpi_Enabled      = TS_DPI;
-   s.DPI_MACD_Fast        = DPI_Fast;
-   s.DPI_MACD_Slow        = DPI_Slow;
-   s.DPI_RedEMA_A         = DPI_Signal;
-   s.DPI_UseCCIReset      = DPI_CCI;
-   s.DPI_IgnoreCCIForVote = !DPI_CCI;
-   s.DPI_CCI_Period       = DPI_CCI_Per;
+   // DPI — full config; defaults mirror RRM_ORG via SEA_DEF_DPI_* (SEA_Config.mqh)
+   s.Ind_Dpi_Enabled            = TS_DPI;
+   s.DPI_MACD_Fast              = DPI_Fast;
+   s.DPI_MACD_Slow              = DPI_Slow;
+   s.DPI_RedSignalType          = DPI_RedSignalType;
+   s.DPI_RedEMA_A               = DPI_RedEMA_A;
+   s.DPI_RedEMA_B               = DPI_RedEMA_B;
+   s.DPI_RedEMA_C               = DPI_RedEMA_C;
+   s.DPI_RedEMA_D               = DPI_RedEMA_D;
+   s.DPI_DoubleSmoothFirst      = DPI_DblSmooth1;
+   s.DPI_DoubleSmoothSecond     = DPI_DblSmooth2;
+   s.DPI_CCI_Period             = DPI_CCI_Per;
+   s.DPI_CCI_AppliedPrice       = (int)DPI_CCI_Price;
+   s.DPI_UseCCIReset            = DPI_UseCCIReset;
+   s.DPI_IgnoreCCIForVote       = DPI_IgnoreCCI;
+   s.DPI_AllowTransition        = DPI_AllowTransition;
+   s.DPI_UseGreenHist           = DPI_UseGreenHist;
+   s.DPI_Histogram_Growth_Boost = DPI_GrowthBoost;
 
    // PSAR
    s.Ind_Psar_Enabled   = (TS_PSAR || TS_PSAR_Flip);

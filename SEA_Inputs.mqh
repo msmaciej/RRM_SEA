@@ -540,26 +540,26 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI v31 — Core Math (shared by all)";
 input group "╚════════════════════════════════════════════════════════╝";
-input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price       = PRICE_TYPICAL;  // RRM ORG DPI: CCI applied price
-input int         Inp_RRM_ORG_DPI_MacdFast               = 8;        // RRM ORG DPI: MACD fast EMA period
-input int         Inp_RRM_ORG_DPI_MacdSlow               = 13;       // RRM ORG DPI: MACD slow EMA period
-input int         Inp_RRM_ORG_DPI_RedSignalType          = 3;        // RRM ORG DPI: Red line type (1=EMA_A 2=EMA_B 3=EMA_C 4=EMA_D 5=Double)
-input int         Inp_RRM_ORG_DPI_RedEMA_A               = 5;        // RRM ORG DPI: Red EMA period A (type 1)
-input int         Inp_RRM_ORG_DPI_RedEMA_B               = 8;        // RRM ORG DPI: Red EMA period B (type 2)
-input int         Inp_RRM_ORG_DPI_RedEMA_C               = 13;       // RRM ORG DPI: Red EMA period C (type 3, default)
-input int         Inp_RRM_ORG_DPI_RedEMA_D               = 21;       // RRM ORG DPI: Red EMA period D (type 4)
-input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst      = 5;        // RRM ORG DPI: Double-smooth first EMA
-input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond     = 8;        // RRM ORG DPI: Double-smooth second EMA
-input int         Inp_RRM_ORG_DPI_CCI_Period             = 13;       // RRM ORG DPI: CCI period
+input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price       = SEA_DEF_DPI_CCI_PRICE;  // RRM ORG DPI: CCI applied price
+input int         Inp_RRM_ORG_DPI_MacdFast               = SEA_DEF_DPI_MACD_FAST;        // RRM ORG DPI: MACD fast EMA period
+input int         Inp_RRM_ORG_DPI_MacdSlow               = SEA_DEF_DPI_MACD_SLOW;       // RRM ORG DPI: MACD slow EMA period
+input int         Inp_RRM_ORG_DPI_RedSignalType          = SEA_DEF_DPI_RED_SIGNAL_TYPE;        // RRM ORG DPI: Red line type (1=EMA_A 2=EMA_B 3=EMA_C 4=EMA_D 5=Double)
+input int         Inp_RRM_ORG_DPI_RedEMA_A               = SEA_DEF_DPI_RED_EMA_A;        // RRM ORG DPI: Red EMA period A (type 1)
+input int         Inp_RRM_ORG_DPI_RedEMA_B               = SEA_DEF_DPI_RED_EMA_B;        // RRM ORG DPI: Red EMA period B (type 2)
+input int         Inp_RRM_ORG_DPI_RedEMA_C               = SEA_DEF_DPI_RED_EMA_C;       // RRM ORG DPI: Red EMA period C (type 3, default)
+input int         Inp_RRM_ORG_DPI_RedEMA_D               = SEA_DEF_DPI_RED_EMA_D;       // RRM ORG DPI: Red EMA period D (type 4)
+input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst      = SEA_DEF_DPI_DBLSMOOTH_1;        // RRM ORG DPI: Double-smooth first EMA
+input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond     = SEA_DEF_DPI_DBLSMOOTH_2;        // RRM ORG DPI: Double-smooth second EMA
+input int         Inp_RRM_ORG_DPI_CCI_Period             = SEA_DEF_DPI_CCI_PERIOD;       // RRM ORG DPI: CCI period
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Vote (I factor — ribbon direction)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // RRM ORG DPI: Enable DPI vote in TS equation
-input bool        Inp_RRM_ORG_DPI_UseCCIReset            = true;     // RRM ORG DPI: CCI can reset ribbon color (trend filter)
-input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
-input bool        Inp_RRM_ORG_DPI_AllowTransition        = true;     // RRM ORG DPI: Pass when hist rising toward zero (pullback exhaustion = bull signal)
-input bool        Inp_RRM_ORG_DPI_UseGreenHist           = true;     // RRM ORG DPI: Also require GREEN overlay for vote pass
+input bool        Inp_RRM_ORG_DPI_UseCCIReset            = SEA_DEF_DPI_USE_CCI_RESET;     // RRM ORG DPI: CCI can reset ribbon color (trend filter)
+input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = SEA_DEF_DPI_IGNORE_CCI_VOTE;    // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
+input bool        Inp_RRM_ORG_DPI_AllowTransition        = SEA_DEF_DPI_ALLOW_TRANSITION;     // RRM ORG DPI: Pass when hist rising toward zero (pullback exhaustion = bull signal)
+input bool        Inp_RRM_ORG_DPI_UseGreenHist           = SEA_DEF_DPI_USE_GREEN_HIST;     // RRM ORG DPI: Also require GREEN overlay for vote pass
 // Yellow ribbon = BUY vote, Red ribbon = SELL vote.
 // CCI can reset ribbon color: hist>0 but CCI<0 → Red override (weakening).
 //
@@ -579,7 +579,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: DPI System B — CCI Histogram Tracking";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_DPI_HistTrackingEnabled    = false;    // RRM ORG DPI: Enable CCI histogram tracking (master switch)
-input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = false;    // RRM ORG DPI: Use histogram growth as layer momentum boost (needs tracking ON)
+input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = SEA_DEF_DPI_GROWTH_BOOST;    // RRM ORG DPI: Use histogram growth as layer momentum boost (needs tracking ON)
 input double      Inp_RRM_ORG_DPI_HistMomentumThreshold  = 0.0001;   // RRM ORG DPI: Ignore CCI-delta below this (needs tracking ON)
 input bool        Inp_RRM_ORG_DPI_ExitOnHistDisappear    = false;    // RRM ORG DPI: Close trades when CCI trend flips (needs tracking ON)
 input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // RRM ORG DPI: Exit when |CCI| below threshold, 0=disable (needs tracking ON)

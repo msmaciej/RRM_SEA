@@ -45,6 +45,26 @@
 #define SEA_DEF_LAYER_RECOVERY_S      0.2
 #define SEA_DEF_LAYER_ALLOW_REVERSAL  true
 
+// ── DPI v31 voter: shared canonical config (single source: EA presets + SignalScan) ──
+// RRM_ORG locks this DPI block; PRESET_CUSTOM reads the same Inp_RRM_ORG_DPI_* inputs, and
+// SignalScan seeds its (editable) DPI inputs from the same constants -> parity by default.
+#define SEA_DEF_DPI_MACD_FAST         8
+#define SEA_DEF_DPI_MACD_SLOW         13
+#define SEA_DEF_DPI_RED_SIGNAL_TYPE   3
+#define SEA_DEF_DPI_RED_EMA_A         5
+#define SEA_DEF_DPI_RED_EMA_B         8
+#define SEA_DEF_DPI_RED_EMA_C         13
+#define SEA_DEF_DPI_RED_EMA_D         21
+#define SEA_DEF_DPI_DBLSMOOTH_1       5
+#define SEA_DEF_DPI_DBLSMOOTH_2       8
+#define SEA_DEF_DPI_CCI_PERIOD        13
+#define SEA_DEF_DPI_CCI_PRICE         PRICE_TYPICAL
+#define SEA_DEF_DPI_USE_CCI_RESET     true
+#define SEA_DEF_DPI_IGNORE_CCI_VOTE   false
+#define SEA_DEF_DPI_ALLOW_TRANSITION  true
+#define SEA_DEF_DPI_USE_GREEN_HIST    true
+#define SEA_DEF_DPI_GROWTH_BOOST      false
+
 // TFToString: returns clean TF label (e.g. "M5", "H1") — EnumToString gives "PERIOD_M5".
 string TFToString(ENUM_TIMEFRAMES tf = PERIOD_CURRENT) {
    ENUM_TIMEFRAMES resolved = (tf == PERIOD_CURRENT) ? (ENUM_TIMEFRAMES)Period() : tf;
