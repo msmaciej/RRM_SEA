@@ -338,6 +338,8 @@ private:
       double bb_close;
       double psar_value;
       double psar_close;
+      double dpi_diag_hist;       // last DPI histogram value (inspector diagnostic)
+      int    dpi_diag_sub;        // last DPI fail sub-reason: 0=none 1=DIR 2=CCI 3=GREEN
    };
 
    SIndicatorCache m_ind_cache;
@@ -448,6 +450,8 @@ private:
       m_ind_cache.vrc_result = -1;
       m_ind_cache.sma_converge_result = -1;
       m_ind_cache.dpi_result = -1;
+      m_ind_cache.dpi_diag_hist = 0.0;
+      m_ind_cache.dpi_diag_sub  = 0;
    }
 
    bool IsCacheValidForShift(int shift) const
@@ -2689,6 +2693,8 @@ private:
 
       m_ind_cache.cached_bias = bias;
       m_ind_cache.dpi_result  = result ? 1 : 0;
+      m_ind_cache.dpi_diag_hist = hist_cur;
+      m_ind_cache.dpi_diag_sub  = (!dir_ok ? 1 : (!cci_ok ? 2 : (!green_ok ? 3 : 0)));
 
       if(m_settings.DebugFlow)
       {
@@ -5849,7 +5855,11 @@ public:
          {
             string fails = "";
             if(m_settings.Ind_Psar_Enabled && !(m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift))) fails += "PSAR ";
-            if(m_settings.Ind_Dpi_Enabled && !Check_DPI(bias, v_shift)) fails += "DPI ";
+            if(m_settings.Ind_Dpi_Enabled && !Check_DPI(bias, v_shift))
+            {
+               string dsub = (m_ind_cache.dpi_diag_sub==1 ? "DIR" : m_ind_cache.dpi_diag_sub==2 ? "CCI" : m_ind_cache.dpi_diag_sub==3 ? "GREEN" : "?");
+               fails += StringFormat("DPI:%s(h=%+.3f) ", dsub, m_ind_cache.dpi_diag_hist);
+            }
             if(m_settings.Ind_CandleBody_Enabled && !Check_CandleBody(bias, v_shift)) fails += "CBODY ";
             if(m_settings.Ind_MTF_Enabled && !Check_MTF(bias)) fails += "MTF ";
             if(m_settings.Ind_Adx_Enabled && !Check_ADX(v_shift)) fails += "ADX ";
