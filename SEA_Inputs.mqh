@@ -196,16 +196,16 @@ input int         Inp_UI_FramePadPx                = 6;              // UI SM: P
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 (UI) VISUALISATION (Swing & Fractals)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_ShowSwingMarkers      = false;          // Custom: Show Swing
-input bool        Inp_CUSTOM_ShowFractalMarkers    = true;           // Custom: Show Fractal
-input bool        Inp_CUSTOM_ShowMarkerLabels      = false;          // Custom: Show Labels
-input int         Inp_CUSTOM_MarkerLookback        = 55;             // Custom: Bars (0 = all history)
-input color       Inp_CUSTOM_SwingHighColor        = clrCrimson;     // Custom: Swing High color
-input color       Inp_CUSTOM_SwingLowColor         = clrDodgerBlue;  // Custom: Swing Low color
-input int         Inp_CUSTOM_SwingMarkerSize       = 1;              // Custom: Swing Marker (1-5)
-input color       Inp_CUSTOM_FractalHighColor      = clrOrange;      // Custom: Fractal High color
-input color       Inp_CUSTOM_FractalLowColor       = clrGray;        // Custom: Fractal Low color
-input int         Inp_CUSTOM_FractalMarkerSize     = 1;              // Custom: Fractal marker (1-5)
+input bool        Inp_UI_ShowSwingMarkers      = false;          // UI Viz: Show Swing
+input bool        Inp_UI_ShowFractalMarkers    = true;           // UI Viz: Show Fractal
+input bool        Inp_UI_ShowMarkerLabels      = false;          // UI Viz: Show Labels
+input int         Inp_UI_MarkerLookback        = 55;             // UI Viz: Bars (0 = all history)
+input color       Inp_UI_SwingHighColor        = clrCrimson;     // UI Viz: Swing High color
+input color       Inp_UI_SwingLowColor         = clrDodgerBlue;  // UI Viz: Swing Low color
+input int         Inp_UI_SwingMarkerSize       = 1;              // UI Viz: Swing Marker (1-5)
+input color       Inp_UI_FractalHighColor      = clrOrange;      // UI Viz: Fractal High color
+input color       Inp_UI_FractalLowColor       = clrGray;        // UI Viz: Fractal Low color
+input int         Inp_UI_FractalMarkerSize     = 1;              // UI Viz: Fractal marker (1-5)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1047,8 +1047,9 @@ input double      Inp_TI_CandleBody_FullRatio      = 0.75;           // TI Full:
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    ⚠️  PRESET_CUSTOM — SIGNAL OVERRIDES (Steps 1–6)";
+input group "    ⚠️  PRESET_CUSTOM — SIGNAL (user-built)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    ▸ TS voters (B·P·F·L·I) — only PRESET_CUSTOM edits these live; other presets set them in SEA_Presets.mqh";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 1: BIAS (Major Trend Direction)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1088,16 +1089,8 @@ input group "╚═════════════════════�
 input EBarCloseMode  Inp_CUSTOM_BarClose_Mode      = BC_LAYER_AWARE; // Override: [CC] CClose Mode: DISABLED/FIXED_EMA/LAYER_AWARE/BIAS_FAST
 input EEmaRole    Inp_CUSTOM_BarClose_DefaultEMA   = ROLE_EMA1;      // Override: [CC] CClose in FIXED mode: EMA1, EMA2, EMA3, EMA4
 input bool        Inp_CUSTOM_BarClose_Enabled      = true;           // Override: [CC] CClose Enable
-input double      Inp_CUSTOM_CandleBody_MinCloseRatio = 0.0;         // Override: [CB] CBody Min close ratio (0=off, 0.75=TopInvestor)
-input group "╔═══════════════════════════════════════════════════════╗";
-input group "║   📊 STEP 5: Fibonacci Retracement Voter";
-input group "╚═══════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_Ind_Fib_Enabled       = false;          // Override: [Fib] Enable
-input double      Inp_CUSTOM_Fib_MinRetracement    = 0.38;           // Override: [Fib] Min pullback depth
-input double      Inp_CUSTOM_Fib_MaxRetracement    = 0.618;          // Override: [Fib] Max pullback depth
-input int         Inp_CUSTOM_Fib_SwingLookback     = 50;             // Override: [Fib] Swing search bars
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🔧 STEP 6: Pullback Gate";
+input group "║   🔧 STEP 5: Pullback Gate";
 input group "╚════════════════════════════════════════════════════════╝";
 // Pullback gate uses pure distance comparison: the current EMA gap must exceed the prior EMA gap (no pip threshold).
 input bool        Inp_CUSTOM_RequireRecoveryMomentum = false;        // Override: PULL recovery
@@ -1146,6 +1139,7 @@ input bool        Inp_CUSTOM_Ind_CandleBody_RequireDirection = true; // Ind [CBo
 input int         Inp_CUSTOM_Ind_CandleBody_AvgPeriod  = 5;          // Ind [CBody]: Average body period
 input int         Inp_CUSTOM_Ind_CandleBody_CheckBars  = 3;          // Ind [CBody]: Bars to check
 input double      Inp_CUSTOM_Ind_CandleBody_MaxMult    = 4.0;        // Ind [CBody]: Max body multiplier
+input double      Inp_CUSTOM_Ind_CandleBody_MinCloseRatio = 0.0;         // Ind [CBody]: Min close ratio (0=off, 0.75=TopInvestor)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 CCI (Commodity Channel Index - Momentum Oscilator)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1158,6 +1152,13 @@ input group "╚═════════════════════�
 input bool        Inp_CUSTOM_Ind_CI_Enabled        = false;          // Ind [CI]: Enable ranging market filter
 input int         Inp_CUSTOM_Ind_CI_Period         = 14;             // Ind [CI]: Period
 input double      Inp_CUSTOM_Ind_CI_RangingThreshold  = 61.8;        // Ind [CI]: Threshold (>= this value = reject)
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📊 Fib (Fibonacci Retracement Voter)";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_CUSTOM_Ind_Fib_Enabled       = false;          // Ind [Fib]: Enable
+input double      Inp_CUSTOM_Ind_Fib_MinRetracement    = 0.38;           // Ind [Fib]: Min pullback depth
+input double      Inp_CUSTOM_Ind_Fib_MaxRetracement    = 0.618;          // Ind [Fib]: Max pullback depth
+input int         Inp_CUSTOM_Ind_Fib_SwingLookback     = 50;             // Ind [Fib]: Swing search bars
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 MACD (Moving Average Convergence Divergence - Trend-Following Momentum)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1435,12 +1436,12 @@ void InitializeConfig()
 
    // Fibonacci voter (globally available)
    Settings.Ind_Fib_Enabled      = Inp_CUSTOM_Ind_Fib_Enabled;
-   Settings.Fib_MinRetracement   = MathMax(0.0, MathMin(1.0, Inp_CUSTOM_Fib_MinRetracement));
-   Settings.Fib_MaxRetracement   = MathMax(Settings.Fib_MinRetracement, MathMin(1.0, Inp_CUSTOM_Fib_MaxRetracement));
-   Settings.Fib_SwingLookback    = MathMax(10, Inp_CUSTOM_Fib_SwingLookback);
+   Settings.Fib_MinRetracement   = MathMax(0.0, MathMin(1.0, Inp_CUSTOM_Ind_Fib_MinRetracement));
+   Settings.Fib_MaxRetracement   = MathMax(Settings.Fib_MinRetracement, MathMin(1.0, Inp_CUSTOM_Ind_Fib_MaxRetracement));
+   Settings.Fib_SwingLookback    = MathMax(10, Inp_CUSTOM_Ind_Fib_SwingLookback);
 
    // CandleBody close-ratio extension
-   Settings.CandleBody_MinCloseRatio = MathMax(0.0, MathMin(1.0, Inp_CUSTOM_CandleBody_MinCloseRatio));
+   Settings.CandleBody_MinCloseRatio = MathMax(0.0, MathMin(1.0, Inp_CUSTOM_Ind_CandleBody_MinCloseRatio));
 
    // TRAIL_EMA period
    Settings.TrailEMA_Period           = MathMax(0, Inp_CUSTOM_TrailEMA_Period);
@@ -1568,16 +1569,16 @@ void InitializeConfig()
    Settings.SwingLookback        = Inp_CUSTOM_SwingLookback;
    Settings.FractalPeriod        = Inp_CUSTOM_FractalPeriod;
    Settings.TPFractalOffset      = Inp_CUSTOM_TPFractalOffset;
-   Settings.ShowSwingMarkers     = Inp_CUSTOM_ShowSwingMarkers;
-   Settings.ShowFractalMarkers   = Inp_CUSTOM_ShowFractalMarkers;
-   Settings.MarkerLookback       = MathMax(0, Inp_CUSTOM_MarkerLookback);
-   Settings.ShowMarkerLabels     = Inp_CUSTOM_ShowMarkerLabels;
-   Settings.SwingHighColor       = Inp_CUSTOM_SwingHighColor;
-   Settings.SwingLowColor        = Inp_CUSTOM_SwingLowColor;
-   Settings.SwingMarkerSize      = MathMax(1, MathMin(5, Inp_CUSTOM_SwingMarkerSize));
-   Settings.FractalHighColor     = Inp_CUSTOM_FractalHighColor;
-   Settings.FractalLowColor      = Inp_CUSTOM_FractalLowColor;
-   Settings.FractalMarkerSize    = MathMax(1, MathMin(5, Inp_CUSTOM_FractalMarkerSize));
+   Settings.ShowSwingMarkers     = Inp_UI_ShowSwingMarkers;
+   Settings.ShowFractalMarkers   = Inp_UI_ShowFractalMarkers;
+   Settings.MarkerLookback       = MathMax(0, Inp_UI_MarkerLookback);
+   Settings.ShowMarkerLabels     = Inp_UI_ShowMarkerLabels;
+   Settings.SwingHighColor       = Inp_UI_SwingHighColor;
+   Settings.SwingLowColor        = Inp_UI_SwingLowColor;
+   Settings.SwingMarkerSize      = MathMax(1, MathMin(5, Inp_UI_SwingMarkerSize));
+   Settings.FractalHighColor     = Inp_UI_FractalHighColor;
+   Settings.FractalLowColor      = Inp_UI_FractalLowColor;
+   Settings.FractalMarkerSize    = MathMax(1, MathMin(5, Inp_UI_FractalMarkerSize));
 
    Settings.TrailTrigger         = Inp_CUSTOM_TrailTrigger;
    Settings.TrailDistancePips    = Inp_CUSTOM_TrailDistancePips;
