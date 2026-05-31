@@ -288,6 +288,7 @@ bool           g_insp_valid = false;
 bool           g_insp_dirty = false;
 int            g_insp_bias  = 0;
 int            g_insp_P = -1, g_insp_L = -1, g_insp_I = -1, g_insp_F = -1, g_insp_CG = -1;
+string         g_insp_P_reason="", g_insp_L_reason="", g_insp_I_reason="", g_insp_F_reason="";
 int            g_insp_ts    = 0;
 bool           g_ok = false;
 int            g_sig_long  = 0;
@@ -458,6 +459,30 @@ void OnDeinit(const int reason)
 //| Bar Inspector helpers + marked-line resolver                     |
 //+------------------------------------------------------------------+
 string InspMark(int v){ return (v==1) ? "ok" : (v==0 ? "NO" : "--"); }
+// Map an engine reason string to a compact inspector code.
+string InspCode(string raw)
+{
+   if(raw=="") return "";
+   if(StringFind(raw,"LAYER_NONE_ALIGNED")>=0) return "ALIGN";
+   if(StringFind(raw,"BC_NOT_CONFIRMED")>=0)   return "BC";
+   if(StringFind(raw,"CandleDir")>=0)          return "BD";
+   if(StringFind(raw,"MOMENTUM")>=0)           return "MOM";
+   if(StringFind(raw,"PHASE_UNORDERED")>=0)    return "UNORD";
+   if(StringFind(raw,"PHASE_EMERGING")>=0)     return "EMERG";
+   if(StringFind(raw,"EMA_OVEREXT")>=0)        return "EMAFAN";
+   if(StringFind(raw,"DPI_DECEL")>=0)          return "DECEL";
+   if(StringFind(raw,"DPI_RESET")>=0)          return "RESET";
+   if(StringFind(raw,"PHASE_AGE")>=0)          return "AGE";
+   return raw;   // I-voter names (already compact, e.g. "DPI,PSAR") shown as-is
+}
+// Like InspMark but appends the engine reason code when a factor is NO.
+string InspMark2(int v, string raw)
+{
+   if(v==1) return "ok";
+   if(v!=0) return "--";
+   string c = InspCode(raw);
+   return (c=="") ? "NO" : "NO("+c+")";
+}
 string InspFirstFail()
 {
    if(g_insp_P==0)  return "P (Phase)";
@@ -711,9 +736,9 @@ void ScanBar(int shift)
    // which would wipe the layer state and make this bar read TS=0 after firing.
    if(Scn_Inspect_Enabled && shift == g_insp_shift)
    {
-      if(doL)      g_insp_ts = g_eng_long.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG);
-      else if(doS) g_insp_ts = g_eng_short.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG);
-      else         g_insp_ts = g_eng_long.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG);
+      if(doL)      g_insp_ts = g_eng_long.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG, g_insp_P_reason, g_insp_L_reason, g_insp_I_reason, g_insp_F_reason);
+      else if(doS) g_insp_ts = g_eng_short.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG, g_insp_P_reason, g_insp_L_reason, g_insp_I_reason, g_insp_F_reason);
+      else         g_insp_ts = g_eng_long.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG, g_insp_P_reason, g_insp_L_reason, g_insp_I_reason, g_insp_F_reason);
       g_insp_valid = true;
    }
 
@@ -1087,7 +1112,7 @@ void DrawInfoPanel()
             ADD("  TS=0  blocked by B (no bias)", clrOrangeRed)
          else
          {
-            ADD("  B:ok P:"+InspMark(g_insp_P)+" L:"+InspMark(g_insp_L)+" I:"+InspMark(g_insp_I)+" F:"+InspMark(g_insp_F)+" CG:"+InspMark(g_insp_CG), clrWhite)
+            ADD("  B:ok P:"+InspMark2(g_insp_P,g_insp_P_reason)+" L:"+InspMark2(g_insp_L,g_insp_L_reason)+" I:"+InspMark2(g_insp_I,g_insp_I_reason)+" F:"+InspMark2(g_insp_F,g_insp_F_reason)+" CG:"+InspMark(g_insp_CG), clrWhite)
             if(g_insp_ts==1) ADD("  TS=1  SIGNAL", clrLime)
             else             ADD("  TS=0  blocked by " + InspFirstFail(), clrOrangeRed)
          }

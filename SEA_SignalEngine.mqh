@@ -143,10 +143,13 @@ struct SRejectionStats {
 struct STSBreakdown
 {
    int    P;          // phase
+   string P_reason;   // why P==0 (PHASE_UNORDERED / PHASE_EMERGING)
    int    F;          // pre-filters (1/0)
    string F_reason;   // sub-filter that blocked when F==0
    int    L;          // layer
+   string L_reason;   // why L==0 (LAYER_NONE_ALIGNED / BC_NOT_CONFIRMED / CandleDir / MOMENTUM_NOT_CONFIRMED)
    int    I;          // indicators (normalized 1/0)
+   string I_reason;   // failing voter names when I==0 (e.g. "DPI,PSAR")
    int    CG;         // climax guard: 1=pass, 0=climax veto
 };
 
@@ -179,6 +182,7 @@ private:
    int         m_diag_last_bias;
    int         m_diag_last_votes;
    string      m_diag_last_reason;
+   string      m_diag_i_fails;        // compact failing-voter names for I (inspector), e.g. "DPI,PSAR"
    string      m_last_f_reason;      // which F sub-filter blocked (caller telemetry); "" = passed
    double      m_diag_last_atr_pips;
    
@@ -3022,14 +3026,19 @@ public:
    // (i.e. from inside the chronological scan), exactly like EvaluateTS_AtShift.
    //==========================================================================
    int Scanner_InspectBar(int shift, int &out_bias, int &out_P, int &out_L,
-                          int &out_I, int &out_F, int &out_CG)
+                          int &out_I, int &out_F, int &out_CG,
+                          string &out_P_reason, string &out_L_reason,
+                          string &out_I_reason, string &out_F_reason)
    {
       int bb = EvaluateB(shift);
       out_bias = bb;
+      out_P_reason = ""; out_L_reason = ""; out_I_reason = ""; out_F_reason = "";
       if(bb == 0) { out_P = out_L = out_I = out_F = out_CG = -1; return 0; }
       STSBreakdown b;
       int verdict = EvaluateTS_Breakdown(shift, bb, b, true);   // full breakdown; passive (no reset)
       out_P = b.P; out_F = b.F; out_L = b.L; out_I = b.I; out_CG = b.CG;
+      out_P_reason = b.P_reason; out_L_reason = b.L_reason;
+      out_I_reason = b.I_reason; out_F_reason = b.F_reason;
       return verdict;
    }
    // Reset only the fired layer to NONE — other layers keep their independent states.
@@ -3158,10 +3167,12 @@ public:
    //==========================================================================
    int EvaluateTS_Breakdown(int shift, int bias, STSBreakdown &b, bool full_eval)
    {
-      b.P = -1; b.F = -1; b.F_reason = ""; b.L = -1; b.I = -1; b.CG = -1;
+      b.P = -1; b.P_reason = ""; b.F = -1; b.F_reason = "";
+      b.L = -1; b.L_reason = ""; b.I = -1; b.I_reason = ""; b.CG = -1;
       if(bias == 0) return 0;
 
       b.P = EvaluateP(shift, bias);
+      if(b.P == 0) b.P_reason = m_diag_last_reason;   // read-only capture for the inspector
       if(b.P == 0 && !full_eval) return 0;
 
       b.F = EvaluateF(shift, bias) ? 1 : 0;
@@ -3169,9 +3180,11 @@ public:
       if(b.F == 0 && !full_eval) return 0;
 
       b.L = EvaluateL(shift, bias);
+      if(b.L == 0) b.L_reason = m_diag_last_reason;
       if(b.L == 0 && !full_eval) return 0;
 
       b.I = EvaluateI(shift, bias);
+      if(b.I == 0) b.I_reason = m_diag_i_fails;
       if(b.I == 0 && !full_eval) return 0;
 
       // Climax last. In waterfall mode we only reach here when P*F*L*I all passed;
@@ -5738,6 +5751,7 @@ public:
       // Apply vote mode and return result
       if(all_pass) {
          m_diag_last_reason = "OK";
+         m_diag_i_fails = "";
          m_signals_generated++;
          m_stats.signals_confirmed++;
          if(bias > 0) m_stats.signals_confirmed_long++;
@@ -5748,8 +5762,9 @@ public:
       else {
          m_diag_last_reason = StringFormat("NOT_ALL_PASS (%d/%d)", s_passed, s_enabled);
          m_reject_votes++;
-         // SHORT rejection trace (temporary diagnostic)
-         if(bias < 0) {
+         // Failing-voter names (BOTH directions): stored compactly for the inspector
+         // (m_diag_i_fails), and printed for shorts (temporary diagnostic).
+         {
             string fails = "";
             if(m_settings.Ind_Psar_Enabled && !(m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift))) fails += "PSAR ";
             if(m_settings.Ind_Dpi_Enabled && !Check_DPI(bias, v_shift)) fails += "DPI ";
@@ -5758,9 +5773,13 @@ public:
             if(m_settings.Ind_Adx_Enabled && !Check_ADX(v_shift)) fails += "ADX ";
             if(m_settings.Ind_Macd_Enabled && !Check_MACD(bias, v_shift)) fails += "MACD ";
             if(m_settings.Ind_Cci_Enabled && !Check_CCI(bias, v_shift)) fails += "CCI ";
-            datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-            PrintFormat("[SHORT_REJECT] %s | %d/%d pass | FAILED: %s",
-                        TimeToString(bar_time, TIME_DATE|TIME_MINUTES), s_passed, s_enabled, fails);
+            if(bias < 0) {
+               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+               PrintFormat("[SHORT_REJECT] %s | %d/%d pass | FAILED: %s",
+                           TimeToString(bar_time, TIME_DATE|TIME_MINUTES), s_passed, s_enabled, fails);
+            }
+            string ifail = fails; StringTrimRight(ifail); StringReplace(ifail, " ", ",");
+            m_diag_i_fails = ifail;
          }
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
          return 0;

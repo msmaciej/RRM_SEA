@@ -9,10 +9,10 @@ SimpleEA is a MetaTrader 5 Expert Advisor implementing a multiplicative signal v
 ## TS Equation — Signal Evaluation
 
 ```
-TS = B × P × L × I × F      → then Climax (exhaustion) veto
+TS = B × P × F × L × I      → then Climax (CG) veto
 ```
 
-Every factor is multiplicative. Any factor = 0 → TS = 0 → no trade. After all five factors pass, a final **Climax veto** can still block the entry (see CG below).
+Every factor is multiplicative, so the verdict is order-independent; the engine evaluates them in the order **B → P → F → L → I**, then CG. Any factor = 0 → TS = 0 → no trade. After all five factors pass, a final **Climax veto** can still block the entry (see CG below).
 
 | Factor | Name | What it answers |
 |--------|------|-----------------|
@@ -27,7 +27,7 @@ Every factor is multiplicative. Any factor = 0 → TS = 0 → no trade. After al
 
 **Climax / Exhaustion Guard (CG)** is a *veto*, not a voter. It is checked **last**, only after B·P·L·I·F have all passed, and it overrides them: a fully-aligned signal is still blocked when the recent move is an over-extended blow-off — a single bar whose range > `ClimaxGuard_BarATRMult` × ATR, or a cumulative move > `ClimaxGuard_MoveATRMult` × ATR, in the trade direction. On a block it optionally resets all layer pullback state (`ClimaxGuard_ResetPullback`) so a fresh pullback-recovery cycle is required before the next signal. Because the I factor is an AND of *positive* confirmations, the *negative* veto is deliberately kept out of it — conceptually CG is a sibling of the F `EMA_FAN` over-extension filter, separated so a climax block reads cleanly in diagnostics.
 
-TS is evaluated at bar close (shift=1) by the EA and at any historical shift by SignalScan, through the shared `EvaluateTS_AtShift(shift, bias)` core, so the EA and the scanner apply identical B·P·L·I·F·CG logic. Trade execution (TE) happens at the next bar open (shift=0) after F filters are rechecked.
+TS is evaluated at bar close (shift=1) by the EA and at any historical shift by SignalScan, through one shared core, **`EvaluateTS_Breakdown(shift, bias, …)`** in `SEA_SignalEngine.mqh`. All three consumers route through it — the EA (`EvaluateTS`), the scanner verdict (`EvaluateTS_AtShift`), and the inspector (`Scanner_InspectBar`) — so they apply identical B·P·F·L·I·CG logic by construction (single source of truth). Trade execution (TE) then runs at the next bar open (shift=0); see the TE Equation below.
 
 ---
 
@@ -108,14 +108,38 @@ Disabled indicators contribute 1 (neutral — they do not block). VPRR is enable
 
 ---
 
-### F — Filters
+### F — Filters (pre-entry, TS-side)
 
-Non-directional execution conditions checked at bar open (shift=0):
-- Spread ≤ MaxSpread
-- Session time within configured window
-- No high-impact news
+Optional pre-entry gates evaluated by the engine's `EvaluateF`. **All off by default in RRM_ORG**, so the F factor is a no-op there until a filter is explicitly enabled:
 
-MTF (Multi-Timeframe alignment) is evaluated at TS time and counted as an I voter.
+| Sub-filter | Blocks when | State |
+|------------|-------------|-------|
+| `EMA_OVEREXT` | EMA fan over-extended (spread too wide) | stateless / shift-correct |
+| `DPI_DECEL` | DPI histogram momentum decelerating | **stateful** — needs `UpdateDPIHistogramState` current for the bar |
+| `DPI_RESET_WAIT` | DPI CCI reset-recovery not yet complete | **stateful** |
+| `PHASE_AGE` | current phase younger than `MinPhaseConfirmBars` | shift-relative |
+
+> **Two different "F".** This TS-side F is **not** spread/session/news — those are TE-side gates (see TE Equation). They are separate functions in separate classes that happen to share the name. **MTF** (Multi-Timeframe alignment) is evaluated at TS time and counted as an **I** voter, not F. The DPI used here (decel / reset-recovery) is also distinct from the DPI **vote** in I, which is stateless.
+
+---
+
+## TE Equation — Trade Entry
+
+Once TS produces a signal direction, the trade-executor gate chain decides whether an order is actually placed. TE runs every tick at the next bar open (shift=0), evaluated by `EvaluateTE(direction)` in `SEA_TradeExecutor.mqh`:
+
+```
+TE = direction × F × open-delay × BC-recheck × CM × RC   → execute
+```
+
+| Gate | Checks | Veto on fail |
+|------|--------|--------------|
+| **F** | spread ≤ MaxSpread · session window · no high-impact news · spread-median | `VETO_SPREAD` / `VETO_SPREAD_TIMEOUT` / `VETO_TIME` / `VETO_NEWS` / `VETO_SPREAD_MEDIAN` |
+| **open-delay** | bar age ≥ `TE_OpenDelaySeconds` (lets the post-open spread spike resolve) | `VETO_OPEN_DELAY` |
+| **BC re-check** | live price within `TE_BC_TolerancePips` of `Close[1]` | `VETO_BC_STALE` |
+| **CM** | position sizing yields valid lots | `VETO_INVALID_LOTS` |
+| **RC** | risk / margin / max-open-trades caps | `VETO_RC_*` |
+
+TS shapes *whether a setup is valid*; TE shapes *whether it is executable right now*. Full veto catalog: `Readme/README_SEA_VETO_REFERENCE.md`.
 
 ---
 
@@ -123,10 +147,10 @@ MTF (Multi-Timeframe alignment) is evaluated at TS time and counted as an I vote
 
 | File | Role |
 |------|------|
-| `SimpleEA_v1-04.mq5` | Main EA — OnInit, OnTick, OnDeinit |
+| `SimpleEA_v1-05.mq5` | Main EA — OnInit, OnTick, OnDeinit (active; `v1-04` retained for reference) |
 | `SEA_Config.mqh` | All settings, inputs, ST_Settings struct |
 | `SEA_Presets.mqh` | Preset definitions — RRM_ORG, RRM, TI, CUSTOM |
-| `SEA_SignalEngine.mqh` | TS equation — shared `EvaluateTS_AtShift` core (B·P·L·I·F + climax veto) |
+| `SEA_SignalEngine.mqh` | TS equation — single core `EvaluateTS_Breakdown` (B·P·F·L·I + CG veto), used by `EvaluateTS` / `EvaluateTS_AtShift` / `Scanner_InspectBar` |
 | `SEA_TradeExecutor.mqh` | TE, order management, SL/TP/trailing |
 | `SEA_UI.mqh` | Cockpit panel rendering |
 | `SEA_Reporting.mqh` | OnDeinit stats and performance report |
