@@ -998,7 +998,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── Layer pullback ──
       cfg.LayerPullbackEnabled     = true;
-      cfg.LayerBaselineLookback    = 21;
+      cfg.LayerBaselineLookback    = SEA_DEF_LAYER_LB_M;   // global fallback (= 21)
+      cfg.LayerBaselineLookback_W  = SEA_DEF_LAYER_LB_W;
+      cfg.LayerBaselineLookback_M  = SEA_DEF_LAYER_LB_M;
+      cfg.LayerBaselineLookback_S  = SEA_DEF_LAYER_LB_S;
+      cfg.LayerPullbackRatio       = SEA_DEF_LAYER_PULLBACK_RATIO;
+      cfg.LayerFlatRatio           = SEA_DEF_LAYER_FLAT_RATIO;
+      cfg.LayerRecoveryRatio       = SEA_DEF_LAYER_RECOVERY_RATIO;
+      cfg.LayerRecoveryRatio_W     = SEA_DEF_LAYER_RECOVERY_W;
+      cfg.LayerRecoveryRatio_M     = SEA_DEF_LAYER_RECOVERY_M;
+      cfg.LayerRecoveryRatio_S     = SEA_DEF_LAYER_RECOVERY_S;
+      cfg.LayerAllowReversalPullback = SEA_DEF_LAYER_ALLOW_REVERSAL;
 
       // ── Re-entry / cooldown / PSAR vote timing ──
       cfg.AllowReEntryAfterBE      = true;
@@ -2213,7 +2223,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       //   L2 (Medium/EMA13-EMA34): 0.3 — moderate, matches global default
       //   L3 (Strong/EMA34-EMA89): 0.2 — slow EMAs, early recovery is enough
       cfg.LayerPullbackEnabled        = Inp_RRM_ORG_LayerPBEnabled;
-      cfg.LayerBaselineLookback       = MathMax(3, MathMin(20, Inp_RRM_ORG_LayerPBLookback));
+      cfg.LayerBaselineLookback       = MathMax(2, Inp_RRM_ORG_LayerPBLookback);   // global fallback (clamp fixed: 20-cap removed)
+      cfg.LayerBaselineLookback_W     = MathMax(2, Inp_RRM_ORG_LayerPBLookback_W);
+      cfg.LayerBaselineLookback_M     = MathMax(2, Inp_RRM_ORG_LayerPBLookback_M);
+      cfg.LayerBaselineLookback_S     = MathMax(2, Inp_RRM_ORG_LayerPBLookback_S);
+      cfg.LayerPullbackRatio          = MathMax(0.01, Inp_RRM_ORG_LayerPBPullbackRatio);
+      cfg.LayerFlatRatio              = MathMax(0.0,  Inp_RRM_ORG_LayerPBFlatRatio);
+      cfg.LayerRecoveryRatio          = MathMax(0.01, Inp_RRM_ORG_LayerPBRecoveryRatio);
+      cfg.LayerRecoveryRatio_W        = Inp_RRM_ORG_RecoveryRatio_W;   // -1 = use global
+      cfg.LayerRecoveryRatio_M        = Inp_RRM_ORG_RecoveryRatio_M;
+      cfg.LayerRecoveryRatio_S        = Inp_RRM_ORG_RecoveryRatio_S;
+      cfg.LayerAllowReversalPullback  = Inp_RRM_ORG_LayerPBAllowReversal;
 
       // VPRR: Volume Pullback-Recovery Ratio (institutional participation confirmation)
       // AutoEnable=true: probe instrument + volume at preset-apply time; per-instrument settings applied.

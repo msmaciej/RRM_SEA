@@ -29,6 +29,22 @@
 #endif
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── LAYER PULLBACK-RECOVERY: shared defaults (single source: EA presets + SignalScan) ──
+// Per-layer baseline lookback (bars). W = fastest EMA pair → shortest/most responsive;
+// S = slowest → longest/most stable. Defaults below; both EA and scanner read these.
+#define SEA_DEF_LAYER_LB_W            13
+#define SEA_DEF_LAYER_LB_M            21
+#define SEA_DEF_LAYER_LB_S            34
+// Magnitude thresholds (dimensionless slope ratios)
+#define SEA_DEF_LAYER_PULLBACK_RATIO  0.5
+#define SEA_DEF_LAYER_FLAT_RATIO      0.1
+#define SEA_DEF_LAYER_RECOVERY_RATIO  0.3
+// Per-layer recovery overrides (slower layers confirm on less momentum). -1 = use global.
+#define SEA_DEF_LAYER_RECOVERY_W      0.4
+#define SEA_DEF_LAYER_RECOVERY_M      0.3
+#define SEA_DEF_LAYER_RECOVERY_S      0.2
+#define SEA_DEF_LAYER_ALLOW_REVERSAL  true
+
 // TFToString: returns clean TF label (e.g. "M5", "H1") — EnumToString gives "PERIOD_M5".
 string TFToString(ENUM_TIMEFRAMES tf = PERIOD_CURRENT) {
    ENUM_TIMEFRAMES resolved = (tf == PERIOD_CURRENT) ? (ENUM_TIMEFRAMES)Period() : tf;
@@ -700,6 +716,18 @@ struct ST_Settings
     // Layer Pullback-Recovery Detection
     bool     LayerPullbackEnabled;        // Master enable for pullback detection
     int      LayerBaselineLookback;       // Bars for baseline direction lookback
+    // Per-layer baseline lookback (0 = fall back to LayerBaselineLookback above)
+    int      LayerBaselineLookback_W;     // W = fast EMA pair (responsive)
+    int      LayerBaselineLookback_M;     // M = medium
+    int      LayerBaselineLookback_S;     // S = slow EMA pair (stable)
+    // Magnitude (ratio) thresholds for pullback-recovery detection
+    double   LayerPullbackRatio;          // |slope ratio| below this = pullback (weakened)
+    double   LayerFlatRatio;              // |slope ratio| below this = flat
+    double   LayerRecoveryRatio;          // Global recovery threshold (fallback)
+    double   LayerRecoveryRatio_W;        // LayerW recovery override (-1 = use global)
+    double   LayerRecoveryRatio_M;        // LayerM recovery override (-1 = use global)
+    double   LayerRecoveryRatio_S;        // LayerS recovery override (-1 = use global)
+    bool     LayerAllowReversalPullback;  // Count slope sign reversal as pullback
 
     // Climax / Exhaustion Guard (blocks late entries into over-extended impulses)
     bool     ClimaxGuard_Enabled;         // Master enable

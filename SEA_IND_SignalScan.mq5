@@ -242,6 +242,16 @@ input double   PSAR_Max             = 0.5;         // Maximum acceleration
 input int      PSAR_FlipBars        = 5;           // Bars after flip still valid (-1=always)
 input group "--- Pullback-Recovery ---"
 input int      PB_Lookback          = 21;          // Lookback bars for baseline
+input int      PB_Lookback_W        = SEA_DEF_LAYER_LB_W;            // LayerW baseline lookback (mirror EA)
+input int      PB_Lookback_M        = SEA_DEF_LAYER_LB_M;            // LayerM baseline lookback
+input int      PB_Lookback_S        = SEA_DEF_LAYER_LB_S;            // LayerS baseline lookback
+input double   PB_PullbackRatio     = SEA_DEF_LAYER_PULLBACK_RATIO;  // Pullback threshold (|ratio|<this = weakened)
+input double   PB_FlatRatio         = SEA_DEF_LAYER_FLAT_RATIO;      // Flat threshold
+input double   PB_RecoveryRatio     = SEA_DEF_LAYER_RECOVERY_RATIO;  // Global recovery threshold (fallback)
+input double   PB_RecoveryRatio_W   = SEA_DEF_LAYER_RECOVERY_W;      // LayerW recovery override (-1=use global)
+input double   PB_RecoveryRatio_M   = SEA_DEF_LAYER_RECOVERY_M;      // LayerM recovery override
+input double   PB_RecoveryRatio_S   = SEA_DEF_LAYER_RECOVERY_S;      // LayerS recovery override
+input bool     PB_AllowReversal     = SEA_DEF_LAYER_ALLOW_REVERSAL;  // Count slope reversal as pullback
 input int      PB_MinBars           = 1;           // Min consecutive DETECTED bars before recovery valid
 input group "--- RSI---"
 input int      RSI_Period           = 14;          // RSI period
@@ -830,6 +840,16 @@ void BuildSettings(ST_Settings &s)
    s.LayerPullbackEnabled  = (TS_LayerS || TS_LayerM || TS_LayerW);
    s.EnableLayerDetection  = (TS_LayerS || TS_LayerM || TS_LayerW);  // engage EvaluateL in shared core
    s.LayerBaselineLookback = PB_Lookback;
+   s.LayerBaselineLookback_W = PB_Lookback_W;
+   s.LayerBaselineLookback_M = PB_Lookback_M;
+   s.LayerBaselineLookback_S = PB_Lookback_S;
+   s.LayerPullbackRatio      = PB_PullbackRatio;
+   s.LayerFlatRatio          = PB_FlatRatio;
+   s.LayerRecoveryRatio      = PB_RecoveryRatio;
+   s.LayerRecoveryRatio_W    = PB_RecoveryRatio_W;
+   s.LayerRecoveryRatio_M    = PB_RecoveryRatio_M;
+   s.LayerRecoveryRatio_S    = PB_RecoveryRatio_S;
+   s.LayerAllowReversalPullback = PB_AllowReversal;
 
    // DPI
    s.Ind_Dpi_Enabled      = TS_DPI;

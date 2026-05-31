@@ -753,7 +753,17 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: LAYER WMS Pullback & Recovery";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_LayerPBEnabled       = true;           // RRM ORG PB: Enable pullback-recovery state machine (P2?)
-input int         Inp_RRM_ORG_LayerPBLookback      = 21;              // RRM ORG PB: Baseline slope lookback (bars, 3-20)
+input int         Inp_RRM_ORG_LayerPBLookback      = 21;              // RRM ORG PB: Global baseline lookback (fallback; per-layer below)
+input int         Inp_RRM_ORG_LayerPBLookback_W    = SEA_DEF_LAYER_LB_W;            // RRM ORG PB: LayerW baseline lookback (fast/responsive)
+input int         Inp_RRM_ORG_LayerPBLookback_M    = SEA_DEF_LAYER_LB_M;            // RRM ORG PB: LayerM baseline lookback (medium)
+input int         Inp_RRM_ORG_LayerPBLookback_S    = SEA_DEF_LAYER_LB_S;            // RRM ORG PB: LayerS baseline lookback (slow/stable)
+input double      Inp_RRM_ORG_LayerPBPullbackRatio = SEA_DEF_LAYER_PULLBACK_RATIO;  // RRM ORG PB: Pullback threshold (|ratio|<this = weakened)
+input double      Inp_RRM_ORG_LayerPBRecoveryRatio = SEA_DEF_LAYER_RECOVERY_RATIO;  // RRM ORG PB: Global recovery threshold (fallback)
+input double      Inp_RRM_ORG_LayerPBFlatRatio     = SEA_DEF_LAYER_FLAT_RATIO;      // RRM ORG PB: Flat threshold (|ratio|<this = flat)
+input bool        Inp_RRM_ORG_LayerPBAllowReversal = SEA_DEF_LAYER_ALLOW_REVERSAL;  // RRM ORG PB: Count slope reversal as pullback
+input double      Inp_RRM_ORG_RecoveryRatio_W      = SEA_DEF_LAYER_RECOVERY_W;      // RRM ORG PB: LayerW recovery override (-1=use global)
+input double      Inp_RRM_ORG_RecoveryRatio_M      = SEA_DEF_LAYER_RECOVERY_M;      // RRM ORG PB: LayerM recovery override (-1=use global)
+input double      Inp_RRM_ORG_RecoveryRatio_S      = SEA_DEF_LAYER_RECOVERY_S;      // RRM ORG PB: LayerS recovery override (-1=use global)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: EMA Fan Filter (pips)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1663,6 +1673,18 @@ void InitializeConfig()
     Settings.SlopeLookbackBars      = 1;
    Settings.LayerPullbackEnabled        = Inp_CUSTOM_LayerPullbackEnabled;
    Settings.LayerBaselineLookback       = 10;     // default; overwritten by ApplyPreset
+   // Per-layer pullback-recovery defaults (seed for ALL presets so the shared
+   // magnitude logic is safe; RRM_ORG/CUSTOM override these via ApplyPreset).
+   Settings.LayerBaselineLookback_W     = 0;     // 0 = fall back to global lookback
+   Settings.LayerBaselineLookback_M     = 0;
+   Settings.LayerBaselineLookback_S     = 0;
+   Settings.LayerPullbackRatio          = SEA_DEF_LAYER_PULLBACK_RATIO;
+   Settings.LayerFlatRatio              = SEA_DEF_LAYER_FLAT_RATIO;
+   Settings.LayerRecoveryRatio          = SEA_DEF_LAYER_RECOVERY_RATIO;
+   Settings.LayerRecoveryRatio_W        = -1.0;  // -1 = use global
+   Settings.LayerRecoveryRatio_M        = -1.0;
+   Settings.LayerRecoveryRatio_S        = -1.0;
+   Settings.LayerAllowReversalPullback  = SEA_DEF_LAYER_ALLOW_REVERSAL;
 
    // Climax guard: params are global; enable is OFF in the base so non-opted
    // presets are unaffected. RRM_ORG and CUSTOM opt in via ApplyPreset.

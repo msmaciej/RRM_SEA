@@ -1415,51 +1415,59 @@ private:
    //                   magnitude — a slow EMA gains momentum gradually.
    // VPRR: volume tracking fields accumulated per state, once-per-bar.
    void UpdateSingleLayerPullback(int fast_ema_handle, int v_shift, int lookback,
+                                  double recovery_ratio,
                                   ELayerPullbackState &state, double &baseline, string label,
                                   double &vol_pb_avg, int &vol_pb_bars,
                                   double &vol_rec_avg, int &vol_rec_bars,
                                   double &vprr)
    {
-      // ── Baseline direction: sign of EMA slope over lookback bars ──────
-      // Establishes what the trend direction WAS before the current bar,
-      // so we can identify a pullback (EMA reversal vs trend).
-      //
-      // Window: EMA[shift+lookback+1] → EMA[shift+lookback]
-      // This measures the bar JUST BEFORE the lookback window, giving the
-      // cleanest single-bar signal of the pre-pullback trend direction.
-      // Using EMA[shift+1] as baseline_new was wrong: during recovery the
-      // bar before current is still in the pullback zone, making the baseline
-      // read as bullish even in a downtrend — causing recovery bars to be
-      // misclassified as pullbacks.
+      // -- Baseline DIRECTION (refined, kept): sign of the EMA slope on the bar
+      //    JUST BEFORE the lookback window, so an in-progress pullback cannot
+      //    contaminate the trend direction we measure against.
       double ema_baseline_old = GetMAVal(fast_ema_handle, v_shift + lookback + 1);
       double ema_baseline_new = GetMAVal(fast_ema_handle, v_shift + lookback);
-      double baseline_slope   = ema_baseline_new - ema_baseline_old;      // sign only matters
+      double baseline_slope   = ema_baseline_new - ema_baseline_old;   // sign = pre-pullback dir
       baseline = baseline_slope;
       bool baseline_bullish   = (baseline_slope > 0.0);
 
-      // ── Current slope: EMA[shift] - EMA[shift+1] — ONE bar, pure sign ──
-      // This is the mathematically correct slope at shift=1:
-      // it reflects what the EMA actually did on the last closed bar.
-      // A rising EMA34 is rising regardless of how large the step is
-      // relative to past bars. Using a ratio here caused slow EMAs (34, 89)
-      // to appear "weakened" and trigger LAYER_PB_DETECTED even while
-      // visibly climbing on the chart.
+      // -- Baseline PACE (ratio denominator): AVERAGED per-bar slope over the
+      //    lookback window ending just before the current bar. Averaging (vs a
+      //    single-bar value) is the fix that stops slow EMAs (34/89) reading as
+      //    falsely "weakened" -- the bug that originally got magnitude removed.
+      double ema_pace_old = GetMAVal(fast_ema_handle, v_shift + lookback + 1);
+      double ema_pace_new = GetMAVal(fast_ema_handle, v_shift + 1);
+      double baseline_pace = (lookback > 0) ? (ema_pace_new - ema_pace_old) / (double)lookback : 0.0;
+
+      // -- Current PACE (ratio numerator): k-bar recent slope, NOT one bar.
+      //    k auto-scales with the (per-layer) lookback, so the slow S layer is
+      //    smoothed more than the fast W layer. This + the averaged denominator
+      //    is the slow-EMA root-cause fix.
+      int    k        = (int)MathMax(2.0, (double)lookback / 4.0);
       double ema_now  = GetMAVal(fast_ema_handle, v_shift);
-      double ema_prev = GetMAVal(fast_ema_handle, v_shift + 1);
-      bool current_bullish = (ema_now > ema_prev);
+      double ema_kago = GetMAVal(fast_ema_handle, v_shift + k);
+      double current_pace    = (ema_now - ema_kago) / (double)k;
+      bool   current_bullish = (current_pace > 0.0);
 
-      // ── Pullback: EMA direction opposes baseline direction ─────────────
-      // Pullback = EMA moved against the trend baseline on this bar.
-      // Flat bars (no change) are not pullbacks — just consolidation.
-      bool is_pullback = (baseline_bullish != current_bullish) && (ema_now != ema_prev);
+      // -- Magnitude ratio: |recent pace| relative to |normal trend pace|
+      double ratio = 0.0;
+      if(MathAbs(baseline_pace) >= SEA_LAYER_SLOPE_EPSILON)
+         ratio = MathAbs(current_pace) / MathAbs(baseline_pace);
 
-      // ── Recovery: current bar slope direction matches baseline ─────────
-      // Recovery is confirmed the moment the EMA resumes moving in the
-      // trend direction (EMA[1] > EMA[2] for LONG). No magnitude test —
-      // a slow EMA gains momentum gradually; every upward step counts.
+      // -- Pullback: weakened (ratio below threshold) OR flat OR (optional)
+      //    slope reversal vs the trend baseline.
+      bool is_weakened = (ratio < m_settings.LayerPullbackRatio);
+      bool is_flat     = (ratio < m_settings.LayerFlatRatio);
+      bool is_pullback = (is_weakened || is_flat);
+      if(m_settings.LayerAllowReversalPullback &&
+         (baseline_bullish != current_bullish) && (current_pace != 0.0))
+         is_pullback = true;
+
+      // -- Recovery (from DETECTED): trend direction resumed AND ratio back to
+      //    at least recovery_ratio (per-layer override resolved by caller;
+      //    slower layers confirm on less momentum).
       bool is_recovery = false;
       if(state == LAYER_PB_DETECTED)
-         is_recovery = (baseline_bullish == current_bullish) && (ema_now != ema_prev);
+         is_recovery = (baseline_bullish == current_bullish) && (ratio >= recovery_ratio);
 
       ELayerPullbackState prev_state = state;
       if(state == LAYER_PB_NONE && is_pullback)
@@ -1469,15 +1477,16 @@ private:
       else if(state == LAYER_PB_RECOVERED && is_pullback)
          state = LAYER_PB_DETECTED;
 
-      double current_change = ema_now - ema_prev;   // kept for debug output only
-
       if(m_settings.DebugFlow && state != prev_state)
       {
-         DebugLog(StringFormat("[%s_PB] State: %s -> %s | CurrentChange=%.6f | BaselineDir=%s | CurrentDir=%s",
+         DebugLog(StringFormat("[%s_PB] State: %s -> %s | Ratio=%.2f | RecThresh=%.2f | Pace cur/base=%.6f/%.6f | Dir %s/%s",
                                label,
                                EnumToString(prev_state),
                                EnumToString(state),
-                               current_change,
+                               ratio,
+                               recovery_ratio,
+                               current_pace,
+                               baseline_pace,
                                baseline_bullish ? "UP" : "DN",
                                current_bullish  ? "UP" : "DN"));
       }
@@ -1524,7 +1533,29 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   //| UpdateLayerPullbackStates — Update pullback state for all layers |
+   //| GetLayerLookback / GetLayerRecovery -- per-layer resolvers       |
+   //| layer: 1=W, 2=M, 3=S. Per-layer 0/<0 falls back to the global.   |
+   //+------------------------------------------------------------------+
+   int GetLayerLookback(int layer)
+   {
+      int lb = (layer == 1) ? m_settings.LayerBaselineLookback_W :
+               (layer == 2) ? m_settings.LayerBaselineLookback_M :
+                              m_settings.LayerBaselineLookback_S;
+      if(lb <= 0) lb = m_settings.LayerBaselineLookback;   // fall back to global
+      if(lb < 1)  lb = 1;
+      return lb;
+   }
+   double GetLayerRecovery(int layer)
+   {
+      double rr = (layer == 1) ? m_settings.LayerRecoveryRatio_W :
+                  (layer == 2) ? m_settings.LayerRecoveryRatio_M :
+                                 m_settings.LayerRecoveryRatio_S;
+      if(rr < 0.0) rr = m_settings.LayerRecoveryRatio;     // -1 = use global
+      return rr;
+   }
+
+   //+------------------------------------------------------------------+
+   //| UpdateLayerPullbackStates -- Update pullback state for all layers|
    //+------------------------------------------------------------------+
    void UpdateLayerPullbackStates(int v_shift)
    {
@@ -1534,17 +1565,15 @@ private:
       if(m_layer_pb_last_update == bar_time) return;
       m_layer_pb_last_update = bar_time;
 
-      int lookback = m_settings.LayerBaselineLookback;
-
-      UpdateSingleLayerPullback(h_ema1, v_shift, lookback,
+      UpdateSingleLayerPullback(h_ema1, v_shift, GetLayerLookback(1), GetLayerRecovery(1),
                                 m_layer_w_pb_state, m_layer_w_baseline, "LayerW",
                                 m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
                                 m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr);
-      UpdateSingleLayerPullback(h_ema2, v_shift, lookback,
+      UpdateSingleLayerPullback(h_ema2, v_shift, GetLayerLookback(2), GetLayerRecovery(2),
                                 m_layer_m_pb_state, m_layer_m_baseline, "LayerM",
                                 m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                 m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr);
-      UpdateSingleLayerPullback(h_ema3, v_shift, lookback,
+      UpdateSingleLayerPullback(h_ema3, v_shift, GetLayerLookback(3), GetLayerRecovery(3),
                                 m_layer_s_pb_state, m_layer_s_baseline, "LayerS",
                                 m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                 m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr);
@@ -4278,8 +4307,9 @@ public:
    //+------------------------------------------------------------------+
    void WarmUpLayerPullbackStates()
    {
-      int lookback   = m_settings.LayerBaselineLookback;
-      int scan_depth = lookback + 61;   // baseline needs shift+lookback+1, +60 for full cycle
+      int lb_w = GetLayerLookback(1), lb_m = GetLayerLookback(2), lb_s = GetLayerLookback(3);
+      int maxlb      = (int)MathMax(lb_w, MathMax(lb_m, lb_s));
+      int scan_depth = maxlb + 61;   // baseline needs shift+maxlb+1, +60 for full cycle
       int bars_total = iBars(m_symbol, PERIOD_CURRENT);
       if(bars_total < scan_depth + 2) scan_depth = bars_total - 2;
       if(scan_depth <= 0) return;
@@ -4312,15 +4342,15 @@ public:
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, shift);
          m_layer_pb_last_update = 0;   // reset guard so each bar processes
 
-         UpdateSingleLayerPullback(h_ema1, shift, lookback,
+         UpdateSingleLayerPullback(h_ema1, shift, lb_w, GetLayerRecovery(1),
                                    m_layer_w_pb_state, m_layer_w_baseline, "LayerW_WU",
                                    m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
                                    m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr);
-         UpdateSingleLayerPullback(h_ema2, shift, lookback,
+         UpdateSingleLayerPullback(h_ema2, shift, lb_m, GetLayerRecovery(2),
                                    m_layer_m_pb_state, m_layer_m_baseline, "LayerM_WU",
                                    m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                    m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr);
-         UpdateSingleLayerPullback(h_ema3, shift, lookback,
+         UpdateSingleLayerPullback(h_ema3, shift, lb_s, GetLayerRecovery(3),
                                    m_layer_s_pb_state, m_layer_s_baseline, "LayerS_WU",
                                    m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                    m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr);
