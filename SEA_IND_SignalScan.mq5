@@ -289,6 +289,7 @@ bool           g_insp_dirty = false;
 int            g_insp_bias  = 0;
 int            g_insp_P = -1, g_insp_L = -1, g_insp_I = -1, g_insp_F = -1, g_insp_CG = -1;
 string         g_insp_P_reason="", g_insp_L_reason="", g_insp_I_reason="", g_insp_F_reason="";
+int            g_insp_L_layer = 0;
 int            g_insp_ts    = 0;
 bool           g_ok = false;
 int            g_sig_long  = 0;
@@ -479,6 +480,18 @@ string InspCode(string raw)
 string InspMark2(int v, string raw)
 {
    if(v==1) return "ok";
+   if(v!=0) return "--";
+   string c = InspCode(raw);
+   return (c=="") ? "NO" : "NO("+c+")";
+}
+// L factor: show the winning layer (W/M/S) on pass, the reason code on NO.
+string InspMarkL(int v, string raw, int layer)
+{
+   if(v==1)
+   {
+      string lc = (layer==1) ? "W" : (layer==2) ? "M" : (layer==3) ? "S" : "";
+      return (lc=="") ? "ok" : "ok("+lc+")";
+   }
    if(v!=0) return "--";
    string c = InspCode(raw);
    return (c=="") ? "NO" : "NO("+c+")";
@@ -736,9 +749,9 @@ void ScanBar(int shift)
    // which would wipe the layer state and make this bar read TS=0 after firing.
    if(Scn_Inspect_Enabled && shift == g_insp_shift)
    {
-      if(doL)      g_insp_ts = g_eng_long.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG, g_insp_P_reason, g_insp_L_reason, g_insp_I_reason, g_insp_F_reason);
-      else if(doS) g_insp_ts = g_eng_short.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG, g_insp_P_reason, g_insp_L_reason, g_insp_I_reason, g_insp_F_reason);
-      else         g_insp_ts = g_eng_long.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG, g_insp_P_reason, g_insp_L_reason, g_insp_I_reason, g_insp_F_reason);
+      if(doL)      g_insp_ts = g_eng_long.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG, g_insp_P_reason, g_insp_L_reason, g_insp_I_reason, g_insp_F_reason, g_insp_L_layer);
+      else if(doS) g_insp_ts = g_eng_short.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG, g_insp_P_reason, g_insp_L_reason, g_insp_I_reason, g_insp_F_reason, g_insp_L_layer);
+      else         g_insp_ts = g_eng_long.Scanner_InspectBar(shift, g_insp_bias, g_insp_P, g_insp_L, g_insp_I, g_insp_F, g_insp_CG, g_insp_P_reason, g_insp_L_reason, g_insp_I_reason, g_insp_F_reason, g_insp_L_layer);
       g_insp_valid = true;
    }
 
@@ -1112,7 +1125,7 @@ void DrawInfoPanel()
             ADD("  TS=0  blocked by B (no bias)", clrOrangeRed)
          else
          {
-            ADD("  B:ok P:"+InspMark2(g_insp_P,g_insp_P_reason)+" L:"+InspMark2(g_insp_L,g_insp_L_reason)+" I:"+InspMark2(g_insp_I,g_insp_I_reason)+" F:"+InspMark2(g_insp_F,g_insp_F_reason)+" CG:"+InspMark(g_insp_CG), clrWhite)
+            ADD("  B:ok P:"+InspMark2(g_insp_P,g_insp_P_reason)+" L:"+InspMarkL(g_insp_L,g_insp_L_reason,g_insp_L_layer)+" I:"+InspMark2(g_insp_I,g_insp_I_reason)+" F:"+InspMark2(g_insp_F,g_insp_F_reason)+" CG:"+InspMark(g_insp_CG), clrWhite)
             if(g_insp_ts==1) ADD("  TS=1  SIGNAL", clrLime)
             else             ADD("  TS=0  blocked by " + InspFirstFail(), clrOrangeRed)
          }
