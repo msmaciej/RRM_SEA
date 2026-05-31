@@ -191,6 +191,8 @@ input bool TS_LayerW             = true;   // [L] Pullback-Recovery Layer W: EMA
 input bool TS_RSI                = false;  // [I] RSI level
 input bool TS_Stochastic         = false;  // [I] Stochastic level
 input bool TS_VPRR               = false;  // [I] VPRR volume (metals/stocks; FX=unreliable)
+input bool TS_P123               = false;  // [I] Mark Crisp 1-2-3 fractal breakout
+input bool TS_Ross               = false;  // [I] Ross Hook (trend-momentum; builds on 1-2-3)
 
 
 //+------------------------------------------------------------------+
@@ -310,7 +312,7 @@ void Scn_AddInd(const int win, const int handle, const string label)
 //| Add-only: existing chart indicators are preserved.               |
 //|   price overlays -> window 0 (EMA/PSAR already drawn natively)    |
 //|   oscillators     -> each appended in its own new sub-window      |
-//| DPI/VPRR are computed inline (no engine handle) -> not drawn yet. |
+//| DPI/VPRR/P123/Ross are handle-less (inline) -> verdict/inspector only. |
 //+------------------------------------------------------------------+
 void Scn_AddActiveIndicators(CSignalEngine *eng)
 {
@@ -491,6 +493,8 @@ int OnInit()
    if(TS_ATR)        active += "ATR ";
    if(TS_VPRR)       active += "VPRR ";
    if(TS_CI)         active += "CI ";
+   if(TS_P123)       active += "P123 ";
+   if(TS_Ross)       active += "Ross ";
    if(active == "")   active  = "(none — line on every bias bar)";
 
    Print("[Scanner v4.0] ", _Symbol, " ", EnumToString(PERIOD_CURRENT),
@@ -1020,9 +1024,9 @@ void BuildSettings(ST_Settings &s)
    s.Ind_CI_Enabled = TS_CI;
    s.CI_Period      = CI_Period;
 
-   // Unused voters OFF
-   s.Ind_P123_Enabled       = false;
-   s.Ind_Ross_Enabled       = false;
+   // P123/Ross exposed via TS_* (EA parity); VRC + SmaConverge unused (OFF)
+   s.Ind_P123_Enabled       = TS_P123;
+   s.Ind_Ross_Enabled       = TS_Ross;
    s.Ind_VRC_Enabled        = false;
    s.Ind_SmaConverge_Enabled= false;
    s.Ind_Fib_Enabled        = false;
