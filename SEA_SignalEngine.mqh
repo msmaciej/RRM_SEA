@@ -148,6 +148,7 @@ struct STSBreakdown
    string F_reason;   // sub-filter that blocked when F==0
    int    L;          // layer
    string L_reason;   // why L==0 (LAYER_NONE_ALIGNED / BC_NOT_CONFIRMED / CandleDir / MOMENTUM_NOT_CONFIRMED)
+   int    L_layer;    // winning layer when L==1 (1=W, 2=M, 3=S; 0=none)
    int    I;          // indicators (normalized 1/0)
    string I_reason;   // failing voter names when I==0 (e.g. "DPI,PSAR")
    int    CG;         // climax guard: 1=pass, 0=climax veto
@@ -3028,17 +3029,19 @@ public:
    int Scanner_InspectBar(int shift, int &out_bias, int &out_P, int &out_L,
                           int &out_I, int &out_F, int &out_CG,
                           string &out_P_reason, string &out_L_reason,
-                          string &out_I_reason, string &out_F_reason)
+                          string &out_I_reason, string &out_F_reason,
+                          int &out_L_layer)
    {
       int bb = EvaluateB(shift);
       out_bias = bb;
-      out_P_reason = ""; out_L_reason = ""; out_I_reason = ""; out_F_reason = "";
+      out_P_reason = ""; out_L_reason = ""; out_I_reason = ""; out_F_reason = ""; out_L_layer = 0;
       if(bb == 0) { out_P = out_L = out_I = out_F = out_CG = -1; return 0; }
       STSBreakdown b;
       int verdict = EvaluateTS_Breakdown(shift, bb, b, true);   // full breakdown; passive (no reset)
       out_P = b.P; out_F = b.F; out_L = b.L; out_I = b.I; out_CG = b.CG;
       out_P_reason = b.P_reason; out_L_reason = b.L_reason;
       out_I_reason = b.I_reason; out_F_reason = b.F_reason;
+      out_L_layer  = b.L_layer;
       return verdict;
    }
    // Reset only the fired layer to NONE — other layers keep their independent states.
@@ -3168,7 +3171,7 @@ public:
    int EvaluateTS_Breakdown(int shift, int bias, STSBreakdown &b, bool full_eval)
    {
       b.P = -1; b.P_reason = ""; b.F = -1; b.F_reason = "";
-      b.L = -1; b.L_reason = ""; b.I = -1; b.I_reason = ""; b.CG = -1;
+      b.L = -1; b.L_reason = ""; b.L_layer = 0; b.I = -1; b.I_reason = ""; b.CG = -1;
       if(bias == 0) return 0;
 
       b.P = EvaluateP(shift, bias);
@@ -3181,6 +3184,7 @@ public:
 
       b.L = EvaluateL(shift, bias);
       if(b.L == 0) b.L_reason = m_diag_last_reason;
+      b.L_layer = m_last_layer;   // winning layer (1=W/2=M/3=S) for the inspector
       if(b.L == 0 && !full_eval) return 0;
 
       b.I = EvaluateI(shift, bias);
