@@ -110,7 +110,9 @@ input int         Inp_MTF_EMA_Fast                 = 20;             // Veto MTF
 input int         Inp_MTF_EMA_Slow                 = 50;             // Veto MTF: slow EMA period
 input bool        Inp_MTF_RequirePhase             = true;           // Veto MTF: require trending phase
 input bool        Inp_MTF_StrictAlignment          = true;           // Veto MTF: strict gate — all HTFs must agree
-
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🚫 VETO: Climax";
+input group "╚════════════════════════════════════════════════════════╝";
 // ── CLIMAX / EXHAUSTION GUARD (global; blocks late entries into over-extended impulses) ──
 input int         Inp_ClimaxGuard_Lookback         = 5;              // Climax: window (bars) scanned for an impulse
 input int         Inp_ClimaxGuard_ATRPeriod        = 14;             // Climax: ATR baseline period (measured pre-impulse)
@@ -536,7 +538,7 @@ input group "╚═════════════════════�
 input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // RRM ORG DPI: Enable DPI vote in TS equation
 input bool        Inp_RRM_ORG_DPI_UseCCIReset            = true;     // RRM ORG DPI: CCI can reset ribbon color (trend filter)
 input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
-input bool        Inp_RRM_ORG_DPI_AllowTransition         = true;     // RRM ORG DPI: Pass when hist rising toward zero (pullback exhaustion = bull signal)
+input bool        Inp_RRM_ORG_DPI_AllowTransition        = true;     // RRM ORG DPI: Pass when hist rising toward zero (pullback exhaustion = bull signal)
 input bool        Inp_RRM_ORG_DPI_UseGreenHist           = true;     // RRM ORG DPI: Also require GREEN overlay for vote pass
 // Yellow ribbon = BUY vote, Red ribbon = SELL vote.
 // CCI can reset ribbon color: hist>0 but CCI<0 → Red override (weakening).
@@ -654,12 +656,12 @@ input int         Inp_RRM_ORG_ReEntryLotScalePct   = 50;             // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (TSL) HOW TO TRAIL STOP LOSS";
 input group "╚════════════════════════════════════════════════════════╝";
-input ETrailingMode Inp_RRM_ORG_TrailMode          = TRAIL_EMA;     // RRM ORG TS: *BREAKEVEN, *EMA, *FIXED_PIPS, *FRACTAL, *NONE, *PROFIT_PERCENT, *PSAR, *PSAR_FLIP_EXIT
+input ETrailingMode Inp_RRM_ORG_TrailMode             = TRAIL_EMA;   // RRM ORG TS: *BREAKEVEN, *EMA, *FIXED_PIPS, *FRACTAL, *NONE, *PROFIT_PERCENT, *PSAR, *PSAR_FLIP_EXIT
 input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // RRM ORG TS: PSAR cushion mode (PIPS / ATR / PERCENT)
-input int         Inp_RRM_ORG_TrailCushionAtrPeriod = 14;            // RRM ORG TS: ATR period (ATR mode)
-input double      Inp_RRM_ORG_TrailCushionAtrMult   = 1.0;           // RRM ORG TS: cushion ATR multiplier (cushion = ATR × this)
-input double      Inp_RRM_ORG_TrailCushionPct       = 25.0;          // RRM ORG TS: cushion % of price (PERCENT mode + safety floor)
-input double      Inp_RRM_ORG_TrailProfitPercentLPR = 25.0;          // RRM ORG TS: LPR trailing percent behind peak
+input int         Inp_RRM_ORG_TrailCushionAtrPeriod   = 14;          // RRM ORG TS: ATR period (ATR mode)
+input double      Inp_RRM_ORG_TrailCushionAtrMult     = 1.0;         // RRM ORG TS: cushion ATR multiplier (cushion = ATR × this)
+input double      Inp_RRM_ORG_TrailCushionPct         = 25.0;        // RRM ORG TS: cushion % of price (PERCENT mode + safety floor)
+input double      Inp_RRM_ORG_TrailProfitPercentLPR   = 25.0;        // RRM ORG TS: LPR trailing percent behind peak
 //
 // Inp_RRM_ORG_TrailMode - Trailing method:
 // TRAIL_NONE:            No trailing
