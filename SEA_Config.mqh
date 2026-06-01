@@ -61,7 +61,6 @@
 #define SEA_DEF_DPI_CCI_PRICE         PRICE_TYPICAL
 #define SEA_DEF_DPI_USE_CCI_RESET     true
 #define SEA_DEF_DPI_IGNORE_CCI_VOTE   false
-#define SEA_DEF_DPI_ALLOW_TRANSITION  true
 #define SEA_DEF_DPI_USE_GREEN_HIST    true
 #define SEA_DEF_DPI_GROWTH_BOOST      false
 
@@ -825,7 +824,6 @@ struct ST_Settings
    // EMAs/bars are near the threshold.  Default=off to preserve the existing PRESET_RRM_ORG
    // contract.  Enable via the corresponding Inp_RRM_ORG_* inputs.
    bool   DPI_IgnoreCCIForVote;        // DPI vote: use raw histogram direction only (skip CCI-reset)
-   bool   DPI_AllowTransition;         // DPI vote: pass when hist rising toward zero
    double Layer_SlopeTolerance;        // Layer slope tolerance in pips (0=strict; N pips = flat allowed)
    double BarClose_PipTolerance;       // Bar-close tolerance in pips (0=strict close>EMA; N=within N pips)
    // ── Multi-Bar Momentum Detection ──

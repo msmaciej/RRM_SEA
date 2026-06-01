@@ -2453,7 +2453,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // pullback-recovery setups through.  All default to the conservative value that
       // preserves the original PRESET_RRM_ORG contract.
       cfg.DPI_IgnoreCCIForVote      = Inp_RRM_ORG_DPI_IgnoreCCIForVote;
-      cfg.DPI_AllowTransition        = Inp_RRM_ORG_DPI_AllowTransition;
       cfg.Layer_SlopeTolerance      = 0.0;   // Hardcoded: obsolete pip-based slope tolerance removed
       cfg.BarClose_PipTolerance     = Inp_RRM_ORG_BarClose_PipTolerance;
       cfg.BarClose_LookbackBars        = MathMax(1, MathMin(4, Inp_RRM_ORG_BarClose_LookbackBars));

@@ -558,7 +558,6 @@ input group "╚═════════════════════�
 input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // RRM ORG DPI: Enable DPI vote in TS equation
 input bool        Inp_RRM_ORG_DPI_UseCCIReset            = SEA_DEF_DPI_USE_CCI_RESET;     // RRM ORG DPI: CCI can reset ribbon color (trend filter)
 input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = SEA_DEF_DPI_IGNORE_CCI_VOTE;    // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
-input bool        Inp_RRM_ORG_DPI_AllowTransition        = SEA_DEF_DPI_ALLOW_TRANSITION;     // RRM ORG DPI: Pass when hist rising toward zero (pullback exhaustion = bull signal)
 input bool        Inp_RRM_ORG_DPI_UseGreenHist           = SEA_DEF_DPI_USE_GREEN_HIST;     // RRM ORG DPI: Also require GREEN overlay for vote pass
 // Yellow ribbon = BUY vote, Red ribbon = SELL vote.
 // CCI can reset ribbon color: hist>0 but CCI<0 → Red override (weakening).
@@ -1739,7 +1738,6 @@ void InitializeConfig()
 
    // ── PHASE B: Recovery-sensitivity tuning defaults (all off; PRESET_RRM_ORG may override) ──
    Settings.DPI_IgnoreCCIForVote  = false;
-   Settings.DPI_AllowTransition    = true;
    Settings.Layer_SlopeTolerance  = 0.0;
    Settings.BarClose_PipTolerance = 0.0;
    Settings.BarClose_LookbackBars        = 3;    // Default; overridden by PRESET_RRM_ORG via Inp_RRM_ORG_BarClose_LookbackBars

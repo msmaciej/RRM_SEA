@@ -236,7 +236,6 @@ input int                DPI_CCI_Per         = SEA_DEF_DPI_CCI_PERIOD;      // C
 input ENUM_APPLIED_PRICE DPI_CCI_Price       = SEA_DEF_DPI_CCI_PRICE;       // CCI applied price
 input bool               DPI_UseCCIReset     = SEA_DEF_DPI_USE_CCI_RESET;   // Require CCI reset/agreement
 input bool               DPI_IgnoreCCI       = SEA_DEF_DPI_IGNORE_CCI_VOTE; // Vote on raw hist direction only
-input bool               DPI_AllowTransition = SEA_DEF_DPI_ALLOW_TRANSITION;// Pass when hist rising toward zero
 input bool               DPI_UseGreenHist    = SEA_DEF_DPI_USE_GREEN_HIST;  // Require Blue/hist green-presence
 input bool               DPI_GrowthBoost     = SEA_DEF_DPI_GROWTH_BOOST;    // Histogram-growth confirmation
 input group "--- MACD ---"
@@ -942,7 +941,6 @@ void BuildSettings(ST_Settings &s)
    s.DPI_CCI_AppliedPrice       = (int)DPI_CCI_Price;
    s.DPI_UseCCIReset            = DPI_UseCCIReset;
    s.DPI_IgnoreCCIForVote       = DPI_IgnoreCCI;
-   s.DPI_AllowTransition        = DPI_AllowTransition;
    s.DPI_UseGreenHist           = DPI_UseGreenHist;
    s.DPI_Histogram_Growth_Boost = DPI_GrowthBoost;
 

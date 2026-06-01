@@ -300,7 +300,8 @@ private:
    //   3 = ENTRY_ALLOWED:      Recovery confirmed for N bars. Entry gate open.
    int      m_dpi_reset_state;           // Current state (0-3)
    int      m_dpi_reset_recovery_bars;   // Bars counted since CCI recovered
-   bool     m_dpi_reset_macd_agree_prev; // Previous bar's CCI-hist agreement (for edge detection)
+   bool     m_dpi_reset_colour_prev;     // Previous bar's ribbon colour (true=yellow) — flip detection
+   bool     m_dpi_reset_colour_ref;      // Trend colour to recover to (true=yellow), frozen at reset
 
    // --- 2k. INDICATOR RESULT CACHE (eliminates duplicate checks per bar) ---
    struct SIndicatorCache {
@@ -339,7 +340,7 @@ private:
       double psar_value;
       double psar_close;
       double dpi_diag_hist;       // last DPI histogram value (inspector diagnostic)
-      int    dpi_diag_sub;        // last DPI fail sub-reason: 0=none 1=DIR 2=CCI 3=GREEN
+      int    dpi_diag_sub;        // last DPI fail sub-reason: 0=none 1=DIR(colour) 3=GREEN 4=RESET
    };
 
    SIndicatorCache m_ind_cache;
@@ -1183,13 +1184,86 @@ private:
    //+------------------------------------------------------------------+
    void UpdateDPIHistogramState(const int v_shift)
    {
-      if(!m_settings.DPI_HistTrackingEnabled) return;
-
       datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
 
-      // Update only once per bar
+      // Update only once per bar (covers both the reset machine and the tracking subsystem)
       if(m_dpi_hist_last_update == bar_time) return;
       m_dpi_hist_last_update = bar_time;
+
+      // ── CCI Reset→Recovery state machine (canonical §5) ───────────────────────────
+      // Runs whenever RequireResetRecovery, INDEPENDENT of HistTrackingEnabled (decoupled
+      // 260601 — the reset needs only the ribbon colour, which is always computed). Reset =
+      // ribbon COLOUR flip away from the trend colour; recovery = colour returns and holds for
+      // ResetRecoveryBars (+ optional GREEN). Bias-independent (R1): direction is enforced by
+      // BASE in Check_DPI (colour == bias), so this machine only certifies a reset→recovery cycle.
+      if(m_settings.DPI_RequireResetRecovery)
+      {
+         double h_cur=0.0, h_prev=0.0, gm_c=0.0, gm_p=0.0;
+         bool   g=false, ma=false, colour_yellow=false;
+         if(ComputeDPIMainHist(v_shift, h_cur, h_prev, g, ma, gm_c, gm_p, colour_yellow))
+         {
+            bool green_present = (gm_c > 0.0);
+            int  prev_state = m_dpi_reset_state;
+            switch(m_dpi_reset_state)
+            {
+               case 0: // IDLE — a colour flip away from the prevailing colour starts a reset
+                  if(colour_yellow != m_dpi_reset_colour_prev)
+                  {
+                     m_dpi_reset_colour_ref    = m_dpi_reset_colour_prev; // trend colour to return to
+                     m_dpi_reset_state         = 1;
+                     m_dpi_reset_recovery_bars = 0;
+                  }
+                  break;
+
+               case 1: // RESET_DETECTED — wait for colour to return to the trend colour
+                  if(colour_yellow == m_dpi_reset_colour_ref)
+                  {
+                     m_dpi_reset_state         = 2;
+                     m_dpi_reset_recovery_bars = 0;
+                  }
+                  break;
+
+               case 2: // RECOVERY_COUNTING — colour back on trend; count confirm bars
+                  if(colour_yellow != m_dpi_reset_colour_ref)
+                  {
+                     m_dpi_reset_state         = 1;   // flipped away again before confirm
+                     m_dpi_reset_recovery_bars = 0;
+                  }
+                  else
+                  {
+                     m_dpi_reset_recovery_bars++;
+                     bool green_ok = (!m_settings.DPI_ResetRequireGreen || green_present);
+                     if(m_dpi_reset_recovery_bars >= m_settings.DPI_ResetRecoveryBars && green_ok)
+                        m_dpi_reset_state = 3;          // ENTRY_ALLOWED
+                  }
+                  break;
+
+               case 3: // ENTRY_ALLOWED — open until a new colour flip starts another cycle
+                  if(colour_yellow != m_dpi_reset_colour_ref)
+                  {
+                     m_dpi_reset_state         = 1;
+                     m_dpi_reset_recovery_bars = 0;
+                  }
+                  // Resets to IDLE after a trade is taken (external ResetDPIResetState()).
+                  break;
+            }
+            m_dpi_reset_colour_prev = colour_yellow;
+
+            if(m_settings.DebugFlow && m_dpi_reset_state != prev_state)
+            {
+               string s_prev = (prev_state==0?"IDLE":prev_state==1?"RESET_DETECTED":prev_state==2?"RECOVERY_COUNTING":"ENTRY_ALLOWED");
+               string s_now  = (m_dpi_reset_state==0?"IDLE":m_dpi_reset_state==1?"RESET_DETECTED":m_dpi_reset_state==2?"RECOVERY_COUNTING":"ENTRY_ALLOWED");
+               DebugLog(StringFormat("[DPI_RESET] %s → %s | colour=%s ref=%s | recovery_bars=%d/%d",
+                                     s_prev, s_now, colour_yellow?"YELLOW":"RED",
+                                     m_dpi_reset_colour_ref?"YELLOW":"RED",
+                                     m_dpi_reset_recovery_bars, m_settings.DPI_ResetRecoveryBars));
+            }
+         }
+      }
+
+      // ── CCI histogram TRACKING subsystem (decel / green-present) ───────────────────
+      // Gated by the HistTrackingEnabled master switch (off in RRM_ORG).
+      if(!m_settings.DPI_HistTrackingEnabled) return;
 
       // Calculate current CCI value (histogram proxy)
       double cci = ComputeDPI_CCI(v_shift);
@@ -1214,10 +1288,10 @@ private:
       m_dpi_hist_green_present = false;
       {
          double hist_cur = 0.0, hist_prev = 0.0;
-         bool   dpi_green = false, dpi_macd_agree = false;
+         bool   dpi_green = false, dpi_macd_agree = false, dpi_wants_yellow = false;
          double green_mag_cur = 0.0, green_mag_prev = 0.0;
          if(ComputeDPIMainHist(v_shift, hist_cur, hist_prev, dpi_green, dpi_macd_agree,
-                               green_mag_cur, green_mag_prev))
+                               green_mag_cur, green_mag_prev, dpi_wants_yellow))
          {
             m_dpi_hist_green_present = (green_mag_cur > 0.0);
          }
@@ -1226,91 +1300,6 @@ private:
       // Detect deceleration (momentum decreasing)
       m_dpi_hist_decelerating = false;
 
-      // ── CCI Reset-Recovery State Machine ──────────────────────────────
-      // Tracks: CCI agrees → resets (pullback) → recovers → entry allowed.
-      // Uses dpi_macd_agree from ComputeDPIMainHist (hist sign == CCI sign).
-      // State transitions happen once per bar, edge-detected.
-      if(m_settings.DPI_RequireResetRecovery && m_settings.DPI_HistTrackingEnabled && m_settings.DPI_UseCCIReset)
-      {
-         // Get current CCI-hist agreement (same as ribbon color check)
-         bool macd_agree_now = false;
-         {
-            double h_cur = 0.0, h_prev = 0.0;
-            bool   g = false, ma = false;
-            double gm_c = 0.0, gm_p = 0.0;
-            if(ComputeDPIMainHist(v_shift, h_cur, h_prev, g, ma, gm_c, gm_p))
-               macd_agree_now = ma;
-         }
-
-         int prev_state = m_dpi_reset_state;
-
-         switch(m_dpi_reset_state)
-         {
-            case 0: // IDLE — CCI agrees, waiting for reset
-               if(!macd_agree_now && m_dpi_reset_macd_agree_prev)
-               {
-                  // CCI just flipped against histogram → reset detected
-                  m_dpi_reset_state = 1;
-                  m_dpi_reset_recovery_bars = 0;
-               }
-               break;
-
-            case 1: // RESET_DETECTED — CCI disagrees (pullback in progress)
-               if(macd_agree_now && !m_dpi_reset_macd_agree_prev)
-               {
-                  // CCI just flipped back → recovery starting
-                  m_dpi_reset_state = 2;
-                  m_dpi_reset_recovery_bars = 0;
-               }
-               break;
-
-            case 2: // RECOVERY_COUNTING — CCI recovered, counting bars
-               if(!macd_agree_now)
-               {
-                  // CCI flipped against again before recovery confirmed → back to reset
-                  m_dpi_reset_state = 1;
-                  m_dpi_reset_recovery_bars = 0;
-               }
-               else
-               {
-                  m_dpi_reset_recovery_bars++;
-
-                  // Check if GREEN is also required
-                  bool green_ok = (!m_settings.DPI_ResetRequireGreen || m_dpi_hist_green_present);
-
-                  if(m_dpi_reset_recovery_bars >= m_settings.DPI_ResetRecoveryBars && green_ok)
-                  {
-                     // Recovery confirmed
-                     m_dpi_reset_state = 3;
-                  }
-               }
-               break;
-
-            case 3: // ENTRY_ALLOWED — gate is open
-               if(!macd_agree_now)
-               {
-                  // New reset started → cycle again
-                  m_dpi_reset_state = 1;
-                  m_dpi_reset_recovery_bars = 0;
-               }
-               // Stays in ENTRY_ALLOWED while CCI agrees (entry can happen any bar)
-               // Resets to IDLE after a trade is taken (done externally via ResetDPIResetState)
-               break;
-         }
-
-         m_dpi_reset_macd_agree_prev = macd_agree_now;
-
-         if(m_settings.DebugFlow && m_dpi_reset_state != prev_state)
-         {
-            string s_prev = (prev_state==0?"IDLE":prev_state==1?"RESET_DETECTED":prev_state==2?"RECOVERY_COUNTING":"ENTRY_ALLOWED");
-            string s_now  = (m_dpi_reset_state==0?"IDLE":m_dpi_reset_state==1?"RESET_DETECTED":m_dpi_reset_state==2?"RECOVERY_COUNTING":"ENTRY_ALLOWED");
-            DebugLog(StringFormat("[DPI_RESET] %s → %s | agree=%s | green=%s | recovery_bars=%d/%d",
-                                  s_prev, s_now,
-                                  macd_agree_now ? "YES" : "NO",
-                                  m_dpi_hist_green_present ? "YES" : "NO",
-                                  m_dpi_reset_recovery_bars, m_settings.DPI_ResetRecoveryBars));
-         }
-      }
       int lookback_max = DPI_HIST_BUFFER_CAPACITY - 1;
       int lookback = MathMax(1, MathMin(lookback_max, m_settings.DPI_HistDecelLookback));
       if(m_dpi_hist_buffer_size >= lookback + 1)
@@ -2667,10 +2656,10 @@ private:
          return (m_ind_cache.dpi_result == 1);
 
       double hist_cur = 0.0, hist_prev = 0.0;
-      bool   dpi_green = false, dpi_macd_agree = false;
+      bool   dpi_green = false, dpi_macd_agree = false, dpi_wants_yellow = false;
       double _unused_green_cur = 0.0, _unused_green_prev = 0.0;
       if(!ComputeDPIMainHist(v_shift, hist_cur, hist_prev, dpi_green, dpi_macd_agree,
-                             _unused_green_cur, _unused_green_prev))
+                             _unused_green_cur, _unused_green_prev, dpi_wants_yellow))
       {
          // Insufficient bars — DPI passes silently (neither counted as pass nor fail).
          // In VOTE_MODE_ALL this ensures DPI does not block trades when warmup data is missing.
@@ -2679,32 +2668,34 @@ private:
          return true;
       }
 
-      // Direction: sign of histogram
-      int dir = (hist_cur > 0.0) ? 1 : ((hist_cur < 0.0) ? -1 : 0);
+      // BASE = ribbon COLOUR vs bias (canonical §3): YELLOW→LONG(+1), RED→SHORT(-1).
+      // Colour (dpi_wants_yellow) is lifted verbatim from mc_main; always ±1, no neutral (§8/O5).
+      int  colour_dir = dpi_wants_yellow ? 1 : -1;
+      bool base_ok    = (colour_dir == bias);
+      // GREEN gate (canonical §6) — unchanged.
+      bool green_ok   = (!m_settings.DPI_UseGreenHist || dpi_green);
+      // CCI_RESET (canonical §5): reset→recovery requirement, owned by RequireResetRecovery
+      // alone (decoupled from HistTrackingEnabled). Pass when off, or state == ENTRY_ALLOWED(3).
+      bool reset_ok   = (!m_settings.DPI_RequireResetRecovery || m_dpi_reset_state == 3);
+      // NOTE: the old same-bar hist-vs-CCI agreement gate is REMOVED (canonical §7);
+      //       CCI now drives the ribbon colour inside ComputeDPIMainHist instead.
 
-      bool dir_ok  = (dir == bias);
-      // DPI_IgnoreCCIForVote: bypass CCI-reset check — vote on raw histogram direction only.
-      // Useful when a valid pullback-recovery causes CCI to temporarily flip against the
-      // histogram, causing the vote to fail despite correct momentum direction.
-      bool cci_ok  = (m_settings.DPI_IgnoreCCIForVote || !m_settings.DPI_UseCCIReset || dpi_macd_agree);
-      bool green_ok= (!m_settings.DPI_UseGreenHist  || dpi_green);
-
-      bool result  = dir_ok && cci_ok && green_ok;
+      bool result  = base_ok && green_ok && reset_ok;
 
       m_ind_cache.cached_bias = bias;
       m_ind_cache.dpi_result  = result ? 1 : 0;
       m_ind_cache.dpi_diag_hist = hist_cur;
-      m_ind_cache.dpi_diag_sub  = (!dir_ok ? 1 : (!cci_ok ? 2 : (!green_ok ? 3 : 0)));
+      m_ind_cache.dpi_diag_sub  = (!base_ok ? 1 : (!green_ok ? 3 : (!reset_ok ? 4 : 0)));
 
       if(m_settings.DebugFlow)
       {
          string sub = "";
-         if(!dir_ok)   sub = sub + "DIR_MISMATCH ";
-         if(!cci_ok)   sub = sub + "CCI_RESET ";
+         if(!base_ok)  sub = sub + "COLOUR_MISMATCH ";
          if(!green_ok) sub = sub + "NO_GREEN ";
-         DebugLog(StringFormat("[IND_DPI] bias=%d hist=%.6f dir=%d green=%d cciagreed=%d ignoreCCI=%s → %s%s",
-                               bias, hist_cur, dir,
-                               dpi_green ? 1 : 0, dpi_macd_agree ? 1 : 0,
+         if(!reset_ok) sub = sub + "RESET_WAIT ";
+         DebugLog(StringFormat("[IND_DPI] bias=%d hist=%.6f colour=%s green=%d reset_state=%d ignoreCCI=%s → %s%s",
+                               bias, hist_cur, dpi_wants_yellow ? "YELLOW" : "RED",
+                               dpi_green ? 1 : 0, m_dpi_reset_state,
                                m_settings.DPI_IgnoreCCIForVote ? "Y" : "N",
                                result ? "PASS" : "FAIL ",
                                result ? "" : ("(" + sub + ")")));
@@ -3214,9 +3205,9 @@ public:
       if(m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled)
       {
          double hist_cur = 0.0, hist_prev = 0.0;
-         bool   dpi_green = false, dpi_macd_agree = false;
+         bool   dpi_green = false, dpi_macd_agree = false, dpi_wants_yellow = false;
          double green_mag_cur = 0.0, green_mag_prev = 0.0;
-         if(ComputeDPIMainHist(shift, hist_cur, hist_prev, dpi_green, dpi_macd_agree, green_mag_cur, green_mag_prev))
+         if(ComputeDPIMainHist(shift, hist_cur, hist_prev, dpi_green, dpi_macd_agree, green_mag_cur, green_mag_prev, dpi_wants_yellow))
          {
             bool green_was = (green_mag_prev > 0.0);
             bool green_is  = (green_mag_cur  > 0.0);
@@ -3225,9 +3216,10 @@ public:
          }
       }
 
-      // ── DPI CCI reset-recovery gate (state; replayed per-bar by caller) ──
-      if(m_settings.DPI_RequireResetRecovery && m_settings.DPI_HistTrackingEnabled && m_settings.DPI_UseCCIReset)
-         if(m_dpi_reset_state != 3) { m_last_f_reason = "DPI_RESET_WAIT"; return false; }   // not ENTRY_ALLOWED
+      // ── DPI CCI reset-recovery gate ──
+      // MOVED into Check_DPI (canonical §5): RESET_RECOVERY is now part of the DPI vote itself
+      // (so the scanner verdict and inspector show it too), gated by RequireResetRecovery alone.
+      // No separate TS-level gate here anymore.
 
       // ── DPI histogram deceleration (state) ──
       if(m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled)
@@ -4445,7 +4437,8 @@ public:
       m_dpi_hist_last_update = 0;
       m_dpi_reset_state = 0;
       m_dpi_reset_recovery_bars = 0;
-      m_dpi_reset_macd_agree_prev = false;
+      m_dpi_reset_colour_prev = false;
+      m_dpi_reset_colour_ref  = false;
       m_layer_w_pb_state = LAYER_PB_NONE;
       m_layer_m_pb_state = LAYER_PB_NONE;
       m_layer_s_pb_state = LAYER_PB_NONE;
@@ -5857,7 +5850,7 @@ public:
             if(m_settings.Ind_Psar_Enabled && !(m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift))) fails += "PSAR ";
             if(m_settings.Ind_Dpi_Enabled && !Check_DPI(bias, v_shift))
             {
-               string dsub = (m_ind_cache.dpi_diag_sub==1 ? "DIR" : m_ind_cache.dpi_diag_sub==2 ? "CCI" : m_ind_cache.dpi_diag_sub==3 ? "GREEN" : "?");
+               string dsub = (m_ind_cache.dpi_diag_sub==1 ? "DIR" : m_ind_cache.dpi_diag_sub==3 ? "GREEN" : m_ind_cache.dpi_diag_sub==4 ? "RESET" : "?");
                fails += StringFormat("DPI:%s(h=%+.3f) ", dsub, m_ind_cache.dpi_diag_hist);
             }
             if(m_settings.Ind_CandleBody_Enabled && !Check_CandleBody(bias, v_shift)) fails += "CBODY ";
@@ -6229,7 +6222,8 @@ public:
    // ───────────────────────────────────────────────────────────────────────────
    bool ComputeDPIMainHist(int v_shift, double &out_hist_cur, double &out_hist_prev,
                            bool &out_green, bool &out_macd_agree,
-                           double &out_green_mag_cur, double &out_green_mag_prev)
+                           double &out_green_mag_cur, double &out_green_mag_prev,
+                           bool &out_hist_wants_yellow)
    {
       if(!m_settings.Ind_Dpi_Enabled) return false;
 
@@ -6271,6 +6265,7 @@ public:
       out_macd_agree     = false;
       out_green_mag_cur  = 0.0;
       out_green_mag_prev = 0.0;
+      out_hist_wants_yellow = false;
 
       // Seed EMAs at the oldest bar so that initial Blue = 0 (fast = slow = seed price).
       double seed = iClose(m_symbol, PERIOD_CURRENT, bars_needed);
@@ -6332,19 +6327,26 @@ public:
       bool green_present_prev = ((blue_prev > 0.0 && hist_at_prev > 0.0) || (blue_prev < 0.0 && hist_at_prev < 0.0));
       out_green_mag_prev = green_present_prev ? MathMin(MathAbs(blue_prev), MathAbs(hist_at_prev)) : 0.0;
 
-      // out_macd_agree: trend filter flag — dual-use:
-      //   DPI_UseCCIReset=true  → true when hist sign agrees with CCI sign (no CCI reset warning)
-      //   DPI_UseCCIReset=false → true when hist >= 0 (pass-through; caller uses for decel filter)
+      // CCI value — computed once, shared by the colour lift and the legacy agreement flag.
+      double cci_v = ComputeDPI_CCI(v_shift);
+
+      // out_macd_agree: legacy trend-filter flag. NO LONGER READ by the vote (the old same-bar
+      // gate was removed, canonical §7); kept so existing callers' signatures are unaffected.
+      //   DPI_UseCCIReset=true  → hist sign agrees with CCI sign
+      //   DPI_UseCCIReset=false → hist >= 0 (pass-through)
       if(m_settings.DPI_UseCCIReset)
-      {
-         // FIXED — inline CCI, bit-identical to DPI_mc_main.mq5:
-         double cci_v = ComputeDPI_CCI(v_shift);
          out_macd_agree = ((hist >= 0.0 && cci_v >= 0.0) || (hist < 0.0 && cci_v < 0.0));
-      }
       else
-      {
          out_macd_agree = (hist >= 0.0);
-      }
+
+      // ── Ribbon COLOUR (canonical §3) — lifted VERBATIM from SEA_IND_DPI_mc_main.mq5
+      //    (lines 480-488). Mapping: InpEnableCCI ↔ (DPI_UseCCIReset && !DPI_IgnoreCCIForVote);
+      //    g_CCI[i] ↔ cci_v. With CCI in colour → colour = sign(CCI); else colour = sign(hist).
+      bool cci_in_colour = (m_settings.DPI_UseCCIReset && !m_settings.DPI_IgnoreCCIForVote);
+      if(hist >= 0.0)
+         out_hist_wants_yellow = !(cci_in_colour && cci_v <  0.0);
+      else
+         out_hist_wants_yellow =  (cci_in_colour && cci_v >= 0.0);
 
       return true;
    }
