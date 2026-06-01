@@ -134,7 +134,7 @@ input group "╔═════════════════════�
 input group "║   🚫 VETO: Climax";
 input group "╚════════════════════════════════════════════════════════╝";
 // ── CLIMAX / EXHAUSTION GUARD (global; blocks late entries into over-extended impulses) ──
-input int         Inp_ClimaxGuard_Lookback         = 5;              // Climax: window (bars) scanned for an impulse
+input int         Inp_ClimaxGuard_Lookback         = 13;              // Climax: window (bars) scanned for an impulse
 input int         Inp_ClimaxGuard_ATRPeriod        = 14;             // Climax: ATR baseline period (measured pre-impulse)
 input double      Inp_ClimaxGuard_BarATRMult       = 2.0;            // Climax: single-bar range threshold (x ATR)
 input double      Inp_ClimaxGuard_MoveATRMult      = 3.0;            // Climax: cumulative move threshold (x ATR)

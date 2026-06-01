@@ -6245,8 +6245,13 @@ public:
       }
 
       // bars_needed: Slow-EMA warmup + max(Red EMA) + 1 prev-bar capture + v_shift + 5 safety
+      // bars_needed: Slow-EMA warmup + max(Red EMA) + 1 prev-bar capture + v_shift + warmup margin.
+      // The +500 warmup makes the recursive-EMA seed residual underflow to ~0 so the engine's
+      // Blue/Red/hist are bit-identical to SEA_IND_DPI_mc_main.mq5 (which warms over full chart
+      // history). For the slowest Red (EMA21) the residual after 500 bars is ~1e-21 → exact A≡B,
+      // incl. GREEN. CCI is already exact (windowed SMA). See README §9 (parity; no iCustom).
       int maxRed = MathMax(redPer1, redPer2);
-      int bars_needed = MSlow + maxRed + v_shift + 7;
+      int bars_needed = MSlow + maxRed + v_shift + 500;
       if(iBars(m_symbol, PERIOD_CURRENT) <= bars_needed) return false;
 
       double alphaFast  = 2.0 / (double)(MFast  + 1);
