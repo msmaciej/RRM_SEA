@@ -188,7 +188,7 @@ input bool TS_PSAR_Flip          = false;  // [I] PSAR + flip window
 input bool TS_LayerS             = true;   // [L] Pullback-Recovery Layer S: EMA3->EMA4 (strongest)
 input bool TS_LayerM             = true;   // [L] Pullback-Recovery Layer M: EMA2->EMA3 (medium)
 input bool TS_LayerW             = true;   // [L] Pullback-Recovery Layer W: EMA1->EMA2 (weakest)
-input bool TS_LayerS_Require_DirAlign = false; // [L] Layer S (EMA3/EMA4) pos+slope w/ bias to allow M/W entries
+input bool TS_LayerS_Require_DirAlign = true; // [L] Layer S (EMA3/EMA4) pos+slope w/ bias to allow M/W entries
 input bool TS_RSI                = false;  // [I] RSI level
 input bool TS_Stochastic         = false;  // [I] Stochastic level
 input bool TS_VPRR               = false;  // [I] VPRR volume (metals/stocks; FX=unreliable)
