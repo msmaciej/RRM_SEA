@@ -6096,6 +6096,24 @@ public:
    // Returns 1 if any layer passes, 0 if none.
    // If EnableLayerDetection=false or BiasMode!=BIAS_4EMA → returns 1 (N/A, pass).
    // ─────────────────────────────────────────────────────────────────────────
+   // LayerS_DirAligned - Layer S (EMA3/EMA4) positioned AND both EMAs sloping with bias.
+   // Optional gate (LayerS_RequireDirAlign): blocks faster Layer M/W entries unless the
+   // dominant S pair confirms direction (position + slope). NOT a pullback-recovery.
+   bool LayerS_DirAligned(const int v_shift, const int bias)
+   {
+      if(bias == 0) return false;
+      double e3  = GetMAVal(h_ema3, v_shift);
+      double e4  = GetMAVal(h_ema4, v_shift);
+      double e3p = GetMAVal(h_ema3, v_shift + 1);
+      double e4p = GetMAVal(h_ema4, v_shift + 1);
+      if(e3 == EMPTY_VALUE || e4 == EMPTY_VALUE || e3p == EMPTY_VALUE || e4p == EMPTY_VALUE)
+         return false;
+      double s3 = e3 - e3p;   // EMA3 slope
+      double s4 = e4 - e4p;   // EMA4 slope
+      if(bias == 1)  return (e3 > e4) && (s3 > 0.0) && (s4 > 0.0);   // LONG: stacked up + both rising
+      return (e3 < e4) && (s3 < 0.0) && (s4 < 0.0);                  // SHORT: stacked down + both falling
+   }
+
    int EvaluateL(int v_shift, int bias)
    {
       if(!m_settings.EnableLayerDetection || m_settings.BiasMode != BIAS_4EMA)
@@ -6114,6 +6132,10 @@ public:
       m_diag_layer_w = m_eval_layer_w;
       m_diag_layer_m = m_eval_layer_m;
       m_diag_layer_s = m_eval_layer_s;
+
+      // Optional Layer-S direction gate: block faster M/W entries unless Layer S
+      // (EMA3/EMA4) is position+slope aligned with bias. S's own entry is unaffected.
+      bool layerS_dir_ok = (!m_settings.LayerS_RequireDirAlign) || LayerS_DirAligned(v_shift, bias);
 
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
          DebugLog(StringFormat("[EvaluateL] LayerW=%d LayerM=%d LayerS=%d (bias=%d)",
@@ -6144,7 +6166,7 @@ public:
          }
       }
 
-      if(m_eval_layer_m == 1 && m_settings.AllowLayer2_Entries) {
+      if(m_eval_layer_m == 1 && m_settings.AllowLayer2_Entries && layerS_dir_ok) {
          int bc_m = Eval_BarClose(v_shift, bias, LAYER_2_MEDIUM);
          if(bc_m == 0 && lookback > 1)
             bc_m = Check_BarClose_MultiBar(v_shift, bias, LAYER_2_MEDIUM, lookback) ? 1 : 0;
@@ -6155,7 +6177,7 @@ public:
          }
       }
 
-      if(m_eval_layer_w == 1 && m_settings.AllowLayer1_Entries) {
+      if(m_eval_layer_w == 1 && m_settings.AllowLayer1_Entries && layerS_dir_ok) {
          int bc_w = Eval_BarClose(v_shift, bias, LAYER_1_WEAK);
          if(bc_w == 0 && lookback > 1)
             bc_w = Check_BarClose_MultiBar(v_shift, bias, LAYER_1_WEAK, lookback) ? 1 : 0;
@@ -6168,7 +6190,10 @@ public:
 
       // No layer passed all checks
       m_last_layer = 0;
-      if(m_eval_layer_w == 0 && m_eval_layer_m == 0 && m_eval_layer_s == 0)
+      if(m_settings.LayerS_RequireDirAlign && !layerS_dir_ok && m_eval_layer_s == 0 &&
+         (m_eval_layer_m == 1 || m_eval_layer_w == 1))
+         m_diag_last_reason = "LAYER_S_DIR_NOT_ALIGNED";
+      else if(m_eval_layer_w == 0 && m_eval_layer_m == 0 && m_eval_layer_s == 0)
          m_diag_last_reason = "LAYER_NONE_ALIGNED";
       else if(!bd_pass)
          m_diag_last_reason = "CandleDir: bar not in trade direction";

@@ -1080,6 +1080,7 @@ input bool        Inp_CUSTOM_BlockUnorderedPhase   = true;           // Override
 input bool        Inp_CUSTOM_BlockEmergingPhase    = false;          // Override: [PH] Block trades while phase is EMERGING
 input bool        Inp_CUSTOM_EnableLayerDetection  = true;          // Override: [LY] Enable EMA-layer detection (L1/L2/L3)
 input bool        Inp_CUSTOM_LayerPullbackEnabled  = false;          // Override: [LY] Enable layer pullback-recovery state machine
+input bool        Inp_Layer_RequireS_DirAlign      = false;          // [LY] Require Layer S (EMA3/EMA4) pos+slope w/ bias to allow M/W entries
 input bool        Inp_CUSTOM_ClimaxGuard_Enabled   = true;           // Override: [CG] Enable climax/exhaustion guard
 input bool        Inp_CUSTOM_VPRR_Enabled          = false;          // Override: [VP] Enable Volume Pullback-Recovery Ratio voter
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1675,6 +1676,7 @@ void InitializeConfig()
 
     Settings.SlopeLookbackBars      = 1;
    Settings.LayerPullbackEnabled        = Inp_CUSTOM_LayerPullbackEnabled;
+   Settings.LayerS_RequireDirAlign      = Inp_Layer_RequireS_DirAlign;
    Settings.LayerBaselineLookback       = 10;     // default; overwritten by ApplyPreset
    // Per-layer pullback-recovery defaults (seed for ALL presets so the shared
    // magnitude logic is safe; RRM_ORG/CUSTOM override these via ApplyPreset).

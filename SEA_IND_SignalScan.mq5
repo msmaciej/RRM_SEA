@@ -110,11 +110,11 @@ input color       Color_EMA1           = C'255,255,100';       // EMA1 color (fa
 input color       Color_EMA2           = C'255,200,50';        // EMA2 color
 input color       Color_EMA3           = C'220,140,0';         // EMA3 color
 input color       Color_EMA4           = C'160,80,0';          // EMA4 color (slowest/darkest)
-input bool        Show_PSAR            = false;                // Draw PSAR dots on chart
-input bool        Show_AllActiveIndicators = false;          // Add every enabled TS_* indicator to chart (add-only; oscillators -> sub-windows)
+input bool        Show_PSAR            = true;                // Draw PSAR dots on chart
+input bool        Show_AllActiveIndicators = true;          // Add every enabled TS_* indicator to chart (add-only; oscillators -> sub-windows)
 
 input group "--- Bar Inspector (drag the SCN_INSPECT line) ---";
-input bool        Scn_Inspect_Enabled  = false;                // Inspector: TS factor breakdown for the marked bar
+input bool        Scn_Inspect_Enabled  = true;                // Inspector: TS factor breakdown for the marked bar
 input color       Scn_Inspect_Color    = clrGold;              // Inspector: marked-line color
 input datetime    Scn_Inspect_Time     = 0;                    // Inspector: start the line at this time (0 = latest bar); then drag to fine-tune
 
@@ -170,7 +170,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input bool TS_ADX                = false;  // [I] ADX trend strength
 input bool TS_ATR                = false;  // [I] ATR volatility range
 input bool TS_BollingerBands     = false;  // [I] Bollinger Bands
-input bool TS_CandleBody         = false;  // [I] CandleBody direction
+input bool TS_CandleBody         = true;  // [I] CandleBody direction
 input bool TS_CCI                = false;  // [I] CCI direction
 input bool TS_CI                 = false;  // [I] Choppiness Index
 input bool   TS_ClimaxGuard      = true;   // [Guard] Block late entries into over-extended impulses
@@ -179,15 +179,16 @@ input int    CG_ATRPeriod        = 14;     // [Guard] ATR baseline period (pre-i
 input double CG_BarATRMult       = 2.0;    // [Guard] Single-bar range threshold (x ATR)
 input double CG_MoveATRMult      = 3.0;    // [Guard] Cumulative move threshold (x ATR)
 input bool   CG_ResetPullback    = true;   // [Guard] On detection reset ALL layer PB states
-input bool TS_DPI                = false;  // [I] DPI momentum
+input bool TS_DPI                = true;  // [I] DPI momentum
 input bool TS_MACD               = false;  // [I] MACD histogram
 input bool TS_MFI                = false;  // [I] MFI money flow
 input bool TS_MTF                = false;  // [I] MTF higher TF alignment
-input bool TS_PSAR               = false;  // [I] PSAR dot position
+input bool TS_PSAR               = true;  // [I] PSAR dot position
 input bool TS_PSAR_Flip          = false;  // [I] PSAR + flip window
 input bool TS_LayerS             = true;   // [L] Pullback-Recovery Layer S: EMA3->EMA4 (strongest)
 input bool TS_LayerM             = true;   // [L] Pullback-Recovery Layer M: EMA2->EMA3 (medium)
 input bool TS_LayerW             = true;   // [L] Pullback-Recovery Layer W: EMA1->EMA2 (weakest)
+input bool Layer_RequireS_DirAlign = false; // [L] Require Layer S (EMA3/EMA4) pos+slope w/ bias to allow M/W entries
 input bool TS_RSI                = false;  // [I] RSI level
 input bool TS_Stochastic         = false;  // [I] Stochastic level
 input bool TS_VPRR               = false;  // [I] VPRR volume (metals/stocks; FX=unreliable)
@@ -544,6 +545,7 @@ string InspCode(string raw)
 {
    if(raw=="") return "";
    if(StringFind(raw,"LAYER_NONE_ALIGNED")>=0) return "ALIGN";
+   if(StringFind(raw,"LAYER_S_DIR")>=0)        return "SDIR";
    if(StringFind(raw,"BC_NOT_CONFIRMED")>=0)   return "BC";
    if(StringFind(raw,"CandleDir")>=0)          return "BD";
    if(StringFind(raw,"MOMENTUM")>=0)           return "MOM";
@@ -910,6 +912,7 @@ void BuildSettings(ST_Settings &s)
 
    // Pullback
    s.LayerPullbackEnabled  = (TS_LayerS || TS_LayerM || TS_LayerW);
+   s.LayerS_RequireDirAlign = Layer_RequireS_DirAlign;
    s.EnableLayerDetection  = (TS_LayerS || TS_LayerM || TS_LayerW);  // engage EvaluateL in shared core
    s.LayerBaselineLookback = PB_Lookback;
    s.LayerBaselineLookback_W = PB_Lookback_W;

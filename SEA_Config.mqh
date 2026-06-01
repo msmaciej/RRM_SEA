@@ -61,7 +61,7 @@
 #define SEA_DEF_DPI_CCI_PRICE         PRICE_TYPICAL
 #define SEA_DEF_DPI_USE_CCI_RESET     true
 #define SEA_DEF_DPI_IGNORE_CCI_VOTE   false
-#define SEA_DEF_DPI_USE_GREEN_HIST    true
+#define SEA_DEF_DPI_USE_GREEN_HIST    false
 #define SEA_DEF_DPI_GROWTH_BOOST      false
 
 // TFToString: returns clean TF label (e.g. "M5", "H1") — EnumToString gives "PERIOD_M5".
@@ -732,6 +732,7 @@ struct ST_Settings
     bool     AllowLayer1_Entries;         // Allow Layer 1 (EMA1/EMA2 touch) entries
     bool     AllowLayer2_Entries;         // Allow Layer 2 (EMA2/EMA3 touch) entries
     bool     AllowLayer3_Entries;         // Allow Layer 3 (EMA3/EMA4 touch) entries
+    bool     LayerS_RequireDirAlign;      // Gate L M/W entries on Layer S (EMA3/EMA4) pos+slope aligned w/ bias
     // Layer Pullback-Recovery Detection
     bool     LayerPullbackEnabled;        // Master enable for pullback detection
     int      LayerBaselineLookback;       // Bars for baseline direction lookback
