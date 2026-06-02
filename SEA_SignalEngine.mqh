@@ -208,6 +208,10 @@ private:
     double              m_layer_m_baseline;   // LayerM baseline slope
     double              m_layer_s_baseline;   // LayerS baseline slope
     datetime            m_layer_pb_last_update; // Last update timestamp
+    // --- 2c.1b PHASE-CHANGE REALIGN RESET (optional) ---
+    EMarketPhase m_phase_reset_pending;   // raw phase currently being debounced
+    EMarketPhase m_phase_reset_confirmed; // last phase that triggered a realign reset
+    int          m_phase_reset_count;     // consecutive bars the pending phase has held
     // --- 2c.2 VPRR VOLUME TRACKING (per layer) ---
     double   m_layer_w_vol_pb_avg, m_layer_m_vol_pb_avg, m_layer_s_vol_pb_avg;     // Running avg pullback volume
     int      m_layer_w_vol_pb_bars, m_layer_m_vol_pb_bars, m_layer_s_vol_pb_bars;  // Bars counted in DETECTED
@@ -1548,6 +1552,37 @@ private:
    }
 
    //+------------------------------------------------------------------+
+   //| MaybeResetLayersOnPhaseChange (optional)                         |
+   //| Clear stale layer pullback-recovery states when the market re-   |
+   //| orders into a new (debounced) phase, so the new phase's first    |
+   //| pullback is evaluated fresh. Debounced by LayerResetPhaseConfirm |
+   //| Bars to ignore 1-bar boundary flicker (set =1 to act on genuine  |
+   //| 1-bar phases such as a brief EMERGING). Symmetric: fires on any   |
+   //| UNO/EM/TM transition and on direction flips (distinct enum vals). |
+   //+------------------------------------------------------------------+
+   void MaybeResetLayersOnPhaseChange(int v_shift)
+   {
+      if(!m_settings.LayerResetOnRealign) return;
+      EMarketPhase ph_now = DetectMarketPhase(v_shift);
+      if(ph_now == m_phase_reset_pending)
+      {
+         if(m_phase_reset_count < 1000000) m_phase_reset_count++;
+      }
+      else
+      {
+         m_phase_reset_pending = ph_now;
+         m_phase_reset_count   = 1;
+      }
+      int confirm_need = m_settings.LayerResetPhaseConfirmBars;
+      if(confirm_need < 1) confirm_need = 1;
+      if(m_phase_reset_count >= confirm_need && m_phase_reset_pending != m_phase_reset_confirmed)
+      {
+         m_phase_reset_confirmed = m_phase_reset_pending;
+         ResetAllLayerPullback();
+      }
+   }
+
+   //+------------------------------------------------------------------+
    //| UpdateLayerPullbackStates -- Update pullback state for all layers|
    //+------------------------------------------------------------------+
    void UpdateLayerPullbackStates(int v_shift)
@@ -1557,6 +1592,8 @@ private:
       datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
       if(m_layer_pb_last_update == bar_time) return;
       m_layer_pb_last_update = bar_time;
+
+      MaybeResetLayersOnPhaseChange(v_shift);
 
       UpdateSingleLayerPullback(h_ema1, v_shift, GetLayerLookback(1), GetLayerRecovery(1),
                                 m_layer_w_pb_state, m_layer_w_baseline, "LayerW",
@@ -3483,6 +3520,9 @@ public:
       // Initialize phase diagnostics
       m_diag_last_phase = PHASE_UNORDERED;
       m_diag_phase_confirm_bars = 0;
+      m_phase_reset_pending   = PHASE_UNORDERED;
+      m_phase_reset_confirmed = PHASE_UNORDERED;
+      m_phase_reset_count     = 0;
 
       m_diag_layer_w      = 0;
       m_diag_layer_m      = 0;
@@ -4364,6 +4404,9 @@ public:
       m_layer_w_pb_state = LAYER_PB_NONE;
       m_layer_m_pb_state = LAYER_PB_NONE;
       m_layer_s_pb_state = LAYER_PB_NONE;
+      m_phase_reset_pending   = PHASE_UNORDERED;
+      m_phase_reset_confirmed = PHASE_UNORDERED;
+      m_phase_reset_count     = 0;
       m_layer_w_vol_pb_avg = 0.0; m_layer_w_vol_pb_bars = 0;
       m_layer_w_vol_rec_avg = 0.0; m_layer_w_vol_rec_bars = 0; m_layer_w_vprr = 0.0;
       m_layer_m_vol_pb_avg = 0.0; m_layer_m_vol_pb_bars = 0;
@@ -4387,6 +4430,8 @@ public:
          // UpdateLayerPullbackStates doesn't skip these historical bars.
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, shift);
          m_layer_pb_last_update = 0;   // reset guard so each bar processes
+
+         MaybeResetLayersOnPhaseChange(shift);
 
          UpdateSingleLayerPullback(h_ema1, shift, lb_w, GetLayerRecovery(1),
                                    m_layer_w_pb_state, m_layer_w_baseline, "LayerW_WU",
@@ -4462,6 +4507,9 @@ public:
       m_te_status_str = "";
       m_diag_last_phase = PHASE_UNORDERED;
       m_diag_phase_confirm_bars = 0;
+      m_phase_reset_pending   = PHASE_UNORDERED;
+      m_phase_reset_confirmed = PHASE_UNORDERED;
+      m_phase_reset_count     = 0;
       m_diag_layer_w = 0;
       m_diag_layer_m = 0;
       m_diag_layer_s = 0;

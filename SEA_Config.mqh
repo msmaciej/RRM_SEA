@@ -733,6 +733,8 @@ struct ST_Settings
     bool     AllowLayer2_Entries;         // Allow Layer 2 (EMA2/EMA3 touch) entries
     bool     AllowLayer3_Entries;         // Allow Layer 3 (EMA3/EMA4 touch) entries
     bool     LayerS_RequireDirAlign;      // Gate L M/W entries on Layer S (EMA3/EMA4) pos+slope aligned w/ bias
+    bool     LayerResetOnRealign;         // Reset all layer PB states on a confirmed market-phase change
+    int      LayerResetPhaseConfirmBars;  // Bars a new phase must hold before it triggers a realign reset
     // Layer Pullback-Recovery Detection
     bool     LayerPullbackEnabled;        // Master enable for pullback detection
     int      LayerBaselineLookback;       // Bars for baseline direction lookback

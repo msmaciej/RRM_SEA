@@ -189,6 +189,8 @@ input bool TS_LayerS             = true;   // [L] Pullback-Recovery Layer S: EMA
 input bool TS_LayerM             = true;   // [L] Pullback-Recovery Layer M: EMA2->EMA3 (medium)
 input bool TS_LayerW             = true;   // [L] Pullback-Recovery Layer W: EMA1->EMA2 (weakest)
 input bool TS_LayerS_Require_DirAlign = true; // [L] Layer S (EMA3/EMA4) pos+slope w/ bias to allow M/W entries
+input bool TS_LayerReset_OnRealign = false; // [L] Reset layer pullback states on confirmed market-phase change
+input int  TS_LayerReset_PhaseConfirm = 2;  // [L]   ^ bars new phase must hold first (1=catch 1-bar phases)
 input bool TS_RSI                = false;  // [I] RSI level
 input bool TS_Stochastic         = false;  // [I] Stochastic level
 input bool TS_VPRR               = false;  // [I] VPRR volume (metals/stocks; FX=unreliable)
@@ -913,6 +915,8 @@ void BuildSettings(ST_Settings &s)
    // Pullback
    s.LayerPullbackEnabled  = (TS_LayerS || TS_LayerM || TS_LayerW);
    s.LayerS_RequireDirAlign = TS_LayerS_Require_DirAlign;
+   s.LayerResetOnRealign = TS_LayerReset_OnRealign;
+   s.LayerResetPhaseConfirmBars = TS_LayerReset_PhaseConfirm;
    s.EnableLayerDetection  = (TS_LayerS || TS_LayerM || TS_LayerW);  // engage EvaluateL in shared core
    s.LayerBaselineLookback = PB_Lookback;
    s.LayerBaselineLookback_W = PB_Lookback_W;
