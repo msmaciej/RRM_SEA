@@ -7,11 +7,11 @@ The Signal Engine evaluates **EVERY condition on the CLOSED candle** (shift=1, t
 
 The core system uses a strict multiplicative formula where unanimous agreement is required. Based on the KISS architecture, the core equation is:
 
-$$TS = Bias \times Layer_{X} \times bc_{X} \times \prod_{i=1}^{n} Ind_{i} \times \prod_{j=1}^{m} Filter_{j}$$
+$$TS = Bias \times Layer_{X} \times bc_{X} \times \prod_{i=1}^{n} Ind_{i} \times \prod_{j=1}^{m} Filter_{j} \times CX$$
 
 Where each factor returns 1 (pass/enabled), 0 (fail), or -1 (contradicts). Any 0 or -1 stops the pipeline.
 
-After all factors pass, a final **Climax (exhaustion) veto** is applied: a fully-aligned signal is still blocked when price has over-extended into a blow-off impulse (single-bar range > `ClimaxGuard_BarATRMult` × ATR, or cumulative move > `ClimaxGuard_MoveATRMult` × ATR, in the trade direction). It is a negative veto checked last — not part of the multiplicative product and not an indicator vote.
+The **Climax (exhaustion) factor `CX`** is the final term of that product. `CX = 0` blocks an otherwise fully-aligned signal when price has over-extended into a blow-off impulse (single-bar range > `ClimaxGuard_BarATRMult` × ATR, or cumulative move > `ClimaxGuard_MoveATRMult` × ATR, in the trade direction). Because the formula is 0/1 AND, `CX = 0` forces `TS = 0` exactly like any other factor — it **multiplies into the product**. It is evaluated **last** and is **not** an indicator vote: it sits outside ∏Ind as its own top-level factor. It re-scans the last `ClimaxGuard_Lookback` bars on every bar (a sliding window, not a stored countdown), so it stays 0 only while the triggering bar is inside that window.
 
 ---
 
@@ -229,6 +229,19 @@ See also:
 - [`PRESET_RRM_ORG` preset flow](README_SEA_PRESETS.md#preset_rrm_org)
 - [DPI `mc_main` EA integration notes](../DPI_mc_main_README.md#ea-integration-preset_rrm_org)
 
+### CandleBody (CB) — Over-Extension Voter
+
+**Purpose:** blocks entries on a bar whose body is abnormally large vs the recent average — a single-bar over-extension filter inside the indicator product ∏Ind.
+
+**Sub-equation:** `CB = CB_body × CBOEB`
+
+- **CB_body** (stateless, per bar): `0` if any of the last `CandleBody_CheckBars` bars has body `|close-open| > CandleBody_MaxMult ×` the average body of the prior `CandleBody_AvgPeriod` bars, in the trade direction. Shift-relative (evaluates the signal bar, never bar 0). Optional close-in-range quality check (`CandleBody_MinCloseRatio`).
+- **CBOEB** (over-extension carry, stateful) — **[PENDING compile]**: once `CB_body` flags an over-extended bar, `CBOEB = 0` and holds the whole CB vote at 0 — so `CB = 1 × 0 = 0` even on a later bar whose own body is fine — until the **first of W/M/S completes a fresh pullback-recovery**, then it returns to 1. Edge-detected so a layer already recovered at trip-time does not clear it instantly. Toggle `CandleBody_CarryOnOverext` (default ON). Advanced once per bar in `UpdateLayerPullbackStates` (and the warmup replay), so live and scanner agree.
+
+CandleBody is independent of the Climax factor `CX`: **CB** measures *body size* inside ∏Ind; **CX** measures *range / cumulative move vs ATR* over a lookback window as its own top-level factor. Neither reads the other. (Neither measures *distance from the EMAs* — a bar far from EMA89 with a normal body and no fresh range spike passes both.)
+
+**Inputs:** `Ind_CandleBody_Enabled`, `CandleBody_AvgPeriod`, `CandleBody_MaxMult`, `CandleBody_CheckBars`, `CandleBody_RequireDirection`, `CandleBody_MinCloseRatio`, `CandleBody_CarryOnOverext` [PENDING].
+
 ---
 
 ## Part 3: Extending the System (Plugin Architecture)
@@ -332,7 +345,7 @@ The signal evaluation pipeline has been drastically simplified:
 
 The formula is now purely multiplicative with clear OR logic for layers:
 ```
-TS = Bias × (LayerW × bcW OR LayerM × bcM OR LayerS × bcS) × Indicators × Filters
+TS = Bias × (LayerW × bcW OR LayerM × bcM OR LayerS × bcS) × Indicators × Filters × CX   (CX = Climax factor)
 ```
 Any Bias=0 or all layers=0 immediately stops the pipeline.
 

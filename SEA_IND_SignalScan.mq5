@@ -220,6 +220,7 @@ input group "--- CandleBody ---"
 input int      CB_AvgPeriod         = 5;           // Avg body period
 input int      CB_CheckBars         = 3;           // Spike check bars
 input double   CB_MaxMult           = 4.0;         // Max body multiplier
+input bool     CB_CarryOnOverext    = true;        // Carry CB=0 from over-ext bar until next layer pullback-recovery
 input group "--- CCI ---"
 input int      CCI_Period           = 20;          // CCI period
 input double   CCI_Level            = 0.0;         // CCI threshold
@@ -980,6 +981,7 @@ void BuildSettings(ST_Settings &s)
    s.CandleBody_AvgPeriod        = CB_AvgPeriod;
    s.CandleBody_CheckBars        = CB_CheckBars;
    s.CandleBody_MaxMult          = CB_MaxMult;
+   s.CandleBody_CarryOnOverext   = CB_CarryOnOverext;
    s.CandleBody_RequireDirection = true;
    s.CandleBody_MinCloseRatio    = 0.0;
 

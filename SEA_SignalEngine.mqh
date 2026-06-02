@@ -212,6 +212,9 @@ private:
     EMarketPhase m_phase_reset_pending;   // raw phase currently being debounced
     EMarketPhase m_phase_reset_confirmed; // last phase that triggered a realign reset
     int          m_phase_reset_count;     // consecutive bars the pending phase has held
+    // --- 2c.1c CANDLEBODY OVER-EXTENSION CARRY (CBOEB, optional) ---
+    bool         m_cb_oeb_blocked;        // CBOEB=0: hold CB vote at 0 (over-extension carry active)
+    bool         m_cb_prev_any_rec;       // prev-bar 'any layer recovered' (fresh-recovery edge)
     // --- 2c.2 VPRR VOLUME TRACKING (per layer) ---
     double   m_layer_w_vol_pb_avg, m_layer_m_vol_pb_avg, m_layer_s_vol_pb_avg;     // Running avg pullback volume
     int      m_layer_w_vol_pb_bars, m_layer_m_vol_pb_bars, m_layer_s_vol_pb_bars;  // Bars counted in DETECTED
@@ -536,7 +539,7 @@ private:
       return GetVal(handle, shift, buffer_num, out_valid);
    }
 
-   int GetMTFBias(const int h_fast, const int h_slow)
+   int GetMTFBias(const int h_fast, const int h_slow, const ENUM_TIMEFRAMES htf, const int m15_shift = 1)
    {
       if(h_fast == INVALID_HANDLE || h_slow == INVALID_HANDLE)
          return 0;
@@ -547,8 +550,16 @@ private:
       ArraySetAsSeries(fast, true);  // ✅ Now valid
       ArraySetAsSeries(slow, true);  // ✅ Now valid
       
-      if(CopyBuffer(h_fast, 0, 0, 2, fast) != 2) return 0;
-      if(CopyBuffer(h_slow, 0, 0, 2, slow) != 2) return 0;
+      // Map the M15 signal bar to the HTF bar that was FULLY CLOSED as of that bar.
+      // hb = HTF bar containing the signal bar's time; hb+1 = the prior HTF bar, which
+      // closed before the signal bar opened -> never the forming HTF bar (no repaint)
+      // and never look-ahead. Cardinal rule: never read shift 0.
+      int mtf_s = (m15_shift < 1) ? 1 : m15_shift;
+      int hb = iBarShift(m_symbol, htf, iTime(m_symbol, PERIOD_CURRENT, mtf_s), false);
+      if(hb < 0) hb = 0;
+      int htf_base = hb + 1;
+      if(CopyBuffer(h_fast, 0, htf_base, 2, fast) != 2) return 0;
+      if(CopyBuffer(h_slow, 0, htf_base, 2, slow) != 2) return 0;
 
       // Legacy compatibility mode: single-EMA slope behavior (old HTF filter)
       if(m_settings.MTF_EMA_Fast == m_settings.MTF_EMA_Slow)
@@ -607,7 +618,7 @@ private:
       }
    }
 
-   int CheckMTFFilter(const int bias, string &reason, string &diag)
+   int CheckMTFFilter(const int bias, string &reason, string &diag, const int m15_shift = 1)
    {
       if(!m_settings.Ind_MTF_Enabled)
       {
@@ -616,7 +627,7 @@ private:
          return +1;
       }
 
-      int mtf_tf1 = GetMTFBias(h_mtf_tf1_fast, h_mtf_tf1_slow);
+      int mtf_tf1 = GetMTFBias(h_mtf_tf1_fast, h_mtf_tf1_slow, m_settings.MTF_TF1, m15_shift);
       string tf1_label = EnumToString(m_settings.MTF_TF1);
 
       bool single_tf_mode = (h_mtf_tf2_fast == INVALID_HANDLE ||
@@ -644,7 +655,7 @@ private:
          return 0;
       }
 
-      int mtf_tf2 = GetMTFBias(h_mtf_tf2_fast, h_mtf_tf2_slow);
+      int mtf_tf2 = GetMTFBias(h_mtf_tf2_fast, h_mtf_tf2_slow, m_settings.MTF_TF2, m15_shift);
       string tf2_label = EnumToString(m_settings.MTF_TF2);
 
       // HTF is a directional gate: with two HTFs configured, BOTH must agree
@@ -674,11 +685,11 @@ private:
    //| Uses the same CheckMTFFilter logic but returns true/false        |
    //| for CAST_VOTE_STAT compatibility.                                |
    //+------------------------------------------------------------------+
-   bool Check_MTF(int bias)
+   bool Check_MTF(int bias, int shift = 1)
    {
       string reason = "";
       string diag   = "";
-      return (CheckMTFFilter(bias, reason, diag) != 0);
+      return (CheckMTFFilter(bias, reason, diag, shift) != 0);
    }
 
    // Version 1: No error reporting (backward compatible)
@@ -1084,7 +1095,11 @@ private:
       if(IsCacheValidForShift(shift) && m_ind_cache.candlebody_result != -1)
          return (m_ind_cache.candlebody_result == 1);
 
-      bool pass = CheckCandleBodyIndicator(bias);
+      bool pass = CheckCandleBodyIndicator(bias, shift);
+      // CBOEB carry: hold the vote at 0 from an over-extended bar until the next
+      // layer pullback-recovery clears it (CB = body * CBOEB).
+      if(m_settings.Ind_CandleBody_Enabled && m_settings.CandleBody_CarryOnOverext && m_cb_oeb_blocked)
+         pass = false;
       m_ind_cache.candlebody_result = pass ? 1 : 0;
       
       if(m_settings.DebugFlow) {
@@ -1585,6 +1600,53 @@ private:
    //+------------------------------------------------------------------+
    //| UpdateLayerPullbackStates -- Update pullback state for all layers|
    //+------------------------------------------------------------------+
+   //+------------------------------------------------------------------+
+   //| CB_BodyOverExtended -- bias-agnostic body-spike at `shift`        |
+   //| (the over-extension core of CandleBody; no direction/close-ratio).|
+   //+------------------------------------------------------------------+
+   bool CB_BodyOverExtended(int shift)
+   {
+      int base = (shift < 1) ? 1 : shift;
+      int period = m_settings.CandleBody_AvgPeriod;
+      if(period < 1) period = 1;
+      double sum_body = 0.0;
+      for(int i = base + 1; i < base + 1 + period; i++)
+         sum_body += MathAbs(iClose(m_symbol, PERIOD_CURRENT, i) - iOpen(m_symbol, PERIOD_CURRENT, i));
+      double avg_body = sum_body / period;
+      for(int i = base; i < base + m_settings.CandleBody_CheckBars; i++)
+      {
+         double body = MathAbs(iClose(m_symbol, PERIOD_CURRENT, i) - iOpen(m_symbol, PERIOD_CURRENT, i));
+         if(body > avg_body * m_settings.CandleBody_MaxMult) return true;
+      }
+      return false;
+   }
+
+   //+------------------------------------------------------------------+
+   //| UpdateCBOverExtCarry (CBOEB) -- stateful CandleBody carry.        |
+   //| When CB flags an over-extended bar, hold the CB vote at 0 until   |
+   //| the next layer pullback-recovery (first of W/M/S to RECOVER).     |
+   //| Edge-detected so a layer already recovered at trip-time does not  |
+   //| clear it. Runs once per bar AFTER the layer states are current,   |
+   //| so live and scanner advance identically.                         |
+   //+------------------------------------------------------------------+
+   void UpdateCBOverExtCarry(int v_shift)
+   {
+      if(!m_settings.Ind_CandleBody_Enabled || !m_settings.CandleBody_CarryOnOverext)
+      {
+         m_cb_oeb_blocked = false;
+         return;
+      }
+      bool any_rec = (m_layer_w_pb_state == LAYER_PB_RECOVERED
+                   || m_layer_m_pb_state == LAYER_PB_RECOVERED
+                   || m_layer_s_pb_state == LAYER_PB_RECOVERED);
+      bool fresh_rec = any_rec && !m_cb_prev_any_rec;
+      if(CB_BodyOverExtended(v_shift))
+         m_cb_oeb_blocked = true;                 // (re)arm on an over-extended bar
+      else if(m_cb_oeb_blocked && fresh_rec)
+         m_cb_oeb_blocked = false;                // clear on the next pullback-recovery
+      m_cb_prev_any_rec = any_rec;
+   }
+
    void UpdateLayerPullbackStates(int v_shift)
    {
       if(!m_settings.LayerPullbackEnabled) return;
@@ -1607,6 +1669,8 @@ private:
                                 m_layer_s_pb_state, m_layer_s_baseline, "LayerS",
                                 m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                 m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr);
+
+      UpdateCBOverExtCarry(v_shift);
    }
 
    //+------------------------------------------------------------------+
@@ -3173,7 +3237,7 @@ public:
    bool   Scanner_Check_DPI(int bias, int shift) { return Check_DPI(bias, shift); }
    bool   Scanner_Check_PSAR(int bias, int shift){ return Check_PSAR(bias, shift); }
    bool   Scanner_Check_PSAR_Flip(int bias, int shift) { return Check_PSAR_WithFlip(bias, shift); }
-   bool   Scanner_Check_MTF(int bias)            { return Check_MTF(bias); }
+   bool   Scanner_Check_MTF(int bias, int shift = 1) { return Check_MTF(bias, shift); }
    bool   Scanner_Check_ADX(int shift)           { return Check_ADX(shift); }
    bool   Scanner_Check_ATR(int bias, int shift) { return Check_ATR(bias, shift); }
    bool   Scanner_Check_BB(int bias, int shift)  { return Check_BB(bias, shift); }
@@ -3358,7 +3422,7 @@ public:
       }
 
       int base_bias = m_diag_last_bias;
-      int tf1_bias  = GetMTFBias(h_mtf_tf1_fast, h_mtf_tf1_slow);
+      int tf1_bias  = GetMTFBias(h_mtf_tf1_fast, h_mtf_tf1_slow, m_settings.MTF_TF1, 1);
       int tf2_bias  = 0;
 
       bool single_tf_mode = (h_mtf_tf2_fast == INVALID_HANDLE ||
@@ -3366,7 +3430,7 @@ public:
                              m_settings.MTF_TF2 == m_settings.MTF_TF1);
 
       if(!single_tf_mode)
-         tf2_bias = GetMTFBias(h_mtf_tf2_fast, h_mtf_tf2_slow);
+         tf2_bias = GetMTFBias(h_mtf_tf2_fast, h_mtf_tf2_slow, m_settings.MTF_TF2, 1);
 
       int idx = 0;
       string up = ShortToString(0x25B2);   // ▲
@@ -3523,6 +3587,8 @@ public:
       m_phase_reset_pending   = PHASE_UNORDERED;
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
+      m_cb_oeb_blocked  = false;
+      m_cb_prev_any_rec = false;
 
       m_diag_layer_w      = 0;
       m_diag_layer_m      = 0;
@@ -4407,6 +4473,8 @@ public:
       m_phase_reset_pending   = PHASE_UNORDERED;
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
+      m_cb_oeb_blocked  = false;
+      m_cb_prev_any_rec = false;
       m_layer_w_vol_pb_avg = 0.0; m_layer_w_vol_pb_bars = 0;
       m_layer_w_vol_rec_avg = 0.0; m_layer_w_vol_rec_bars = 0; m_layer_w_vprr = 0.0;
       m_layer_m_vol_pb_avg = 0.0; m_layer_m_vol_pb_bars = 0;
@@ -4445,6 +4513,8 @@ public:
                                    m_layer_s_pb_state, m_layer_s_baseline, "LayerS_WU",
                                    m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                    m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr);
+
+         UpdateCBOverExtCarry(shift);
 
          m_layer_pb_last_update = bar_time;   // mark this bar as processed
       }
@@ -4510,6 +4580,8 @@ public:
       m_phase_reset_pending   = PHASE_UNORDERED;
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
+      m_cb_oeb_blocked  = false;
+      m_cb_prev_any_rec = false;
       m_diag_layer_w = 0;
       m_diag_layer_m = 0;
       m_diag_layer_s = 0;
@@ -4927,13 +4999,18 @@ public:
    }
 
    // --- 9b. CANDLE BODY OVEREXTENSION INDICATOR (voting) ---
-   bool CheckCandleBodyIndicator(int bias) {
+   bool CheckCandleBodyIndicator(int bias, int shift = 1) {
       if(!m_settings.Ind_CandleBody_Enabled) return true;
 
-      // Calculate average body over past N bars (starting at shift 2 to exclude current bar)
+      // Cardinal rule: evaluate the SIGNAL BAR (shift), never bar 0. At shift=1
+      // this reproduces the original bars 1..6 exactly (live EA unchanged); for
+      // shift>1 it offsets every read off `base` so scanner/replay is correct.
+      int base = (shift < 1) ? 1 : shift;
+
+      // Average body over the N bars BEFORE the signal bar (base+1 .. base+period)
       double sum_body = 0.0;
       int    period   = m_settings.CandleBody_AvgPeriod;
-      for(int i = 2; i < period + 2; i++)
+      for(int i = base + 1; i < base + 1 + period; i++)
       {
          double o = iOpen(m_symbol, PERIOD_CURRENT, i);
          double c = iClose(m_symbol, PERIOD_CURRENT, i);
@@ -4941,8 +5018,8 @@ public:
       }
       double avg_body = sum_body / period;
 
-      // Check the most recent closed candles for overextension
-      for(int i = 1; i <= m_settings.CandleBody_CheckBars; i++)
+      // Check the signal bar + recent closed candles for overextension (base .. base+CheckBars-1)
+      for(int i = base; i < base + m_settings.CandleBody_CheckBars; i++)
       {
          double o    = iOpen(m_symbol, PERIOD_CURRENT, i);
          double c    = iClose(m_symbol, PERIOD_CURRENT, i);
@@ -4959,9 +5036,9 @@ public:
       // SHORT: (high - close) / (high - low) >= MinCloseRatio
       if(m_settings.CandleBody_MinCloseRatio > 0.0)
       {
-         double h = iHigh(m_symbol, PERIOD_CURRENT, 1);
-         double l = iLow(m_symbol, PERIOD_CURRENT, 1);
-         double c = iClose(m_symbol, PERIOD_CURRENT, 1);
+         double h = iHigh(m_symbol, PERIOD_CURRENT, base);
+         double l = iLow(m_symbol, PERIOD_CURRENT, base);
+         double c = iClose(m_symbol, PERIOD_CURRENT, base);
          double range = h - l;
 
          if(range > 0.0)
@@ -5683,7 +5760,7 @@ public:
       CAST_VOTE_STAT(m_settings.Ind_SmaConverge_Enabled, Check_SmaConverge(v_shift),      m_stats.rejected_sma_converge, m_stats.passed_sma_converge)
       CAST_VOTE_STAT(m_settings.Ind_Dpi_Enabled,         Check_DPI(bias, v_shift),         m_stats.rejected_dpi,          m_stats.passed_dpi)
       CAST_VOTE_STAT(m_settings.Ind_Fib_Enabled,         Check_Fib(bias, v_shift),         m_stats.rejected_fib,          m_stats.passed_fib)
-      CAST_VOTE_STAT(m_settings.Ind_MTF_Enabled,         Check_MTF(bias),                  m_stats.rejected_mtf,          m_stats.passed_mtf)
+      CAST_VOTE_STAT(m_settings.Ind_MTF_Enabled,         Check_MTF(bias, v_shift),                  m_stats.rejected_mtf,          m_stats.passed_mtf)
       CAST_VOTE_STAT(m_settings.VPRR_Enabled,            Check_VPRR(v_shift),              m_stats.rejected_vprr,         m_stats.passed_vprr)
       #undef CAST_VOTE_STAT
 
@@ -5706,7 +5783,7 @@ public:
       if(m_settings.Ind_CandleBody_Enabled)  { s_enabled++; if(Check_CandleBody(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_CI_Enabled)          { s_enabled++; if(Check_CI(bias, v_shift)) s_passed++; }
       if(m_settings.Ind_VRC_Enabled)         { s_enabled++; if(Check_VRC(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_MTF_Enabled)         { s_enabled++; if(Check_MTF(bias)) s_passed++; }
+      if(m_settings.Ind_MTF_Enabled)         { s_enabled++; if(Check_MTF(bias, v_shift)) s_passed++; }
       if(m_settings.VPRR_Enabled)            { s_enabled++; if(Check_VPRR(v_shift)) s_passed++; }
 
       // Always use indicator pass count for display (vote_pass counts enabled indicators that passed)
@@ -5902,7 +5979,7 @@ public:
                fails += StringFormat("DPI:%s(h=%+.3f) ", dsub, m_ind_cache.dpi_diag_hist);
             }
             if(m_settings.Ind_CandleBody_Enabled && !Check_CandleBody(bias, v_shift)) fails += "CBODY ";
-            if(m_settings.Ind_MTF_Enabled && !Check_MTF(bias)) fails += "MTF ";
+            if(m_settings.Ind_MTF_Enabled && !Check_MTF(bias, v_shift)) fails += "MTF ";
             if(m_settings.Ind_Adx_Enabled && !Check_ADX(v_shift)) fails += "ADX ";
             if(m_settings.Ind_Macd_Enabled && !Check_MACD(bias, v_shift)) fails += "MACD ";
             if(m_settings.Ind_Cci_Enabled && !Check_CCI(bias, v_shift)) fails += "CCI ";

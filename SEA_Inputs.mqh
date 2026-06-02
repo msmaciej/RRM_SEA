@@ -1142,6 +1142,7 @@ input int         Inp_CUSTOM_Ind_CandleBody_AvgPeriod  = 5;          // Ind [CBo
 input int         Inp_CUSTOM_Ind_CandleBody_CheckBars  = 3;          // Ind [CBody]: Bars to check
 input double      Inp_CUSTOM_Ind_CandleBody_MaxMult    = 4.0;        // Ind [CBody]: Max body multiplier
 input double      Inp_CUSTOM_Ind_CandleBody_MinCloseRatio = 0.0;         // Ind [CBody]: Min close ratio (0=off, 0.75=TopInvestor)
+input bool        Inp_CUSTOM_Ind_CandleBody_CarryOnOverext = true;       // Ind [CBody]: carry CB=0 over-ext until next layer pullback-recovery
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 CCI (Commodity Channel Index - Momentum Oscilator)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1444,6 +1445,7 @@ void InitializeConfig()
 
    // CandleBody close-ratio extension
    Settings.CandleBody_MinCloseRatio = MathMax(0.0, MathMin(1.0, Inp_CUSTOM_Ind_CandleBody_MinCloseRatio));
+   Settings.CandleBody_CarryOnOverext = Inp_CUSTOM_Ind_CandleBody_CarryOnOverext;
 
    // TRAIL_EMA period
    Settings.TrailEMA_Period           = MathMax(0, Inp_CUSTOM_TrailEMA_Period);

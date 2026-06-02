@@ -420,6 +420,7 @@ struct ST_Settings
    int    CandleBody_CheckBars;        // Number of recent closed candles to check
    bool   CandleBody_RequireDirection; // CandleBody: Require signal bar to close in trade direction
    double CandleBody_MinCloseRatio;   // CandleBody: Min close-to-range ratio (0.0=disabled, 0.75=TopInvestor 75% rule)
+   bool   CandleBody_CarryOnOverext;  // CandleBody: hold CB vote at 0 from an over-extended bar until next layer pullback-recovery
    
    // MT5 Moving Average benchmark compatibility
    bool   UseMACompatSizer;
