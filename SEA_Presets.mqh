@@ -1005,6 +1005,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.LayerPullbackRatio       = SEA_DEF_LAYER_PULLBACK_RATIO;
       cfg.LayerFlatRatio           = SEA_DEF_LAYER_FLAT_RATIO;
       cfg.LayerRecoveryRatio       = SEA_DEF_LAYER_RECOVERY_RATIO;
+      cfg.LayerRecoveryOnSlope     = false;
       cfg.LayerRecoveryRatio_W     = SEA_DEF_LAYER_RECOVERY_W;
       cfg.LayerRecoveryRatio_M     = SEA_DEF_LAYER_RECOVERY_M;
       cfg.LayerRecoveryRatio_S     = SEA_DEF_LAYER_RECOVERY_S;
@@ -2230,6 +2231,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.LayerPullbackRatio          = MathMax(0.01, Inp_RRM_ORG_LayerPBPullbackRatio);
       cfg.LayerFlatRatio              = MathMax(0.0,  Inp_RRM_ORG_LayerPBFlatRatio);
       cfg.LayerRecoveryRatio          = MathMax(0.01, Inp_RRM_ORG_LayerPBRecoveryRatio);
+      cfg.LayerRecoveryOnSlope        = Inp_RRM_ORG_LayerPB_RecoveryOnSlope;
       cfg.LayerRecoveryRatio_W        = Inp_RRM_ORG_RecoveryRatio_W;   // -1 = use global
       cfg.LayerRecoveryRatio_M        = Inp_RRM_ORG_RecoveryRatio_M;
       cfg.LayerRecoveryRatio_S        = Inp_RRM_ORG_RecoveryRatio_S;
@@ -2437,6 +2439,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Percentage-based alternative: if user set EmaFan_MaxPct > 0, use it instead.
       // This works universally across all instruments without multipliers.
       cfg.EmaFanMaxPct              = MathMax(0.0, Inp_RRM_ORG_EmaFan_MaxPct);
+      cfg.PriceExtFilterEnabled     = Inp_RRM_ORG_PriceExtFilter;
+      cfg.PriceExtRefEma            = (int)MathMax(1, MathMin(4, Inp_RRM_ORG_PriceExtRefEma));
+      cfg.PriceExtMaxATR            = MathMax(0.0, Inp_RRM_ORG_PriceExtMaxATR);
+      cfg.PriceExtAtrPeriod         = (int)MathMax(1, Inp_RRM_ORG_PriceExtAtrPeriod);
       if(cfg.EmaFanMaxPct > 0.0)
       {
          PrintFormat("📐 [EMA_FAN] Using percentage mode: %.3f%% (overrides pip-based threshold %.1f)",

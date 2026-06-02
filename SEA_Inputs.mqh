@@ -778,6 +778,7 @@ input int         Inp_RRM_ORG_LayerPBLookback_M    = SEA_DEF_LAYER_LB_M;        
 input int         Inp_RRM_ORG_LayerPBLookback_S    = SEA_DEF_LAYER_LB_S;            // RRM ORG PB: LayerS baseline lookback (slow/stable)
 input double      Inp_RRM_ORG_LayerPBPullbackRatio = SEA_DEF_LAYER_PULLBACK_RATIO;  // RRM ORG PB: Pullback threshold (|ratio|<this = weakened)
 input double      Inp_RRM_ORG_LayerPBRecoveryRatio = SEA_DEF_LAYER_RECOVERY_RATIO;  // RRM ORG PB: Global recovery threshold (fallback)
+input bool        Inp_RRM_ORG_LayerPB_RecoveryOnSlope = false;        // RRM ORG PB: recover on slope resume+re-accel (t1; not magnitude)
 input double      Inp_RRM_ORG_LayerPBFlatRatio     = SEA_DEF_LAYER_FLAT_RATIO;      // RRM ORG PB: Flat threshold (|ratio|<this = flat)
 input bool        Inp_RRM_ORG_LayerPBAllowReversal = SEA_DEF_LAYER_ALLOW_REVERSAL;  // RRM ORG PB: Count slope reversal as pullback
 input double      Inp_RRM_ORG_RecoveryRatio_W      = SEA_DEF_LAYER_RECOVERY_W;      // RRM ORG PB: LayerW recovery override (-1=use global)
@@ -796,6 +797,10 @@ input double      Inp_RRM_ORG_EmaFan_H1Pips        = 60.0;           // RRM ORG 
 input double      Inp_RRM_ORG_EmaFan_H4Pips        = 100.0;          // RRM ORG Fan: pips H4
 input double      Inp_RRM_ORG_EmaFan_DailyPips     = 180.0;          // RRM ORG Fan: pips D1+
 input double      Inp_RRM_ORG_EmaFan_MaxPct        = 0.0;            // RRM ORG Fan: max gap % of price (>0 overrides pips; universal for all instruments)
+input bool        Inp_RRM_ORG_PriceExtFilter       = false;          // RRM ORG OverExt: price-distance-from-EMA filter
+input int         Inp_RRM_ORG_PriceExtRefEma       = 3;              // RRM ORG OverExt: ref EMA 1..4 (1=5 2=13 3=34 4=89)
+input double      Inp_RRM_ORG_PriceExtMaxATR       = 2.5;            // RRM ORG OverExt: block if |close-refEMA| > this x ATR
+input int         Inp_RRM_ORG_PriceExtAtrPeriod    = 14;             // RRM ORG OverExt: ATR period for distance
 input double      Inp_RRM_ORG_JpyGateMultiplier    = 1.3;            // RRM ORG Fan: JPY Gate Multiplier (1.0=disabled)
 
 input group " ";
@@ -1692,6 +1697,7 @@ void InitializeConfig()
    Settings.LayerPullbackRatio          = SEA_DEF_LAYER_PULLBACK_RATIO;
    Settings.LayerFlatRatio              = SEA_DEF_LAYER_FLAT_RATIO;
    Settings.LayerRecoveryRatio          = SEA_DEF_LAYER_RECOVERY_RATIO;
+   Settings.LayerRecoveryOnSlope        = false;  // default; overwritten by ApplyPreset
    Settings.LayerRecoveryRatio_W        = -1.0;  // -1 = use global
    Settings.LayerRecoveryRatio_M        = -1.0;
    Settings.LayerRecoveryRatio_S        = -1.0;
@@ -1734,6 +1740,10 @@ void InitializeConfig()
    Settings.EmaFanFilterEnabled   = false;   // default; overwritten by ApplyPreset
    Settings.EmaFanMaxTotalPips    = 60.0;    // default; overwritten by ApplyPreset
    Settings.EmaFanMaxPct          = 0.0;     // default; overwritten by ApplyPreset
+   Settings.PriceExtFilterEnabled = false;   // default; overwritten by ApplyPreset
+   Settings.PriceExtRefEma        = 3;        // default; overwritten by ApplyPreset
+   Settings.PriceExtMaxATR        = 2.5;      // default; overwritten by ApplyPreset
+   Settings.PriceExtAtrPeriod     = 14;       // default; overwritten by ApplyPreset
 
    // DPI momentum deceleration filter: disabled by default (presets override)
    Settings.DpiDecelFilterEnabled = Inp_RRM_ORG_DPI_Decel_Filter;

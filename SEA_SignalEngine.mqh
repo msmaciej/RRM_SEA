@@ -1479,7 +1479,25 @@ private:
       //    slower layers confirm on less momentum).
       bool is_recovery = false;
       if(state == LAYER_PB_DETECTED)
-         is_recovery = (baseline_bullish == current_bullish) && (ratio >= recovery_ratio);
+      {
+         if(m_settings.LayerRecoveryOnSlope)
+         {
+            // t1 slope-based recovery: fire the bar the fast EMA slope RESUMES and
+            // RE-ACCELERATES in the trend direction, instead of waiting for the magnitude
+            // ratio to climb back to recovery_ratio (which lands one bar late). The
+            // re-accel guard (pace steeper than the previous bar) keeps it off a single
+            // flat tick, so it is not the raw 1-bar slope you rejected.
+            double ema_now1  = GetMAVal(fast_ema_handle, v_shift + 1);
+            double ema_kago1 = GetMAVal(fast_ema_handle, v_shift + 1 + k);
+            double prev_pace = (ema_now1 - ema_kago1) / (double)k;
+            bool   reaccel   = (MathAbs(current_pace) > MathAbs(prev_pace));
+            is_recovery = (baseline_bullish == current_bullish) && reaccel && (current_pace != 0.0);
+         }
+         else
+         {
+            is_recovery = (baseline_bullish == current_bullish) && (ratio >= recovery_ratio);
+         }
+      }
 
       ELayerPullbackState prev_state = state;
       if(state == LAYER_PB_NONE && is_pullback)
@@ -3299,6 +3317,25 @@ public:
                double gap_prev = MathAbs(e1_2 - e4_2) / pip;
                if(gap_now > m_settings.EmaFanMaxTotalPips && gap_now > gap_prev) { m_last_f_reason = "EMA_OVEREXT"; return false; }
             }
+         }
+      }
+
+      // -- Price over-extension: distance of close from a reference EMA (ATR units) --
+      //    Blocks late entries where price is stretched far from the trend mean in the
+      //    bias direction -- the dimension EMA-fan width, CandleBody and Climax all miss.
+      if(m_settings.PriceExtFilterEnabled && m_settings.PriceExtMaxATR > 0.0)
+      {
+         int rh = h_ema3;
+         if(m_settings.PriceExtRefEma == 1)      rh = h_ema1;
+         else if(m_settings.PriceExtRefEma == 2) rh = h_ema2;
+         else if(m_settings.PriceExtRefEma == 4) rh = h_ema4;
+         double pe_ref = GetMAVal(rh, shift);
+         double pe_atr = ManualATR(m_settings.PriceExtAtrPeriod, shift);
+         double pe_cls = iClose(m_symbol, PERIOD_CURRENT, shift);
+         if(pe_ref > 0.0 && pe_atr > 0.0 && pe_cls > 0.0)
+         {
+            double pe_dist = (bias == 1) ? (pe_cls - pe_ref) : (pe_ref - pe_cls);  // +ve = stretched in bias dir
+            if(pe_dist > m_settings.PriceExtMaxATR * pe_atr) { m_last_f_reason = "PRICE_OVEREXT"; return false; }
          }
       }
 

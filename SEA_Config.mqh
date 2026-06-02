@@ -747,6 +747,7 @@ struct ST_Settings
     double   LayerPullbackRatio;          // |slope ratio| below this = pullback (weakened)
     double   LayerFlatRatio;              // |slope ratio| below this = flat
     double   LayerRecoveryRatio;          // Global recovery threshold (fallback)
+   bool     LayerRecoveryOnSlope;        // t1: recover on slope resume+re-accel (not magnitude ratio)
     double   LayerRecoveryRatio_W;        // LayerW recovery override (-1 = use global)
     double   LayerRecoveryRatio_M;        // LayerM recovery override (-1 = use global)
     double   LayerRecoveryRatio_S;        // LayerS recovery override (-1 = use global)
@@ -818,6 +819,12 @@ struct ST_Settings
    bool   EmaFanFilterEnabled;
    double EmaFanMaxTotalPips;
    double EmaFanMaxPct;            // Max EMA1-EMA4 gap as % of price (0=use pips mode)
+   // Price over-extension: distance of CLOSE from a reference EMA in ATR units.
+   // Blocks late/stretched entries that EMA-fan width, CandleBody and Climax miss.
+   bool   PriceExtFilterEnabled;  // master enable (default false = no-op)
+   int    PriceExtRefEma;         // reference EMA: 1=EMA1 2=EMA2 3=EMA3 4=EMA4
+   double PriceExtMaxATR;         // block if |close-refEMA| > this * ATR (bias dir)
+   int    PriceExtAtrPeriod;      // ATR period for the distance yardstick
 
    // DPI momentum deceleration filter — block TS=1 when directionally-aligned DPI histogram shrinks
    // Only activates when DpiDecelFilterEnabled=true AND Ind_Dpi_Enabled=true.
