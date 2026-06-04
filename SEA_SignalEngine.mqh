@@ -6581,10 +6581,18 @@ public:
       else
          out_macd_agree = (hist >= 0.0);
 
-      // ── Ribbon COLOUR (canonical §3) — lifted VERBATIM from SEA_IND_DPI_mc_main.mq5
-      //    (lines 480-488). Mapping: InpEnableCCI ↔ (DPI_UseCCIReset && !DPI_IgnoreCCIForVote);
-      //    g_CCI[i] ↔ cci_v. With CCI in colour → colour = sign(CCI); else colour = sign(hist).
-      bool cci_in_colour = (m_settings.DPI_UseCCIReset && !m_settings.DPI_IgnoreCCIForVote);
+      // ── Ribbon COLOUR — must reproduce SEA_IND_DPI_mc_main.mq5 (lines 480-487) EXACTLY.
+      //    The indicator gates CCI-in-colour on InpEnableCCI (default TRUE), giving
+      //    colour = sign(CCI). The engine-equivalent of InpEnableCCI is "CCI is not
+      //    explicitly ignored" = !DPI_IgnoreCCIForVote.
+      //    BUGFIX: this previously also required DPI_UseCCIReset (default FALSE), so the
+      //    engine computed colour = sign(hist) while the painted ribbon used sign(CCI).
+      //    The two disagreed whenever hist and CCI sat on opposite sides of zero
+      //    (e.g. hist≈-0.000 but CCI bullish → ribbon YELLOW yet engine read SHORT,
+      //    producing false "DPI:DIR" blocks). DPI_UseCCIReset governs the RESET state
+      //    machine, not the colour, so it is no longer ANDed in here. With CCI in
+      //    colour → colour = sign(CCI); else (IgnoreCCIForVote=true) → colour = sign(hist).
+      bool cci_in_colour = !m_settings.DPI_IgnoreCCIForVote;   // ↔ indicator InpEnableCCI
       if(hist >= 0.0)
          out_hist_wants_yellow = !(cci_in_colour && cci_v <  0.0);
       else
