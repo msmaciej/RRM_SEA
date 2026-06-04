@@ -1667,21 +1667,34 @@ private:
    //| CB_BodyOverExtended -- bias-agnostic body-spike at `shift`        |
    //| (the over-extension core of CandleBody; no direction/close-ratio).|
    //+------------------------------------------------------------------+
-   bool CB_BodyOverExtended(int shift)
+   bool CB_BodyOverExtended(int shift) { return CB_IsSpike(shift); }
+
+   //+------------------------------------------------------------------+
+   //| CB_IsSpike — the ONE correct over-extension (spike) test.        |
+   //|                                                                   |
+   //| A bar is a "spike" when its full range (high-low) exceeds        |
+   //| SpikeMult × ATR(N), where ATR is measured over the N bars        |
+   //| BEFORE the signal bar. ATR is a STABLE volatility reference that |
+   //| does NOT collapse during consolidation — so a normal breakout    |
+   //| candle (~1.5-2.5×ATR) PASSES, while a genuine news spike or      |
+   //| blow-off (~4-6×ATR) is REJECTED. Self-scaling ATR makes this     |
+   //| robust across every timeframe and instrument, unlike the old     |
+   //| "body vs recent-average-body" rule which collapsed out of a      |
+   //| consolidation and vetoed the very breakouts the RRM method takes.|
+   //|                                                                   |
+   //| Evaluates the SIGNAL BAR only (one bar = one spike). Reuses the   |
+   //| existing CandleBody knobs so no new inputs are needed:            |
+   //|    CandleBody_AvgPeriod → ATR period N      (use ~14-20)          |
+   //|    CandleBody_MaxMult   → SpikeMult (× ATR) (use ~3)              |
+   //+------------------------------------------------------------------+
+   bool CB_IsSpike(int shift)
    {
       int base = (shift < 1) ? 1 : shift;
-      int period = m_settings.CandleBody_AvgPeriod;
-      if(period < 1) period = 1;
-      double sum_body = 0.0;
-      for(int i = base + 1; i < base + 1 + period; i++)
-         sum_body += MathAbs(iClose(m_symbol, PERIOD_CURRENT, i) - iOpen(m_symbol, PERIOD_CURRENT, i));
-      double avg_body = sum_body / period;
-      for(int i = base; i < base + m_settings.CandleBody_CheckBars; i++)
-      {
-         double body = MathAbs(iClose(m_symbol, PERIOD_CURRENT, i) - iOpen(m_symbol, PERIOD_CURRENT, i));
-         if(body > avg_body * m_settings.CandleBody_MaxMult) return true;
-      }
-      return false;
+      int n    = (m_settings.CandleBody_AvgPeriod < 1) ? 1 : m_settings.CandleBody_AvgPeriod;
+      double atr = ManualATR(n, base + 1);   // volatility of the bars BEFORE the signal bar
+      if(atr <= 0.0) return false;           // no baseline yet → never block
+      double rng = iHigh(m_symbol, PERIOD_CURRENT, base) - iLow(m_symbol, PERIOD_CURRENT, base);
+      return (rng > m_settings.CandleBody_MaxMult * atr);
    }
 
    //+------------------------------------------------------------------+
@@ -5089,28 +5102,13 @@ public:
       // shift>1 it offsets every read off `base` so scanner/replay is correct.
       int base = (shift < 1) ? 1 : shift;
 
-      // Average body over the N bars BEFORE the signal bar (base+1 .. base+period)
-      double sum_body = 0.0;
-      int    period   = m_settings.CandleBody_AvgPeriod;
-      for(int i = base + 1; i < base + 1 + period; i++)
-      {
-         double o = iOpen(m_symbol, PERIOD_CURRENT, i);
-         double c = iClose(m_symbol, PERIOD_CURRENT, i);
-         sum_body += MathAbs(c - o);
-      }
-      double avg_body = sum_body / period;
-
-      // Check the signal bar + recent closed candles for overextension (base .. base+CheckBars-1)
-      for(int i = base; i < base + m_settings.CandleBody_CheckBars; i++)
-      {
-         double o    = iOpen(m_symbol, PERIOD_CURRENT, i);
-         double c    = iClose(m_symbol, PERIOD_CURRENT, i);
-         double body = MathAbs(c - o);
-         if(body > avg_body * m_settings.CandleBody_MaxMult)
-         {
-            return false;
-         }
-      }
+      // ── Over-extension (spike) guard — ATR-based, signal bar only. ─────────
+      //    Rejects only genuine spikes (range > SpikeMult × ATR of the prior
+      //    bars); normal breakout candles pass. See CB_IsSpike for the rationale
+      //    and which knobs map to N / SpikeMult. CandleBody_CheckBars is no
+      //    longer used by the spike test (a spike is a single bar).
+      if(CB_IsSpike(base))
+         return false;
 
       // Close-ratio quality filter (TopInvestor 75% rule)
       // Signal bar close must be in the "strong" portion of its range.

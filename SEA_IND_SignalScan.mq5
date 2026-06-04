@@ -157,7 +157,7 @@ input bool TS_BollingerBands     = false;  // [I] Bollinger Bands
 input bool TS_CandleBody         = true;  // [I] CandleBody direction
 input bool TS_CCI                = false;  // [I] CCI direction
 input bool TS_CI                 = false;  // [I] Choppiness Index
-input bool   TS_ClimaxGuard      = false;   // [Guard] Block late entries into over-extended impulses
+input bool   TS_ClimaxGuard      = true;   // [Guard] Block late entries into over-extended impulses
 input int    CG_Lookback         = 13;      // [Guard] Window (bars) scanned for an impulse
 input int    CG_ATRPeriod        = 14;     // [Guard] ATR baseline period (pre-impulse)
 input double CG_BarATRMult       = 2.0;    // [Guard] Single-bar range threshold (x ATR)
@@ -174,7 +174,7 @@ input bool TS_LayerM             = true;   // [L] Pullback-Recovery Layer M: EMA
 input bool TS_LayerW             = true;   // [L] Pullback-Recovery Layer W: EMA1->EMA2 (weakest)
 input bool TS_LayerS_Require_DirAlign = true; // [L] Layer S (EMA3/EMA4) pos+slope w/ bias to allow M/W entries
 input bool TS_LayerReset_OnRealign = false; // [L] Reset layer pullback states on confirmed market-phase change
-input int  TS_LayerReset_PhaseConfirm = 1;  // [L]   ^ bars new phase must hold first (1=catch 1-bar phases)
+input int  TS_LayerReset_PhaseConfirm = 2;  // [L]   ^ bars new phase must hold first (1=catch 1-bar phases)
 input bool TS_RSI                = false;  // [I] RSI level
 input bool TS_Stochastic         = false;  // [I] Stochastic level
 input bool TS_VPRR               = false;  // [I] VPRR volume (metals/stocks; FX=unreliable)
@@ -197,32 +197,32 @@ input double   ATR_MaxPips          = 50.0;        // Max volatility pips
 input group "--- Bollinger Bands ---"
 input int      BB_Period            = 20;          // BB period
 input double   BB_Dev               = 2.0;         // Standard deviations
-input group "--- CandleBody ---"
-input int      CB_AvgPeriod         = 5;           // Avg body period
-input int      CB_CheckBars         = 3;           // Spike check bars
-input double   CB_MaxMult           = 4.0;         // Max body multiplier
-input bool     CB_CarryOnOverext    = true;        // Carry CB=0 from over-ext bar until next layer pullback-recovery
+input group "--- CandleBody (ATR spike guard) ---"
+input int      CB_AvgPeriod         = 14;          // ATR period N (volatility baseline; ~14-20)
+input int      CB_CheckBars         = 1;           // (unused by ATR spike test — signal bar only)
+input double   CB_MaxMult           = 3.0;         // SpikeMult: reject if (high-low) > this * ATR(N)
+input bool     CB_CarryOnOverext    = false;       // Carry CB=0 after a spike (off: a spike is one bar)
 input group "--- CCI ---"
 input int      CCI_Period           = 20;          // CCI period
 input double   CCI_Level            = 0.0;         // CCI threshold
 input group "--- Choppiness Index ---"
 input int      CI_Period            = 14;          // CI period
 input group "--- DPI ---"
-input int                DPI_Fast            = SEA_DEF_DPI_MACD_FAST;       // MACD fast EMA
-input int                DPI_Slow            = SEA_DEF_DPI_MACD_SLOW;       // MACD slow EMA
-input int                DPI_RedSignalType   = SEA_DEF_DPI_RED_SIGNAL_TYPE; // Red line: 1=EMA_A 2=B 3=C 4=D 5=Double
-input int                DPI_RedEMA_A        = SEA_DEF_DPI_RED_EMA_A;       // Red EMA period A
-input int                DPI_RedEMA_B        = SEA_DEF_DPI_RED_EMA_B;       // Red EMA period B
-input int                DPI_RedEMA_C        = SEA_DEF_DPI_RED_EMA_C;       // Red EMA period C (type 3 default)
-input int                DPI_RedEMA_D        = SEA_DEF_DPI_RED_EMA_D;       // Red EMA period D
-input int                DPI_DblSmooth1      = SEA_DEF_DPI_DBLSMOOTH_1;     // Double-smooth EMA 1 (type 5)
-input int                DPI_DblSmooth2      = SEA_DEF_DPI_DBLSMOOTH_2;     // Double-smooth EMA 2 (type 5)
-input int                DPI_CCI_Per         = SEA_DEF_DPI_CCI_PERIOD;      // CCI period
-input ENUM_APPLIED_PRICE DPI_CCI_Price       = SEA_DEF_DPI_CCI_PRICE;       // CCI applied price
-input bool               DPI_UseCCIReset     = SEA_DEF_DPI_USE_CCI_RESET;   // Require CCI reset/agreement
-input bool               DPI_IgnoreCCI       = SEA_DEF_DPI_IGNORE_CCI_VOTE; // Vote on raw hist direction only
-input bool               DPI_UseGreenHist    = SEA_DEF_DPI_USE_GREEN_HIST;  // Require Blue/hist green-presence
-input bool               DPI_GrowthBoost     = SEA_DEF_DPI_GROWTH_BOOST;    // Histogram-growth confirmation
+input int                DPI_Fast            = 8;       // MACD fast EMA
+input int                DPI_Slow            = 13;       // MACD slow EMA
+input int                DPI_RedSignalType   = 3; // Red line: 1=EMA_A 2=B 3=C 4=D 5=Double
+input int                DPI_RedEMA_A        = 5;       // Red EMA period A
+input int                DPI_RedEMA_B        = 8;       // Red EMA period B
+input int                DPI_RedEMA_C        = 13;       // Red EMA period C (type 3 default)
+input int                DPI_RedEMA_D        = 21;       // Red EMA period D
+input int                DPI_DblSmooth1      = 5;     // Double-smooth EMA 1 (type 5)
+input int                DPI_DblSmooth2      = 8;     // Double-smooth EMA 2 (type 5)
+input int                DPI_CCI_Per         = 13;      // CCI period
+input ENUM_APPLIED_PRICE DPI_CCI_Price       = PRICE_TYPICAL;       // CCI applied price
+input bool               DPI_UseCCIReset     = true;   // Require CCI reset/agreement
+input bool               DPI_IgnoreCCI       = false; // Vote on raw hist direction only
+input bool               DPI_UseGreenHist    = false;  // Require Blue/hist green-presence
+input bool               DPI_GrowthBoost     = false;    // Histogram-growth confirmation
 input group "--- MACD ---"
 input int      MACD_Fast            = 8;           // MACD fast EMA
 input int      MACD_Slow            = 13;          // MACD slow EMA
@@ -240,17 +240,16 @@ input double   PSAR_Max             = 0.5;         // Maximum acceleration
 input int      PSAR_FlipBars        = 5;           // Bars after flip still valid (-1=always)
 input group "--- Pullback-Recovery ---"
 input int      PB_Lookback          = 21;          // Lookback bars for baseline
-input int      PB_Lookback_W        = SEA_DEF_LAYER_LB_W;            // LayerW baseline lookback (mirror EA)
-input int      PB_Lookback_M        = SEA_DEF_LAYER_LB_M;            // LayerM baseline lookback
-input int      PB_Lookback_S        = SEA_DEF_LAYER_LB_S;            // LayerS baseline lookback
-input double   PB_PullbackRatio     = SEA_DEF_LAYER_PULLBACK_RATIO;  // Pullback threshold (|ratio|<this = weakened)
-input double   PB_FlatRatio         = SEA_DEF_LAYER_FLAT_RATIO;      // Flat threshold
-input double   PB_RecoveryRatio     = SEA_DEF_LAYER_RECOVERY_RATIO;  // Global recovery threshold (fallback)
-input double   PB_RecoveryRatio_W   = SEA_DEF_LAYER_RECOVERY_W;      // LayerW recovery override (-1=use global)
-input double   PB_RecoveryRatio_M   = SEA_DEF_LAYER_RECOVERY_M;      // LayerM recovery override
-input double   PB_RecoveryRatio_S   = SEA_DEF_LAYER_RECOVERY_S;      // LayerS recovery override
-input bool     PB_AllowReversal     = SEA_DEF_LAYER_ALLOW_REVERSAL;  // Count slope reversal as pullback
-input int      PB_MinBars           = 1;           // Min consecutive DETECTED bars before recovery valid
+input int      PB_Lookback_W        = 13;            // LayerW baseline lookback (mirror EA)
+input int      PB_Lookback_M        = 21;            // LayerM baseline lookback
+input int      PB_Lookback_S        = 34;            // LayerS baseline lookback
+input double   PB_PullbackRatio     = 0.5;  // Pullback threshold (|ratio|<this = weakened)
+input double   PB_FlatRatio         = 0.1;      // Flat threshold
+input double   PB_RecoveryRatio     = 0.3;  // Global recovery threshold (fallback)
+input double   PB_RecoveryRatio_W   = 0.4;      // LayerW recovery override (-1=use global)
+input double   PB_RecoveryRatio_M   = 0.3;      // LayerM recovery override
+input double   PB_RecoveryRatio_S   = 0.2;      // LayerS recovery override
+input bool     PB_AllowReversal     = true;  // Count slope reversal as pullback
 input group "--- RSI---"
 input int      RSI_Period           = 14;          // RSI period
 input double   RSI_OB               = 70.0;        // Overbought level
@@ -355,13 +354,6 @@ int            g_sig_long_w  = 0;
 int            g_sig_short_s = 0;
 int            g_sig_short_m = 0;
 int            g_sig_short_w = 0;
-
-// ── Per-layer min-bars tracking (consecutive DETECTED bars) ───────
-int g_det_s_long=0, g_det_m_long=0, g_det_w_long=0;
-int g_det_s_short=0, g_det_m_short=0, g_det_w_short=0;
-// Peak DETECTED bar count just before each layer transitioned to RECOVERED
-int g_peak_s_long=0, g_peak_m_long=0, g_peak_w_long=0;
-int g_peak_s_short=0, g_peak_m_short=0, g_peak_w_short=0;
 
 double g_buf_ema1[];
 double g_buf_ema2[];
@@ -663,10 +655,6 @@ void RunFullScan()
    g_sig_long = 0; g_sig_short = 0;
    g_sig_long_s = 0; g_sig_long_m = 0; g_sig_long_w = 0;
    g_sig_short_s = 0; g_sig_short_m = 0; g_sig_short_w = 0;
-   g_det_s_long=0; g_det_m_long=0; g_det_w_long=0;
-   g_det_s_short=0; g_det_m_short=0; g_det_w_short=0;
-   g_peak_s_long=0; g_peak_m_long=0; g_peak_w_long=0;
-   g_peak_s_short=0; g_peak_m_short=0; g_peak_w_short=0;
 
    int shift_from = 1;
    int shift_to   = MathMin(rates_total - 2, BarsBack);
@@ -825,39 +813,8 @@ void ScanBar(int shift)
       // When bias is absent: reset ALL layer states (DETECTED and RECOVERED) for the idle engine.
       // This prevents DETECTED state accumulated under the wrong bias from transitioning
       // to RECOVERED and firing the moment bias returns.
-      if(!doL) { g_eng_long.Scanner_ResetLayerAfterFire(1); g_eng_long.Scanner_ResetLayerAfterFire(2); g_eng_long.Scanner_ResetLayerAfterFire(3);
-                 g_det_w_long=0; g_det_m_long=0; g_det_s_long=0; g_peak_w_long=0; g_peak_m_long=0; g_peak_s_long=0; }
-      if(!doS) { g_eng_short.Scanner_ResetLayerAfterFire(1); g_eng_short.Scanner_ResetLayerAfterFire(2); g_eng_short.Scanner_ResetLayerAfterFire(3);
-                 g_det_w_short=0; g_det_m_short=0; g_det_s_short=0; g_peak_w_short=0; g_peak_m_short=0; g_peak_s_short=0; }
-
-      // Track consecutive DETECTED bars per layer per engine for PB_MinBars enforcement
-      int prev_det_s_long  = g_det_s_long;
-      int prev_det_m_long  = g_det_m_long;
-      int prev_det_w_long  = g_det_w_long;
-      int prev_det_s_short = g_det_s_short;
-      int prev_det_m_short = g_det_m_short;
-      int prev_det_w_short = g_det_w_short;
-
-      g_det_s_long  = (g_eng_long.GetLayerSPullbackState() ==LAYER_PB_DETECTED) ? g_det_s_long+1  : 0;
-      g_det_m_long  = (g_eng_long.GetLayerMPullbackState() ==LAYER_PB_DETECTED) ? g_det_m_long+1  : 0;
-      g_det_w_long  = (g_eng_long.GetLayerWPullbackState() ==LAYER_PB_DETECTED) ? g_det_w_long+1  : 0;
-      g_det_s_short = (g_eng_short.GetLayerSPullbackState()==LAYER_PB_DETECTED) ? g_det_s_short+1 : 0;
-      g_det_m_short = (g_eng_short.GetLayerMPullbackState()==LAYER_PB_DETECTED) ? g_det_m_short+1 : 0;
-      g_det_w_short = (g_eng_short.GetLayerWPullbackState()==LAYER_PB_DETECTED) ? g_det_w_short+1 : 0;
-
-      if(g_eng_long.GetLayerSPullbackState() ==LAYER_PB_RECOVERED && prev_det_s_long  > 0) g_peak_s_long  = prev_det_s_long;
-      if(g_eng_long.GetLayerMPullbackState() ==LAYER_PB_RECOVERED && prev_det_m_long  > 0) g_peak_m_long  = prev_det_m_long;
-      if(g_eng_long.GetLayerWPullbackState() ==LAYER_PB_RECOVERED && prev_det_w_long  > 0) g_peak_w_long  = prev_det_w_long;
-      if(g_eng_short.GetLayerSPullbackState()==LAYER_PB_RECOVERED && prev_det_s_short > 0) g_peak_s_short = prev_det_s_short;
-      if(g_eng_short.GetLayerMPullbackState()==LAYER_PB_RECOVERED && prev_det_m_short > 0) g_peak_m_short = prev_det_m_short;
-      if(g_eng_short.GetLayerWPullbackState()==LAYER_PB_RECOVERED && prev_det_w_short > 0) g_peak_w_short = prev_det_w_short;
-
-      if(g_eng_long.GetLayerSPullbackState() ==LAYER_PB_NONE) g_peak_s_long  = 0;
-      if(g_eng_long.GetLayerMPullbackState() ==LAYER_PB_NONE) g_peak_m_long  = 0;
-      if(g_eng_long.GetLayerWPullbackState() ==LAYER_PB_NONE) g_peak_w_long  = 0;
-      if(g_eng_short.GetLayerSPullbackState()==LAYER_PB_NONE) g_peak_s_short = 0;
-      if(g_eng_short.GetLayerMPullbackState()==LAYER_PB_NONE) g_peak_m_short = 0;
-      if(g_eng_short.GetLayerWPullbackState()==LAYER_PB_NONE) g_peak_w_short = 0;
+      if(!doL) { g_eng_long.Scanner_ResetLayerAfterFire(1); g_eng_long.Scanner_ResetLayerAfterFire(2); g_eng_long.Scanner_ResetLayerAfterFire(3); }
+      if(!doS) { g_eng_short.Scanner_ResetLayerAfterFire(1); g_eng_short.Scanner_ResetLayerAfterFire(2); g_eng_short.Scanner_ResetLayerAfterFire(3); }
    }
 
    // Inspector capture BEFORE Eval: a fire inside Eval calls ResetLayerAfterFire,
@@ -875,19 +832,6 @@ void ScanBar(int shift)
 
    if(doL) Eval(shift, g_eng_long,   1);
    if(doS) Eval(shift, g_eng_short, -1);
-}
-
-int DetGet(int layer, int bias)
-{
-   if(layer==3) return (bias==1) ? g_det_s_long : g_det_s_short;
-   if(layer==2) return (bias==1) ? g_det_m_long : g_det_m_short;
-                return (bias==1) ? g_det_w_long : g_det_w_short;
-}
-int PeakGet(int layer, int bias)
-{
-   if(layer==3) return (bias==1) ? g_peak_s_long : g_peak_s_short;
-   if(layer==2) return (bias==1) ? g_peak_m_long : g_peak_m_short;
-                return (bias==1) ? g_peak_w_long : g_peak_w_short;
 }
 
 //+------------------------------------------------------------------+
@@ -965,7 +909,7 @@ void BuildSettings(ST_Settings &s)
    s.AllowLayer2_Entries   = TS_LayerM;   // (M)
    s.AllowLayer3_Entries   = TS_LayerS;   // (S)
 
-   // DPI — full config; defaults mirror RRM_ORG via SEA_DEF_DPI_* (SEA_Config.mqh)
+   // DPI — full config; defaults are inlined literals (kept in sync with the EA inputs)
    s.Ind_Dpi_Enabled            = TS_DPI;
    s.DPI_MACD_Fast              = DPI_Fast;
    s.DPI_MACD_Slow              = DPI_Slow;

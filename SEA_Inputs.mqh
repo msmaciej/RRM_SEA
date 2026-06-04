@@ -540,25 +540,25 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI v31 — Core Math (shared by all)";
 input group "╚════════════════════════════════════════════════════════╝";
-input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price       = SEA_DEF_DPI_CCI_PRICE;  // RRM ORG DPI: CCI applied price
-input int         Inp_RRM_ORG_DPI_MacdFast               = SEA_DEF_DPI_MACD_FAST;        // RRM ORG DPI: MACD fast EMA period
-input int         Inp_RRM_ORG_DPI_MacdSlow               = SEA_DEF_DPI_MACD_SLOW;       // RRM ORG DPI: MACD slow EMA period
-input int         Inp_RRM_ORG_DPI_RedSignalType          = SEA_DEF_DPI_RED_SIGNAL_TYPE;        // RRM ORG DPI: Red line type (1=EMA_A 2=EMA_B 3=EMA_C 4=EMA_D 5=Double)
-input int         Inp_RRM_ORG_DPI_RedEMA_A               = SEA_DEF_DPI_RED_EMA_A;        // RRM ORG DPI: Red EMA period A (type 1)
-input int         Inp_RRM_ORG_DPI_RedEMA_B               = SEA_DEF_DPI_RED_EMA_B;        // RRM ORG DPI: Red EMA period B (type 2)
-input int         Inp_RRM_ORG_DPI_RedEMA_C               = SEA_DEF_DPI_RED_EMA_C;       // RRM ORG DPI: Red EMA period C (type 3, default)
-input int         Inp_RRM_ORG_DPI_RedEMA_D               = SEA_DEF_DPI_RED_EMA_D;       // RRM ORG DPI: Red EMA period D (type 4)
-input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst      = SEA_DEF_DPI_DBLSMOOTH_1;        // RRM ORG DPI: Double-smooth first EMA
-input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond     = SEA_DEF_DPI_DBLSMOOTH_2;        // RRM ORG DPI: Double-smooth second EMA
-input int         Inp_RRM_ORG_DPI_CCI_Period             = SEA_DEF_DPI_CCI_PERIOD;       // RRM ORG DPI: CCI period
+input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price       = PRICE_TYPICAL;  // RRM ORG DPI: CCI applied price
+input int         Inp_RRM_ORG_DPI_MacdFast               = 8;        // RRM ORG DPI: MACD fast EMA period
+input int         Inp_RRM_ORG_DPI_MacdSlow               = 13;       // RRM ORG DPI: MACD slow EMA period
+input int         Inp_RRM_ORG_DPI_RedSignalType          = 3;        // RRM ORG DPI: Red line type (1=EMA_A 2=EMA_B 3=EMA_C 4=EMA_D 5=Double)
+input int         Inp_RRM_ORG_DPI_RedEMA_A               = 5;        // RRM ORG DPI: Red EMA period A (type 1)
+input int         Inp_RRM_ORG_DPI_RedEMA_B               = 8;        // RRM ORG DPI: Red EMA period B (type 2)
+input int         Inp_RRM_ORG_DPI_RedEMA_C               = 13;       // RRM ORG DPI: Red EMA period C (type 3, default)
+input int         Inp_RRM_ORG_DPI_RedEMA_D               = 21;       // RRM ORG DPI: Red EMA period D (type 4)
+input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst      = 5;        // RRM ORG DPI: Double-smooth first EMA
+input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond     = 8;        // RRM ORG DPI: Double-smooth second EMA
+input int         Inp_RRM_ORG_DPI_CCI_Period             = 13;       // RRM ORG DPI: CCI period
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Vote (I factor — ribbon direction)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // RRM ORG DPI: Enable DPI vote in TS equation
-input bool        Inp_RRM_ORG_DPI_UseCCIReset            = SEA_DEF_DPI_USE_CCI_RESET;     // RRM ORG DPI: CCI can reset ribbon color (trend filter)
-input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = SEA_DEF_DPI_IGNORE_CCI_VOTE;    // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
-input bool        Inp_RRM_ORG_DPI_UseGreenHist           = SEA_DEF_DPI_USE_GREEN_HIST;     // RRM ORG DPI: Also require GREEN overlay for vote pass
+input bool        Inp_RRM_ORG_DPI_UseCCIReset            = true;     // RRM ORG DPI: CCI can reset ribbon color (trend filter)
+input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
+input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;     // RRM ORG DPI: Also require GREEN overlay for vote pass
 // Yellow ribbon = BUY vote, Red ribbon = SELL vote.
 // CCI can reset ribbon color: hist>0 but CCI<0 → Red override (weakening).
 //
@@ -578,7 +578,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: DPI System B — CCI Histogram Tracking";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_DPI_HistTrackingEnabled    = false;    // RRM ORG DPI: Enable CCI histogram tracking (master switch)
-input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = SEA_DEF_DPI_GROWTH_BOOST;    // RRM ORG DPI: Use histogram growth as layer momentum boost (needs tracking ON)
+input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = false;    // RRM ORG DPI: Use histogram growth as layer momentum boost (needs tracking ON)
 input double      Inp_RRM_ORG_DPI_HistMomentumThreshold  = 0.0001;   // RRM ORG DPI: Ignore CCI-delta below this (needs tracking ON)
 input bool        Inp_RRM_ORG_DPI_ExitOnHistDisappear    = false;    // RRM ORG DPI: Close trades when CCI trend flips (needs tracking ON)
 input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // RRM ORG DPI: Exit when |CCI| below threshold, 0=disable (needs tracking ON)
@@ -773,17 +773,17 @@ input group "║   📐 RRM_ORG: LAYER WMS Pullback & Recovery";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_LayerPBEnabled       = true;           // RRM ORG PB: Enable pullback-recovery state machine (P2?)
 input int         Inp_RRM_ORG_LayerPBLookback      = 21;              // RRM ORG PB: Global baseline lookback (fallback; per-layer below)
-input int         Inp_RRM_ORG_LayerPBLookback_W    = SEA_DEF_LAYER_LB_W;            // RRM ORG PB: LayerW baseline lookback (fast/responsive)
-input int         Inp_RRM_ORG_LayerPBLookback_M    = SEA_DEF_LAYER_LB_M;            // RRM ORG PB: LayerM baseline lookback (medium)
-input int         Inp_RRM_ORG_LayerPBLookback_S    = SEA_DEF_LAYER_LB_S;            // RRM ORG PB: LayerS baseline lookback (slow/stable)
-input double      Inp_RRM_ORG_LayerPBPullbackRatio = SEA_DEF_LAYER_PULLBACK_RATIO;  // RRM ORG PB: Pullback threshold (|ratio|<this = weakened)
-input double      Inp_RRM_ORG_LayerPBRecoveryRatio = SEA_DEF_LAYER_RECOVERY_RATIO;  // RRM ORG PB: Global recovery threshold (fallback)
+input int         Inp_RRM_ORG_LayerPBLookback_W    = 13;            // RRM ORG PB: LayerW baseline lookback (fast/responsive)
+input int         Inp_RRM_ORG_LayerPBLookback_M    = 21;            // RRM ORG PB: LayerM baseline lookback (medium)
+input int         Inp_RRM_ORG_LayerPBLookback_S    = 34;            // RRM ORG PB: LayerS baseline lookback (slow/stable)
+input double      Inp_RRM_ORG_LayerPBPullbackRatio = 0.5;  // RRM ORG PB: Pullback threshold (|ratio|<this = weakened)
+input double      Inp_RRM_ORG_LayerPBRecoveryRatio = 0.3;  // RRM ORG PB: Global recovery threshold (fallback)
 input bool        Inp_RRM_ORG_LayerPB_RecoveryOnSlope = false;        // RRM ORG PB: recover on slope resume+re-accel (t1; not magnitude)
-input double      Inp_RRM_ORG_LayerPBFlatRatio     = SEA_DEF_LAYER_FLAT_RATIO;      // RRM ORG PB: Flat threshold (|ratio|<this = flat)
-input bool        Inp_RRM_ORG_LayerPBAllowReversal = SEA_DEF_LAYER_ALLOW_REVERSAL;  // RRM ORG PB: Count slope reversal as pullback
-input double      Inp_RRM_ORG_RecoveryRatio_W      = SEA_DEF_LAYER_RECOVERY_W;      // RRM ORG PB: LayerW recovery override (-1=use global)
-input double      Inp_RRM_ORG_RecoveryRatio_M      = SEA_DEF_LAYER_RECOVERY_M;      // RRM ORG PB: LayerM recovery override (-1=use global)
-input double      Inp_RRM_ORG_RecoveryRatio_S      = SEA_DEF_LAYER_RECOVERY_S;      // RRM ORG PB: LayerS recovery override (-1=use global)
+input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;      // RRM ORG PB: Flat threshold (|ratio|<this = flat)
+input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;  // RRM ORG PB: Count slope reversal as pullback
+input double      Inp_RRM_ORG_RecoveryRatio_W      = 0.4;      // RRM ORG PB: LayerW recovery override (-1=use global)
+input double      Inp_RRM_ORG_RecoveryRatio_M      = 0.3;      // RRM ORG PB: LayerM recovery override (-1=use global)
+input double      Inp_RRM_ORG_RecoveryRatio_S      = 0.2;      // RRM ORG PB: LayerS recovery override (-1=use global)
 input bool        Inp_RRM_ORG_AllowLayerS          = true;                          // RRM ORG PB: allow Layer S (EMA3/4) entries
 input bool        Inp_RRM_ORG_AllowLayerM          = true;                          // RRM ORG PB: allow Layer M (EMA2/3) entries
 input bool        Inp_RRM_ORG_AllowLayerW          = true;                          // RRM ORG PB: allow Layer W (EMA1/2) entries
@@ -1694,14 +1694,14 @@ void InitializeConfig()
    Settings.LayerBaselineLookback_W     = 0;     // 0 = fall back to global lookback
    Settings.LayerBaselineLookback_M     = 0;
    Settings.LayerBaselineLookback_S     = 0;
-   Settings.LayerPullbackRatio          = SEA_DEF_LAYER_PULLBACK_RATIO;
-   Settings.LayerFlatRatio              = SEA_DEF_LAYER_FLAT_RATIO;
-   Settings.LayerRecoveryRatio          = SEA_DEF_LAYER_RECOVERY_RATIO;
+   Settings.LayerPullbackRatio          = 0.5;
+   Settings.LayerFlatRatio              = 0.1;
+   Settings.LayerRecoveryRatio          = 0.3;
    Settings.LayerRecoveryOnSlope        = false;  // default; overwritten by ApplyPreset
    Settings.LayerRecoveryRatio_W        = -1.0;  // -1 = use global
    Settings.LayerRecoveryRatio_M        = -1.0;
    Settings.LayerRecoveryRatio_S        = -1.0;
-   Settings.LayerAllowReversalPullback  = SEA_DEF_LAYER_ALLOW_REVERSAL;
+   Settings.LayerAllowReversalPullback  = true;
 
    // Climax guard: params are global; enable is OFF in the base so non-opted
    // presets are unaffected. RRM_ORG and CUSTOM opt in via ApplyPreset.

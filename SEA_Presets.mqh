@@ -998,18 +998,18 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── Layer pullback ──
       cfg.LayerPullbackEnabled     = true;
-      cfg.LayerBaselineLookback    = SEA_DEF_LAYER_LB_M;   // global fallback (= 21)
-      cfg.LayerBaselineLookback_W  = SEA_DEF_LAYER_LB_W;
-      cfg.LayerBaselineLookback_M  = SEA_DEF_LAYER_LB_M;
-      cfg.LayerBaselineLookback_S  = SEA_DEF_LAYER_LB_S;
-      cfg.LayerPullbackRatio       = SEA_DEF_LAYER_PULLBACK_RATIO;
-      cfg.LayerFlatRatio           = SEA_DEF_LAYER_FLAT_RATIO;
-      cfg.LayerRecoveryRatio       = SEA_DEF_LAYER_RECOVERY_RATIO;
+      cfg.LayerBaselineLookback    = 21;   // global fallback (= 21)
+      cfg.LayerBaselineLookback_W  = 13;
+      cfg.LayerBaselineLookback_M  = 21;
+      cfg.LayerBaselineLookback_S  = 34;
+      cfg.LayerPullbackRatio       = 0.5;
+      cfg.LayerFlatRatio           = 0.1;
+      cfg.LayerRecoveryRatio       = 0.3;
       cfg.LayerRecoveryOnSlope     = false;
-      cfg.LayerRecoveryRatio_W     = SEA_DEF_LAYER_RECOVERY_W;
-      cfg.LayerRecoveryRatio_M     = SEA_DEF_LAYER_RECOVERY_M;
-      cfg.LayerRecoveryRatio_S     = SEA_DEF_LAYER_RECOVERY_S;
-      cfg.LayerAllowReversalPullback = SEA_DEF_LAYER_ALLOW_REVERSAL;
+      cfg.LayerRecoveryRatio_W     = 0.4;
+      cfg.LayerRecoveryRatio_M     = 0.3;
+      cfg.LayerRecoveryRatio_S     = 0.2;
+      cfg.LayerAllowReversalPullback = true;
 
       // ── Re-entry / cooldown / PSAR vote timing ──
       cfg.AllowReEntryAfterBE      = true;

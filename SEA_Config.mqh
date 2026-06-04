@@ -29,40 +29,13 @@
 #endif
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── LAYER PULLBACK-RECOVERY: shared defaults (single source: EA presets + SignalScan) ──
-// Per-layer baseline lookback (bars). W = fastest EMA pair → shortest/most responsive;
-// S = slowest → longest/most stable. Defaults below; both EA and scanner read these.
-#define SEA_DEF_LAYER_LB_W            13
-#define SEA_DEF_LAYER_LB_M            21
-#define SEA_DEF_LAYER_LB_S            34
-// Magnitude thresholds (dimensionless slope ratios)
-#define SEA_DEF_LAYER_PULLBACK_RATIO  0.5
-#define SEA_DEF_LAYER_FLAT_RATIO      0.1
-#define SEA_DEF_LAYER_RECOVERY_RATIO  0.3
-// Per-layer recovery overrides (slower layers confirm on less momentum). -1 = use global.
-#define SEA_DEF_LAYER_RECOVERY_W      0.4
-#define SEA_DEF_LAYER_RECOVERY_M      0.3
-#define SEA_DEF_LAYER_RECOVERY_S      0.2
-#define SEA_DEF_LAYER_ALLOW_REVERSAL  true
+// NOTE: default values are now inlined as literals directly at each input
+// declaration (SEA_Inputs.mqh for the EA, SEA_IND_SignalScan.mq5 for the scanner,
+// SEA_Presets.mqh for preset seeding). The former SEA_DEF_* constants were removed
+// to avoid keeping the same value in two places. When changing a default, set it at
+// the declaration in those files.
 
-// ── DPI v31 voter: shared canonical config (single source: EA presets + SignalScan) ──
-// RRM_ORG locks this DPI block; PRESET_CUSTOM reads the same Inp_RRM_ORG_DPI_* inputs, and
-// SignalScan seeds its (editable) DPI inputs from the same constants -> parity by default.
-#define SEA_DEF_DPI_MACD_FAST         8
-#define SEA_DEF_DPI_MACD_SLOW         13
-#define SEA_DEF_DPI_RED_SIGNAL_TYPE   3
-#define SEA_DEF_DPI_RED_EMA_A         5
-#define SEA_DEF_DPI_RED_EMA_B         8
-#define SEA_DEF_DPI_RED_EMA_C         13
-#define SEA_DEF_DPI_RED_EMA_D         21
-#define SEA_DEF_DPI_DBLSMOOTH_1       5
-#define SEA_DEF_DPI_DBLSMOOTH_2       8
-#define SEA_DEF_DPI_CCI_PERIOD        13
-#define SEA_DEF_DPI_CCI_PRICE         PRICE_TYPICAL
-#define SEA_DEF_DPI_USE_CCI_RESET     true
-#define SEA_DEF_DPI_IGNORE_CCI_VOTE   false
-#define SEA_DEF_DPI_USE_GREEN_HIST    false
-#define SEA_DEF_DPI_GROWTH_BOOST      false
+
 
 // TFToString: returns clean TF label (e.g. "M5", "H1") — EnumToString gives "PERIOD_M5".
 string TFToString(ENUM_TIMEFRAMES tf = PERIOD_CURRENT) {
@@ -414,10 +387,10 @@ struct ST_Settings
    double MaxSpread;
    bool   UseSpread;             // Enable spread filter (false = bypass spread gate)
 
-   // Candle Body Overextension Indicator (voting)
-   int    CandleBody_AvgPeriod;        // Bars used to compute average body size
-   double CandleBody_MaxMult;          // Block if body > avg * multiplier
-   int    CandleBody_CheckBars;        // Number of recent closed candles to check
+   // Candle Body Overextension Indicator (ATR spike guard, voting)
+   int    CandleBody_AvgPeriod;        // ATR period N for the spike baseline (~14-20)
+   double CandleBody_MaxMult;          // SpikeMult: block if (high-low) > MaxMult * ATR(N)
+   int    CandleBody_CheckBars;        // (legacy; unused by the ATR spike test — signal bar only)
    bool   CandleBody_RequireDirection; // CandleBody: Require signal bar to close in trade direction
    double CandleBody_MinCloseRatio;   // CandleBody: Min close-to-range ratio (0.0=disabled, 0.75=TopInvestor 75% rule)
    bool   CandleBody_CarryOnOverext;  // CandleBody: hold CB vote at 0 from an over-extended bar until next layer pullback-recovery
