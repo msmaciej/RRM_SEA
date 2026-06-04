@@ -52,8 +52,8 @@
 #property version        "5.00"
 #property description    "SEA Signal Scanner: mark TS=1 bars for any indicator combination on any pair/TF"
 #property indicator_chart_window
-#property indicator_buffers 6
-#property indicator_plots   6
+#property indicator_buffers 8
+#property indicator_plots   8
 
 #define SEA_BUILD_TOKEN_105001 1
 #include <RRMS\SEA_SignalEngine.mqh>
@@ -76,44 +76,40 @@ enum EScanBias
 //+------------------------------------------------------------------+
 //| STEP 0 — Panel & Signals Display
 //+------------------------------------------------------------------+
-input group " ";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "--- STEP0: Panel ---";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "═════════ STEP 0 · DISPLAY  (visuals only — no effect on signals) ═════════";
+input group "·· Panel · position ··";
 input ENUM_BASE_CORNER   Scn_PanelCorner = CORNER_LEFT_UPPER;  // Panel corner
 input int         Scn_PanelX           = 30;                   // Panel X px from corner
 input int         Scn_PanelY           = 30;                   // Panel Y px (30=top; set ~300 if EA cockpit is also on chart)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "--- Panel Fonts ---";
-input group "╚════════════════════════════════════════════════════════╝";
+input group "·· Panel · fonts ··";
 input string      Scn_Font             = "Arial";              // Panel font
 input int         Scn_FontSize         = 10;                   // Panel font size
 input int         Scn_LineSpacing      = 28;                   // Panel line spacing px
-input group "╔════════════════════════════════════════════════════════╗";
-input group "--- TS Signals ---";
-input group "╚════════════════════════════════════════════════════════╝";
+input group "·· Signal line · style ··";
 input ENUM_LINE_STYLE LineStyle        = STYLE_DOT;            // Line style
 input int         LineWidth            = 1;                    // Line width
-input group "--- LONG colors (S=darkest  M=mid  W=lightest) ---"
+input group "·· Colors · LONG layers  (S=darkest · M=mid · W=lightest) ··";
 input color       Color_Long_S         = C'0,80,180';          // LONG Layer S (strong/deep)
 input color       Color_Long_M         = C'30,144,255';        // LONG Layer M (medium)
 input color       Color_Long_W         = C'135,206,250';       // LONG Layer W (weak/shallow)
-input group "--- SHORT colors (S=darkest  M=mid  W=lightest) ---"
+input group "·· Colors · SHORT layers  (S=darkest · M=mid · W=lightest) ··";
 input color       Color_Short_S        = C'180,0,0';           // SHORT Layer S (strong/deep)
 input color       Color_Short_M        = C'255,50,50';         // SHORT Layer M (medium)
 input color       Color_Short_W        = C'255,160,160';       // SHORT Layer W (weak/shallow)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "--- Chart Overlays ---";
-input group "╚════════════════════════════════════════════════════════╝";
+input group "·· Overlay · current-TF EMA ribbon  (EMA1=lightest → EMA4=darkest) ··";
 input bool        Show_EMAs            = true;                 // Draw EMA1/2/3/4 on chart
 input color       Color_EMA1           = C'255,255,100';       // EMA1 color (fastest)
 input color       Color_EMA2           = C'255,200,50';        // EMA2 color
 input color       Color_EMA3           = C'220,140,0';         // EMA3 color
 input color       Color_EMA4           = C'160,80,0';          // EMA4 color (slowest/darkest)
+input group "·· Overlay · HTF (MTF) EMAs  (fast=light green · slow=dark green) ··";
+input bool        Show_HTF_EMAs        = true;                 // Draw the two HTF (MTF) EMAs on chart
+input color       Color_HTF_Fast       = C'120,230,140';       // HTF fast EMA (lighter green)
+input color       Color_HTF_Slow       = C'0,130,60';          // HTF slow EMA (darker green)
+input group "·· Overlay · PSAR & active indicators ··";
 input bool        Show_PSAR            = true;                // Draw PSAR dots on chart
 input bool        Show_AllActiveIndicators = true;          // Add every enabled TS_* indicator to chart (add-only; oscillators -> sub-windows)
-
-input group "--- Bar Inspector (drag the SCN_INSPECT line) ---";
+input group "·· Bar Inspector  (drag the SCN_INSPECT line) ··";
 input bool        Scn_Inspect_Enabled  = true;                // Inspector: TS factor breakdown for the marked bar
 input color       Scn_Inspect_Color    = clrGold;              // Inspector: marked-line color
 input datetime    Scn_Inspect_Time     = 0;                    // Inspector: start the line at this time (0 = latest bar); then drag to fine-tune
@@ -131,19 +127,13 @@ input datetime    Scn_Inspect_Time     = 0;                    // Inspector: sta
 //| Set these by opening the chart you want to test on.              |
 //| The scanner automatically uses that chart's symbol and TF.       |
 //+------------------------------------------------------------------+
-input group " ";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "--- STEP1: Pair And TimeFrame ";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group " No inputs needed - comes from the chart";
 
 //+------------------------------------------------------------------+
 //| STEP 2 — EMA Ribbon Periods                                      |
 //+------------------------------------------------------------------+
-input group " ";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "--- STEP2: EMA Ribbon  [RRM_ORG default: 5 / 13 / 34 / 89] ---";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input int         EMA1           = 5;         // EMA1 fastest (LayerW fast EMA)
 input int         EMA2           = 13;        // EMA2 (LayerM fast EMA)
 input int         EMA3           = 34;        // EMA3 (LayerS fast EMA)
@@ -152,10 +142,7 @@ input int         EMA4           = 89;        // EMA4 slowest
 //+------------------------------------------------------------------+
 //| STEP 3 — Bias / Direction                                        |
 //+------------------------------------------------------------------+
-input group " ";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "--- STEP3: Market BIAS ---";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input EScanBias MarketBias       = SBIAS_4EMA_TM;     // Bias mode
 
 //+------------------------------------------------------------------+
@@ -163,17 +150,14 @@ input EScanBias MarketBias       = SBIAS_4EMA_TM;     // Bias mode
 //| Turn ON each component to include it in the signal.              |
 //| A line appears ONLY when ALL enabled components pass together.   |
 //+------------------------------------------------------------------+
-input group " ";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "--- STEP4: TS Components  [true=ON  false=OFF  all ON must pass] ---";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input bool TS_ADX                = false;  // [I] ADX trend strength
 input bool TS_ATR                = false;  // [I] ATR volatility range
 input bool TS_BollingerBands     = false;  // [I] Bollinger Bands
 input bool TS_CandleBody         = true;  // [I] CandleBody direction
 input bool TS_CCI                = false;  // [I] CCI direction
 input bool TS_CI                 = false;  // [I] Choppiness Index
-input bool   TS_ClimaxGuard      = true;   // [Guard] Block late entries into over-extended impulses
+input bool   TS_ClimaxGuard      = false;   // [Guard] Block late entries into over-extended impulses
 input int    CG_Lookback         = 13;      // [Guard] Window (bars) scanned for an impulse
 input int    CG_ATRPeriod        = 14;     // [Guard] ATR baseline period (pre-impulse)
 input double CG_BarATRMult       = 2.0;    // [Guard] Single-bar range threshold (x ATR)
@@ -190,7 +174,7 @@ input bool TS_LayerM             = true;   // [L] Pullback-Recovery Layer M: EMA
 input bool TS_LayerW             = true;   // [L] Pullback-Recovery Layer W: EMA1->EMA2 (weakest)
 input bool TS_LayerS_Require_DirAlign = true; // [L] Layer S (EMA3/EMA4) pos+slope w/ bias to allow M/W entries
 input bool TS_LayerReset_OnRealign = false; // [L] Reset layer pullback states on confirmed market-phase change
-input int  TS_LayerReset_PhaseConfirm = 2;  // [L]   ^ bars new phase must hold first (1=catch 1-bar phases)
+input int  TS_LayerReset_PhaseConfirm = 1;  // [L]   ^ bars new phase must hold first (1=catch 1-bar phases)
 input bool TS_RSI                = false;  // [I] RSI level
 input bool TS_Stochastic         = false;  // [I] Stochastic level
 input bool TS_VPRR               = false;  // [I] VPRR volume (metals/stocks; FX=unreliable)
@@ -202,10 +186,7 @@ input bool TS_Ross               = false;  // [I] Ross Hook (trend-momentum; bui
 //| STEP 5 — Indicators - Component Parameters                       |
 //| Only edit a section if the matching component is ON above.       |
 //+------------------------------------------------------------------+
-input group " ";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "--- STEP5: Indicators - TS Equation";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "--- ADX  ---"
 input int      ADX_Period           = 14;          // ADX period
 input double   ADX_MinLevel         = 20.0;        // Min ADX level
@@ -292,10 +273,7 @@ input int      VPRR_RecovBars       = 3;           // Recovery bars to measure
 //| Leave DateTo   = 0 to scan up to the current bar.               |
 //| Example: DateFrom = 2026.05.21 10:00  DateTo = 2026.05.21 21:00 |
 //+------------------------------------------------------------------+
-input group " ";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "--- STEP6: Time Window  [0 = no limit] ---"
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input datetime DateFrom = 0;   // From date/time (0=use BarsBack)
 input datetime DateTo   = 0;   // To date/time (0=current bar)
 input int      BarsBack = 500; // Bars back (if DateFrom=0)
@@ -391,12 +369,16 @@ double g_buf_ema3[];
 double g_buf_ema4[];
 double g_buf_psar_up[];    // PSAR dots below price (bull)
 double g_buf_psar_dn[];    // PSAR dots above price (bear)
+double g_buf_htf_fast[];   // HTF (MTF) fast EMA, mapped onto current-chart bars
+double g_buf_htf_slow[];   // HTF (MTF) slow EMA, mapped onto current-chart bars
 
 // ── Overlay indicator handles ──────────────────────────────────────
 int g_h_ema1 = INVALID_HANDLE;
 int g_h_ema2 = INVALID_HANDLE;
 int g_h_ema3 = INVALID_HANDLE;
 int g_h_ema4 = INVALID_HANDLE;
+int g_h_htf_fast = INVALID_HANDLE;   // iMA on MTF_TF, MTF_EMA_Fast
+int g_h_htf_slow = INVALID_HANDLE;   // iMA on MTF_TF, MTF_EMA_Slow
 int g_h_psar = INVALID_HANDLE;
 
 //+------------------------------------------------------------------+
@@ -407,7 +389,7 @@ int OnInit()
    g_pfx = "SCN_" + _Symbol + "_" + IntegerToString(ChartID()) + "_";
    g_insp_line = "SCN_INSPECT_" + IntegerToString(ChartID());  // NOT under g_pfx, so ClearLines() never deletes the dragged line
 
-   // ── Overlay buffers — always register all 6 (MT5 requires buffer count
+   // ── Overlay buffers — always register all 8 (MT5 requires buffer count
    //    to match #property indicator_buffers regardless of Show_* state) ──
    SetIndexBuffer(0, g_buf_ema1,    INDICATOR_DATA);
    SetIndexBuffer(1, g_buf_ema2,    INDICATOR_DATA);
@@ -415,6 +397,8 @@ int OnInit()
    SetIndexBuffer(3, g_buf_ema4,    INDICATOR_DATA);
    SetIndexBuffer(4, g_buf_psar_up, INDICATOR_DATA);
    SetIndexBuffer(5, g_buf_psar_dn, INDICATOR_DATA);
+   SetIndexBuffer(6, g_buf_htf_fast, INDICATOR_DATA);
+   SetIndexBuffer(7, g_buf_htf_slow, INDICATOR_DATA);
 
    // ── EMA plot styles ────────────────────────────────────────────────
    for(int i = 0; i < 4; i++)
@@ -457,6 +441,26 @@ int OnInit()
    PlotIndexSetString(4, PLOT_LABEL, "PSAR Bull");
    PlotIndexSetString(5, PLOT_LABEL, "PSAR Bear");
 
+   // ── HTF (MTF) EMA plot styles — green family, dashed to signal higher TF ──
+   //    Fast = lighter green, Slow = darker green (same darkest=strongest idiom
+   //    as the EMA / Long / Short families). Drawn as DRAW_LINE on the overlay.
+   for(int j = 6; j <= 7; j++)
+   {
+      color hclr = (j == 6) ? Color_HTF_Fast : Color_HTF_Slow;
+      if(Show_HTF_EMAs)
+      {
+         PlotIndexSetInteger(j, PLOT_DRAW_TYPE,  DRAW_LINE);
+         PlotIndexSetInteger(j, PLOT_LINE_COLOR, hclr);
+         PlotIndexSetInteger(j, PLOT_LINE_WIDTH, 2);
+         PlotIndexSetInteger(j, PLOT_LINE_STYLE, STYLE_DASH);
+      }
+      else
+         PlotIndexSetInteger(j, PLOT_DRAW_TYPE, DRAW_NONE);
+      PlotIndexSetDouble(j, PLOT_EMPTY_VALUE, 0.0);
+   }
+   PlotIndexSetString(6, PLOT_LABEL, "HTF Fast(" + (string)MTF_EMA_Fast + ") " + EnumToString(MTF_TF));
+   PlotIndexSetString(7, PLOT_LABEL, "HTF Slow(" + (string)MTF_EMA_Slow + ") " + EnumToString(MTF_TF));
+
    // ── Create overlay handles ─────────────────────────────────────────
    if(Show_EMAs)
    {
@@ -467,6 +471,12 @@ int OnInit()
    }
    if(Show_PSAR)
       g_h_psar = iSAR(_Symbol, PERIOD_CURRENT, PSAR_Step, PSAR_Max);
+
+   if(Show_HTF_EMAs)
+   {
+      g_h_htf_fast = iMA(_Symbol, MTF_TF, MTF_EMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
+      g_h_htf_slow = iMA(_Symbol, MTF_TF, MTF_EMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
+   }
 
    ST_Settings s;
    BuildSettings(s);
@@ -532,6 +542,8 @@ void OnDeinit(const int reason)
    if(g_h_ema2 != INVALID_HANDLE) { IndicatorRelease(g_h_ema2); g_h_ema2 = INVALID_HANDLE; }
    if(g_h_ema3 != INVALID_HANDLE) { IndicatorRelease(g_h_ema3); g_h_ema3 = INVALID_HANDLE; }
    if(g_h_ema4 != INVALID_HANDLE) { IndicatorRelease(g_h_ema4); g_h_ema4 = INVALID_HANDLE; }
+   if(g_h_htf_fast != INVALID_HANDLE) { IndicatorRelease(g_h_htf_fast); g_h_htf_fast = INVALID_HANDLE; }
+   if(g_h_htf_slow != INVALID_HANDLE) { IndicatorRelease(g_h_htf_slow); g_h_htf_slow = INVALID_HANDLE; }
    if(g_h_psar != INVALID_HANDLE) { IndicatorRelease(g_h_psar); g_h_psar = INVALID_HANDLE; }
    g_ok = false;
 }
@@ -717,6 +729,25 @@ int OnCalculate(const int rates_total,
       }
    }
 
+   if(Show_HTF_EMAs && g_h_htf_fast != INVALID_HANDLE && g_h_htf_slow != INVALID_HANDLE)
+   {
+      // HTF EMAs live on MTF_TF, so each current-chart bar must be mapped to the
+      // HTF bar that contains its open time (iBarShift on MTF_TF). This produces a
+      // stepped line that holds across the HTF bar's duration. Fill only the changed
+      // region for speed; full recompute happens once when prev_calculated == 0.
+      int hstart = (prev_calculated > 1) ? prev_calculated - 1 : 0;
+      for(int i = hstart; i < rates_total; i++)
+      {
+         g_buf_htf_fast[i] = 0.0;
+         g_buf_htf_slow[i] = 0.0;
+         int hsh = iBarShift(_Symbol, MTF_TF, time[i], false);
+         if(hsh < 0) continue;
+         double vf[1], vs[1];
+         if(CopyBuffer(g_h_htf_fast, 0, hsh, 1, vf) == 1) g_buf_htf_fast[i] = vf[0];
+         if(CopyBuffer(g_h_htf_slow, 0, hsh, 1, vs) == 1) g_buf_htf_slow[i] = vs[0];
+      }
+   }
+
    ResolveInspector();
 
    if(prev_calculated == 0 || g_insp_dirty)
@@ -789,8 +820,8 @@ void ScanBar(int shift)
    // cross-contamination of state between LONG and SHORT engines.
    if(TS_LayerS || TS_LayerM || TS_LayerW)
    {
-      if(doL) g_eng_long.Scanner_UpdateLayerPullback(shift);
-      if(doS) g_eng_short.Scanner_UpdateLayerPullback(shift);
+      if(doL) g_eng_long.Scanner_UpdateLayerPullback(shift, +1);
+      if(doS) g_eng_short.Scanner_UpdateLayerPullback(shift, -1);
       // When bias is absent: reset ALL layer states (DETECTED and RECOVERED) for the idle engine.
       // This prevents DETECTED state accumulated under the wrong bias from transitioning
       // to RECOVERED and firing the moment bias returns.

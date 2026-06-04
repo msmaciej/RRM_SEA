@@ -1431,7 +1431,7 @@ private:
                                   ELayerPullbackState &state, double &baseline, string label,
                                   double &vol_pb_avg, int &vol_pb_bars,
                                   double &vol_rec_avg, int &vol_rec_bars,
-                                  double &vprr)
+                                  double &vprr, int bias_dir = 0)
    {
       // -- Baseline DIRECTION (refined, kept): sign of the EMA slope on the bar
       //    JUST BEFORE the lookback window, so an in-progress pullback cannot
@@ -1474,37 +1474,68 @@ private:
          (baseline_bullish != current_bullish) && (current_pace != 0.0))
          is_pullback = true;
 
-      // -- Recovery (from DETECTED): trend direction resumed AND ratio back to
-      //    at least recovery_ratio (per-layer override resolved by caller;
-      //    slower layers confirm on less momentum).
+      // -- Recovery (from DETECTED): the fast EMA's slope on the EVALUATED bar
+      //    (1-bar: EMA[v_shift] vs EMA[v_shift+1]) has resumed the pre-pullback
+      //    (baseline) direction. PURE SIGN — no k-bar averaging, no magnitude
+      //    ratio. This matches the documented intent of this function and fixes
+      //    two defects of the previous averaged/ratio test:
+      //      1) Lateness: the magnitude gate (ratio >= recovery_ratio) lagged the
+      //         actual slope-direction resume by ~1 bar.
+      //      2) False recovery: the k-bar averaged direction smeared a violent
+      //         counter-leg into the "current" reading, so a layer read as still
+      //         travelling in the bias direction even after the latest bar had
+      //         turned against it (e.g. a SHORT layer firing on a sharp V-bounce).
+      //    The k-bar averaged pace is still used for PULLBACK detection above,
+      //    where it was legitimately needed to stop slow EMAs reading as falsely
+      //    weakened — only the RECOVERY test is changed.
+      //    NOTE: recovery_ratio is no longer consulted for the recovery decision;
+      //    it is retained in the signature for ABI/back-compat and VPRR callers.
       bool is_recovery = false;
       if(state == LAYER_PB_DETECTED)
       {
-         if(m_settings.LayerRecoveryOnSlope)
+         if(bias_dir != 0)
          {
-            // t1 slope-based recovery: fire the bar the fast EMA slope RESUMES and
-            // RE-ACCELERATES in the trend direction, instead of waiting for the magnitude
-            // ratio to climb back to recovery_ratio (which lands one bar late). The
-            // re-accel guard (pace steeper than the previous bar) keeps it off a single
-            // flat tick, so it is not the raw 1-bar slope you rejected.
-            double ema_now1  = GetMAVal(fast_ema_handle, v_shift + 1);
-            double ema_kago1 = GetMAVal(fast_ema_handle, v_shift + 1 + k);
-            double prev_pace = (ema_now1 - ema_kago1) / (double)k;
-            bool   reaccel   = (MathAbs(current_pace) > MathAbs(prev_pace));
-            is_recovery = (baseline_bullish == current_bullish) && reaccel && (current_pace != 0.0);
+            // SPEC-FAITHFUL recovery (RRM "Trade Setups" card): after the pullback,
+            // the candle CLOSES back beyond the layer's FAST EMA in the trade
+            // direction — LONG closes ABOVE the fast EMA, SHORT closes BELOW it.
+            // This is the method's actual entry trigger, and it is independent of
+            // the historical slope baseline. The old slope test gated recovery on
+            // baseline_bullish (the fast-EMA slope 'lookback' bars back); for an
+            // entry right after a counter-trend dip that window sits inside the dip
+            // and points the WRONG way, so a valid long-after-dip recovery could
+            // never confirm (the proven cause of DET-but-never-REC blocks).
+            double close_v  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+            double fast_ema = GetMAVal(fast_ema_handle, v_shift);
+            if(fast_ema > 0.0)
+               is_recovery = (bias_dir > 0) ? (close_v > fast_ema) : (close_v < fast_ema);
          }
          else
          {
-            is_recovery = (baseline_bullish == current_bullish) && (ratio >= recovery_ratio);
+            // Back-compat fallback when no bias is supplied (bias_dir == 0):
+            // original 1-bar slope-sign test against the historical baseline.
+            double ema_rec_now  = GetMAVal(fast_ema_handle, v_shift);
+            double ema_rec_prev = GetMAVal(fast_ema_handle, v_shift + 1);
+            double rec_slope    = ema_rec_now - ema_rec_prev;
+            is_recovery = (rec_slope != 0.0) && (baseline_bullish == (rec_slope > 0.0));
          }
       }
+
+      // -- Relapse trigger (RECOVERED -> DETECTED): a COMPLETED recovery is
+      //    only invalidated by a genuine counter-trend reversal, NOT by mere
+      //    slope weakening/flattening. Transient weakening one bar after a
+      //    1-bar-sign recovery would otherwise oscillate the state and keep
+      //    resetting VPRR's recovery-volume window (vol_rec_bars), starving the
+      //    VPRR ratio so it never passes the I-factor vote. Requiring a true
+      //    reversal keeps RECOVERED durable across normal consolidation, which
+      //    both restores the pre-change trade frequency and lets VPRR measure.
+      bool is_relapse_reversal = (baseline_bullish != current_bullish) && (current_pace != 0.0);
 
       ELayerPullbackState prev_state = state;
       if(state == LAYER_PB_NONE && is_pullback)
          state = LAYER_PB_DETECTED;
       else if(state == LAYER_PB_DETECTED && is_recovery)
          state = LAYER_PB_RECOVERED;
-      else if(state == LAYER_PB_RECOVERED && is_pullback)
+      else if(state == LAYER_PB_RECOVERED && is_relapse_reversal)
          state = LAYER_PB_DETECTED;
 
       if(m_settings.DebugFlow && state != prev_state)
@@ -1611,7 +1642,21 @@ private:
       if(m_phase_reset_count >= confirm_need && m_phase_reset_pending != m_phase_reset_confirmed)
       {
          m_phase_reset_confirmed = m_phase_reset_pending;
-         ResetAllLayerPullback();
+         // STALE-ONLY reset: clear a RECOVERED cycle earned under the OLD phase
+         // (genuinely stale), but PRESERVE an in-progress DETECTED pullback. A
+         // pullback's bounce is often what reorders the EMAs and triggers the
+         // phase change itself, so a full reset to NONE here would erase the
+         // DETECTED half right at the pullback->recovery boundary, stranding the
+         // layer at NONE through the entire recovery (recovery is reachable only
+         // from DETECTED, and recovery bars are not themselves pullbacks). Keeping
+         // DETECTED lets a pullback that began just before the new-phase
+         // confirmation complete its recovery inside the new phase.
+         if(m_layer_w_pb_state == LAYER_PB_RECOVERED) m_layer_w_pb_state = LAYER_PB_NONE;
+         if(m_layer_m_pb_state == LAYER_PB_RECOVERED) m_layer_m_pb_state = LAYER_PB_NONE;
+         if(m_layer_s_pb_state == LAYER_PB_RECOVERED) m_layer_s_pb_state = LAYER_PB_NONE;
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[PHASE_RESET] Phase confirmed %s -> stale RECOVERED cleared, DETECTED preserved",
+                                  EnumToString(m_phase_reset_confirmed)));
       }
    }
 
@@ -1665,7 +1710,7 @@ private:
       m_cb_prev_any_rec = any_rec;
    }
 
-   void UpdateLayerPullbackStates(int v_shift)
+   void UpdateLayerPullbackStates(int v_shift, int bias_dir = 0)
    {
       if(!m_settings.LayerPullbackEnabled) return;
 
@@ -1678,15 +1723,15 @@ private:
       UpdateSingleLayerPullback(h_ema1, v_shift, GetLayerLookback(1), GetLayerRecovery(1),
                                 m_layer_w_pb_state, m_layer_w_baseline, "LayerW",
                                 m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
-                                m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr);
+                                m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr, bias_dir);
       UpdateSingleLayerPullback(h_ema2, v_shift, GetLayerLookback(2), GetLayerRecovery(2),
                                 m_layer_m_pb_state, m_layer_m_baseline, "LayerM",
                                 m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
-                                m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr);
+                                m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr, bias_dir);
       UpdateSingleLayerPullback(h_ema3, v_shift, GetLayerLookback(3), GetLayerRecovery(3),
                                 m_layer_s_pb_state, m_layer_s_baseline, "LayerS",
                                 m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
-                                m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr);
+                                m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr, bias_dir);
 
       UpdateCBOverExtCarry(v_shift);
    }
@@ -3158,7 +3203,7 @@ public:
    // ── Scanner API — thin public wrappers for SEA_IND_SignalScan ────
    // These expose selected private functions needed by the scanner
    // indicator without changing the engine's internal structure.
-   void   Scanner_UpdateLayerPullback(int shift) { UpdateLayerPullbackStates(shift); }
+   void   Scanner_UpdateLayerPullback(int shift, int dir = 0) { UpdateLayerPullbackStates(shift, dir); }
    void   Scanner_UpdatePSARFlip(int shift)      { if(m_settings.Ind_Psar_Enabled) UpdatePSARFlipTracking(shift); }
    void   Scanner_UpdateDPIHistogramState(int shift) { UpdateDPIHistogramState(shift); }  // replays DPI reset-recovery/decel state per bar (no-op when tracking off)
 
@@ -6020,9 +6065,14 @@ public:
             if(m_settings.Ind_Adx_Enabled && !Check_ADX(v_shift)) fails += "ADX ";
             if(m_settings.Ind_Macd_Enabled && !Check_MACD(bias, v_shift)) fails += "MACD ";
             if(m_settings.Ind_Cci_Enabled && !Check_CCI(bias, v_shift)) fails += "CCI ";
-            if(bias < 0) {
+            // Diagnostic: print failing voters for BOTH directions. Previously this
+            // only printed for bias<0 (shorts), which hid why LONG-bias bars never
+            // confirm. With both directions visible, a per-bar grep of [LONG_REJECT]
+            // immediately shows which voter (PSAR/DPI/CBODY/MTF/...) blocks longs.
+            {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               PrintFormat("[SHORT_REJECT] %s | %d/%d pass | FAILED: %s",
+               PrintFormat("[%s_REJECT] %s | %d/%d pass | FAILED: %s",
+                           (bias < 0 ? "SHORT" : "LONG"),
                            TimeToString(bar_time, TIME_DATE|TIME_MINUTES), s_passed, s_enabled, fails);
             }
             string ifail = fails; StringTrimRight(ifail); StringReplace(ifail, " ", ",");
@@ -6695,7 +6745,7 @@ public:
       // Advanced every bar — the Stats_FullEvaluation=true default already did
       // so; waterfall mode is now consistent with it.
       if(m_settings.BiasMode == BIAS_4EMA)
-         UpdateLayerPullbackStates(v_shift);
+         UpdateLayerPullbackStates(v_shift, B);
 
       // ── P·F·L·I·CG via the shared core (ONE source of truth) ────────
       // EvaluateTS_Breakdown is the SAME evaluator SignalScan uses for its
