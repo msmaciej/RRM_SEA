@@ -6887,27 +6887,28 @@ public:
 
          // ── Pullback cycle reset after TS=1 ───────────────────────────
          // A RECOVERED state is a one-shot gate: it is earned by a pullback
-         // and consumed by a valid signal. Reset to NONE so the next entry
-         // requires a fresh pullback-recovery cycle on each layer.
-         // Without this, RECOVERED persists indefinitely, allowing entries
-         // on bars with no preceding pullback (trend extension entries).
-         // Only layers that are currently RECOVERED are reset — layers still
-         // in DETECTED (mid-pullback) or NONE are left untouched.
+         // and consumed by the entry on THAT layer. Reset ONLY the winning
+         // layer (m_last_layer) so the other two retain their independent
+         // RECOVERED setups — they represent different timeframes (W=EMA1/2,
+         // M=EMA2/3, S=EMA3/4) and each layer's cycle is independent of the
+         // others. Previously all three were reset together, which created a
+         // deadlock in trending markets: after one trade no layer could fire
+         // until fresh pullback-recovery cycles completed on EACH layer.
          if(m_settings.LayerPullbackEnabled)
          {
-            if(m_layer_w_pb_state == LAYER_PB_RECOVERED)
+            if(m_last_layer == 1 && m_layer_w_pb_state == LAYER_PB_RECOVERED)
             {
                m_layer_w_pb_state = LAYER_PB_NONE;
                if(m_settings.DebugFlow)
                   DebugLog("[PB_RESET] LayerW: RECOVERED → NONE (TS=1 consumed pullback cycle)");
             }
-            if(m_layer_m_pb_state == LAYER_PB_RECOVERED)
+            else if(m_last_layer == 2 && m_layer_m_pb_state == LAYER_PB_RECOVERED)
             {
                m_layer_m_pb_state = LAYER_PB_NONE;
                if(m_settings.DebugFlow)
                   DebugLog("[PB_RESET] LayerM: RECOVERED → NONE (TS=1 consumed pullback cycle)");
             }
-            if(m_layer_s_pb_state == LAYER_PB_RECOVERED)
+            else if(m_last_layer == 3 && m_layer_s_pb_state == LAYER_PB_RECOVERED)
             {
                m_layer_s_pb_state = LAYER_PB_NONE;
                if(m_settings.DebugFlow)
