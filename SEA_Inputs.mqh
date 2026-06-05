@@ -758,9 +758,9 @@ input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: QUALITY Gates";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_RequireRecoveryIntraday = true;        // RRM ORG QA: Require recovery <M15
-input bool        Inp_RRM_ORG_HtfFilter            = true;           // RRM ORG QA: HTF Trend Filter
-input bool        Inp_RRM_ORG_ClimaxGuard_Enabled  = true;           // RRM ORG: enable climax/exhaustion guard
+input bool        Inp_RRM_ORG_RequireRecoveryIntraday = false;        // RRM ORG QA: Require recovery <M15
+input bool        Inp_RRM_ORG_HtfFilter            = false;           // RRM ORG QA: HTF Trend Filter
+input bool        Inp_RRM_ORG_ClimaxGuard_Enabled  = false;           // RRM ORG: enable climax/exhaustion guard
 input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM ORG QA: EMA1 period
 input int         Inp_RRM_ORG_Ema2Period           = 13;             // RRM ORG QA: EMA2 period
 input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG QA: EMA3 period
