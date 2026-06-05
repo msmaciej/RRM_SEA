@@ -348,6 +348,7 @@ private:
       double psar_close;
       double dpi_diag_hist;       // last DPI histogram value (inspector diagnostic)
       int    dpi_diag_sub;        // last DPI fail sub-reason: 0=none 1=DIR(colour) 3=GREEN 4=RESET
+      bool   dpi_diag_yellow;     // last DPI ribbon colour: true=YELLOW (long), false=RED (short)
    };
 
    SIndicatorCache m_ind_cache;
@@ -460,6 +461,7 @@ private:
       m_ind_cache.dpi_result = -1;
       m_ind_cache.dpi_diag_hist = 0.0;
       m_ind_cache.dpi_diag_sub  = 0;
+      m_ind_cache.dpi_diag_yellow = false;
    }
 
    bool IsCacheValidForShift(int shift) const
@@ -2863,6 +2865,7 @@ private:
       m_ind_cache.dpi_result  = result ? 1 : 0;
       m_ind_cache.dpi_diag_hist = hist_cur;
       m_ind_cache.dpi_diag_sub  = (!base_ok ? 1 : (!green_ok ? 3 : (!reset_ok ? 4 : 0)));
+      m_ind_cache.dpi_diag_yellow = dpi_wants_yellow;
 
       if(m_settings.DebugFlow)
       {
@@ -6105,7 +6108,13 @@ public:
             if(m_settings.Ind_Dpi_Enabled && !Check_DPI(bias, v_shift))
             {
                string dsub = (m_ind_cache.dpi_diag_sub==1 ? "DIR" : m_ind_cache.dpi_diag_sub==3 ? "GREEN" : m_ind_cache.dpi_diag_sub==4 ? "RESET" : "?");
-               fails += StringFormat("DPI:%s(h=%+.3f) ", dsub, m_ind_cache.dpi_diag_hist);
+               // For DIR rejections, show the ribbon colour (R=red, Y=yellow) — the
+               // direction-vote uses ribbon colour, not the raw histogram value.
+               // DIR(R) = ribbon RED blocked a LONG; DIR(Y) = ribbon YELLOW blocked a SHORT.
+               if(m_ind_cache.dpi_diag_sub == 1)
+                  fails += StringFormat("DPI:DIR(%s) ", m_ind_cache.dpi_diag_yellow ? "Y" : "R");
+               else
+                  fails += StringFormat("DPI:%s ", dsub);
             }
             if(m_settings.Ind_CandleBody_Enabled && !Check_CandleBody(bias, v_shift)) fails += "CBODY ";
             if(m_settings.Ind_MTF_Enabled && !Check_MTF(bias, v_shift)) fails += "MTF ";
