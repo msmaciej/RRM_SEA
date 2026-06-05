@@ -123,7 +123,7 @@ input int         Inp_VETO_TE_SpreadMedianTicks    = 0;              // Veto TE:
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: MTF (Multi-Timeframe Confirmation)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Ind_MTF_Enabled              = true;           // Veto MTF: enable
+input bool        Inp_Ind_MTF_Enabled              = false;           // Veto MTF: enable
 input ENUM_TIMEFRAMES Inp_MTF_TF1                  = PERIOD_M5;      // Veto MTF: TF1 (primary)
 input ENUM_TIMEFRAMES Inp_MTF_TF2                  = PERIOD_M15;     // Veto MTF: TF2 (PERIOD_CURRENT = single TF)
 input int         Inp_MTF_EMA_Fast                 = 20;             // Veto MTF: fast EMA period
@@ -138,7 +138,7 @@ input int         Inp_ClimaxGuard_Lookback         = 13;              // Climax:
 input int         Inp_ClimaxGuard_ATRPeriod        = 14;             // Climax: ATR baseline period (measured pre-impulse)
 input double      Inp_ClimaxGuard_BarATRMult       = 2.0;            // Climax: single-bar range threshold (x ATR)
 input double      Inp_ClimaxGuard_MoveATRMult      = 3.0;            // Climax: cumulative move threshold (x ATR)
-input bool        Inp_ClimaxGuard_ResetPullback    = true;           // Climax: on detection reset ALL layer PB states
+input bool        Inp_ClimaxGuard_ResetPullback    = false;           // Climax: on detection reset ALL layer PB states
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -556,7 +556,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: DPI Vote (I factor — ribbon direction)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // RRM ORG DPI: Enable DPI vote in TS equation
-input bool        Inp_RRM_ORG_DPI_UseCCIReset            = true;     // RRM ORG DPI: CCI can reset ribbon color (trend filter)
+input bool        Inp_RRM_ORG_DPI_UseCCIReset            = false;     // RRM ORG DPI: CCI can reset ribbon color (trend filter)
 input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
 input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;     // RRM ORG DPI: Also require GREEN overlay for vote pass
 // Yellow ribbon = BUY vote, Red ribbon = SELL vote.
@@ -597,7 +597,7 @@ input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI System C — CCI Reset-Recovery Gate";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_DPI_RequireResetRecovery   = true;     // RRM ORG DPI: Require CCI reset→recovery cycle before entry
+input bool        Inp_RRM_ORG_DPI_RequireResetRecovery   = false;    // RRM ORG DPI: Require CCI reset→recovery cycle before entry  [SYNC 2026-06-04: true→false to match SignalScan, which never seeds this gate (zero-init=false). JUDGMENT CALL — see note.]
 input int         Inp_RRM_ORG_DPI_ResetRecoveryBars      = 0;        // RRM ORG DPI: Recovery bars after CCI flip-back (0=immediate)
 input bool        Inp_RRM_ORG_DPI_ResetRequireGreen      = false;    // RRM ORG DPI: Also require GREEN reappearance during recovery
 //
@@ -632,7 +632,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: (TP) TAKE PROFIT TARGET";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETPMode     Inp_RRM_ORG_TPMode               = TP_MODE_RR;     // RRM ORG TP: TP_MODE=*: *FIXED_PIPS, *FRACTAL, *NONE, *PSAR_FLIP, *RR
-input double      Inp_RRM_ORG_RRRatio              = 2.5;            // RRM ORG TP: RR ratio
+input double      Inp_RRM_ORG_RRRatio              = 1.25;            // RRM ORG TP: RR ratio
 //
 // Inp_RRM_ORG_TPMode - Take profit mode:
 // TP_MODE_FIXED_PIPS: TP at fixed pip distance
@@ -708,7 +708,7 @@ input double      Inp_RRM_ORG_TrailEMA_CushionPips    = 0.0;         // RRM ORG 
 input double      Inp_RRM_ORG_TrailEMA_CushionAtrMult = 0.1;         // RRM ORG TS: EMA cushion = ATR×this (0=disabled; 0.1=recommended)
 input int         Inp_RRM_ORG_TrailEMA_CushionAtrPeriod = 14;        // RRM ORG TS: ATR period for EMA cushion
 input ETrailTrigger Inp_RRM_ORG_TrailTrigger          = TRIGGER_IMMEDIATE; // RRM ORG TS: *BREAKEVEN, *IMMEDIATE, *PROFIT_PERCENT, *PROFIT_PIPS, *PSAR_ALIGN
-input bool        Inp_RRM_ORG_TrailStartsAfterBE      = true;       // RRM ORG TS: Safety override: trail after BE
+input bool        Inp_RRM_ORG_TrailStartsAfterBE      = false;       // RRM ORG TS: Safety override: trail after BE
 input bool        Inp_RRM_ORG_TrailLockProfit         = true;        // RRM ORG TS: never move SL backwards (lock profit)
 input double      Inp_RRM_ORG_TrailStepPips           = 5.0;         // RRM ORG TS: step size for fixed-step trail modes
 input int         Inp_RRM_ORG_MaxSpreadRetryBars      = 3;           // RRM ORG: SPREAD bars retry (if TE block)
@@ -851,9 +851,9 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: CB Candle Body Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_CandleBody_RequireDir   = true;        // RRM ORG CBody: CBody Require direction
-input int         Inp_RRM_ORG_CandleBody_AvgPeriod    = 5;           // RRM ORG CBody: CBody Average period
-input int         Inp_RRM_ORG_CandleBody_CheckBars    = 3;           // RRM ORG CBody: CBody Bars to check
-input double      Inp_RRM_ORG_CandleBody_MaxMult      = 4.0;         // RRM ORG CBody: CBody Max multiplier
+input int         Inp_RRM_ORG_CandleBody_AvgPeriod    = 14;          // RRM ORG CBody: CBody Average period       [SYNC 2026-06-04: 5→14 to match SignalScan CB_AvgPeriod]
+input int         Inp_RRM_ORG_CandleBody_CheckBars    = 1;           // RRM ORG CBody: CBody Bars to check        [SYNC 2026-06-04: 3→1 to match SignalScan CB_CheckBars (inert — engine no longer uses CheckBars in ATR spike test)]
+input double      Inp_RRM_ORG_CandleBody_MaxMult      = 3.0;         // RRM ORG CBody: CBody Max multiplier       [SYNC 2026-06-04: 4.0→3.0 to match SignalScan CB_MaxMult]
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: CC Candle Close Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -864,7 +864,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: CCI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input ECciMode    Inp_RRM_ORG_CciMode              = CCI_TREND_ZERO; // RRM ORG CCI: CCI Mode
-input int         Inp_RRM_ORG_CciPeriod            = 14;             // RRM ORG CCI: CCI Period
+input int         Inp_RRM_ORG_CciPeriod            = 20;             // RRM ORG CCI: CCI Period   [SYNC 2026-06-04: 14→20 to match SignalScan CCI_Period (inert — standalone CCI voter OFF on both sides; parity only)]
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: CI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -891,7 +891,7 @@ input double      Inp_RRM_ORG_Mfi_OS               = 20.0;           // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: PSAR Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_Vote_AllowPsarFlip   = true;           // RRM ORG PSAR: PSAR Enable Flip
+input bool        Inp_RRM_ORG_Vote_AllowPsarFlip   = true;          // RRM ORG PSAR: PSAR Enable Flip   [SYNC 2026-06-04: true→false to match SignalScan TS_PSAR_Flip=false (PSAR votes on dot position only, no flip window)]
 input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 5;              // RRM ORG PSAR: PSAR Flip delay (-1=persistent, 0-10=bars after flip)
 input int         Inp_RRM_ORG_TrailPsarDotShift    = 1;              // RRM ORG QA: PSAR trail shift (1–3 bars back)
 input int         Inp_RRM_ORG_PsarFlipDelay_W      = -99;            // RRM ORG PSAR: PSAR Flip delay LayerW override (-99=use global, 0=flip bar, 1-10=window)
