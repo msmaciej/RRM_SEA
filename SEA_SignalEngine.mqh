@@ -3348,6 +3348,54 @@ public:
    {
       m_last_f_reason = "";   // which sub-filter blocked (for caller telemetry); "" = passed
 
+      // ── Execution-moment gates (Time / News / Spread) ─────────────────
+      // Only meaningful on the live bar (shift==0); historical scans cannot
+      // replay live spread/news context, so we skip them for shift>0.
+      // Mirrors EvaluateFilterX (lines 5417-5524) — single source of truth so
+      // SignalScan and the EA reach the same verdict on the live bar.
+      if(shift == 0)
+      {
+         // Time window
+         if(m_settings.UseTime)
+         {
+            MqlDateTime dt; TimeCurrent(dt);
+            bool time_pass = (m_settings.StartHr < m_settings.EndHr)
+                             ? (dt.hour >= m_settings.StartHr && dt.hour <  m_settings.EndHr)
+                             : (dt.hour >= m_settings.StartHr || dt.hour <  m_settings.EndHr);
+            if(!time_pass) { m_last_f_reason = "TIME"; return false; }
+         }
+
+         // News window
+         if(m_settings.UseNews && m_news_count > 0)
+         {
+            string base, quote;
+            GetSymbolCurrencies(m_symbol, base, quote);
+            if(base != "" && quote != "")
+            {
+               datetime now = TimeCurrent();
+               int pre_sec  = m_settings.NewsPre  * 60;
+               int post_sec = m_settings.NewsPost * 60;
+               for(int i = 0; i < m_news_count; i++)
+               {
+                  if(!NewsImpactPass(m_news_events[i].impact)) continue;
+                  string ccy = m_news_events[i].currency;
+                  if(ccy != base && ccy != quote) continue;
+                  datetime t = m_news_events[i].time;
+                  if(now >= (t - pre_sec) && now <= (t + post_sec))
+                  { m_last_f_reason = "NEWS"; return false; }
+               }
+            }
+         }
+
+         // Spread
+         if(m_settings.UseSpread && m_settings.MaxSpread > 0.0)
+         {
+            double spread_pips = SpreadPips();
+            if(spread_pips > m_settings.MaxSpread)
+            { m_last_f_reason = "SPREAD"; return false; }
+         }
+      }
+
       // ── EMA fan over-extension (stateless) ──
       if(m_settings.EmaFanFilterEnabled && (m_settings.EmaFanMaxTotalPips > 0.0 || m_settings.EmaFanMaxPct > 0.0))
       {
@@ -6038,10 +6086,11 @@ public:
       if(all_pass) {
          m_diag_last_reason = "OK";
          m_diag_i_fails = "";
-         m_signals_generated++;
-         m_stats.signals_confirmed++;
-         if(bias > 0) m_stats.signals_confirmed_long++;
-         else         m_stats.signals_confirmed_short++;
+         // NOTE: signals_confirmed / signals_generated are TS-level counters and
+         // are incremented at the top-level final_signal=1 site in EvaluateTS().
+         // Incrementing them here counted "indicator-vote passes" — bars where
+         // B/P/L/CG/F later vetoed still got counted, producing a false
+         // "770 confirmed / 1 traded / 99.9% filtered" report.
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=%d (all %d voters passed)", bias, vote_pass));
          return bias;
       }
@@ -6822,6 +6871,13 @@ public:
          final_signal = 1;
          // Note: m_diag_last_bias was already set by EvaluateB; update for consistency
          m_diag_last_bias = B;
+         // TS-level counters (moved here from EvaluateIndicatorX so they reflect
+         // actual TS=1 events, not just indicator-vote passes that B/P/L/CG/F
+         // later veto).
+         m_signals_generated++;
+         m_stats.signals_confirmed++;
+         if(B > 0) m_stats.signals_confirmed_long++;
+         else      m_stats.signals_confirmed_short++;
          m_ts_status_string = StringFormat("B[%s] | P[%s] | L[L%d] | I[OK]",
                                             (B > 0 ? "L" : (B < 0 ? "S" : "0")),
                                             EnumToString(m_diag_last_phase),
