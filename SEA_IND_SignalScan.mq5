@@ -933,6 +933,12 @@ void BuildSettings(ST_Settings &s)
    s.P_PsarMax          = PSAR_Max;
    s.Vote_AllowPsarFlip = TS_PSAR_Flip;
    s.Vote_PsarFlipDelay = PSAR_FlipBars;
+   // Layer-specific overrides: -99 = sentinel "use global". Without this,
+   // MQL5 zero-init leaves them at 0, which OVERRIDES the global delay and
+   // causes EXP fail on flips even 1 bar old (mirror SEA_Inputs.mqh:1618-1620).
+   s.Vote_PsarFlipDelay_W = -99;
+   s.Vote_PsarFlipDelay_M = -99;
+   s.Vote_PsarFlipDelay_S = -99;
 
    // MTF
    s.Ind_MTF_Enabled     = TS_MTF;

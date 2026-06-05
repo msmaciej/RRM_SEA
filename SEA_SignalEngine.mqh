@@ -349,6 +349,7 @@ private:
       double dpi_diag_hist;       // last DPI histogram value (inspector diagnostic)
       int    dpi_diag_sub;        // last DPI fail sub-reason: 0=none 1=DIR(colour) 3=GREEN 4=RESET
       bool   dpi_diag_yellow;     // last DPI ribbon colour: true=YELLOW (long), false=RED (short)
+      int    psar_diag_sub;       // last PSAR fail sub-reason: 0=none/dot 1=NoFlip 2=Expired
    };
 
    SIndicatorCache m_ind_cache;
@@ -462,6 +463,7 @@ private:
       m_ind_cache.dpi_diag_hist = 0.0;
       m_ind_cache.dpi_diag_sub  = 0;
       m_ind_cache.dpi_diag_yellow = false;
+      m_ind_cache.psar_diag_sub = 0;
    }
 
    bool IsCacheValidForShift(int shift) const
@@ -2440,6 +2442,7 @@ private:
 
       if(!dot_correct) {
          m_diag_last_reason = "PSAR_DOT_WRONG_SIDE";
+         m_ind_cache.psar_diag_sub = 0;   // dot wrong side
 
          if(m_settings.DebugFlow) {
             DebugLog("[PSAR_FLIP_CHECK] STEP 1 FAILED: DOT WRONG SIDE");
@@ -2486,6 +2489,7 @@ private:
 
       if(flip_time == 0) {
          m_diag_last_reason = StringFormat("PSAR_NO_FLIP_RECORDED (bias=%d)", bias);
+         m_ind_cache.psar_diag_sub = 1;   // no flip recorded
 
          if(m_settings.DebugFlow) {
             DebugLog("[PSAR_FLIP_CHECK] STEP 2 FAILED: NO FLIP RECORDED");
@@ -2533,6 +2537,7 @@ private:
       if(bars_since > delay) {
          m_diag_last_reason = StringFormat("PSAR_FLIP_EXPIRED (bars_since=%d, delay=%d)",
                                            bars_since, delay);
+         m_ind_cache.psar_diag_sub = 2;   // flip too old
 
          if(m_settings.DebugFlow) {
             DebugLog("[PSAR_FLIP_CHECK] STEP 3 FAILED: FLIP EXPIRED");
@@ -6104,7 +6109,21 @@ public:
          // (m_diag_i_fails), and printed for shorts (temporary diagnostic).
          {
             string fails = "";
-            if(m_settings.Ind_Psar_Enabled && !(m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift))) fails += "PSAR ";
+            if(m_settings.Ind_Psar_Enabled && !(m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)))
+            {
+               // Sub-code distinguishes the three flip-mode failure paths so the user
+               // can tell "dot on wrong side" from "no flip yet" from "flip too old".
+               //   DOT = dot on wrong side of price (the visual check)
+               //   NoF = no flip recorded for this direction yet
+               //   EXP = flip is older than PsarFlipDelay window (sustained trend)
+               if(m_settings.Vote_AllowPsarFlip)
+               {
+                  string psub = (m_ind_cache.psar_diag_sub == 1 ? "NoF" :
+                                 m_ind_cache.psar_diag_sub == 2 ? "EXP" : "DOT");
+                  fails += StringFormat("PSAR(%s) ", psub);
+               }
+               else fails += "PSAR ";
+            }
             if(m_settings.Ind_Dpi_Enabled && !Check_DPI(bias, v_shift))
             {
                string dsub = (m_ind_cache.dpi_diag_sub==1 ? "DIR" : m_ind_cache.dpi_diag_sub==3 ? "GREEN" : m_ind_cache.dpi_diag_sub==4 ? "RESET" : "?");
