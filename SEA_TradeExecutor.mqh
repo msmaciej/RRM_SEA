@@ -1098,10 +1098,33 @@ private:
          case SL_MODE_PSAR_DOT: {
             double psar = GetPSARAnchor(1);
             if(psar > 0.0) {
-               bool valid = isBuy ? (psar < price) : (psar > price);
+               // Side validity — matches methodology: PSAR dot must be on
+               // the trend side of the entry candle's CLOSED body.
+               // Compare vs Close[1] (the closed entry candle), not the
+               // live entry price — keeps the rule identical to the trail
+               // path in CalcPsarTrailAnchorSL.
+               double close_ref = iClose(m_symbol, PERIOD_CURRENT, 1);
+               bool valid = (close_ref > 0.0)
+                  ? (isBuy ? (psar < close_ref) : (psar > close_ref))
+                  : (isBuy ? (psar < price)     : (psar > price));   // safe fallback
                if(!valid) {
-                  PrintFormat("⚠️ [RRM SL] PSAR anchor on wrong side. psar=%.5f entry=%.5f dir=%s — Using Fixed Pips.",
-                              psar, price, isBuy ? "BUY" : "SELL");
+                  PrintFormat("⚠️ [RRM SL] PSAR wrong side. psar=%.5f close[1]=%.5f entry=%.5f dir=%s — trying Swing fallback",
+                              psar, close_ref, price, isBuy ? "BUY" : "SELL");
+                  // Swing-first fallback — preserves the methodology
+                  // (Swing High/Low is the OTHER documented placement on
+                  // the Stop Loss card). Only falls to Fixed Pips if both
+                  // structural anchors fail, so the SL never silently
+                  // degrades from "methodology" to "arbitrary distance".
+                  double swing_fb = GetSwingLevel(isBuy ? 1 : -1);
+                  bool swing_ok = (swing_fb > 0.0) &&
+                                  (isBuy ? (swing_fb < price) : (swing_fb > price));
+                  if(swing_ok) {
+                     double cushion_price = m_settings.SL_SwingPipsCushion * pipSize;
+                     sl = isBuy ? (swing_fb - cushion_price) : (swing_fb + cushion_price);
+                     PrintFormat("✅ [RRM SL] Swing fallback used: anchor=%.5f → SL=%.5f", swing_fb, sl);
+                     break;
+                  }
+                  PrintFormat("⚠️ [RRM SL FALLBACK] Both PSAR and Swing invalid — Using Fixed Pips.");
                   break;
                }
                double cushion_price = m_settings.SL_PsarPipsCushion * pipSize;
@@ -1225,10 +1248,29 @@ private:
             anchor = GetPSARAnchor(1);
             cushion_pips = m_settings.SL_PsarPipsCushion;
             if(anchor > 0.0) {
-               bool valid = isBuy ? (anchor < price) : (anchor > price);
+               // Match RRM_GetStrictSL: validate PSAR vs the CLOSED candle's
+               // body (close[1]) rather than the live entry price, so the
+               // rule is identical to the trail path in CalcPsarTrailAnchorSL.
+               double close_ref = iClose(m_symbol, PERIOD_CURRENT, 1);
+               bool valid = (close_ref > 0.0)
+                  ? (isBuy ? (anchor < close_ref) : (anchor > close_ref))
+                  : (isBuy ? (anchor < price)     : (anchor > price));   // safe fallback
                if(!valid) {
-                  PrintFormat("⚠️ [SL] PSAR anchor (%.5f) on wrong side of entry (%.5f) for %s — fallback to Fixed Pips", anchor, price, isBuy ? "BUY" : "SELL");
-                  anchor = 0.0;
+                  PrintFormat("⚠️ [SL] PSAR wrong side (psar=%.5f close[1]=%.5f entry=%.5f, %s) — trying Swing fallback before Fixed Pips",
+                              anchor, close_ref, price, isBuy ? "BUY" : "SELL");
+                  // Try Swing as a methodology-aligned fallback BEFORE
+                  // collapsing to fixed pips (Swing High/Low is the second
+                  // documented SL placement on the methodology card).
+                  double swing_fb = GetSwingLevel(isBuy ? 1 : -1);
+                  bool swing_ok = (swing_fb > 0.0) &&
+                                  (isBuy ? (swing_fb < price) : (swing_fb > price));
+                  if(swing_ok) {
+                     anchor       = swing_fb;
+                     cushion_pips = m_settings.SL_SwingPipsCushion;
+                     PrintFormat("✅ [SL] Swing fallback used: anchor=%.5f", anchor);
+                  } else {
+                     anchor = 0.0;  // both failed → fixed pips below
+                  }
                }
             }
             break;
@@ -1361,6 +1403,29 @@ private:
       if(shift > 3) shift = 3;
       double psar = GetPSARAnchor(shift);
       if(psar <= 0.0) return 0.0;
+
+      // ── PSAR side validity (RRM methodology) ──────────────────────────
+      // The trail anchor MUST be a dot on the trend side of the closed
+      // candle's body: dot below close for LONG, above close for SHORT.
+      // A flipped (wrong-side) dot is NOT a valid trailing reference; we
+      // refuse to propose a new anchor so the SL stays at the last good
+      // value and resumes trailing only when PSAR returns to the correct
+      // side on a subsequent closed bar.
+      //
+      // Reference: Stop Loss methodology card —
+      //   "Move stop loss as each new dot progresses past the entry
+      //    (break-even) level."  i.e. only progressing dots on the
+      //    trend side qualify; dots on the wrong side do not.
+      double close_ref = iClose(m_symbol, PERIOD_CURRENT, shift);
+      if(close_ref <= 0.0) return 0.0;
+      bool on_correct_side = isBuy ? (psar < close_ref) : (psar > close_ref);
+      if(!on_correct_side) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[PSAR TRAIL] Wrong-side dot ignored: psar=%.5f close[%d]=%.5f dir=%s — SL held at last good value",
+                        psar, shift, close_ref, isBuy ? "BUY" : "SELL");
+         return 0.0;  // caller treats 0.0 as "no proposal" → SL untouched
+      }
+
       double cushion = ResolveTrailCushionPrice(pipSize);
       return isBuy ? NormalizeDouble(psar - cushion, digits)
                    : NormalizeDouble(psar + cushion, digits);
@@ -1552,7 +1617,14 @@ private:
       double psar = GetPSARAnchor(shift);
       if(psar <= 0.0) return;
 
-      bool psar_flipped = isBuy ? (psar > cur_price) : (psar < cur_price);
+      // PSAR flip is defined against the CLOSED candle's body, not the live tick.
+      // Using cur_price (Bid) here misses flips whenever price has run a bit
+      // past the freshly-flipped dot — and that's the exact scenario in which
+      // CalcPsarTrailAnchorSL would otherwise propose a wrong-side anchor.
+      double close_for_flip = iClose(m_symbol, PERIOD_CURRENT, shift);
+      bool psar_flipped = (close_for_flip > 0.0)
+         ? (isBuy ? (psar > close_for_flip) : (psar < close_for_flip))
+         : (isBuy ? (psar > cur_price)      : (psar < cur_price));   // safe fallback if close unavailable
       if(psar_flipped) {
          if(m_settings.RRM_FreezeTrailOnFlip && !m_rrm_trail_frozen) {
             m_rrm_trail_frozen = true; m_rrm_freeze_time = TimeCurrent();

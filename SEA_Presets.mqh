@@ -2344,6 +2344,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TrailEMA_CushionAtrPeriod    = MathMax(1,   Inp_RRM_ORG_TrailEMA_CushionAtrPeriod);
       cfg.RRM_TrailPsarDotShift   = (Inp_RRM_ORG_TrailPsarDotShift < 1) ? 1 : (Inp_RRM_ORG_TrailPsarDotShift > 3) ? 3 : Inp_RRM_ORG_TrailPsarDotShift; // PSAR DOT trail shift (TRAILING only); default 2 for flip stability
       cfg.RRM_TrailStartsAfterBE    = Inp_RRM_ORG_TrailStartsAfterBE;
+      // FIX (2026-06): pin freeze-on-flip explicitly so RRM_ORG does NOT
+      // silently inherit it from InitializeConfig(). Combined with the
+      // close-based flip detector in RRM_ManageStrictNoATR and the
+      // side-validation guard in CalcPsarTrailAnchorSL, this guarantees
+      // the SL is never dragged to a wrong-side PSAR dot.
+      cfg.RRM_FreezeTrailOnFlip     = Inp_RRM_FreezeTrailOnFlip;
       cfg.TrailProfitPercentLPR     = Inp_RRM_ORG_TrailProfitPercentLPR;
       cfg.PSAR_TrailCushionMode     = Inp_RRM_ORG_PSAR_TrailCushionMode;
       cfg.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_RRM_ORG_TrailCushionAtrPeriod);
