@@ -215,6 +215,17 @@ private:
     // --- 2c.1c CANDLEBODY OVER-EXTENSION CARRY (CBOEB, optional) ---
     bool         m_cb_oeb_blocked;        // CBOEB=0: hold CB vote at 0 (over-extension carry active)
     bool         m_cb_prev_any_rec;       // prev-bar 'any layer recovered' (fresh-recovery edge)
+    // --- 2c.1d DIRECTIONAL STATE SYMMETRY (long/short parity) ---
+    // Tracks the bias direction under which the per-direction state
+    // machines (layer pullback, DPI CCI reset, CB OEB) were last advanced.
+    // When the bias seen by UpdateLayerPullbackStates differs from this
+    // value (including LONG↔SHORT flips and transitions through neutral),
+    // ResetDirectionalState() is called so the new direction starts from
+    // a clean baseline — architectural equivalent of SignalScan's
+    // two-engine isolation in our single-engine model.
+    // Sentinel 999 = uninitialized → forces a clean reset on the first
+    // real bar regardless of which direction it carries.
+    int          m_last_dir_state_bias;
     // --- 2c.2 VPRR VOLUME TRACKING (per layer) ---
     double   m_layer_w_vol_pb_avg, m_layer_m_vol_pb_avg, m_layer_s_vol_pb_avg;     // Running avg pullback volume
     int      m_layer_w_vol_pb_bars, m_layer_m_vol_pb_bars, m_layer_s_vol_pb_bars;  // Bars counted in DETECTED
@@ -1735,6 +1746,32 @@ private:
       if(m_layer_pb_last_update == bar_time) return;
       m_layer_pb_last_update = bar_time;
 
+      // ── LONG/SHORT SYMMETRY: reset direction-dependent state on bias flip ──
+      // Whenever the bias direction handed to this update differs from the
+      // direction the engine's state machines were last advanced under
+      // (including LONG↔SHORT flips AND transitions through neutral),
+      // wipe ALL direction-dependent state so the new direction starts
+      // from a clean baseline.
+      //
+      // This makes the EA's single-engine evaluation directionally
+      // symmetric with SignalScan's two-engine model: in SignalScan, the
+      // idle engine is reset every bar (lines 813-817 of SEA_IND_SignalScan.mq5),
+      // so when a direction takes control its state is uncontaminated by
+      // history under the opposite bias. ResetDirectionalState() provides
+      // the same guarantee here in a single-engine form.
+      //
+      // The sentinel value 999 (set in constructor / Reset / warmup paths)
+      // guarantees the first real call triggers a clean reset regardless
+      // of starting bias.
+      if(bias_dir != m_last_dir_state_bias)
+      {
+         if(m_settings.DebugFlow && m_last_dir_state_bias != 999)
+            DebugLog(StringFormat("[DIR_SYMMETRY] Bias changed %d→%d — resetting direction-dependent state",
+                                  m_last_dir_state_bias, bias_dir));
+         ResetDirectionalState();
+         m_last_dir_state_bias = bias_dir;
+      }
+
       MaybeResetLayersOnPhaseChange(v_shift);
 
       UpdateSingleLayerPullback(h_ema1, v_shift, GetLayerLookback(1), GetLayerRecovery(1),
@@ -3109,6 +3146,80 @@ private:
          DebugLog("[CLIMAX] All layer pullback states reset -> NONE (await fresh pullback-recovery)");
    }
 
+   //==========================================================================
+   // ResetDirectionalState — long/short symmetry primitive
+   //
+   // Clears EVERY piece of engine state whose evolution depends on the trade
+   // direction (LONG / SHORT). Called from UpdateLayerPullbackStates whenever
+   // the current bar's bias differs from the bias under which this state was
+   // last advanced — including LONG↔SHORT flips and transitions through
+   // neutral (bias = 0).
+   //
+   // Rationale (symmetry contract):
+   //   SignalScan instantiates TWO independent CSignalEngine objects, one
+   //   per direction, and resets the idle one every bar (lines 813-817 of
+   //   SEA_IND_SignalScan.mq5). The result is that whichever direction
+   //   takes control starts from a clean state machine — its evaluation
+   //   cannot be contaminated by the other direction's prior history.
+   //   The EA uses a SINGLE engine for both directions, so without this
+   //   reset, state machines that were advanced under LONG bias persist
+   //   into the first SHORT bar (and vice versa), causing path-dependent
+   //   asymmetry between the two evaluation directions.
+   //
+   //   This function is the architectural equivalent in a single-engine
+   //   model: at the moment the engine switches direction, ALL
+   //   direction-dependent state is cleared so the new direction's
+   //   evaluation starts symmetrically.
+   //
+   // What is reset (direction-asymmetric state):
+   //   • Layer pullback-recovery state machines (W / M / S)
+   //   • Layer slope baselines
+   //   • Layer VPRR volume tracking buffers
+   //   • DPI CCI reset-recovery state machine (the frozen "trend colour
+   //     to recover to" becomes stale on a direction flip)
+   //   • CandleBody over-extension carry (tied to layer recovery, which
+   //     is direction-dependent)
+   //
+   // What is NOT reset (already direction-symmetric):
+   //   • PSAR flip timestamps — separate bull/bear variables
+   //   • DPI histogram tracking — magnitude/sign reads through bias
+   //   • Phase debounce — phase enum already encodes direction
+   //   • All per-bar caches — invalidated on each new bar
+   //
+   // INVARIANT for future maintainers: any new engine member whose value
+   // would differ between a LONG-context evaluation and a SHORT-context
+   // evaluation of the SAME bar must be added to this function.
+   //==========================================================================
+   void ResetDirectionalState()
+   {
+      // Layer pullback-recovery state machines
+      m_layer_w_pb_state = LAYER_PB_NONE;
+      m_layer_m_pb_state = LAYER_PB_NONE;
+      m_layer_s_pb_state = LAYER_PB_NONE;
+      // Layer slope baselines
+      m_layer_w_baseline = 0.0;
+      m_layer_m_baseline = 0.0;
+      m_layer_s_baseline = 0.0;
+      // Layer VPRR volume tracking
+      m_layer_w_vol_pb_avg  = 0.0; m_layer_w_vol_pb_bars  = 0;
+      m_layer_w_vol_rec_avg = 0.0; m_layer_w_vol_rec_bars = 0;
+      m_layer_w_vprr        = 0.0;
+      m_layer_m_vol_pb_avg  = 0.0; m_layer_m_vol_pb_bars  = 0;
+      m_layer_m_vol_rec_avg = 0.0; m_layer_m_vol_rec_bars = 0;
+      m_layer_m_vprr        = 0.0;
+      m_layer_s_vol_pb_avg  = 0.0; m_layer_s_vol_pb_bars  = 0;
+      m_layer_s_vol_rec_avg = 0.0; m_layer_s_vol_rec_bars = 0;
+      m_layer_s_vprr        = 0.0;
+      // DPI CCI reset-recovery cycle (trend colour reference becomes stale)
+      m_dpi_reset_state         = 0;
+      m_dpi_reset_recovery_bars = 0;
+      m_dpi_reset_colour_prev   = false;
+      m_dpi_reset_colour_ref    = false;
+      // CandleBody over-extension carry
+      m_cb_oeb_blocked  = false;
+      m_cb_prev_any_rec = false;
+   }
+
    // Returns true if an over-extended impulse in `bias` direction is detected
    // within the recent ClimaxGuard_Lookback window, measured against a
    // pre-impulse ATR baseline (so the impulse itself does not inflate it).
@@ -3740,6 +3851,10 @@ public:
       m_phase_reset_count     = 0;
       m_cb_oeb_blocked  = false;
       m_cb_prev_any_rec = false;
+      // Directional state symmetry tracker — sentinel = uninitialized.
+      // First call to UpdateLayerPullbackStates() will trigger a clean
+      // ResetDirectionalState() regardless of bias direction.
+      m_last_dir_state_bias = 999;
 
       m_diag_layer_w      = 0;
       m_diag_layer_m      = 0;
@@ -4626,6 +4741,10 @@ public:
       m_phase_reset_count     = 0;
       m_cb_oeb_blocked  = false;
       m_cb_prev_any_rec = false;
+      // Sentinel: forces a clean ResetDirectionalState on the first
+      // live bar after warmup (warmup runs bias-agnostic via the
+      // back-compat fallback in UpdateSingleLayerPullback).
+      m_last_dir_state_bias = 999;
       m_layer_w_vol_pb_avg = 0.0; m_layer_w_vol_pb_bars = 0;
       m_layer_w_vol_rec_avg = 0.0; m_layer_w_vol_rec_bars = 0; m_layer_w_vprr = 0.0;
       m_layer_m_vol_pb_avg = 0.0; m_layer_m_vol_pb_bars = 0;
@@ -4733,6 +4852,7 @@ public:
       m_phase_reset_count     = 0;
       m_cb_oeb_blocked  = false;
       m_cb_prev_any_rec = false;
+      m_last_dir_state_bias = 999;   // re-arm directional symmetry reset
       m_diag_layer_w = 0;
       m_diag_layer_m = 0;
       m_diag_layer_s = 0;
