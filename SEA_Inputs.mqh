@@ -701,7 +701,7 @@ input double      Inp_RRM_ORG_TrailProfitPercentLPR   = 25.0;        // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (TSL) ROLE_EMA* & TRIGGER";
 input group "╚════════════════════════════════════════════════════════╝";
-input EEmaRole    Inp_RRM_ORG_TrailEMA_RibbonRole     = ROLE_EMA3;   // RRM ORG TS: which ribbon EMA to trail (EMA1=5,EMA2=13,EMA3=34,EMA4=89) when Period=0
+input EEmaRole    Inp_RRM_ORG_TrailEMA_RibbonRole     = ROLE_EMA2;   // RRM ORG TS: which ribbon EMA to trail (EMA1=5,EMA2=13,EMA3=34,EMA4=89) when Period=0
 input int         Inp_RRM_ORG_TrailEMA_Period         = 0;           // RRM ORG TS: EMA period (0=use ribbon role selector below)
 input int         Inp_RRM_ORG_TrailEMA_Shift          = 1;           // RRM ORG TS: bar shift for EMA read (1=last closed bar, 2=two bars back, 3=three bars back)
 input double      Inp_RRM_ORG_TrailEMA_CushionPips    = 0.0;         // RRM ORG TS: EMA trail cushion pips (0=use ATR mode)
@@ -726,9 +726,9 @@ input bool        Inp_RRM_ORG_AllowReEntryAfterBE     = true;        // RRM ORG:
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (BE) BREAKEVEN";
 input group "╚════════════════════════════════════════════════════════╝";
-input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_TP_PROGRESS_PCT;  // RRM ORG BE: Breakeven trigger mode
-input double      Inp_RRM_ORG_BE_RMultiple            = 1.0;         // RRM ORG BE: BE trigger as R multiple
-input double      Inp_RRM_ORG_BE_ProgressPct          = 25.0;        // RRM ORG BE: BE trigger as TP progress %
+input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_R_MULTIPLE;  // RRM ORG BE: Breakeven trigger mode
+input double      Inp_RRM_ORG_BE_RMultiple            = 0.7;         // RRM ORG BE: BE trigger as R multiple
+input double      Inp_RRM_ORG_BE_ProgressPct          = 70.0;        // RRM ORG BE: BE trigger as TP progress %
 //
 // Inp_RRM_ORG_BE_Mode - Breakeven trigger mode:
 // BE_MODE_OFF:             Breakeven disabled
