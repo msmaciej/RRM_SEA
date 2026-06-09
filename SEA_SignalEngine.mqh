@@ -6962,9 +6962,37 @@ public:
       // ── Layer-pullback state must be current before EvaluateL ───────
       // Advanced every bar — the Stats_FullEvaluation=true default already did
       // so; waterfall mode is now consistent with it.
+      //
+      // SYMMETRY WITH SignalScan (FIX): SignalScan owns two engines and calls
+      // UpdateLayerPullback ONLY on bars where its engine's direction is active
+      // (SEA_IND_SignalScan.mq5 lines 811–812). On idle bars it does a SOFT reset
+      // — Scanner_ResetLayerAfterFire(1/2/3) — that wipes layer pullback states
+      // only, preserving baselines / VPRR / DPI-reset / CB-carry / m_last_dir_state_bias.
+      //
+      // The EA uses ONE engine. Calling UpdateLayerPullbackStates(v_shift, 0) on a
+      // UNO bar triggered ResetDirectionalState() (full wipe of baselines etc.),
+      // and then a second wipe when bias returned to ±1 on the next bar — destroying
+      // every in-progress pullback-recovery cycle. We now mirror SignalScan's idle
+      // path on B==0: soft layer-state reset, no engine wipe.
       if(m_settings.BiasMode == BIAS_4EMA)
-         UpdateLayerPullbackStates(v_shift, B);
-
+      {
+         if(B != 0)
+         {
+            UpdateLayerPullbackStates(v_shift, B);
+         }
+         else
+         {
+            // Soft reset only — same effect as SignalScan's idle-engine branch.
+            // Baselines, VPRR buffers, DPI reset state, CB carry, and
+            // m_last_dir_state_bias are intentionally PRESERVED so the next
+            // bar with B != 0 resumes the same direction's state machine
+            // without re-triggering ResetDirectionalState().
+            m_layer_w_pb_state = LAYER_PB_NONE;
+            m_layer_m_pb_state = LAYER_PB_NONE;
+            m_layer_s_pb_state = LAYER_PB_NONE;
+         }
+      }
+      
       // ── P·F·L·I·CG via the shared core (ONE source of truth) ────────
       // EvaluateTS_Breakdown is the SAME evaluator SignalScan uses for its
       // dotted-lines (EvaluateTS_AtShift) and inspector (Scanner_InspectBar).
