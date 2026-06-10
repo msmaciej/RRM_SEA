@@ -147,7 +147,7 @@ struct STSBreakdown
    int    F;          // pre-filters (1/0)
    string F_reason;   // sub-filter that blocked when F==0
    int    L;          // layer
-   string L_reason;   // why L==0 (LAYER_NONE_ALIGNED / BC_NOT_CONFIRMED / CandleDir / MOMENTUM_NOT_CONFIRMED)
+   string L_reason;   // why L==0 (L_NONE_ALIGNED / L_BC_FAIL / L_BD_FAIL / L_MOMENTUM_FAIL / L_S_NOT_DIR_ALIGNED / L_S_BLOCK_EM)
    int    L_layer;    // winning layer when L==1 (1=W, 2=M, 3=S; 0=none)
    int    I;          // indicators (normalized 1/0)
    string I_reason;   // failing voter names when I==0 (e.g. "DPI,PSAR")
@@ -6637,9 +6637,29 @@ public:
       // (EMA3/EMA4) is position+slope aligned with bias. S's own entry is unaffected.
       bool layerS_dir_ok = (!m_settings.LayerS_RequireDirAlign) || LayerS_DirAligned(v_shift, bias);
 
+      // Strong-S phase gate (book-faithful, SYMMETRIC across LONG/SHORT):
+      // The RRM Trade Setups card affirms "during the Trending Phase" in BOTH
+      // the Bullish and Bearish Strong rules. The Bullish rule additionally
+      // restates this as "no trades during Emerging Phase"; the Bearish rule
+      // omits this restatement (typo in original) but the Trending-Phase
+      // affirmation is identical, so the symmetric reading is TM-only for
+      // both directions. Setting Emerging_AllowStrongTrades=true overrides
+      // and permits Strong-EM symmetrically.
+      // m_diag_last_phase was set inside GetBias_4EMA_Direction (called via
+      // EvaluateB earlier in this same TS pass), so it is current for v_shift.
+      bool s_blocked_emerging = false;
+      if(!m_settings.Emerging_AllowStrongTrades)
+      {
+         bool is_emerging = (m_diag_last_phase == PHASE_EMERGING_UP ||
+                             m_diag_last_phase == PHASE_EMERGING_DN ||
+                             m_diag_last_phase == PHASE_EMERGING);
+         s_blocked_emerging = is_emerging;
+      }
+
       if(m_settings.DebugLevel >= DEBUG_INDICATORS) {
-         DebugLog(StringFormat("[EvaluateL] LayerW=%d LayerM=%d LayerS=%d (bias=%d)",
-                               m_eval_layer_w, m_eval_layer_m, m_eval_layer_s, bias));
+         DebugLog(StringFormat("[EvaluateL] LayerW=%d LayerM=%d LayerS=%d (bias=%d) s_blocked_em=%d",
+                               m_eval_layer_w, m_eval_layer_m, m_eval_layer_s, bias,
+                               (int)s_blocked_emerging));
       }
 
       // Step 2: BD (Bar Direction) — same bar, applies equally to all layers
@@ -6654,8 +6674,9 @@ public:
             momentum_confirmed = Check_DPI_Histogram_Growing(v_shift, bias, lookback);
       }
 
-      // Step 3: Priority walk L3 → L2 → L1; each layer also needs BC and BD
-      if(m_eval_layer_s == 1 && m_settings.AllowLayer3_Entries) {
+      // Step 3: Priority walk L3 → L2 → L1; each layer also needs BC and BD.
+      // S branch additionally honours the Strong-EM gate above.
+      if(m_eval_layer_s == 1 && m_settings.AllowLayer3_Entries && !s_blocked_emerging) {
          int bc_s = Eval_BarClose(v_shift, bias, LAYER_3_STRONG);
          if(bc_s == 0 && lookback > 1)
             bc_s = Check_BarClose_MultiBar(v_shift, bias, LAYER_3_STRONG, lookback) ? 1 : 0;
@@ -6688,19 +6709,25 @@ public:
          }
       }
 
-      // No layer passed all checks
+      // No layer passed all checks — pick the most specific reason.
+      // Reason naming convention: L_<what-failed>, prefix marks the TS-equation
+      // factor (L) that rejected, suffix names the specific cause. Renamed in
+      // 2026-06 to make journal/grep output consistent.
       m_last_layer = 0;
-      if(m_settings.LayerS_RequireDirAlign && !layerS_dir_ok && m_eval_layer_s == 0 &&
-         (m_eval_layer_m == 1 || m_eval_layer_w == 1))
-         m_diag_last_reason = "LAYER_S_DIR_NOT_ALIGNED";
+      if(s_blocked_emerging && m_eval_layer_s == 1 &&
+         m_eval_layer_m == 0 && m_eval_layer_w == 0)
+         m_diag_last_reason = "L_S_BLOCK_EM";
+      else if(m_settings.LayerS_RequireDirAlign && !layerS_dir_ok && m_eval_layer_s == 0 &&
+              (m_eval_layer_m == 1 || m_eval_layer_w == 1))
+         m_diag_last_reason = "L_S_NOT_DIR_ALIGNED";
       else if(m_eval_layer_w == 0 && m_eval_layer_m == 0 && m_eval_layer_s == 0)
-         m_diag_last_reason = "LAYER_NONE_ALIGNED";
+         m_diag_last_reason = "L_NONE_ALIGNED";
       else if(!bd_pass)
-         m_diag_last_reason = "CandleDir: bar not in trade direction";
+         m_diag_last_reason = "L_BD_FAIL";
       else if(!momentum_confirmed)
-         m_diag_last_reason = "MOMENTUM_NOT_CONFIRMED";
+         m_diag_last_reason = "L_MOMENTUM_FAIL";
       else
-         m_diag_last_reason = "BC_NOT_CONFIRMED";
+         m_diag_last_reason = "L_BC_FAIL";
 
       m_reject_gate++;
       if(m_settings.DebugFlow) DebugLog(StringFormat("EvaluateL: REJECT (%s)", m_diag_last_reason));
@@ -6712,7 +6739,7 @@ public:
       m_eval_any_failure = true;
       return 0;
    }
-
+   
    // ─────────────────────────────────────────────────────────────────────────
    // EvaluateI — Indicators (TS equation factor I)
    // Thin wrapper: all indicator voting logic, diagnostics, and counters are

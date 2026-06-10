@@ -551,17 +551,19 @@ string InspMark(int v){ return (v==1) ? "ok" : (v==0 ? "NO" : "--"); }
 string InspCode(string raw)
 {
    if(raw=="") return "";
-   if(StringFind(raw,"LAYER_NONE_ALIGNED")>=0) return "ALIGN";
-   if(StringFind(raw,"LAYER_S_DIR")>=0)        return "SDIR";
-   if(StringFind(raw,"BC_NOT_CONFIRMED")>=0)   return "BC";
-   if(StringFind(raw,"CandleDir")>=0)          return "BD";
-   if(StringFind(raw,"MOMENTUM")>=0)           return "MOM";
-   if(StringFind(raw,"PHASE_UNORDERED")>=0)    return "UNORD";
-   if(StringFind(raw,"PHASE_EMERGING")>=0)     return "EMERG";
-   if(StringFind(raw,"EMA_OVEREXT")>=0)        return "EMAFAN";
-   if(StringFind(raw,"DPI_DECEL")>=0)          return "DECEL";
-   if(StringFind(raw,"DPI_RESET")>=0)          return "RESET";
-   if(StringFind(raw,"PHASE_AGE")>=0)          return "AGE";
+   if(StringFind(raw,"L_NONE_ALIGNED")>=0)      return "ALIGN";
+   if(StringFind(raw,"L_S_NOT_DIR_ALIGNED")>=0) return "SDIR";
+   if(StringFind(raw,"L_S_BLOCK_EM")>=0)        return "S-EM";
+   if(StringFind(raw,"L_BC_FAIL")>=0)           return "BC";
+   if(StringFind(raw,"L_BD_FAIL")>=0)           return "BD";
+   if(StringFind(raw,"L_MOMENTUM_FAIL")>=0)     return "MOM";
+
+   if(StringFind(raw,"PHASE_UNORDERED")>=0)     return "UNORD";
+   if(StringFind(raw,"PHASE_EMERGING")>=0)      return "EMERG";
+   if(StringFind(raw,"EMA_OVEREXT")>=0)         return "EMAFAN";
+   if(StringFind(raw,"DPI_DECEL")>=0)           return "DECEL";
+   if(StringFind(raw,"DPI_RESET")>=0)           return "RESET";
+   if(StringFind(raw,"PHASE_AGE")>=0)           return "AGE";
    return raw;   // I-voter names (already compact, e.g. "DPI,PSAR") shown as-is
 }
 // Like InspMark but appends the engine reason code when a factor is NO.
