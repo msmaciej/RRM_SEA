@@ -4737,6 +4737,22 @@ public:
    //| covers a full pullback + recovery cycle at any reasonable TF.   |
    //| Replay is oldest-first (high shift → low shift) so state machine |
    //| transitions accumulate correctly.                                |
+   //|                                                                  |
+   //| HAND-OFF TO LIVE EVALUATION (fix history):                       |
+   //|   Previously the warmup left m_last_dir_state_bias = 999, which  |
+   //|   made the very first live UpdateLayerPullbackStates() call hit  |
+   //|   ResetDirectionalState() and wipe every layer state, baseline,  |
+   //|   VPRR accumulator, DPI reset state, and CB carry — discarding   |
+   //|   the entire warmup. The fix:                                    |
+   //|   (1) pass the bar's actual bias_dir into UpdateSingleLayerPull- |
+   //|       back so warmup uses the SAME spec-faithful recovery test   |
+   //|       (close vs fast EMA) that live evaluation uses, AND         |
+   //|   (2) seed m_last_dir_state_bias from the most-recent historical |
+   //|       bar's bias so the first live bar's bias_dir matches and    |
+   //|       no ResetDirectionalState wipe is triggered.                |
+   //|   The B==0 SOFT-reset rule applied in EvaluateTS (only layer     |
+   //|   states cleared, baselines/VPRR/DPI/CB preserved) is mirrored   |
+   //|   here for UNO/NEUTRAL bars so warmup and live behave identically.|
    //+------------------------------------------------------------------+
    void WarmUpLayerPullbackStates()
    {
@@ -4747,19 +4763,18 @@ public:
       if(bars_total < scan_depth + 2) scan_depth = bars_total - 2;
       if(scan_depth <= 0) return;
 
-      // Reset states and volume accumulators before replay
+      // ── Reset states and volume accumulators before replay ───────────
       m_layer_w_pb_state = LAYER_PB_NONE;
       m_layer_m_pb_state = LAYER_PB_NONE;
       m_layer_s_pb_state = LAYER_PB_NONE;
+      m_layer_w_baseline = 0.0;
+      m_layer_m_baseline = 0.0;
+      m_layer_s_baseline = 0.0;
       m_phase_reset_pending   = PHASE_UNORDERED;
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
       m_cb_oeb_blocked  = false;
       m_cb_prev_any_rec = false;
-      // Sentinel: forces a clean ResetDirectionalState on the first
-      // live bar after warmup (warmup runs bias-agnostic via the
-      // back-compat fallback in UpdateSingleLayerPullback).
-      m_last_dir_state_bias = 999;
       m_layer_w_vol_pb_avg = 0.0; m_layer_w_vol_pb_bars = 0;
       m_layer_w_vol_rec_avg = 0.0; m_layer_w_vol_rec_bars = 0; m_layer_w_vprr = 0.0;
       m_layer_m_vol_pb_avg = 0.0; m_layer_m_vol_pb_bars = 0;
@@ -4767,9 +4782,17 @@ public:
       m_layer_s_vol_pb_avg = 0.0; m_layer_s_vol_pb_bars = 0;
       m_layer_s_vol_rec_avg = 0.0; m_layer_s_vol_rec_bars = 0; m_layer_s_vprr = 0.0;
 
-      // Replay oldest-to-newest: shift=scan_depth down to shift=1
+      // Track the bias direction that owned the previous bar's state. We
+      // use the same 999 sentinel as UpdateLayerPullbackStates so the very
+      // first non-zero bias encountered triggers a clean directional
+      // initialisation (sets m_last_dir_state_bias without wiping state).
+      m_last_dir_state_bias = 999;
+
+      // ── Replay oldest-to-newest: shift=scan_depth down to shift=1 ────
       // UpdateSingleLayerPullback reads EMA[shift] vs EMA[shift+1] — needs
       // shift+lookback bars of history, so start at scan_depth (oldest usable).
+      int    last_seen_bias = 0;     // bias of the most recent bar that actually advanced state
+      int    last_processed_shift = -1;
       for(int shift = scan_depth; shift >= 1; shift--)
       {
          // Guard: skip bars where EMA data isn't ready yet
@@ -4784,31 +4807,86 @@ public:
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, shift);
          m_layer_pb_last_update = 0;   // reset guard so each bar processes
 
+         // Compute this bar's bias the same way live evaluation does.
+         int b_wu = EvaluateB(shift);
+
+         // ── B==0 (UNO/NEUTRAL) SOFT-reset path ─────────────────────────
+         // Mirror the EvaluateTS rule: on neutral bars only the layer
+         // pullback states are cleared; baselines / VPRR / DPI / CB carry
+         // are preserved, and m_last_dir_state_bias is NOT touched (so a
+         // brief UNO bar between two same-direction TM/EM bars doesn't
+         // count as a direction flip).
+         if(b_wu == 0)
+         {
+            m_layer_w_pb_state = LAYER_PB_NONE;
+            m_layer_m_pb_state = LAYER_PB_NONE;
+            m_layer_s_pb_state = LAYER_PB_NONE;
+            m_layer_pb_last_update = bar_time;
+            last_processed_shift = shift;
+            continue;
+         }
+
+         // ── Directional symmetry: real LONG↔SHORT flips wipe state ────
+         // Same logic as UpdateLayerPullbackStates lines 1766–1773. Without
+         // this, SHORT-direction pullback state accumulated under the prior
+         // downtrend would leak into the new uptrend (and vice versa).
+         if(b_wu != m_last_dir_state_bias)
+         {
+            // Don't wipe on the initial sentinel→bias transition — that
+            // would discard a baseline we may have just begun to build
+            // under no-bias bars. The reset only matters for genuine
+            // direction flips between bullish and bearish.
+            if(m_last_dir_state_bias != 999)
+               ResetDirectionalState();
+            m_last_dir_state_bias = b_wu;
+         }
+
          MaybeResetLayersOnPhaseChange(shift);
 
+         // Spec-faithful recovery test (close vs fast EMA in bias direction)
+         // requires bias_dir to be supplied; previously omitted, which fell
+         // through to the back-compat 1-bar-slope-sign fallback inside
+         // UpdateSingleLayerPullback and produced state transitions that
+         // disagreed with live evaluation.
          UpdateSingleLayerPullback(h_ema1, shift, lb_w, GetLayerRecovery(1),
                                    m_layer_w_pb_state, m_layer_w_baseline, "LayerW_WU",
                                    m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
-                                   m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr);
+                                   m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars,
+                                   m_layer_w_vprr, b_wu);
          UpdateSingleLayerPullback(h_ema2, shift, lb_m, GetLayerRecovery(2),
                                    m_layer_m_pb_state, m_layer_m_baseline, "LayerM_WU",
                                    m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
-                                   m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr);
+                                   m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars,
+                                   m_layer_m_vprr, b_wu);
          UpdateSingleLayerPullback(h_ema3, shift, lb_s, GetLayerRecovery(3),
                                    m_layer_s_pb_state, m_layer_s_baseline, "LayerS_WU",
                                    m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
-                                   m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr);
+                                   m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars,
+                                   m_layer_s_vprr, b_wu);
 
          UpdateCBOverExtCarry(shift);
 
-         m_layer_pb_last_update = bar_time;   // mark this bar as processed
+         last_seen_bias       = b_wu;
+         last_processed_shift = shift;
+         m_layer_pb_last_update = bar_time;
       }
 
-      PrintFormat("[WarmUp] Layer states after %d-bar replay: W=%s M=%s S=%s",
+      // ── Hand off cleanly to live evaluation ─────────────────────────
+      // After the loop, m_last_dir_state_bias already holds the bias of the
+      // most-recent advanced bar (see the directional-flip branch above).
+      // If the loop never advanced any bar (e.g. empty history), seed it
+      // from shift=1 directly so the first live call doesn't see 999 and
+      // wipe everything.
+      if(m_last_dir_state_bias == 999)
+         m_last_dir_state_bias = EvaluateB(1);
+
+      PrintFormat("[WarmUp] Layer states after %d-bar replay: W=%s M=%s S=%s "
+                  "(last_bias=%d, last_shift=%d)",
                   scan_depth,
                   EnumToString(m_layer_w_pb_state),
                   EnumToString(m_layer_m_pb_state),
-                  EnumToString(m_layer_s_pb_state));
+                  EnumToString(m_layer_s_pb_state),
+                  last_seen_bias, last_processed_shift);
    }
 
    bool Init(ST_Settings &sets, string symbol) {
