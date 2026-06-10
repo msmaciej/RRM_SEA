@@ -104,9 +104,10 @@ double GetRecommendedInitialSlCushionPips()
 
    // Scale for non-forex instruments (Gold, indices, crypto have wider pip ranges)
    double mult = GetInstrumentFanMultiplier();
-   // Use full multiplier — cushion is measured in the same pip units as the fan threshold.
-   // Gold: 2 pips × 20.0 = 40 pips ($0.40) cushion on M5 — meaningful protection.
-   // Previous sqrt(20) ≈ 4.5x produced only 8.9 pips ($0.089) — essentially zero.
+   // Use full multiplier — cushion is measured in the same pip units as the
+   // fan threshold. Gold: 2 pips × 100.0 = 200 pips ($2.00) cushion on M5 —
+   // survives normal pullback wicks. Prior 20.0× ($0.40) clipped trades on
+   // minor counter-rallies in established trends.
    return base * mult;
 }
 
@@ -280,12 +281,17 @@ double GetInstrumentFanMultiplier()
    double mult = 1.0;
    string inst_class = "Forex";
 
-   // Gold
+   // Gold : 100.0x
+   // Gold — high-volatility instrument; cushions scale ~100× FX baseline.
+   // 20.0× was too tight (M5 SL cushion of only $0.40 against ~$2-5 bar
+   // ranges → wick-outs on minor counter-rallies). 100× gives $2.00 M5 SL
+   // cushion which survives normal pullbacks; raise to 150× if news/spike
+   // bars cause repeated stop-outs.
    if(StringFind(sym, "XAU") >= 0 || StringFind(sym, "GOLD") >= 0)
-      { mult = 20.0; inst_class = "Gold"; }
-   // Silver
+      { mult = 100.0; inst_class = "Gold"; }   
+   // Silver : 50.0x
    else if(StringFind(sym, "XAG") >= 0 || StringFind(sym, "SILVER") >= 0)
-      { mult = 10.0; inst_class = "Silver"; }
+      { mult = 50.0; inst_class = "Silver"; }
    // Crypto
    else if(StringFind(sym, "BTC") >= 0 || StringFind(sym, "ETH") >= 0 ||
            StringFind(sym, "CRYPTO") >= 0)
