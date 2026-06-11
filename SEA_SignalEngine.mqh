@@ -75,6 +75,12 @@ struct ST_SignalTelemetry {
    double vprr_min_ratio;           // Configured pass threshold
    bool   vprr_pass;                // Whether the active-layer ratio passed
    string vprr_vol_source;          // "REAL" or "TICK" — which volume feed is in use
+   // ── Ribbon EMA snapshot at v_shift (raw values feeding DetectMarketPhase) ──
+   // Populated every EvaluateTS pass; consumed by SEA_UI cockpit for audit/forensics.
+   double   ema13;                  // EMA2-period value (13) at v_shift
+   double   ema34;                  // EMA3-period value (34) at v_shift
+   double   ema89;                  // EMA4-period value (89) at v_shift
+   datetime ema_bar;                // Timestamp of the closed bar these values belong to
 };
 
 struct SMTFSegment {
@@ -7445,6 +7451,16 @@ public:
       m_telemetry.layer = (int)m_diag_layer_w | (m_diag_layer_m << 1) | (m_diag_layer_s << 2);
       m_telemetry.votes_for = m_diag_last_votes;
       m_telemetry.votes_total = total_enabled;
+      // ── Ribbon EMA snapshot at the same shift the phase classifier used ──
+      // Cockpit reads these every tick. Always-on (no debug gate); they're part of
+      // the engine's normal telemetry, exposed so the user can audit what
+      // DetectMarketPhase actually compared against. Reads via the same handles
+      // (h_ema2/3/4) and shift (v_shift) used inside DetectMarketPhase, so any
+      // visual disagreement with the chart's plotted EMAs is meaningful evidence.
+      m_telemetry.ema13   = GetMAVal(h_ema2, v_shift, 0);
+      m_telemetry.ema34   = GetMAVal(h_ema3, v_shift, 0);
+      m_telemetry.ema89   = GetMAVal(h_ema4, v_shift, 0);
+      m_telemetry.ema_bar = iTime(m_symbol, PERIOD_CURRENT, v_shift);
 
       if(final_signal != 0) {
          m_telemetry.rejection_reason = "Valid Signal";

@@ -711,6 +711,32 @@ void SEA_UI_UpdateCockpit(
       bool phase_unordered = (disp_phase == PHASE_UNORDERED);
       string phase_sym = phase_trending ? "[+]" : (phase_unordered ? "[-]" : "[.]");
       AddLine(StringFormat("  PHASE: %s %s", phase_label, phase_sym), phase_clr, lines, line_clrs);
+
+      // ── Ribbon EMA values at the bar the phase was classified on ──────────
+      // Always-on audit lines: the three EMA values that fed DetectMarketPhase,
+      // plus the pairwise orderings, plus the phase the orderings imply per the
+      // RRM book card. If the implied phase != PHASE shown above, the bug is
+      // downstream of DetectMarketPhase. If the EMA values don't match what the
+      // chart plots at the same closed bar, the engine and chart are reading
+      // different EMAs (handle / period / source mismatch).
+      int    ema_dig = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+      double v13     = ts_telemetry.ema13;
+      double v34     = ts_telemetry.ema34;
+      double v89     = ts_telemetry.ema89;
+      string o1      = (v13 > v34) ? ">" : (v13 < v34 ? "<" : "=");
+      string o2      = (v34 > v89) ? ">" : (v34 < v89 ? "<" : "=");
+      string o3      = (v13 > v89) ? ">" : (v13 < v89 ? "<" : "=");
+      string implied = "UNORDERED";
+      if(o1 == ">" && o2 == ">")                        implied = "TRENDING_UP";
+      else if(o1 == "<" && o2 == "<")                   implied = "TRENDING_DN";
+      else if(o1 == ">" && o2 == "<" && o3 == ">")      implied = "EMERGING_UP";
+      else if(o1 == "<" && o2 == ">" && o3 == "<")      implied = "EMERGING_DN";
+      AddLine(StringFormat("  EMAS:  13=%.*f  34=%.*f  89=%.*f",
+                           ema_dig, v13, ema_dig, v34, ema_dig, v89),
+              v_clr, lines, line_clrs);
+      AddLine(StringFormat("  ORDER: 13%s34  34%s89  13%s89  -> %s",
+                           o1, o2, o3, implied),
+              v_clr, lines, line_clrs);
    }
    else
    {
