@@ -712,31 +712,67 @@ void SEA_UI_UpdateCockpit(
       string phase_sym = phase_trending ? "[+]" : (phase_unordered ? "[-]" : "[.]");
       AddLine(StringFormat("  PHASE: %s %s", phase_label, phase_sym), phase_clr, lines, line_clrs);
 
-      // ── Ribbon EMA values at the bar the phase was classified on ──────────
-      // Always-on audit lines: the three EMA values that fed DetectMarketPhase,
-      // plus the pairwise orderings, plus the phase the orderings imply per the
-      // RRM book card. If the implied phase != PHASE shown above, the bug is
-      // downstream of DetectMarketPhase. If the EMA values don't match what the
-      // chart plots at the same closed bar, the engine and chart are reading
-      // different EMAs (handle / period / source mismatch).
-      int    ema_dig = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
-      double v13     = ts_telemetry.ema13;
-      double v34     = ts_telemetry.ema34;
-      double v89     = ts_telemetry.ema89;
-      string o1      = (v13 > v34) ? ">" : (v13 < v34 ? "<" : "=");
-      string o2      = (v34 > v89) ? ">" : (v34 < v89 ? "<" : "=");
-      string o3      = (v13 > v89) ? ">" : (v13 < v89 ? "<" : "=");
-      string implied = "UNORDERED";
-      if(o1 == ">" && o2 == ">")                        implied = "TRENDING_UP";
-      else if(o1 == "<" && o2 == "<")                   implied = "TRENDING_DN";
-      else if(o1 == ">" && o2 == "<" && o3 == ">")      implied = "EMERGING_UP";
-      else if(o1 == "<" && o2 == ">" && o3 == "<")      implied = "EMERGING_DN";
-      AddLine(StringFormat("  EMAS:  13=%.*f  34=%.*f  89=%.*f",
-                           ema_dig, v13, ema_dig, v34, ema_dig, v89),
+      // ── Ribbon snapshot lines (single source of truth) ────────────────────
+      // Reads from ts_telemetry.ribbon — populated once per evaluation pass by
+      // RefreshRibbonSnapshot in the engine. Periods are sourced from Settings
+      // at display time so labels stay in sync if the user reconfigures.
+      //
+      // Each slot is annotated with its provenance ("iMA" normal / "MAN" used
+      // manual fallback / "ERR" both paths failed). If any slot needed for
+      // phase classification is invalid, the implied phase is suppressed.
+      int      ema_dig = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+      int      P[4];
+      P[0] = Settings.P_Ema1;
+      P[1] = Settings.P_Ema2;
+      P[2] = Settings.P_Ema3;
+      P[3] = Settings.P_Ema4;
+
+      // Format each slot: "13=1.15173(iMA)" or "34=INVALID(ERR)" etc.
+      string fmt_slot[4];
+      for(int k = 0; k < 4; k++)
+      {
+         double vk  = ts_telemetry.ribbon.ema[k];
+         bool   okk = ts_telemetry.ribbon.valid[k];
+         string sk  = ts_telemetry.ribbon.src[k];
+         if(okk) fmt_slot[k] = StringFormat("%d=%.*f(%s)", P[k], ema_dig, vk, sk);
+         else    fmt_slot[k] = StringFormat("%d=INVALID(%s)", P[k], sk);
+      }
+      AddLine(StringFormat("  EMAS:  %s  %s  %s  %s",
+                           fmt_slot[0], fmt_slot[1], fmt_slot[2], fmt_slot[3]),
               v_clr, lines, line_clrs);
-      AddLine(StringFormat("  ORDER: 13%s34  34%s89  13%s89  -> %s",
-                           o1, o2, o3, implied),
-              v_clr, lines, line_clrs);
+
+      // Implied-phase decoder: only meaningful when slots 2/3/4 are all valid
+      // (slot 1 not used in phase classification). Compares slots positionally
+      // per RRM book card; period numbers shown alongside slot ordering for
+      // human cross-reference against the chart.
+      bool ok2 = ts_telemetry.ribbon.valid[1];
+      bool ok3 = ts_telemetry.ribbon.valid[2];
+      bool ok4 = ts_telemetry.ribbon.valid[3];
+      if(ok2 && ok3 && ok4)
+      {
+         double v2 = ts_telemetry.ribbon.ema[1];
+         double v3 = ts_telemetry.ribbon.ema[2];
+         double v4 = ts_telemetry.ribbon.ema[3];
+         string o23 = (v2 > v3) ? ">" : (v2 < v3 ? "<" : "=");
+         string o34 = (v3 > v4) ? ">" : (v3 < v4 ? "<" : "=");
+         string o24 = (v2 > v4) ? ">" : (v2 < v4 ? "<" : "=");
+         string implied = "UNORDERED";
+         if(o23 == ">" && o34 == ">")                        implied = "TRENDING_UP";
+         else if(o23 == "<" && o34 == "<")                   implied = "TRENDING_DN";
+         else if(o23 == ">" && o34 == "<" && o24 == ">")     implied = "EMERGING_UP";
+         else if(o23 == "<" && o34 == ">" && o24 == "<")     implied = "EMERGING_DN";
+         AddLine(StringFormat("  ORDER: %d%s%d  %d%s%d  %d%s%d  -> %s",
+                              P[1], o23, P[2],
+                              P[2], o34, P[3],
+                              P[1], o24, P[3],
+                              implied),
+                 v_clr, lines, line_clrs);
+      }
+      else
+      {
+         AddLine("  ORDER: (suppressed — one or more slots invalid)",
+                 Settings.clr_Fail, lines, line_clrs);
+      }
    }
    else
    {

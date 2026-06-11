@@ -55,6 +55,30 @@ enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_105001 = SEA_BUILD_TOKEN_105001 };
 
 // Note: Requires ST_Settings and SNewsEvent structs to be defined in main file
 
+//+------------------------------------------------------------------+
+//| SRibbonSnapshot — single source of truth for ribbon EMA values   |
+//+------------------------------------------------------------------+
+// Refreshed once per evaluation pass via RefreshRibbonSnapshot(shift).
+// Every downstream consumer (cockpit, phase, layers, fan, trail, bias)
+// reads through accessors GetEma1()..GetEma4() and IsRibbonValid().
+//
+// Slot identity is preserved across the engine: [0] = slot 1 = h_ema1
+// (period m_settings.P_Ema1), [1] = slot 2 = h_ema2, etc. Periods are
+// configurable inputs — they are NEVER hardcoded as field names.
+//
+// Provenance: each slot records which tier produced its value:
+//   "iMA"  — MT5 indicator buffer via CopyBuffer succeeded (normal)
+//   "MAN"  — CopyBuffer failed, computed manually from raw closes
+//   "ERR"  — both tiers failed; valid[i] = false; consumer must skip
+struct SRibbonSnapshot {
+   double   ema[4];          // slot-indexed EMA values
+   bool     valid[4];        // per-slot validity
+   string   src[4];          // per-slot provenance ("iMA" / "MAN" / "ERR")
+   datetime bar;             // closed-bar timestamp these values belong to
+   int      shift;           // the shift the snapshot was taken at
+   bool     all_valid;       // convenience: true iff valid[0..3] all true
+};
+
 // UI Telemetry State
 struct ST_SignalTelemetry {
    int    bias;
@@ -75,12 +99,11 @@ struct ST_SignalTelemetry {
    double vprr_min_ratio;           // Configured pass threshold
    bool   vprr_pass;                // Whether the active-layer ratio passed
    string vprr_vol_source;          // "REAL" or "TICK" — which volume feed is in use
-   // ── Ribbon EMA snapshot at v_shift (raw values feeding DetectMarketPhase) ──
-   // Populated every EvaluateTS pass; consumed by SEA_UI cockpit for audit/forensics.
-   double   ema13;                  // EMA2-period value (13) at v_shift
-   double   ema34;                  // EMA3-period value (34) at v_shift
-   double   ema89;                  // EMA4-period value (89) at v_shift
-   datetime ema_bar;                // Timestamp of the closed bar these values belong to
+   // ── Ribbon EMA snapshot (single source of truth, slot-indexed) ──
+   // Mirrors m_ribbon at the end of each EvaluateTS pass. Cockpit reads from
+   // this for display. Periods are NOT hardcoded — labels are rendered from
+   // m_settings.P_Ema1..4 at display time.
+   SRibbonSnapshot ribbon;
 };
 
 struct SMTFSegment {
@@ -251,6 +274,13 @@ private:
    // --- 2e. GRANULAR REJECTION STATISTICS ---
    ST_SignalTelemetry m_telemetry; // Active UI Telemetry state
    SRejectionStats m_stats;
+
+   // --- 2e-bis. RIBBON SNAPSHOT (single source of truth for EMA values) ---
+   // Refreshed at the top of every EvaluateTS pass via RefreshRibbonSnapshot.
+   // All ribbon reads in the engine go through accessors GetEma1..4() that
+   // read this snapshot — no direct GetMAVal(h_ema*) calls outside the
+   // refresh function itself.
+   SRibbonSnapshot m_ribbon;
    
    // --- 2f. PSAR FLIP TRACKING ---
    datetime m_psar_last_flip_time_bull;  // Timestamp of last bullish flip (0 = none recorded)
@@ -559,6 +589,135 @@ private:
    double GetMAVal(const int handle, const int shift, const int buffer_num, bool &out_valid) {
       return GetVal(handle, shift, buffer_num, out_valid);
    }
+
+   //+------------------------------------------------------------------+
+   //| ManualEMA — exponential MA computed from raw closes              |
+   //+------------------------------------------------------------------+
+   // Fallback path when MT5's iMA/CopyBuffer fails. Uses CopyClose (a
+   // different MT5 code path than CopyBuffer on an indicator handle —
+   // much more reliable in practice).
+   //
+   // Method: seed with SMA over the first `period` closes in the read
+   // window, then iterate the EMA recursion forward to the target shift.
+   // The read window is `period * 4` bars deep, which is enough that any
+   // residual seeding error decays to negligible by the target bar.
+   //
+   // Returns the EMA value with out_valid=true on success. On failure
+   // (insufficient history, CopyClose error) returns 0.0 with
+   // out_valid=false — the caller MUST check out_valid before use.
+   double ManualEMA(const int period, const int shift, bool &out_valid)
+   {
+      out_valid = false;
+      if(period < 2 || shift < 0) return 0.0;
+
+      const int seed_bars  = period * 4;          // seed depth for clean convergence
+      const int total_bars = seed_bars + shift + 1;
+
+      double closes[];
+      ArraySetAsSeries(closes, true);
+      int got = CopyClose(m_symbol, PERIOD_CURRENT, 0, total_bars, closes);
+      if(got < period + shift + 1) return 0.0;    // not enough history
+
+      const double alpha = 2.0 / (period + 1.0);
+
+      // Seed = SMA of the oldest `period` closes in the window.
+      // closes[] is series-indexed: index 0 = forming bar, index 1 = last
+      // closed bar, ... index (got-1) = oldest fetched bar.
+      double sma = 0.0;
+      for(int i = got - 1; i >= got - period; i--)
+         sma += closes[i];
+      sma /= (double)period;
+
+      // Iterate EMA from (got - period - 1) down to (shift), oldest -> newest.
+      double ema = sma;
+      for(int i = got - period - 1; i >= shift; i--)
+         ema = alpha * closes[i] + (1.0 - alpha) * ema;
+
+      out_valid = true;
+      return ema;
+   }
+
+   //+------------------------------------------------------------------+
+   //| RefreshRibbonSnapshot — populates m_ribbon for the given shift   |
+   //+------------------------------------------------------------------+
+   // Single source of truth for ribbon EMA values. Must be called once at
+   // the top of every per-bar evaluation pass, BEFORE any consumer reads
+   // ribbon values via the GetEma1..4() accessors.
+   //
+   // For each of the 4 ribbon slots:
+   //   1. Try iMA buffer via GetMAVal — the normal path
+   //   2. If iMA failed (CopyBuffer error or invalid handle), fall back
+   //      to ManualEMA computed from raw closes
+   //   3. If both fail, mark the slot invalid (valid[i]=false) — every
+   //      consumer must check IsRibbonValid() or GetEmaValid(slot) and
+   //      bail safely if a needed slot is unusable
+   //
+   // Logs one journal line per evaluation pass that involved a fallback,
+   // for forensic visibility into MT5 reliability over time.
+   void RefreshRibbonSnapshot(const int shift)
+   {
+      const int    h[4] = { h_ema1,             h_ema2,             h_ema3,             h_ema4             };
+      const int    p[4] = { m_settings.P_Ema1,  m_settings.P_Ema2,  m_settings.P_Ema3,  m_settings.P_Ema4  };
+      bool any_fallback = false;
+
+      for(int i = 0; i < 4; i++)
+      {
+         bool ok = false;
+         m_ribbon.ema[i] = GetMAVal(h[i], shift, 0, ok);
+         m_ribbon.src[i] = "iMA";
+
+         if(!ok)
+         {
+            // Tier 2: manual computation
+            m_ribbon.ema[i] = ManualEMA(p[i], shift, ok);
+            m_ribbon.src[i] = ok ? "MAN" : "ERR";
+            any_fallback   = true;
+         }
+
+         m_ribbon.valid[i] = ok;
+      }
+
+      m_ribbon.bar       = iTime(m_symbol, PERIOD_CURRENT, shift);
+      m_ribbon.shift     = shift;
+      m_ribbon.all_valid = m_ribbon.valid[0] && m_ribbon.valid[1] &&
+                           m_ribbon.valid[2] && m_ribbon.valid[3];
+
+      if(any_fallback)
+      {
+         PrintFormat("[EMA_FALLBACK] %s shift=%d  E1(%d):%s=%.5f valid=%d  E2(%d):%s=%.5f valid=%d  E3(%d):%s=%.5f valid=%d  E4(%d):%s=%.5f valid=%d",
+                     m_symbol, shift,
+                     p[0], m_ribbon.src[0], m_ribbon.ema[0], (int)m_ribbon.valid[0],
+                     p[1], m_ribbon.src[1], m_ribbon.ema[1], (int)m_ribbon.valid[1],
+                     p[2], m_ribbon.src[2], m_ribbon.ema[2], (int)m_ribbon.valid[2],
+                     p[3], m_ribbon.src[3], m_ribbon.ema[3], (int)m_ribbon.valid[3]);
+      }
+   }
+
+   //+------------------------------------------------------------------+
+   //| Ribbon accessors — the ONLY API for reading ribbon values        |
+   //+------------------------------------------------------------------+
+   // All callers must use these accessors after Stage 2 migration. They
+   // read from the snapshot populated by RefreshRibbonSnapshot. Slot
+   // numbering matches the rest of the codebase: 1=h_ema1, 2=h_ema2, etc.
+   double GetEma1() const { return m_ribbon.ema[0]; }
+   double GetEma2() const { return m_ribbon.ema[1]; }
+   double GetEma3() const { return m_ribbon.ema[2]; }
+   double GetEma4() const { return m_ribbon.ema[3]; }
+
+   // Per-slot validity check (slot is 1-based to match codebase convention)
+   bool GetEmaValid(const int slot1based) const
+   {
+      if(slot1based < 1 || slot1based > 4) return false;
+      return m_ribbon.valid[slot1based - 1];
+   }
+
+   // True iff all four slots are usable — consumers that need the whole
+   // ribbon (phase classification, fan filter, full bias) should check this.
+   bool IsRibbonValid() const { return m_ribbon.all_valid; }
+
+   // Full snapshot accessor for telemetry copy and other bulk consumers
+   SRibbonSnapshot GetRibbonSnapshot() const { return m_ribbon; }
+
 
    int GetMTFBias(const int h_fast, const int h_slow, const ENUM_TIMEFRAMES htf, const int m15_shift = 1)
    {
@@ -6947,6 +7106,14 @@ public:
       m_debug_buffer_size = 0;
       ArrayResize(m_debug_buffer, 0);
 
+      // ── Refresh ribbon snapshot (single source of truth for all EMA reads) ──
+      // MUST run before any consumer reads ribbon values. Subsequent code in this
+      // function (DetectMarketPhase, layer detection, bias, fan filter, etc.) will
+      // be migrated in Stage 2 to read from m_ribbon via GetEma1..4() instead of
+      // direct GetMAVal(h_ema*) calls. For Stage 1 the snapshot populates only
+      // the cockpit/telemetry view; trade decisions still use the legacy path.
+      RefreshRibbonSnapshot(v_shift);
+
       // Invalidate indicator cache if evaluating a different bar
       datetime eval_bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
       ApplyForcedDebug(eval_bar_time);
@@ -7451,16 +7618,9 @@ public:
       m_telemetry.layer = (int)m_diag_layer_w | (m_diag_layer_m << 1) | (m_diag_layer_s << 2);
       m_telemetry.votes_for = m_diag_last_votes;
       m_telemetry.votes_total = total_enabled;
-      // ── Ribbon EMA snapshot at the same shift the phase classifier used ──
-      // Cockpit reads these every tick. Always-on (no debug gate); they're part of
-      // the engine's normal telemetry, exposed so the user can audit what
-      // DetectMarketPhase actually compared against. Reads via the same handles
-      // (h_ema2/3/4) and shift (v_shift) used inside DetectMarketPhase, so any
-      // visual disagreement with the chart's plotted EMAs is meaningful evidence.
-      m_telemetry.ema13   = GetMAVal(h_ema2, v_shift, 0);
-      m_telemetry.ema34   = GetMAVal(h_ema3, v_shift, 0);
-      m_telemetry.ema89   = GetMAVal(h_ema4, v_shift, 0);
-      m_telemetry.ema_bar = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+      // Mirror the ribbon snapshot — populated by RefreshRibbonSnapshot at top of EvaluateTS.
+      // Cockpit reads from this; periods are sourced from m_settings.P_Ema1..4 at display time.
+      m_telemetry.ribbon = m_ribbon;
 
       if(final_signal != 0) {
          m_telemetry.rejection_reason = "Valid Signal";
