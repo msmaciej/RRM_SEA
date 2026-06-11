@@ -66,17 +66,29 @@ enum { __SEA_BUILD_TOKEN_MISSING_SIGNALENGINE_105001 = SEA_BUILD_TOKEN_105001 };
 // (period m_settings.P_Ema1), [1] = slot 2 = h_ema2, etc. Periods are
 // configurable inputs — they are NEVER hardcoded as field names.
 //
+// The snapshot covers TWO shifts: the current evaluation shift, and the
+// previous bar (shift+1). Two-shift consumers (fan filter, S-layer
+// alignment, sma convergence) read prev[] fields. Single-shift consumers
+// (phase, bias, layer detection) read the unsuffixed fields.
+//
 // Provenance: each slot records which tier produced its value:
 //   "iMA"  — MT5 indicator buffer via CopyBuffer succeeded (normal)
 //   "MAN"  — CopyBuffer failed, computed manually from raw closes
 //   "ERR"  — both tiers failed; valid[i] = false; consumer must skip
 struct SRibbonSnapshot {
+   // Current bar (shift = m_ribbon.shift)
    double   ema[4];          // slot-indexed EMA values
    bool     valid[4];        // per-slot validity
    string   src[4];          // per-slot provenance ("iMA" / "MAN" / "ERR")
+   // Previous bar (shift = m_ribbon.shift + 1)
+   double   ema_prev[4];
+   bool     valid_prev[4];
+   string   src_prev[4];
+   // Metadata
    datetime bar;             // closed-bar timestamp these values belong to
    int      shift;           // the shift the snapshot was taken at
-   bool     all_valid;       // convenience: true iff valid[0..3] all true
+   bool     all_valid;       // current bar: all four slots usable
+   bool     all_valid_prev;  // previous bar: all four slots usable
 };
 
 // UI Telemetry State
@@ -654,55 +666,135 @@ private:
    //
    // Logs one journal line per evaluation pass that involved a fallback,
    // for forensic visibility into MT5 reliability over time.
-   void RefreshRibbonSnapshot(const int shift)
+   //+------------------------------------------------------------------+
+   //| ReadEmaSafe — iMA-then-manual chain for one slot at one shift     |
+   //+------------------------------------------------------------------+
+   // Core read primitive. Returns the EMA value for the given slot at the
+   // given shift, trying iMA's CopyBuffer first and falling back to
+   // ManualEMA from raw closes if iMA fails. Caller receives the value,
+   // a validity flag, and a source string ("iMA" / "MAN" / "ERR").
+   //
+   // Used by RefreshRibbonSnapshot to populate the per-bar cache, AND
+   // by historical-scan callers (WarmUpLayerPullbackStates, scanner-
+   // style DetectMarketPhase loops) that need EMA values at shifts other
+   // than the cached snapshot bar.
+   double ReadEmaSafe(const int slot1based, const int shift,
+                      bool &out_valid, string &out_src)
    {
-      const int    h[4] = { h_ema1,             h_ema2,             h_ema3,             h_ema4             };
-      const int    p[4] = { m_settings.P_Ema1,  m_settings.P_Ema2,  m_settings.P_Ema3,  m_settings.P_Ema4  };
-      bool any_fallback = false;
+      out_valid = false;
+      out_src   = "ERR";
+      if(slot1based < 1 || slot1based > 4) return 0.0;
 
-      for(int i = 0; i < 4; i++)
+      int handle = INVALID_HANDLE;
+      int period = 0;
+      switch(slot1based)
       {
-         bool ok = false;
-         m_ribbon.ema[i] = GetMAVal(h[i], shift, 0, ok);
-         m_ribbon.src[i] = "iMA";
-
-         if(!ok)
-         {
-            // Tier 2: manual computation
-            m_ribbon.ema[i] = ManualEMA(p[i], shift, ok);
-            m_ribbon.src[i] = ok ? "MAN" : "ERR";
-            any_fallback   = true;
-         }
-
-         m_ribbon.valid[i] = ok;
+         case 1: handle = h_ema1; period = m_settings.P_Ema1; break;
+         case 2: handle = h_ema2; period = m_settings.P_Ema2; break;
+         case 3: handle = h_ema3; period = m_settings.P_Ema3; break;
+         case 4: handle = h_ema4; period = m_settings.P_Ema4; break;
       }
 
-      m_ribbon.bar       = iTime(m_symbol, PERIOD_CURRENT, shift);
-      m_ribbon.shift     = shift;
-      m_ribbon.all_valid = m_ribbon.valid[0] && m_ribbon.valid[1] &&
-                           m_ribbon.valid[2] && m_ribbon.valid[3];
+      // Tier 1: iMA buffer
+      bool ok = false;
+      double v = GetMAVal(handle, shift, 0, ok);
+      if(ok) { out_valid = true; out_src = "iMA"; return v; }
+
+      // Tier 2: manual computation from raw closes
+      v = ManualEMA(period, shift, ok);
+      if(ok) { out_valid = true; out_src = "MAN"; return v; }
+
+      // Both tiers failed
+      out_valid = false;
+      out_src   = "ERR";
+      return 0.0;
+   }
+
+   //+------------------------------------------------------------------+
+   //| RefreshRibbonSnapshot — populates m_ribbon for the given shift   |
+   //+------------------------------------------------------------------+
+   // Single source of truth for ribbon EMA values. Must be called once at
+   // the top of every per-bar evaluation pass, BEFORE any consumer reads
+   // ribbon values via the GetEma1..4() accessors.
+   //
+   // Populates BOTH the current shift and shift+1 (previous bar) so that
+   // two-shift consumers (fan filter, S-layer alignment, sma convergence)
+   // can read prev values from the same single source.
+   //
+   // Logs one journal line per evaluation pass that involved a fallback,
+   // for forensic visibility into MT5 reliability over time.
+   void RefreshRibbonSnapshot(const int shift)
+   {
+      bool any_fallback = false;
+
+      // Current bar
+      for(int i = 0; i < 4; i++)
+      {
+         bool ok; string src;
+         m_ribbon.ema[i]   = ReadEmaSafe(i + 1, shift, ok, src);
+         m_ribbon.valid[i] = ok;
+         m_ribbon.src[i]   = src;
+         if(src != "iMA") any_fallback = true;
+      }
+
+      // Previous bar (shift + 1)
+      for(int i = 0; i < 4; i++)
+      {
+         bool ok; string src;
+         m_ribbon.ema_prev[i]   = ReadEmaSafe(i + 1, shift + 1, ok, src);
+         m_ribbon.valid_prev[i] = ok;
+         m_ribbon.src_prev[i]   = src;
+         if(src != "iMA") any_fallback = true;
+      }
+
+      m_ribbon.bar            = iTime(m_symbol, PERIOD_CURRENT, shift);
+      m_ribbon.shift          = shift;
+      m_ribbon.all_valid      = m_ribbon.valid[0] && m_ribbon.valid[1] &&
+                                m_ribbon.valid[2] && m_ribbon.valid[3];
+      m_ribbon.all_valid_prev = m_ribbon.valid_prev[0] && m_ribbon.valid_prev[1] &&
+                                m_ribbon.valid_prev[2] && m_ribbon.valid_prev[3];
 
       if(any_fallback)
       {
-         PrintFormat("[EMA_FALLBACK] %s shift=%d  E1(%d):%s=%.5f valid=%d  E2(%d):%s=%.5f valid=%d  E3(%d):%s=%.5f valid=%d  E4(%d):%s=%.5f valid=%d",
+         PrintFormat("[EMA_FALLBACK] %s shift=%d  cur:E1=%s/%.5f E2=%s/%.5f E3=%s/%.5f E4=%s/%.5f  prev:E1=%s/%.5f E2=%s/%.5f E3=%s/%.5f E4=%s/%.5f",
                      m_symbol, shift,
-                     p[0], m_ribbon.src[0], m_ribbon.ema[0], (int)m_ribbon.valid[0],
-                     p[1], m_ribbon.src[1], m_ribbon.ema[1], (int)m_ribbon.valid[1],
-                     p[2], m_ribbon.src[2], m_ribbon.ema[2], (int)m_ribbon.valid[2],
-                     p[3], m_ribbon.src[3], m_ribbon.ema[3], (int)m_ribbon.valid[3]);
+                     m_ribbon.src[0], m_ribbon.ema[0],
+                     m_ribbon.src[1], m_ribbon.ema[1],
+                     m_ribbon.src[2], m_ribbon.ema[2],
+                     m_ribbon.src[3], m_ribbon.ema[3],
+                     m_ribbon.src_prev[0], m_ribbon.ema_prev[0],
+                     m_ribbon.src_prev[1], m_ribbon.ema_prev[1],
+                     m_ribbon.src_prev[2], m_ribbon.ema_prev[2],
+                     m_ribbon.src_prev[3], m_ribbon.ema_prev[3]);
       }
    }
 
    //+------------------------------------------------------------------+
    //| Ribbon accessors — the ONLY API for reading ribbon values        |
    //+------------------------------------------------------------------+
-   // All callers must use these accessors after Stage 2 migration. They
-   // read from the snapshot populated by RefreshRibbonSnapshot. Slot
-   // numbering matches the rest of the codebase: 1=h_ema1, 2=h_ema2, etc.
+   // All callers must use these accessors. They read from the snapshot
+   // populated by RefreshRibbonSnapshot. Slot numbering matches the rest
+   // of the codebase: 1=h_ema1, 2=h_ema2, etc.
+   //
+   // Current bar accessors (snapshot.shift):
    double GetEma1() const { return m_ribbon.ema[0]; }
    double GetEma2() const { return m_ribbon.ema[1]; }
    double GetEma3() const { return m_ribbon.ema[2]; }
    double GetEma4() const { return m_ribbon.ema[3]; }
+
+   // Previous bar accessors (snapshot.shift + 1):
+   double GetEma1Prev() const { return m_ribbon.ema_prev[0]; }
+   double GetEma2Prev() const { return m_ribbon.ema_prev[1]; }
+   double GetEma3Prev() const { return m_ribbon.ema_prev[2]; }
+   double GetEma4Prev() const { return m_ribbon.ema_prev[3]; }
+
+   // Slot-by-index accessor (for callers that determine slot dynamically
+   // from a role parameter, e.g. Check_BarClose).
+   double GetEmaBySlot(const int slot1based) const
+   {
+      if(slot1based < 1 || slot1based > 4) return 0.0;
+      return m_ribbon.ema[slot1based - 1];
+   }
 
    // Per-slot validity check (slot is 1-based to match codebase convention)
    bool GetEmaValid(const int slot1based) const
@@ -710,10 +802,16 @@ private:
       if(slot1based < 1 || slot1based > 4) return false;
       return m_ribbon.valid[slot1based - 1];
    }
+   bool GetEmaValidPrev(const int slot1based) const
+   {
+      if(slot1based < 1 || slot1based > 4) return false;
+      return m_ribbon.valid_prev[slot1based - 1];
+   }
 
-   // True iff all four slots are usable — consumers that need the whole
-   // ribbon (phase classification, fan filter, full bias) should check this.
+   // True iff all four slots are usable on the current bar
    bool IsRibbonValid() const { return m_ribbon.all_valid; }
+   // True iff all four slots are usable on the previous bar
+   bool IsRibbonValidPrev() const { return m_ribbon.all_valid_prev; }
 
    // Full snapshot accessor for telemetry copy and other bulk consumers
    SRibbonSnapshot GetRibbonSnapshot() const { return m_ribbon; }
@@ -1160,40 +1258,22 @@ private:
       }
       
       // ════════════════════════════════════════════════════════════════
-      // Determine which EMA to check
+      // Determine which EMA to check (slot 1..4 selected by mode + config)
       // ════════════════════════════════════════════════════════════════
       double check_ema = 0.0;
       string bc_label = "bc";
       string ema_name = "";
-      
+      int    slot     = 1;     // 1..4, set per mode below
+
       if(m_settings.BarClose_Mode == BC_LAYER_AWARE && active_layer != LAYER_NONE)
       {
          // Layer-aware mode: bcW/bcM/bcS
          switch(active_layer)
          {
-            case LAYER_1_WEAK:
-               check_ema = GetMAVal(h_ema1, v_shift);
-               bc_label = "bcW";
-               ema_name = "EMA1";
-               break;
-            
-            case LAYER_2_MEDIUM:
-               check_ema = GetMAVal(h_ema2, v_shift);
-               bc_label = "bcM";
-               ema_name = "EMA2";
-               break;
-            
-            case LAYER_3_STRONG:
-               check_ema = GetMAVal(h_ema3, v_shift);
-               bc_label = "bcS";
-               ema_name = "EMA3";
-               break;
-            
-            default:
-               check_ema = GetMAVal(h_ema1, v_shift);
-               bc_label = "bc";
-               ema_name = "EMA1";
-               break;
+            case LAYER_1_WEAK:   slot = 1; bc_label = "bcW"; break;
+            case LAYER_2_MEDIUM: slot = 2; bc_label = "bcM"; break;
+            case LAYER_3_STRONG: slot = 3; bc_label = "bcS"; break;
+            default:             slot = 1; bc_label = "bc";  break;
          }
       }
       else if(m_settings.BarClose_Mode == BC_BIAS_FAST)
@@ -1201,11 +1281,11 @@ private:
          // Use BiasFastID
          switch(m_settings.BiasFastID)
          {
-            case (int)ROLE_EMA1: check_ema = GetMAVal(h_ema1, v_shift); ema_name = "EMA1"; break;
-            case (int)ROLE_EMA2: check_ema = GetMAVal(h_ema2, v_shift); ema_name = "EMA2"; break;
-            case (int)ROLE_EMA3: check_ema = GetMAVal(h_ema3, v_shift); ema_name = "EMA3"; break;
-            case (int)ROLE_EMA4: check_ema = GetMAVal(h_ema4, v_shift); ema_name = "EMA4"; break;
-            default:             check_ema = GetMAVal(h_ema1, v_shift); ema_name = "EMA1"; break;
+            case (int)ROLE_EMA1: slot = 1; break;
+            case (int)ROLE_EMA2: slot = 2; break;
+            case (int)ROLE_EMA3: slot = 3; break;
+            case (int)ROLE_EMA4: slot = 4; break;
+            default:             slot = 1; break;
          }
          bc_label = "bc";
       }
@@ -1214,14 +1294,24 @@ private:
          // Use BarClose_DefaultEMA
          switch(m_settings.BarClose_DefaultEMA)
          {
-            case ROLE_EMA1: check_ema = GetMAVal(h_ema1, v_shift); ema_name = "EMA1"; break;
-            case ROLE_EMA2: check_ema = GetMAVal(h_ema2, v_shift); ema_name = "EMA2"; break;
-            case ROLE_EMA3: check_ema = GetMAVal(h_ema3, v_shift); ema_name = "EMA3"; break;
-            case ROLE_EMA4: check_ema = GetMAVal(h_ema4, v_shift); ema_name = "EMA4"; break;
-            default:        check_ema = GetMAVal(h_ema1, v_shift); ema_name = "EMA1"; break;
+            case ROLE_EMA1: slot = 1; break;
+            case ROLE_EMA2: slot = 2; break;
+            case ROLE_EMA3: slot = 3; break;
+            case ROLE_EMA4: slot = 4; break;
+            default:        slot = 1; break;
          }
          bc_label = "bc";
       }
+
+      // Read EMA from ribbon snapshot. Refuse the gate if the slot is invalid.
+      if(!GetEmaValid(slot))
+      {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[%s] EMA%d INVALID at v_shift=%d → REFUSE gate", bc_label, slot, v_shift));
+         return 0;
+      }
+      check_ema = GetEmaBySlot(slot);
+      ema_name  = StringFormat("EMA%d", slot);
       
       // ════════════════════════════════════════════════════════════════
       // Check close vs EMA (with optional pip tolerance)
@@ -2949,16 +3039,18 @@ private:
       if(IsCacheValidForShift(shift) && m_ind_cache.sma_converge_result != -1)
          return (m_ind_cache.sma_converge_result == 1);
 
-      double e1_now  = GetMAVal(h_ema1, shift);
-      double e2_now  = GetMAVal(h_ema2, shift);
-      double e1_prev = GetMAVal(h_ema1, shift + 1);
-      double e2_prev = GetMAVal(h_ema2, shift + 1);
-
-      if(e1_now == 0.0 || e2_now == 0.0 || e1_prev == 0.0 || e2_prev == 0.0)
+      // Ribbon snapshot: slots 1 and 2, current and previous bar.
+      // Refuse the gate if any required slot is invalid on either bar.
+      if(!GetEmaValid(1) || !GetEmaValid(2) ||
+         !GetEmaValidPrev(1) || !GetEmaValidPrev(2))
       {
          m_ind_cache.sma_converge_result = 0;
          return false;
       }
+      double e1_now  = GetEma1();
+      double e2_now  = GetEma2();
+      double e1_prev = GetEma1Prev();
+      double e2_prev = GetEma2Prev();
 
       double gap_now  = MathAbs(e1_now  - e2_now);
       double gap_prev = MathAbs(e1_prev - e2_prev);
@@ -3699,11 +3791,17 @@ public:
       if(m_settings.EmaFanFilterEnabled && (m_settings.EmaFanMaxTotalPips > 0.0 || m_settings.EmaFanMaxPct > 0.0))
       {
          double pip  = GlobalPipSize(m_symbol);
-         double e1_1 = GetMAVal(h_ema1, shift);
-         double e4_1 = GetMAVal(h_ema4, shift);
-         double e1_2 = GetMAVal(h_ema1, shift + 1);
-         double e4_2 = GetMAVal(h_ema4, shift + 1);
-         if(e1_1 > 0.0 && e4_1 > 0.0 && e1_2 > 0.0 && e4_2 > 0.0)
+         // Ribbon snapshot: slots 1 and 4, current and previous bar.
+         // Per design: pass-through (don't block) when any required slot is
+         // invalid. Phase/bias/layer gates already refuse on invalid data;
+         // the fan filter blocking on top of those would be redundant.
+         bool fan_data_ok = GetEmaValid(1) && GetEmaValid(4) &&
+                            GetEmaValidPrev(1) && GetEmaValidPrev(4);
+         double e1_1 = fan_data_ok ? GetEma1()     : 0.0;
+         double e4_1 = fan_data_ok ? GetEma4()     : 0.0;
+         double e1_2 = fan_data_ok ? GetEma1Prev() : 0.0;
+         double e4_2 = fan_data_ok ? GetEma4Prev() : 0.0;
+         if(fan_data_ok && e1_1 > 0.0 && e4_1 > 0.0 && e1_2 > 0.0 && e4_2 > 0.0)
          {
             if(m_settings.EmaFanMaxPct > 0.0)
             {
@@ -4204,20 +4302,26 @@ public:
       double pip   = PipSize();
       if(pip <= 0.0) pip = _Point;
 
-      double e1 = GetMAVal(h_ema1, shift);
-      double e2 = GetMAVal(h_ema2, shift);
-      double e3 = GetMAVal(h_ema3, shift);
-      double e4 = GetMAVal(h_ema4, shift);
+      // Read ribbon from snapshot (single source of truth). Diagnostic only —
+      // displays "INVALID" markers per slot rather than refusing to format.
+      double e1 = GetEmaValid(1) ? GetEma1() : 0.0;
+      double e2 = GetEmaValid(2) ? GetEma2() : 0.0;
+      double e3 = GetEmaValid(3) ? GetEma3() : 0.0;
+      double e4 = GetEmaValid(4) ? GetEma4() : 0.0;
 
       string diag = "";
 
-      // EMA values with price distance in pips
-      diag += StringFormat("EMA1(%d)=%.5f(%+.1fp) EMA2(%d)=%.5f(%+.1fp)\n",
-                           m_settings.P_Ema1, e1, (price - e1) / pip,
-                           m_settings.P_Ema2, e2, (price - e2) / pip);
-      diag += StringFormat("EMA3(%d)=%.5f(%+.1fp) EMA4(%d)=%.5f(%+.1fp)\n",
-                           m_settings.P_Ema3, e3, (price - e3) / pip,
-                           m_settings.P_Ema4, e4, (price - e4) / pip);
+      // EMA values with price distance in pips (annotate INVALID when slot bad)
+      string e1_disp = GetEmaValid(1) ? StringFormat("%.5f(%+.1fp)", e1, (price - e1) / pip) : "INVALID";
+      string e2_disp = GetEmaValid(2) ? StringFormat("%.5f(%+.1fp)", e2, (price - e2) / pip) : "INVALID";
+      string e3_disp = GetEmaValid(3) ? StringFormat("%.5f(%+.1fp)", e3, (price - e3) / pip) : "INVALID";
+      string e4_disp = GetEmaValid(4) ? StringFormat("%.5f(%+.1fp)", e4, (price - e4) / pip) : "INVALID";
+      diag += StringFormat("EMA1(%d)=%s EMA2(%d)=%s\n",
+                           m_settings.P_Ema1, e1_disp,
+                           m_settings.P_Ema2, e2_disp);
+      diag += StringFormat("EMA3(%d)=%s EMA4(%d)=%s\n",
+                           m_settings.P_Ema3, e3_disp,
+                           m_settings.P_Ema4, e4_disp);
 
       // KISS Layer status (always shown)
       diag += StringFormat("LayerW=%d LayerM=%d LayerS=%d\n",
@@ -4960,10 +5064,15 @@ public:
       int    last_processed_shift = -1;
       for(int shift = scan_depth; shift >= 1; shift--)
       {
-         // Guard: skip bars where EMA data isn't ready yet
-         double e1 = GetMAVal(h_ema1, shift);
-         double e2 = GetMAVal(h_ema2, shift);
-         double e3 = GetMAVal(h_ema3, shift);
+         // Guard: skip bars where EMA data isn't ready yet.
+         // Use ReadEmaSafe (iMA + manual fallback) since the warmup walks
+         // historical shifts outside the cached snapshot range.
+         bool   ok1, ok2, ok3;
+         string src_ignored;
+         double e1 = ReadEmaSafe(1, shift, ok1, src_ignored);
+         double e2 = ReadEmaSafe(2, shift, ok2, src_ignored);
+         double e3 = ReadEmaSafe(3, shift, ok3, src_ignored);
+         if(!ok1 || !ok2 || !ok3) continue;
          if(e1 == EMPTY_VALUE || e2 == EMPTY_VALUE || e3 == EMPTY_VALUE) continue;
          if(e1 == 0.0 || e2 == 0.0 || e3 == 0.0) continue;
 
@@ -6581,8 +6690,10 @@ public:
             break;
          case PHASE_TRENDING:
          case PHASE_EMERGING: {
-            double ema2 = GetMAVal(h_ema2, v_shift, 0);
-            double ema4 = GetMAVal(h_ema4, v_shift, 0);
+            // Snapshot slots 2 and 4. If either invalid, refuse direction (0).
+            if(!GetEmaValid(2) || !GetEmaValid(4)) { result = 0; break; }
+            double ema2 = GetEma2();
+            double ema4 = GetEma4();
             double tol  = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
             if(ema2 > ema4 + tol) result = 1;
             else if(ema4 > ema2 + tol) result = -1;
@@ -6618,9 +6729,10 @@ public:
       bool diag_bias = (m_settings.DebugFlow || m_settings.DebugLevel >= DEBUG_SUMMARY);
       if(diag_bias) {
          datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-         double ema2 = GetMAVal(h_ema2, v_shift, 0);
-         double ema3 = GetMAVal(h_ema3, v_shift, 0);
-         double ema4 = GetMAVal(h_ema4, v_shift, 0);
+         // Read from snapshot for diagnostic display. INVALID slots print 0.
+         double ema2 = GetEmaValid(2) ? GetEma2() : 0.0;
+         double ema3 = GetEmaValid(3) ? GetEma3() : 0.0;
+         double ema4 = GetEmaValid(4) ? GetEma4() : 0.0;
          double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
          EMarketPhase detected_phase = DetectMarketPhase(v_shift);
 
@@ -6767,12 +6879,15 @@ public:
    bool LayerS_DirAligned(const int v_shift, const int bias)
    {
       if(bias == 0) return false;
-      double e3  = GetMAVal(h_ema3, v_shift);
-      double e4  = GetMAVal(h_ema4, v_shift);
-      double e3p = GetMAVal(h_ema3, v_shift + 1);
-      double e4p = GetMAVal(h_ema4, v_shift + 1);
-      if(e3 == EMPTY_VALUE || e4 == EMPTY_VALUE || e3p == EMPTY_VALUE || e4p == EMPTY_VALUE)
+      // Snapshot slots 3 and 4, current and previous bar. Refuse alignment
+      // when any required slot is invalid — fails safe (no S confirmation).
+      if(!GetEmaValid(3) || !GetEmaValid(4) ||
+         !GetEmaValidPrev(3) || !GetEmaValidPrev(4))
          return false;
+      double e3  = GetEma3();
+      double e4  = GetEma4();
+      double e3p = GetEma3Prev();
+      double e4p = GetEma4Prev();
       double s3 = e3 - e3p;   // EMA3 slope
       double s4 = e4 - e4p;   // EMA4 slope
       if(bias == 1)  return (e3 > e4) && (s3 > 0.0) && (s4 > 0.0);   // LONG: stacked up + both rising
@@ -7742,22 +7857,25 @@ public:
          case PHASE_TRENDING:
          {
             // Legacy: re-evaluate direction from EMA values for backward compat
-            double ema13 = GetMAVal(h_ema2, v_shift, 0);
-            double ema89 = GetMAVal(h_ema4, v_shift, 0);
+            // Read from snapshot — refuse direction if required slots invalid.
+            if(!GetEmaValid(2) || !GetEmaValid(4)) return 0;
+            double e2 = GetEma2();
+            double e4 = GetEma4();
             double tolerance = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-            if(ema13 > ema89 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] TRENDING Bullish → LONG"); return 1; }
-            if(ema89 > ema13 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] TRENDING Bearish → SHORT"); return -1; }
+            if(e2 > e4 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] TRENDING Bullish → LONG"); return 1; }
+            if(e4 > e2 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] TRENDING Bearish → SHORT"); return -1; }
             return 0;
          }
             
          case PHASE_EMERGING:
          {
             // Legacy: re-evaluate direction from EMA values for backward compat
-            double ema13 = GetMAVal(h_ema2, v_shift, 0);
-            double ema89 = GetMAVal(h_ema4, v_shift, 0);
+            if(!GetEmaValid(2) || !GetEmaValid(4)) return 0;
+            double e2 = GetEma2();
+            double e4 = GetEma4();
             double tolerance = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-            if(ema13 > ema89 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] EMERGING Bullish → LONG"); return 1; }
-            if(ema89 > ema13 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] EMERGING Bearish → SHORT"); return -1; }
+            if(e2 > e4 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] EMERGING Bullish → LONG"); return 1; }
+            if(e4 > e2 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] EMERGING Bearish → SHORT"); return -1; }
             return 0;
          }
             
@@ -7812,22 +7930,47 @@ public:
    //+------------------------------------------------------------------+
    EMarketPhase DetectMarketPhase(const int shift = 1)
    {
-      double ema2 = GetMAVal(h_ema2, shift, 0);
-      double ema3 = GetMAVal(h_ema3, shift, 0);
-      double ema4 = GetMAVal(h_ema4, shift, 0);
-      
+      double ema2, ema3, ema4;
+      bool   ok2, ok3, ok4;
+
+      // Hot path: shift matches the cached snapshot — read directly from m_ribbon
+      if(shift == m_ribbon.shift)
+      {
+         ok2  = m_ribbon.valid[1]; ema2 = m_ribbon.ema[1];
+         ok3  = m_ribbon.valid[2]; ema3 = m_ribbon.ema[2];
+         ok4  = m_ribbon.valid[3]; ema4 = m_ribbon.ema[3];
+      }
+      else if(shift == m_ribbon.shift + 1)
+      {
+         // Previous bar in the snapshot
+         ok2  = m_ribbon.valid_prev[1]; ema2 = m_ribbon.ema_prev[1];
+         ok3  = m_ribbon.valid_prev[2]; ema3 = m_ribbon.ema_prev[2];
+         ok4  = m_ribbon.valid_prev[3]; ema4 = m_ribbon.ema_prev[3];
+      }
+      else
+      {
+         // Historical scan (e.g. phase-stability sweep) — full safe chain per slot
+         string src_ignored;
+         ema2 = ReadEmaSafe(2, shift, ok2, src_ignored);
+         ema3 = ReadEmaSafe(3, shift, ok3, src_ignored);
+         ema4 = ReadEmaSafe(4, shift, ok4, src_ignored);
+      }
+
+      // Refuse classification if any required slot is invalid — safe default
+      // (caller treats PHASE_UNORDERED as no-signal, blocking trade).
+      if(!ok2 || !ok3 || !ok4) return PHASE_UNORDERED;
       if(ema2 == EMPTY_VALUE || ema3 == EMPTY_VALUE || ema4 == EMPTY_VALUE)
          return PHASE_UNORDERED;
-      
+
       // TM: perfect ascending/descending stack (pure positional — no slopes)
       // Slopes are validated downstream by the Entry Layer system.
       if(ema2 > ema3 && ema3 > ema4) return PHASE_TRENDING_UP;
       if(ema4 > ema3 && ema3 > ema2) return PHASE_TRENDING_DN;
-      
+
       // EM: EMA4 (slowest) sandwiched between EMA2 and EMA3
       if(ema2 > ema4 && ema4 > ema3) return PHASE_EMERGING_UP;
       if(ema3 > ema4 && ema4 > ema2) return PHASE_EMERGING_DN;
-      
+
       // UNO: EMA2 sandwiched or any other arrangement
       return PHASE_UNORDERED;
    }

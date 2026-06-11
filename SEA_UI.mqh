@@ -727,15 +727,19 @@ void SEA_UI_UpdateCockpit(
       P[2] = Settings.P_Ema3;
       P[3] = Settings.P_Ema4;
 
-      // Format each slot: "13=1.15173(iMA)" or "34=INVALID(ERR)" etc.
+      // Format each slot: "13=1.15173" when normal, "34=1.15224(MAN)" when
+      // the manual fallback fired, "89=INVALID(ERR)" when both tiers failed.
+      // The (iMA) annotation is suppressed to keep the line compact —
+      // absence of a source tag means "normal iMA read".
       string fmt_slot[4];
       for(int k = 0; k < 4; k++)
       {
          double vk  = ts_telemetry.ribbon.ema[k];
          bool   okk = ts_telemetry.ribbon.valid[k];
          string sk  = ts_telemetry.ribbon.src[k];
-         if(okk) fmt_slot[k] = StringFormat("%d=%.*f(%s)", P[k], ema_dig, vk, sk);
-         else    fmt_slot[k] = StringFormat("%d=INVALID(%s)", P[k], sk);
+         if(!okk)            fmt_slot[k] = StringFormat("%d=INVALID(%s)", P[k], sk);
+         else if(sk == "iMA") fmt_slot[k] = StringFormat("%d=%.*f", P[k], ema_dig, vk);
+         else                fmt_slot[k] = StringFormat("%d=%.*f(%s)", P[k], ema_dig, vk, sk);
       }
       AddLine(StringFormat("  EMAS:  %s  %s  %s  %s",
                            fmt_slot[0], fmt_slot[1], fmt_slot[2], fmt_slot[3]),
