@@ -98,15 +98,6 @@ int      g_te_retry_count = 0;          // Current retry attempt counter
 datetime g_te_retry_bar   = 0;          // Bar time when TE retries started
 const int MAX_TE_RETRIES  = 200;        // Retry limit per bar (safety cap)
 
-// TS contract enforcement — TS(shift=1) ∈ {0,1} evaluated at bar close only.
-// When the TE consumer at the top of OnTick finds a latched signal whose
-// evaluation bar (g_ts_time) is older than the current shift=1, it re-runs
-// EvaluateTS() against the most recently closed bar. To avoid double-evaluation
-// in the same OnTick (the new-bar pipeline at line 800+ also calls EvaluateTS),
-// the top-of-tick re-eval sets this flag, which the new-bar pipeline checks
-// to skip its own EvaluateTS call. Reset at the end of OnTick.
-bool g_ts_evaluated_this_tick = false;
-
 // Global tracking for RRM drawdown protection
 int      g_consecutive_losses     = 0;
 int      g_trades_today           = 0;
@@ -707,6 +698,102 @@ int OrchestrateInit()
 }
 
 //+------------------------------------------------------------------+
+//| TE consumption helper                                            |
+//|                                                                  |
+//| Called twice per OnTick on new bars (and once per tick otherwise):|
+//|   1. Top of OnTick — fires latched signals from prior OnTicks    |
+//|   2. End of new-bar pipeline — fires freshly emitted TS=1, so a  |
+//|      bar that produces TS=1 in its pipeline can fire TE in the   |
+//|      SAME OnTick. This honors the user contract:                 |
+//|                                                                  |
+//|         TS(shift=1)=1 emitted at bar X's OnTick                  |
+//|         → TE=1 fires at bar X's OnTick                           |
+//|                                                                  |
+//|      Without the second call, freshly emitted TS=1 would wait    |
+//|      until the next OnTick (= next bar in bar-begin-only tester, |
+//|      = next tick in live), introducing a structural latency.     |
+//|                                                                  |
+//| No-op when g_ts_dir == 0, so calling twice is safe — the second  |
+//| call falls through if the first one already consumed.            |
+//+------------------------------------------------------------------+
+void ConsumeLatchedSignalTE()
+{
+   if(g_ts_dir == 0) return;
+
+   g_last_te_result = "";
+   g_last_te_veto   = "";
+
+   bool te_news_blocked = Signal.IsNewsBlocked();
+   int te = Executor.EvaluateTE(g_ts_dir, te_news_blocked);
+
+   // Always count trades at ENTRY for accurate daily tracking (used by DrawdownProtection when enabled)
+   // FIX Bug5: removed RRM_EnableDrawdownProtection gate so g_trades_today is always accurate for logging
+   if(te > 0)
+   {
+      g_trades_today++;
+      // Reset CCI reset-recovery state after trade execution — cycle must start fresh
+      Signal.ResetDPIResetState();
+   }
+
+   g_ts_sl   = Executor.LastCachedSL();
+   g_ts_lots = Executor.LastCachedLots();
+   g_ts_risk = Executor.LastCachedRisk();
+
+   g_last_te_result = Executor.LastTEResult();
+   g_last_te_veto   = Executor.LastVetoReason();
+
+   PrintFormat("📋 [TE RESULT] dir=%s | te=%d | SL=%.5f | lots=%.2f | risk=%.2f%% | veto=%s",
+               (g_ts_dir > 0 ? "BUY" : "SELL"), te, g_ts_sl, g_ts_lots, g_ts_risk,
+               (g_last_te_veto != "" ? g_last_te_veto : "OK"));
+
+   // ── TE retry logic ──────────────────────────────────────────────────────
+   // Track per-bar retry count so we can reset it cleanly on new bars.
+   datetime current_bar_time = iTime(_Symbol, PERIOD_CURRENT, 0);
+   if(g_te_retry_bar != current_bar_time)
+   {
+      g_te_retry_bar   = current_bar_time;
+      g_te_retry_count = 0;
+   }
+   g_te_retry_count++;
+
+   // Classify veto: VETO_OPEN_DELAY is temporary (bar will age past the threshold).
+   // All other vetoes are permanent for the current bar.
+   bool is_temporary_veto = Executor.IsTemporaryVeto(g_last_te_veto);
+   bool is_retry_allowed  = (g_te_retry_count < MAX_TE_RETRIES);
+   bool should_retry      = (te == 0 && is_temporary_veto && is_retry_allowed);
+
+   if(te > 0)
+   {
+      // ✅ Trade executed successfully — consume signal and reset retry counter
+      int prior_attempts = g_te_retry_count - 1; // attempts before this successful one
+      g_ts_dir         = 0;
+      g_te_retry_count = 0;
+      FlowLog(StringFormat("[TE] Trade executed successfully (retries: %d)", prior_attempts));
+   }
+   else if(should_retry)
+   {
+      // ⏳ Temporary veto — keep signal alive so next tick re-attempts TE
+      FlowLog(StringFormat("[TE] Retry %d/%d: %s (signal preserved)",
+              g_te_retry_count, MAX_TE_RETRIES, g_last_te_veto));
+      // DO NOT consume signal (g_ts_dir remains non-zero)
+   }
+   else
+   {
+      // ❌ Permanent veto OR retry limit reached — consume signal
+      int failed_attempts = g_te_retry_count - 1; // attempts before this final rejection
+      g_ts_dir         = 0;
+      g_te_retry_count = 0;
+
+      if(!is_retry_allowed && is_temporary_veto)
+         PrintFormat("[TE WARNING] Retry limit exceeded (%d attempts) — signal consumed. Veto: %s",
+                     MAX_TE_RETRIES, g_last_te_veto);
+      else
+         FlowLog(StringFormat("[TE] Signal consumed (permanent veto: %s, retries: %d)",
+                 g_last_te_veto, failed_attempts));
+   }
+}
+
+//+------------------------------------------------------------------+
 //| ORCHESTRATE TICK
 //+------------------------------------------------------------------+
 void OrchestrateTick()
@@ -714,11 +801,6 @@ void OrchestrateTick()
    // 1. Time & Bar Detection
    datetime current_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
    bool     is_new_bar  = (current_bar != g_last_bar_time);
-
-   // Per-tick reset: TS re-eval flag is only meaningful within a single tick
-   // (it carries information from the TE consumer at line 731 to the new-bar
-   // pipeline at line 800+). Resetting here handles all return paths cleanly.
-   g_ts_evaluated_this_tick = false;
 
    // 2. Track peak equity and maximum drawdown (every tick)
    double current_equity = AccountInfoDouble(ACCOUNT_EQUITY);
@@ -733,139 +815,9 @@ void OrchestrateTick()
    //    so TE executes intra-bar rather than waiting for the next new-bar event.
    //    Same-bar re-entry is still prevented by the guards inside ExecuteTrade()
    //    (m_last_trade_bar and m_last_close_bar checks).
-   if(g_ts_dir != 0)
-   {
-      // ── TS contract enforcement ───────────────────────────────────────────
-      // Contract: TS(shift=1) ∈ {0,1} evaluated at bar close only.
-      // The latched g_ts_dir was set by a past OnTick's pipeline against a
-      // particular shift=1 (recorded in g_ts_time). If the current bar's
-      // shift=1 has moved on — i.e. another bar has closed since emission —
-      // the latched signal is no longer the result the equation prescribes
-      // for the most recently closed bar. Re-run EvaluateTS() against the
-      // current shift=1 and only honor the signal if TS=1 AND bias matches.
-      //
-      // This catches the case observed on GBPUSD H4 (May 2026), where a
-      // TS=1 LONG queued at the 12:00 OnTick (evaluated against 08:00 close)
-      // sat latched through position #1's life and fired at the 16:00 OnTick
-      // against an outdated I-snapshot — even though the equation against
-      // the more recently closed 12:00 bar would have prescribed differently.
-      datetime cur_shift1 = iTime(_Symbol, PERIOD_CURRENT, 1);
-      if(g_ts_time != 0 && g_ts_time != cur_shift1)
-      {
-         int    ts_now   = Signal.EvaluateTS();
-         int    bias_now = Signal.LastBias();
-         string reason_now = Signal.LastReason();
-         int    votes_now  = Signal.LastVotes();
-         g_ts_evaluated_this_tick = true;  // suppress duplicate eval in new-bar pipeline
-
-         if(ts_now == 0 || bias_now != g_ts_dir)
-         {
-            PrintFormat("[OnTick] TS re-eval at shift=1=%s OVERRIDES latched signal: "
-                        "ts_now=%d bias_now=%d (was dir=%s, ts_bar=%s). "
-                        "Per TS contract, current bar-close prevails. Discarding.",
-                        TimeToString(cur_shift1, TIME_DATE|TIME_MINUTES),
-                        ts_now, bias_now,
-                        (g_ts_dir > 0 ? "BUY" : "SELL"),
-                        TimeToString(g_ts_time, TIME_DATE|TIME_MINUTES));
-            g_ts_dir    = 0;
-            g_ts_time   = 0;
-            g_ts_bias   = 0;
-            g_ts_votes  = 0;
-            g_ts_reason = StringFormat("TS_REEVAL_OVERRIDE: %s", reason_now);
-         }
-         else
-         {
-            // Re-eval confirms — refresh the snapshot to the current bar-close
-            // evaluation and proceed to TE.
-            if(Settings.DebugFlow)
-               PrintFormat("[OnTick] TS re-eval CONFIRMS latched signal at shift=1=%s "
-                           "(dir=%s, votes=%d, reason=%s). Proceeding to TE.",
-                           TimeToString(cur_shift1, TIME_DATE|TIME_MINUTES),
-                           (g_ts_dir > 0 ? "BUY" : "SELL"), votes_now, reason_now);
-            g_ts_time   = cur_shift1;
-            g_ts_bias   = bias_now;
-            g_ts_votes  = votes_now;
-            g_ts_reason = reason_now;
-         }
-      }
-   }
-
-   // (the re-eval above may have set g_ts_dir = 0; re-check before TE block)
-   if(g_ts_dir != 0)
-   {
-      g_last_te_result = "";
-      g_last_te_veto   = "";
-
-      bool te_news_blocked = Signal.IsNewsBlocked();
-      int te = Executor.EvaluateTE(g_ts_dir, te_news_blocked);
-
-      // Always count trades at ENTRY for accurate daily tracking (used by DrawdownProtection when enabled)
-      // FIX Bug5: removed RRM_EnableDrawdownProtection gate so g_trades_today is always accurate for logging
-      if(te > 0)
-      {
-         g_trades_today++;
-         // Reset CCI reset-recovery state after trade execution — cycle must start fresh
-         Signal.ResetDPIResetState();
-      }
-
-      g_ts_sl   = Executor.LastCachedSL();
-      g_ts_lots = Executor.LastCachedLots();
-      g_ts_risk = Executor.LastCachedRisk();
-
-      g_last_te_result = Executor.LastTEResult();
-      g_last_te_veto   = Executor.LastVetoReason();
-
-      PrintFormat("📋 [TE RESULT] dir=%s | te=%d | SL=%.5f | lots=%.2f | risk=%.2f%% | veto=%s",
-                  (g_ts_dir > 0 ? "BUY" : "SELL"), te, g_ts_sl, g_ts_lots, g_ts_risk,
-                  (g_last_te_veto != "" ? g_last_te_veto : "OK"));
-
-      // ── TE retry logic ──────────────────────────────────────────────────────
-      // Track per-bar retry count so we can reset it cleanly on new bars.
-      datetime current_bar_time = iTime(_Symbol, PERIOD_CURRENT, 0);
-      if(g_te_retry_bar != current_bar_time)
-      {
-         g_te_retry_bar   = current_bar_time;
-         g_te_retry_count = 0;
-      }
-      g_te_retry_count++;
-
-      // Classify veto: VETO_OPEN_DELAY is temporary (bar will age past the threshold).
-      // All other vetoes are permanent for the current bar.
-      bool is_temporary_veto = Executor.IsTemporaryVeto(g_last_te_veto);
-      bool is_retry_allowed  = (g_te_retry_count < MAX_TE_RETRIES);
-      bool should_retry      = (te == 0 && is_temporary_veto && is_retry_allowed);
-
-      if(te > 0)
-      {
-         // ✅ Trade executed successfully — consume signal and reset retry counter
-         int prior_attempts = g_te_retry_count - 1; // attempts before this successful one
-         g_ts_dir         = 0;
-         g_te_retry_count = 0;
-         FlowLog(StringFormat("[TE] Trade executed successfully (retries: %d)", prior_attempts));
-      }
-      else if(should_retry)
-      {
-         // ⏳ Temporary veto — keep signal alive so next tick re-attempts TE
-         FlowLog(StringFormat("[TE] Retry %d/%d: %s (signal preserved)",
-                 g_te_retry_count, MAX_TE_RETRIES, g_last_te_veto));
-         // DO NOT consume signal (g_ts_dir remains non-zero)
-      }
-      else
-      {
-         // ❌ Permanent veto OR retry limit reached — consume signal
-         int failed_attempts = g_te_retry_count - 1; // attempts before this final rejection
-         g_ts_dir         = 0;
-         g_te_retry_count = 0;
-
-         if(!is_retry_allowed && is_temporary_veto)
-            PrintFormat("[TE WARNING] Retry limit exceeded (%d attempts) — signal consumed. Veto: %s",
-                        MAX_TE_RETRIES, g_last_te_veto);
-         else
-            FlowLog(StringFormat("[TE] Signal consumed (permanent veto: %s, retries: %d)",
-                    g_last_te_veto, failed_attempts));
-      }
-      // ───────────────────────────────────────────────────────────────────────
-   }
+   //    This call handles signals LATCHED at prior OnTicks. A second call after
+   //    the new-bar pipeline (below) handles signals freshly emitted THIS tick.
+   ConsumeLatchedSignalTE();
 
    // 5. New-bar pipeline: runs only once per bar
    if(!is_new_bar) return;
@@ -958,10 +910,7 @@ void OrchestrateTick()
    EMarketPhase snap_phase  = PHASE_UNORDERED;
 
    // --- STEP 2: TS — evaluate current bar close, store for NEXT bar ---
-   //   Suppressed when the TE consumer at the top of OnTick has already
-   //   re-evaluated TS against the current shift=1 (g_ts_evaluated_this_tick),
-   //   which would otherwise double-count and overwrite the consumer's verdict.
-   if(!drawdown_blocked && !g_ts_evaluated_this_tick)
+   if(!drawdown_blocked)
    {
       int ts = Signal.EvaluateTS();
 
@@ -1002,6 +951,16 @@ void OrchestrateTick()
    {
       g_ts_dir = 0;
    }
+
+   // ── TE consumption pass #2 (end of new-bar pipeline) ──────────────────────
+   // Honors the contract: a TS=1 emitted in THIS OnTick's pipeline must result
+   // in TE=1 firing in THIS OnTick, not in the next one. Pass #1 at the top of
+   // OnTick handled any signal latched at prior OnTicks; this pass picks up
+   // anything the pipeline just emitted.
+   // Safe to call unconditionally — ConsumeLatchedSignalTE() no-ops when
+   // g_ts_dir is zero (either because nothing was emitted, or pass #1 already
+   // consumed the latched signal).
+   ConsumeLatchedSignalTE();
 
    // 9. Build Display Snapshots 
    string ts_snap = (g_ts_time > 0) ? StringFormat("TS@%s dir=%s votes=%d reason=%s", 

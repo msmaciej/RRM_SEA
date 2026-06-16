@@ -2879,46 +2879,58 @@ private:
           return false;
       }
 
-      // 4. Flip-age check — INFORMATIONAL ONLY (does NOT reject).
+      // 4. Flip-age check — GATE (enforces the TS equation).
       //
-      // Design intent: the flip is a discrete direction-confirmation event.
-      // Once it has been recorded (Step 2) and the dot remains on the correct
-      // side (Step 1), PSAR=1 — regardless of how many bars have elapsed since
-      // the flip. The flip is not "re-evaluated" each bar; it is a settled
-      // historical fact that confirms PSAR has moved into the bias direction.
+      // PSAR is a binary {0,1} factor of I; its evaluation mode determines HOW
+      // it resolves to 0 or 1, but the output is always {0,1}, never advisory.
+      // When flip+N-delay mode is active (effective_delay ∈ [0..10]):
       //
-      // The Vote_PsarFlipDelay (N-window) tags the flip as "fresh" within N
-      // bars after it occurred; outside the window, the flip is "established"
-      // and dot position alone is the correctness check. Either way, the
-      // result is the same: PSAR=1 if dot correct AND a flip was recorded.
+      //     PSAR = 1   iff   dot on correct side  AND  bars_since_flip ≤ N
+      //     PSAR = 0   otherwise
       //
-      // (Previous behavior was to REJECT when bars_since > delay, which had
-      // the effect of expiring valid PSAR-aligned setups in mature trends —
-      // contrary to the design intent and observed as PSAR_FLIP_EXPIRED in
-      // strategy-tester rejection logs.)
-      bool fresh_flip = (bars_since <= delay);
-      m_ind_cache.psar_diag_sub = fresh_flip ? 3 : 4;   // 3=fresh, 4=established (informational)
+      // Mode recap:
+      //   -1   = persistent      → handled at function top (fast-path)
+      //    0   = flip bar only   → window of zero bars (bars_since must == 0)
+      //   1..10 = N-bar window   → window of N bars (bars_since ∈ [0..N])
+      //
+      // Outside the window the flip-derived signal has expired by the user's
+      // contract: a mature trend whose last flip is 6+ bars in the past gets
+      // PSAR=0 unless the operator chose persistent (-1) mode for that layer.
+      // (Layer-aware delays via GetEffectivePsarFlipDelay() let LayerW/M/S be
+      // set to -1 if persistent behavior is desired for some layers.)
+      if(bars_since > delay) {
+         m_diag_last_reason = StringFormat("PSAR_FLIP_EXPIRED (bars_since=%d > delay=%d)",
+                                           bars_since, delay);
+         m_ind_cache.psar_diag_sub = 4;   // expired (outside N-window)
 
-      if(m_settings.DebugFlow) {
-         if(fresh_flip) {
-            DebugLog("[PSAR_FLIP_CHECK] STEP 4: Flip is FRESH (within N-window)");
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    %d bars elapsed (delay=%d) — fresh-flip window",
+         if(m_settings.DebugFlow) {
+            DebugLog("[PSAR_FLIP_CHECK] STEP 4 FAILED: FLIP EXPIRED");
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    %d bars elapsed > delay limit %d — outside N-window",
                                   bars_since, delay));
-         } else {
-            DebugLog("[PSAR_FLIP_CHECK] STEP 4: Flip is ESTABLISHED (outside N-window, dot-position valid)");
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    %d bars elapsed (delay=%d) — flip is settled, dot remains correct → PASS",
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    PSAR=0 (flip-derived signal has expired; use Vote_PsarFlipDelay=-1 for persistent mode)",
                                   bars_since, delay));
          }
+
+         m_ind_cache.cached_bias       = bias;
+         m_ind_cache.psar_flip_result  = 0;
+         return false;
+      }
+
+      m_ind_cache.psar_diag_sub = 3;   // within N-window
+
+      if(m_settings.DebugFlow) {
+         DebugLog("[PSAR_FLIP_CHECK] STEP 4 PASSED: Within N-window");
+         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    %d bars elapsed ≤ delay limit %d (fresh)",
+                               bars_since, delay));
       }
 
       // SUCCESS
       if(m_settings.DebugFlow) {
          DebugLog("[PSAR_FLIP_CHECK] ===========================================");
          DebugLog("[PSAR_FLIP_CHECK] ALL CHECKS PASSED");
-         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    %s flip from %s | %s (%d bars ago, N=%d)",
+         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    %s flip from %s | within window (%d bars ago, N=%d)",
                                (bias > 0 ? "Bullish" : "Bearish"),
                                TimeToString(flip_time, TIME_DATE|TIME_MINUTES),
-                               fresh_flip ? "FRESH" : "ESTABLISHED",
                                bars_since, delay));
       }
 
