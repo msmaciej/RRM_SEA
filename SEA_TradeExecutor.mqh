@@ -2763,7 +2763,7 @@ public:
    //|   • TE checks execution-moment veto conditions                   |
    //|   • Optional TE quality gates are OFF by default                 |
    //+------------------------------------------------------------------+
-   int EvaluateTE(int direction, bool news_blocked_override = false) {
+   int EvaluateTE(int direction, bool news_blocked_override = false, bool psar_recheck_blocked = false) {
 
       if(direction == 0) return 0;
       m_cached_sl   = 0.0;
@@ -2778,6 +2778,24 @@ public:
       double live_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
       PrintFormat("📋 [TE] %s | ref_price(barClose)=%.5f | live_price=%.5f | spread_offset=%.5f",
                   m_symbol, ref_price, live_price, MathAbs(live_price - ref_price));
+
+      // ── PSAR staleness gate ──
+      // Re-validate PSAR direction at shift=1 of the CURRENT bar (i.e. the
+      // bar that most recently closed). The TS=1 signal may have been
+      // emitted N bars ago against an older shift=1; if PSAR has flipped
+      // on the bar that just closed, the signal is no longer valid.
+      // Caller (OnTick) computes this against Signal.Scanner_Check_PSAR_Flip()
+      // or Scanner_Check_PSAR(), depending on Vote_AllowPsarFlip.
+      if(psar_recheck_blocked)
+      {
+         PrintFormat("[TE VETO] VETO_PSAR_STALE | PSAR no longer on correct side for %s at shift=1 of current bar",
+                     isBuy ? "BUY" : "SELL");
+         m_te_veto_reason = "VETO_PSAR_STALE";
+         m_last_te_result = "BLOCKED";
+         m_last_te_reason = "VETO_PSAR_STALE";
+         m_last_te_time   = iTime(m_symbol, PERIOD_CURRENT, 0);
+         return 0;
+      }
 
       // ── F: Filters (spread × session × news) ──
       int F = EvaluateF(news_blocked_override);

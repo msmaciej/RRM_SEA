@@ -98,6 +98,15 @@ int      g_te_retry_count = 0;          // Current retry attempt counter
 datetime g_te_retry_bar   = 0;          // Bar time when TE retries started
 const int MAX_TE_RETRIES  = 200;        // Retry limit per bar (safety cap)
 
+// TS contract enforcement — TS(shift=1) ∈ {0,1} evaluated at bar close only.
+// When the TE consumer at the top of OnTick finds a latched signal whose
+// evaluation bar (g_ts_time) is older than the current shift=1, it re-runs
+// EvaluateTS() against the most recently closed bar. To avoid double-evaluation
+// in the same OnTick (the new-bar pipeline at line 800+ also calls EvaluateTS),
+// the top-of-tick re-eval sets this flag, which the new-bar pipeline checks
+// to skip its own EvaluateTS call. Reset at the end of OnTick.
+bool g_ts_evaluated_this_tick = false;
+
 // Global tracking for RRM drawdown protection
 int      g_consecutive_losses     = 0;
 int      g_trades_today           = 0;
@@ -706,6 +715,11 @@ void OrchestrateTick()
    datetime current_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
    bool     is_new_bar  = (current_bar != g_last_bar_time);
 
+   // Per-tick reset: TS re-eval flag is only meaningful within a single tick
+   // (it carries information from the TE consumer at line 731 to the new-bar
+   // pipeline at line 800+). Resetting here handles all return paths cleanly.
+   g_ts_evaluated_this_tick = false;
+
    // 2. Track peak equity and maximum drawdown (every tick)
    double current_equity = AccountInfoDouble(ACCOUNT_EQUITY);
    if(current_equity > g_peak_equity) g_peak_equity = current_equity;
@@ -719,6 +733,64 @@ void OrchestrateTick()
    //    so TE executes intra-bar rather than waiting for the next new-bar event.
    //    Same-bar re-entry is still prevented by the guards inside ExecuteTrade()
    //    (m_last_trade_bar and m_last_close_bar checks).
+   if(g_ts_dir != 0)
+   {
+      // ── TS contract enforcement ───────────────────────────────────────────
+      // Contract: TS(shift=1) ∈ {0,1} evaluated at bar close only.
+      // The latched g_ts_dir was set by a past OnTick's pipeline against a
+      // particular shift=1 (recorded in g_ts_time). If the current bar's
+      // shift=1 has moved on — i.e. another bar has closed since emission —
+      // the latched signal is no longer the result the equation prescribes
+      // for the most recently closed bar. Re-run EvaluateTS() against the
+      // current shift=1 and only honor the signal if TS=1 AND bias matches.
+      //
+      // This catches the case observed on GBPUSD H4 (May 2026), where a
+      // TS=1 LONG queued at the 12:00 OnTick (evaluated against 08:00 close)
+      // sat latched through position #1's life and fired at the 16:00 OnTick
+      // against an outdated I-snapshot — even though the equation against
+      // the more recently closed 12:00 bar would have prescribed differently.
+      datetime cur_shift1 = iTime(_Symbol, PERIOD_CURRENT, 1);
+      if(g_ts_time != 0 && g_ts_time != cur_shift1)
+      {
+         int    ts_now   = Signal.EvaluateTS();
+         int    bias_now = Signal.LastBias();
+         string reason_now = Signal.LastReason();
+         int    votes_now  = Signal.LastVotes();
+         g_ts_evaluated_this_tick = true;  // suppress duplicate eval in new-bar pipeline
+
+         if(ts_now == 0 || bias_now != g_ts_dir)
+         {
+            PrintFormat("[OnTick] TS re-eval at shift=1=%s OVERRIDES latched signal: "
+                        "ts_now=%d bias_now=%d (was dir=%s, ts_bar=%s). "
+                        "Per TS contract, current bar-close prevails. Discarding.",
+                        TimeToString(cur_shift1, TIME_DATE|TIME_MINUTES),
+                        ts_now, bias_now,
+                        (g_ts_dir > 0 ? "BUY" : "SELL"),
+                        TimeToString(g_ts_time, TIME_DATE|TIME_MINUTES));
+            g_ts_dir    = 0;
+            g_ts_time   = 0;
+            g_ts_bias   = 0;
+            g_ts_votes  = 0;
+            g_ts_reason = StringFormat("TS_REEVAL_OVERRIDE: %s", reason_now);
+         }
+         else
+         {
+            // Re-eval confirms — refresh the snapshot to the current bar-close
+            // evaluation and proceed to TE.
+            if(Settings.DebugFlow)
+               PrintFormat("[OnTick] TS re-eval CONFIRMS latched signal at shift=1=%s "
+                           "(dir=%s, votes=%d, reason=%s). Proceeding to TE.",
+                           TimeToString(cur_shift1, TIME_DATE|TIME_MINUTES),
+                           (g_ts_dir > 0 ? "BUY" : "SELL"), votes_now, reason_now);
+            g_ts_time   = cur_shift1;
+            g_ts_bias   = bias_now;
+            g_ts_votes  = votes_now;
+            g_ts_reason = reason_now;
+         }
+      }
+   }
+
+   // (the re-eval above may have set g_ts_dir = 0; re-check before TE block)
    if(g_ts_dir != 0)
    {
       g_last_te_result = "";
@@ -886,7 +958,10 @@ void OrchestrateTick()
    EMarketPhase snap_phase  = PHASE_UNORDERED;
 
    // --- STEP 2: TS — evaluate current bar close, store for NEXT bar ---
-   if(!drawdown_blocked)
+   //   Suppressed when the TE consumer at the top of OnTick has already
+   //   re-evaluated TS against the current shift=1 (g_ts_evaluated_this_tick),
+   //   which would otherwise double-count and overwrite the consumer's verdict.
+   if(!drawdown_blocked && !g_ts_evaluated_this_tick)
    {
       int ts = Signal.EvaluateTS();
 
