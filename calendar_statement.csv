@@ -1,0 +1,84 @@
+Date,Event,Impact,Currency
+"2026, June 15, 08:00","(Germany) Wholesale Prices YoY",Medium,EUR
+"2026, June 15, 08:00","(Germany) Wholesale Prices MoM",Medium,EUR
+"2026, June 15, 09:30","(Euro Area) ECB President Lagarde Speech",Medium,EUR
+"2026, June 15, 10:00","(Italy) Balance of Trade",Medium,EUR
+"2026, June 15, 10:00","(Australia) Myfxbook AUDUSD Sentiment",Medium,AUD
+"2026, June 15, 10:00","(Japan) Myfxbook USDJPY Sentiment",Medium,JPY
+"2026, June 15, 10:00","(European Union) Myfxbook EURUSD Sentiment",Medium,EUR
+"2026, June 15, 10:00","(United Kingdom) Myfxbook GBPUSD Sentiment",Medium,GBP
+"2026, June 15, 10:00","(Canada) Myfxbook USDCAD Sentiment",Medium,CAD
+"2026, June 15, 11:00","(Euro Area) Industrial Production MoM",Medium,EUR
+"2026, June 15, 11:00","(Euro Area) Balance of Trade",Medium,EUR
+"2026, June 15, 14:15","(Canada) Housing Starts",Medium,CAD
+"2026, June 15, 14:30","(United States) NY Empire State Manufacturing Index",High,USD
+"2026, June 15, 15:15","(United States) Industrial Production MoM",Medium,USD
+"2026, June 15, 16:00","(United States) NAHB Housing Market Index",Medium,USD
+"2026, June 16, 05:00","(Japan) BoJ Interest Rate Decision",High,JPY
+"2026, June 16, 06:30","(Australia) RBA Interest Rate Decision",High,AUD
+"2026, June 16, 07:30","(Australia) RBA Press Conference",Medium,AUD
+"2026, June 16, 11:00","(Euro Area) ZEW Economic Sentiment Index",Medium,EUR
+"2026, June 16, 11:00","(Germany) ZEW Economic Sentiment Index",High,EUR
+"2026, June 16, 14:15","(United States) ADP Employment Change Weekly",High,USD
+"2026, June 16, 14:30","(United States) Housing Starts",High,USD
+"2026, June 16, 14:30","(United States) Building Permits MoM",Medium,USD
+"2026, June 16, 14:30","(United States) Import Prices MoM",Medium,USD
+"2026, June 16, 14:30","(United States) Housing Starts MoM",Medium,USD
+"2026, June 16, 14:30","(United States) Export Prices MoM",Medium,USD
+"2026, June 16, 14:30","(United States) Building Permits",High,USD
+"2026, June 16, 22:30","(United States) API Crude Oil Stock Change",Medium,USD
+"2026, June 17, 01:50","(Japan) Balance of Trade",High,JPY
+"2026, June 17, 01:50","(Japan) Exports YoY",Medium,JPY
+"2026, June 17, 01:50","(Japan) Machinery Orders YoY",Medium,JPY
+"2026, June 17, 01:50","(Japan) Machinery Orders MoM",Medium,JPY
+"2026, June 17, 03:30","(Australia) RBA Jones Speech",Medium,AUD
+"2026, June 17, 08:00","(United Kingdom) Core Inflation Rate YoY",Medium,GBP
+"2026, June 17, 08:00","(United Kingdom) Inflation Rate YoY",High,GBP
+"2026, June 17, 08:00","(United Kingdom) Inflation Rate MoM",Medium,GBP
+"2026, June 17, 11:00","(Euro Area) CPI",High,EUR
+"2026, June 17, 12:50","(Euro Area) ECB President Lagarde Speech",Medium,EUR
+"2026, June 17, 13:00","(United States) MBA 30-Year Mortgage Rate",Medium,USD
+"2026, June 17, 14:30","(United States) Retail Sales Ex Autos MoM",High,USD
+"2026, June 17, 14:30","(United States) Retail Sales MoM",High,USD
+"2026, June 17, 14:30","(United States) Retail Sales Control Group MoM",High,USD
+"2026, June 17, 14:30","(United States) Retail Sales YoY",High,USD
+"2026, June 17, 14:30","(United States) Retail Sales Ex Gas/Autos MoM",High,USD
+"2026, June 17, 14:30","(Canada) New Housing Price Index MoM",Medium,CAD
+"2026, June 17, 16:00","(United States) Pending Home Sales MoM",Medium,USD
+"2026, June 17, 16:00","(United States) Business Inventories MoM",Medium,USD
+"2026, June 17, 16:00","(United States) Pending Home Sales YoY",Medium,USD
+"2026, June 17, 16:30","(United States) EIA Gasoline Stocks Change",Medium,USD
+"2026, June 17, 16:30","(United States) EIA Crude Oil Stocks Change",Medium,USD
+"2026, June 17, 20:00","(United States) Fed Interest Rate Decision",High,USD
+"2026, June 17, 20:00","(United States) FOMC Economic Projections",High,USD
+"2026, June 17, 20:30","(United States) Fed Press Conference",High,USD
+"2026, June 18, 06:30","(Netherlands) Unemployment Rate",Medium,EUR
+"2026, June 18, 08:00","(United Kingdom) Employment Change",High,GBP
+"2026, June 18, 08:00","(United Kingdom) Unemployment Rate",High,GBP
+"2026, June 18, 08:00","(United Kingdom) Average Earnings incl. Bonus (3Mo/Yr)",Medium,GBP
+"2026, June 18, 10:00","(European Union) European Council Meeting",Medium,EUR
+"2026, June 18, 13:00","(United Kingdom) BoE Interest Rate Decision",High,GBP
+"2026, June 18, 13:00","(United Kingdom) MPC Meeting Minutes",Medium,GBP
+"2026, June 18, 13:00","(United Kingdom) BoE MPC Vote Cut",Medium,GBP
+"2026, June 18, 13:00","(United Kingdom) BoE MPC Vote Hike",Medium,GBP
+"2026, June 18, 13:00","(United Kingdom) BoE MPC Vote Unchanged",Medium,GBP
+"2026, June 18, 14:30","(United States) Philadelphia Fed Manufacturing Index",Medium,USD
+"2026, June 18, 14:30","(United States) Jobless Claims 4-week Average",High,USD
+"2026, June 18, 14:30","(United States) Continuing Jobless Claims",High,USD
+"2026, June 18, 14:30","(United States) Initial Jobless Claims",High,USD
+"2026, June 18, 22:00","(United States) Net Long-term TIC Flows",Medium,USD
+"2026, June 19, 01:01","(United Kingdom) Gfk Consumer Confidence",Medium,GBP
+"2026, June 19, 01:30","(Japan) Inflation Rate YoY",High,JPY
+"2026, June 19, 01:30","(Japan) Core Inflation Rate YoY",Medium,JPY
+"2026, June 19, 01:50","(Japan) BoJ Monetary Policy Meeting Minutes",Medium,JPY
+"2026, June 19, 08:00","(Germany) PPI YoY",Medium,EUR
+"2026, June 19, 08:00","(United Kingdom) Retail Sales MoM",High,GBP
+"2026, June 19, 08:00","(United Kingdom) Retail Sales YoY",High,GBP
+"2026, June 19, 08:00","(United Kingdom) Retail Sales ex Fuel MoM",High,GBP
+"2026, June 19, 08:00","(United Kingdom) Retail Sales ex Fuel YoY",High,GBP
+"2026, June 19, 10:00","(European Union) European Council Meeting",Medium,EUR
+"2026, June 19, 14:30","(Canada) Retail Sales Ex Autos MoM",High,CAD
+"2026, June 19, 14:30","(Canada) Retail Sales MoM",High,CAD
+"2026, June 19, 14:30","(Canada) Retail Sales YoY",High,CAD
+"2026, June 19, 14:30","(Canada) Retail Sales MoM",High,CAD
+
