@@ -816,6 +816,60 @@ private:
    // Full snapshot accessor for telemetry copy and other bulk consumers
    SRibbonSnapshot GetRibbonSnapshot() const { return m_ribbon; }
 
+   //+------------------------------------------------------------------+
+   //| HandleToSlot — identify which ribbon slot (if any) a handle is   |
+   //+------------------------------------------------------------------+
+   // Returns 1..4 if `handle` matches one of the four ribbon EMA handles
+   // (h_ema1..h_ema4), or 0 if it's something else (BB, MFI, ATR, etc.).
+   // Used by GetMAValSafe to route ribbon reads through the snapshot and
+   // pass non-ribbon reads through to the direct GetMAVal path.
+   int HandleToSlot(const int handle) const
+   {
+      if(handle == h_ema1) return 1;
+      if(handle == h_ema2) return 2;
+      if(handle == h_ema3) return 3;
+      if(handle == h_ema4) return 4;
+      return 0;
+   }
+
+   //+------------------------------------------------------------------+
+   //| GetMAValSafe — universal safe accessor for any MA handle         |
+   //+------------------------------------------------------------------+
+   // Drop-in replacement for GetMAVal(handle, shift) at callsites that
+   // hold an indirect/variable handle (e.g. `int hf = h_emaN`, layer
+   // dispatcher h_fast/h_slow, PriceExtFilter `rh`). The routing:
+   //
+   //   • Ribbon handle (h_ema1..4) + snapshot shift     → snapshot read
+   //   • Ribbon handle (h_ema1..4) + historical shift   → ReadEmaSafe
+   //     (full iMA → manual fallback chain)
+   //   • Non-ribbon handle (BB, MFI, ATR, etc.)         → direct GetMAVal
+   //     with validity check
+   //
+   // Caller MUST check out_valid before using the returned value.
+   double GetMAValSafe(const int handle, const int shift, bool &out_valid)
+   {
+      int slot = HandleToSlot(handle);
+      if(slot >= 1 && slot <= 4)
+      {
+         // Ribbon slot — prefer snapshot
+         if(shift == m_ribbon.shift)
+         {
+            out_valid = m_ribbon.valid[slot - 1];
+            return m_ribbon.ema[slot - 1];
+         }
+         if(shift == m_ribbon.shift + 1)
+         {
+            out_valid = m_ribbon.valid_prev[slot - 1];
+            return m_ribbon.ema_prev[slot - 1];
+         }
+         // Historical/scanner shift — full safe chain
+         string ignored;
+         return ReadEmaSafe(slot, shift, out_valid, ignored);
+      }
+      // Non-ribbon handle — direct read with validity
+      return GetMAVal(handle, shift, 0, out_valid);
+   }
+
 
    int GetMTFBias(const int h_fast, const int h_slow, const ENUM_TIMEFRAMES htf, const int m15_shift = 1)
    {
@@ -2976,10 +3030,18 @@ private:
       
       // 2. DYNAMIC EMA SLOPE CHECK (SECURE)
       int hf = (m_settings.BiasFastID==0)?h_ema1 : (m_settings.BiasFastID==1)?h_ema2 : (m_settings.BiasFastID==2)?h_ema3 : h_ema4;
-      
-      // Get slope based on current vertical shift
-      double c = GetMAVal(hf, shift);
-      double p = GetMAVal(hf, shift + 1);
+
+      // Get slope based on current vertical shift. Use GetMAValSafe so the
+      // read routes through the ribbon snapshot (with manual fallback if
+      // MT5 returns garbage). Refuse the gate if either read is invalid.
+      bool ok_c, ok_p;
+      double c = GetMAValSafe(hf, shift, ok_c);
+      double p = GetMAValSafe(hf, shift + 1, ok_p);
+      if(!ok_c || !ok_p) {
+         if(m_settings.DebugFlow)
+            DebugLog("[IND_ROSS] Bias EMA read invalid → FAIL");
+         return false;
+      }
       int trendSlope = (c > p) ? 1 : (c < p) ? -1 : 0;
       
       // 3. THE "PURIST" INTERLOCK (Breakout + Momentum Alignment)
@@ -3323,8 +3385,17 @@ private:
          default: return 0;
       }
 
-      double ema_fast      = GetMAVal(h_fast, shift);
-      double ema_slow      = GetMAVal(h_slow, shift);
+      // Route through ribbon snapshot via GetMAValSafe (handles iMA → manual
+      // fallback for ribbon handles). Refuse on invalid — fails safe.
+      bool ok_fast, ok_slow;
+      double ema_fast      = GetMAValSafe(h_fast, shift, ok_fast);
+      double ema_slow      = GetMAValSafe(h_slow, shift, ok_slow);
+      if(!ok_fast || !ok_slow) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[LayerAlign] %s: EMA read invalid (fast_ok=%d slow_ok=%d) → no alignment",
+                        layer_label, (int)ok_fast, (int)ok_slow);
+         return 0;
+      }
       // Warmup check: EMPTY_VALUE is normal during indicator initialization
       if(ema_fast == EMPTY_VALUE || ema_slow == EMPTY_VALUE) {
          if(m_settings.DebugFlow)
@@ -3832,10 +3903,13 @@ public:
          if(m_settings.PriceExtRefEma == 1)      rh = h_ema1;
          else if(m_settings.PriceExtRefEma == 2) rh = h_ema2;
          else if(m_settings.PriceExtRefEma == 4) rh = h_ema4;
-         double pe_ref = GetMAVal(rh, shift);
+         // Read ref EMA via snapshot. Filter is pass-through on invalid
+         // (don't block when we lack confident evidence to block).
+         bool ok_ref;
+         double pe_ref = GetMAValSafe(rh, shift, ok_ref);
          double pe_atr = ManualATR(m_settings.PriceExtAtrPeriod, shift);
          double pe_cls = iClose(m_symbol, PERIOD_CURRENT, shift);
-         if(pe_ref > 0.0 && pe_atr > 0.0 && pe_cls > 0.0)
+         if(ok_ref && pe_ref > 0.0 && pe_atr > 0.0 && pe_cls > 0.0)
          {
             double pe_dist = (bias == 1) ? (pe_cls - pe_ref) : (pe_ref - pe_cls);  // +ve = stretched in bias dir
             if(pe_dist > m_settings.PriceExtMaxATR * pe_atr) { m_last_f_reason = "PRICE_OVEREXT"; return false; }
@@ -6089,10 +6163,13 @@ public:
       // 2. Determine MASTER BIAS (Strategy)
       int bias = 0;
 
+      // Bias EMAs via GetMAValSafe (routes through ribbon snapshot when the
+      // bias handles resolve to ribbon slots — which is the normal case).
       int hf = BiasFastHandle();
       int hs = BiasSlowHandle();
-      double f_curr = GetMAVal(hf, v_shift, 0);
-      double s_curr = GetMAVal(hs, v_shift, 0);
+      bool ok_fcurr, ok_scurr;
+      double f_curr = GetMAValSafe(hf, v_shift, ok_fcurr);
+      double s_curr = GetMAValSafe(hs, v_shift, ok_scurr);
 
       if(m_settings.BiasMode == BIAS_4EMA)
       {
@@ -6143,8 +6220,34 @@ public:
          if(lookback < 1) lookback = 1;
          if(lookback > 5) lookback = 5;
 
-         double f_prev = GetMAVal(hf, v_shift + lookback, 0);
-         double s_prev = GetMAVal(hs, v_shift + lookback, 0);
+         // Historical reads (v_shift + lookback) — GetMAValSafe routes to
+         // ReadEmaSafe for shifts outside the snapshot's two-bar window.
+         bool ok_fprev, ok_sprev;
+         double f_prev = GetMAValSafe(hf, v_shift + lookback, ok_fprev);
+         double s_prev = GetMAValSafe(hs, v_shift + lookback, ok_sprev);
+
+         // If any bias EMA read failed (current or historical), bail with
+         // neutral bias — fails safe. Diagnostics will note BIAS_ZERO.
+         if(!ok_fcurr || !ok_scurr || !ok_fprev || !ok_sprev) {
+            if(m_settings.DebugFlow) {
+               PrintFormat("[BIAS] EMA read invalid (fcurr=%d scurr=%d fprev=%d sprev=%d) → bias=0",
+                           (int)ok_fcurr, (int)ok_scurr, (int)ok_fprev, (int)ok_sprev);
+            }
+            m_eval_str_B = "INV";
+            int market_bias_inv = 0;
+            if(market_bias_inv == 0) {
+               m_diag_last_bias = 0;
+               m_diag_last_reason = "BIAS_ZERO";
+               m_reject_bias++;
+               m_stats.rejected_bias++;
+               if(!m_settings.Stats_FullEvaluation) {
+                  m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
+                  return 0;
+               }
+               if(m_eval_first_failure == "") m_eval_first_failure = "BIAS_ZERO";
+               m_eval_any_failure = true;
+            }
+         }
 
          double pip = PipSize();
 
@@ -6220,14 +6323,18 @@ public:
                entry_signal = PriceCrossDirection(hf, v_shift);
             } else {
                double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-               double ma    = GetMAVal(hf, v_shift, 0);
-               entry_signal = (price > ma) ? 1 : -1;
+               bool ok_ma;
+               double ma    = GetMAValSafe(hf, v_shift, ok_ma);
+               entry_signal = ok_ma ? ((price > ma) ? 1 : -1) : 0;
             }
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
                double price = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-               double ma    = GetMAVal(hf, v_shift, 0);
-               DebugLog(StringFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_PRICE %s price=%.5f ma=%.5f → signal=%d", TimeToString(bar_time), ema_fast_name, price, ma, entry_signal));
+               bool ok_ma_dbg;
+               double ma    = GetMAValSafe(hf, v_shift, ok_ma_dbg);
+               DebugLog(StringFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_PRICE %s price=%.5f ma=%.5f%s → signal=%d",
+                                     TimeToString(bar_time), ema_fast_name, price, ma,
+                                     ok_ma_dbg ? "" : "(INVALID)", entry_signal));
             }
          }
          else if(m_settings.AutoStrat == STRAT_2EMA_POSITION) {
@@ -6250,48 +6357,64 @@ public:
             }
          }
          else {  // STRAT_2EMA_CROSS_EMA
-            double f_curr_cross = GetMAVal(hf, v_shift, 0);
-            double f_prev_cross = GetMAVal(hf, v_shift + 1, 0);
-            double s_curr_cross = GetMAVal(hs, v_shift, 0);
-            double s_prev_cross = GetMAVal(hs, v_shift + 1, 0);
+            bool ok_fcc, ok_fpc, ok_scc, ok_spc;
+            double f_curr_cross = GetMAValSafe(hf, v_shift,     ok_fcc);
+            double f_prev_cross = GetMAValSafe(hf, v_shift + 1, ok_fpc);
+            double s_curr_cross = GetMAValSafe(hs, v_shift,     ok_scc);
+            double s_prev_cross = GetMAValSafe(hs, v_shift + 1, ok_spc);
 
-            bool bullish_cross = (f_prev_cross <= s_prev_cross && f_curr_cross > s_curr_cross);
-            bool bearish_cross = (f_prev_cross >= s_prev_cross && f_curr_cross < s_curr_cross);
-            bool has_crossover = (bullish_cross || bearish_cross);
+            if(!ok_fcc || !ok_fpc || !ok_scc || !ok_spc)
+            {
+               // Any EMA read invalid → refuse direction (entry_signal=0).
+               // Falls through to STEP 3 which will bail with bias=0.
+               if(m_settings.DebugFlow)
+                  DebugLog("STEP 2 ENTRY: STRAT_2EMA_CROSS_EMA — EMA read invalid → signal=0");
+               entry_signal = 0;
+            }
+            else
+            {
+               bool bullish_cross = (f_prev_cross <= s_prev_cross && f_curr_cross > s_curr_cross);
+               bool bearish_cross = (f_prev_cross >= s_prev_cross && f_curr_cross < s_curr_cross);
+               bool has_crossover = (bullish_cross || bearish_cross);
 
-            if(bullish_cross) entry_signal = 1;
-            else if(bearish_cross) entry_signal = -1;
-            else if(m_settings.ExitProfile == EXIT_PROFILE_RRM && market_bias != 0) {
-               bool ema_position_matches_bias = (market_bias == 1) ? (f_curr_cross > s_curr_cross) : (f_curr_cross < s_curr_cross);
-               if(ema_position_matches_bias) {
-                  entry_signal = market_bias;
-                  if(m_settings.DebugFlow) {
-                     datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-                     DebugLog(StringFormat("STEP 2 ENTRY[%s]: RRM CONTINUATION bias=%d trend intact f=%.5f %s s=%.5f → signal=%d",
-                                           TimeToString(bar_time), market_bias, f_curr_cross, (market_bias == 1 ? ">" : "<"), s_curr_cross, entry_signal));
+               if(bullish_cross) entry_signal = 1;
+               else if(bearish_cross) entry_signal = -1;
+               else if(m_settings.ExitProfile == EXIT_PROFILE_RRM && market_bias != 0)
+               {
+                  bool ema_position_matches_bias = (market_bias == 1) ? (f_curr_cross > s_curr_cross) : (f_curr_cross < s_curr_cross);
+                  if(ema_position_matches_bias)
+                  {
+                     entry_signal = market_bias;
+                     if(m_settings.DebugFlow) {
+                        datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+                        DebugLog(StringFormat("STEP 2 ENTRY[%s]: RRM CONTINUATION bias=%d trend intact f=%.5f %s s=%.5f → signal=%d",
+                                              TimeToString(bar_time), market_bias, f_curr_cross, (market_bias == 1 ? ">" : "<"), s_curr_cross, entry_signal));
+                     }
+                  }
+                  else
+                  {
+                     entry_signal = 0;
+                     if(m_settings.DebugFlow) {
+                        datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+                        DebugLog(StringFormat("STEP 2 ENTRY[%s]: RRM CONTINUATION rejected f=%.5f vs s=%.5f bias=%d → signal=0",
+                                              TimeToString(bar_time), f_curr_cross, s_curr_cross, market_bias));
+                     }
                   }
                }
-               else {
+               else
+               {
                   entry_signal = 0;
                   if(m_settings.DebugFlow) {
                      datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-                     DebugLog(StringFormat("STEP 2 ENTRY[%s]: RRM CONTINUATION rejected f=%.5f vs s=%.5f bias=%d → signal=0",
-                                           TimeToString(bar_time), f_curr_cross, s_curr_cross, market_bias));
+                     DebugLog(StringFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_EMA no crossover → signal=0", TimeToString(bar_time)));
                   }
                }
-            }
-            else {
-               entry_signal = 0;
-               if(m_settings.DebugFlow) {
-                  datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-                  DebugLog(StringFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_EMA no crossover → signal=0", TimeToString(bar_time)));
-               }
-            }
 
-            if(m_settings.DebugFlow && has_crossover) {
-               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-               DebugLog(StringFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_EMA %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
-                                     TimeToString(bar_time), ema_fast_name, ema_slow_name, f_prev_cross, s_prev_cross, f_curr_cross, s_curr_cross, entry_signal));
+               if(m_settings.DebugFlow && has_crossover) {
+                  datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+                  DebugLog(StringFormat("STEP 2 ENTRY[%s]: STRAT_2EMA_CROSS_EMA %s vs %s prev: %.5f vs %.5f curr: %.5f vs %.5f → signal=%d",
+                                        TimeToString(bar_time), ema_fast_name, ema_slow_name, f_prev_cross, s_prev_cross, f_curr_cross, s_curr_cross, entry_signal));
+               }
             }
          }
 
@@ -7711,11 +7834,15 @@ public:
       if(B != 0) {
          m_eval_str_B = "+";
       } else {
-         double f_val = GetMAVal(BiasFastHandle(), v_shift);
-         double s_val = GetMAVal(BiasSlowHandle(), v_shift);
+         // Diagnostic-only reads. On invalid we degrade gracefully to "POS"
+         // (generic position-failure label) — doesn't affect trade decisions.
+         bool ok_f, ok_s;
+         double f_val = GetMAValSafe(BiasFastHandle(), v_shift, ok_f);
+         double s_val = GetMAValSafe(BiasSlowHandle(), v_shift, ok_s);
          int f_slope = GetSlope(BiasFastHandle(), v_shift);
 
          if(m_diag_last_reason == "PHASE_UNORDERED" || m_diag_last_reason == "PHASE") m_eval_str_B = "PHASE";
+         else if(!ok_f || !ok_s) m_eval_str_B = "INV";
          else if((f_val > s_val && f_slope <= 0) || (f_val < s_val && f_slope >= 0)) m_eval_str_B = "SLOPE";
          else m_eval_str_B = "POS";
       }
