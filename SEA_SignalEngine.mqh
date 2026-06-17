@@ -408,7 +408,11 @@ private:
       double dpi_diag_hist;       // last DPI histogram value (inspector diagnostic)
       int    dpi_diag_sub;        // last DPI fail sub-reason: 0=none 1=DIR(colour) 3=GREEN 4=RESET
       bool   dpi_diag_yellow;     // last DPI ribbon colour: true=YELLOW (long), false=RED (short)
-      int    psar_diag_sub;       // last PSAR fail sub-reason: 0=none/dot 1=NoFlip 2=Expired
+      int    psar_diag_sub;       // last PSAR fail sub-reason: 0=none/dot 1=NoFlip 3=Valid(pass) 4=Expired
+                                  // NOTE: 2 is intentionally unused, mirroring dpi_diag_sub's value scheme.
+                                  // Readers map: 1→NoF, 4→EXP, else→DOT. Was previously documented as 0/1/2
+                                  // (and reader mapped 2→EXP) but setters never wrote 2 — expired rejects
+                                  // were silently mislabeled DOT in journal output until 2026-06 fix.
    };
 
    SIndicatorCache m_ind_cache;
@@ -2767,6 +2771,12 @@ private:
          bool result = Check_PSAR(bias, shift);
          if(m_settings.DebugFlow)
             DebugLog(StringFormat("[PSAR_FLIP_CHECK] PERSISTENT mode: dot check only → %s", result ? "PASS" : "FAIL"));
+         // Stamp the sub-code so journal/cockpit readers don't pick up a stale
+         // value from a previous bar/call. In persistent mode, a fail is always
+         // "dot on wrong side" (no flip-aging logic applies), so use the DOT
+         // catch-all (0). On pass, mirror the within-window pass code (3) for
+         // consistency with the flip-mode path.
+         m_ind_cache.psar_diag_sub    = (result ? 3 : 0);
          m_ind_cache.cached_bias = bias;
          m_ind_cache.psar_flip_result = result ? 1 : 0;
          return result;
@@ -2870,6 +2880,10 @@ private:
 
       if(bars_since == INT_MAX) {
          m_diag_last_reason = "PSAR_FLIP_INVALID";
+         // Internal error: flip_time is non-zero (passed step 2) but iBarShift
+         // can't resolve it. Should not happen on healthy data; treat as a
+         // catch-all reject so readers don't inherit a stale sub-code.
+         m_ind_cache.psar_diag_sub = 0;
 
          if(m_settings.DebugFlow)
             DebugLog("[PSAR_FLIP_CHECK] STEP 3 FAILED: iBarShift returned invalid index");
@@ -3157,8 +3171,19 @@ private:
    {
       if(!m_settings.Ind_Fib_Enabled) return true;  // disabled = no opinion = pass
 
+      // User-input clamp: Fib retracement math needs at least ~10 bars to
+      // meaningfully resolve a swing. PREVIOUSLY: any value <10 silently
+      // jumped to 50 (a hardcoded number that buried the user's intent —
+      // someone setting Fib_SwingLookback=5 expecting tight swing detection
+      // would unknowingly get a 50-bar lookback). Now we clamp to 10 (the
+      // documented minimum) so the user's chosen value is honoured for every
+      // legal setting >= 10 and the override is minimal & traceable when not.
       int lookback = m_settings.Fib_SwingLookback;
-      if(lookback < 10) lookback = 50;
+      if(lookback < 10) {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[IND_FIB] WARN: Fib_SwingLookback=%d below minimum 10; clamped to 10. Set >= 10 to silence this warning.", lookback));
+         lookback = 10;
+      }
 
       int start = shift + 1;
       int total = iBars(m_symbol, PERIOD_CURRENT);
@@ -4903,20 +4928,31 @@ public:
    {
       int shift = m_settings.Vote_EvalShift;   // single source: SAME bar the vote uses (was ma_v_shift)
       count = 0;
-      ArrayResize(out, 17); // 16 possible indicators + 1 spare
+      // Sized for every voter EvaluateIndicatorX can cast: ADX, MACD, RSI, CCI,
+      // MFI, Sto, BB, PSAR, P123, Ross, ATR, CBody, CI, VRC, SmaConv, DPI, Fib,
+      // MTF, VPRR = 19 voters. +1 spare to prevent overflow if a future voter
+      // is added before the array is grown. Previously sized for 17; would
+      // overflow once Fib/MTF/VPRR rows were added (added 2026-06).
+      ArrayResize(out, 20);
       
       // (v_shift kept == Vote_EvalShift for the few checks already written to it)
       int v_shift = m_settings.Vote_EvalShift;
 
       if(m_settings.Ind_Adx_Enabled && h_adx != INVALID_HANDLE)
       {
-         double adx = GetVal(h_adx, shift);
-         bool pass = (adx >= m_cachedADXThreshold);
+         // COCKPIT PARITY: call Check_ADX (same function the eval uses) so the
+         // pass/fail reflects ADX_Mode (STATIC / DYNAMIC_PERCENTILE / PHASE_AWARE)
+         // exactly as evaluated. Previously this compared raw ADX to
+         // m_cachedADXThreshold inline — which was stale on the first display
+         // pass and silently diverged whenever ADX_Mode logic was extended.
+         bool pass = Check_ADX(shift);
+         double adx = m_ind_cache.adx_value;        // populated by Check_ADX
+         double thr = m_cachedADXThreshold;          // populated by Check_ADX
          out[count].name    = "ADX";
          out[count].enabled = true;
-         if(pass && m_diag_last_bias ==  1) { out[count].state = "BUY";  out[count].reason = StringFormat("(ADX=%.0f>=%.0f)", adx, m_cachedADXThreshold); }
-         else if(pass && m_diag_last_bias == -1) { out[count].state = "SELL"; out[count].reason = StringFormat("(ADX=%.0f>=%.0f)", adx, m_cachedADXThreshold); }
-         else                               { out[count].state = "FLAT"; out[count].reason = StringFormat("(ADX=%.0f%s%.0f)", adx, pass?">=":"<", m_cachedADXThreshold); }
+         if(pass && m_diag_last_bias ==  1) { out[count].state = "BUY";  out[count].reason = StringFormat("(ADX=%.0f>=%.0f)", adx, thr); }
+         else if(pass && m_diag_last_bias == -1) { out[count].state = "SELL"; out[count].reason = StringFormat("(ADX=%.0f>=%.0f)", adx, thr); }
+         else                               { out[count].state = "FLAT"; out[count].reason = StringFormat("(ADX=%.0f%s%.0f)", adx, pass?">=":"<", thr); }
          count++;
       }
 
@@ -5003,14 +5039,44 @@ public:
 
       if(m_settings.Ind_Psar_Enabled && h_psar != INVALID_HANDLE)
       {
-         bool b = Check_PSAR(1, shift);
-         bool s = Check_PSAR(-1, shift);
+         // COCKPIT PARITY FIX: EvaluateIndicatorX selects between Check_PSAR_WithFlip
+         // (when Vote_AllowPsarFlip=true) and plain Check_PSAR. Plain Check_PSAR
+         // is just "dot-on-side"; the flip-mode version additionally enforces a
+         // PsarFlipDelay window and can reject with sub-codes DOT / NoF / EXP
+         // (dot-wrong-side / no-flip-yet / flip-expired). The cockpit previously
+         // always called plain Check_PSAR, which on sustained trends showed
+         // PSAR(-) "passing for SHORT" while the eval was rejecting with EXP.
+         // Mirror the eval's selector here so the row matches reality.
+         bool b, s;
+         if(m_settings.Vote_AllowPsarFlip) {
+            b = Check_PSAR_WithFlip( 1, shift);
+            s = Check_PSAR_WithFlip(-1, shift);
+         } else {
+            b = Check_PSAR( 1, shift);
+            s = Check_PSAR(-1, shift);
+         }
          double p = GetVal(h_psar, shift);
          out[count].name    = "PSAR";
          out[count].enabled = true;
          if(b)      { out[count].state = "BUY";  out[count].reason = StringFormat("(dot=%.5f<price)", p); }
          else if(s) { out[count].state = "SELL"; out[count].reason = StringFormat("(dot=%.5f>price)", p); }
-         else       { out[count].state = "FLAT"; out[count].reason = "(no signal)"; }
+         else       {
+            // When flip-mode rejects, expose the sub-code so the cockpit
+            // tells you WHY (not just "no signal"). Matches the corrected
+            // setter/journal scheme: 1=NoF (no flip yet), 4=EXP (flip aged
+            // out), else (0)=DOT (wrong side). NOTE: 2 is unused — mirrors
+            // dpi_diag_sub's value scheme. Was previously reading == 2 for
+            // EXP (which never fires), fixed 2026-06 in lockstep with the
+            // journal reject reporter.
+            string why = "(no signal)";
+            if(m_settings.Vote_AllowPsarFlip) {
+               int sub = m_ind_cache.psar_diag_sub;
+               why = (sub == 1 ? "(NoF: no flip yet)" :
+                      sub == 4 ? "(EXP: flip aged out)" :
+                                 "(DOT: wrong side)");
+            }
+            out[count].state = "FLAT"; out[count].reason = why;
+         }
          count++;
       }
 
@@ -5039,57 +5105,69 @@ public:
       }
 
       // ATR (volatility regime – non-directional vote)
+      // COCKPIT PARITY: call Check_ATR (same function eval uses, hits same cache).
+      // Previously duplicated the Min/Max comparison inline — risked divergence
+      // if Check_ATR ever gained additional gating (e.g. regime-aware bounds).
       if(m_settings.Ind_Atr_Enabled && h_atr != INVALID_HANDLE)
       {
+         bool pass = Check_ATR(current_bias, shift);
          double atr_pips = m_diag_last_atr_pips;
-         bool   pass     = true;
-         if(m_settings.ATR_VoteMinPips > 0.0 && atr_pips < m_settings.ATR_VoteMinPips) pass = false;
-         if(m_settings.ATR_VoteMaxPips > 0.0 && atr_pips > m_settings.ATR_VoteMaxPips) pass = false;
          out[count].name    = "ATR";
          out[count].enabled = true;
          if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = StringFormat("(ATR=%.1fpips ok)", atr_pips); }
-         else     { out[count].state = "FLAT"; out[count].reason = StringFormat("(ATR=%.1fpips out-of-range)", atr_pips); }
+         else     { out[count].state = "FLAT"; out[count].reason = StringFormat("(ATR=%.1fpips out-of-range [%.1f..%.1f])", atr_pips, m_settings.ATR_VoteMinPips, m_settings.ATR_VoteMaxPips); }
          count++;
       }
 
       // CandleBody (overextension filter – non-directional vote)
+      // COCKPIT PARITY FIX: previously called CheckCandleBodyIndicator() directly,
+      // which evaluates only the current bar's shape and ignores the CBOEB
+      // (Candle-Body Over-Extension Block) carry state. The real TS vote in
+      // EvaluateIndicatorX uses Check_CandleBody(), which DOES apply the carry:
+      // once a bar trips CB_BodyOverExtended, m_cb_oeb_blocked stays armed until
+      // the next layer pullback-recovery clears it, holding CBody at FAIL for
+      // every intervening bar. The cockpit must mirror that or it will show
+      // "CBody(-)" (passing for SHORT) while VOTE reads 2/3 with no visible
+      // reason. Calling Check_CandleBody here aligns display with eval.
       if(m_settings.Ind_CandleBody_Enabled)
       {
-         bool pass = CheckCandleBodyIndicator(current_bias);
+         bool pass = Check_CandleBody(current_bias, shift);
          out[count].name    = "CBody";
          out[count].enabled = true;
          if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = "(body ok)"; }
-         else     { out[count].state = "FLAT"; out[count].reason = "(overextended)"; }
+         else     { out[count].state = "FLAT"; out[count].reason = (m_cb_oeb_blocked ? "(OEB carry armed)" : "(overextended)"); }
          count++;
       }
 
       // Choppiness Index (ranging market filter – non-directional vote)
+      // COCKPIT PARITY: call Check_CI (same function eval uses, hits same cache).
       if(m_settings.Ind_CI_Enabled)
       {
-         double ci_val = CalculateCI(shift);
-         bool pass = (ci_val < m_settings.CI_RangingThreshold);
+         bool pass = Check_CI(current_bias, shift);
+         double ci_val = CalculateCI(shift);   // diagnostic only; cheap with cache
          out[count].name    = "CI";
          out[count].enabled = true;
-         if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = StringFormat("(CI=%.1f trending)", ci_val); }
-         else     { out[count].state = "FLAT"; out[count].reason = StringFormat("(CI=%.1f ranging)", ci_val); }
+         if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = StringFormat("(CI=%.1f trending, thr=%.1f)", ci_val, m_settings.CI_RangingThreshold); }
+         else     { out[count].state = "FLAT"; out[count].reason = StringFormat("(CI=%.1f ranging, thr=%.1f)", ci_val, m_settings.CI_RangingThreshold); }
          count++;
       }
 
       // VRC (low volatility filter – non-directional vote)
+      // COCKPIT PARITY: call Check_VRC (same function eval uses).
       if(m_settings.Ind_VRC_Enabled && h_atr != INVALID_HANDLE)
       {
+         bool pass = Check_VRC(current_bias, shift);
          EVolatilityRegime regime = GetVolatilityRegime();
          double atr = GetVal(h_atr, shift, 0);
 
          out[count].name    = "VRC";
          out[count].enabled = true;
-
-         if(regime == VOLATILITY_LOW) {
+         if(pass) {
+            out[count].state  = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT"));
+            out[count].reason = StringFormat("(%s volatility ATR=%.5f)", EnumToString(regime), atr);
+         } else {
             out[count].state  = "FLAT";
             out[count].reason = StringFormat("(LOW volatility ATR=%.5f)", atr);
-         } else {
-            out[count].state  = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT"));
-            out[count].reason = StringFormat("(NORMAL volatility ATR=%.5f)", atr);
          }
          count++;
       }
@@ -5115,6 +5193,55 @@ public:
          if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(F=%d S=%d RedT=%d BUY)", m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_RedSignalType); }
          else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(F=%d S=%d RedT=%d SELL)", m_settings.DPI_MACD_Fast, m_settings.DPI_MACD_Slow, m_settings.DPI_RedSignalType); }
          else             { out[count].state = "FLAT"; out[count].reason = "(no momentum or conditions not met)"; }
+         count++;
+      }
+
+      // Fib (swing-retracement zone voter – directional)
+      // COCKPIT COMPLETENESS: was silently missing from the cockpit voter row
+      // (and therefore from the voter total count display) even though
+      // EvaluateIndicatorX casts it. Added 2026-06.
+      if(m_settings.Ind_Fib_Enabled)
+      {
+         bool b = Check_Fib( 1, v_shift);
+         bool s = Check_Fib(-1, v_shift);
+         out[count].name    = "Fib";
+         out[count].enabled = true;
+         if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(swing %d bars)", m_settings.Fib_SwingLookback); }
+         else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(swing %d bars)", m_settings.Fib_SwingLookback); }
+         else             { out[count].state = "FLAT"; out[count].reason = "(no valid retracement setup)"; }
+         count++;
+      }
+
+      // MTF (higher-timeframe confluence – directional)
+      // COCKPIT COMPLETENESS: was silently missing from the voter row even
+      // though EvaluateIndicatorX casts it (a dedicated MTF: line in the panel
+      // header shows the filter state but did not contribute to the voter row
+      // and was easy to confuse with the cockpit voter total). Added 2026-06.
+      if(m_settings.Ind_MTF_Enabled)
+      {
+         bool b = Check_MTF( 1, v_shift);
+         bool s = Check_MTF(-1, v_shift);
+         out[count].name    = "MTF";
+         out[count].enabled = true;
+         if(b && !s)      { out[count].state = "BUY";  out[count].reason = StringFormat("(%s/%s align)", EnumToString(m_settings.MTF_TF1), EnumToString(m_settings.MTF_TF2)); }
+         else if(s && !b) { out[count].state = "SELL"; out[count].reason = StringFormat("(%s/%s align)", EnumToString(m_settings.MTF_TF1), EnumToString(m_settings.MTF_TF2)); }
+         else             { out[count].state = "FLAT"; out[count].reason = "(HTF mismatch or insufficient data)"; }
+         count++;
+      }
+
+      // VPRR (volume pullback-recovery ratio – non-directional)
+      // COCKPIT COMPLETENESS: a dedicated VPRR: detail row exists below the
+      // voter line, but VPRR was missing from the voter row itself so the
+      // voter total could read fewer than the EvaluateIndicatorX denominator.
+      // Adding here too keeps the voter row's count equal to the eval's.
+      // Added 2026-06.
+      if(m_settings.VPRR_Enabled)
+      {
+         bool pass = Check_VPRR(v_shift);
+         out[count].name    = "VPRR";
+         out[count].enabled = true;
+         if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = StringFormat("(ratio %.2f >= %.2f)", GetActiveLayerVPRR(), m_settings.VPRR_MinRatio); }
+         else     { out[count].state = "FLAT"; out[count].reason = StringFormat("(ratio %.2f < %.2f)", GetActiveLayerVPRR(), m_settings.VPRR_MinRatio); }
          count++;
       }
       ArrayResize(out, count);
@@ -6779,10 +6906,14 @@ public:
                //   DOT = dot on wrong side of price (the visual check)
                //   NoF = no flip recorded for this direction yet
                //   EXP = flip is older than PsarFlipDelay window (sustained trend)
+               // NOTE: setters write 0/1/3/4 (mirroring dpi_diag_sub's scheme, with 2
+               // unused). Previously this read == 2 for EXP — but setters never write
+               // 2 — so every expired-flip reject was silently labeled DOT, hiding the
+               // most common rejection mode on sustained trends. Fixed 2026-06.
                if(m_settings.Vote_AllowPsarFlip)
                {
                   string psub = (m_ind_cache.psar_diag_sub == 1 ? "NoF" :
-                                 m_ind_cache.psar_diag_sub == 2 ? "EXP" : "DOT");
+                                 m_ind_cache.psar_diag_sub == 4 ? "EXP" : "DOT");
                   fails += StringFormat("PSAR(%s) ", psub);
                }
                else fails += "PSAR ";
