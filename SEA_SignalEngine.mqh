@@ -3155,40 +3155,74 @@ private:
    //+------------------------------------------------------------------+
    bool Check_Fib(int bias, int shift)
    {
-      if(!m_settings.Ind_Fib_Enabled) return true;
+      if(!m_settings.Ind_Fib_Enabled) return true;  // disabled = no opinion = pass
 
       int lookback = m_settings.Fib_SwingLookback;
       if(lookback < 10) lookback = 50;
 
       int start = shift + 1;
       int total = iBars(m_symbol, PERIOD_CURRENT);
-      if(start + lookback >= total) return true;
+      if(start + lookback >= total) {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[IND_FIB] FAIL: insufficient bars (need %d, have %d) — TS contract: enabled indicator with no data = 0",
+                                  start + lookback + 1, total));
+         return false;
+      }
 
       int hi_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, lookback, start);
       int lo_idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, lookback, start);
 
-      if(hi_idx < 0 || lo_idx < 0) return true;
+      if(hi_idx < 0 || lo_idx < 0) {
+         if(m_settings.DebugFlow)
+            DebugLog("[IND_FIB] FAIL: no swing high/low detected in lookback window");
+         return false;
+      }
 
       double swing_high = iHigh(m_symbol, PERIOD_CURRENT, hi_idx);
       double swing_low  = iLow(m_symbol, PERIOD_CURRENT, lo_idx);
       double swing_range = swing_high - swing_low;
 
-      if(swing_range <= 0.0) return false;
+      if(swing_range <= 0.0) {
+         if(m_settings.DebugFlow)
+            DebugLog("[IND_FIB] FAIL: swing range is zero or negative");
+         return false;
+      }
 
       double current_close = iClose(m_symbol, PERIOD_CURRENT, shift);
       double ratio = 0.0;
 
       if(bias == 1)
       {
-         if(hi_idx >= lo_idx) return true;
+         // LONG: want a swing high formed BEFORE the swing low (down-leg first)?
+         // No — we want a swing low formed FIRST, then swing high, then retracement.
+         // i.e. lo_idx > hi_idx (lo is OLDER, hi is more recent). If hi_idx >= lo_idx,
+         // the hi is older than the lo (down-leg is the recent move) → no LONG Fib setup.
+         if(hi_idx >= lo_idx) {
+            if(m_settings.DebugFlow)
+               DebugLog("[IND_FIB] FAIL (LONG): swing-high precedes swing-low — no valid retracement setup");
+            return false;
+         }
          ratio = (swing_high - current_close) / swing_range;
       }
       else if(bias == -1)
       {
-         if(lo_idx >= hi_idx) return true;
+         // SHORT: want a swing high formed first (up-leg), then swing low (retracement).
+         // i.e. hi_idx > lo_idx (hi is OLDER). If lo_idx >= hi_idx, the lo is older
+         // than the hi (up-leg is the recent move) → no SHORT Fib setup.
+         if(lo_idx >= hi_idx) {
+            if(m_settings.DebugFlow)
+               DebugLog("[IND_FIB] FAIL (SHORT): swing-low precedes swing-high — no valid retracement setup");
+            return false;
+         }
          ratio = (current_close - swing_low) / swing_range;
       }
-      else return true;
+      else {
+         // Invalid bias (== 0); the indicator is enabled but has nothing to evaluate against.
+         // Per TS contract: enabled with no decision = 0.
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[IND_FIB] FAIL: invalid bias=%d (must be ±1)", bias));
+         return false;
+      }
 
       bool result = (ratio >= m_settings.Fib_MinRetracement &&
                      ratio <= m_settings.Fib_MaxRetracement);
@@ -3228,11 +3262,16 @@ private:
       if(!ComputeDPIMainHist(v_shift, hist_cur, hist_prev, dpi_green, dpi_macd_agree,
                              _unused_green_cur, _unused_green_prev, dpi_wants_yellow))
       {
-         // Insufficient bars — DPI passes silently (neither counted as pass nor fail).
-         // In VOTE_MODE_ALL this ensures DPI does not block trades when warmup data is missing.
+         // Insufficient bars for DPI computation (typically during warmup of
+         // first ~550 bars). Per TS equation contract: an enabled indicator
+         // with no decision = 0, never silently 1. If the operator wants the
+         // EA to trade during DPI warmup, the proper switch is to disable DPI
+         // (Ind_Dpi_Enabled=false), not to make this gate permissive.
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[IND_DPI] FAIL: insufficient bars for DPI computation at shift=%d (warmup)", v_shift));
          m_ind_cache.cached_bias = bias;
-         m_ind_cache.dpi_result  = 1;
-         return true;
+         m_ind_cache.dpi_result  = 0;
+         return false;
       }
 
       // BASE = ribbon COLOUR vs bias (canonical §3): YELLOW→LONG(+1), RED→SHORT(-1).
@@ -3640,7 +3679,9 @@ private:
    bool Check_Progressive_Momentum(int v_shift, int bias, int lookback)
    {
       int bars = MathMax(1, MathMin(4, lookback));
-      if(bars <= 1 || bias == 0) return true;
+      // Per TS equation contract: an enabled momentum factor with degenerate
+      // inputs (single bar or no bias) cannot confirm momentum, so returns 0.
+      if(bars <= 1 || bias == 0) return false;
 
       int improvements = 0;
       for(int i = 1; i < bars; i++)

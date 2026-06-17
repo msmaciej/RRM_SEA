@@ -1802,6 +1802,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_MaxMult     = Inp_RRM_CandleBody_MaxMult;
       cfg.CandleBody_CheckBars   = Inp_RRM_CandleBody_CheckBars;
       cfg.CandleBody_RequireDirection = Inp_RRM_CandleBody_RequireDir;
+      cfg.CandleBody_MinCloseRatio    = MathMax(0.0, MathMin(1.0, Inp_RRM_CandleBody_MinCloseRatio));
 
       // ── BAR CLOSE (bcX) CONFIGURATION ────────────────────────────────
       cfg.BarClose_Mode          = BC_LAYER_AWARE;
@@ -2073,11 +2074,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_CheckBars      = Inp_RRM_ORG_CandleBody_CheckBars;
       // cfg.CandleBody_CheckBars      = (_Period <= PERIOD_M5) ? 3 : 5;
       cfg.CandleBody_RequireDirection  = Inp_RRM_ORG_CandleBody_RequireDir;
-      // [SYNC 2026-06-04] Explicitly pin these two so RRM_ORG no longer inherits the
+      // [SYNC 2026-06-04] Explicitly pin CarryOnOverext so RRM_ORG no longer inherits the
       // PRESET_CUSTOM input leak from InitializeConfig() (Inp_CUSTOM_Ind_CandleBody_CarryOnOverext=true).
-      // SignalScan uses CB_CarryOnOverext=false and CandleBody_MinCloseRatio=0.0 — match it.
       cfg.CandleBody_CarryOnOverext = false;   // was effectively true (CUSTOM leak): held CBody=0 across bars after a spike
-      cfg.CandleBody_MinCloseRatio  = 0.0;     // scanner = 0.0; pin to avoid the same leak pattern
+      // MinCloseRatio: now driven by Inp_RRM_ORG_CandleBody_MinCloseRatio (default 0.0 = off, preserves
+      // prior hardcoded behavior). Set to 0.75 (TopInvestor) to reject doji-like signal bars where the
+      // close sits mid-range — see GBPUSD H4 trade #2 (05-08 16:00) for the motivating case.
+      cfg.CandleBody_MinCloseRatio  = MathMax(0.0, MathMin(1.0, Inp_RRM_ORG_CandleBody_MinCloseRatio));
       
       // ── INDICATOR TOGGLES: flexible via Inp_RRM_ORG_* ────────────────
       cfg.Ind_Adx_Enabled        = Inp_RRM_ORG_Use_Adx;

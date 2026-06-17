@@ -466,6 +466,7 @@ input bool        Inp_RRM_CandleBody_RequireDir    = true;           // RRM CBod
 input int         Inp_RRM_CandleBody_AvgPeriod     = 5;              // RRM CBody: Average period
 input int         Inp_RRM_CandleBody_CheckBars     = 3;              // RRM CBody: Bars to check
 input double      Inp_RRM_CandleBody_MaxMult       = 4;              // RRM CBody: Max multiplier
+input double      Inp_RRM_CandleBody_MinCloseRatio = 0.0;            // RRM CBody: Min close ratio (0=off, 0.75=TopInvestor)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: CI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -854,6 +855,7 @@ input bool        Inp_RRM_ORG_CandleBody_RequireDir   = true;        // RRM ORG 
 input int         Inp_RRM_ORG_CandleBody_AvgPeriod    = 14;          // RRM ORG CBody: CBody Average period       [SYNC 2026-06-04: 5→14 to match SignalScan CB_AvgPeriod]
 input int         Inp_RRM_ORG_CandleBody_CheckBars    = 1;           // RRM ORG CBody: CBody Bars to check        [SYNC 2026-06-04: 3→1 to match SignalScan CB_CheckBars (inert — engine no longer uses CheckBars in ATR spike test)]
 input double      Inp_RRM_ORG_CandleBody_MaxMult      = 3.0;         // RRM ORG CBody: CBody Max multiplier       [SYNC 2026-06-04: 4.0→3.0 to match SignalScan CB_MaxMult]
+input double      Inp_RRM_ORG_CandleBody_MinCloseRatio = 0.0;        // RRM ORG CBody: Min close ratio (0=off, 0.75=TopInvestor — rejects doji-like signal bars)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: CC Candle Close Settings";
 input group "╚════════════════════════════════════════════════════════╝";
