@@ -494,6 +494,8 @@ struct ST_Settings
    int    VRC_ATR_Period;
    int    VRC_Lookback;
    double VRC_LowThreshold;            // Below this percentile = LOW regime (reject trade)
+   int    VRC_RefreshSec;              // Volatility-percentile recalculation cadence in seconds (default 14400 = 4h).
+                                       // Same rationale as ADX_PercentileRefreshSec — lower on intraday charts.
 
    // Indicators (Periods)
    int    P_Ema1;
@@ -507,6 +509,8 @@ struct ST_Settings
    EADXMode ADX_Mode;                    // Which ADX validation mode to use
    double   ADX_Percentile;              // Percentile for DYNAMIC_PERCENTILE mode (default 50.0)
    int      ADX_Lookback;                // Bars to analyse for DYNAMIC_PERCENTILE mode (default 100)
+   int      ADX_PercentileRefreshSec;    // DYNAMIC_PERCENTILE recalculation cadence in seconds (default 14400 = 4h).
+                                         // Lower on intraday charts (e.g. 900 on M1 = 15min refresh).
    double   ADX_Threshold_Accumulation;  // PHASE_AWARE: lower threshold for unordered/emerging phases
    double   ADX_Threshold_Trending;      // PHASE_AWARE: higher threshold for strong trending phases
    double   ADX_Threshold_Distribution;  // PHASE_AWARE: medium threshold for transitional phases

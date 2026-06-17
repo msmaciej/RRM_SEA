@@ -437,6 +437,7 @@ input group "╚═════════════════════�
 input EADXMode    Inp_RRM_Adx_Mode                 = ADX_MODE_PHASE_AWARE; // RRM ADX: Mode
 input int         Inp_RRM_AdxPeriod                = 14;             // RRM ADX: Period
 input int         Inp_RRM_Adx_Lookback             = 100;            // RRM ADX: Lookback
+input int         Inp_RRM_Adx_PercentileRefreshSec = 14400;          // RRM ADX: DYNAMIC_PERCENTILE refresh interval (sec). M1 chart: try 900 (15min); H1+: 14400 (4h)
 input double      Inp_RRM_AdxThreshold             = 20.0;           // RRM ADX: Threshold
 input double      Inp_RRM_Adx_Percentile           = 50.0;           // RRM ADX: Percentile
 input double      Inp_RRM_Adx_Thr_Accum            = 12.0;           // RRM ADX: Thr Accumulation
@@ -531,6 +532,7 @@ input group "╚═════════════════════�
 input int         Inp_RRM_VRC_ATR_Period           = 14;             // RRM VRC: ATR period for regime classification
 input int         Inp_RRM_VRC_Lookback             = 100;            // RRM VRC: lookback bars
 input double      Inp_RRM_VRC_LowThreshold         = 33.0;           // RRM VRC: low-volatility threshold
+input int         Inp_RRM_VRC_RefreshSec           = 14400;          // RRM VRC: percentile refresh interval (sec). M1: try 900; H1+: 14400 (4h)
 #endif // SEA_PRESET_RRM_FAMILY
 
 #ifdef SEA_PRESET_RRM_ORG
@@ -831,6 +833,7 @@ input group "╚═════════════════════�
 input EADXMode    Inp_RRM_ORG_Adx_Mode             = ADX_MODE_STATIC;  // RRM ORG ADX: ADX Mode
 input int         Inp_RRM_ORG_AdxPeriod            = 14;             // RRM ORG ADX: ADX Period
 input int         Inp_RRM_ORG_Adx_Lookback         = 100;            // RRM ORG ADX: ADX Lookback bars
+input int         Inp_RRM_ORG_Adx_PercentileRefreshSec = 14400;      // RRM ORG ADX: DYNAMIC_PERCENTILE refresh interval (sec). M1 chart: try 900 (15min); H1+: 14400 (4h)
 input double      Inp_RRM_ORG_AdxThreshold         = 20.0;           // RRM ORG ADX: ADX Threshold
 input double      Inp_RRM_ORG_Adx_Percentile       = 50.0;           // RRM ORG ADX: ADX Percentile
 input double      Inp_RRM_ORG_Adx_Thr_Accum        = 12.0;           // RRM ORG ADX: ADX Thr Accumulation
@@ -923,6 +926,7 @@ input group "║   📐 RRM_ORG: VRC Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_RRM_ORG_VRC_Lookback         = 100;            // RRM ORG VRC: lookback bars for regime classification
 input double      Inp_RRM_ORG_VRC_LowThreshold     = 33.0;           // RRM ORG VRC: low-volatility percentile threshold
+input int         Inp_RRM_ORG_VRC_RefreshSec       = 14400;          // RRM ORG VRC: percentile refresh interval (sec). M1: try 900; H1+: 14400 (4h)
 input int         Inp_RRM_ORG_VRC_ATR_Period       = 14;             // RRM ORG VRC: ATR period for VRC calculation
 #endif // SEA_PRESET_RRM_ORG
 
@@ -1019,6 +1023,7 @@ input double      Inp_TI_Psar_Max                  = 0.2;            // TI Con: 
 input int         Inp_TI_ADX_Period                = 14;             // TI Con: ADX period
 input double      Inp_TI_ADX_Percentile            = 50.0;           // TI Con: ADX percentile threshold
 input int         Inp_TI_ADX_Lookback              = 100;            // TI Con: ADX percentile lookback
+input int         Inp_TI_ADX_PercentileRefreshSec  = 14400;          // TI Con: DYNAMIC_PERCENTILE refresh interval (sec). M1: try 900 (15min); H1+: 14400 (4h)
 input double      Inp_TI_ADX_Threshold_Accum       = 12.0;           // TI Con: ADX threshold Accumulation
 input double      Inp_TI_ADX_Threshold_Trend       = 25.0;           // TI Con: ADX threshold Trending
 input double      Inp_TI_ADX_Threshold_Dist        = 18.0;           // TI Con: ADX threshold Distribution
@@ -1122,6 +1127,7 @@ input bool        Inp_CUSTOM_Ind_Adx_Enabled       = false;          // Ind: [AD
 input int         Inp_CUSTOM_Ind_Adx_Period        = 14;             // Ind [ADX]: Period
 input int         Inp_CUSTOM_Ind_Adx_Threshold     = 20;             // Ind [ADX]: Threshold
 input int         Inp_CUSTOM_Ind_Adx_Lookback      = 100;            // Ind [ADX]: Lookback
+input int         Inp_CUSTOM_Ind_Adx_PercentileRefreshSec = 14400;   // Ind [ADX]: DYNAMIC_PERCENTILE refresh interval (sec). M1: try 900 (15min); H1+: 14400 (4h)
 input double      Inp_CUSTOM_Ind_Adx_Percentile    = 50.0;           // Ind [ADX]: Percentile
 input double      Inp_CUSTOM_Ind_Adx_Thr_Accum     = 12.0;           // Ind [ADX]: Accumulation
 input double      Inp_CUSTOM_Ind_Adx_Thr_Trending  = 25.0;           // Ind [ADX]: Trending
@@ -1227,6 +1233,7 @@ input bool        Inp_CUSTOM_Ind_VRC_Enabled       = false;          // Ind: TI 
 input int         Inp_CUSTOM_Ind_VRC_ATR_Period    = 14;             // Ind: TI Full: [VRC] VRC-ATR period
 input int         Inp_CUSTOM_Ind_VRC_Lookback      = 100;            // Ind: TI Full: [VRC] Lookback bars for percentile
 input double      Inp_CUSTOM_Ind_VRC_LowThreshold  = 33.0;           // Ind: TI Full: [VRC] Low volatility threshold (percentile)
+input int         Inp_CUSTOM_Ind_VRC_RefreshSec    = 14400;          // Ind: TI Full: [VRC] Percentile refresh interval (sec). M1: try 900; H1+: 14400 (4h)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1474,6 +1481,7 @@ void InitializeConfig()
    Settings.ADX_Mode                  = Inp_CUSTOM_Ind_Adx_Mode;
    Settings.ADX_Percentile            = Inp_CUSTOM_Ind_Adx_Percentile;
    Settings.ADX_Lookback              = Inp_CUSTOM_Ind_Adx_Lookback;
+   Settings.ADX_PercentileRefreshSec  = Inp_CUSTOM_Ind_Adx_PercentileRefreshSec;
    Settings.ADX_Threshold_Accumulation= Inp_CUSTOM_Ind_Adx_Thr_Accum;
    Settings.ADX_Threshold_Trending    = Inp_CUSTOM_Ind_Adx_Thr_Trending;
    Settings.ADX_Threshold_Distribution= Inp_CUSTOM_Ind_Adx_Thr_Distrib;
@@ -1565,6 +1573,7 @@ void InitializeConfig()
    Settings.VRC_ATR_Period        = MathMax(1, Inp_CUSTOM_Ind_VRC_ATR_Period);
    Settings.VRC_Lookback          = MathMax(10, Inp_CUSTOM_Ind_VRC_Lookback);
    Settings.VRC_LowThreshold      = MathMax(0.0, MathMin(100.0, Inp_CUSTOM_Ind_VRC_LowThreshold));
+   Settings.VRC_RefreshSec        = Inp_CUSTOM_Ind_VRC_RefreshSec;
 
    // Exits
    Settings.SL_FixedPips         = Inp_CUSTOM_SL_FixedPips;

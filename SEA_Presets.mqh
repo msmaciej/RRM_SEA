@@ -1298,6 +1298,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.VRC_ATR_Period            = 14;    // VRC default
       cfg.VRC_Lookback              = 100;   // VRC default
       cfg.VRC_LowThreshold          = 33.0;  // VRC default
+      cfg.VRC_RefreshSec            = 14400; // VRC default (4h refresh)
       cfg.P_Cci                     = 14;
       cfg.CciMode                   = CCI_TREND_ZERO;
       // P_Mfi / T_MfiOB / T_MfiOS / MfiMode — set above from Inp_FPM_Ind_Mfi_Enabled / Inp_FPM_Mfi_Period
@@ -1481,7 +1482,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.VRC_ATR_Period         = 14;
       cfg.VRC_Lookback           = 100;
       cfg.VRC_LowThreshold       = 33.0;
-
+      cfg.VRC_RefreshSec         = 14400;
       // CCI (Commodity Channel Index)
       cfg.P_Cci                  = 14;
       cfg.CciMode                = CCI_TREND_ZERO;
@@ -1774,6 +1775,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.T_Adx                  = Inp_RRM_AdxThreshold;
       cfg.ADX_Percentile         = Inp_RRM_Adx_Percentile;
       cfg.ADX_Lookback           = Inp_RRM_Adx_Lookback;
+      cfg.ADX_PercentileRefreshSec = Inp_RRM_Adx_PercentileRefreshSec;
       cfg.ADX_Threshold_Accumulation  = Inp_RRM_Adx_Thr_Accum;
       cfg.ADX_Threshold_Trending      = Inp_RRM_Adx_Thr_Trending;
       cfg.ADX_Threshold_Distribution  = Inp_RRM_Adx_Thr_Distrib;
@@ -2108,6 +2110,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.T_Adx                     = Inp_RRM_ORG_AdxThreshold;
       cfg.ADX_Percentile            = Inp_RRM_ORG_Adx_Percentile;
       cfg.ADX_Lookback              = Inp_RRM_ORG_Adx_Lookback;
+      cfg.ADX_PercentileRefreshSec  = Inp_RRM_ORG_Adx_PercentileRefreshSec;
       cfg.ADX_Threshold_Accumulation   = Inp_RRM_ORG_Adx_Thr_Accum;
       cfg.ADX_Threshold_Trending       = Inp_RRM_ORG_Adx_Thr_Trending;
       cfg.ADX_Threshold_Distribution   = Inp_RRM_ORG_Adx_Thr_Distrib;
@@ -2159,6 +2162,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.VRC_ATR_Period            = Inp_RRM_ORG_VRC_ATR_Period;
       cfg.VRC_Lookback              = Inp_RRM_ORG_VRC_Lookback;
       cfg.VRC_LowThreshold          = Inp_RRM_ORG_VRC_LowThreshold;
+      cfg.VRC_RefreshSec            = Inp_RRM_ORG_VRC_RefreshSec;
 
       // ── BAR CLOSE (bcX): LOCKED to layer-aware ───────────────────────
       cfg.BarClose_Mode             = BC_LAYER_AWARE;   // bcW=EMA1, bcM=EMA2, bcS=EMA3
@@ -2605,6 +2609,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Adx                  = Inp_TI_ADX_Period;
       cfg.ADX_Percentile         = Inp_TI_ADX_Percentile;
       cfg.ADX_Lookback           = Inp_TI_ADX_Lookback;
+      cfg.ADX_PercentileRefreshSec = Inp_TI_ADX_PercentileRefreshSec;
       cfg.ADX_Threshold_Accumulation  = Inp_TI_ADX_Threshold_Accum;
       cfg.ADX_Threshold_Trending      = Inp_TI_ADX_Threshold_Trend;
       cfg.ADX_Threshold_Distribution  = Inp_TI_ADX_Threshold_Dist;
@@ -2697,6 +2702,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.VRC_ATR_Period         = 14;
       cfg.VRC_Lookback           = 100;
       cfg.VRC_LowThreshold       = 33.0;
+      cfg.VRC_RefreshSec         = 14400;
       cfg.T_Adx                  = 20.0;
       cfg.P_Mfi                  = 14;
       cfg.T_MfiOB                = 80.0;
@@ -3001,8 +3007,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.VRC_ATR_Period            = 14;
       cfg.VRC_Lookback              = 100;
       cfg.VRC_LowThreshold          = 33.0;
-      
-      // CCI (Commodity Channel Index)
+      cfg.VRC_RefreshSec            = 14400;
+            // CCI (Commodity Channel Index)
       cfg.CciMode                   = CCI_TREND_ZERO;
       cfg.P_Cci                     = 13;          // ORG: 14
       

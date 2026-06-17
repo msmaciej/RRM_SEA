@@ -274,6 +274,12 @@ private:
     int      m_layer_w_vol_rec_bars, m_layer_m_vol_rec_bars, m_layer_s_vol_rec_bars; // Bars counted in RECOVERED
     double   m_layer_w_vprr, m_layer_m_vprr, m_layer_s_vprr;                       // Final ratios
     bool     m_vprr_last_real;   // True if the last volume read used VOLUME_REAL (for UI source label)
+    bool     m_vprr_real_warned; // One-shot guard: have we already warned the user that VPRR_VOL_REAL is
+                                 // selected but the broker returned zero real volume? Without this, VPRR
+                                 // votes silently fail every bar because GetCurrentBarVolume returns 0 →
+                                 // ratio = 0 < VPRR_MinRatio. The warning fires once on the first such
+                                 // miss so the user can switch to AUTO or TICK rather than wondering why
+                                 // VPRR never passes.
 
     // --- 2d. REJECTION STATISTICS ---
     int         m_bars_evaluated;     // Total bars evaluated by EvaluateTS()
@@ -368,6 +374,13 @@ private:
    int      m_dpi_reset_recovery_bars;   // Bars counted since CCI recovered
    bool     m_dpi_reset_colour_prev;     // Previous bar's ribbon colour (true=yellow) — flip detection
    bool     m_dpi_reset_colour_ref;      // Trend colour to recover to (true=yellow), frozen at reset
+   bool     m_dpi_reset_initialized;     // False until colour_prev has been seeded by a real observation.
+                                         // Prevents a spurious IDLE→RESET_DETECTED transition on the first
+                                         // call (or first call after a bias-flip reset) caused by the init
+                                         // default colour_prev=false disagreeing with whatever the live
+                                         // ribbon colour happens to be. Without this guard, opening on a
+                                         // yellow uptrend would lock the gate at colour_ref=red — never
+                                         // reachable — and block every entry for the entire session.
 
    // --- 2k. INDICATOR RESULT CACHE (eliminates duplicate checks per bar) ---
    struct SIndicatorCache {
@@ -1170,11 +1183,22 @@ private:
             break;
 
          case ADX_MODE_DYNAMIC_PERCENTILE:
-            // Recalculate every 4 hours or when buffer has just filled
-            if(m_adxHistorySize >= m_adxHistoryMaxSize ||
-               TimeCurrent() - m_lastADXCalculation >= 14400) {
-               m_cachedADXThreshold = CalculateADXPercentile(m_settings.ADX_Percentile);
-               m_lastADXCalculation = TimeCurrent();
+            // Recalculate when the rolling buffer fills, or after the user-configured
+            // refresh interval elapses. Previously the interval was hardcoded to
+            // 14400 seconds (4 hours) which is sensible on H4+ but means up to 240
+            // bars of stale threshold on an M1 chart. Now exposed as
+            // ADX_PercentileRefreshSec for per-preset/per-timeframe tuning. The 60-
+            // second floor prevents an accidentally-tiny value from recomputing the
+            // percentile on every tick (CPU-expensive on long lookback buffers).
+            {
+               int refresh_sec = (m_settings.ADX_PercentileRefreshSec >= 60
+                                    ? m_settings.ADX_PercentileRefreshSec
+                                    : 60);
+               if(m_adxHistorySize >= m_adxHistoryMaxSize ||
+                  TimeCurrent() - m_lastADXCalculation >= refresh_sec) {
+                  m_cachedADXThreshold = CalculateADXPercentile(m_settings.ADX_Percentile);
+                  m_lastADXCalculation = TimeCurrent();
+               }
             }
             threshold = m_cachedADXThreshold;
             modeStr   = StringFormat("DYNAMIC_P%.0f", m_settings.ADX_Percentile);
@@ -1549,8 +1573,25 @@ private:
          bool   g=false, ma=false, colour_yellow=false;
          if(ComputeDPIMainHist(v_shift, h_cur, h_prev, g, ma, gm_c, gm_p, colour_yellow))
          {
-            bool green_present = (gm_c > 0.0);
-            int  prev_state = m_dpi_reset_state;
+            // COLD-START GUARD: on the very first observation (or first after a
+            // ResetDPIResetState / ResetDirectionalState call), seed colour_prev
+            // to whatever the ribbon actually is, then skip the transition test
+            // this bar. Otherwise the init-default colour_prev=false would
+            // disagree with a yellow uptrend, fire IDLE→RESET_DETECTED, freeze
+            // colour_ref at red, and lock the gate forever on a session that
+            // never sees a real flip back to red.
+            if(!m_dpi_reset_initialized)
+            {
+               m_dpi_reset_colour_prev = colour_yellow;
+               m_dpi_reset_initialized = true;
+               if(m_settings.DebugFlow)
+                  DebugLog(StringFormat("[DPI_RESET] init seeded prev=%s | state stays IDLE",
+                                        colour_yellow?"YELLOW":"RED"));
+            }
+            else
+            {
+               bool green_present = (gm_c > 0.0);
+               int  prev_state = m_dpi_reset_state;
             switch(m_dpi_reset_state)
             {
                case 0: // IDLE — a colour flip away from the prevailing colour starts a reset
@@ -1605,6 +1646,7 @@ private:
                                      m_dpi_reset_colour_ref?"YELLOW":"RED",
                                      m_dpi_reset_recovery_bars, m_settings.DPI_ResetRecoveryBars));
             }
+            }  // end else (state machine block — only runs after init seeded)
          }
       }
 
@@ -1733,6 +1775,20 @@ private:
          // REAL forced but unavailable → nothing usable; AUTO continues to tick.
          if(m_settings.VPRR_VolumeType == VPRR_VOL_REAL)
          {
+            // One-shot user warning. Without this, the user would see VPRR
+            // always failing and have no clue why — the cockpit just shows
+            // "ratio 0.00 < min" with no hint that the broker simply isn't
+            // supplying real volume on this symbol. The warning is logged
+            // unconditionally (not gated by DebugFlow) because it changes
+            // user behaviour (switch to AUTO or TICK).
+            if(!m_vprr_real_warned)
+            {
+               PrintFormat("[VPRR] WARN: VPRR_VolumeType=REAL but %s returned no real volume on %s. "
+                           "VPRR will fail every bar until the source is changed. Use AUTO for "
+                           "automatic fallback to TICK volume, or TICK explicitly.",
+                           "CopyRealVolume", m_symbol);
+               m_vprr_real_warned = true;
+            }
             m_vprr_last_real = false;
             return 0;
          }
@@ -3634,6 +3690,7 @@ private:
       m_dpi_reset_recovery_bars = 0;
       m_dpi_reset_colour_prev   = false;
       m_dpi_reset_colour_ref    = false;
+      m_dpi_reset_initialized   = false;     // Re-seed colour_prev on next bar (cold-start guard)
       // CandleBody over-extension carry
       m_cb_oeb_blocked  = false;
       m_cb_prev_any_rec = false;
@@ -4386,7 +4443,7 @@ public:
    int    GetDPIResetRecoveryBars()const { return m_dpi_reset_recovery_bars; }
 
    // Called after a trade is taken to reset the cycle back to IDLE
-   void   ResetDPIResetState()           { m_dpi_reset_state = 0; m_dpi_reset_recovery_bars = 0; }
+   void   ResetDPIResetState()           { m_dpi_reset_state = 0; m_dpi_reset_recovery_bars = 0; m_dpi_reset_initialized = false; }
 
    //+------------------------------------------------------------------+
    //| Layer Pullback-Recovery Diagnostic Getters                       |
@@ -5445,6 +5502,7 @@ public:
       m_dpi_reset_recovery_bars = 0;
       m_dpi_reset_colour_prev = false;
       m_dpi_reset_colour_ref  = false;
+      m_dpi_reset_initialized = false;       // Re-seed colour_prev on next bar (cold-start guard)
       m_layer_w_pb_state = LAYER_PB_NONE;
       m_layer_m_pb_state = LAYER_PB_NONE;
       m_layer_s_pb_state = LAYER_PB_NONE;
@@ -5459,6 +5517,7 @@ public:
       m_layer_w_vol_rec_bars = 0;  m_layer_m_vol_rec_bars = 0;  m_layer_s_vol_rec_bars = 0;
       m_layer_w_vprr = 0.0; m_layer_m_vprr = 0.0; m_layer_s_vprr = 0.0;
       m_vprr_last_real = false;
+      m_vprr_real_warned = false;        // Re-arm one-shot REAL-volume warning on (re)init
       m_diag_last_bias = 0;
       m_diag_last_votes = 0;
       m_diag_last_reason = "";
@@ -6078,9 +6137,13 @@ public:
       // Update rolling history with current ATR
       UpdateATRHistory(atr);
 
-      // Update cache every 4 hours (14400 seconds) or on first call
+      // Update cache after the user-configured refresh interval (default 14400s = 4h)
+      // elapses, or on the very first call. 60-second floor matches Check_ADX
+      // — prevents an accidental tiny value from forcing a full-percentile
+      // recompute on every tick (CPU-expensive on long lookback buffers).
       datetime now = TimeCurrent();
-      if(now - m_lastVRCCalculation > 14400 || m_cachedVRCLowThreshold == 0.0) {
+      int refresh_sec = (m_settings.VRC_RefreshSec >= 60 ? m_settings.VRC_RefreshSec : 60);
+      if(now - m_lastVRCCalculation > refresh_sec || m_cachedVRCLowThreshold == 0.0) {
          m_cachedVRCLowThreshold = CalculateATRPercentile(m_settings.VRC_LowThreshold);
          m_lastVRCCalculation    = now;
 
