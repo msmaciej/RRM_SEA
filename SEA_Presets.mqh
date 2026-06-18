@@ -922,13 +922,20 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    // Do NOT modify cfg.PrintEffectiveConfig / cfg.DebugFlow
    // Do NOT modify UI toggles or reporting toggles (ExportCSV, ExportUseCommonFiles)
 
-   // PSAR cushion seed: set from CUSTOM-specific inputs (not orphan globals).
-   // These apply when Inp_Global_Preset = PRESET_CUSTOM and TrailMode = TRAIL_PSAR.
-   // All other presets overwrite these in their own block below.
-   cfg.PSAR_TrailCushionMode      = Inp_CUSTOM_PSAR_TrailCushionMode;
-   cfg.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_CUSTOM_TrailCushionAtrPeriod);
-   cfg.PSAR_TrailCushionAtrMult   = MathMax(0.0, Inp_CUSTOM_TrailCushionAtrMult);
-   cfg.PSAR_TrailCushionPct       = MathMax(0.0, Inp_CUSTOM_TrailCushionPct);
+   // PRESET ISOLATION 2026-06: PSAR cushion seed REPLACED with neutral defaults.
+   // Previously this block seeded cfg.PSAR_TrailCushion* from Inp_CUSTOM_* before
+   // each preset's own block ran. Presets that did not explicitly override these
+   // fields (FPM, RRM, TI — which lock cushion mode to PIPS) silently inherited
+   // CUSTOM's Atr/Pct values. The inherited values were inert because mode was
+   // locked to PIPS, but the latent cross-preset coupling violated isolation.
+   //
+   // New behavior: seed with safe neutral defaults (PIPS mode, sensible ATR
+   // settings). CUSTOM preset block now sets its own Atr/Mult/Pct from
+   // Inp_CUSTOM_* inside the CUSTOM block.
+   cfg.PSAR_TrailCushionMode      = PSAR_CUSHION_PIPS;
+   cfg.PSAR_TrailCushionAtrPeriod = 14;
+   cfg.PSAR_TrailCushionAtrMult   = 0.0;
+   cfg.PSAR_TrailCushionPct       = 0.0;
 
    // ================================================================
    // Policy A: Universal Operational Filters (User Always Controls)
@@ -986,18 +993,25 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SL_SwingPipsCushion      = GetRecommendedInitialSlCushionPips();
       cfg.SL_WidenToMinimum        = true;   // widen (not block) when SL too close
       cfg.PSAR_TrailPipsCushion    = GetRecommendedTrailPsarCushionPips();
-      cfg.PSAR_TrailCushionAtrMult = 1.0;
-      cfg.PSAR_TrailCushionPct     = 25.0;
+      // PRESET ISOLATION 2026-06: previously seeded outside this block from Inp_CUSTOM_*,
+      // then overwritten here with hardcoded 1.0 / 25.0. The hardcodes ignored the
+      // CUSTOM-namespaced inputs (Inp_CUSTOM_PSAR_TrailCushionMode/AtrPeriod/AtrMult/Pct),
+      // making those inputs dead. The seed is now removed from the outer scope (was a
+      // cross-preset leak source); the CUSTOM block reads its own inputs directly.
+      cfg.PSAR_TrailCushionMode    = Inp_CUSTOM_PSAR_TrailCushionMode;
+      cfg.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_CUSTOM_TrailCushionAtrPeriod);
+      cfg.PSAR_TrailCushionAtrMult = MathMax(0.0, Inp_CUSTOM_TrailCushionAtrMult);
+      cfg.PSAR_TrailCushionPct     = MathMax(0.0, Inp_CUSTOM_TrailCushionPct);
 
       // ── Break-even / trail distances (TF-adaptive) ──
       cfg.RRM_BE_BufferPips        = GetTFBasedCushion(_Period);
       cfg.TrailDistancePips        = GetTFBasedCushion(_Period);
       cfg.BEThresholdPips          = GetTFBasedCushion(_Period);
-      cfg.RRM_TrailStartsAfterBE   = Inp_RRM_ORG_TrailStartsAfterBE;
+      cfg.RRM_TrailStartsAfterBE   = Inp_CUSTOM_TrailStartsAfterBE;  // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_TrailStartsAfterBE (cross-preset leak)
       cfg.RRM_BE_ProgressPct       = 25.0;
 
       // ── Multi-timeframe / HTF confirmation (mirror RRM_ORG, two-TF) ──
-      cfg.Ind_MTF_Enabled          = Inp_RRM_ORG_HtfFilter;          // master HTF on/off
+      cfg.Ind_MTF_Enabled          = Inp_CUSTOM_HtfFilter;          // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_HtfFilter
       cfg.MTF_TF1                  = GetSafeMTF_TF1(Inp_MTF_TF1);
       cfg.MTF_TF2                  = GetSafeMTF_TF2(Inp_MTF_TF2);     // PERIOD_CURRENT=1-TF, real TF=2-TF
       cfg.MTF_EMA_Fast             = Inp_MTF_EMA_Fast;
@@ -1008,7 +1022,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── Directional gates: AUTO-TF scaling + JPY value-scaling ──
       bool   custom_isJpy  = (StringFind(_Symbol, "JPY") >= 0);
-      double custom_jpyMul = (Inp_RRM_ORG_JpyGateMultiplier > 0.0) ? Inp_RRM_ORG_JpyGateMultiplier : 1.0;
+      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_JpyGateMultiplier
+      double custom_jpyMul = (Inp_CUSTOM_JpyGateMultiplier > 0.0) ? Inp_CUSTOM_JpyGateMultiplier : 1.0;
       cfg.Gate_Recovery.mode         = GATE_SCALE_AUTO_TF;
       cfg.Gate_Recovery.value        = custom_isJpy ? custom_jpyMul : 1.0;
       cfg.Gate_EmaDiv.mode           = GATE_SCALE_AUTO_TF;
@@ -1040,7 +1055,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ReEntryLotScalePct       = 50;
       cfg.MinBarsAfterClose        = 1;
       cfg.Vote_PsarFlipDelay       = 5;
-      cfg.Vote_AllowPsarFlip       = Inp_RRM_ORG_Vote_AllowPsarFlip;
+      cfg.Vote_AllowPsarFlip       = Inp_CUSTOM_Vote_AllowPsarFlip;     // PRESET ISOLATION 2026-06
 
       // ── Phase confirmation + TF-adaptive lookbacks ──
       cfg.Emerging_AllowStrongTrades   = false;
@@ -1048,35 +1063,43 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Require_Progressive_Momentum = false;
       cfg.ma_h_shift                   = 0;
       cfg.RRM_Lookback        = (_Period <= PERIOD_M1) ? 15 : (_Period <= PERIOD_M5) ? 10 : 12;
-      cfg.MinPhaseConfirmBars = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_PhaseConfirmM5
-                              : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_PhaseConfirmM30
-                              :                           Inp_RRM_ORG_PhaseConfirmH1plus;
-      cfg.RequireRecoveryMomentum = Inp_RRM_ORG_RequireRecoveryIntraday && (_Period <= PERIOD_M15);
+      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_PhaseConfirm*
+      cfg.MinPhaseConfirmBars = (_Period <= PERIOD_M5)  ? Inp_CUSTOM_PhaseConfirmM5
+                              : (_Period <= PERIOD_M30) ? Inp_CUSTOM_PhaseConfirmM30
+                              :                           Inp_CUSTOM_PhaseConfirmH1plus;
+      cfg.RequireRecoveryMomentum = Inp_CUSTOM_RequireRecoveryIntraday && (_Period <= PERIOD_M15);  // PRESET ISOLATION 2026-06
 
       // ── Daily-drawdown / frequency caps (RRM_ORG fallback logic) ──
-      cfg.RRM_MaxConsecutiveLosses = (Inp_RRM_ORG_DDMaxConsecLosses > 0) ? Inp_RRM_ORG_DDMaxConsecLosses : 4;
-      cfg.RRM_MaxTradesPerDay      = (Inp_RRM_ORG_DDMaxTradesPerDay > 0) ? Inp_RRM_ORG_DDMaxTradesPerDay : 5;
-      cfg.RRM_MaxDailyDrawdownPct  = (Inp_RRM_ORG_DDMaxDailyPct > 0.0)   ? Inp_RRM_ORG_DDMaxDailyPct   : 2.0;
+      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_DD*
+      cfg.RRM_MaxConsecutiveLosses = (Inp_CUSTOM_DDMaxConsecLosses > 0) ? Inp_CUSTOM_DDMaxConsecLosses : 4;
+      cfg.RRM_MaxTradesPerDay      = (Inp_CUSTOM_DDMaxTradesPerDay > 0) ? Inp_CUSTOM_DDMaxTradesPerDay : 5;
+      cfg.RRM_MaxDailyDrawdownPct  = (Inp_CUSTOM_DDMaxDailyPct > 0.0)   ? Inp_CUSTOM_DDMaxDailyPct   : 2.0;
 
       // ── TP / PSAR-dot trail shift ──
-      cfg.TP_Enabled            = (Inp_RRM_ORG_TPMode != TP_MODE_NONE);
-      cfg.RRM_TrailPsarDotShift = (Inp_RRM_ORG_TrailPsarDotShift < 1) ? 1
-                                : (Inp_RRM_ORG_TrailPsarDotShift > 3) ? 3
-                                :  Inp_RRM_ORG_TrailPsarDotShift;
+      cfg.TP_Enabled            = (Inp_CUSTOM_TPMode != TP_MODE_NONE);  // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_TPMode
+      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_TrailPsarDotShift (cross-preset leak)
+      cfg.RRM_TrailPsarDotShift = (Inp_CUSTOM_TrailPsarDotShift < 1) ? 1
+                                : (Inp_CUSTOM_TrailPsarDotShift > 3) ? 3
+                                :  Inp_CUSTOM_TrailPsarDotShift;
 
       // ── EMA-fan filter: TF-adaptive base × volatility multiplier ──
-      cfg.EmaFanFilterEnabled = Inp_RRM_ORG_EmaFanFilter;
-      double custom_fan_base  = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_EmaFan_M5Pips
-                              : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_EmaFan_M30Pips
-                              : (_Period <= PERIOD_H1)  ? Inp_RRM_ORG_EmaFan_H1Pips
-                              : (_Period <= PERIOD_H4)  ? Inp_RRM_ORG_EmaFan_H4Pips
-                              :                           Inp_RRM_ORG_EmaFan_DailyPips;
+      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_EmaFan*
+      cfg.EmaFanFilterEnabled = Inp_CUSTOM_EmaFanFilter;
+      double custom_fan_base  = (_Period <= PERIOD_M5)  ? Inp_CUSTOM_EmaFan_M5Pips
+                              : (_Period <= PERIOD_M30) ? Inp_CUSTOM_EmaFan_M30Pips
+                              : (_Period <= PERIOD_H1)  ? Inp_CUSTOM_EmaFan_H1Pips
+                              : (_Period <= PERIOD_H4)  ? Inp_CUSTOM_EmaFan_H4Pips
+                              :                           Inp_CUSTOM_EmaFan_DailyPips;
       cfg.EmaFanMaxTotalPips  = custom_fan_base * GetEmaFanMultiplier();
 
       // ── TrailEMA: ribbon-role → period resolution (period 0 = derive from role) ──
-      cfg.TrailEMA_RibbonRole = (int)Inp_RRM_ORG_TrailEMA_RibbonRole;
-      if(Inp_RRM_ORG_TrailEMA_Period > 0)
-         cfg.TrailEMA_Period = Inp_RRM_ORG_TrailEMA_Period;
+      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_TrailEMA_* (cross-preset leak).
+      // Note: Inp_CUSTOM_TrailEMA_Period default is 9 (not 0 like RRM_ORG's), so
+      // CUSTOM users whose .set files left the input untouched will now see
+      // TrailEMA_Period=9 instead of the previously-leaked 0→ribbon-role lookup.
+      cfg.TrailEMA_RibbonRole = (int)Inp_CUSTOM_TrailEMA_RibbonRole;
+      if(Inp_CUSTOM_TrailEMA_Period > 0)
+         cfg.TrailEMA_Period = Inp_CUSTOM_TrailEMA_Period;
       else
          switch((EEmaRole)cfg.TrailEMA_RibbonRole)
          {
@@ -1086,27 +1109,29 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
             case ROLE_EMA4: cfg.TrailEMA_Period = cfg.P_Ema4; break;
             default:        cfg.TrailEMA_Period = cfg.P_Ema2; break;
          }
-      cfg.TrailEMA_CushionAtrMult = MathMax(0.0, Inp_RRM_ORG_TrailEMA_CushionAtrMult);
+      cfg.TrailEMA_CushionAtrMult = MathMax(0.0, Inp_CUSTOM_TrailEMA_CushionAtrMult);
 
       // ── DPI momentum voter (RRM_ORG's primary voter) ──
-      cfg.Ind_Dpi_Enabled            = Inp_RRM_ORG_DPI_Enabled;
-      cfg.DPI_MACD_Fast              = Inp_RRM_ORG_DPI_MacdFast;
-      cfg.DPI_MACD_Slow              = Inp_RRM_ORG_DPI_MacdSlow;
-      cfg.DPI_RedSignalType          = Inp_RRM_ORG_DPI_RedSignalType;
-      cfg.DPI_RedEMA_A               = Inp_RRM_ORG_DPI_RedEMA_A;
-      cfg.DPI_RedEMA_B               = Inp_RRM_ORG_DPI_RedEMA_B;
-      cfg.DPI_RedEMA_C               = Inp_RRM_ORG_DPI_RedEMA_C;
-      cfg.DPI_RedEMA_D               = Inp_RRM_ORG_DPI_RedEMA_D;
-      cfg.DPI_DoubleSmoothFirst      = Inp_RRM_ORG_DPI_DoubleSmoothFirst;
-      cfg.DPI_DoubleSmoothSecond     = Inp_RRM_ORG_DPI_DoubleSmoothSecond;
-      cfg.DPI_UseCCIReset            = Inp_RRM_ORG_DPI_UseCCIReset;
-      cfg.DPI_CCI_Period             = Inp_RRM_ORG_DPI_CCI_Period;
-      cfg.DPI_CCI_AppliedPrice       = (int)Inp_RRM_ORG_DPI_CCI_Price;
-      cfg.DPI_UseGreenHist           = Inp_RRM_ORG_DPI_UseGreenHist;
-      cfg.DPI_Histogram_Growth_Boost = Inp_RRM_ORG_DPI_Histogram_Growth_Boost;
+      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_DPI_*
+      cfg.Ind_Dpi_Enabled            = Inp_CUSTOM_DPI_Enabled;
+      cfg.DPI_MACD_Fast              = Inp_CUSTOM_DPI_MacdFast;
+      cfg.DPI_MACD_Slow              = Inp_CUSTOM_DPI_MacdSlow;
+      cfg.DPI_RedSignalType          = Inp_CUSTOM_DPI_RedSignalType;
+      cfg.DPI_RedEMA_A               = Inp_CUSTOM_DPI_RedEMA_A;
+      cfg.DPI_RedEMA_B               = Inp_CUSTOM_DPI_RedEMA_B;
+      cfg.DPI_RedEMA_C               = Inp_CUSTOM_DPI_RedEMA_C;
+      cfg.DPI_RedEMA_D               = Inp_CUSTOM_DPI_RedEMA_D;
+      cfg.DPI_DoubleSmoothFirst      = Inp_CUSTOM_DPI_DoubleSmoothFirst;
+      cfg.DPI_DoubleSmoothSecond     = Inp_CUSTOM_DPI_DoubleSmoothSecond;
+      cfg.DPI_UseCCIReset            = Inp_CUSTOM_DPI_UseCCIReset;
+      cfg.DPI_CCI_Period             = Inp_CUSTOM_DPI_CCI_Period;
+      cfg.DPI_CCI_AppliedPrice       = (int)Inp_CUSTOM_DPI_CCI_Price;
+      cfg.DPI_UseGreenHist           = Inp_CUSTOM_DPI_UseGreenHist;
+      cfg.DPI_Histogram_Growth_Boost = Inp_CUSTOM_DPI_Histogram_Growth_Boost;
 
       // ── VPRR auto-config (volume-based pullback-recovery voter) ──
-      if(Inp_RRM_ORG_VPRR_AutoEnable)
+      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_VPRR_* (4 leaks)
+      if(Inp_CUSTOM_VPRR_AutoEnable)
       {
          ST_VPRRAutoMode custom_vprr = GetVPRRRecommendedMode(
             Inp_VPRR_MinRatio_Gold,      Inp_VPRR_MinRatio_Silver,
@@ -1120,7 +1145,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
             Inp_VPRR_RecBars_Equities,   Inp_VPRR_RecBars_FX,
             Inp_VPRR_TF_Mult_M5,         Inp_VPRR_TF_Mult_M15,
             Inp_VPRR_TF_Mult_H1,         Inp_VPRR_TF_Mult_H4Plus,
-            Inp_VPRR_TF_ReduceRecBars,   Inp_RRM_ORG_VPRR_RecoveryBars
+            Inp_VPRR_TF_ReduceRecBars,   Inp_CUSTOM_VPRR_RecoveryBars
          );
          cfg.VPRR_Enabled      = custom_vprr.enabled;
          cfg.VPRR_VolumeType   = custom_vprr.volume_type;
@@ -1129,10 +1154,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       }
       else
       {
-         cfg.VPRR_Enabled      = Inp_RRM_ORG_VPRR_Enabled;
-         cfg.VPRR_VolumeType   = (int)Inp_RRM_ORG_VPRR_VolumeType;
+         cfg.VPRR_Enabled      = Inp_CUSTOM_VPRR_Enabled;
+         cfg.VPRR_VolumeType   = (int)Inp_CUSTOM_VPRR_VolumeType;
          cfg.VPRR_MinRatio     = MathMax(0.1, Inp_VPRR_MinRatio_FX);
-         cfg.VPRR_RecoveryBars = MathMax(1, MathMin(10, Inp_RRM_ORG_VPRR_RecoveryBars));
+         cfg.VPRR_RecoveryBars = MathMax(1, MathMin(10, Inp_CUSTOM_VPRR_RecoveryBars));
       }
       cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
       cfg.VPRR_ExternalSymbol  = Inp_VPRR_ExternalSymbol;
@@ -2206,14 +2231,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
                                     :                           Inp_RRM_ORG_PhaseConfirmH1plus;
 
       // EMERGING phase: WEAK + MEDIUM only; STRONG always blocked per RRM methodology
-      cfg.Emerging_AllowWeakTrades   = Inp_RRM_AllowWeak;
-      cfg.Emerging_AllowMediumTrades = Inp_RRM_AllowMedium;
+      // PRESET ISOLATION 2026-06: was Inp_RRM_Allow* (RRM-preset inputs)
+      cfg.Emerging_AllowWeakTrades   = Inp_RRM_ORG_AllowWeak;
+      cfg.Emerging_AllowMediumTrades = Inp_RRM_ORG_AllowMedium;
       cfg.Emerging_AllowStrongTrades = false;         // STRONG always blocked in EMERGING per RRM methodology
 
-      // TRENDING phase: controlled by layer filter inputs (Inp_RRM_Allow*)
-      cfg.Trending_AllowWeakTrades   = Inp_RRM_AllowWeak;
-      cfg.Trending_AllowMediumTrades = Inp_RRM_AllowMedium;
-      cfg.Trending_AllowStrongTrades = Inp_RRM_AllowStrong;
+      // TRENDING phase: controlled by layer filter inputs (Inp_RRM_ORG_Allow*)
+      cfg.Trending_AllowWeakTrades   = Inp_RRM_ORG_AllowWeak;
+      cfg.Trending_AllowMediumTrades = Inp_RRM_ORG_AllowMedium;
+      cfg.Trending_AllowStrongTrades = Inp_RRM_ORG_AllowStrong;
 
       // ── PULLBACK DETECTION GATES: LOCKED ON ──────────────────────────
       // PHASE A: require recovery momentum on M15-and-down. The original
@@ -2380,7 +2406,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // close-based flip detector in RRM_ManageStrictNoATR and the
       // side-validation guard in CalcPsarTrailAnchorSL, this guarantees
       // the SL is never dragged to a wrong-side PSAR dot.
-      cfg.RRM_FreezeTrailOnFlip     = Inp_RRM_FreezeTrailOnFlip;
+      // PRESET ISOLATION 2026-06: was Inp_RRM_FreezeTrailOnFlip — an RRM-preset
+      // input that RRM_ORG should not have been reading.
+      cfg.RRM_FreezeTrailOnFlip     = Inp_RRM_ORG_FreezeTrailOnFlip;
       cfg.TrailProfitPercentLPR     = Inp_RRM_ORG_TrailProfitPercentLPR;
       cfg.PSAR_TrailCushionMode     = Inp_RRM_ORG_PSAR_TrailCushionMode;
       cfg.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_RRM_ORG_TrailCushionAtrPeriod);
@@ -2795,6 +2823,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TrailLockProfit           = true;            // LOCKED: always lock profit once trail is active — core of TI capital preservation
       cfg.TrailProfitPercent        = Inp_TI_TrailProfitPercent;
       cfg.TrailStepPips             = Inp_TI_TrailStepPips;
+      // PRESET ISOLATION 2026-06: explicitly set RRM_TrailStartsAfterBE.
+      // Previously TI inherited the runtime default (false) silently, which
+      // meant TI users got behavior dependent on whatever the global default
+      // was at runtime — not a TI-controlled choice.
+      cfg.RRM_TrailStartsAfterBE    = Inp_TI_TrailStartsAfterBE;
 
       // Fractal defaults — used only when SLMode/TPMode=FRACTAL (not TI default)
       cfg.FractalPeriod             = 5;               // LOCKED: standard Bill Williams fractal period; not used in default TI exit (swing SL + RR TP)
