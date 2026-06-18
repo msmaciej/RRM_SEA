@@ -846,6 +846,234 @@ bool ValidatePresetConfiguration(const ST_Settings &cfg, const string preset_nam
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// EXIT CONFIGURATION VALIDATION — PER-PRESET (2026-06)
+// ═══════════════════════════════════════════════════════════════════════
+// Each preset owns its own ExitConfig validator. The validator runs at the
+// end of the preset's ApplyPreset block and checks for invalid setting
+// combinations specific to that preset's design.
+//
+// Architectural principle (Q1A): each preset's validator stays in its own
+// vocabulary and namespace. RRM_ORG's validator names Inp_RRM_ORG_* inputs
+// in its override-hints; TI's validator names Inp_TI_*; CUSTOM's names
+// Inp_CUSTOM_*. No validator coerces another preset's settings.
+//
+// Empty stubs (FPM/MA/RRM/TEST): preserved as architectural placeholders
+// for future preset-specific checks. Each empty stub documents why no
+// checks fire today.
+// ═══════════════════════════════════════════════════════════════════════
+
+// ───────────────────────────────────────────────────────────────────────
+// PRESET_CUSTOM — exit config validator
+// CUSTOM is the only preset where ExitProfile is fully user-tunable, so all
+// RRM-path checks gate on cfg.ExitProfile == EXIT_PROFILE_RRM.
+// ───────────────────────────────────────────────────────────────────────
+void ValidateCUSTOM_ExitConfig(ST_Settings &cfg)
+{
+   string warnings = "";
+
+   // ── Patch A (extended 2026-06): TP_MODE_NONE with BE_MODE_TP_PROGRESS_PCT ──
+   // LPR mode (no TP) cannot evaluate "% progress toward TP" — auto-promote BE.
+   if(cfg.TPMode == TP_MODE_NONE && cfg.BE_Mode == BE_MODE_TP_PROGRESS_PCT)
+   {
+      EBeMode old_mode  = cfg.BE_Mode;
+      double  old_rmult = cfg.RRM_BE_RMultiple;
+      cfg.BE_Mode = BE_MODE_R_MULTIPLE;
+      if(cfg.RRM_BE_RMultiple <= 0.0)
+         cfg.RRM_BE_RMultiple = 0.7;
+      warnings += "[AUTO-CORRECTED] BE_Mode " + EnumToString(old_mode)
+                + " is incompatible with TP_MODE_NONE (LPR).\n";
+      warnings += StringFormat("  Promoted to BE_MODE_R_MULTIPLE with %.2fR trigger "
+                               "(was %s with %.2fR).\n",
+                               cfg.RRM_BE_RMultiple, EnumToString(old_mode), old_rmult);
+      warnings += "  To override: set Inp_CUSTOM_BE_Mode = BE_MODE_OFF (no breakeven) "
+                  "or pair LPR with a TP mode.\n\n";
+   }
+
+   // ── Q1 deadlock check (2026-06): TRAIL_PSAR + BE_OFF + StartsAfterBE=true ──
+   // Per user-stated precedence rule: RRM_TrailStartsAfterBE=true is the higher-
+   // magnitude intent (it declares BE as the trail gate), so BE_Mode=OFF is the
+   // lower-magnitude setting that gets auto-promoted. Without the fix, the trail
+   // never engages (line 1496 in RRM_ManageStrictNoATR returns forever).
+   if(cfg.ExitProfile == EXIT_PROFILE_RRM
+      && cfg.TrailMode == TRAIL_PSAR
+      && cfg.BE_Mode == BE_MODE_OFF
+      && cfg.RRM_TrailStartsAfterBE == true)
+   {
+      EBeMode old_be    = cfg.BE_Mode;
+      double  old_rmult = cfg.RRM_BE_RMultiple;
+      cfg.BE_Mode = BE_MODE_R_MULTIPLE;
+      if(cfg.RRM_BE_RMultiple <= 0.0)
+         cfg.RRM_BE_RMultiple = 0.7;
+      warnings += "[AUTO-CORRECTED] TRAIL_PSAR + BE_MODE_OFF + RRM_TrailStartsAfterBE=true is a deadlock.\n";
+      warnings += "  (Trail-entry gate waits for BE event that can never fire since BE is disabled.)\n";
+      warnings += StringFormat("  Promoted BE_Mode %s -> BE_MODE_R_MULTIPLE @ %.2fR (was %s @ %.2fR).\n",
+                               EnumToString(old_be), cfg.RRM_BE_RMultiple,
+                               EnumToString(old_be), old_rmult);
+      warnings += "  To override: set Inp_CUSTOM_TrailStartsAfterBE=false (trail engages immediately at TE)\n";
+      warnings += "              or leave BE on with a different TrailMode.\n\n";
+   }
+
+   // ── Conflict 2: TrailTrigger vs RRM_TrailStartsAfterBE (RRM path only) ──
+   if(cfg.ExitProfile == EXIT_PROFILE_RRM
+      && cfg.TrailTrigger == TRIGGER_IMMEDIATE && cfg.RRM_TrailStartsAfterBE == true)
+   {
+      warnings += "[OVERRIDE] TrailTrigger=IMMEDIATE but RRM_TrailStartsAfterBE=true\n";
+      warnings += "  Result: Trailing will WAIT for BE (safety override active).\n\n";
+   }
+
+   // ── Notice: LPR with fixed TP ──
+   if(cfg.TrailMode == TRAIL_PROFIT_PERCENT && cfg.TPMode != TP_MODE_NONE)
+   {
+      warnings += "[NOTICE] TRAIL_PROFIT_PERCENT (LPR) works best with TP_MODE_NONE.\n";
+      warnings += "  Current: Fixed TP will limit upside, trailing runs underneath.\n";
+      warnings += "  Recommended: Set Inp_CUSTOM_TPMode=TP_MODE_NONE for full LPR.\n\n";
+   }
+
+   // ── Risk warning: aggressive immediate trail without BE (RRM path only) ──
+   if(cfg.ExitProfile == EXIT_PROFILE_RRM
+      && cfg.TrailTrigger == TRIGGER_IMMEDIATE
+      && cfg.BE_Mode == BE_MODE_OFF
+      && cfg.RRM_TrailStartsAfterBE == false)
+   {
+      warnings += "[RISK WARNING] Trailing from entry with NO breakeven protection!\n";
+      warnings += "  SL can move into loss zone before profit is secured.\n";
+      warnings += "  Recommended: Enable BE or set Inp_CUSTOM_TrailStartsAfterBE=true.\n\n";
+   }
+
+   if(warnings != "")
+   {
+      Print("╔══════════════════════════════════════════════════════════╗");
+      Print("║  ⚠️  PRESET_CUSTOM EXIT CONFIG: WARNINGS / AUTO-FIXES   ║");
+      Print("╚══════════════════════════════════════════════════════════╝");
+      Print(warnings);
+   }
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// PRESET_FPM — exit config validator (architectural stub)
+// FPM locks ExitProfile=SIMPLE and hardcodes BE_Mode=R_MULTIPLE,
+// TrailTrigger=BREAKEVEN. No reachable RRM-path conflicts. SIMPLE-path
+// behavior is deterministic given FPM's locked combination. Placeholder
+// for future FPM-specific checks.
+// ───────────────────────────────────────────────────────────────────────
+void ValidateFPM_ExitConfig(ST_Settings &cfg)
+{
+   // No checks currently apply to FPM. See header above for rationale.
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// PRESET_MA — exit config validator (architectural stub)
+// MA locks ExitProfile=SIMPLE and hardcodes BE_Mode=OFF, TrailMode=NONE.
+// No reachable conflicts. Placeholder for future MA-specific checks.
+// ───────────────────────────────────────────────────────────────────────
+void ValidateMA_ExitConfig(ST_Settings &cfg)
+{
+   // No checks currently apply to MA. See header above for rationale.
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// PRESET_RRM — exit config validator (architectural stub)
+// RRM locks ExitProfile=RRM and hardcodes BE_Mode=BE_MODE_R_MULTIPLE.
+// Q1 deadlock (TRAIL_PSAR + BE_OFF + StartsAfterBE) is NOT reachable
+// because BE_Mode cannot be OFF. Placeholder for future RRM-specific checks.
+// ───────────────────────────────────────────────────────────────────────
+void ValidateRRM_ExitConfig(ST_Settings &cfg)
+{
+   // No checks currently apply to RRM. See header above for rationale.
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// PRESET_TI (TOPINVESTOR) — exit config validator
+// TI locks ExitProfile=RRM and exposes Inp_TI_BE_Mode (user-tunable).
+// Default Q1 R-multiple = 1.0R per TI's capital-preservation methodology.
+// ───────────────────────────────────────────────────────────────────────
+void ValidateTI_ExitConfig(ST_Settings &cfg)
+{
+   string warnings = "";
+
+   // ── Patch A (extended 2026-06): TP_MODE_NONE with BE_MODE_TP_PROGRESS_PCT ──
+   if(cfg.TPMode == TP_MODE_NONE && cfg.BE_Mode == BE_MODE_TP_PROGRESS_PCT)
+   {
+      EBeMode old_mode  = cfg.BE_Mode;
+      double  old_rmult = cfg.RRM_BE_RMultiple;
+      cfg.BE_Mode = BE_MODE_R_MULTIPLE;
+      if(cfg.RRM_BE_RMultiple <= 0.0)
+         cfg.RRM_BE_RMultiple = 1.0;  // TI methodology: 1.0R conservative
+      warnings += "[AUTO-CORRECTED] BE_Mode " + EnumToString(old_mode)
+                + " is incompatible with TP_MODE_NONE (LPR).\n";
+      warnings += StringFormat("  Promoted to BE_MODE_R_MULTIPLE with %.2fR trigger "
+                               "(was %s with %.2fR).\n",
+                               cfg.RRM_BE_RMultiple, EnumToString(old_mode), old_rmult);
+      warnings += "  To override: set Inp_TI_BE_Mode = BE_MODE_OFF (no breakeven) "
+                  "or pair LPR with a TP mode.\n\n";
+   }
+
+   // ── Q1 deadlock check (2026-06): TRAIL_PSAR + BE_OFF + StartsAfterBE=true ──
+   if(cfg.ExitProfile == EXIT_PROFILE_RRM
+      && cfg.TrailMode == TRAIL_PSAR
+      && cfg.BE_Mode == BE_MODE_OFF
+      && cfg.RRM_TrailStartsAfterBE == true)
+   {
+      EBeMode old_be    = cfg.BE_Mode;
+      double  old_rmult = cfg.RRM_BE_RMultiple;
+      cfg.BE_Mode = BE_MODE_R_MULTIPLE;
+      if(cfg.RRM_BE_RMultiple <= 0.0)
+         cfg.RRM_BE_RMultiple = 1.0;  // TI methodology: 1.0R conservative
+      warnings += "[AUTO-CORRECTED] TRAIL_PSAR + BE_MODE_OFF + RRM_TrailStartsAfterBE=true is a deadlock.\n";
+      warnings += "  (Trail-entry gate waits for BE event that can never fire since BE is disabled.)\n";
+      warnings += StringFormat("  Promoted BE_Mode %s -> BE_MODE_R_MULTIPLE @ %.2fR (was %s @ %.2fR).\n",
+                               EnumToString(old_be), cfg.RRM_BE_RMultiple,
+                               EnumToString(old_be), old_rmult);
+      warnings += "  To override: set Inp_TI_TrailStartsAfterBE=false (trail engages immediately at TE)\n";
+      warnings += "              or leave BE on with a different TrailMode.\n\n";
+   }
+
+   // ── Conflict 2: TrailTrigger vs RRM_TrailStartsAfterBE ──
+   if(cfg.TrailTrigger == TRIGGER_IMMEDIATE && cfg.RRM_TrailStartsAfterBE == true)
+   {
+      warnings += "[OVERRIDE] TrailTrigger=IMMEDIATE but RRM_TrailStartsAfterBE=true\n";
+      warnings += "  Result: Trailing will WAIT for BE (safety override active).\n\n";
+   }
+
+   // ── Notice: LPR with fixed TP ──
+   if(cfg.TrailMode == TRAIL_PROFIT_PERCENT && cfg.TPMode != TP_MODE_NONE)
+   {
+      warnings += "[NOTICE] TRAIL_PROFIT_PERCENT (LPR) works best with TP_MODE_NONE.\n";
+      warnings += "  Current: Fixed TP will limit upside, trailing runs underneath.\n";
+      warnings += "  Recommended: Set Inp_TI_TPMode=TP_MODE_NONE for full LPR.\n\n";
+   }
+
+   // ── Risk warning: aggressive immediate trail without BE ──
+   if(cfg.TrailTrigger == TRIGGER_IMMEDIATE
+      && cfg.BE_Mode == BE_MODE_OFF
+      && cfg.RRM_TrailStartsAfterBE == false)
+   {
+      warnings += "[RISK WARNING] Trailing from entry with NO breakeven protection!\n";
+      warnings += "  SL can move into loss zone before profit is secured.\n";
+      warnings += "  Recommended: Enable BE or set Inp_TI_TrailStartsAfterBE=true.\n\n";
+   }
+
+   if(warnings != "")
+   {
+      Print("╔══════════════════════════════════════════════════════════╗");
+      Print("║  ⚠️  PRESET_TI EXIT CONFIG: WARNINGS / AUTO-FIXES       ║");
+      Print("╚══════════════════════════════════════════════════════════╝");
+      Print(warnings);
+   }
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// PRESET_TEST — exit config validator (architectural stub)
+// TEST sets ExitProfile=NONE (fallback to SIMPLE), TrailMode=NONE,
+// BE_Mode=OFF. No active exit logic. Placeholder for future TEST-specific
+// checks (e.g., warnings about indicator-isolation testing).
+// ───────────────────────────────────────────────────────────────────────
+void ValidateTEST_ExitConfig(ST_Settings &cfg)
+{
+   // No checks currently apply to TEST. See header above for rationale.
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // EXIT CONFIGURATION VALIDATION (PRESET_RRM_ORG)
 // ═══════════════════════════════════════════════════════════════════════
 void ValidateRRM_ORG_ExitConfig(ST_Settings &cfg)
@@ -875,6 +1103,30 @@ void ValidateRRM_ORG_ExitConfig(ST_Settings &cfg)
                                cfg.RRM_BE_RMultiple, EnumToString(old_mode), old_rmult);
       warnings += "  To override: set Inp_RRM_ORG_BE_Mode = BE_MODE_OFF (no breakeven) "
                   "or pair LPR with a TP mode.\n\n";
+   }
+
+   // ── Q1 deadlock check (2026-06): TRAIL_PSAR + BE_OFF + StartsAfterBE=true ──
+   // Per user-stated precedence rule: RRM_TrailStartsAfterBE=true is the higher-
+   // magnitude intent (it declares BE as the trail gate), so BE_Mode=OFF is the
+   // lower-magnitude setting that gets auto-promoted. Without the fix, the trail
+   // never engages (RRM_ManageStrictNoATR line 1496 returns forever).
+   if(cfg.ExitProfile == EXIT_PROFILE_RRM
+      && cfg.TrailMode == TRAIL_PSAR
+      && cfg.BE_Mode == BE_MODE_OFF
+      && cfg.RRM_TrailStartsAfterBE == true)
+   {
+      EBeMode old_be    = cfg.BE_Mode;
+      double  old_rmult = cfg.RRM_BE_RMultiple;
+      cfg.BE_Mode = BE_MODE_R_MULTIPLE;
+      if(cfg.RRM_BE_RMultiple <= 0.0)
+         cfg.RRM_BE_RMultiple = 0.7;
+      warnings += "[AUTO-CORRECTED] TRAIL_PSAR + BE_MODE_OFF + RRM_TrailStartsAfterBE=true is a deadlock.\n";
+      warnings += "  (Trail-entry gate waits for BE event that can never fire since BE is disabled.)\n";
+      warnings += StringFormat("  Promoted BE_Mode %s -> BE_MODE_R_MULTIPLE @ %.2fR (was %s @ %.2fR).\n",
+                               EnumToString(old_be), cfg.RRM_BE_RMultiple,
+                               EnumToString(old_be), old_rmult);
+      warnings += "  To override: set Inp_RRM_ORG_TrailStartsAfterBE=false (trail engages immediately at TE)\n";
+      warnings += "              or leave BE on with a different TrailMode.\n\n";
    }
 
    // ── Conflict 2: TrailTrigger vs RRM_TrailStartsAfterBE ────────────
@@ -1167,6 +1419,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.VPRR_Enabled    = true;   // user explicitly configured a proxy symbol
       }
 
+      ValidateCUSTOM_ExitConfig(cfg);
       return;
    }
 
@@ -1434,6 +1687,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MinMarginLevel            = op_MinMarginLevel;
       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
 
+      ValidateFPM_ExitConfig(cfg);
       return;
    }
    #endif // SEA_PRESET_FPM
@@ -1710,6 +1964,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MinMarginLevel = op_MinMarginLevel; // Policy A: restore entry margin guard
       cfg.EmergencyMarginLevel = op_EmergencyMarginLevel; // Policy A: restore emergency margin guard
 
+      ValidateMA_ExitConfig(cfg);
       return;
    }
    #endif // SEA_PRESET_MA
@@ -2016,6 +2271,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // DPI voter not enabled in PRESET_RRM base; filter stays inactive.
       cfg.DpiDecelFilterEnabled     = false;
 
+      ValidateRRM_ExitConfig(cfg);
       return;
    }
    #endif // SEA_PRESET_RRM_FAMILY
@@ -2916,6 +3172,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MinMarginLevel            = op_MinMarginLevel;
       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
 
+      ValidateTI_ExitConfig(cfg);
       return;
    }
    #endif // SEA_PRESET_TOPINVESTOR
@@ -3300,6 +3557,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MinMarginLevel            = op_MinMarginLevel; // Policy A: restore entry margin guard
       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel; // Policy A: restore emergency margin guard
 
+      ValidateTEST_ExitConfig(cfg);
    return;
    }
    #endif // SEA_PRESET_TEST
