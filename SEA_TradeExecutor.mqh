@@ -1574,13 +1574,58 @@ private:
             ? NormalizeDouble(ema_val[0] - cushion, digits)
             : NormalizeDouble(ema_val[0] + cushion, digits);
 
-         double be_guard = m_settings.RRM_BE_BufferPips * pipSize;
-         if(isBuy  && new_sl < entry + be_guard) return;
-         if(!isBuy && new_sl > entry - be_guard) return;
+         // ── DIAGNOSTIC LOGGING for every block-condition ─────────────
+         // Previously the gates below were silent: when TRAIL_EMA refused
+         // to move SL, the journal had nothing. The user could only observe
+         // "SL didn't move" with no path to diagnosis. Each gate now prints
+         // a concise reason when it blocks (gated by DebugFlow to keep the
+         // journal quiet in normal operation; flip Inp_DebugFlow=true to see).
+         // ── BE-FLOOR (Patch B 2026-06) ──────────────────────────────
+         // Previously this gate required new_sl to be at least
+         // RRM_BE_BufferPips beyond entry. On instruments with a large
+         // BE buffer (Silver ≈ 75p × pipSize, Gold ≈ 150p × pipSize on
+         // M1, scaled by the instrument-fan multiplier), that buffer
+         // could exceed how far the EMA(13) had moved at 1-2-3R of
+         // profit — so the trail stayed dormant while the trade was
+         // already significantly in the money.
+         //
+         // The buffer's actual purpose is the one-time BE-LOCK event in
+         // the BE block above (move SL to entry+buffer when BE triggers).
+         // It should NOT also be a continuous threshold against trail
+         // engagement. The safety we actually want here is "never lock
+         // SL into loss territory", which is satisfied by the simple
+         // break-even floor below. The lock-profit gate immediately
+         // after this prevents backwards SL movement.
+         if(isBuy  && new_sl < entry) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[TRAIL_EMA/RRM] #%I64u BLOCKED (BE-floor): new_sl=%.5f < entry=%.5f "
+                           "(EMA still below entry — no profit to lock).",
+                           ticket, new_sl, entry);
+            return;
+         }
+         if(!isBuy && new_sl > entry) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[TRAIL_EMA/RRM] #%I64u BLOCKED (BE-floor): new_sl=%.5f > entry=%.5f "
+                           "(EMA still above entry — no profit to lock).",
+                           ticket, new_sl, entry);
+            return;
+         }
 
          if(m_settings.TrailLockProfit && cur_sl != 0.0) {
-            if(isBuy  && new_sl <= cur_sl) return;
-            if(!isBuy && new_sl >= cur_sl) return;
+            if(isBuy  && new_sl <= cur_sl) {
+               if(m_settings.DebugFlow)
+                  PrintFormat("[TRAIL_EMA/RRM] #%I64u BLOCKED (lock-profit): new_sl=%.5f <= cur_sl=%.5f "
+                              "(would move SL backwards). EMA=%.5f cushion=%.1fp.",
+                              ticket, new_sl, cur_sl, ema_val[0], ema_cushion_pips);
+               return;
+            }
+            if(!isBuy && new_sl >= cur_sl) {
+               if(m_settings.DebugFlow)
+                  PrintFormat("[TRAIL_EMA/RRM] #%I64u BLOCKED (lock-profit): new_sl=%.5f >= cur_sl=%.5f "
+                              "(would move SL backwards). EMA=%.5f cushion=%.1fp.",
+                              ticket, new_sl, cur_sl, ema_val[0], ema_cushion_pips);
+               return;
+            }
          }
 
          // TP guard: SL must not cross or touch TP — MT5 rejects with "invalid stops".
@@ -1607,6 +1652,17 @@ private:
                            ticket, cur_sl, new_sl, ema_period, ema_shift, ema_val[0],
                            ema_cushion_pips);
             m_trade.PositionModify(ticket, new_sl, cur_tp);
+         }
+         else if(!valid && m_settings.DebugFlow) {
+            // Final block-condition: SL improvement fell on the wrong side of
+            // cur_sl or cur_price (e.g. price reversed before this bar closed,
+            // or rounding put new_sl == cur_sl). Surface it explicitly so the
+            // user can see the geometry.
+            PrintFormat("[TRAIL_EMA/RRM] #%I64u BLOCKED (valid-check): new_sl=%.5f cur_sl=%.5f "
+                        "cur_price=%.5f isBuy=%d. Required: %s.",
+                        ticket, new_sl, cur_sl, cur_price, (int)isBuy,
+                        isBuy ? "new_sl > cur_sl AND new_sl < cur_price"
+                              : "new_sl < cur_sl (or cur_sl==0) AND new_sl > cur_price");
          }
          return;
       }

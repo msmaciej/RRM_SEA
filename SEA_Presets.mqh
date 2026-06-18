@@ -853,10 +853,28 @@ void ValidateRRM_ORG_ExitConfig(ST_Settings &cfg)
    string warnings = "";
 
    // ── Conflict 1: TP_MODE_NONE with BE_MODE_TP_PROGRESS_PCT ─────────
+   // AUTO-CORRECTED 2026-06: previously this only printed a warning and the
+   // user was left with a broken config that silently never triggered BE
+   // (because cur_tp == 0.0 fails the inner guard in RRM_ManageStrictNoATR).
+   // In LPR mode there IS no TP target, so "% progress toward TP" cannot be
+   // evaluated. We auto-promote BE_Mode to BE_MODE_R_MULTIPLE (which uses the
+   // initial-SL distance R as the trigger metric — well-defined with or
+   // without TP). The default 0.7R threshold is preserved if already set; if
+   // it was 0, we seed it to 0.7 so BE is reachable.
    if(cfg.TPMode == TP_MODE_NONE && cfg.BE_Mode == BE_MODE_TP_PROGRESS_PCT)
    {
-      warnings += "[CONFLICT] BE_MODE_TP_PROGRESS_PCT requires TP target!\n";
-      warnings += "  Fix: Change BE_Mode to BE_MODE_R_MULTIPLE or enable TP.\n\n";
+      EBeMode old_mode  = cfg.BE_Mode;
+      double  old_rmult = cfg.RRM_BE_RMultiple;
+      cfg.BE_Mode = BE_MODE_R_MULTIPLE;
+      if(cfg.RRM_BE_RMultiple <= 0.0)
+         cfg.RRM_BE_RMultiple = 0.7;
+      warnings += "[AUTO-CORRECTED] BE_Mode " + EnumToString(old_mode)
+                + " is incompatible with TP_MODE_NONE (LPR).\n";
+      warnings += StringFormat("  Promoted to BE_MODE_R_MULTIPLE with %.2fR trigger "
+                               "(was %s with %.2fR).\n",
+                               cfg.RRM_BE_RMultiple, EnumToString(old_mode), old_rmult);
+      warnings += "  To override: set Inp_RRM_ORG_BE_Mode = BE_MODE_OFF (no breakeven) "
+                  "or pair LPR with a TP mode.\n\n";
    }
 
    // ── Conflict 2: TrailTrigger vs RRM_TrailStartsAfterBE ────────────
@@ -893,7 +911,7 @@ void ValidateRRM_ORG_ExitConfig(ST_Settings &cfg)
    if(warnings != "")
    {
       Print("╔══════════════════════════════════════════════════════════╗");
-      Print("║  ⚠️  PRESET_RRM_ORG EXIT CONFIGURATION WARNINGS         ║");
+      Print("║  ⚠️  PRESET_RRM_ORG EXIT CONFIG: WARNINGS / AUTO-FIXES  ║");
       Print("╚══════════════════════════════════════════════════════════╝");
       Print(warnings);
    }
