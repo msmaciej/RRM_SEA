@@ -181,9 +181,37 @@ private:
                      ? entry_price + (trail_profit_pips * pipSize)
                      : entry_price - (trail_profit_pips * pipSize);
 
-       double be_buffer = MathMax(0.0, m_settings.RRM_BE_BufferPips) * pipSize;
-       if(pos_type == POSITION_TYPE_BUY && new_sl < entry_price + be_buffer) new_sl = entry_price + be_buffer;
-       if(pos_type == POSITION_TYPE_SELL && new_sl > entry_price - be_buffer) new_sl = entry_price - be_buffer;
+       // ── BE-FLOOR (Q8 2026-06) ───────────────────────────────────────
+       // Previously this gate clamped new_sl to entry+RRM_BE_BufferPips when
+       // the LPR-computed SL was below the buffer. On Silver/Gold where the
+       // BE buffer scales with the instrument-fan multiplier (Silver≈75p × pipSize,
+       // Gold≈150p × pipSize on M1), this clamp effectively turned the LPR trail
+       // into a stale BE-lock through small peak retracements — the same bug
+       // shape Patch B fixed in TRAIL_EMA.
+       //
+       // The buffer's actual purpose is the one-time BE-LOCK event in the BE
+       // block of RRM_ManageStrictNoATR (lines 1463-1488). It should NOT also
+       // be a continuous floor inside the LPR trail computation. Replaced with
+       // a simple BE floor: if the LPR-computed SL would lock loss territory,
+       // skip the move (return 0.0 = "no update"). The TrailLockProfit gate
+       // below prevents backwards movement; the BE block elsewhere handles the
+       // one-time lock.
+       if(pos_type == POSITION_TYPE_BUY && new_sl < entry_price) {
+          if(m_settings.DebugFlow)
+             PrintFormat("[LPR] #%I64u BLOCKED (BE-floor): new_sl=%.5f < entry=%.5f "
+                         "(Peak=%.1fp, Trail=%.1f%%, retracement still below entry).",
+                         ticket, new_sl, entry_price,
+                         peak_profit_pips, m_settings.TrailProfitPercentLPR);
+          return 0.0;
+       }
+       if(pos_type == POSITION_TYPE_SELL && new_sl > entry_price) {
+          if(m_settings.DebugFlow)
+             PrintFormat("[LPR] #%I64u BLOCKED (BE-floor): new_sl=%.5f > entry=%.5f "
+                         "(Peak=%.1fp, Trail=%.1f%%, retracement still above entry).",
+                         ticket, new_sl, entry_price,
+                         peak_profit_pips, m_settings.TrailProfitPercentLPR);
+          return 0.0;
+       }
 
        if(m_settings.TrailLockProfit && current_sl != 0.0) {
           if(pos_type == POSITION_TYPE_BUY && new_sl <= current_sl) return 0.0;
