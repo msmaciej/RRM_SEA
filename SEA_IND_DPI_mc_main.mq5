@@ -429,27 +429,67 @@ int OnCalculate(const int rates_total,
    const double aFast = _alpha(InpFastEMA);
    const double aSlow = _alpha(InpSlowEMA);
 
-   int oldest = rates_total - 1;
-   g_Fast[oldest] = close[oldest];
-   g_Slow[oldest] = close[oldest];
-   g_BlueCore[oldest] = 0.0;
-   g_RedSignal[oldest] = 0.0;
-   g_RedContour[oldest] = EMPTY_VALUE;
-   g_HistRedPos[oldest] = EMPTY_VALUE;
-   g_HistRedNeg[oldest] = EMPTY_VALUE;
-   g_HistYellowPos[oldest] = EMPTY_VALUE;
-   g_HistYellowNeg[oldest] = EMPTY_VALUE;
-   g_HistGreen[oldest] = EMPTY_VALUE;
-   g_CCI[oldest] = 0.0;
-   
-   ema_a[oldest] = 0.0;
-   ema_b[oldest] = 0.0;
-   ema_c[oldest] = 0.0;
-   ema_d[oldest] = 0.0;
-   double_stage1[oldest] = 0.0;
-   double_final[oldest] = 0.0;
+   // ─── INCREMENTAL CALCULATION ─────────────────────────────────────────
+   // Previously this function did a full O(rates_total) recompute on EVERY
+   // tick. With 6 M1 charts open and tens of thousands of bars each, that's
+   // hundreds of thousands of iterations per tick × six concurrent charts.
+   // MT5 could not complete OnCalculate between ticks, so the plot buffers
+   // stayed in an incomplete state and the subwindow showed only the title
+   // (set in OnInit) with no histogram or lines.
+   //
+   // The recursive EMA pattern g_Fast[i] = α·close[i] + (1-α)·g_Fast[i+1]
+   // reads only one bar older, so it is safe to recompute incrementally:
+   //   - On first call (prev_calculated == 0): full recompute, seed the
+   //     oldest bar with its close as the EMA initial value.
+   //   - On subsequent calls: recompute only the bars that changed
+   //     (new_bars = rates_total - prev_calculated) plus the always-changing
+   //     current bar at index 0. In SERIES mode this is bars 0..start where
+   //     start = rates_total - prev_calculated.
+   //
+   // Array-growth semantics: ArrayResize adds capacity at the END of memory.
+   // For SERIES-mode arrays, after grow, the highest absolute memory index
+   // (uninitialised) is what arr[0] now points to — so arr[0] is "garbage"
+   // until the loop writes it. arr[1..N] correctly preserve previous values
+   // (the time-position each represents stays consistent: a bar that was
+   // arr[0] before grow is arr[1] after, holding the EMA value still valid
+   // as "1 back's" final state).
 
-   for(int i = rates_total - 2; i >= 0; --i)
+   int start;
+   if(prev_calculated <= 0 || prev_calculated > rates_total)
+   {
+      // FULL RECOMPUTE — first call, or MT5 signalled history rebuild.
+      int oldest = rates_total - 1;
+      g_Fast[oldest]          = close[oldest];
+      g_Slow[oldest]          = close[oldest];
+      g_BlueCore[oldest]      = 0.0;
+      g_RedSignal[oldest]     = 0.0;
+      g_RedContour[oldest]    = EMPTY_VALUE;
+      g_HistRedPos[oldest]    = EMPTY_VALUE;
+      g_HistRedNeg[oldest]    = EMPTY_VALUE;
+      g_HistYellowPos[oldest] = EMPTY_VALUE;
+      g_HistYellowNeg[oldest] = EMPTY_VALUE;
+      g_HistGreen[oldest]     = EMPTY_VALUE;
+      g_CCI[oldest]           = 0.0;
+
+      ema_a[oldest]         = 0.0;
+      ema_b[oldest]         = 0.0;
+      ema_c[oldest]         = 0.0;
+      ema_d[oldest]         = 0.0;
+      double_stage1[oldest] = 0.0;
+      double_final[oldest]  = 0.0;
+
+      start = rates_total - 2;
+   }
+   else
+   {
+      // INCREMENTAL — typically start=0 (intra-bar tick) or start=1 (new bar).
+      // Clamp to rates_total-2 to never overwrite the seeded oldest bar.
+      start = rates_total - prev_calculated;
+      if(start < 0)                start = 0;             // defensive
+      if(start > rates_total - 2)  start = rates_total - 2;
+   }
+
+   for(int i = start; i >= 0; --i)
    {
       g_Fast[i] = aFast * close[i] + (1.0 - aFast) * g_Fast[i + 1];
       g_Slow[i] = aSlow * close[i] + (1.0 - aSlow) * g_Slow[i + 1];

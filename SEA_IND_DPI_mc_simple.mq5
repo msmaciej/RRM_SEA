@@ -369,26 +369,43 @@ int OnCalculate(const int rates_total,
    const double aFast = _alpha(InpFastEMA);
    const double aSlow = _alpha(InpSlowEMA);
 
-   // Initialize oldest bar
-   int oldest = rates_total - 1;
-   g_Fast[oldest] = close[oldest];
-   g_Slow[oldest] = close[oldest];
-   g_BlueCore[oldest] = 0.0;
-   g_RedSignal[oldest] = 0.0;
-   g_RedContour[oldest] = EMPTY_VALUE;
-   g_HistPos[oldest] = EMPTY_VALUE;
-   g_HistNeg[oldest] = EMPTY_VALUE;
-   g_CCI[oldest] = 0.0;
-   
-   ema_a[oldest] = 0.0;
-   ema_b[oldest] = 0.0;
-   ema_c[oldest] = 0.0;
-   ema_d[oldest] = 0.0;
-   double_stage1[oldest] = 0.0;
-   double_final[oldest] = 0.0;
+   // ─── INCREMENTAL CALCULATION ─────────────────────────────────────────
+   // Twin of the fix applied in SEA_IND_DPI_mc_main.mq5. See that file's
+   // OnCalculate for the full rationale. Same recursive EMA pattern, same
+   // O(N)-per-tick problem, same incremental cure.
+   int start;
+   if(prev_calculated <= 0 || prev_calculated > rates_total)
+   {
+      // FULL RECOMPUTE — first call, or MT5 signalled history rebuild.
+      int oldest = rates_total - 1;
+      g_Fast[oldest]       = close[oldest];
+      g_Slow[oldest]       = close[oldest];
+      g_BlueCore[oldest]   = 0.0;
+      g_RedSignal[oldest]  = 0.0;
+      g_RedContour[oldest] = EMPTY_VALUE;
+      g_HistPos[oldest]    = EMPTY_VALUE;
+      g_HistNeg[oldest]    = EMPTY_VALUE;
+      g_CCI[oldest]        = 0.0;
+
+      ema_a[oldest]         = 0.0;
+      ema_b[oldest]         = 0.0;
+      ema_c[oldest]         = 0.0;
+      ema_d[oldest]         = 0.0;
+      double_stage1[oldest] = 0.0;
+      double_final[oldest]  = 0.0;
+
+      start = rates_total - 2;
+   }
+   else
+   {
+      // INCREMENTAL — typically start=0 (intra-bar tick) or start=1 (new bar).
+      start = rates_total - prev_calculated;
+      if(start < 0)                start = 0;
+      if(start > rates_total - 2)  start = rates_total - 2;
+   }
 
    // Main calculation loop
-   for(int i = rates_total - 2; i >= 0; --i)
+   for(int i = start; i >= 0; --i)
    {
       // Calculate Fast and Slow EMAs
       g_Fast[i] = aFast * close[i] + (1.0 - aFast) * g_Fast[i + 1];

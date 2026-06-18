@@ -247,36 +247,54 @@ int OnCalculate(const int rates_total,
    double alphaSlow    = 2.0 / (double)(MACD_Slow   + 1);
    double alphaMACDSig = 2.0 / (double)(MACD_Signal + 1);
 
-   // With series=true: index (rates_total-1) = oldest bar, index 0 = newest bar.
-   // Seed all arrays at the oldest bar (no prior close available for momentum).
-   int oldest = rates_total - 1;
-   g_Momentum[oldest]     = 0.0;
-   g_AbsMomentum[oldest]  = 0.0;
-   g_EMA1_Mom[oldest]     = 0.0;
-   g_EMA2_Mom[oldest]     = 0.0;
-   g_EMA1_Abs[oldest]     = 0.0;
-   g_EMA2_Abs[oldest]     = 0.0;
-   g_MainLine[oldest]     = 0.0;
-   g_SignalLine[oldest]   = 0.0;
-   g_HistBull[oldest]     = 0.0;
-   g_HistBear[oldest]     = 0.0;
-   g_HistNested[oldest]   = 0.0;
-   g_HistGreen[oldest]    = 0.0;
-   g_FastEMA1_Mom[oldest] = 0.0;
-   g_FastEMA2_Mom[oldest] = 0.0;
-   g_FastEMA1_Abs[oldest] = 0.0;
-   g_FastEMA2_Abs[oldest] = 0.0;
-   g_EMA_Fast[oldest]     = 0.0;
-   g_EMA_Slow[oldest]     = 0.0;
-   g_MACDLine[oldest]     = 0.0;
-   g_MACDSig[oldest]      = 0.0;
-   g_TSISignal[oldest]    = 0.0;
+   // ─── INCREMENTAL CALCULATION ─────────────────────────────────────────
+   // Twin of the fix applied in SEA_IND_DPI_mc_main.mq5. See that file's
+   // OnCalculate for the full rationale. Same recursive EMA pattern, same
+   // O(N)-per-tick problem, same incremental cure.
+   int start;
+   if(prev_calculated <= 0 || prev_calculated > rates_total)
+   {
+      // FULL RECOMPUTE — first call, or MT5 signalled history rebuild.
+      // With series=true: index (rates_total-1) = oldest bar, index 0 = newest bar.
+      // Seed all arrays at the oldest bar (no prior close available for momentum).
+      int oldest = rates_total - 1;
+      g_Momentum[oldest]     = 0.0;
+      g_AbsMomentum[oldest]  = 0.0;
+      g_EMA1_Mom[oldest]     = 0.0;
+      g_EMA2_Mom[oldest]     = 0.0;
+      g_EMA1_Abs[oldest]     = 0.0;
+      g_EMA2_Abs[oldest]     = 0.0;
+      g_MainLine[oldest]     = 0.0;
+      g_SignalLine[oldest]   = 0.0;
+      g_HistBull[oldest]     = 0.0;
+      g_HistBear[oldest]     = 0.0;
+      g_HistNested[oldest]   = 0.0;
+      g_HistGreen[oldest]    = 0.0;
+      g_FastEMA1_Mom[oldest] = 0.0;
+      g_FastEMA2_Mom[oldest] = 0.0;
+      g_FastEMA1_Abs[oldest] = 0.0;
+      g_FastEMA2_Abs[oldest] = 0.0;
+      g_EMA_Fast[oldest]     = 0.0;
+      g_EMA_Slow[oldest]     = 0.0;
+      g_MACDLine[oldest]     = 0.0;
+      g_MACDSig[oldest]      = 0.0;
+      g_TSISignal[oldest]    = 0.0;
 
-   // Full recalculation: loop from second-oldest bar (rates_total-2) down
-   // to bar 0 (newest).  This goes "oldest → newest" in time-series terms.
+      start = rates_total - 2;
+   }
+   else
+   {
+      // INCREMENTAL — typically start=0 (intra-bar tick) or start=1 (new bar).
+      start = rates_total - prev_calculated;
+      if(start < 0)                start = 0;
+      if(start > rates_total - 2)  start = rates_total - 2;
+   }
+
+   // Full / incremental loop: from `start` down to bar 0 (newest).
+   // This goes "oldest → newest" in time-series terms.
    // EMA formula:  EMA[i] = alpha * src[i]  +  (1-alpha) * EMA[i+1]
    // where i+1 is always the older bar (higher index with series=true).
-   for(int i = rates_total - 2; i >= 0; i--)
+   for(int i = start; i >= 0; i--)
    {
       // ------------------------------------------------------------------
       // Step 1: Momentum = close-to-close change
