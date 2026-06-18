@@ -921,6 +921,18 @@ void ValidateCUSTOM_ExitConfig(ST_Settings &cfg)
       warnings += "  Result: Trailing will WAIT for BE (safety override active).\n\n";
    }
 
+   // ── Notice (Q10 2026-06): TrailTrigger has no effect on RRM path ──
+   // When CUSTOM user picks ExitProfile=RRM, any non-IMMEDIATE TrailTrigger is dead.
+   if(cfg.ExitProfile == EXIT_PROFILE_RRM && cfg.TrailTrigger != TRIGGER_IMMEDIATE)
+   {
+      warnings += "[NOTICE] TrailTrigger=" + EnumToString(cfg.TrailTrigger)
+                + " has no effect under ExitProfile=RRM.\n";
+      warnings += "  The RRM path uses RRM_TrailStartsAfterBE and Safety_DelayTrailUntilR\n";
+      warnings += "  as trail-entry gates; TrailTrigger is a SIMPLE-path field.\n";
+      warnings += "  Set Inp_CUSTOM_TrailTrigger=TRIGGER_IMMEDIATE for clarity, or switch\n";
+      warnings += "  Inp_CUSTOM_ExitProfile to SIMPLE if you want TrailTrigger to function.\n\n";
+   }
+
    // ── Notice: LPR with fixed TP ──
    if(cfg.TrailMode == TRAIL_PROFIT_PERCENT && cfg.TPMode != TP_MODE_NONE)
    {
@@ -938,6 +950,40 @@ void ValidateCUSTOM_ExitConfig(ST_Settings &cfg)
       warnings += "[RISK WARNING] Trailing from entry with NO breakeven protection!\n";
       warnings += "  SL can move into loss zone before profit is secured.\n";
       warnings += "  Recommended: Enable BE or set Inp_CUSTOM_TrailStartsAfterBE=true.\n\n";
+   }
+
+   // ── M10 (Q10 2026-06): no proactive exit configured ──
+   // Universal — applies regardless of ExitProfile.
+   if(cfg.TPMode == TP_MODE_NONE && cfg.TrailMode == TRAIL_NONE)
+   {
+      warnings += "[NOTICE] TPMode=NONE + TrailMode=NONE: no proactive exit logic configured.\n";
+      warnings += "  Position will ride until SL hit, manual close, or emergency-margin event.\n";
+      warnings += "  If LPR was intended, set Inp_CUSTOM_TrailMode=TRAIL_PROFIT_PERCENT.\n\n";
+   }
+
+   // ── M4 (Q10 2026-06): TPMode and TrailMode both close on PSAR flip ──
+   // Both gates check the same event. Harmless but redundant. Only meaningful
+   // on SIMPLE path (TRAIL_PSAR_FLIP_EXIT silently no-ops on RRM path).
+   if(cfg.ExitProfile == EXIT_PROFILE_SIMPLE
+      && cfg.TPMode == TP_MODE_PSAR_FLIP
+      && cfg.TrailMode == TRAIL_PSAR_FLIP_EXIT)
+   {
+      warnings += "[NOTICE] TPMode=PSAR_FLIP + TrailMode=PSAR_FLIP_EXIT both close on PSAR flip.\n";
+      warnings += "  Redundant but harmless — same event closes position via either path.\n";
+      warnings += "  To remove redundancy: set Inp_CUSTOM_TPMode or Inp_CUSTOM_TrailMode to a\n";
+      warnings += "  different mode.\n\n";
+   }
+
+   // ── M5 (Q10 2026-06): PSAR drives both TP and trail ──
+   // Hybrid configuration: PSAR dots anchor the trail; PSAR flip closes the position.
+   // Working as intended for some strategies, but worth flagging.
+   if(cfg.ExitProfile == EXIT_PROFILE_SIMPLE
+      && cfg.TPMode == TP_MODE_PSAR_FLIP
+      && cfg.TrailMode == TRAIL_PSAR)
+   {
+      warnings += "[NOTICE] TPMode=PSAR_FLIP + TrailMode=TRAIL_PSAR: PSAR drives both TP and trail.\n";
+      warnings += "  Flip-exit fires first (closes position); trail engages on PSAR dots until\n";
+      warnings += "  a flip occurs. Working as intended for hybrid PSAR exit + trail.\n\n";
    }
 
    if(warnings != "")
@@ -1035,6 +1081,19 @@ void ValidateTI_ExitConfig(ST_Settings &cfg)
       warnings += "  Result: Trailing will WAIT for BE (safety override active).\n\n";
    }
 
+   // ── Notice (Q10 2026-06): TrailTrigger has no effect on RRM path ──
+   // TI locks ExitProfile=RRM, so any non-IMMEDIATE TrailTrigger is dead. Print a
+   // clear notice instead of leaving the user wondering why their TrailTrigger
+   // setting is being ignored.
+   if(cfg.TrailTrigger != TRIGGER_IMMEDIATE)
+   {
+      warnings += "[NOTICE] TrailTrigger=" + EnumToString(cfg.TrailTrigger)
+                + " has no effect under ExitProfile=RRM.\n";
+      warnings += "  TI locks ExitProfile=RRM; the RRM path uses RRM_TrailStartsAfterBE\n";
+      warnings += "  and Safety_DelayTrailUntilR as trail-entry gates. Set Inp_TI_TrailTrigger=\n";
+      warnings += "  TRIGGER_IMMEDIATE for clarity.\n\n";
+   }
+
    // ── Notice: LPR with fixed TP ──
    if(cfg.TrailMode == TRAIL_PROFIT_PERCENT && cfg.TPMode != TP_MODE_NONE)
    {
@@ -1051,6 +1110,14 @@ void ValidateTI_ExitConfig(ST_Settings &cfg)
       warnings += "[RISK WARNING] Trailing from entry with NO breakeven protection!\n";
       warnings += "  SL can move into loss zone before profit is secured.\n";
       warnings += "  Recommended: Enable BE or set Inp_TI_TrailStartsAfterBE=true.\n\n";
+   }
+
+   // ── M10 (Q10 2026-06): no proactive exit configured ──
+   if(cfg.TPMode == TP_MODE_NONE && cfg.TrailMode == TRAIL_NONE)
+   {
+      warnings += "[NOTICE] TPMode=NONE + TrailMode=NONE: no proactive exit logic configured.\n";
+      warnings += "  Position will ride until SL hit, manual close, or emergency-margin event.\n";
+      warnings += "  If LPR was intended, set Inp_TI_TrailMode=TRAIL_PROFIT_PERCENT.\n\n";
    }
 
    if(warnings != "")
@@ -1136,11 +1203,20 @@ void ValidateRRM_ORG_ExitConfig(ST_Settings &cfg)
       warnings += "  Result: Trailing will WAIT for BE (safety override active).\n\n";
    }
 
-   // ── Conflict 3: PSAR trail with BE disabled ───────────────────────
-   if(cfg.TrailMode == TRAIL_PSAR && cfg.BE_Mode == BE_MODE_OFF && cfg.TrailTrigger == TRIGGER_BREAKEVEN)
+   // ── Conflict 3 REWORDED (Q10 2026-06): TrailTrigger has no effect on RRM ──
+   // Previously this slot was a [DEADLOCK] warning for TRAIL_PSAR+BE_OFF+TRIGGER_BREAKEVEN,
+   // but TrailTrigger is silently ignored on the RRM path (RRM_ManageStrictNoATR does
+   // not call CheckTrailTrigger at all). The misleading "deadlock" message has been
+   // replaced with an accurate informational notice that fires whenever the user has
+   // configured TrailTrigger to anything other than IMMEDIATE under ExitProfile=RRM.
+   if(cfg.ExitProfile == EXIT_PROFILE_RRM && cfg.TrailTrigger != TRIGGER_IMMEDIATE)
    {
-      warnings += "[DEADLOCK] PSAR trail waits for BE, but BE is disabled!\n";
-      warnings += "  Fix: Enable BE or change TrailTrigger to TRIGGER_IMMEDIATE.\n\n";
+      warnings += "[NOTICE] TrailTrigger=" + EnumToString(cfg.TrailTrigger)
+                + " has no effect under ExitProfile=RRM.\n";
+      warnings += "  The RRM path uses RRM_TrailStartsAfterBE and Safety_DelayTrailUntilR\n";
+      warnings += "  as trail-entry gates; TrailTrigger is a SIMPLE-path field.\n";
+      warnings += "  Set Inp_RRM_ORG_TrailTrigger=TRIGGER_IMMEDIATE for clarity, or switch\n";
+      warnings += "  ExitProfile to SIMPLE if you want TrailTrigger to drive engagement.\n\n";
    }
 
    // ── Warning 1: Let Profit Run with fixed TP ───────────────────────
@@ -1157,6 +1233,17 @@ void ValidateRRM_ORG_ExitConfig(ST_Settings &cfg)
       warnings += "[RISK WARNING] Trailing from entry with NO breakeven protection!\n";
       warnings += "  SL can move into loss zone before profit is secured.\n";
       warnings += "  Recommended: Enable BE or set RRM_TrailStartsAfterBE=true.\n\n";
+   }
+
+   // ── M10 (Q10 2026-06): no proactive exit configured ──
+   // TPMode=NONE + TrailMode=NONE leaves the position with only SL/manual/emergency
+   // exits. Not necessarily a bug (it's a valid "ride to SL" strategy), but worth
+   // flagging in case the user intended LPR or another active management strategy.
+   if(cfg.TPMode == TP_MODE_NONE && cfg.TrailMode == TRAIL_NONE)
+   {
+      warnings += "[NOTICE] TPMode=NONE + TrailMode=NONE: no proactive exit logic configured.\n";
+      warnings += "  Position will ride until SL hit, manual close, or emergency-margin event.\n";
+      warnings += "  If LPR (let-profit-run) was intended, set Inp_RRM_ORG_TrailMode=TRAIL_PROFIT_PERCENT.\n\n";
    }
 
    // ── Print warnings if any ──────────────────────────────────────────
