@@ -489,6 +489,13 @@ struct ST_Settings
    // This filters for setups where the pullback was real (CCI confirmed it)
    // and the trend survived (CCI recovered), producing higher-reliability entries.
    bool   DPI_RequireResetRecovery;    // Master switch: require CCI reset→recovery before entry
+   bool   DPI_GrantFirstEntry;         // Cold-start grant: if true, the very first trade of the EA session is
+                                       // allowed without observing a reset→recovery cycle. After the first trade
+                                       // is executed, the gate enforces the cycle for every subsequent trade.
+                                       // This removes the cold-start lockout (where the gate would otherwise wait
+                                       // indefinitely for a colour flip + recovery before any entry) while keeping
+                                       // its actual purpose — between-trade discipline — fully intact. Has no
+                                       // effect when DPI_RequireResetRecovery=false.
    int    DPI_ResetRecoveryBars;       // Bars of recovery after CCI flip-back (0=immediate, 1+=confirmed)
    bool   DPI_ResetRequireGreen;       // Also require GREEN to reappear during recovery
    int    VRC_ATR_Period;

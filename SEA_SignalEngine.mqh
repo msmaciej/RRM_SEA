@@ -381,6 +381,14 @@ private:
                                          // ribbon colour happens to be. Without this guard, opening on a
                                          // yellow uptrend would lock the gate at colour_ref=red — never
                                          // reachable — and block every entry for the entire session.
+   bool     m_dpi_first_entry_consumed;  // Session-once flag for DPI_GrantFirstEntry. Starts false on EA load
+                                         // (member default in class constructor). Set true by
+                                         // ResetDPIResetState() — which is called immediately after a
+                                         // successful trade execution — so the first-entry grant fires at
+                                         // most once per session. Intentionally NOT cleared by Init() /
+                                         // ResetDirectionalState() / warmup resets, so internal resets
+                                         // (bias flip, etc.) cannot re-grant. Only a full EA reload clears
+                                         // it (which is correct — that's effectively a new session).
 
    // --- 2k. INDICATOR RESULT CACHE (eliminates duplicate checks per bar) ---
    struct SIndicatorCache {
@@ -1580,13 +1588,34 @@ private:
             // disagree with a yellow uptrend, fire IDLE→RESET_DETECTED, freeze
             // colour_ref at red, and lock the gate forever on a session that
             // never sees a real flip back to red.
+            //
+            // FIRST-ENTRY GRANT (DPI_GrantFirstEntry): when the session has not
+            // yet executed a trade AND the operator enabled this convenience,
+            // the cold start also pre-arms the gate at ENTRY_ALLOWED with
+            // colour_ref = current ribbon colour. The gate is therefore open
+            // immediately and stays open until the ribbon flips (which would
+            // trigger a normal RESET_DETECTED on the next bar). Without this
+            // grant the user is locked out of the very first opportunity by
+            // construction — the gate cannot certify a reset→recovery cycle
+            // that, by definition, has not happened yet. After the first
+            // trade, ResetDPIResetState() sets m_dpi_first_entry_consumed=true,
+            // so this branch never fires again for the rest of the session and
+            // the gate enforces its full discipline for every subsequent trade.
             if(!m_dpi_reset_initialized)
             {
                m_dpi_reset_colour_prev = colour_yellow;
+               bool grant = (m_settings.DPI_GrantFirstEntry && !m_dpi_first_entry_consumed);
+               if(grant)
+               {
+                  m_dpi_reset_colour_ref = colour_yellow;   // current colour IS the "trend" to return to
+                  m_dpi_reset_state      = 3;               // ENTRY_ALLOWED — first-trade grant
+               }
                m_dpi_reset_initialized = true;
                if(m_settings.DebugFlow)
-                  DebugLog(StringFormat("[DPI_RESET] init seeded prev=%s | state stays IDLE",
-                                        colour_yellow?"YELLOW":"RED"));
+                  DebugLog(StringFormat("[DPI_RESET] init seeded prev=%s | first_entry_grant=%s | state=%s",
+                                        colour_yellow?"YELLOW":"RED",
+                                        grant?"YES":"NO",
+                                        grant?"ENTRY_ALLOWED":"IDLE"));
             }
             else
             {
@@ -4338,6 +4367,10 @@ public:
       m_phase_reset_count     = 0;
       m_cb_oeb_blocked  = false;
       m_cb_prev_any_rec = false;
+      // Session-once flag for DPI cold-start first-entry grant. Set here in
+      // the constructor only — never cleared by Init() or ResetDirectionalState.
+      // A fresh EA load is the one and only event that resets it.
+      m_dpi_first_entry_consumed = false;
       // Directional state symmetry tracker — sentinel = uninitialized.
       // First call to UpdateLayerPullbackStates() will trigger a clean
       // ResetDirectionalState() regardless of bias direction.
@@ -4443,7 +4476,23 @@ public:
    int    GetDPIResetRecoveryBars()const { return m_dpi_reset_recovery_bars; }
 
    // Called after a trade is taken to reset the cycle back to IDLE
-   void   ResetDPIResetState()           { m_dpi_reset_state = 0; m_dpi_reset_recovery_bars = 0; m_dpi_reset_initialized = false; }
+   void   ResetDPIResetState()
+   {
+      // Called by SimpleEA right after a successful trade execution. Three jobs:
+      //   1. Reset the reset→recovery state machine to IDLE so the next entry
+      //      must observe a fresh colour-flip + recovery cycle (the gate's
+      //      between-trades discipline).
+      //   2. Clear the cold-start "initialized" flag so the next bar re-seeds
+      //      colour_prev from the live ribbon (prevents stale seed bias).
+      //   3. Mark the cold-start first-entry grant as consumed — so the
+      //      cold-start guard's pre-arming branch is permanently dormant for
+      //      the rest of the session. Subsequent cold-starts (after bias-flip
+      //      resets, etc.) re-seed colour_prev but DO NOT pre-arm state=3.
+      m_dpi_reset_state          = 0;
+      m_dpi_reset_recovery_bars  = 0;
+      m_dpi_reset_initialized    = false;
+      m_dpi_first_entry_consumed = true;
+   }
 
    //+------------------------------------------------------------------+
    //| Layer Pullback-Recovery Diagnostic Getters                       |

@@ -601,6 +601,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: DPI System C — CCI Reset-Recovery Gate";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_DPI_RequireResetRecovery   = false;    // RRM ORG DPI: Require CCI reset→recovery cycle before entry  [SYNC 2026-06-04: true→false to match SignalScan, which never seeds this gate (zero-init=false). JUDGMENT CALL — see note.]
+input bool        Inp_RRM_ORG_DPI_GrantFirstEntry        = true;     // RRM ORG DPI: Grant the FIRST trade of the session without waiting for a reset→recovery cycle (removes cold-start lockout; has no effect if RequireResetRecovery=false)
 input int         Inp_RRM_ORG_DPI_ResetRecoveryBars      = 0;        // RRM ORG DPI: Recovery bars after CCI flip-back (0=immediate)
 input bool        Inp_RRM_ORG_DPI_ResetRequireGreen      = false;    // RRM ORG DPI: Also require GREEN reappearance during recovery
 //
@@ -1563,6 +1564,7 @@ void InitializeConfig()
     Settings.DPI_ExitThreshold           = MathMax(0.0, Inp_RRM_ORG_DPI_ExitThreshold);
     // DPI CCI Reset-Recovery
     Settings.DPI_RequireResetRecovery    = Inp_RRM_ORG_DPI_RequireResetRecovery;
+    Settings.DPI_GrantFirstEntry         = Inp_RRM_ORG_DPI_GrantFirstEntry;
     Settings.DPI_ResetRecoveryBars       = MathMax(0, Inp_RRM_ORG_DPI_ResetRecoveryBars);
     Settings.DPI_ResetRequireGreen       = Inp_RRM_ORG_DPI_ResetRequireGreen;
     // Choppiness Index
