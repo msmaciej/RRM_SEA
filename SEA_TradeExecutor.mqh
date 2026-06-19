@@ -3091,6 +3091,33 @@ public:
          if(m_settings.TrailMode == TRAIL_PSAR_FLIP_EXIT) return;
       }
 
+      // ── SAFETY: delay trail until open profit reaches R-multiple (Q6 2026-06) ──
+      // The Inp_Safety_DelayTrailUntilR input has a "Safety_" prefix that promises a
+      // global gate. Previously this gate was honored only on the RRM path
+      // (RRM_ManageStrictNoATR line 1529); on SIMPLE path the input was silently
+      // dead. This block mirrors the RRM-path implementation so the "Safety_" prefix
+      // is honest regardless of ExitProfile. The "let winners run" semantic is
+      // path-agnostic — any trail mode benefits from waiting until the position has
+      // earned a minimum R-multiple of open profit before trailing engages.
+      //
+      // OFF by default (Inp_Safety_DelayTrailUntilR=false). No behavior change for
+      // any user who didn't explicitly enable this safety override.
+      if(m_settings.Safety_DelayTrailUntilR && m_settings.Safety_TrailActivateR > 0.0) {
+         double R = (m_initial_sl_price > 0.0) ? MathAbs(entry_price - m_initial_sl_price) : 0.0;
+         if(R > 0.0) {
+            double open_profit_dist = (direction > 0) ? (current_price - entry_price)
+                                                      : (entry_price - current_price);
+            double threshold = m_settings.Safety_TrailActivateR * R;
+            if(open_profit_dist < threshold) {
+               if(m_settings.DebugFlow)
+                  PrintFormat("[SAFETY/SIMPLE] Trail delayed: open %.1f pips < %.2fR (%.1f pips) — letting winner run",
+                              open_profit_dist / pipSize, m_settings.Safety_TrailActivateR,
+                              threshold / pipSize);
+               return;
+            }
+         }
+      }
+
       bool should_trail = CheckTrailTrigger(direction, profit_pips, entry_price, current_price);
       if(!should_trail) return;
 
