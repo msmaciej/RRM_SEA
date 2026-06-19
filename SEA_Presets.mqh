@@ -996,15 +996,35 @@ void ValidateCUSTOM_ExitConfig(ST_Settings &cfg)
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// PRESET_FPM — exit config validator (architectural stub)
-// FPM locks ExitProfile=SIMPLE and hardcodes BE_Mode=R_MULTIPLE,
-// TrailTrigger=BREAKEVEN. No reachable RRM-path conflicts. SIMPLE-path
-// behavior is deterministic given FPM's locked combination. Placeholder
-// for future FPM-specific checks.
+// PRESET_FPM — exit config validator
+// FPM locks ExitProfile=SIMPLE and hardcodes BE_Mode=OFF (Q4 2026-06 cleanup;
+// previously was a dead BE_MODE_R_MULTIPLE). BE-equivalent behavior on the
+// SIMPLE path is provided by TrailTrigger=BREAKEVEN with BEThresholdPips=0,
+// which engages TRAIL_FIXED_PIPS immediately on any positive profit. Only
+// reachable conflict is the M10 catch-all (no proactive exit) when the user
+// sets TPMode=NONE and disables trailing.
 // ───────────────────────────────────────────────────────────────────────
 void ValidateFPM_ExitConfig(ST_Settings &cfg)
 {
-   // No checks currently apply to FPM. See header above for rationale.
+   string warnings = "";
+
+   // ── M10 (Q10 2026-06): no proactive exit configured ──
+   // Reachable when user sets Inp_FPM_TPMode=TP_MODE_NONE AND Inp_FPM_UseTrailing=false.
+   if(cfg.TPMode == TP_MODE_NONE && cfg.TrailMode == TRAIL_NONE)
+   {
+      warnings += "[NOTICE] TPMode=NONE + TrailMode=NONE: no proactive exit logic configured.\n";
+      warnings += "  Position will ride until SL hit, manual close, or emergency-margin event.\n";
+      warnings += "  To enable trailing: set Inp_FPM_UseTrailing=true.\n";
+      warnings += "  To enable TP: set Inp_FPM_TPMode to TP_MODE_RR or TP_MODE_FIXED_PIPS.\n\n";
+   }
+
+   if(warnings != "")
+   {
+      Print("╔══════════════════════════════════════════════════════════╗");
+      Print("║  ⚠️  PRESET_FPM EXIT CONFIG: WARNINGS / AUTO-FIXES      ║");
+      Print("╚══════════════════════════════════════════════════════════╝");
+      Print(warnings);
+   }
 }
 
 // ───────────────────────────────────────────────────────────────────────
@@ -1727,12 +1747,25 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRRatio                   = (Inp_FPM_TPMode == TP_MODE_RR)         ? Inp_FPM_RRRatio      : 2.0;
       cfg.SLPercent                 = 0.0;
 
-      // BE: Move to breakeven after 10 pips profit
-      cfg.BE_Mode                   = BE_MODE_R_MULTIPLE;
-      cfg.RRM_BE_RMultiple          = 1.0;                         // BE at 1R profit (triggers when profit ≥ 1× initial SL distance)
-      cfg.RRM_BE_BufferPips         = GetTFBasedCushion(_Period);  // TF-adaptive buffer (e.g., M5=3p, M15=5p, H1=8p)
-      cfg.BEThresholdPips           = 0.0;                         // Not used in R_MULTIPLE mode
-      cfg.TrailTrigger              = TRIGGER_BREAKEVEN;
+      // BE handling on SIMPLE path (Q4 2026-06 cleanup):
+      // FPM is locked to ExitProfile=SIMPLE. The SIMPLE path (EvaluateTM) has no
+      // standalone BE block — BE_Mode, RRM_BE_RMultiple, and RRM_BE_BufferPips
+      // are RRM-path fields and have NO effect under ExitProfile=SIMPLE. They
+      // are explicitly zeroed here to prevent any preset-state bleed from
+      // leaking through to FPM.
+      //
+      // What FPM actually does for the BE-equivalent step:
+      //   - TrailTrigger=TRIGGER_BREAKEVEN gates trail engagement on
+      //     profit_pips >= BEThresholdPips
+      //   - BEThresholdPips=0 → trail engages immediately upon any positive profit
+      //   - TRAIL_FIXED_PIPS then trails at TrailDistancePips behind current price
+      // The trail itself (lock-profit + step) provides functional BE protection
+      // once price has moved past entry+TrailDistancePips.
+      cfg.BE_Mode                   = BE_MODE_OFF;                 // RRM-path field; dead on SIMPLE
+      cfg.RRM_BE_RMultiple          = 0.0;                         // RRM-path field; dead on SIMPLE
+      cfg.RRM_BE_BufferPips         = 0.0;                         // RRM-path field; dead on SIMPLE (FPM uses TRAIL_FIXED_PIPS, not PSAR)
+      cfg.BEThresholdPips           = 0.0;                         // SIMPLE-path: TRIGGER_BREAKEVEN gate threshold (0 = engage on any positive profit)
+      cfg.TrailTrigger              = TRIGGER_BREAKEVEN;           // SIMPLE-path: gates trail engagement
 
       // Trail: Optional 15-pip trailing stop (cheat sheet: "15 points or minimum broker-allowed distance")
       // If 15 pips is below the broker's minimum trail distance, the platform will
