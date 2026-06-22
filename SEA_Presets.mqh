@@ -1488,6 +1488,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.DPI_UseGreenHist           = Inp_CUSTOM_DPI_UseGreenHist;
       cfg.DPI_Histogram_Growth_Boost = Inp_CUSTOM_DPI_Histogram_Growth_Boost;
 
+      // ── VRC: volatility regime classifier ──
+      // PRESET ISOLATION 2026-06 (Carry-over 2): previously CUSTOM block did NOT
+      // assign cfg.VRC_* — fields inherited from struct default or prior preset
+      // leftover state. Now explicitly wired from Inp_CUSTOM_VRC_* inputs.
+      cfg.VRC_ATR_Period            = Inp_CUSTOM_VRC_ATR_Period;
+      cfg.VRC_Lookback              = Inp_CUSTOM_VRC_Lookback;
+      cfg.VRC_LowThreshold          = Inp_CUSTOM_VRC_LowThreshold;
+      cfg.VRC_RefreshSec            = Inp_CUSTOM_VRC_RefreshSec;
+
       // ── VPRR auto-config (volume-based pullback-recovery voter) ──
       // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_VPRR_* (4 leaks)
       if(Inp_CUSTOM_VPRR_AutoEnable)
@@ -1698,10 +1707,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_RequireDirection = true;
       cfg.CI_Period                 = 14;
       cfg.CI_RangingThreshold       = 61.8;
-      cfg.VRC_ATR_Period            = 14;    // VRC default
-      cfg.VRC_Lookback              = 100;   // VRC default
-      cfg.VRC_LowThreshold          = 33.0;  // VRC default
-      cfg.VRC_RefreshSec            = 14400; // VRC default (4h refresh)
+      cfg.VRC_ATR_Period            = 14;    // VRC LOCKED (FPM design choice — VRC tuning not exposed for this preset)
+      cfg.VRC_Lookback              = 100;   // VRC LOCKED
+      cfg.VRC_LowThreshold          = 33.0;  // VRC LOCKED
+      cfg.VRC_RefreshSec            = 14400; // VRC LOCKED (4h refresh)
       cfg.P_Cci                     = 14;
       cfg.CciMode                   = CCI_TREND_ZERO;
       // P_Mfi / T_MfiOB / T_MfiOS / MfiMode — set above from Inp_FPM_Ind_Mfi_Enabled / Inp_FPM_Mfi_Period
@@ -1895,7 +1904,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CI_Period              = 14;
       cfg.CI_RangingThreshold    = 61.8;
       
-      // VRC (Volatility Regime Classifier)
+      // VRC (Volatility Regime Classifier) — LOCKED for MA preset (design choice; tuning not exposed)
       cfg.VRC_ATR_Period         = 14;
       cfg.VRC_Lookback           = 100;
       cfg.VRC_LowThreshold       = 33.0;
@@ -2291,6 +2300,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_TrailPsarDotShift   = Inp_RRM_TrailPsarDotShift;
       cfg.RRM_FreezeTrailOnFlip     = Inp_RRM_FreezeTrailOnFlip;
       cfg.RRM_TrailStartsAfterBE    = Inp_RRM_TrailStartsAfterBE;
+
+      // ── VRC: volatility regime classifier ──
+      // PRESET ISOLATION 2026-06 (Carry-over 2): previously RRM block did NOT
+      // assign cfg.VRC_* — the Inp_RRM_VRC_* inputs were declared in SEA_Inputs.mqh
+      // but no preset block read them (orphaned cockpit controls). Now properly
+      // wired so user changes to Inp_RRM_VRC_* take effect under PRESET_RRM.
+      cfg.VRC_ATR_Period            = Inp_RRM_VRC_ATR_Period;
+      cfg.VRC_Lookback              = Inp_RRM_VRC_Lookback;
+      cfg.VRC_LowThreshold          = Inp_RRM_VRC_LowThreshold;
+      cfg.VRC_RefreshSec            = Inp_RRM_VRC_RefreshSec;
 
       // ── ADVANCED TRAILING TRIGGER ─────────────────────────────────────
       ENUM_TIMEFRAMES tf            = (ENUM_TIMEFRAMES)_Period;
@@ -3121,6 +3140,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Atr                  = 14;
       cfg.ATR_VoteMinPips        = 5.0;
       cfg.ATR_VoteMaxPips        = 50.0;
+      // VRC — LOCKED for TI preset (design choice; tuning not exposed)
       cfg.VRC_ATR_Period         = 14;
       cfg.VRC_Lookback           = 100;
       cfg.VRC_LowThreshold       = 33.0;
@@ -3431,7 +3451,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CI_Period                 = 14;
       cfg.CI_RangingThreshold       = 61.8;
       
-      // VRC (Volatility Regime Classifier)
+      // VRC (Volatility Regime Classifier) — LOCKED for TEST preset (defaults for indicator-isolation testing; tuning not exposed)
       cfg.VRC_ATR_Period            = 14;
       cfg.VRC_Lookback              = 100;
       cfg.VRC_LowThreshold          = 33.0;

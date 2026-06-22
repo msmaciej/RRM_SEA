@@ -1166,6 +1166,14 @@ input double      Inp_CUSTOM_EmaFan_DailyPips      = 180.0;          // Custom: 
 input bool        Inp_CUSTOM_VPRR_AutoEnable       = false;          // Custom: [VPRR] Auto-enable based on instrument
 input EVPRRVolumeType Inp_CUSTOM_VPRR_VolumeType   = VPRR_VOL_AUTO;  // Custom: [VPRR] Volume type (AUTO/EXTERNAL/REAL/TICK)
 input int         Inp_CUSTOM_VPRR_RecoveryBars     = 5;              // Custom: [VPRR] Default recovery bars (1-10)
+// PRESET ISOLATION 2026-06 (Carry-over 2 / VRC): dedicated CUSTOM VRC inputs.
+// Previously the CUSTOM block did not assign cfg.VRC_* at all — fields silently
+// inherited from struct default or prior preset's leftover state. Defaults
+// match the hardcoded values used by FPM/MA/TI/TEST for consistency.
+input int         Inp_CUSTOM_VRC_ATR_Period        = 14;             // Custom: [VRC] ATR period for regime classification
+input int         Inp_CUSTOM_VRC_Lookback          = 100;            // Custom: [VRC] lookback bars
+input double      Inp_CUSTOM_VRC_LowThreshold      = 33.0;           // Custom: [VRC] low-volatility percentile threshold
+input int         Inp_CUSTOM_VRC_RefreshSec        = 14400;          // Custom: [VRC] percentile refresh interval (sec). M1: try 900; H1+: 14400 (4h)
 input bool        Inp_CUSTOM_DPI_Enabled           = true;           // Custom: [DPI] Enable DPI vote
 input int         Inp_CUSTOM_DPI_MacdFast          = 8;              // Custom: [DPI] MACD fast EMA period
 input int         Inp_CUSTOM_DPI_MacdSlow          = 13;             // Custom: [DPI] MACD slow EMA period
