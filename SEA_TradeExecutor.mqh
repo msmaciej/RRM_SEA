@@ -228,6 +228,169 @@ private:
        return NormalizeDouble(new_sl, digits);
     }
 
+   //+------------------------------------------------------------------+
+   //| ApplyTrailEMA — TRAIL_EMA logic, callable from any exit profile  |
+   //+------------------------------------------------------------------+
+   // Q3 (2026-06): extracted from RRM_ManageStrictNoATR so the same TRAIL_EMA
+   // evaluation runs whether ExitProfile is RRM or SIMPLE. Before Q3, the
+   // EXIT_PROFILE_SIMPLE path (EvaluateTM's fallthrough branch) had no TRAIL_EMA
+   // case at all — users who set TrailMode=TRAIL_EMA on a non-RRM preset got
+   // silent no-op. SimpleEA philosophy: the TRAIL_EMA equation evaluates to the
+   // same result regardless of which exit-profile equation called it.
+   //
+   // Caller responsibilities (NOT handled here):
+   //   - Trail-mode dispatch (caller has already decided TrailMode == TRAIL_EMA)
+   //   - Path-specific upstream gates: BE-reached (RRM only via m_rrm_be_reached),
+   //     Safety_DelayTrailUntilR (Q6 — applied on both paths by their callers),
+   //     CheckTrailTrigger (EXIT_PROFILE_SIMPLE only)
+   //
+   // Helper responsibilities (handled here):
+   //   - Per-bar gate (m_trail_ema_last_bar — single source of truth)
+   //   - EMA period resolution (from TrailEMA_Period or ribbon-role fallback)
+   //   - EMA value read at TrailEMA_Shift (clamped 1..5)
+   //   - Cushion resolution: ATR-mode > fixed-pips > PSAR-fallback
+   //   - SL proposal: EMA ± cushion
+   //   - BE-floor gate (Patch B): never lock SL into loss territory
+   //   - Lock-profit gate: never move SL backwards (TrailLockProfit)
+   //   - TP-past-close: if proposed SL would cross TP, close at market instead
+   //   - Valid-check: SL geometry vs cur_sl and cur_price
+   //   - PositionModify (direct — does NOT fall through to the caller's tail)
+   //
+   // path_tag (e.g. "RRM" or "SIMPLE") appears only in diagnostic strings so
+   // the journal shows which exit-profile path invoked the helper.
+   void ApplyTrailEMA(ulong ticket, bool isBuy, double entry, double cur_price,
+                      double cur_sl, double cur_tp, int digits, double pipSize,
+                      const string path_tag)
+   {
+      datetime bar1_time = iTime(m_symbol, PERIOD_CURRENT, 1);
+      if(bar1_time == m_trail_ema_last_bar) return;
+      m_trail_ema_last_bar = bar1_time;
+
+      // Period: preset resolver should have set this; fallback chain just in case
+      int ema_period = m_settings.TrailEMA_Period;
+      if(ema_period <= 0) {
+         // Resolve from ribbon role at runtime (preset may not have had periods yet)
+         switch(m_settings.TrailEMA_RibbonRole) {
+            case 1:  ema_period = m_settings.P_Ema2; break;  // ROLE_EMA2 = 13
+            case 2:  ema_period = m_settings.P_Ema3; break;  // ROLE_EMA3 = 34
+            case 3:  ema_period = m_settings.P_Ema4; break;  // ROLE_EMA4 = 89
+            default: ema_period = m_settings.P_Ema1; break;  // ROLE_EMA1 = 5
+         }
+      }
+      if(ema_period <= 0) ema_period = 13; // absolute fallback: EMA13
+
+      int h_ema = iMA(m_symbol, PERIOD_CURRENT, ema_period, 0, MODE_EMA, PRICE_CLOSE);
+      if(h_ema == INVALID_HANDLE) return;
+
+      // shift: how many bars back to read EMA. 1=last closed bar (default, tight).
+      // Higher values (2-5) give progressively more room — EMA was lower N bars ago.
+      int ema_shift = m_settings.TrailEMA_Shift;
+      if(ema_shift < 1) ema_shift = 1;
+      if(ema_shift > 5) ema_shift = 5;
+
+      double ema_val[];
+      ArraySetAsSeries(ema_val, true);
+      if(CopyBuffer(h_ema, 0, ema_shift, 1, ema_val) != 1) { IndicatorRelease(h_ema); return; }
+      IndicatorRelease(h_ema);
+
+      // EMA cushion priority: ATR-based > fixed pips > PSAR fallback.
+      // ATR mode auto-scales with instrument volatility — recommended for Gold/Silver.
+      // Example H1 Gold: ATR≈17, mult=0.10 → cushion ≈ 1.7 pts ($1.70) — tight but noise-proof.
+      double ema_cushion_pips = 0.0;
+      if(m_settings.TrailEMA_CushionAtrMult > 0.0) {
+         // ATR mode: cushion = ATR(period) × multiplier, converted to pips.
+         // Uses cached m_h_trail_ema_atr handle (initialized in Init/UpdateSettings).
+         if(m_h_trail_ema_atr != INVALID_HANDLE) {
+            double atr_val[];
+            ArraySetAsSeries(atr_val, true);
+            if(CopyBuffer(m_h_trail_ema_atr, 0, 1, 1, atr_val) == 1 && atr_val[0] > 0.0)
+               ema_cushion_pips = (atr_val[0] / pipSize) * m_settings.TrailEMA_CushionAtrMult;
+         }
+      }
+      if(ema_cushion_pips <= 0.0 && m_settings.TrailEMA_CushionPips > 0.0)
+         ema_cushion_pips = m_settings.TrailEMA_CushionPips;  // fixed pip fallback
+      if(ema_cushion_pips <= 0.0)
+         ema_cushion_pips = m_settings.PSAR_TrailPipsCushion; // last resort
+      double cushion = ema_cushion_pips * pipSize;
+      double new_sl  = isBuy
+         ? NormalizeDouble(ema_val[0] - cushion, digits)
+         : NormalizeDouble(ema_val[0] + cushion, digits);
+
+      // ── BE-FLOOR (Patch B 2026-06) ──────────────────────────────
+      // Refuse to lock SL into loss territory. The BE buffer is only for the
+      // one-time BE-LOCK event in the BE block (RRM path); it must NOT also
+      // be a continuous threshold against trail engagement (would make trail
+      // dormant on Silver/Gold at multi-R of profit).
+      if(isBuy  && new_sl < entry) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[TRAIL_EMA/%s] #%I64u BLOCKED (BE-floor): new_sl=%.5f < entry=%.5f "
+                        "(EMA still below entry — no profit to lock).",
+                        path_tag, ticket, new_sl, entry);
+         return;
+      }
+      if(!isBuy && new_sl > entry) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[TRAIL_EMA/%s] #%I64u BLOCKED (BE-floor): new_sl=%.5f > entry=%.5f "
+                        "(EMA still above entry — no profit to lock).",
+                        path_tag, ticket, new_sl, entry);
+         return;
+      }
+
+      if(m_settings.TrailLockProfit && cur_sl != 0.0) {
+         if(isBuy  && new_sl <= cur_sl) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[TRAIL_EMA/%s] #%I64u BLOCKED (lock-profit): new_sl=%.5f <= cur_sl=%.5f "
+                           "(would move SL backwards). EMA=%.5f cushion=%.1fp.",
+                           path_tag, ticket, new_sl, cur_sl, ema_val[0], ema_cushion_pips);
+            return;
+         }
+         if(!isBuy && new_sl >= cur_sl) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[TRAIL_EMA/%s] #%I64u BLOCKED (lock-profit): new_sl=%.5f >= cur_sl=%.5f "
+                           "(would move SL backwards). EMA=%.5f cushion=%.1fp.",
+                           path_tag, ticket, new_sl, cur_sl, ema_val[0], ema_cushion_pips);
+            return;
+         }
+      }
+
+      // TP guard: SL must not cross or touch TP — MT5 rejects with "invalid stops".
+      // When EMA trail pushes SL past the TP level the trade has already run its
+      // full target; close it immediately rather than silently doing nothing.
+      if(cur_tp > 0.0) {
+         bool sl_past_tp = isBuy ? (new_sl >= cur_tp) : (new_sl <= cur_tp);
+         if(sl_past_tp) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[TRAIL_EMA/%s] #%I64u: SL %.5f past TP %.5f — closing at market",
+                           path_tag, ticket, new_sl, cur_tp);
+            if(IsModifyAllowed()) m_trade.PositionClose(ticket);
+            return;
+         }
+      }
+
+      bool valid = isBuy
+         ? (new_sl > cur_sl && new_sl < cur_price)
+         : ((cur_sl == 0.0 || new_sl < cur_sl) && new_sl > cur_price);
+
+      if(valid && IsModifyAllowed()) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[TRAIL_EMA/%s] #%I64u: SL %.5f -> %.5f | EMA(%d,sh=%d)=%.5f cushion=%.1fp",
+                        path_tag, ticket, cur_sl, new_sl, ema_period, ema_shift, ema_val[0],
+                        ema_cushion_pips);
+         m_trade.PositionModify(ticket, new_sl, cur_tp);
+      }
+      else if(!valid && m_settings.DebugFlow) {
+         // Final block-condition: SL improvement fell on the wrong side of
+         // cur_sl or cur_price (e.g. price reversed before this bar closed,
+         // or rounding put new_sl == cur_sl). Surface it explicitly so the
+         // user can see the geometry.
+         PrintFormat("[TRAIL_EMA/%s] #%I64u BLOCKED (valid-check): new_sl=%.5f cur_sl=%.5f "
+                     "cur_price=%.5f isBuy=%d. Required: %s.",
+                     path_tag, ticket, new_sl, cur_sl, cur_price, (int)isBuy,
+                     isBuy ? "new_sl > cur_sl AND new_sl < cur_price"
+                           : "new_sl < cur_sl (or cur_sl==0) AND new_sl > cur_price");
+      }
+   }
+
    void ReleaseHandles() {
       if(m_h_psar != INVALID_HANDLE) { IndicatorRelease(m_h_psar); m_h_psar = INVALID_HANDLE; }
       if(m_h_fractals != INVALID_HANDLE) { IndicatorRelease(m_h_fractals); m_h_fractals = INVALID_HANDLE; }
@@ -1543,157 +1706,17 @@ private:
          return;
       }
 
-      // TRAIL_EMA dispatch inside RRM_ManageStrictNoATR.
-      // Previously skipped by the early-return guard above. Now the guard allows
-      // TRAIL_EMA through, and we handle it here with BE-guard + lock-profit intact.
-      // PSAR_TrailPipsCushion is reused as EMA cushion (already instrument-scaled).
+      // Q3 (2026-06): TRAIL_EMA body extracted into ApplyTrailEMA helper so the
+      // same evaluation runs whether ExitProfile is RRM or EXIT_PROFILE_SIMPLE.
+      // Pre-Q3 this block held the full ~150-line TRAIL_EMA implementation; it now
+      // delegates to the helper. All upstream RRM-path gates above this point
+      // (TrailMode allow-list, RRM_TrailStartsAfterBE, Safety_DelayTrailUntilR)
+      // remain unchanged — they fire before the helper runs.
       if(m_settings.TrailMode == TRAIL_EMA) {
-         datetime bar1_time = iTime(m_symbol, PERIOD_CURRENT, 1);
-         if(bar1_time == m_trail_ema_last_bar) return;
-         m_trail_ema_last_bar = bar1_time;
-
-         // Period: preset resolver should have set this; fallback chain just in case
-         int ema_period = m_settings.TrailEMA_Period;
-         if(ema_period <= 0) {
-            // Resolve from ribbon role at runtime (preset may not have had periods yet)
-            switch(m_settings.TrailEMA_RibbonRole) {
-               case 1:  ema_period = m_settings.P_Ema2; break;  // ROLE_EMA2 = 13
-               case 2:  ema_period = m_settings.P_Ema3; break;  // ROLE_EMA3 = 34
-               case 3:  ema_period = m_settings.P_Ema4; break;  // ROLE_EMA4 = 89
-               default: ema_period = m_settings.P_Ema1; break;  // ROLE_EMA1 = 5
-            }
-         }
-         if(ema_period <= 0) ema_period = 13; // absolute fallback: EMA13
-
-         int h_ema = iMA(m_symbol, PERIOD_CURRENT, ema_period, 0, MODE_EMA, PRICE_CLOSE);
-         if(h_ema == INVALID_HANDLE) return;
-
-         // shift: how many bars back to read EMA. 1=last closed bar (default, tight).
-         // Higher values (2-5) give progressively more room — EMA was lower N bars ago.
-         int ema_shift = m_settings.TrailEMA_Shift;
-         if(ema_shift < 1) ema_shift = 1;
-         if(ema_shift > 5) ema_shift = 5;
-
-         double ema_val[];
-         ArraySetAsSeries(ema_val, true);
-         if(CopyBuffer(h_ema, 0, ema_shift, 1, ema_val) != 1) { IndicatorRelease(h_ema); return; }
-         IndicatorRelease(h_ema);
-
-         // EMA cushion priority: ATR-based > fixed pips > PSAR fallback.
-         // ATR mode auto-scales with instrument volatility — recommended for Gold/Silver.
-         // Example H1 Gold: ATR≈17, mult=0.10 → cushion ≈ 1.7 pts ($1.70) — tight but noise-proof.
-         double ema_cushion_pips = 0.0;
-         if(m_settings.TrailEMA_CushionAtrMult > 0.0) {
-            // ATR mode: cushion = ATR(period) × multiplier, converted to pips.
-            // Uses cached m_h_trail_ema_atr handle (initialized in Init/UpdateSettings).
-            if(m_h_trail_ema_atr != INVALID_HANDLE) {
-               double atr_val[];
-               ArraySetAsSeries(atr_val, true);
-               if(CopyBuffer(m_h_trail_ema_atr, 0, 1, 1, atr_val) == 1 && atr_val[0] > 0.0)
-                  ema_cushion_pips = (atr_val[0] / pipSize) * m_settings.TrailEMA_CushionAtrMult;
-            }
-         }
-         if(ema_cushion_pips <= 0.0 && m_settings.TrailEMA_CushionPips > 0.0)
-            ema_cushion_pips = m_settings.TrailEMA_CushionPips;  // fixed pip fallback
-         if(ema_cushion_pips <= 0.0)
-            ema_cushion_pips = m_settings.PSAR_TrailPipsCushion; // last resort
-         double cushion = ema_cushion_pips * pipSize;
-         double new_sl  = isBuy
-            ? NormalizeDouble(ema_val[0] - cushion, digits)
-            : NormalizeDouble(ema_val[0] + cushion, digits);
-
-         // ── DIAGNOSTIC LOGGING for every block-condition ─────────────
-         // Previously the gates below were silent: when TRAIL_EMA refused
-         // to move SL, the journal had nothing. The user could only observe
-         // "SL didn't move" with no path to diagnosis. Each gate now prints
-         // a concise reason when it blocks (gated by DebugFlow to keep the
-         // journal quiet in normal operation; flip Inp_DebugFlow=true to see).
-         // ── BE-FLOOR (Patch B 2026-06) ──────────────────────────────
-         // Previously this gate required new_sl to be at least
-         // RRM_BE_BufferPips beyond entry. On instruments with a large
-         // BE buffer (Silver ≈ 75p × pipSize, Gold ≈ 150p × pipSize on
-         // M1, scaled by the instrument-fan multiplier), that buffer
-         // could exceed how far the EMA(13) had moved at 1-2-3R of
-         // profit — so the trail stayed dormant while the trade was
-         // already significantly in the money.
-         //
-         // The buffer's actual purpose is the one-time BE-LOCK event in
-         // the BE block above (move SL to entry+buffer when BE triggers).
-         // It should NOT also be a continuous threshold against trail
-         // engagement. The safety we actually want here is "never lock
-         // SL into loss territory", which is satisfied by the simple
-         // break-even floor below. The lock-profit gate immediately
-         // after this prevents backwards SL movement.
-         if(isBuy  && new_sl < entry) {
-            if(m_settings.DebugFlow)
-               PrintFormat("[TRAIL_EMA/RRM] #%I64u BLOCKED (BE-floor): new_sl=%.5f < entry=%.5f "
-                           "(EMA still below entry — no profit to lock).",
-                           ticket, new_sl, entry);
-            return;
-         }
-         if(!isBuy && new_sl > entry) {
-            if(m_settings.DebugFlow)
-               PrintFormat("[TRAIL_EMA/RRM] #%I64u BLOCKED (BE-floor): new_sl=%.5f > entry=%.5f "
-                           "(EMA still above entry — no profit to lock).",
-                           ticket, new_sl, entry);
-            return;
-         }
-
-         if(m_settings.TrailLockProfit && cur_sl != 0.0) {
-            if(isBuy  && new_sl <= cur_sl) {
-               if(m_settings.DebugFlow)
-                  PrintFormat("[TRAIL_EMA/RRM] #%I64u BLOCKED (lock-profit): new_sl=%.5f <= cur_sl=%.5f "
-                              "(would move SL backwards). EMA=%.5f cushion=%.1fp.",
-                              ticket, new_sl, cur_sl, ema_val[0], ema_cushion_pips);
-               return;
-            }
-            if(!isBuy && new_sl >= cur_sl) {
-               if(m_settings.DebugFlow)
-                  PrintFormat("[TRAIL_EMA/RRM] #%I64u BLOCKED (lock-profit): new_sl=%.5f >= cur_sl=%.5f "
-                              "(would move SL backwards). EMA=%.5f cushion=%.1fp.",
-                              ticket, new_sl, cur_sl, ema_val[0], ema_cushion_pips);
-               return;
-            }
-         }
-
-         // TP guard: SL must not cross or touch TP — MT5 rejects with "invalid stops".
-         // When EMA trail pushes SL past the TP level the trade has already run its
-         // full target; close it immediately rather than silently doing nothing.
-         if(cur_tp > 0.0) {
-            bool sl_past_tp = isBuy ? (new_sl >= cur_tp) : (new_sl <= cur_tp);
-            if(sl_past_tp) {
-               if(m_settings.DebugFlow)
-                  PrintFormat("[TRAIL_EMA/RRM] #%I64u: SL %.5f past TP %.5f — closing at market",
-                              ticket, new_sl, cur_tp);
-               if(IsModifyAllowed()) m_trade.PositionClose(ticket);
-               return;
-            }
-         }
-
-         bool valid = isBuy
-            ? (new_sl > cur_sl && new_sl < cur_price)
-            : ((cur_sl == 0.0 || new_sl < cur_sl) && new_sl > cur_price);
-
-         if(valid && IsModifyAllowed()) {
-            if(m_settings.DebugFlow)
-               PrintFormat("[TRAIL_EMA/RRM] #%I64u: SL %.5f -> %.5f | EMA(%d,sh=%d)=%.5f cushion=%.1fp",
-                           ticket, cur_sl, new_sl, ema_period, ema_shift, ema_val[0],
-                           ema_cushion_pips);
-            m_trade.PositionModify(ticket, new_sl, cur_tp);
-         }
-         else if(!valid && m_settings.DebugFlow) {
-            // Final block-condition: SL improvement fell on the wrong side of
-            // cur_sl or cur_price (e.g. price reversed before this bar closed,
-            // or rounding put new_sl == cur_sl). Surface it explicitly so the
-            // user can see the geometry.
-            PrintFormat("[TRAIL_EMA/RRM] #%I64u BLOCKED (valid-check): new_sl=%.5f cur_sl=%.5f "
-                        "cur_price=%.5f isBuy=%d. Required: %s.",
-                        ticket, new_sl, cur_sl, cur_price, (int)isBuy,
-                        isBuy ? "new_sl > cur_sl AND new_sl < cur_price"
-                              : "new_sl < cur_sl (or cur_sl==0) AND new_sl > cur_price");
-         }
+         ApplyTrailEMA(ticket, isBuy, entry, cur_price, cur_sl, cur_tp, digits, pipSize, "RRM");
          return;
       }
+
 
       int shift = m_settings.RRM_TrailPsarDotShift;
       if(shift < 1) shift = 1;
@@ -3148,6 +3171,16 @@ public:
       }
       else if(m_settings.TrailMode == TRAIL_PROFIT_PERCENT) {
          new_sl = CalculateProfitPercentTrailSL(ticket, type, entry_price, current_price, current_sl, pipSize, digits);
+      }
+      // Q3 (2026-06): TRAIL_EMA now reachable from EXIT_PROFILE_SIMPLE path too.
+      // The helper handles its own SL apply (BE-floor, lock-profit, TP-past-close,
+      // valid-check, PositionModify); we return immediately so the common SL-apply
+      // tail below does NOT run for TRAIL_EMA. This keeps TRAIL_EMA's evaluation
+      // identical regardless of which exit profile invoked it (SimpleEA principle).
+      else if(m_settings.TrailMode == TRAIL_EMA) {
+         ApplyTrailEMA(ticket, type == POSITION_TYPE_BUY, entry_price, current_price,
+                       current_sl, current_tp, digits, pipSize, "SIMPLE");
+         return;
       }
 
       if(new_sl != 0.0 && m_settings.TrailMode == TRAIL_PSAR) {
