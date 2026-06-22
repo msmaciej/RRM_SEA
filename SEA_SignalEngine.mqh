@@ -6463,30 +6463,14 @@ public:
       double f_curr = GetMAValSafe(hf, v_shift, ok_fcurr);
       double s_curr = GetMAValSafe(hs, v_shift, ok_scurr);
 
-      if(m_settings.BiasMode == BIAS_4EMA)
-      {
-         bias = GetBias_PhaseBased(v_shift);
-         if(m_settings.DebugFlow) {
-            datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
-            DebugLog(StringFormat("STEP 1 BIAS[%s]: BIAS_4EMA mode → bias=%d", TimeToString(bar_time), bias));
-         }
-         m_eval_str_B = (bias != 0) ? "+" : "POS";
-
-         if(bias == 0) {
-            m_diag_last_bias = 0;
-            m_diag_last_reason = "BIAS_ZERO";
-            m_reject_bias++;
-            m_stats.rejected_bias++;
-            if(!m_settings.Stats_FullEvaluation) {
-               m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
-               return 0;
-            }
-            if(m_eval_first_failure == "") m_eval_first_failure = "BIAS_ZERO";
-            m_eval_any_failure = true;
-         }
-         m_diag_last_bias = bias;
-      }
-      else if(m_settings.BiasMode == BIAS_MANUAL) {
+      // B1 2026-06: BIAS_4EMA is fully handled by EvaluateB() before reaching
+      // here (EvaluateB short-circuits to GetBias_4EMA_Direction). The old
+      // BIAS_4EMA branch (which called the now-removed GetBias_PhaseBased)
+      // was unreachable dead code with different semantics (combined direction
+      // + phase-gate, vs the live architecture which splits direction in
+      // EvaluateB and phase-gate in EvaluateP). Removed to prevent accidental
+      // resurrection of the old behavior.
+      if(m_settings.BiasMode == BIAS_MANUAL) {
          if(m_settings.ManSide == SIDE_LONG) bias = 1;
          else if(m_settings.ManSide == SIDE_SHORT) bias = -1;
          else bias = 0;
@@ -8202,112 +8186,15 @@ public:
       return (c > p) ? 1 : (c < p) ? -1 : 0;
    }
 
-   //+------------------------------------------------------------------+
-   //| Phase-Based Bias Calculation                        |
-   //| Uses market phase detection to determine trading bias           |
-   //| Requires PhaseDetectionEnabled = true                           |
-   //+------------------------------------------------------------------+
-   int GetBias_PhaseBased(const int v_shift = 1)
-   {
-      // Validate that phase detection is enabled
-      if(!m_settings.PhaseDetectionEnabled)
-      {
-         if(m_settings.DebugFlow)
-            Print("[260304_BIAS] ERROR: BIAS_4EMA selected but PhaseDetectionEnabled=false");
-         return 0;  // No bias - configuration error
-      }
-      
-      // Detect current market phase (instant EMA + slope check)
-      EMarketPhase current_phase = DetectMarketPhase(v_shift);
-      
-      // Update diagnostics
-      m_diag_last_phase = current_phase;
-      
-      // Check phase stability if required (optional, default min_bars=0 = instant)
-      if(m_settings.RequireMinPhaseConfirm && m_settings.MinPhaseConfirmBars > 0)
-      {
-         bool is_stable = ConfirmPhaseStability(current_phase, m_settings.MinPhaseConfirmBars);
-         
-         if(!is_stable)
-         {
-            if(m_settings.DebugFlow)
-               PrintFormat("[260304_BIAS] Phase %s not stable (%d/%d bars) - no bias", 
-                           EnumToString(current_phase), 
-                           m_diag_phase_confirm_bars, 
-                           m_settings.MinPhaseConfirmBars);
-            return 0;  // Phase not stable enough
-         }
-      }
-      
-      // Block UNORDERED phase if configured
-      if(current_phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase)
-      {
-         if(m_settings.DebugFlow)
-            Print("[260304_BIAS] UNORDERED phase blocked - no clear market structure");
-         return 0;  // No bias in choppy markets
-      }
-      
-      // Block EMERGING phase if configured
-      bool is_emerging = (current_phase == PHASE_EMERGING_UP ||
-                          current_phase == PHASE_EMERGING_DN ||
-                          current_phase == PHASE_EMERGING);
-      if(is_emerging && m_settings.BlockEmergingPhase)
-      {
-         if(m_settings.DebugFlow)
-            Print("[260304_BIAS] EMERGING phase blocked - trend forming but not yet confirmed");
-         return 0;  // No bias until trend is confirmed TRENDING
-      }
-      
-      // Map phase directly to bias direction (phase encodes direction)
-      switch(current_phase)
-      {
-         case PHASE_TRENDING_UP:
-            if(m_settings.DebugFlow) Print("[260304_BIAS] TRENDING_UP → LONG bias");
-            return 1;
-            
-         case PHASE_TRENDING_DN:
-            if(m_settings.DebugFlow) Print("[260304_BIAS] TRENDING_DN → SHORT bias");
-            return -1;
-            
-         case PHASE_EMERGING_UP:
-            if(m_settings.DebugFlow) Print("[260304_BIAS] EMERGING_UP → LONG bias (trend forming)");
-            return 1;
-            
-         case PHASE_EMERGING_DN:
-            if(m_settings.DebugFlow) Print("[260304_BIAS] EMERGING_DN → SHORT bias (trend forming)");
-            return -1;
-            
-         case PHASE_TRENDING:
-         {
-            // Legacy: re-evaluate direction from EMA values for backward compat
-            // Read from snapshot — refuse direction if required slots invalid.
-            if(!GetEmaValid(2) || !GetEmaValid(4)) return 0;
-            double e2 = GetEma2();
-            double e4 = GetEma4();
-            double tolerance = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-            if(e2 > e4 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] TRENDING Bullish → LONG"); return 1; }
-            if(e4 > e2 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] TRENDING Bearish → SHORT"); return -1; }
-            return 0;
-         }
-            
-         case PHASE_EMERGING:
-         {
-            // Legacy: re-evaluate direction from EMA values for backward compat
-            if(!GetEmaValid(2) || !GetEmaValid(4)) return 0;
-            double e2 = GetEma2();
-            double e4 = GetEma4();
-            double tolerance = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-            if(e2 > e4 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] EMERGING Bullish → LONG"); return 1; }
-            if(e4 > e2 + tolerance) { if(m_settings.DebugFlow) Print("[260304_BIAS] EMERGING Bearish → SHORT"); return -1; }
-            return 0;
-         }
-            
-         case PHASE_UNORDERED:
-         default:
-            if(m_settings.DebugFlow) Print("[260304_BIAS] UNORDERED phase → NO BIAS");
-            return 0;
-      }
-   }
+   // B1 2026-06: GetBias_PhaseBased() removed (was unreachable dead code).
+   // The function had two callers historically; the only HEAD reference was
+   // EvaluateBias's BIAS_4EMA branch, which was itself unreachable because
+   // EvaluateB short-circuits BIAS_4EMA before reaching EvaluateBias. The
+   // function's semantics (combined direction extraction + phase-gate
+   // blocking) were superseded by the split architecture:
+   //   - GetBias_4EMA_Direction(v_shift)  — pure direction (no gating)
+   //   - EvaluateP(v_shift, bias)          — phase-gate (UNORDERED/EMERGING blocks)
+   // See SEA_SignalEngine.mqh:~7068 and ~7225 for the live equivalents.
 
    //+------------------------------------------------------------------+
    //| ValidateLayer: Check alignment of a single EMA pair            |

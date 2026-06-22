@@ -1084,6 +1084,7 @@ input EManualSide Inp_CUSTOM_ManualSide            = SIDE_BOTH;      // Override
 input bool        Inp_CUSTOM_BiasEnabled           = true;           // Override: Bias Enabled
 input int         Inp_CUSTOM_BiasFastID            = 2;              // Override: Bias Fast ID
 input int         Inp_CUSTOM_BiasSlowID            = 3;              // Override: Bias Slow ID
+input int         Inp_CUSTOM_SlopeLookbackBars     = 1;              // B6 2026-06: Slope lookback bars (BIAS_1EMA/2EMA only; clamped 1..5)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 2: MA | EMA";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1098,6 +1099,7 @@ input group "╔═════════════════════�
 input group "║   🔧 STEP 3: ENTRY Signal (Timing Strategy)";
 input group "╚════════════════════════════════════════════════════════╝";
 input EAutoStrategy  Inp_CUSTOM_AutoStrat          = STRAT_4EMA_LAYER;  // Override: STRATegy
+input bool        Inp_CUSTOM_RequirePriceCross     = false;          // B5 2026-06: STRAT_2EMA_CROSS_PRICE: true=actual price-cross event, false=position above/below MA
 input bool        Inp_CUSTOM_CloseOnReverse        = false;          // Override: Close On Reverse
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 3b: PHASE / LAYER / VPRR (4-EMA Architecture)";
@@ -1492,7 +1494,12 @@ void InitializeConfig()
    Settings.UseMACompatSizer        = false;
    Settings.MA_MaximumRiskPct       = 0.02;   // default (MA preset only; overwritten by ApplyPreset)
    Settings.MA_DecreaseFactor       = 3.0;    // default (MA preset only; overwritten by ApplyPreset)
-   Settings.RequirePriceCross       = false;
+   // B5 2026-06: was hardcoded false. Now reads Inp_CUSTOM_RequirePriceCross
+   // (default false preserves prior behavior). Only consulted when CUSTOM
+   // is the active preset AND BiasMode=BIAS_2EMA AND AutoStrat=STRAT_2EMA_CROSS_PRICE
+   // (see SEA_SignalEngine.mqh:~6614). All non-CUSTOM presets explicitly set
+   // RequirePriceCross in their preset block, overriding this seed.
+   Settings.RequirePriceCross       = Inp_CUSTOM_RequirePriceCross;
    Settings.MABenchmarkStrict       = false;
 
    Settings.RRM_Lookback               = Inp_CUSTOM_Lookback;
@@ -1775,7 +1782,12 @@ void InitializeConfig()
    Settings.Safety_TrailActivateR        = Inp_Safety_TrailActivateR;
    Settings.Safety_RequirePriorAtBEToAdd = Inp_Safety_RequirePriorAtBEToAdd;
 
-    Settings.SlopeLookbackBars      = 1;
+   // B6 2026-06: was hardcoded 1. Now reads Inp_CUSTOM_SlopeLookbackBars
+   // (default 1 preserves prior behavior). Clamped 1..5 to match the runtime
+   // clamp in EvaluateBias (SEA_SignalEngine.mqh:~6511-6513). Only meaningful
+   // when CUSTOM is active AND BiasMode=BIAS_1EMA/BIAS_2EMA. All non-CUSTOM
+   // presets explicitly set SlopeLookbackBars in their preset block.
+   Settings.SlopeLookbackBars      = MathMax(1, MathMin(5, Inp_CUSTOM_SlopeLookbackBars));
    Settings.LayerPullbackEnabled        = Inp_CUSTOM_LayerPullbackEnabled;
    Settings.LayerS_RequireDirAlign      = Inp_CUSTOM_LayerS_Require_DirAlign;
    Settings.LayerResetOnRealign         = Inp_CUSTOM_LayerReset_OnRealign;

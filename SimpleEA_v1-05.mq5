@@ -375,6 +375,44 @@ void ValidateConfiguration()
       has_warnings = true;
    }
 
+   // B3 2026-06: Warn when BIAS_MANUAL is paired with ManSide=SIDE_BOTH.
+   // EvaluateBias's manual branch (SEA_SignalEngine.mqh:~6490) returns bias=0
+   // for SIDE_BOTH, which silently produces a no-trade state. This can also
+   // be the safe-default end-state set by ValidateBiasStratCombo when the
+   // BiasMode/AutoStrat combo is invalid — in that case a second warning
+   // here is harmless reinforcement.
+   if(Settings.BiasEnabled && Settings.BiasMode == BIAS_MANUAL && Settings.ManSide == SIDE_BOTH) {
+      Print("WARNING: BIAS_MANUAL with ManSide=SIDE_BOTH → no trades possible");
+      Print("   Set Inp_CUSTOM_ManualSide to SIDE_LONG or SIDE_SHORT to enable trades.");
+      Print("   (If you reached this state via the BiasMode/AutoStrat auto-correct,");
+      Print("    fix the combo at Inp_CUSTOM_BiasMode/Inp_CUSTOM_AutoStrat instead.)");
+      has_warnings = true;
+   }
+
+   // B4 2026-06: Warn when the BiasMode label diverges from the actual
+   // dispatch (which is by BiasFastID == BiasSlowID, not by mode label).
+   // EvaluateBias picks SINGLE_SLOPE (1EMA semantics) when FastID==SlowID
+   // and PAIR (2EMA semantics) otherwise — irrespective of BiasMode.
+   // ValidateBiasStratCombo already constrains BiasMode↔AutoStrat; this
+   // additional warning catches mode↔FastID/SlowID mismatch.
+   if(Settings.BiasEnabled && Settings.BiasMode == BIAS_1EMA &&
+      Settings.BiasFastID != Settings.BiasSlowID) {
+      PrintFormat("WARNING: BIAS_1EMA but BiasFastID(%d) != BiasSlowID(%d)",
+                  Settings.BiasFastID, Settings.BiasSlowID);
+      Print("   Bias dispatch is by FastID==SlowID, not by mode label.");
+      Print("   Pair (two-EMA) position+slope logic will run; filter is stricter than pure 1EMA.");
+      Print("   Set BiasFastID = BiasSlowID for pure 1EMA semantics.");
+      has_warnings = true;
+   }
+   if(Settings.BiasEnabled && Settings.BiasMode == BIAS_2EMA &&
+      Settings.BiasFastID == Settings.BiasSlowID) {
+      PrintFormat("WARNING: BIAS_2EMA but BiasFastID == BiasSlowID(%d)", Settings.BiasFastID);
+      Print("   Bias dispatch is by FastID==SlowID, not by mode label.");
+      Print("   Single-EMA slope logic will run; filter is laxer than pure 2EMA.");
+      Print("   Set BiasFastID != BiasSlowID for pure 2EMA semantics.");
+      has_warnings = true;
+   }
+
    // Count enabled indicators using central helper (all 13 indicators)
    int enabled = GetEnabledIndicatorCount(Settings);
 
