@@ -378,7 +378,7 @@ void ValidateConfiguration()
       Print("WARNING: BIAS_MANUAL with ManSide=SIDE_BOTH → no trades possible");
       Print("   Set Inp_Global_ManualSide to SIDE_LONG or SIDE_SHORT to enable trades.");
       Print("   (If you reached this state via the BiasMode/AutoStrat auto-correct,");
-      Print("    fix the combo at Inp_CUSTOM_BiasMode/Inp_CUSTOM_AutoStrat instead.)");
+      Print("    fix the combo at your active preset's BiasMode/AutoStrat — see Inp_<preset>_* inputs.)"); // STEP11 2026-06: was "Inp_CUSTOM_BiasMode/Inp_CUSTOM_AutoStrat" — CUSTOM inputs removed
       has_warnings = true;
    }
 

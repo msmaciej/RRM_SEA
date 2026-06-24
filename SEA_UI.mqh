@@ -584,7 +584,7 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
    {
       case PRESET_RRM_ORG:    rr_source = "Inp_RRM_ORG_RRRatio"; break;
       case PRESET_FPM:        rr_source = "Inp_FPM_RRRatio";     break;
-      case PRESET_MA:         rr_source = "Inp_CUSTOM_RRRatio (MA uses seed)"; break;
+      case PRESET_MA:         rr_source = "(MA uses engine seed default: 2.5)"; break; // STEP11 2026-06: was "Inp_CUSTOM_RRRatio (MA uses seed)" — input removed, value inlined
       case PRESET_TOPINVESTOR:rr_source = "Inp_TI_RRRatio";       break;
       default:                rr_source = "(unknown preset)";    break;
    }

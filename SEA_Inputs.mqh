@@ -929,35 +929,16 @@ input group "    ▸ TS voters (B·P·F·L·I) — these are engine seed default
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 1: BIAS (Major Trend Direction)";
 input group "╚════════════════════════════════════════════════════════╝";
-input EBiasMode   Inp_CUSTOM_BiasMode              = BIAS_4EMA;      // Override: Bias Mode: Manual, 2-EMA, 4-EMA
 input EManualSide Inp_Global_ManualSide            = SIDE_BOTH;      // Override: Bias Side
-input bool        Inp_CUSTOM_BiasEnabled           = true;           // Override: Bias Enabled
-input int         Inp_CUSTOM_BiasFastID            = 2;              // Override: Bias Fast ID
-input int         Inp_CUSTOM_BiasSlowID            = 3;              // Override: Bias Slow ID
-input int         Inp_CUSTOM_SlopeLookbackBars     = 1;              // B6 2026-06: Slope lookback bars (BIAS_1EMA/2EMA only; clamped 1..5)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 2: MA | EMA";
 input group "╚════════════════════════════════════════════════════════╝";
-input EMaMethod   Inp_CUSTOM_MaType                = METHOD_EMA;     // Override: MA: SMA, EMA
-input int         Inp_CUSTOM_MaHorShift            = 1;              // Override: MA: Hor Shift
-input int         Inp_CUSTOM_MaVerShift            = 1;              // Override: MA: Ver Shift
-input int         Inp_CUSTOM_Ema1Period            = 5;              // Override: EMA1 Period
-input int         Inp_CUSTOM_Ema2Period            = 13;             // Override: EMA2 Period
-input int         Inp_CUSTOM_Ema3Period            = 34;             // Override: EMA3 Period
-input int         Inp_CUSTOM_Ema4Period            = 89;             // Override: Ema4 Period
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 3: ENTRY Signal (Timing Strategy)";
 input group "╚════════════════════════════════════════════════════════╝";
-input EAutoStrategy  Inp_CUSTOM_AutoStrat          = STRAT_4EMA_LAYER;  // Override: STRATegy
-input bool        Inp_CUSTOM_RequirePriceCross     = false;          // B5 2026-06: STRAT_2EMA_CROSS_PRICE: true=actual price-cross event, false=position above/below MA
-input bool        Inp_CUSTOM_CloseOnReverse        = false;          // Override: Close On Reverse
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 3b: PHASE / LAYER / VPRR (4-EMA Architecture)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_PhaseDetectionEnabled = true;           // Override: [PH] Enable market-phase detection (TRENDING/EMERGING/UNORDERED)
-input bool        Inp_CUSTOM_BlockUnorderedPhase   = true;           // Override: [PH] Block trades while phase is UNORDERED
-input bool        Inp_CUSTOM_BlockEmergingPhase    = false;          // Override: [PH] Block trades while phase is EMERGING
-input bool        Inp_CUSTOM_EnableLayerDetection  = true;           // Override: [LY] Enable EMA-layer detection (L1/L2/L3)
 input bool        Inp_Global_LayerPullbackEnabled  = false;          // Override: [LY] Enable layer pullback-recovery state machine
 input bool        Inp_Global_LayerS_Require_DirAlign  = true;       // [LY] Require Layer S (EMA3/EMA4) pos+slope w/ bias to allow M/W entries
 input bool        Inp_Global_LayerReset_OnRealign      = false;      // [LY] Reset layer pullback states on confirmed market-phase change
@@ -967,15 +948,10 @@ input bool        Inp_Global_VPRR_Enabled          = false;          // Override
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 4: Candle Close & Candle Body";
 input group "╚════════════════════════════════════════════════════════╝";
-input EBarCloseMode  Inp_CUSTOM_BarClose_Mode      = BC_LAYER_AWARE; // Override: [CC] CClose Mode: DISABLED/FIXED_EMA/LAYER_AWARE/BIAS_FAST
-input EEmaRole    Inp_CUSTOM_BarClose_DefaultEMA   = ROLE_EMA1;      // Override: [CC] CClose in FIXED mode: EMA1, EMA2, EMA3, EMA4
-input bool        Inp_CUSTOM_BarClose_Enabled      = true;           // Override: [CC] CClose Enable
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 5: Pullback Gate";
 input group "╚════════════════════════════════════════════════════════╝";
 // Pullback gate uses pure distance comparison: the current EMA gap must exceed the prior EMA gap (no pip threshold).
-input bool        Inp_CUSTOM_RequireRecoveryMomentum = false;        // Override: PULL recovery
-input int         Inp_CUSTOM_Lookback              = 5;              // Override: PULL lookback
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP X: Trail EMA (engine seed defaults)"; // STEP9 2026-06: was "(PRESET_CUSTOM)"; CUSTOM preset retired in Step 4
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1008,52 +984,24 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 ADX (Average Directional Index - Strength of Market Trend)";
 input group "╚════════════════════════════════════════════════════════╝";
-input EADXMode    Inp_CUSTOM_Ind_Adx_Mode          = ADX_MODE_STATIC; // Ind [ADX]: Mode
-input bool        Inp_CUSTOM_Ind_Adx_Enabled       = false;          // Ind: [ADX] Enable
-input int         Inp_CUSTOM_Ind_Adx_Period        = 14;             // Ind [ADX]: Period
-input int         Inp_CUSTOM_Ind_Adx_Threshold     = 20;             // Ind [ADX]: Threshold
-input int         Inp_CUSTOM_Ind_Adx_Lookback      = 100;            // Ind [ADX]: Lookback
 input int         Inp_Global_Ind_Adx_PercentileRefreshSec = 14400;   // Ind [ADX]: DYNAMIC_PERCENTILE refresh interval (sec). M1: try 900 (15min); H1+: 14400 (4h)
-input double      Inp_CUSTOM_Ind_Adx_Percentile    = 50.0;           // Ind [ADX]: Percentile
-input double      Inp_CUSTOM_Ind_Adx_Thr_Accum     = 12.0;           // Ind [ADX]: Accumulation
-input double      Inp_CUSTOM_Ind_Adx_Thr_Trending  = 25.0;           // Ind [ADX]: Trending
-input double      Inp_CUSTOM_Ind_Adx_Thr_Distrib   = 18.0;           // Ind [ADX]: Distribution
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 ATR (Average True Range - Market Volatility - Non-directional)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_Ind_Atr_Enabled       = false;          // Ind [ATR]: Enable ATR
-input int         Inp_CUSTOM_Ind_Atr_Period        = 14;             // Ind [ATR]: Period
-input double      Inp_CUSTOM_Ind_Atr_VoteMinPips   = 5.0;            // Ind [ATR]: Voting min pips
-input double      Inp_CUSTOM_Ind_Atr_VoteMaxPips   = 50.0;           // Ind [ATR]: Voting max pips
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 BB (Bollinger Bands - Market Volatility and Over bought/sold Levels)";
 input group "╚════════════════════════════════════════════════════════╝";
-input EBbMode     Inp_CUSTOM_Ind_Bb_Mode           = BB_TREND_FOLLOW; // Ind [BB]: Mode
-input bool        Inp_CUSTOM_Ind_Bb_Enabled        = false;          // Ind [BB]: Enable BB
-input int         Inp_CUSTOM_Ind_Bb_Period         = 20;             // Ind [BB]: Period
-input double      Inp_CUSTOM_Ind_Bb_Dev            = 2.0;            // Ind [BB]: Deviation
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 CBody (Candle Body - Votes Against Overextended Candles (news/spikes))";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_Ind_CandleBody_Enabled    = true;       // Ind [CBody]: Enable CB
-input bool        Inp_CUSTOM_Ind_CandleBody_RequireDirection = true; // Ind [CBody]: Require DIR
-input int         Inp_CUSTOM_Ind_CandleBody_AvgPeriod  = 5;          // Ind [CBody]: Average body period
-input int         Inp_CUSTOM_Ind_CandleBody_CheckBars  = 3;          // Ind [CBody]: Bars to check
-input double      Inp_CUSTOM_Ind_CandleBody_MaxMult    = 4.0;        // Ind [CBody]: Max body multiplier
 input double      Inp_Global_Ind_CandleBody_MinCloseRatio = 0.0;         // Ind [CBody]: Min close ratio (0=off, 0.75=TopInvestor)
 input bool        Inp_Global_Ind_CandleBody_CarryOnOverext = true;       // Ind [CBody]: carry CB=0 over-ext until next layer pullback-recovery
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 CCI (Commodity Channel Index - Momentum Oscilator)";
 input group "╚════════════════════════════════════════════════════════╝";
-input ECciMode    Inp_CUSTOM_Ind_Cci_Mode          = CCI_TREND_ZERO; // Ind [CCI]: Mode
-input bool        Inp_CUSTOM_Ind_Cci_Enabled       = false;          // Ind [CCI]: Enable CCI
-input int         Inp_CUSTOM_Ind_Cci_Period        = 14;             // Ind [CCI]: Period
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 CI (Choppiness Index - Block Trades in Ranging Market)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_Ind_CI_Enabled        = false;          // Ind [CI]: Enable ranging market filter
-input int         Inp_CUSTOM_Ind_CI_Period         = 14;             // Ind [CI]: Period
-input double      Inp_CUSTOM_Ind_CI_RangingThreshold  = 61.8;        // Ind [CI]: Threshold (>= this value = reject)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 Fib (Fibonacci Retracement Voter)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1064,61 +1012,28 @@ input int         Inp_Global_Ind_Fib_SwingLookback     = 50;             // Ind 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 MACD (Moving Average Convergence Divergence - Trend-Following Momentum)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_Ind_Macd_Enabled      = false;          // Ind: TI Full: [MACD] Enable MACD
-input bool        Inp_CUSTOM_Ind_Macd_RequireSlope       = false;    // Ind: TI Full: [MACD] Require Slope
-input bool        Inp_CUSTOM_Ind_Macd_RequireDivergence  = false;    // Ind: TI Full: [MACD] Require Divergence
-input bool        Inp_CUSTOM_Ind_Macd_RequireHook        = false;    // Ind: TI Full: [MACD] Require Histogram Flip
-input int         Inp_CUSTOM_Ind_Macd_Fast         = 8;              // Ind: TI Full: [MACD] Fast EMA period
-input int         Inp_CUSTOM_Ind_Macd_Slow         = 13;             // Ind: TI Full: [MACD] Slow EMA period
-input int         Inp_CUSTOM_Ind_Macd_Sig          = 5;              // Ind: TI Full: [MACD] Signal SMA period
-input int         Inp_CUSTOM_Ind_Macd_FreshBars    = 3;              // Ind: TI Full: [MACD] Fresh Bars validity
-input double      Inp_CUSTOM_Ind_Macd_SlopeMin     = 0.00001;       // Ind: TI Full: [MACD] Min slope change per bar
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 MFI (Money Flow Index - Oscillator Buying Selling Pressure)";
 input group "╚════════════════════════════════════════════════════════╝";
-input EMfiMode    Inp_CUSTOM_Ind_Mfi_Mode          = MFI_ZONE_FILTER; // Ind: TI Full: [MFI] Mode
-input bool        Inp_CUSTOM_Ind_Mfi_Enabled       = false;          // Ind: TI Full: [MFI] Enable MFI
-input int         Inp_CUSTOM_Ind_Mfi_Period        = 14;             // Ind: TI Full: [MFI] Period
 input double      Inp_Global_Ind_Mfi_Level         = 50.0;           // Ind: TI Full: [MFI] Threshold/level
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 P123 (Mark Crisp 1-2-3 fractal breakout pattern (see Ross Hook))";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_Ind_P123_Enabled      = false;          // Ind: TI Full: [P123] Enable 1-2-3
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 PSAR (Parabolic Stop and Reverse - Trend-Following Indicator)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_Ind_Psar_Enabled      = true;           // Ind: TI Full: [PSAR] Enable PSAR
-input int         Inp_CUSTOM_Ind_PsarFlipDelay     = 10;             // Ind: TI Full: [PSAR] Flip timer: -1=persistent, 0=flip bar, 1-10=countdown
-input double      Inp_CUSTOM_Ind_Psar_Step         = 0.05;           // Ind: TI Full: [PSAR] Step
-input double      Inp_CUSTOM_Ind_Psar_Max          = 0.5;            // Ind: TI Full: [PSAR] Maximum
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 Ross Hook (Trend Momentum (see to P123))";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_Ind_Ross_Enabled      = false;          // Ind: TI Full: [Ross] Enable Ross Hook
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 RSI (Relative Strength Index - Monentum Oscilator)";
 input group "╚════════════════════════════════════════════════════════╝";
-input ERsiMode    Inp_CUSTOM_Ind_Rsi_Mode          = RSI_TREND_ABOVE_50; // Ind: TI Full: [RSI] Mode
-input bool        Inp_CUSTOM_Ind_Rsi_Enabled       = false;          // Ind: TI Full: [RSI] Enable RSI
-input int         Inp_CUSTOM_Ind_Rsi_Period        = 14;             // Ind: TI Full: [RSI] Period
-input double      Inp_CUSTOM_Ind_Rsi_OB            = 70.0;           // Ind: TI Full: [RSI] Overbought
-input double      Inp_CUSTOM_Ind_Rsi_OS            = 30.0;           // Ind: TI Full: [RSI] Oversold
 input group "╔════════════════════════════=═══════════════════════════╗";
 input group "║   📊 STO (Stochastic Oscillator - Momentum Potential Market Reversals)";
 input group "╚════════════════════════════════════════════════════════╝";
-input EStochMode  Inp_CUSTOM_Ind_Sto_Mode          = STO_CROSS_SIGNAL;  // Ind: TI Full: [Sto] Mode
-input bool        Inp_CUSTOM_Ind_Sto_Enabled       = false;          // Ind: TI Full: [Sto] Enable STO
-input int         Inp_CUSTOM_Ind_Sto_K             = 5;              // Ind: TI Full: [Sto] %K period
-input int         Inp_CUSTOM_Ind_Sto_D             = 3;              // Ind: TI Full: [Sto] %D period
-input int         Inp_CUSTOM_Ind_Sto_Slow          = 3;              // Ind: TI Full: [Sto] Slowing
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 VRC (Volatility Regime Classifier - Reject Trades in Low Volatility (quiet/choppy markets))";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_Ind_VRC_Enabled       = false;          // Ind: TI Full: [VRC] Enable volatility regime
-input int         Inp_CUSTOM_Ind_VRC_ATR_Period    = 14;             // Ind: TI Full: [VRC] VRC-ATR period
-input int         Inp_CUSTOM_Ind_VRC_Lookback      = 100;            // Ind: TI Full: [VRC] Lookback bars for percentile
-input double      Inp_CUSTOM_Ind_VRC_LowThreshold  = 33.0;           // Ind: TI Full: [VRC] Low volatility threshold (percentile)
-input int         Inp_CUSTOM_Ind_VRC_RefreshSec    = 14400;          // Ind: TI Full: [VRC] Percentile refresh interval (sec). M1: try 900; H1+: 14400 (4h)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1127,14 +1042,9 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎯 (TP) TAKE PROFIT (engine seed defaults)"; // STEP9 2026-06: was "(CUSTOM only)"; CUSTOM preset retired
 input group "╚════════════════════════════════════════════════════════╝";
-input ETPMode     Inp_CUSTOM_TPMode                = TP_MODE_RR;     // Custom: TP mode
-input bool        Inp_CUSTOM_TP_Enabled            = true;           // Custom: Enable TP
-input double      Inp_CUSTOM_RRRatio               = 2.5;            // Custom: R:R ratio
-input double      Inp_CUSTOM_FixedTPPips           = 40.0;           // Custom: Fixed TP
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎯 EXIT PROFILES";
 input group "╚════════════════════════════════════════════════════════╝";
-input EExitProfile   Inp_CUSTOM_ExitProfile        = EXIT_PROFILE_RRM; // Custom: Exit profile
 // STEP2 2026-06: was "Active for: PRESET_TEST & PRESET_CUSTOM" — TEST removed; only CUSTOM uses direct exit-input control now.
 // input string   Inp_Exit_Zone_Info1              = "Active for: PRESET_CUSTOM (direct input control)";
 // input string   Inp_Exit_Zone_Info2              = "Other presets override exits with strategy-optimized values";
@@ -1142,16 +1052,13 @@ input EExitProfile   Inp_CUSTOM_ExitProfile        = EXIT_PROFILE_RRM; // Custom
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛑 (SL) STOP LOSS (engine seed defaults)"; // STEP9 2026-06: was "(CUSTOM only)"; CUSTOM preset retired
 input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode     Inp_CUSTOM_SLMode                = SL_MODE_PSAR_DOT;  // Custom: SL mode
 input bool        Inp_Global_SL_WidenToMinimum     = false;          // Custom: If true: widen to min.; if false: block TE
 // input string   Inp_SL_Help1                     = "FIXED_PIPS: Simple pip distance";
 // input string   Inp_SL_Help2                     = "MODE_SWING: Recent structure high/low";
 // input string   Inp_SL_Help3                     = "PSAR_DOT: PSAR level  |  PERCENT: % of price  |  FRACTAL: Bill Williams";
 // input string   Inp_SL_TFCushion_Note            = "PSAR/Swing cushions auto-set by timeframe (M15=5, H1=10, H4=20 pips)";
-input int         Inp_CUSTOM_SwingLookback         = 34;             // Custom: Swing lookback (bars SL_MODE_SWING)
 input double      Inp_Global_SL_FixedPips          = 20.0;           // Custom: SL distance (pips SL_MODE_FIXED_PIPS)
 input double      Inp_Global_SL_MinPips            = 3.0;            // Custom: Min. SL pips (0 = no user floor, broker minimum still applies)
-input double      Inp_CUSTOM_SLPercent             = 0.5;            // Custom: SL as % of entry
 input int         Inp_Global_SL_AtrPeriod          = 14;             // Custom: ATR period (SL_MODE_ATR only)
 input double      Inp_Global_SL_AtrMult            = 1.0;            // Custom: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical)
 // input group "--- SL Configuration Examples ---";
@@ -1162,8 +1069,6 @@ input double      Inp_Global_SL_AtrMult            = 1.0;            // Custom: 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛑 (SL) STOP LOSS FRACTAL: used with SL_FRACTAL & SL_PSAR_DOT";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_CUSTOM_FractalPeriod         = 5;              // Custom: Fractal period
-input int         Inp_CUSTOM_TPFractalOffset       = 1;              // Custom: Fractal offset
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📈 (TS) TRAILING STOP (engine seed defaults)"; // STEP9 2026-06: was "(CUSTOM only)"; CUSTOM preset retired
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1173,19 +1078,11 @@ input group "╚═════════════════════�
 // reads its own inputs; without this default change CUSTOM users would see a
 // behavior shift when leaving the inputs at default). The previous 0.5/0.04
 // defaults were dead — never reached the cfg struct.
-input ETrailingMode  Inp_CUSTOM_TrailMode          = TRAIL_EMA;     // Custom: Trailing Mode
-input ETrailTrigger  Inp_CUSTOM_TrailTrigger       = TRIGGER_IMMEDIATE; // Custom: When Trail
-input bool        Inp_CUSTOM_TrailLockProfit       = true;           // Custom: Trail Lock Profit
-input double      Inp_CUSTOM_TrailDistancePips     = 5.0;            // Custom: Trail Pips
-input double      Inp_CUSTOM_BEThresholdPips       = 5.0;            // Custom: BE Pips
 // Trail trigger: % of RISK (R-multiple based)
 // Examples: 50 = 0.5R, 100 = 1.0R, 150 = 1.5R
-input double      Inp_CUSTOM_TrailProfitPercent    = 25.0;           // Custom: Trail trigger as % of risk for TRIGGER_PROFIT_PERCENT
-input double      Inp_CUSTOM_TrailStepPips         = 5.0;            // Custom: Trail Step Pips
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   ⚖️ (BE) BREAK-EVEN (engine seed defaults)"; // STEP9 2026-06: was "(CUSTOM only)"; CUSTOM preset retired
 input group "╚════════════════════════════════════════════════════════╝";
-input EBeMode     Inp_CUSTOM_BE_Mode               = BE_MODE_TP_PROGRESS_PCT; // Custom: BE mode
 // input string   Inp_RRM_Info1                    = "RRM uses % of TP distance for BE — not absolute pips";
 // input string   Inp_RRM_Info2                    = "Only active when ExitProfile = EXIT_PROFILE_RRM";
 // input string   Inp_RRM_Info3                    = "Example: SL=10 pips, TP=30 pips (3:1 RR), BE@33% → triggers at +10 pips profit";
@@ -1282,19 +1179,19 @@ void InitializeConfig()
    Settings.UI_FontColor            = Inp_UI_FontColor;       // Yellow
 
    // === Strategy inputs ===
-   Settings.CloseOnReverse          = Inp_CUSTOM_CloseOnReverse;
+   Settings.CloseOnReverse          = false;
    Settings.RiskPercent             = Inp_RM_RiskPercentDefault;
    Settings.RiskCapMultiple         = (Inp_RM_RiskCapMultiple > 0.0) ? Inp_RM_RiskCapMultiple : 1.5;
    Settings.FixedLotSize            = 0.0; // 0 = risk-based sizing (default)
    Settings.MaxSpread               = Inp_Global_VETO_MaxSpread;
    Settings.UseSpread               = Inp_Global_VETO_UseSpread;
-   Settings.ATR_VoteMinPips         = Inp_CUSTOM_Ind_Atr_VoteMinPips;
-   Settings.ATR_VoteMaxPips         = Inp_CUSTOM_Ind_Atr_VoteMaxPips;
+   Settings.ATR_VoteMinPips         = 5.0;
+   Settings.ATR_VoteMaxPips         = 50.0;
 
-   Settings.CandleBody_AvgPeriod    = MathMax(1, Inp_CUSTOM_Ind_CandleBody_AvgPeriod);
-   Settings.CandleBody_MaxMult      = Inp_CUSTOM_Ind_CandleBody_MaxMult;
-   Settings.CandleBody_CheckBars    = MathMax(1, Inp_CUSTOM_Ind_CandleBody_CheckBars);
-   Settings.CandleBody_RequireDirection = Inp_CUSTOM_Ind_CandleBody_RequireDirection;
+   Settings.CandleBody_AvgPeriod    = MathMax(1, 5);
+   Settings.CandleBody_MaxMult      = 4.0;
+   Settings.CandleBody_CheckBars    = MathMax(1, 3);
+   Settings.CandleBody_RequireDirection = true;
 
    Settings.UseMACompatSizer        = false;
    Settings.MA_MaximumRiskPct       = 0.02;   // default (MA preset only; overwritten by ApplyPreset)
@@ -1304,11 +1201,11 @@ void InitializeConfig()
    // is the active preset AND BiasMode=BIAS_2EMA AND AutoStrat=STRAT_2EMA_CROSS_PRICE
    // (see SEA_SignalEngine.mqh:~6614). All non-CUSTOM presets explicitly set
    // RequirePriceCross in their preset block, overriding this seed.
-   Settings.RequirePriceCross       = Inp_CUSTOM_RequirePriceCross;
+   Settings.RequirePriceCross       = false;
    Settings.MABenchmarkStrict       = false;
 
-   Settings.RRM_Lookback               = Inp_CUSTOM_Lookback;
-   Settings.RequireRecoveryMomentum    = Inp_CUSTOM_RequireRecoveryMomentum;
+   Settings.RRM_Lookback               = 5;
+   Settings.RequireRecoveryMomentum    = false;
    
    Settings.Gate_Recovery.mode         = GATE_SCALE_OFF;
    Settings.Gate_Recovery.value        = 0.0;
@@ -1318,15 +1215,15 @@ void InitializeConfig()
    Settings.Gate_CandleDirection.value = 0.0;
 
    // Bias
-   Settings.BiasEnabled          = Inp_CUSTOM_BiasEnabled;
-   Settings.BiasMode             = Inp_CUSTOM_BiasMode;
+   Settings.BiasEnabled          = true;
+   Settings.BiasMode             = BIAS_4EMA;
    Settings.ManSide              = Inp_Global_ManualSide;
-   Settings.BiasFastID           = MathMax(0, MathMin(3, Inp_CUSTOM_BiasFastID));
-   Settings.BiasSlowID           = MathMax(0, MathMin(3, Inp_CUSTOM_BiasSlowID));
-   Settings.AutoStrat            = Inp_CUSTOM_AutoStrat;
-   Settings.MaType               = Inp_CUSTOM_MaType;
-   Settings.ma_h_shift           = Inp_CUSTOM_MaHorShift;
-   Settings.ma_v_shift           = Inp_CUSTOM_MaVerShift;
+   Settings.BiasFastID           = MathMax(0, MathMin(3, 2));
+   Settings.BiasSlowID           = MathMax(0, MathMin(3, 3));
+   Settings.AutoStrat            = STRAT_4EMA_LAYER;
+   Settings.MaType               = METHOD_EMA;
+   Settings.ma_h_shift           = 1;
+   Settings.ma_v_shift           = 1;
    
    // Filters
    Settings.UseTime              = Inp_Global_VETO_UseTime;
@@ -1365,69 +1262,69 @@ void InitializeConfig()
    // Voting
 
    // Indicator periods / thresholds
-   Settings.P_Ema1               = Inp_CUSTOM_Ema1Period;
-   Settings.P_Ema2               = Inp_CUSTOM_Ema2Period;
-   Settings.P_Ema3               = Inp_CUSTOM_Ema3Period;
-   Settings.P_Ema4               = Inp_CUSTOM_Ema4Period;
-   Settings.P_Adx                = Inp_CUSTOM_Ind_Adx_Period;
-   Settings.T_Adx                = Inp_CUSTOM_Ind_Adx_Threshold;
-   Settings.ADX_Mode                  = Inp_CUSTOM_Ind_Adx_Mode;
-   Settings.ADX_Percentile            = Inp_CUSTOM_Ind_Adx_Percentile;
-   Settings.ADX_Lookback              = Inp_CUSTOM_Ind_Adx_Lookback;
+   Settings.P_Ema1               = 5;
+   Settings.P_Ema2               = 13;
+   Settings.P_Ema3               = 34;
+   Settings.P_Ema4               = 89;
+   Settings.P_Adx                = 14;
+   Settings.T_Adx                = 20;
+   Settings.ADX_Mode                  = ADX_MODE_STATIC;
+   Settings.ADX_Percentile            = 50.0;
+   Settings.ADX_Lookback              = 100;
    Settings.ADX_PercentileRefreshSec  = Inp_Global_Ind_Adx_PercentileRefreshSec;
-   Settings.ADX_Threshold_Accumulation= Inp_CUSTOM_Ind_Adx_Thr_Accum;
-   Settings.ADX_Threshold_Trending    = Inp_CUSTOM_Ind_Adx_Thr_Trending;
-   Settings.ADX_Threshold_Distribution= Inp_CUSTOM_Ind_Adx_Thr_Distrib;
-   Settings.P_MacdFast           = Inp_CUSTOM_Ind_Macd_Fast;
-   Settings.P_MacdSlow           = Inp_CUSTOM_Ind_Macd_Slow;
-   Settings.P_MacdSig            = Inp_CUSTOM_Ind_Macd_Sig;
-   Settings.P_Rsi                = Inp_CUSTOM_Ind_Rsi_Period;
-   Settings.T_RsiOB              = Inp_CUSTOM_Ind_Rsi_OB;
-   Settings.T_RsiOS              = Inp_CUSTOM_Ind_Rsi_OS;
-   Settings.P_Cci                = Inp_CUSTOM_Ind_Cci_Period;
-   Settings.P_Mfi                = Inp_CUSTOM_Ind_Mfi_Period;
+   Settings.ADX_Threshold_Accumulation= 12.0;
+   Settings.ADX_Threshold_Trending    = 25.0;
+   Settings.ADX_Threshold_Distribution= 18.0;
+   Settings.P_MacdFast           = 8;
+   Settings.P_MacdSlow           = 13;
+   Settings.P_MacdSig            = 5;
+   Settings.P_Rsi                = 14;
+   Settings.T_RsiOB              = 70.0;
+   Settings.T_RsiOS              = 30.0;
+   Settings.P_Cci                = 14;
+   Settings.P_Mfi                = 14;
    Settings.T_Mfi                = Inp_Global_Ind_Mfi_Level;
    Settings.T_MfiOB              = Inp_Global_Ind_Mfi_Level;
    Settings.T_MfiOS              = Inp_Global_Ind_Mfi_Level;
-   Settings.P_StoK               = Inp_CUSTOM_Ind_Sto_K;
-   Settings.P_StoD               = Inp_CUSTOM_Ind_Sto_D;
-   Settings.P_StoSlow            = Inp_CUSTOM_Ind_Sto_Slow;
+   Settings.P_StoK               = 5;
+   Settings.P_StoD               = 3;
+   Settings.P_StoSlow            = 3;
    Settings.T_StoOB              = 80.0;
    Settings.T_StoOS              = 20.0;
-   Settings.P_Bb                 = Inp_CUSTOM_Ind_Bb_Period;
-   Settings.P_BbDev              = Inp_CUSTOM_Ind_Bb_Dev;
-   Settings.P_PsarStep           = Inp_CUSTOM_Ind_Psar_Step;
-   Settings.P_PsarMax            = Inp_CUSTOM_Ind_Psar_Max;
-   Settings.P_Atr                = Inp_CUSTOM_Ind_Atr_Period;
+   Settings.P_Bb                 = 20;
+   Settings.P_BbDev              = 2.0;
+   Settings.P_PsarStep           = 0.05;
+   Settings.P_PsarMax            = 0.5;
+   Settings.P_Atr                = 14;
 
    // Modes
-   Settings.MacdRequireSlope     = Inp_CUSTOM_Ind_Macd_RequireSlope;
-   Settings.MacdRequireDivergence= Inp_CUSTOM_Ind_Macd_RequireDivergence;
-   Settings.MacdRequireHook      = Inp_CUSTOM_Ind_Macd_RequireHook;
-   Settings.MacdFreshBars        = Inp_CUSTOM_Ind_Macd_FreshBars;
+   Settings.MacdRequireSlope     = false;
+   Settings.MacdRequireDivergence= false;
+   Settings.MacdRequireHook      = false;
+   Settings.MacdFreshBars        = 3;
    Settings.MacdHistDecelEnabled = false;  // STEP3 2026-06: was "RRM-only; set true by PRESET_RRM" — RRM removed. All remaining presets explicitly set false or don't override.
-   Settings.MacdSlopeMin         = Inp_CUSTOM_Ind_Macd_SlopeMin;
-   Settings.RsiMode              = Inp_CUSTOM_Ind_Rsi_Mode;
-   Settings.CciMode              = Inp_CUSTOM_Ind_Cci_Mode;
-   Settings.StoMode              = Inp_CUSTOM_Ind_Sto_Mode;
-   Settings.BbMode               = Inp_CUSTOM_Ind_Bb_Mode;
-   Settings.MfiMode              = Inp_CUSTOM_Ind_Mfi_Mode;
+   Settings.MacdSlopeMin         = 0.00001;
+   Settings.RsiMode              = RSI_TREND_ABOVE_50;
+   Settings.CciMode              = CCI_TREND_ZERO;
+   Settings.StoMode              = STO_CROSS_SIGNAL;
+   Settings.BbMode               = BB_TREND_FOLLOW;
+   Settings.MfiMode              = MFI_ZONE_FILTER;
 
    // Active votes
-   Settings.Ind_Adx_Enabled      = Inp_CUSTOM_Ind_Adx_Enabled;
-   Settings.Ind_Macd_Enabled     = Inp_CUSTOM_Ind_Macd_Enabled;
-   Settings.Ind_Rsi_Enabled      = Inp_CUSTOM_Ind_Rsi_Enabled;
-   Settings.Ind_Cci_Enabled      = Inp_CUSTOM_Ind_Cci_Enabled;
-   Settings.Ind_Mfi_Enabled      = Inp_CUSTOM_Ind_Mfi_Enabled;
-   Settings.Ind_Sto_Enabled      = Inp_CUSTOM_Ind_Sto_Enabled;
-   Settings.Ind_Bb_Enabled       = Inp_CUSTOM_Ind_Bb_Enabled;
-   Settings.Ind_Psar_Enabled     = Inp_CUSTOM_Ind_Psar_Enabled;
-   Settings.Ind_P123_Enabled     = Inp_CUSTOM_Ind_P123_Enabled;
-   Settings.Ind_Ross_Enabled     = Inp_CUSTOM_Ind_Ross_Enabled;
-   Settings.Ind_Atr_Enabled      = Inp_CUSTOM_Ind_Atr_Enabled;
-   Settings.Ind_CandleBody_Enabled = Inp_CUSTOM_Ind_CandleBody_Enabled;
-   Settings.Ind_CI_Enabled        = Inp_CUSTOM_Ind_CI_Enabled;
-   Settings.Ind_VRC_Enabled       = Inp_CUSTOM_Ind_VRC_Enabled;
+   Settings.Ind_Adx_Enabled      = false;
+   Settings.Ind_Macd_Enabled     = false;
+   Settings.Ind_Rsi_Enabled      = false;
+   Settings.Ind_Cci_Enabled      = false;
+   Settings.Ind_Mfi_Enabled      = false;
+   Settings.Ind_Sto_Enabled      = false;
+   Settings.Ind_Bb_Enabled       = false;
+   Settings.Ind_Psar_Enabled     = true;
+   Settings.Ind_P123_Enabled     = false;
+   Settings.Ind_Ross_Enabled     = false;
+   Settings.Ind_Atr_Enabled      = false;
+   Settings.Ind_CandleBody_Enabled = true;
+   Settings.Ind_CI_Enabled        = false;
+   Settings.Ind_VRC_Enabled       = false;
    Settings.Ind_SmaConverge_Enabled = false;  // default (FPM preset only; overwritten by ApplyPreset)
 
    // Weights
@@ -1462,29 +1359,29 @@ void InitializeConfig()
     Settings.DPI_ResetRecoveryBars       = MathMax(0, Inp_RRM_ORG_DPI_ResetRecoveryBars);
     Settings.DPI_ResetRequireGreen       = Inp_RRM_ORG_DPI_ResetRequireGreen;
     // Choppiness Index
-    Settings.CI_Period             = MathMax(5, Inp_CUSTOM_Ind_CI_Period);
-    Settings.CI_RangingThreshold   = MathMax(0.0, Inp_CUSTOM_Ind_CI_RangingThreshold);
+    Settings.CI_Period             = MathMax(5, 14);
+    Settings.CI_RangingThreshold   = MathMax(0.0, 61.8);
 
    // VRC
-   Settings.VRC_ATR_Period        = MathMax(1, Inp_CUSTOM_Ind_VRC_ATR_Period);
-   Settings.VRC_Lookback          = MathMax(10, Inp_CUSTOM_Ind_VRC_Lookback);
-   Settings.VRC_LowThreshold      = MathMax(0.0, MathMin(100.0, Inp_CUSTOM_Ind_VRC_LowThreshold));
-   Settings.VRC_RefreshSec        = Inp_CUSTOM_Ind_VRC_RefreshSec;
+   Settings.VRC_ATR_Period        = MathMax(1, 14);
+   Settings.VRC_Lookback          = MathMax(10, 100);
+   Settings.VRC_LowThreshold      = MathMax(0.0, MathMin(100.0, 33.0));
+   Settings.VRC_RefreshSec        = 14400;
 
    // Exits
    Settings.SL_FixedPips         = Inp_Global_SL_FixedPips;
    Settings.SL_MinPips           = MathMax(0.0, Inp_Global_SL_MinPips);
    Settings.SL_WidenToMinimum    = Inp_Global_SL_WidenToMinimum;
-   Settings.SLMode               = Inp_CUSTOM_SLMode;
-   Settings.TPMode               = Inp_CUSTOM_TPMode;
-   Settings.FixedTPPips          = Inp_CUSTOM_FixedTPPips;
-   Settings.SLPercent            = Inp_CUSTOM_SLPercent;
+   Settings.SLMode               = SL_MODE_PSAR_DOT;
+   Settings.TPMode               = TP_MODE_RR;
+   Settings.FixedTPPips          = 40.0;
+   Settings.SLPercent            = 0.5;
    Settings.SL_AtrPeriod         = Inp_Global_SL_AtrPeriod;   // CUSTOM: user-controlled; overridden by TI/RRM/RRM_ORG preset blocks
    Settings.SL_AtrMult           = Inp_Global_SL_AtrMult;     // CUSTOM: user-controlled; overridden by TI/RRM/RRM_ORG preset blocks
-   Settings.RRRatio              = Inp_CUSTOM_RRRatio;
-   Settings.SwingLookback        = Inp_CUSTOM_SwingLookback;
-   Settings.FractalPeriod        = Inp_CUSTOM_FractalPeriod;
-   Settings.TPFractalOffset      = Inp_CUSTOM_TPFractalOffset;
+   Settings.RRRatio              = 2.5;
+   Settings.SwingLookback        = 34;
+   Settings.FractalPeriod        = 5;
+   Settings.TPFractalOffset      = 1;
    Settings.ShowSwingMarkers     = Inp_UI_ShowSwingMarkers;
    Settings.ShowFractalMarkers   = Inp_UI_ShowFractalMarkers;
    Settings.MarkerLookback       = MathMax(0, Inp_UI_MarkerLookback);
@@ -1496,23 +1393,23 @@ void InitializeConfig()
    Settings.FractalLowColor      = Inp_UI_FractalLowColor;
    Settings.FractalMarkerSize    = MathMax(1, MathMin(5, Inp_UI_FractalMarkerSize));
 
-   Settings.TrailTrigger         = Inp_CUSTOM_TrailTrigger;
-   Settings.TrailDistancePips    = Inp_CUSTOM_TrailDistancePips;
-   Settings.BEThresholdPips      = Inp_CUSTOM_BEThresholdPips;
-   Settings.TrailProfitPercent   = Inp_CUSTOM_TrailProfitPercent;
+   Settings.TrailTrigger         = TRIGGER_IMMEDIATE;
+   Settings.TrailDistancePips    = 5.0;
+   Settings.BEThresholdPips      = 5.0;
+   Settings.TrailProfitPercent   = 25.0;
    Settings.TrailProfitPercentLPR= 25.0;
-   Settings.TrailStepPips        = Inp_CUSTOM_TrailStepPips;
-   Settings.TrailLockProfit      = Inp_CUSTOM_TrailLockProfit;
-   Settings.TP_Enabled           = Inp_CUSTOM_TP_Enabled;
-   Settings.TrailMode            = Inp_CUSTOM_TrailMode;
+   Settings.TrailStepPips        = 5.0;
+   Settings.TrailLockProfit      = true;
+   Settings.TP_Enabled           = true;
+   Settings.TrailMode            = TRAIL_EMA;
    Settings.PSAR_TrailCushionMode   = PSAR_CUSHION_ATR; // default; overwritten by ApplyPreset
    Settings.PSAR_TrailCushionAtrPeriod = 14;  // default; overwritten by ApplyPreset
    Settings.PSAR_TrailCushionAtrMult   = 0.5; // default; overwritten by ApplyPreset
    Settings.PSAR_TrailCushionPct       = 0.0; // default; overwritten by ApplyPreset
    Settings.PSAR_TrailDelay         = 2;      // default; overwritten by ApplyPreset
 
-   Settings.ExitProfile             = Inp_CUSTOM_ExitProfile;
-   Settings.BE_Mode                 = Inp_CUSTOM_BE_Mode;
+   Settings.ExitProfile             = EXIT_PROFILE_RRM;
+   Settings.BE_Mode                 = BE_MODE_TP_PROGRESS_PCT;
    Settings.RRM_BE_ProgressPct      = 50.0;   // default; overwritten by ApplyPreset
    Settings.RRM_BE_RMultiple        = 1.0;    // default; overwritten by ApplyPreset
    Settings.RRM_TrailPsarDotShift = 2;      // default; overwritten by ApplyPreset
@@ -1521,7 +1418,7 @@ void InitializeConfig()
 
    Settings.Vote_EvalShift       = 1;
    Settings.Vote_AllowPsarFlip   = false;
-   Settings.Vote_PsarFlipDelay   = (Inp_CUSTOM_Ind_PsarFlipDelay < -1) ? -1 : (Inp_CUSTOM_Ind_PsarFlipDelay > 10) ? 10 : Inp_CUSTOM_Ind_PsarFlipDelay;
+   Settings.Vote_PsarFlipDelay   = (10 < -1) ? -1 : (10 > 10) ? 10 : 10;
    Settings.Vote_PsarFlipDelay_W = -99;  // P1: default = use global
    Settings.Vote_PsarFlipDelay_M = -99;  // P1: default = use global
    Settings.Vote_PsarFlipDelay_S = -99;  // P1: default = use global
@@ -1557,9 +1454,9 @@ void InitializeConfig()
 
    Settings.MaxSpread = GetAdaptiveSpreadLimit(Settings.Adaptive.PairType, Settings.Adaptive);
 
-   Settings.PhaseDetectionEnabled        = Inp_CUSTOM_PhaseDetectionEnabled;
-   Settings.BlockUnorderedPhase          = Inp_CUSTOM_BlockUnorderedPhase;
-   Settings.BlockEmergingPhase           = Inp_CUSTOM_BlockEmergingPhase;
+   Settings.PhaseDetectionEnabled        = true;
+   Settings.BlockUnorderedPhase          = true;
+   Settings.BlockEmergingPhase           = false;
    Settings.RequireMinPhaseConfirm       = false;
    Settings.MinPhaseConfirmBars          = 0;
    
@@ -1570,7 +1467,7 @@ void InitializeConfig()
    Settings.Trending_AllowMediumTrades   = true;
    Settings.Trending_AllowStrongTrades   = true;
 
-    Settings.EnableLayerDetection         = Inp_CUSTOM_EnableLayerDetection;
+    Settings.EnableLayerDetection         = true;
     Settings.AllowLayer1_Entries          = true;
     Settings.AllowLayer2_Entries          = true;
     Settings.AllowLayer3_Entries          = true;
@@ -1595,7 +1492,7 @@ void InitializeConfig()
    // clamp in EvaluateBias (SEA_SignalEngine.mqh:~6511-6513). Only meaningful
    // when CUSTOM is active AND BiasMode=BIAS_1EMA/BIAS_2EMA. All non-CUSTOM
    // presets explicitly set SlopeLookbackBars in their preset block.
-   Settings.SlopeLookbackBars      = MathMax(1, MathMin(5, Inp_CUSTOM_SlopeLookbackBars));
+   Settings.SlopeLookbackBars      = MathMax(1, MathMin(5, 1));
    Settings.LayerPullbackEnabled        = Inp_Global_LayerPullbackEnabled;
    Settings.LayerS_RequireDirAlign      = Inp_Global_LayerS_Require_DirAlign;
    Settings.LayerResetOnRealign         = Inp_Global_LayerReset_OnRealign;
@@ -1635,9 +1532,9 @@ void InitializeConfig()
     Settings.VPRR_ExternalSymbol  = "";
 
     // BarClose (bcX) settings
-    Settings.BarClose_Enabled    = Inp_CUSTOM_BarClose_Enabled;
-   Settings.BarClose_Mode       = Inp_CUSTOM_BarClose_Mode;
-   Settings.BarClose_DefaultEMA = Inp_CUSTOM_BarClose_DefaultEMA;
+    Settings.BarClose_Enabled    = true;
+   Settings.BarClose_Mode       = BC_LAYER_AWARE;
+   Settings.BarClose_DefaultEMA = ROLE_EMA1;
 
    // Re-entry after breakeven: disabled by default; enabled by RRM presets
    Settings.AllowReEntryAfterBE = false;
