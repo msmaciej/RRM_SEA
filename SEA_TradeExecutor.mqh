@@ -1275,11 +1275,12 @@ private:
    //| REFACTORED: PURE PRICE ANCHOR SL CALCULATION                     |
    //+------------------------------------------------------------------+
    //+------------------------------------------------------------------+
-   //| EnforceSLMinFloor — STEP19 2026-06                                |
+   //| EnforceSLMinFloor — STEP19 2026-06 (extended STEP20 2026-06)      |
    //|                                                                  |
    //| Applies the SL_MinPips (user) AND broker-minimum (SYMBOL_TRADE_  |
    //| STOPS_LEVEL) floors to a candidate SL price. Single source of    |
-   //| truth for Path 2 (CalcEntrySL — SIMPLE exit profile / FPM/MA/TI).|
+   //| truth for BOTH Path 1 (RRM_GetStrictSL) AND Path 2 (CalcEntrySL  |
+   //| — SIMPLE exit profile / FPM/MA/TI).                              |
    //|                                                                  |
    //| Returns:                                                          |
    //|   • the candidate SL unchanged if already at or beyond min dist   |
@@ -1289,10 +1290,11 @@ private:
    //|     close — caller should treat this as a trade-block signal      |
    //|                                                                   |
    //| The Inp_Global_SL_MinPips comment promises "broker minimum still |
-   //| applies" — Path 1 (RRM_GetStrictSL, lines 1387-1408) honors this |
-   //| with the same logic inlined; Path 2 previously had NO floor at   |
-   //| all, silently dropping the user's SL_MinPips setting on the      |
-   //| SIMPLE exit profile. Path 2's five return points now route here. |
+   //| applies" — STEP19 wired Path 2's five return points to this      |
+   //| helper (was: no floor at all on SIMPLE exit profile, silently    |
+   //| dropping the user's SL_MinPips setting). STEP20 then dedup'd     |
+   //| Path 1's inline ~22-line floor block to one call here. Both      |
+   //| paths now share this single floor implementation.                |
    //+------------------------------------------------------------------+
    double EnforceSLMinFloor(bool isBuy, double price, double sl) {
       if(sl <= 0.0) return sl;   // upstream already blocking; pass through
@@ -1431,29 +1433,13 @@ private:
             break;
       }
 
-      // Broker minimum distance is in points; add one full pip as an extra buffer.
-      double user_min_dist = m_settings.SL_MinPips * pipSize;
-      long stops_level_points = 0;
-      if(!SymbolInfoInteger(m_symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_level_points)) {
-         Print("⚠️ [SL] Failed to read SYMBOL_TRADE_STOPS_LEVEL; using 0 points + 1 pip buffer fallback");
-         stops_level_points = 0;
-      }
-      double broker_min_dist = (double)stops_level_points * _Point + pipSize;
-      double min_sl_dist = MathMax(user_min_dist, broker_min_dist);
-
-      double actual_dist = MathAbs(price - sl);
-      if(actual_dist < min_sl_dist) {
-         if(m_settings.SL_WidenToMinimum) {
-            sl = isBuy ? (price - min_sl_dist) : (price + min_sl_dist);
-            PrintFormat("⚠️ [SL] SL too close (%.1f pips), widened to minimum (%.1f pips)",
-                        actual_dist / pipSize, min_sl_dist / pipSize);
-         } else {
-            PrintFormat("🚫 [SL] SL too close (%.1f pips < min %.1f pips), trade blocked",
-                        actual_dist / pipSize, min_sl_dist / pipSize);
-            return 0.0;
-         }
-      }
-      return sl;
+      // STEP20 2026-06: SL_MinPips floor (Path 1 dedup; pairs with STEP19 Path 2 callsites).
+      // The inline floor block (~22 lines: user_min_dist / broker stops_level / widen-vs-block)
+      // is replaced with a single EnforceSLMinFloor call. Behavior-preserving — the helper
+      // is now the single source of truth for the SL floor across BOTH Path 1 (RRM) and
+      // Path 2 (SIMPLE/FPM/MA/TI). `sl` is always nonzero here (initialized to fixed-pips
+      // fallback at the top of RRM_GetStrictSL), so the helper's sl<=0 guard is a no-op.
+      return EnforceSLMinFloor(isBuy, price, sl);
    }
 
    double CalcEntrySL(bool isBuy, double price) {
