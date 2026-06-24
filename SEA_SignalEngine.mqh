@@ -7581,8 +7581,9 @@ public:
          DebugLog(StringFormat("[DEBUG_TEST] Current time: %s", TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES)));
       }
 
-      // Update PSAR flip tracking on each bar close (uses shift=1 for closed bar)
-      if(m_settings.Vote_AllowPsarFlip)
+      // Keep PSAR flip history current whenever PSAR is enabled so the
+      // flip-aware path can rely on up-to-date timestamps.
+      if(m_settings.Ind_Psar_Enabled)
          UpdatePSARFlipTracking(m_settings.Vote_EvalShift);
 
       UpdatePhaseDiagnostics(m_settings.ma_v_shift);
