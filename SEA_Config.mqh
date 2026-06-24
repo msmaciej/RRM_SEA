@@ -141,6 +141,16 @@ enum EManualSide
    SIDE_LONG,              // SIDE_LONG ... L: Long trades only
    SIDE_SHORT              // SIDE_SHORT ... S: Short trades only
 };
+// F-AUDIT 2026-06: news impact filter — user picks which severity levels block trades.
+// Default NEWS_IMPACT_MED_PLUS matches the prior hardcoded behavior of NewsImpactPass
+// (low impact ignored, medium/high blocks). Empty impact strings always count as
+// "relevant" (treated as MED+) to preserve safety for unparsed news feeds.
+enum ENewsImpactLevel
+{
+   NEWS_IMPACT_ALL,        // ALL: every news event blocks (incl. low impact)
+   NEWS_IMPACT_MED_PLUS,   // MED+: medium and high impact block (default; legacy behavior)
+   NEWS_IMPACT_HIGH_ONLY   // HIGH: only high impact blocks
+};
 enum EAutoStrategy
 {
    STRAT_1EMA_SLOPE,       // STRAT_1EMA_SLOPE ... ONLY for BIAS_1EMA: single EMA slope direction
@@ -425,6 +435,7 @@ struct ST_Settings
    bool            UseNews;
    int             NewsPre;
    int             NewsPost;
+   ENewsImpactLevel NewsImpactFilter;   // F-AUDIT 2026-06: which news-impact levels block (was hardcoded MED+)
    bool            Ind_MTF_Enabled;    // MTF vote enabled
    ENUM_TIMEFRAMES MTF_TF1;            // MTF confirmation timeframe 1
    ENUM_TIMEFRAMES MTF_TF2;            // MTF confirmation timeframe 2 (PERIOD_CURRENT = single TF mode)

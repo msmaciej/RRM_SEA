@@ -1377,7 +1377,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Slow             = Inp_MTF_EMA_Slow;
       cfg.MTF_RequirePhase         = false;
       cfg.MTF_StrictAlignment      = Inp_MTF_StrictAlignment;
-      cfg.ClimaxGuard_Enabled      = Inp_CUSTOM_ClimaxGuard_Enabled;   // climax/exhaustion guard
+      // F-AUDIT 2026-06: ClimaxGuard_Enabled wiring removed — globalized to Inp_F_ClimaxGuard_Enabled
 
       // ── Directional gates: AUTO-TF scaling + JPY value-scaling ──
       bool   custom_isJpy  = (StringFind(_Symbol, "JPY") >= 0);
@@ -1442,8 +1442,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
                                 :  Inp_CUSTOM_TrailPsarDotShift;
 
       // ── EMA-fan filter: TF-adaptive base × volatility multiplier ──
-      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_EmaFan*
-      cfg.EmaFanFilterEnabled = Inp_CUSTOM_EmaFanFilter;
+      // F-AUDIT 2026-06: EmaFanFilterEnabled toggle removed — globalized to Inp_F_EmaFanFilterEnabled.
+      // Tuning sub-params (TF-adaptive pips × instrument multiplier) stay preset-specific.
       double custom_fan_base  = (_Period <= PERIOD_M5)  ? Inp_CUSTOM_EmaFan_M5Pips
                               : (_Period <= PERIOD_M30) ? Inp_CUSTOM_EmaFan_M30Pips
                               : (_Period <= PERIOD_H1)  ? Inp_CUSTOM_EmaFan_H1Pips
@@ -2396,19 +2396,19 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MaxSpreadRetryBars        = MathMax(1, Inp_RRM_MaxSpreadRetryBars);
 
       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────────
-      // Inp_RRM_EmaFanFilterEnabled=false by default — user opt-in.
+      // Inp_F_EmaFanFilterEnabled=false by default — user opt-in (global toggle).
       // When enabled: Inp_RRM_EmaFanMaxTotalPips sets the pip threshold,
       // Inp_RRM_EmaFanMaxPct sets the % threshold (0=use pips).
       // Recommended starting values: M1/M5=25p, M15/H1=40-60p, H4+=80-120p.
-      cfg.EmaFanFilterEnabled       = Inp_RRM_EmaFanFilterEnabled;
+      // F-AUDIT 2026-06: EmaFanFilterEnabled toggle removed — globalized to Inp_F_EmaFanFilterEnabled
       cfg.EmaFanMaxTotalPips        = (Inp_RRM_EmaFanMaxTotalPips > 0.0)
                                          ? Inp_RRM_EmaFanMaxTotalPips * GetEmaFanMultiplier()
                                          : 25.0 * GetEmaFanMultiplier();
       cfg.EmaFanMaxPct              = Inp_RRM_EmaFanMaxPct;
 
-      // ── DPI DECELERATION FILTER ────────────────────────────────────────
-      // DPI voter not enabled in PRESET_RRM base; filter stays inactive.
-      cfg.DpiDecelFilterEnabled     = false;
+      // F-AUDIT 2026-06: DpiDecelFilterEnabled toggle removed — globalized to Inp_F_DpiDecelFilterEnabled.
+      // (PRESET_RRM previously hardcoded false because DPI voter wasn't enabled in this preset.
+      // The new global default false preserves that effective behavior.)
 
       ValidateRRM_ExitConfig(cfg);
       return;
@@ -2870,8 +2870,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_RequirePhase          = false;
       cfg.MTF_StrictAlignment       = Inp_MTF_StrictAlignment;
 
-      // Climax / exhaustion guard (block late entries into over-extended impulses)
-      cfg.ClimaxGuard_Enabled       = Inp_RRM_ORG_ClimaxGuard_Enabled;
+      // F-AUDIT 2026-06: ClimaxGuard_Enabled wiring removed — globalized to Inp_F_ClimaxGuard_Enabled
 
       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
       cfg.AllowReEntryAfterBE       = Inp_RRM_ORG_AllowReEntryAfterBE;
@@ -2884,16 +2883,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MaxSpreadRetryBars        = MathMax(1, Inp_RRM_ORG_MaxSpreadRetryBars);
 
       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────────
-      // PHASE A: turned ON with TF-scaled threshold. The previous setting
-      // (false / 25 pips) silently disabled the filter entirely. The 25-pip
-      // value is correct only for M1/M5; H4 and Daily fan widths in the
-      // dataset routinely exceed 80–150 pips on legitimate trends, so a
-      // single hardcoded threshold can't work across the TF range we see.
-      // The engine logic at SEA_SignalEngine.mqh:4754 only rejects when
-      // `gap_now > max && gap_now > gap_prev` (i.e. still expanding), so
-      // late-trend chases like #075 are blocked while fresh impulses pass.
-      // Operator-tunable via Inp_RRM_ORG_EmaFanFilter and Inp_RRM_ORG_EmaFan_*.
-      cfg.EmaFanFilterEnabled       = Inp_RRM_ORG_EmaFanFilter;
+      // F-AUDIT 2026-06: EmaFanFilterEnabled toggle removed — globalized to Inp_F_EmaFanFilterEnabled.
+      // Tuning sub-params (TF-adaptive base × instrument multiplier) stay preset-specific.
       double rrm_org_fan_base       = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_EmaFan_M5Pips
                                     : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_EmaFan_M30Pips
                                     : (_Period <= PERIOD_H1)  ? Inp_RRM_ORG_EmaFan_H1Pips
@@ -2904,7 +2895,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Percentage-based alternative: if user set EmaFan_MaxPct > 0, use it instead.
       // This works universally across all instruments without multipliers.
       cfg.EmaFanMaxPct              = MathMax(0.0, Inp_RRM_ORG_EmaFan_MaxPct);
-      cfg.PriceExtFilterEnabled     = Inp_RRM_ORG_PriceExtFilter;
+      // F-AUDIT 2026-06: PriceExtFilterEnabled toggle removed — globalized to Inp_F_PriceExtFilterEnabled.
       cfg.PriceExtRefEma            = (int)MathMax(1, MathMin(4, Inp_RRM_ORG_PriceExtRefEma));
       cfg.PriceExtMaxATR            = MathMax(0.0, Inp_RRM_ORG_PriceExtMaxATR);
       cfg.PriceExtAtrPeriod         = (int)MathMax(1, Inp_RRM_ORG_PriceExtAtrPeriod);
@@ -2914,10 +2905,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
                      cfg.EmaFanMaxPct, cfg.EmaFanMaxTotalPips);
       }
 
-      // ── DPI DECELERATION FILTER ────────────────────────────────────────
-      // PHASE A: now actually active because Ind_Dpi_Enabled is true above.
-      // Operator-tunable via Inp_RRM_ORG_DPI_Decel_Filter.
-      cfg.DpiDecelFilterEnabled     = Inp_RRM_ORG_DPI_Decel_Filter;
+      // F-AUDIT 2026-06: DpiDecelFilterEnabled toggle removed — globalized to Inp_F_DpiDecelFilterEnabled.
 
       // ── PHASE B: RECOVERY SENSITIVITY TUNING (opt-in, all default disabled/0) ──────────
       // These settings widen specific bottlenecks in the TS→TE pipeline to allow valid
@@ -3107,7 +3095,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // DPI — momentum exhaustion detection (Full)
       cfg.Ind_Dpi_Enabled        = is_full;
-      cfg.DpiDecelFilterEnabled  = (Inp_TI_Profile >= TI_FULL);  // decel filter only meaningful when DPI is active
+      // F-AUDIT 2026-06: DpiDecelFilterEnabled toggle removed — globalized to Inp_F_DpiDecelFilterEnabled.
+      // (Previously auto-enabled for TI_FULL profile; users now set the global explicitly.)
 
       // SMA Convergence — pullback detection (Full)
       cfg.Ind_SmaConverge_Enabled = is_full;
@@ -3243,7 +3232,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────
       // With EMA 9/50/89/200 the fan is naturally wider than 5/13/34/89
       // Base values are for FX; GetInstrumentFanMultiplier() scales for Gold/indices/oil/crypto
-      cfg.EmaFanFilterEnabled       = Inp_TI_EmaFanFilterEnabled;
+      // F-AUDIT 2026-06: EmaFanFilterEnabled toggle removed — globalized to Inp_F_EmaFanFilterEnabled.
       double ti_fan_base            = (_Period <= PERIOD_M5)  ? Inp_TI_EmaFanBase_M1M5
                                     : (_Period <= PERIOD_M30) ? Inp_TI_EmaFanBase_M6M30
                                     : (_Period <= PERIOD_H1)  ? Inp_TI_EmaFanBase_H1
@@ -3256,8 +3245,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       PrintFormat("📐 [TOPINVESTOR] SL: SWING lookback=%d | cushion=%.1f pips | BE buffer=%.1f pips",
                   cfg.SwingLookback, cfg.SL_SwingPipsCushion, cfg.RRM_BE_BufferPips);
 
-      // ── DPI DECELERATION FILTER ────────────────────────────────────
-      cfg.DpiDecelFilterEnabled     = (Inp_TI_Profile >= TI_FULL);
+      // F-AUDIT 2026-06: DpiDecelFilterEnabled toggle removed — globalized to Inp_F_DpiDecelFilterEnabled.
 
       // ── RE-ENTRY / COOLDOWN ───────────────────────────────────────
       cfg.AllowReEntryAfterBE       = true;            // LOCKED: TI allows re-entry after BE — if the trend continues, a new pullback is a valid signal

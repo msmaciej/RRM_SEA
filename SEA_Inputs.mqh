@@ -110,6 +110,7 @@ input group "╔═════════════════════�
 input group "║   🚫 VETO: NEWS";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_VETO_UseNews                 = false;          // Veto News: enable
+input ENewsImpactLevel Inp_VETO_NewsImpactFilter    = NEWS_IMPACT_MED_PLUS; // F-AUDIT 2026-06: which impact levels block (default MED+ = legacy hardcode)
 input string      Inp_VETO_NewsFile                = "calendar_statement.csv"; // Veto News: CSV filename
 input int         Inp_VETO_NewsPreMinutes          = 60;             // Veto News: block minutes before
 input int         Inp_VETO_NewsPostMinutes         = 60;             // Veto News: block minutes after
@@ -139,6 +140,19 @@ input int         Inp_ClimaxGuard_ATRPeriod        = 14;             // Climax: 
 input double      Inp_ClimaxGuard_BarATRMult       = 2.0;            // Climax: single-bar range threshold (x ATR)
 input double      Inp_ClimaxGuard_MoveATRMult      = 3.0;            // Climax: cumulative move threshold (x ATR)
 input bool        Inp_ClimaxGuard_ResetPullback    = false;           // Climax: on detection reset ALL layer PB states
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🚫 F-FILTERS (GLOBAL MASTERS — preset-agnostic)";
+input group "╚════════════════════════════════════════════════════════╝";
+// F-AUDIT 2026-06: master enable switches for the F-factor sub-filters. Globalized so any
+// preset can opt in/out independently of strategy choice. Tuning sub-params (EmaFan*Pips,
+// PriceExt*, ClimaxGuard_*) remain where they are (preset-tuned or already global).
+input bool        Inp_F_EmaFanFilterEnabled        = false;          // F-Filter: EMA-fan over-extension master toggle
+input bool        Inp_F_PriceExtFilterEnabled      = false;          // F-Filter: price-vs-EMA over-extension master toggle
+input bool        Inp_F_DpiDecelFilterEnabled      = false;          // F-Filter: DPI GREEN deceleration master toggle (stateless)
+input bool        Inp_F_DPI_HistTrackingEnabled    = false;          // F-Filter: DPI histogram tracking master (prereq for hist-decel block)
+input bool        Inp_F_DPI_BlockOnDeceleration    = false;          // F-Filter: Block on DPI histogram decel (requires hist-tracking on)
+input bool        Inp_F_ClimaxGuard_Enabled        = false;          // F-Filter: Climax / exhaustion-guard master toggle
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -489,7 +503,7 @@ input int         Inp_RRM_Ema4Period               = 89;             // RRM EMA:
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM: EMA Fan Filter";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_EmaFanFilterEnabled      = false;          // RRM Fan: EMA FAN Filter
+// F-AUDIT 2026-06: Inp_RRM_EmaFanFilterEnabled removed — toggle globalized to Inp_F_EmaFanFilterEnabled
 input double      Inp_RRM_EmaFanMaxTotalPips       = 0.0;            // RRM Fan: EMA1–EMA4 max gap pips (0=disabled; M1/M5 start: 25.0)
 input double      Inp_RRM_EmaFanMaxPct             = 0.0;            // RRM Fan: EMA1–EMA4 max gap % of price (0=use pips; 0.36≈40pip EURUSD)
 input group "╔════════════════════════════════════════════════════════╗";
@@ -574,8 +588,9 @@ input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;     // RRM ORG
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Pre-filter — GREEN Deceleration";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_DPI_Decel_Filter           = false;    // RRM ORG DPI: Block entry when GREEN shrinking or disappeared
-input bool        Inp_RRM_ORG_DPI_BlockOnDeceleration    = false;    // RRM ORG DPI: Block entries when CCI momentum decelerating (needs tracking ON)
+// F-AUDIT 2026-06: 3 inputs removed (Inp_RRM_ORG_DPI_Decel_Filter, _DPI_BlockOnDeceleration,
+// _DPI_HistTrackingEnabled). Toggles globalized to Inp_F_DpiDecelFilterEnabled / Inp_F_DPI_BlockOnDeceleration
+// / Inp_F_DPI_HistTrackingEnabled. Tuning params for DPI (CCI period, EMA periods, thresholds) stay here.
 input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // RRM ORG DPI: CCI deceleration lookback bars (needs tracking ON)
 //
 // Inp_RRM_ORG_DPI_Decel_Filter - Blocks entry when GREEN momentum is fading or has just disappeared.
@@ -586,7 +601,7 @@ input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI System B — CCI Histogram Tracking";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_DPI_HistTrackingEnabled    = false;    // RRM ORG DPI: Enable CCI histogram tracking (master switch)
+// F-AUDIT 2026-06: Inp_RRM_ORG_DPI_HistTrackingEnabled removed (see grouped removal note above)
 input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = false;    // RRM ORG DPI: Use histogram growth as layer momentum boost (needs tracking ON)
 input double      Inp_RRM_ORG_DPI_HistMomentumThreshold  = 0.0001;   // RRM ORG DPI: Ignore CCI-delta below this (needs tracking ON)
 input bool        Inp_RRM_ORG_DPI_ExitOnHistDisappear    = false;    // RRM ORG DPI: Close trades when CCI trend flips (needs tracking ON)
@@ -773,7 +788,7 @@ input group "║   📐 RRM_ORG: QUALITY Gates";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_RequireRecoveryIntraday = false;        // RRM ORG QA: Require recovery <M15
 input bool        Inp_RRM_ORG_HtfFilter            = false;           // RRM ORG QA: HTF Trend Filter
-input bool        Inp_RRM_ORG_ClimaxGuard_Enabled  = false;           // RRM ORG: enable climax/exhaustion guard
+// F-AUDIT 2026-06: Inp_RRM_ORG_ClimaxGuard_Enabled removed — toggle globalized to Inp_F_ClimaxGuard_Enabled
 input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM ORG QA: EMA1 period
 input int         Inp_RRM_ORG_Ema2Period           = 13;             // RRM ORG QA: EMA2 period
 input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG QA: EMA3 period
@@ -803,14 +818,14 @@ input bool        Inp_RRM_ORG_AllowLayerW          = true;                      
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: EMA Fan Filter (pips)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_EmaFanFilter         = false;           // RRM ORG Fan: EMA Fan Filter
+// F-AUDIT 2026-06: Inp_RRM_ORG_EmaFanFilter removed — toggle globalized to Inp_F_EmaFanFilterEnabled
 input double      Inp_RRM_ORG_EmaFan_M5Pips        = 25.0;           // RRM ORG Fan: pips <M5
 input double      Inp_RRM_ORG_EmaFan_M30Pips       = 40.0;           // RRM ORG Fan: pips <M30
 input double      Inp_RRM_ORG_EmaFan_H1Pips        = 60.0;           // RRM ORG Fan: pips H1
 input double      Inp_RRM_ORG_EmaFan_H4Pips        = 100.0;          // RRM ORG Fan: pips H4
 input double      Inp_RRM_ORG_EmaFan_DailyPips     = 180.0;          // RRM ORG Fan: pips D1+
 input double      Inp_RRM_ORG_EmaFan_MaxPct        = 0.0;            // RRM ORG Fan: max gap % of price (>0 overrides pips; universal for all instruments)
-input bool        Inp_RRM_ORG_PriceExtFilter       = false;          // RRM ORG OverExt: price-distance-from-EMA filter
+// F-AUDIT 2026-06: Inp_RRM_ORG_PriceExtFilter removed — toggle globalized to Inp_F_PriceExtFilterEnabled
 input int         Inp_RRM_ORG_PriceExtRefEma       = 3;              // RRM ORG OverExt: ref EMA 1..4 (1=5 2=13 3=34 4=89)
 input double      Inp_RRM_ORG_PriceExtMaxATR       = 2.5;            // RRM ORG OverExt: block if |close-refEMA| > this x ATR
 input int         Inp_RRM_ORG_PriceExtAtrPeriod    = 14;             // RRM ORG OverExt: ATR period for distance
@@ -995,7 +1010,7 @@ input bool        Inp_TI_TrailStartsAfterBE        = false;          // TI Exit:
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 TOPINVESTOR: STANDARD — EMA Fan Filter";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_TI_EmaFanFilterEnabled       = true;           // TI Fan: enable EMA fan filter
+// F-AUDIT 2026-06: Inp_TI_EmaFanFilterEnabled removed — toggle globalized to Inp_F_EmaFanFilterEnabled
 input double      Inp_TI_EmaFanBase_M1M5           = 50.0;           // TI Fan: max pips M1–M5
 input double      Inp_TI_EmaFanBase_M6M30          = 80.0;           // TI Fan: max pips M6–M30
 input double      Inp_TI_EmaFanBase_H1             = 120.0;          // TI Fan: max pips H1
@@ -1112,7 +1127,7 @@ input bool        Inp_CUSTOM_LayerPullbackEnabled  = false;          // Override
 input bool        Inp_CUSTOM_LayerS_Require_DirAlign  = true;       // [LY] Require Layer S (EMA3/EMA4) pos+slope w/ bias to allow M/W entries
 input bool        Inp_CUSTOM_LayerReset_OnRealign      = false;      // [LY] Reset layer pullback states on confirmed market-phase change
 input int         Inp_CUSTOM_LayerReset_PhaseConfirm   = 2;          // [LY]   ^ bars new phase must hold first (1=catch 1-bar phases)
-input bool        Inp_CUSTOM_ClimaxGuard_Enabled   = true;           // Override: [CG] Enable climax/exhaustion guard
+// F-AUDIT 2026-06: Inp_CUSTOM_ClimaxGuard_Enabled removed — toggle globalized to Inp_F_ClimaxGuard_Enabled
 input bool        Inp_CUSTOM_VPRR_Enabled          = false;          // Override: [VP] Enable Volume Pullback-Recovery Ratio voter
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 4: Candle Close & Candle Body";
@@ -1159,7 +1174,7 @@ input bool        Inp_CUSTOM_RequireRecoveryIntraday = false;        // Custom: 
 input int         Inp_CUSTOM_DDMaxConsecLosses     = 3;              // Custom: [DD] Override max consecutive losses (0=use RRM default)
 input int         Inp_CUSTOM_DDMaxTradesPerDay     = 15;             // Custom: [DD] Override max trades per day (0=use RRM default)
 input double      Inp_CUSTOM_DDMaxDailyPct         = 8.0;            // Custom: [DD] Override max daily DD % (0=use RRM default)
-input bool        Inp_CUSTOM_EmaFanFilter          = false;          // Custom: [Fan] EMA Fan Filter master
+// F-AUDIT 2026-06: Inp_CUSTOM_EmaFanFilter removed — toggle globalized to Inp_F_EmaFanFilterEnabled
 input double      Inp_CUSTOM_EmaFan_M5Pips         = 25.0;           // Custom: [Fan] pips <M5
 input double      Inp_CUSTOM_EmaFan_M30Pips        = 40.0;           // Custom: [Fan] pips <M30
 input double      Inp_CUSTOM_EmaFan_H1Pips         = 60.0;           // Custom: [Fan] pips H1
@@ -1530,6 +1545,7 @@ void InitializeConfig()
    Settings.UseNews              = Inp_VETO_UseNews;
    Settings.NewsPre              = Inp_VETO_NewsPreMinutes;
    Settings.NewsPost             = Inp_VETO_NewsPostMinutes;
+   Settings.NewsImpactFilter     = Inp_VETO_NewsImpactFilter;       // F-AUDIT 2026-06
    Settings.Ind_MTF_Enabled      = Inp_Ind_MTF_Enabled;
    Settings.MTF_TF1              = Inp_MTF_TF1;
    Settings.MTF_TF2              = Inp_MTF_TF2;
@@ -1644,8 +1660,10 @@ void InitializeConfig()
    Settings.DPI_UseGreenHist            = Inp_RRM_ORG_DPI_UseGreenHist;
     Settings.DPI_HistMomentumThreshold   = Inp_RRM_ORG_DPI_HistMomentumThreshold;
     Settings.DPI_HistDecelLookback       = MathMax(1, MathMin(9, Inp_RRM_ORG_DPI_HistDecelLookback));
-    Settings.DPI_HistTrackingEnabled     = Inp_RRM_ORG_DPI_HistTrackingEnabled;
-    Settings.DPI_BlockOnDeceleration     = Inp_RRM_ORG_DPI_BlockOnDeceleration;
+    // F-AUDIT 2026-06: was Inp_RRM_ORG_DPI_HistTrackingEnabled / DPI_BlockOnDeceleration
+    // (cross-preset bleed: all 7 presets inherited RRM_ORG's value). Now globalized.
+    Settings.DPI_HistTrackingEnabled     = Inp_F_DPI_HistTrackingEnabled;
+    Settings.DPI_BlockOnDeceleration     = Inp_F_DPI_BlockOnDeceleration;
     Settings.DPI_ExitOnHistDisappear     = Inp_RRM_ORG_DPI_ExitOnHistDisappear;
     Settings.DPI_ExitThreshold           = MathMax(0.0, Inp_RRM_ORG_DPI_ExitThreshold);
     // DPI CCI Reset-Recovery
@@ -1807,9 +1825,11 @@ void InitializeConfig()
    Settings.LayerRecoveryRatio_S        = -1.0;
    Settings.LayerAllowReversalPullback  = true;
 
-   // Climax guard: params are global; enable is OFF in the base so non-opted
-   // presets are unaffected. RRM_ORG and CUSTOM opt in via ApplyPreset.
-   Settings.ClimaxGuard_Enabled         = false;
+   // F-AUDIT 2026-06: Climax guard. Sub-params already global; master toggle now
+   // also global (was per-preset via Inp_CUSTOM_ClimaxGuard_Enabled / Inp_RRM_ORG_ClimaxGuard_Enabled;
+   // 5/7 presets had no input at all). Climax is conceptually an F sub-filter
+   // (market-state filter) — see EvaluateF.
+   Settings.ClimaxGuard_Enabled         = Inp_F_ClimaxGuard_Enabled;
    Settings.ClimaxGuard_Lookback        = MathMax(1, Inp_ClimaxGuard_Lookback);
    Settings.ClimaxGuard_ATRPeriod       = MathMax(1, Inp_ClimaxGuard_ATRPeriod);
    Settings.ClimaxGuard_BarATRMult      = MathMax(0.0, Inp_ClimaxGuard_BarATRMult);
@@ -1840,17 +1860,21 @@ void InitializeConfig()
    // Spread retry cap: kill carry after N consecutive spread-blocked bars (0=unlimited)
    Settings.MaxSpreadRetryBars    = Inp_VETO_MaxSpreadRetryBars;
 
-   // EMA fan overextension filter: disabled by default (presets override)
-   Settings.EmaFanFilterEnabled   = false;   // default; overwritten by ApplyPreset
-   Settings.EmaFanMaxTotalPips    = 60.0;    // default; overwritten by ApplyPreset
-   Settings.EmaFanMaxPct          = 0.0;     // default; overwritten by ApplyPreset
-   Settings.PriceExtFilterEnabled = false;   // default; overwritten by ApplyPreset
-   Settings.PriceExtRefEma        = 3;        // default; overwritten by ApplyPreset
-   Settings.PriceExtMaxATR        = 2.5;      // default; overwritten by ApplyPreset
-   Settings.PriceExtAtrPeriod     = 14;       // default; overwritten by ApplyPreset
+   // F-AUDIT 2026-06: F-filter master toggles now globalized. Tuning sub-params
+   // (EmaFanMaxTotalPips/MaxPct, PriceExtMaxATR/RefEma/AtrPeriod) remain
+   // preset-tuned via the preset blocks; if a preset has no tuning wiring,
+   // these seed defaults apply.
+   Settings.EmaFanFilterEnabled   = Inp_F_EmaFanFilterEnabled;
+   Settings.EmaFanMaxTotalPips    = 60.0;    // default; overwritten by ApplyPreset for tuned presets
+   Settings.EmaFanMaxPct          = 0.0;     // default; overwritten by ApplyPreset for tuned presets
+   Settings.PriceExtFilterEnabled = Inp_F_PriceExtFilterEnabled;
+   Settings.PriceExtRefEma        = 3;        // default; overwritten by ApplyPreset for tuned presets
+   Settings.PriceExtMaxATR        = 2.5;      // default; overwritten by ApplyPreset for tuned presets
+   Settings.PriceExtAtrPeriod     = 14;       // default; overwritten by ApplyPreset for tuned presets
 
-   // DPI momentum deceleration filter: disabled by default (presets override)
-   Settings.DpiDecelFilterEnabled = Inp_RRM_ORG_DPI_Decel_Filter;
+   // F-AUDIT 2026-06: DPI deceleration master toggle globalized (was bleeding
+   // from Inp_RRM_ORG_DPI_Decel_Filter into all non-RRM_ORG presets).
+   Settings.DpiDecelFilterEnabled = Inp_F_DpiDecelFilterEnabled;
 
    // ── PHASE B: TE-side gates (user-configurable veto controls) ──
    Settings.TE_RecheckBarClose    = Inp_VETO_TE_RecheckBarClose;

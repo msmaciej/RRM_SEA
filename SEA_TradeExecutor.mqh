@@ -66,6 +66,15 @@ private:
    int         m_te_pass_bc_recheck;
    int         m_te_pass_spread_median;
 
+   // ── F-AUDIT 2026-06: TE-side Time/News/Spread counters ──
+   // The original EvaluateFilterX (in CSignalEngine) bumped these into
+   // m_stats.passed_*/rejected_* but had no callers. The actual T/N/S gates
+   // live HERE (CTradeExecutor::EvaluateF). These counters get bridged into
+   // CSignalEngine.m_stats at OnDeinit via the extended AddTeStats() call.
+   int         m_te_rej_time,    m_te_pass_time;
+   int         m_te_rej_news,    m_te_pass_news;
+   int         m_te_rej_spread,  m_te_pass_spread;
+
    // ── DPI Histogram Exit: state cached from CSignalEngine each bar ──
    double      m_dpi_hist_current;       // Current CCI value from DPI tracking
    int         m_dpi_hist_trend;         // +1 = CCI positive, -1 = CCI negative, 0 = flat
@@ -1934,6 +1943,9 @@ public:
                        m_spread_block_bars(0), m_rc_veto_reason(""),
                        m_te_rej_open_delay(0), m_te_rej_bc_recheck(0), m_te_rej_spread_median(0),
                        m_te_pass_open_delay(0), m_te_pass_bc_recheck(0), m_te_pass_spread_median(0),
+                       m_te_rej_time(0),    m_te_pass_time(0),
+                       m_te_rej_news(0),    m_te_pass_news(0),
+                       m_te_rej_spread(0),  m_te_pass_spread(0),
                        m_spread_history_count(0), m_spread_history_idx(0),
                        m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), m_h_cushion_atr(INVALID_HANDLE), m_h_sl_atr(INVALID_HANDLE), m_h_trail_ema_atr(INVALID_HANDLE), // CACHED HANDLES
                        m_dpi_hist_current(0.0), m_dpi_hist_trend(0), m_dpi_hist_decelerating(false), m_dpi_hist_green_present(false),
@@ -1979,6 +1991,14 @@ public:
    int      PassOpenDelay()    const { return m_te_pass_open_delay;    }
    int      PassBCRecheck()    const { return m_te_pass_bc_recheck;    }
    int      PassSpreadMedian() const { return m_te_pass_spread_median; }
+
+   // ── F-AUDIT 2026-06: TE-side T/N/S counter getters ──────────────
+   int      RejTime()          const { return m_te_rej_time;     }
+   int      PassTime()         const { return m_te_pass_time;    }
+   int      RejNews()          const { return m_te_rej_news;     }
+   int      PassNews()         const { return m_te_pass_news;    }
+   int      RejSpread()        const { return m_te_rej_spread;   }
+   int      PassSpread()       const { return m_te_pass_spread;  }
 
    // ── DPI Histogram Exit: state setter & stats getter ──────────────
    // Called once per bar from main EA before EvaluateTM(), so CheckDPIHistogramExit()
@@ -2815,8 +2835,10 @@ public:
                PrintFormat("[TE VETO] VETO_SPREAD | spread=%.1f pips > MaxSpread=%.1f pips", spread_pips, m_settings.MaxSpread);
                m_te_veto_reason = "VETO_SPREAD";
             }
+            m_te_rej_spread++;   // F-AUDIT 2026-06: unified spread-rejection counter (was only m_te_rej_spread_median for median path)
             return 0;
          }
+         m_te_pass_spread++;   // F-AUDIT 2026-06: spread filter ran and passed
       }
 
       // F Gate 2: Session time check
@@ -2831,8 +2853,10 @@ public:
          {
             PrintFormat("[TE VETO] VETO_TIME | hour=%d outside window [%d-%d]", dt.hour, m_settings.StartHr, m_settings.EndHr);
             m_te_veto_reason = "VETO_TIME";
+            m_te_rej_time++;   // F-AUDIT 2026-06
             return 0;
          }
+         m_te_pass_time++;   // F-AUDIT 2026-06
       }
 
       // F Gate 3: News check
@@ -2840,8 +2864,13 @@ public:
       {
          Print("[TE VETO] VETO_NEWS | high-impact event active");
          m_te_veto_reason = "VETO_NEWS";
+         m_te_rej_news++;   // F-AUDIT 2026-06
          return 0;
       }
+      // F-AUDIT 2026-06: bump news-pass counter when filter is active AND we
+      // reach here (no news block). UseNews && !news_blocked_override means
+      // the news gate ran without rejecting.
+      if(m_settings.UseNews) m_te_pass_news++;
 
       return 1;  // All execution-moment filters pass
    }

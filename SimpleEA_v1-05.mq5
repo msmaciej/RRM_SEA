@@ -1473,9 +1473,14 @@ void OrchestrateDeinit(const int reason)
    //              before reporting, so the new "1b. PRE-FILTER QUALITY GATES"
    //              section shows correct TE Open Delay / BC Recheck / Spread
    //              Median rejection counts. Must run BEFORE any Print* calls.
+   // F-AUDIT 2026-06: extended to also bridge T/N/S counters (these were
+   // previously dead — only the orphan EvaluateFilterX bumped them).
    Signal.AddTeStats(
       Executor.RejOpenDelay(),  Executor.RejBCRecheck(),  Executor.RejSpreadMedian(),
-      Executor.PassOpenDelay(), Executor.PassBCRecheck(), Executor.PassSpreadMedian()
+      Executor.PassOpenDelay(), Executor.PassBCRecheck(), Executor.PassSpreadMedian(),
+      Executor.RejTime(),       Executor.PassTime(),
+      Executor.RejNews(),       Executor.PassNews(),
+      Executor.RejSpread(),     Executor.PassSpread()
    );
    Signal.AddDPIExitStats(Executor.ExitsDpiHist());
 

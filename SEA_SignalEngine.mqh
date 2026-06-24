@@ -166,6 +166,10 @@ struct SRejectionStats {
    int passed_phase_age,  rejected_phase_age;  // MinPhaseConfirmBars not met
    int passed_htf_align,  rejected_htf_align;  // Legacy field retained for compatibility
    int passed_mtf,        rejected_mtf;        // MTF global filter statistics
+   // F-AUDIT 2026-06: previously rolled into m_reject_filter only; now have
+   // their own stats for the per-gate report.
+   int passed_priceext,   rejected_priceext;   // Price over-extension (ATR units)
+   int passed_climax,     rejected_climax;     // Climax / exhaustion guard (merged into F)
 
    // ── PHASE A.1: TE-side gates (incremented from SEA_TradeExecutor via AddTeStats) ──
    int passed_te_open_delay,    rejected_te_open_delay;
@@ -1243,7 +1247,13 @@ private:
       if(IsCacheValidForShift(shift) && m_ind_cache.atr_result != -1)
          return (m_ind_cache.atr_result == 1);
 
-      // Utilizing the cached ATR pip value calculated during CheckFilters()
+      // F-AUDIT 2026-06 note: m_diag_last_atr_pips was historically refreshed
+      // inside CheckFilters() — now dead. As a result this cached value is
+      // always 0.0, which makes the < / > comparisons below silently false
+      // (Check_ATR always passes). LATENT BUG — out of F-audit scope; flagged
+      // for the I-factor / voter audit. Quick fix would be to call AtrPips()
+      // directly here, but that's a behavior change for any preset that
+      // enables the ATR voter and should land in a dedicated I-audit patch.
       double atr_pips = m_diag_last_atr_pips; 
       bool pass = true;
       
@@ -3499,12 +3509,28 @@ private:
    }
 
    bool NewsImpactPass(string impact) {
+      // F-AUDIT 2026-06: was hardcoded "block on low" / "pass on medium+/high".
+      // Now consults m_settings.NewsImpactFilter (user-tunable):
+      //   NEWS_IMPACT_ALL        — every event blocks (incl. low and unparsed/empty)
+      //   NEWS_IMPACT_MED_PLUS   — medium+high block (legacy default; low ignored; empty=block)
+      //   NEWS_IMPACT_HIGH_ONLY  — only high blocks
+      // Empty impact strings (unparsed feed) treated as "relevant" for safety
+      // under MED_PLUS (legacy); ALL also treats empty as relevant; HIGH_ONLY
+      // does NOT block empty (no way to know if it's high).
       impact = TrimStr(impact);
       StringToLower(impact);
-      if(impact == "") return true;
-      // Reduce excessive blocking: ignore explicit "Low" by default.
-      if(StringFind(impact, "low") == 0) return false;
-      return true; // Medium / High / anything else treated as relevant
+
+      switch(m_settings.NewsImpactFilter) {
+         case NEWS_IMPACT_ALL:
+            return true;   // every event blocks
+         case NEWS_IMPACT_HIGH_ONLY:
+            return (StringFind(impact, "high") == 0);
+         case NEWS_IMPACT_MED_PLUS:
+         default:
+            if(impact == "") return true;                          // safety: unparsed = relevant
+            if(StringFind(impact, "low") == 0) return false;       // low ignored
+            return true;                                            // medium/high/other treated as relevant
+      }
    }
 
    //+------------------------------------------------------------------+
@@ -3974,53 +4000,15 @@ public:
    {
       m_last_f_reason = "";   // which sub-filter blocked (for caller telemetry); "" = passed
 
-      // ── Execution-moment gates (Time / News / Spread) ─────────────────
-      // Only meaningful on the live bar (shift==0); historical scans cannot
-      // replay live spread/news context, so we skip them for shift>0.
-      // Mirrors EvaluateFilterX (lines 5417-5524) — single source of truth so
-      // SignalScan and the EA reach the same verdict on the live bar.
-      if(shift == 0)
-      {
-         // Time window
-         if(m_settings.UseTime)
-         {
-            MqlDateTime dt; TimeCurrent(dt);
-            bool time_pass = (m_settings.StartHr < m_settings.EndHr)
-                             ? (dt.hour >= m_settings.StartHr && dt.hour <  m_settings.EndHr)
-                             : (dt.hour >= m_settings.StartHr || dt.hour <  m_settings.EndHr);
-            if(!time_pass) { m_last_f_reason = "TIME"; return false; }
-         }
-
-         // News window
-         if(m_settings.UseNews && m_news_count > 0)
-         {
-            string base, quote;
-            GetSymbolCurrencies(m_symbol, base, quote);
-            if(base != "" && quote != "")
-            {
-               datetime now = TimeCurrent();
-               int pre_sec  = m_settings.NewsPre  * 60;
-               int post_sec = m_settings.NewsPost * 60;
-               for(int i = 0; i < m_news_count; i++)
-               {
-                  if(!NewsImpactPass(m_news_events[i].impact)) continue;
-                  string ccy = m_news_events[i].currency;
-                  if(ccy != base && ccy != quote) continue;
-                  datetime t = m_news_events[i].time;
-                  if(now >= (t - pre_sec) && now <= (t + post_sec))
-                  { m_last_f_reason = "NEWS"; return false; }
-               }
-            }
-         }
-
-         // Spread
-         if(m_settings.UseSpread && m_settings.MaxSpread > 0.0)
-         {
-            double spread_pips = SpreadPips();
-            if(spread_pips > m_settings.MaxSpread)
-            { m_last_f_reason = "SPREAD"; return false; }
-         }
-      }
+      // F-AUDIT 2026-06: Time / News / Spread checks REMOVED from this function.
+      // Rationale: these are execution-moment (live-context) gates that the
+      // architecture intentionally evaluates at TE-time (SEA_TradeExecutor::EvaluateF)
+      // — TS at shift=1 (bar close) can't meaningfully replay live spread or
+      // live news context. The previous block here was guarded by `if(shift == 0)`
+      // and so was only ever reachable from Scanner_InspectBar (when called with
+      // shift=0), which made its presence misleading. The TE-side EvaluateF is
+      // the single source of truth for Time/News/Spread rejection counters
+      // (bridged into m_stats via Signal.AddTeStats() at OnDeinit).
 
       // ── EMA fan over-extension (stateless) ──
       if(m_settings.EmaFanFilterEnabled && (m_settings.EmaFanMaxTotalPips > 0.0 || m_settings.EmaFanMaxPct > 0.0))
@@ -4105,8 +4093,26 @@ public:
          if(m_dpi_hist_decelerating) { m_last_f_reason = "DPI_DECEL"; return false; }
 
       // ── Phase-age confirmation (reconstructed shift-aware) ──
-      if(m_settings.MinPhaseConfirmBars > 0)
+      // F-AUDIT 2026-06: now also requires RequireMinPhaseConfirm, matching the
+      // GetBias_4EMA_Direction gate (SEA_SignalEngine.mqh:~7091). Previously F
+      // gated on MinPhaseConfirmBars > 0 alone, so TI users with
+      // RequireMinPhaseConfirm=false but MinPhaseConfirmBars > 0 saw F block
+      // (PHASE_AGE) even though B explicitly skipped the confirm.
+      if(m_settings.RequireMinPhaseConfirm && m_settings.MinPhaseConfirmBars > 0)
          if(!PhaseAgeConfirmed(shift)) { m_last_f_reason = "PHASE_AGE"; return false; }
+
+      // ── Climax / exhaustion guard (F-AUDIT 2026-06: was separate factor CG) ──
+      // Merged into F as the final sub-filter per the SimpleEA equation
+      // simplification (TS = B × P × F × L × I). DetectClimax is itself
+      // side-effect-free; the ResetAllLayerPullback side effect is applied
+      // by the EA-side callers (EvaluateTS, EvaluateTS_AtShift) when they
+      // see F_reason == "CLIMAX_GUARD". Scanner_InspectBar (passive) does
+      // NOT trigger the reset.
+      if(m_settings.ClimaxGuard_Enabled && DetectClimax(bias, shift))
+      {
+         m_last_f_reason = "CLIMAX_GUARD";
+         return false;
+      }
 
       return true;
    }
@@ -4145,25 +4151,29 @@ public:
       if(b.I == 0) b.I_reason = m_diag_i_fails;
       if(b.I == 0 && !full_eval) return 0;
 
-      // Climax last. In waterfall mode we only reach here when P*F*L*I all passed;
-      // in full_eval we evaluate it regardless so the inspector shows every factor
-      // independently. DetectClimax is side-effect-free (reset is the caller's job).
-      b.CG = DetectClimax(bias, shift) ? 0 : 1;
+      // F-AUDIT 2026-06: Climax merged into F (TS = B × P × F × L × I).
+      // EvaluateF now runs DetectClimax as its final sub-filter and emits
+      // F_reason="CLIMAX_GUARD" on block. b.CG is kept for inspector backward
+      // compatibility — it now mirrors "was F blocked specifically by climax?".
+      b.CG = (b.F == 0 && b.F_reason == "CLIMAX_GUARD") ? 0 : 1;
 
-      return (b.P == 1 && b.F == 1 && b.L == 1 && b.I == 1 && b.CG == 1) ? 1 : 0;
+      return (b.P == 1 && b.F == 1 && b.L == 1 && b.I == 1) ? 1 : 0;
    }
 
    //==========================================================================
    // EvaluateTS_AtShift — scanner/EA verdict accessor: thin waterfall wrapper
    // over the shared core. Applies the climax layer-reset side effect (the EA's
-   // stateful behavior); the inspector path does not (it stays passive).
+   // stateful behavior); the inspector path (Scanner_InspectBar) does not (it
+   // stays passive by not going through this wrapper).
+   // F-AUDIT 2026-06: Climax now reported via b.F=0 with F_reason="CLIMAX_GUARD"
+   // (merged into F). b.CG mirrors this for inspector backward compat.
    //==========================================================================
    int EvaluateTS_AtShift(int shift, int bias)
    {
       STSBreakdown b;
       int verdict = EvaluateTS_Breakdown(shift, bias, b, false);   // waterfall
-      // b.CG==0 means P*F*L*I all passed but climax vetoed → reset layers.
-      if(b.CG == 0 && m_settings.ClimaxGuard_ResetPullback)
+      // Climax veto detected via F → apply layer reset (EA stateful behavior).
+      if(b.F == 0 && b.F_reason == "CLIMAX_GUARD" && m_settings.ClimaxGuard_ResetPullback)
          ResetAllLayerPullback();
       return verdict;
    }
@@ -4526,7 +4536,10 @@ public:
    // CTradeExecutor into the engine's m_stats so PrintEnhancedStatistics
    // can include them in the per-gate breakdown.
    void AddTeStats(int rej_open_delay, int rej_bc_recheck, int rej_spread_median,
-                   int pass_open_delay, int pass_bc_recheck, int pass_spread_median)
+                   int pass_open_delay, int pass_bc_recheck, int pass_spread_median,
+                   int rej_time = 0,    int pass_time = 0,
+                   int rej_news = 0,    int pass_news = 0,
+                   int rej_spread = 0,  int pass_spread = 0)
    {
       m_stats.rejected_te_open_delay     += rej_open_delay;
       m_stats.rejected_te_bc_recheck     += rej_bc_recheck;
@@ -4534,6 +4547,15 @@ public:
       m_stats.passed_te_open_delay       += pass_open_delay;
       m_stats.passed_te_bc_recheck       += pass_bc_recheck;
       m_stats.passed_te_spread_median    += pass_spread_median;
+      // F-AUDIT 2026-06: T/N/S counters were previously dead (only EvaluateFilterX
+      // bumped them, no callers). Now sourced from CTradeExecutor::EvaluateF
+      // where the actual gates run.
+      m_stats.rejected_time              += rej_time;
+      m_stats.passed_time                += pass_time;
+      m_stats.rejected_news              += rej_news;
+      m_stats.passed_news                += pass_news;
+      m_stats.rejected_spread            += rej_spread;
+      m_stats.passed_spread              += pass_spread;
    }
 
    // Bridge DPI histogram exit counter from CTradeExecutor into session stats.
@@ -4827,6 +4849,21 @@ public:
                     (m_settings.MinPhaseConfirmBars > 0)
                        ? StringFormat(">=%d bars", m_settings.MinPhaseConfirmBars)
                        : "(disabled)");
+      // F-AUDIT 2026-06: PriceExt + Climax rows (previously counted only in m_reject_filter, no breakdown)
+      PrintGateStat("Price OverExt",
+                    m_settings.PriceExtFilterEnabled,
+                    m_stats.passed_priceext,
+                    m_stats.rejected_priceext,
+                    m_settings.PriceExtFilterEnabled
+                       ? StringFormat("%.2f x ATR(%d) on EMA%d", m_settings.PriceExtMaxATR, m_settings.PriceExtAtrPeriod, m_settings.PriceExtRefEma)
+                       : "(disabled)");
+      PrintGateStat("Climax Guard",
+                    m_settings.ClimaxGuard_Enabled,
+                    m_stats.passed_climax,
+                    m_stats.rejected_climax,
+                    m_settings.ClimaxGuard_Enabled
+                       ? StringFormat("lookback=%d ATR=%d barx%.1f movex%.1f", m_settings.ClimaxGuard_Lookback, m_settings.ClimaxGuard_ATRPeriod, m_settings.ClimaxGuard_BarATRMult, m_settings.ClimaxGuard_MoveATRMult)
+                       : "(disabled)");
        PrintGateStat("TE Open Delay",
                     (m_settings.TE_OpenDelaySeconds > 0),
                     m_stats.passed_te_open_delay,
@@ -4849,7 +4886,8 @@ public:
       Print("----------------------------------------------------------------");
       PrintFormat("Pre-filter blocks: %d bars (TS), %d (TE), %d exits (DPI Hist)",
                   m_stats.rejected_emafan + m_stats.rejected_dpi_decel +
-                  m_stats.rejected_phase_age,
+                  m_stats.rejected_phase_age + m_stats.rejected_priceext +
+                  m_stats.rejected_climax,                                   // F-AUDIT 2026-06: PriceExt + Climax now counted
                   m_stats.rejected_te_open_delay + m_stats.rejected_te_bc_recheck +
                   m_stats.rejected_te_spread_median,
                   m_stats.exits_dpi_hist);
@@ -6222,71 +6260,10 @@ public:
       return VOLATILITY_NORMAL;
    }
 
-   // --- 9. GLOBAL FILTERS ---
-   bool CheckFilters() {
-      // A. Time Scheduler
-      if(m_settings.UseTime) {
-         MqlDateTime dt; TimeCurrent(dt);
-         bool pass = (m_settings.StartHr < m_settings.EndHr) ? 
-                     (dt.hour >= m_settings.StartHr && dt.hour < m_settings.EndHr) : 
-                     (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
-         if(!pass) { m_diag_last_reason="TIME"; return false; }
-      }
+   // F-AUDIT 2026-06: CheckFilters() removed — verified zero callers across all
+   // .mqh/.mq5 files. Time/News/Spread are TE-side gates handled by
+   // CTradeExecutor::EvaluateF; this function was an outdated duplicate.
 
-      // B. News Filter (CSV calendar_statement.csv)
-      if(m_settings.UseNews && m_news_count > 0) {
-         string base, quote;
-         GetSymbolCurrencies(m_symbol, base, quote);
-
-         // If the symbol can't   be mapped to 2 currencies reliably, do not block.
-
-         //+------------------------------------------------------------------+
-         //|                    SEA_SignalEngine PART 2 - CheckFilters Cont    |
-         //+------------------------------------------------------------------+
-         // CONTINUATION - Paste after line with "GetSymbolCurrencies(m_symbol, base, quote);"
-
-         if(base != "" && quote != "") {
-            datetime now = TimeCurrent();
-            int pre_sec  = m_settings.NewsPre  * 60;
-            int post_sec = m_settings.NewsPost * 60;
-
-            for(int i=0; i<m_news_count; i++) {
-               if(!NewsImpactPass(m_news_events[i].impact))
-                  continue;
-
-               string ccy = m_news_events[i].currency;
-               if(ccy != base && ccy != quote)
-                  continue;
-
-               datetime t = m_news_events[i].time;
-               if(now >= (t - pre_sec) && now <= (t + post_sec)) {
-                  // Throttle log spam (at most once per minute per engine instance)
-                  if(m_last_news_block_log == 0 || (now - m_last_news_block_log) >= 60) {
-                     PrintFormat("News Filter: blocked %s due to %s %s event at %s (window -%d/+%d min)",
-                                 m_symbol,
-                                 ccy,
-                                 (m_news_events[i].impact==""?"(impact n/a)":m_news_events[i].impact),
-                                 TimeToString(t, TIME_DATE|TIME_MINUTES),
-                                 m_settings.NewsPre,
-                                 m_settings.NewsPost);
-                     m_last_news_block_log = now;
-                  }
-                  m_diag_last_reason = "NEWS";
-                  return false;
-               }
-            }
-         }
-      }
-      
-      // C. Spread Check
-      double spread_pips = SpreadPips();
-      if(m_settings.UseSpread && m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread) { m_diag_last_reason="SPREAD"; return false; }
-      
-      // Cache ATR for diagnostics and voting section
-      m_diag_last_atr_pips = AtrPips();
-
-      return true;
-   }
 
    // --- 10. MAIN DIRECTION LOGIC (THE BRAIN) ---
    // MetaQuotes 'Moving Average' example logic uses a completed bar that STRADDLES the MA:
@@ -6318,122 +6295,13 @@ public:
    // Each component runs independently and returns 0 (fail) or 1/±bias (pass).
    //==========================================================================
 
-   // ─────────────────────────────────────────────────────────────────────────
-   // EvaluateFilterX — Non-directional gates (time, news, spread)
-   // Returns 1 (all filters pass) or 0 (at least one filter failed).
-   // In Stats_FullEvaluation mode: updates m_eval_any_failure but continues.
-   // ─────────────────────────────────────────────────────────────────────────
-   int EvaluateFilterX(int v_shift)
-   {
-      // --- Time Window ---
-      if(m_settings.UseTime) {
-         MqlDateTime dt;
-         TimeCurrent(dt);
-         bool time_pass = (m_settings.StartHr < m_settings.EndHr) ?
-                          (dt.hour >= m_settings.StartHr && dt.hour < m_settings.EndHr) :
-                          (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
+   // F-AUDIT 2026-06: EvaluateFilterX() removed — verified zero callers across all
+   // .mqh/.mq5 files (including SEA_IND_SignalScan.mq5). The TS-side filter chain
+   // runs through EvaluateF (line ~3973); the TE-side Time/News/Spread gate runs
+   // through CTradeExecutor::EvaluateF. Stat counters (m_stats.passed_time/news/
+   // spread + rejected_*) are now bridged from CTradeExecutor via the existing
+   // AddTeStats() bridge pattern.
 
-         if(time_pass) m_stats.passed_time++;
-         else m_stats.rejected_time++;
-
-         if(m_settings.DebugFlow)
-            PrintFormat("[GATE] Time: hour=%d window=[%d-%d] → %s",
-                        dt.hour, m_settings.StartHr, m_settings.EndHr,
-                        time_pass ? "PASS" : "FAIL");
-
-         if(!time_pass) {
-            m_eval_str_F = "TIME";
-            if(m_eval_first_failure == "") m_eval_first_failure = "TIME";
-            m_eval_any_failure = true;
-            if(!m_settings.Stats_FullEvaluation) {
-               m_diag_last_reason = "TIME";
-               m_reject_filter++;
-               return 0;
-            }
-         }
-      }
-      else if(m_settings.DebugFlow)
-         Print("[GATE] Time: DISABLED → SKIP");
-
-      // --- News Filter ---
-      if(m_settings.UseNews && m_news_count > 0) {
-         bool news_pass = true;
-         string base, quote;
-         GetSymbolCurrencies(m_symbol, base, quote);
-         if(base != "" && quote != "") {
-            datetime now = TimeCurrent();
-            int pre_sec  = m_settings.NewsPre  * 60;
-            int post_sec = m_settings.NewsPost * 60;
-
-            for(int i=0; i<m_news_count; i++) {
-               if(!NewsImpactPass(m_news_events[i].impact)) continue;
-               string ccy = m_news_events[i].currency;
-               if(ccy != base && ccy != quote) continue;
-               datetime t = m_news_events[i].time;
-
-               if(now >= (t - pre_sec) && now <= (t + post_sec)) {
-                  news_pass = false;
-                  if(m_last_news_block_log == 0 || (now - m_last_news_block_log) >= 60) {
-                     PrintFormat("News Filter: blocked %s due to %s %s event at %s (window -%d/+%d min)",
-                                 m_symbol, ccy,
-                                 (m_news_events[i].impact==""?"(impact n/a)":m_news_events[i].impact),
-                                 TimeToString(t, TIME_DATE|TIME_MINUTES),
-                                 m_settings.NewsPre, m_settings.NewsPost);
-                     m_last_news_block_log = now;
-                  }
-                  break;
-               }
-            }
-         }
-         if(news_pass) m_stats.passed_news++;
-         else m_stats.rejected_news++;
-
-         if(m_settings.DebugFlow)
-            PrintFormat("[GATE] News: %s", news_pass ? "PASS" : "FAIL (event active)");
-
-         if(!news_pass) {
-            m_eval_str_F = "NEWS";
-            if(m_eval_first_failure == "") m_eval_first_failure = "NEWS";
-            m_eval_any_failure = true;
-            if(!m_settings.Stats_FullEvaluation) {
-               m_diag_last_reason = "NEWS";
-               m_reject_filter++;
-               return 0;
-            }
-         }
-      }
-      else if(m_settings.DebugFlow)
-         Print("[GATE] News: DISABLED → SKIP");
-
-      // --- Spread ---
-      double spread_pips = SpreadPips();
-      bool spread_pass = !(m_settings.UseSpread && m_settings.MaxSpread > 0.0 && spread_pips > m_settings.MaxSpread);
-      if(spread_pass) m_stats.passed_spread++;
-      else m_stats.rejected_spread++;
-
-      if(m_settings.DebugFlow) {
-         if(!m_settings.UseSpread || m_settings.MaxSpread <= 0.0)
-            Print("[GATE] Spread: DISABLED → SKIP");
-         else
-            PrintFormat("[GATE] Spread: %.1f pips / %.1f max → %s",
-                        spread_pips, m_settings.MaxSpread, spread_pass ? "PASS" : "FAIL");
-      }
-
-      if(!spread_pass) {
-         m_eval_str_F = "SPREAD";
-         if(m_eval_first_failure == "") m_eval_first_failure = "SPREAD";
-         m_eval_any_failure = true;
-         if(!m_settings.Stats_FullEvaluation) {
-            m_diag_last_reason = "SPREAD";
-            m_reject_filter++;
-            return 0;
-         }
-      }
-
-      if(m_eval_any_failure && m_settings.Stats_FullEvaluation) m_reject_filter++;
-
-      return m_eval_any_failure ? 0 : 1;
-   }
 
    // ─────────────────────────────────────────────────────────────────────────
    // EvaluateBias — Directional market condition (all BiasMode variants)
@@ -7803,11 +7671,17 @@ public:
       // ── F: stats/telemetry (EvaluateF itself only sets m_last_f_reason) ──
       if(bd.F == 0)
       {
-         m_diag_last_reason = bd.F_reason;     // EMA_OVEREXT | DPI_DECEL | DPI_RESET_WAIT | PHASE_AGE
+         m_diag_last_reason = bd.F_reason;     // EMA_OVEREXT | DPI_DECEL | DPI_RESET_WAIT | PHASE_AGE | CLIMAX_GUARD
          m_reject_filter++;
          if(bd.F_reason == "EMA_OVEREXT")        m_stats.rejected_emafan++;
          else if(bd.F_reason == "DPI_DECEL")     m_stats.rejected_dpi_decel++;
          else if(bd.F_reason == "PHASE_AGE")     m_stats.rejected_phase_age++;
+         else if(bd.F_reason == "CLIMAX_GUARD")  m_stats.rejected_climax++;     // F-AUDIT 2026-06: new counter (Phase K)
+         else if(bd.F_reason == "PRICE_OVEREXT") m_stats.rejected_priceext++;   // F-AUDIT 2026-06: new counter (Phase K)
+         // F-AUDIT 2026-06: climax now arrives here as F_reason="CLIMAX_GUARD".
+         // Apply the layer-reset side effect (was the dedicated bd.CG==0 handler).
+         if(bd.F_reason == "CLIMAX_GUARD" && m_settings.ClimaxGuard_ResetPullback)
+            ResetAllLayerPullback();
          if(m_settings.DebugFlow)
             DebugLog(StringFormat("[TS_PREFILTER] %s -> TS=0", bd.F_reason));
          if(m_eval_first_failure == "") m_eval_first_failure = bd.F_reason;
@@ -7823,6 +7697,10 @@ public:
             m_stats.passed_dpi_decel++;
          if(m_settings.MinPhaseConfirmBars > 0)
             m_stats.passed_phase_age++;
+         if(m_settings.PriceExtFilterEnabled && m_settings.PriceExtMaxATR > 0.0)
+            m_stats.passed_priceext++;                                         // F-AUDIT 2026-06 (Phase K)
+         if(m_settings.ClimaxGuard_Enabled)
+            m_stats.passed_climax++;                                            // F-AUDIT 2026-06 (Phase K)
       }
       // bd.F == -1 → F not reached (waterfall stopped at B/P); no F stats, as before.
 
@@ -7840,18 +7718,9 @@ public:
          // Indicator voting failed (reason already set by EvaluateI/EvaluateIndicatorX)
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
       }
-      else if(bd.CG == 0) {
-         // ── CLIMAX / EXHAUSTION GUARD (hard gate) ──
-         // B x P x L x I all aligned, but price has over-extended into an
-         // impulse. Block the entry and reset all layers so a fresh
-         // pullback-recovery cycle is required before the next signal.
-         if(m_settings.ClimaxGuard_ResetPullback)
-            ResetAllLayerPullback();
-         m_diag_last_reason = "CLIMAX_GUARD";
-         m_reject_filter++;
-         if(m_settings.DebugFlow)
-            DebugLog("[CLIMAX] TS=1 blocked - over-extended impulse; layers reset");
-      }
+      // F-AUDIT 2026-06: dedicated `bd.CG == 0` handler removed — Climax now
+      // arrives via bd.F == 0 with F_reason == "CLIMAX_GUARD" (handled in the
+      // F=0 branch above, including the ResetAllLayerPullback side effect).
       else {
          // All factors passed → signal confirmed
          // TS = 1 (confirmed) or 0 (rejected). Direction is in m_diag_last_bias (+1/-1).
