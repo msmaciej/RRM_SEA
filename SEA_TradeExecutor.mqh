@@ -1814,7 +1814,16 @@ private:
       double current_sl = PositionGetDouble(POSITION_SL);
       if(current_sl > 0.0) {
          double sl_dist_from_entry = MathAbs(current_sl - m_excursion.entry_price);
-         m_excursion.be_reached = (sl_dist_from_entry <= 5.0 * GetPipSize());
+         // STEP13 2026-06: was hardcoded "<= 5.0 * GetPipSize()". With XAGUSD M1
+         // (RRM_BE_BufferPips ≈ 75 pips via GetTFBasedCushion × instrument fan),
+         // the actual BE setpoint sits 75+ pips from entry, never inside 5 pips,
+         // so be_reached was permanently FALSE and the TrailStartsAfterBE gate at
+         // line 1830 NEVER OPENED for any user who enabled it. Same fix pattern
+         // already lives at line 2172 (IsPositionAtBreakEven) — author noted there:
+         // "BUG FIX: Use RRM_BE_BufferPips + 2.0 tolerance instead of hardcoded".
+         // This site was missed; aligning it now.
+         double be_tolerance = (m_settings.RRM_BE_BufferPips + 2.0) * GetPipSize();
+         m_excursion.be_reached = (sl_dist_from_entry <= be_tolerance);
       }
 
       switch(m_settings.TrailMode) {
