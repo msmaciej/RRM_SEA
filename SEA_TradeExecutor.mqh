@@ -1388,7 +1388,24 @@ private:
             if(frac_level > 0.0) {
                bool valid = isBuy ? (frac_level < price) : (frac_level > price);
                if(!valid) {
-                  PrintFormat("⚠️ [RRM SL] Fractal anchor on wrong side. Using Fixed Pips.");
+                  PrintFormat("⚠️ [RRM SL] Fractal wrong side. frac=%.5f entry=%.5f dir=%s — trying Swing fallback",
+                              frac_level, price, isBuy ? "BUY" : "SELL");
+                  // STEP21B 2026-06: Swing-first fallback (mirrors PSAR_DOT block at line 1362+).
+                  // Sibling of STEP21 — Path 2's FRACTAL got the same fallback in the prior step.
+                  // FRACTAL was the lone outlier in Path 1's switch: PSAR_DOT tries Swing on
+                  // wrong-side (line 1367+), but FRACTAL collapsed straight to fixed pips —
+                  // silently discarding the methodology-aligned anchor the user asked for.
+                  // Author's broader pattern: "structural anchor before falling to fixed pips".
+                  double swing_fb = GetSwingLevel(isBuy ? 1 : -1);
+                  bool swing_ok = (swing_fb > 0.0) &&
+                                  (isBuy ? (swing_fb < price) : (swing_fb > price));
+                  if(swing_ok) {
+                     double cushion_price = m_settings.SL_SwingPipsCushion * pipSize;
+                     sl = isBuy ? (swing_fb - cushion_price) : (swing_fb + cushion_price);
+                     PrintFormat("✅ [RRM SL] Swing fallback used: anchor=%.5f → SL=%.5f", swing_fb, sl);
+                     break;
+                  }
+                  PrintFormat("⚠️ [RRM SL FALLBACK] Both Fractal and Swing invalid — Using Fixed Pips.");
                   break;
                }
                double cushion_price = m_settings.SL_SwingPipsCushion * pipSize;
