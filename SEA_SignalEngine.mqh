@@ -230,7 +230,8 @@ private:
    string      m_diag_last_reason;
    string      m_diag_i_fails;        // compact failing-voter names for I (inspector), e.g. "DPI,PSAR"
    string      m_last_f_reason;      // which F sub-filter blocked (caller telemetry); "" = passed
-   double      m_diag_last_atr_pips;
+   // STEP7 2026-06: m_diag_last_atr_pips field removed — was always 0.0 (latent bug).
+   // All reads now call AtrPips() directly (see Check_ATR + cockpit panel + DebugFlow log).
    
    string      m_ts_status_string;   // Legacy compatibility
    string      m_ts_status_str;      // New Telemetry Shift 1
@@ -1247,14 +1248,15 @@ private:
       if(IsCacheValidForShift(shift) && m_ind_cache.atr_result != -1)
          return (m_ind_cache.atr_result == 1);
 
-      // F-AUDIT 2026-06 note: m_diag_last_atr_pips was historically refreshed
-      // inside CheckFilters() — now dead. As a result this cached value is
-      // always 0.0, which makes the < / > comparisons below silently false
-      // (Check_ATR always passes). LATENT BUG — out of F-audit scope; flagged
-      // for the I-factor / voter audit. Quick fix would be to call AtrPips()
-      // directly here, but that's a behavior change for any preset that
-      // enables the ATR voter and should land in a dedicated I-audit patch.
-      double atr_pips = m_diag_last_atr_pips; 
+      // STEP7 2026-06: FIXED LATENT BUG. Previously this read m_diag_last_atr_pips
+      // which was historically refreshed inside CheckFilters() but the F-audit
+      // removed that path, leaving the value always 0.0. That made both < / >
+      // comparisons silently false, so Check_ATR always returned true (ATR voter
+      // never filtered anything). Fix: call AtrPips() directly to get the live
+      // ATR value in pips. For default users (Inp_RRM_ORG_Use_Atr=false) zero
+      // behavior change. For users who enable the voter, ATR_VoteMinPips /
+      // ATR_VoteMaxPips now actually filter as documented.
+      double atr_pips = AtrPips();
       bool pass = true;
       
       if(m_settings.ATR_VoteMinPips > 0.0 && atr_pips < m_settings.ATR_VoteMinPips) pass = false;
@@ -4367,7 +4369,7 @@ public:
       m_diag_last_bias   = 0;
       m_diag_last_votes  = 0;
       m_diag_last_reason = "";
-      m_diag_last_atr_pips = 0.0;
+      // STEP7 2026-06: m_diag_last_atr_pips reset removed (field deleted, dead-code cleanup)
 
       // Initialize phase diagnostics
       m_diag_last_phase = PHASE_UNORDERED;
@@ -5255,7 +5257,7 @@ public:
       if(m_settings.Ind_Atr_Enabled && h_atr != INVALID_HANDLE)
       {
          bool pass = Check_ATR(current_bias, shift);
-         double atr_pips = m_diag_last_atr_pips;
+         double atr_pips = AtrPips();  // STEP7 2026-06: was m_diag_last_atr_pips (dead 0.0); now live read
          out[count].name    = "ATR";
          out[count].enabled = true;
          if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = StringFormat("(ATR=%.1fpips ok)", atr_pips); }
@@ -5608,7 +5610,7 @@ public:
       m_diag_last_bias = 0;
       m_diag_last_votes = 0;
       m_diag_last_reason = "";
-      m_diag_last_atr_pips = 0.0;
+      // STEP7 2026-06: m_diag_last_atr_pips reset removed (field deleted, dead-code cleanup)
       m_ts_status_string = "B[0] | I[0/0] | F[OK]";
       m_ts_status_str = "";
       m_te_status_str = "";
@@ -6793,7 +6795,7 @@ public:
             } else DebugLog("[IND] DPI: DISABLED → SKIP");
 
             if(m_settings.Ind_Atr_Enabled) {
-               double atr_v_pips = m_diag_last_atr_pips;
+               double atr_v_pips = AtrPips();  // STEP7 2026-06: was m_diag_last_atr_pips (dead 0.0); now live read
                bool   atr_v_ok   = true;
                if(m_settings.ATR_VoteMinPips > 0.0 && atr_v_pips < m_settings.ATR_VoteMinPips) atr_v_ok = false;
                if(m_settings.ATR_VoteMaxPips > 0.0 && atr_v_pips > m_settings.ATR_VoteMaxPips) atr_v_ok = false;
