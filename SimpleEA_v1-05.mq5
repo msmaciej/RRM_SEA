@@ -488,6 +488,51 @@ int OrchestrateInit()
    FlowLog("Step B1: InitializeIndicatorRegistry() (populate central indicator registry)");
    InitializeIndicatorRegistry(Settings);
 
+   // ── PSAR_RESOLVED diagnostic ──────────────────────────────────────────
+   // Prints the EFFECTIVE PSAR vote mode after all preset/input resolution.
+   // Reason this exists: MT5 .set files persist input values across recompiles,
+   // so the live runtime mode can silently diverge from the source defaults.
+   // This line is the ground truth — match it against what you expect, not the
+   // SEA_Inputs.mqh defaults. All values are read live; nothing is hardcoded.
+   if(Settings.Ind_Psar_Enabled)
+   {
+      string mode_str;
+      if(!Settings.Vote_AllowPsarFlip)
+         mode_str = "DOT-only (no flip-window; PSAR votes on dot side only)";
+      else if(Settings.Vote_PsarFlipDelay == -1)
+         mode_str = "PERSIST (no window; passes whenever dot side is correct)";
+      else
+         mode_str = StringFormat("FLIP+N=%d", Settings.Vote_PsarFlipDelay);
+
+      string fmt_ov = "";
+      bool any_override = (Settings.Vote_PsarFlipDelay_W != -99 ||
+                           Settings.Vote_PsarFlipDelay_M != -99 ||
+                           Settings.Vote_PsarFlipDelay_S != -99);
+      if(any_override)
+      {
+         string fW = (Settings.Vote_PsarFlipDelay_W == -99) ? "—" :
+                     (Settings.Vote_PsarFlipDelay_W == -1)  ? "PERSIST" :
+                     IntegerToString(Settings.Vote_PsarFlipDelay_W);
+         string fM = (Settings.Vote_PsarFlipDelay_M == -99) ? "—" :
+                     (Settings.Vote_PsarFlipDelay_M == -1)  ? "PERSIST" :
+                     IntegerToString(Settings.Vote_PsarFlipDelay_M);
+         string fS = (Settings.Vote_PsarFlipDelay_S == -99) ? "—" :
+                     (Settings.Vote_PsarFlipDelay_S == -1)  ? "PERSIST" :
+                     IntegerToString(Settings.Vote_PsarFlipDelay_S);
+         fmt_ov = StringFormat(" | layer overrides W=%s M=%s S=%s", fW, fM, fS);
+      }
+      Print(StringFormat("[PSAR_RESOLVED] mode=%s | AllowFlip=%s | Step=%.3f Max=%.3f%s",
+                         mode_str,
+                         Settings.Vote_AllowPsarFlip ? "true" : "false",
+                         Settings.P_PsarStep,
+                         Settings.P_PsarMax,
+                         fmt_ov));
+   }
+   else
+   {
+      Print("[PSAR_RESOLVED] PSAR DISABLED (Ind_Psar_Enabled=false; PSAR does not vote)");
+   }
+
    // STEP4 2026-06: CUSTOM-comparison diagnostic Print block removed (Pass 1).
    //   Was an 89-line "Settings.X vs Inp_CUSTOM_X — Match? ✅/❌" debug block.
    //   The comparison was meaningful when CUSTOM was the runtime baseline. With

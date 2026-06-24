@@ -679,6 +679,37 @@ void SEA_UI_UpdateCockpit(
 
    AddLine(StringFormat("PRESET:    %s", GetPresetContractWording(Inp_Global_Preset)), h_clr, lines, line_clrs);
 
+   // PSAR mode (live) — visible at all times so a stale .set never silently
+   // changes the trade decision logic without being noticed. Reads from
+   // Settings; never hardcoded.
+   if(Settings.Ind_Psar_Enabled)
+   {
+      string psar_mode_lbl;
+      if(!Settings.Vote_AllowPsarFlip)
+         psar_mode_lbl = "DOT-only";
+      else if(Settings.Vote_PsarFlipDelay == -1)
+         psar_mode_lbl = "PERSIST";
+      else
+         psar_mode_lbl = StringFormat("FLIP+N=%d", Settings.Vote_PsarFlipDelay);
+      bool any_ov = (Settings.Vote_PsarFlipDelay_W != -99 ||
+                     Settings.Vote_PsarFlipDelay_M != -99 ||
+                     Settings.Vote_PsarFlipDelay_S != -99);
+      if(any_ov)
+      {
+         string fW = (Settings.Vote_PsarFlipDelay_W == -99) ? "—" :
+                     (Settings.Vote_PsarFlipDelay_W == -1)  ? "P" :
+                     IntegerToString(Settings.Vote_PsarFlipDelay_W);
+         string fM = (Settings.Vote_PsarFlipDelay_M == -99) ? "—" :
+                     (Settings.Vote_PsarFlipDelay_M == -1)  ? "P" :
+                     IntegerToString(Settings.Vote_PsarFlipDelay_M);
+         string fS = (Settings.Vote_PsarFlipDelay_S == -99) ? "—" :
+                     (Settings.Vote_PsarFlipDelay_S == -1)  ? "P" :
+                     IntegerToString(Settings.Vote_PsarFlipDelay_S);
+         psar_mode_lbl += StringFormat(" [W=%s M=%s S=%s]", fW, fM, fS);
+      }
+      AddLine(StringFormat("PSAR:      %s", psar_mode_lbl), v_clr, lines, line_clrs);
+   }
+
    // Effective display values: always use live telemetry (no carry-forward freeze state)
    int          disp_bias  = ts_telemetry.bias;
    int          disp_votes = ts_telemetry.votes_for;

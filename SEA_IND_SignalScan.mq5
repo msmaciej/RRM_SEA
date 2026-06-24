@@ -516,6 +516,31 @@ int OnInit()
    Print("[Scanner v4.0] ", _Symbol, " ", EnumToString(PERIOD_CURRENT),
          " | Bias: ", EnumToString((ENUM_TIMEFRAMES)MarketBias),
          " | Active: ", active);
+
+   // ── PSAR_RESOLVED diagnostic (Scanner side) ───────────────────────────
+   // Mirrors the EA's startup line. SignalScan and the EA each have their
+   // own .set; this confirms what the scanner is actually running.
+   // Reads inputs live; nothing hardcoded.
+   if(TS_PSAR || TS_PSAR_Flip)
+   {
+      string mode_str;
+      if(!TS_PSAR_Flip)
+         mode_str = "DOT-only (TS_PSAR_Flip=false; window not enforced)";
+      else if(PSAR_FlipBars == -1)
+         mode_str = "PERSIST (PSAR_FlipBars=-1)";
+      else
+         mode_str = StringFormat("FLIP+N=%d", PSAR_FlipBars);
+      Print(StringFormat("[PSAR_RESOLVED] mode=%s | TS_PSAR=%s TS_PSAR_Flip=%s | Step=%.3f Max=%.3f",
+                         mode_str,
+                         TS_PSAR ? "true" : "false",
+                         TS_PSAR_Flip ? "true" : "false",
+                         PSAR_Step, PSAR_Max));
+   }
+   else
+   {
+      Print("[PSAR_RESOLVED] PSAR DISABLED (both TS_PSAR and TS_PSAR_Flip are false)");
+   }
+
    if(Scn_Inspect_Enabled) CreateInspectorLine();
 
    return INIT_SUCCEEDED;

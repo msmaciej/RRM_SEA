@@ -2799,8 +2799,16 @@ private:
    //+------------------------------------------------------------------+
    // PSAR flip tracker 
    //+------------------------------------------------------------------+
-   // call once per bar close to record the most recent flip.
-   // Stores direction-specific timestamps so bullish and bearish flips are tracked independently.
+   // Call once per bar close to record the most recent flip.
+   // At any moment at most ONE direction has a live timestamp — the most
+   // recent flip. Writing one direction clears the opposite, because a
+   // bull flip ends any prior bearish episode and vice versa. This makes
+   // the state machine single-state ("here is the last flip and when it
+   // happened") and removes stale counters from diagnostics.
+   // Vote outcomes are unchanged — Check_PSAR_WithFlip's step 1 (dot side)
+   // already rejected the cases where the cleared counter would have been
+   // read, and PSAR_FlipGraceBars reads the freshly-written opposite-side
+   // timestamp, never the cleared one.
    void UpdatePSARFlipTracking(int shift = 1) {
       if(m_settings.DebugFlow)
          DebugLog("[DEBUG_TEST] UpdatePSARFlipTracking() CALLED");
@@ -2809,14 +2817,16 @@ private:
          datetime flip_time = iTime(m_symbol, PERIOD_CURRENT, shift);
          if(flip == 1) {
             m_psar_last_flip_time_bull = flip_time;
+            m_psar_last_flip_time_bear = 0;   // opposite cleared by own flip
             if(m_settings.DebugFlow)
-               DebugLog(StringFormat("[PSAR_FLIP_TRACK] BULLISH flip REGISTERED at %s (stored in m_psar_last_flip_time_bull)",
+               DebugLog(StringFormat("[PSAR_FLIP_TRACK] BULLISH flip REGISTERED at %s | bear record cleared",
                                      TimeToString(flip_time, TIME_DATE|TIME_MINUTES)));
          }
          else if(flip == -1) {
             m_psar_last_flip_time_bear = flip_time;
+            m_psar_last_flip_time_bull = 0;   // opposite cleared by own flip
             if(m_settings.DebugFlow)
-               DebugLog(StringFormat("[PSAR_FLIP_TRACK] BEARISH flip REGISTERED at %s (stored in m_psar_last_flip_time_bear)",
+               DebugLog(StringFormat("[PSAR_FLIP_TRACK] BEARISH flip REGISTERED at %s | bull record cleared",
                                      TimeToString(flip_time, TIME_DATE|TIME_MINUTES)));
          }
       }
@@ -2825,9 +2835,10 @@ private:
    //+------------------------------------------------------------------+
    // Get Bars Since Last Flip
    //+------------------------------------------------------------------+
-   // Returns the number of bars elapsed since the last recorded PSAR flip 
-   // in the given bias direction, measured from current_shift. 
-   // Returns INT_MAX if no flip has been recorded for that direction.
+   // Returns the number of bars elapsed since the last LIVE PSAR flip
+   // record in the given bias direction, measured from current_shift.
+   // Returns INT_MAX if no live record exists — either none has occurred
+   // yet, or it was cleared when the opposite-direction flip occurred.
    // bias: 1 = bullish, -1 = bearish.
    int GetBarsSinceLastFlip(int bias, int current_shift) {
       datetime flip_time = (bias == 1) ? m_psar_last_flip_time_bull : m_psar_last_flip_time_bear;
@@ -2947,8 +2958,9 @@ private:
       // Display flip countdown status
       if(m_settings.DebugFlow) {
          if(flip_time == 0) {
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK] STEP 2: No %s flip recorded yet",
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK] STEP 2: No live %s flip record",
                                   (bias > 0 ? "BULLISH" : "BEARISH")));
+            DebugLog("[PSAR_FLIP_CHECK]    (either none seen yet, or it was cleared when the opposite-direction flip occurred)");
          } else {
             int bars_elapsed   = GetBarsSinceLastFlip(bias, shift);
             int bars_remaining = effective_delay - bars_elapsed;
@@ -2971,9 +2983,10 @@ private:
          m_ind_cache.psar_diag_sub = 1;   // no flip recorded
 
          if(m_settings.DebugFlow) {
-            DebugLog("[PSAR_FLIP_CHECK] STEP 2 FAILED: NO FLIP RECORDED");
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    No %s flip has been registered yet",
+            DebugLog("[PSAR_FLIP_CHECK] STEP 2 FAILED: NO LIVE FLIP RECORD");
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    No live %s flip — either none has occurred yet,",
                                   (bias > 0 ? "bullish" : "bearish")));
+            DebugLog("[PSAR_FLIP_CHECK]    or it was cleared when the opposite-direction flip occurred.");
             DebugLog(StringFormat("[PSAR_FLIP_CHECK]    m_psar_last_flip_time_%s = 0",
                                   (bias > 0 ? "bull" : "bear")));
          }
@@ -6827,16 +6840,22 @@ public:
                double cl_p   = iClose(m_symbol, PERIOD_CURRENT, v_shift);
                string flip_info = "";
                if(m_settings.Vote_AllowPsarFlip) {
-                  if(m_settings.Vote_PsarFlipDelay == -1) {
+                  int effective_n = GetEffectivePsarFlipDelay();  // layer-aware
+                  if(effective_n == -1) {
                      flip_info = " [PERSISTENT]";
                   } else {
                      int bars_since_flip = GetBarsSinceLastFlip(bias, v_shift);
                      if(bars_since_flip == INT_MAX)
-                        flip_info = " flip=none";
-                     else
-                        flip_info = StringFormat(" flip=%d bars ago (N=%d)", bars_since_flip,
-                                                 MathMax(0, m_settings.Vote_PsarFlipDelay - bars_since_flip));
+                        flip_info = StringFormat(" flip=none (N=%d)", effective_n);
+                     else {
+                        bool within = (bars_since_flip <= effective_n);
+                        flip_info = StringFormat(" flip=%d/N=%d (%s)",
+                                                 bars_since_flip, effective_n,
+                                                 within ? "within" : "EXPIRED");
+                     }
                   }
+               } else {
+                  flip_info = " [DOT-only]";
                }
                DebugLog(StringFormat("[IND] PSAR: dot=%.5f close=%.5f%s → %s",
                                      psar_v, cl_p, flip_info, _res_psar ? "PASS" : "FAIL"));
@@ -7581,8 +7600,13 @@ public:
          DebugLog(StringFormat("[DEBUG_TEST] Current time: %s", TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES)));
       }
 
-      // Update PSAR flip tracking on each bar close (uses shift=1 for closed bar)
-      if(m_settings.Vote_AllowPsarFlip)
+      // Update PSAR flip tracking on each bar close (uses shift=1 for closed bar).
+      // Gated on Ind_Psar_Enabled, NOT Vote_AllowPsarFlip — because Check_PSAR's
+      // PSAR_FlipGraceBars feature also reads m_psar_last_flip_time_* and would
+      // silently degrade if tracking were skipped when AllowFlip=false. Also
+      // removes the startup hole where toggling AllowFlip on mid-session would
+      // find an empty tracker.
+      if(m_settings.Ind_Psar_Enabled)
          UpdatePSARFlipTracking(m_settings.Vote_EvalShift);
 
       UpdatePhaseDiagnostics(m_settings.ma_v_shift);
