@@ -308,7 +308,7 @@ private:
       double ema_cushion_pips = 0.0;
       if(m_settings.TrailEMA_CushionAtrMult > 0.0) {
          // ATR mode: cushion = ATR(period) × multiplier, converted to pips.
-         // Uses cached m_h_trail_ema_atr handle (initialized in Init/UpdateSettings).
+         // Uses cached m_h_trail_ema_atr handle (initialized in Init).
          if(m_h_trail_ema_atr != INVALID_HANDLE) {
             double atr_val[];
             ArraySetAsSeries(atr_val, true);
@@ -2123,32 +2123,15 @@ public:
       m_h_sl_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.SL_AtrPeriod));
       m_h_trail_ema_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.TrailEMA_CushionAtrPeriod > 0 ? m_settings.TrailEMA_CushionAtrPeriod : 14));
    }
-   
-   void UpdateSettings(ST_Settings &sets) { 
-      bool recreate_psar = (m_settings.P_PsarStep != sets.P_PsarStep || m_settings.P_PsarMax != sets.P_PsarMax);
-      bool recreate_atr  = (m_settings.PSAR_TrailCushionAtrPeriod != sets.PSAR_TrailCushionAtrPeriod) || (m_h_cushion_atr == INVALID_HANDLE);
-      bool recreate_sl_atr     = (m_settings.SL_AtrPeriod != sets.SL_AtrPeriod) || (m_h_sl_atr == INVALID_HANDLE);
-      bool recreate_trail_ema_atr = (m_settings.TrailEMA_CushionAtrPeriod != sets.TrailEMA_CushionAtrPeriod) || (m_h_trail_ema_atr == INVALID_HANDLE);
-      m_settings = sets; 
-      if (recreate_psar) {
-         if (m_h_psar != INVALID_HANDLE) IndicatorRelease(m_h_psar);
-         // FIX Bug4: use m_symbol instead of _Symbol for multi-symbol correctness
-         m_h_psar = iSAR(m_symbol, PERIOD_CURRENT, m_settings.P_PsarStep, m_settings.P_PsarMax);
-      }
-      if (recreate_atr) {
-         if (m_h_cushion_atr != INVALID_HANDLE) IndicatorRelease(m_h_cushion_atr);
-         m_h_cushion_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.PSAR_TrailCushionAtrPeriod));
-      }
-      if (recreate_sl_atr) {
-         if (m_h_sl_atr != INVALID_HANDLE) IndicatorRelease(m_h_sl_atr);
-         m_h_sl_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.SL_AtrPeriod));
-      }
-      if (recreate_trail_ema_atr) {
-         if (m_h_trail_ema_atr != INVALID_HANDLE) IndicatorRelease(m_h_trail_ema_atr);
-         int ema_atr_p = MathMax(1, m_settings.TrailEMA_CushionAtrPeriod > 0 ? m_settings.TrailEMA_CushionAtrPeriod : 14);
-         m_h_trail_ema_atr = iATR(m_symbol, PERIOD_CURRENT, ema_atr_p);
-      }
-   }
+
+   // STEP22 2026-06: UpdateSettings(ST_Settings&) deleted — was dead code (zero callers).
+   // MT5 input parameters are constant during EA lifetime; settings only change via the
+   // OnDeinit/OnInit cycle, which goes through Init() above. The function also had two
+   // internal gaps that surfaced during audit: m_h_fractals was never covered (no
+   // recreate/recovery branch), and m_h_psar lacked the `|| (handle == INVALID_HANDLE)`
+   // recovery check that the three ATR handles had. Deletion eliminates both. If
+   // runtime handle-recovery is ever wanted, it deserves a purpose-built periodic
+   // checker — not a settings-update hybrid. Git history preserves the prior code.
 
    string GetPositionSnapshot() {
       for(int i = PositionsTotal() - 1; i >= 0; i--) {
