@@ -376,7 +376,7 @@ void ValidateConfiguration()
    // here is harmless reinforcement.
    if(Settings.BiasEnabled && Settings.BiasMode == BIAS_MANUAL && Settings.ManSide == SIDE_BOTH) {
       Print("WARNING: BIAS_MANUAL with ManSide=SIDE_BOTH → no trades possible");
-      Print("   Set Inp_CUSTOM_ManualSide to SIDE_LONG or SIDE_SHORT to enable trades.");
+      Print("   Set Inp_Global_ManualSide to SIDE_LONG or SIDE_SHORT to enable trades.");
       Print("   (If you reached this state via the BiasMode/AutoStrat auto-correct,");
       Print("    fix the combo at Inp_CUSTOM_BiasMode/Inp_CUSTOM_AutoStrat instead.)");
       has_warnings = true;
@@ -603,7 +603,7 @@ int OrchestrateInit()
 
    FlowLog("Step G: Load News calendar (optional)");
     if(Settings.UseNews)
-       Signal.LoadNews(Inp_VETO_NewsFile);
+       Signal.LoadNews(Inp_Global_VETO_NewsFile);
 
    SEA_UI_Init(Inp_Global_MagicNum);
    SEA_UI_RenderDeferredVPRR();

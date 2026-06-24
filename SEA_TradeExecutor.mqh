@@ -2880,15 +2880,15 @@ public:
    //| Returns: 1 = execute, 0 = veto                                   |
    //|                                                                  |
    //| VETO EVALUATION ORDER:                                           |
-   //|   1. F Filters (user-configurable via Inp_VETO_*)                |
-   //|      • VETO_SPREAD (Inp_VETO_MaxSpread / Inp_VETO_UseSpread)     |
-   //|      • VETO_TIME (Inp_VETO_UseTime, Inp_VETO_StartHr/EndHr)      |
-   //|      • VETO_NEWS (Inp_VETO_UseNews, NewsPre/Post minutes)        |
+   //|   1. F Filters (user-configurable via Inp_Global_VETO_*)                |
+   //|      • VETO_SPREAD (Inp_Global_VETO_MaxSpread / Inp_Global_VETO_UseSpread)     |
+   //|      • VETO_TIME (Inp_Global_VETO_UseTime, Inp_Global_VETO_StartHr/EndHr)      |
+   //|      • VETO_NEWS (Inp_Global_VETO_UseNews, NewsPre/Post minutes)        |
    //|                                                                  |
-   //|   2. TE Quality Gates (user-configurable via Inp_VETO_TE_*)      |
-   //|      • VETO_BC_STALE (Inp_VETO_TE_RecheckBarClose)               |
-   //|      • VETO_OPEN_DELAY (Inp_VETO_TE_OpenDelaySeconds)            |
-   //|      • VETO_SPREAD_MEDIAN (Inp_VETO_TE_SpreadMedianTicks)        |
+   //|   2. TE Quality Gates (user-configurable via Inp_Global_VETO_TE_*)      |
+   //|      • VETO_BC_STALE (Inp_Global_VETO_TE_RecheckBarClose)               |
+   //|      • VETO_OPEN_DELAY (Inp_Global_VETO_TE_OpenDelaySeconds)            |
+   //|      • VETO_SPREAD_MEDIAN (Inp_Global_VETO_TE_SpreadMedianTicks)        |
    //|                                                                  |
    //|   3. RC Safeguards / threshold gates (EvaluateCM + EvaluateRC)   |
    //|      • Hardcoded safeguards stay always active                    |
@@ -2989,7 +2989,7 @@ public:
       // PHASE 2 GATE 2: Bar-close BC re-check (TE_RecheckBarClose)
       // The TS=1 setup was confirmed at shift=1 close. By the time TE
       // fires at shift=0, price may have drifted. Re-check that the
-      // drift is within Inp_VETO_TE_BC_TolerancePips.
+      // drift is within Inp_Global_VETO_TE_BC_TolerancePips.
       // ══════════════════════════════════════════════════════════════
       if(te_reject_reason == "" && m_settings.TE_RecheckBarClose) {
          double close1   = iClose(m_symbol, PERIOD_CURRENT, 1);
@@ -3144,7 +3144,7 @@ public:
       }
 
       // ── SAFETY: delay trail until open profit reaches R-multiple (Q6 2026-06) ──
-      // The Inp_Safety_DelayTrailUntilR input has a "Safety_" prefix that promises a
+      // The Inp_Global_Safety_DelayTrailUntilR input has a "Safety_" prefix that promises a
       // global gate. Previously this gate was honored only on the RRM path
       // (RRM_ManageStrictNoATR line 1529); on SIMPLE path the input was silently
       // dead. This block mirrors the RRM-path implementation so the "Safety_" prefix
@@ -3152,7 +3152,7 @@ public:
       // path-agnostic — any trail mode benefits from waiting until the position has
       // earned a minimum R-multiple of open profit before trailing engages.
       //
-      // OFF by default (Inp_Safety_DelayTrailUntilR=false). No behavior change for
+      // OFF by default (Inp_Global_Safety_DelayTrailUntilR=false). No behavior change for
       // any user who didn't explicitly enable this safety override.
       if(m_settings.Safety_DelayTrailUntilR && m_settings.Safety_TrailActivateR > 0.0) {
          double R = (m_initial_sl_price > 0.0) ? MathAbs(entry_price - m_initial_sl_price) : 0.0;

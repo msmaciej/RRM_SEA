@@ -2200,18 +2200,18 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── MTF / HTF CONFIRMATION ──────────────────────────────────────────
       // Inp_RRM_ORG_HtfFilter = master on/off for the HTF trend filter.
-      // TF count is chosen by Inp_MTF_TF2: PERIOD_CURRENT → single-TF;
+      // TF count is chosen by Inp_Global_MTF_TF2: PERIOD_CURRENT → single-TF;
       // a real TF (default M15) → two-TF. Fast/Slow EMA crossover per TF
       // (Fast != Slow; equal periods would switch GetMTFBias to slope mode).
       cfg.Ind_MTF_Enabled           = Inp_RRM_ORG_HtfFilter;
-      cfg.MTF_TF1                   = GetSafeMTF_TF1(Inp_MTF_TF1);
-      cfg.MTF_TF2                   = GetSafeMTF_TF2(Inp_MTF_TF2);
-      cfg.MTF_EMA_Fast              = Inp_MTF_EMA_Fast;
-      cfg.MTF_EMA_Slow              = Inp_MTF_EMA_Slow;
+      cfg.MTF_TF1                   = GetSafeMTF_TF1(Inp_Global_MTF_TF1);
+      cfg.MTF_TF2                   = GetSafeMTF_TF2(Inp_Global_MTF_TF2);
+      cfg.MTF_EMA_Fast              = Inp_Global_MTF_EMA_Fast;
+      cfg.MTF_EMA_Slow              = Inp_Global_MTF_EMA_Slow;
       cfg.MTF_RequirePhase          = false;
-      cfg.MTF_StrictAlignment       = Inp_MTF_StrictAlignment;
+      cfg.MTF_StrictAlignment       = Inp_Global_MTF_StrictAlignment;
 
-      // F-AUDIT 2026-06: ClimaxGuard_Enabled wiring removed — globalized to Inp_F_ClimaxGuard_Enabled
+      // F-AUDIT 2026-06: ClimaxGuard_Enabled wiring removed — globalized to Inp_Global_F_ClimaxGuard_Enabled
 
       // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
       cfg.AllowReEntryAfterBE       = Inp_RRM_ORG_AllowReEntryAfterBE;
@@ -2224,7 +2224,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MaxSpreadRetryBars        = MathMax(1, Inp_RRM_ORG_MaxSpreadRetryBars);
 
       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────────
-      // F-AUDIT 2026-06: EmaFanFilterEnabled toggle removed — globalized to Inp_F_EmaFanFilterEnabled.
+      // F-AUDIT 2026-06: EmaFanFilterEnabled toggle removed — globalized to Inp_Global_F_EmaFanFilterEnabled.
       // Tuning sub-params (TF-adaptive base × instrument multiplier) stay preset-specific.
       double rrm_org_fan_base       = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_EmaFan_M5Pips
                                     : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_EmaFan_M30Pips
@@ -2236,7 +2236,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Percentage-based alternative: if user set EmaFan_MaxPct > 0, use it instead.
       // This works universally across all instruments without multipliers.
       cfg.EmaFanMaxPct              = MathMax(0.0, Inp_RRM_ORG_EmaFan_MaxPct);
-      // F-AUDIT 2026-06: PriceExtFilterEnabled toggle removed — globalized to Inp_F_PriceExtFilterEnabled.
+      // F-AUDIT 2026-06: PriceExtFilterEnabled toggle removed — globalized to Inp_Global_F_PriceExtFilterEnabled.
       cfg.PriceExtRefEma            = (int)MathMax(1, MathMin(4, Inp_RRM_ORG_PriceExtRefEma));
       cfg.PriceExtMaxATR            = MathMax(0.0, Inp_RRM_ORG_PriceExtMaxATR);
       cfg.PriceExtAtrPeriod         = (int)MathMax(1, Inp_RRM_ORG_PriceExtAtrPeriod);
@@ -2246,7 +2246,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
                      cfg.EmaFanMaxPct, cfg.EmaFanMaxTotalPips);
       }
 
-      // F-AUDIT 2026-06: DpiDecelFilterEnabled toggle removed — globalized to Inp_F_DpiDecelFilterEnabled.
+      // F-AUDIT 2026-06: DpiDecelFilterEnabled toggle removed — globalized to Inp_Global_F_DpiDecelFilterEnabled.
 
       // ── PHASE B: RECOVERY SENSITIVITY TUNING (opt-in, all default disabled/0) ──────────
       // These settings widen specific bottlenecks in the TS→TE pipeline to allow valid
@@ -2261,10 +2261,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PSAR_FlipGraceBars        = Inp_RRM_ORG_PSAR_FlipGraceBars;
 
       // ── PHASE B: TE-side hardening (standardized veto inputs) ──────────
-      cfg.TE_RecheckBarClose        = Inp_VETO_TE_RecheckBarClose;
-      cfg.TE_BC_TolerancePips       = Inp_VETO_TE_BC_TolerancePips;
-      cfg.TE_OpenDelaySeconds       = Inp_VETO_TE_OpenDelaySeconds;
-      cfg.TE_SpreadMedianTicks      = Inp_VETO_TE_SpreadMedianTicks;
+      cfg.TE_RecheckBarClose        = Inp_Global_VETO_TE_RecheckBarClose;
+      cfg.TE_BC_TolerancePips       = Inp_Global_VETO_TE_BC_TolerancePips;
+      cfg.TE_OpenDelaySeconds       = Inp_Global_VETO_TE_OpenDelaySeconds;
+      cfg.TE_SpreadMedianTicks      = Inp_Global_VETO_TE_SpreadMedianTicks;
 
       ValidateRRM_ORG_ExitConfig(cfg);
       return;
@@ -2357,7 +2357,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Fast           = Inp_TI_MTF_EMA_Fast;   // default 50 — institutional standard
       cfg.MTF_EMA_Slow           = Inp_TI_MTF_EMA_Slow;   // default 200 — institutional standard
       cfg.MTF_RequirePhase       = true;               // LOCKED: HTF phase must be trending; accepting unordered HTF is a different (lower-quality) system
-      cfg.MTF_StrictAlignment    = Inp_MTF_StrictAlignment;
+      cfg.MTF_StrictAlignment    = Inp_Global_MTF_StrictAlignment;
 
       // ── SPREAD: pair-adaptive from Zone 3C ─────────────────────────
       cfg.MaxSpread              = op_MaxSpread;
@@ -2436,7 +2436,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // DPI — momentum exhaustion detection (Full)
       cfg.Ind_Dpi_Enabled        = is_full;
-      // F-AUDIT 2026-06: DpiDecelFilterEnabled toggle removed — globalized to Inp_F_DpiDecelFilterEnabled.
+      // F-AUDIT 2026-06: DpiDecelFilterEnabled toggle removed — globalized to Inp_Global_F_DpiDecelFilterEnabled.
       // (Previously auto-enabled for TI_FULL profile; users now set the global explicitly.)
 
       // SMA Convergence — pullback detection (Full)
@@ -2573,7 +2573,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────
       // With EMA 9/50/89/200 the fan is naturally wider than 5/13/34/89
       // Base values are for FX; GetInstrumentFanMultiplier() scales for Gold/indices/oil/crypto
-      // F-AUDIT 2026-06: EmaFanFilterEnabled toggle removed — globalized to Inp_F_EmaFanFilterEnabled.
+      // F-AUDIT 2026-06: EmaFanFilterEnabled toggle removed — globalized to Inp_Global_F_EmaFanFilterEnabled.
       double ti_fan_base            = (_Period <= PERIOD_M5)  ? Inp_TI_EmaFanBase_M1M5
                                     : (_Period <= PERIOD_M30) ? Inp_TI_EmaFanBase_M6M30
                                     : (_Period <= PERIOD_H1)  ? Inp_TI_EmaFanBase_H1
@@ -2586,7 +2586,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       PrintFormat("📐 [TOPINVESTOR] SL: SWING lookback=%d | cushion=%.1f pips | BE buffer=%.1f pips",
                   cfg.SwingLookback, cfg.SL_SwingPipsCushion, cfg.RRM_BE_BufferPips);
 
-      // F-AUDIT 2026-06: DpiDecelFilterEnabled toggle removed — globalized to Inp_F_DpiDecelFilterEnabled.
+      // F-AUDIT 2026-06: DpiDecelFilterEnabled toggle removed — globalized to Inp_Global_F_DpiDecelFilterEnabled.
 
       // ── RE-ENTRY / COOLDOWN ───────────────────────────────────────
       cfg.AllowReEntryAfterBE       = true;            // LOCKED: TI allows re-entry after BE — if the trend continues, a new pullback is a valid signal

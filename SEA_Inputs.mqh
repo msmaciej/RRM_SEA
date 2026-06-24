@@ -81,14 +81,14 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 // These guards are preset-independent: they are NOT cleared by preset overrides,
 // so they remain active under all presets (FPM/MA/RRM_ORG/TI/CUSTOM). All default to 0 = disabled,
 // so enabling none reproduces existing backtest behavior exactly. STEP3 2026-06: was "PRESET_RRM/FPM/etc"; RRM removed.
-input bool        Inp_Safety_CountBEInAggregateRisk = false;         // SAFETY: Count BE positions toward MaxTotalRisk (closes pyramiding gap)
-input int         Inp_Safety_MaxPositionsPerDir    = 2;              // SAFETY: Max concurrent positions per direction (0=off)
-input bool        Inp_Safety_DelayTrailUntilR      = false;          // SAFETY: Delay trailing until open profit reaches R-multiple
-input double      Inp_Safety_TrailActivateR        = 0.0;            // SAFETY: R-multiple of profit before trailing engages (0=off)
-input bool        Inp_Safety_RequirePriorAtBEToAdd = false;          // SAFETY: New trade only if all ar BE+ open same-symbol positions are at BE+ (staged risk)
-input double      Inp_Safety_MaxEquityDrawdownPct  = 0.0;            // SAFETY: Pause new entries if peak→trough equity DD ≥ % (0=off)
-input double      Inp_Safety_MinEquityFloor        = 0.0;            // SAFETY: Pause new entries if equity ≤ absolute value (0=off)
-input double      Inp_Safety_MinRewardRiskRatio    = 0.0;            // SAFETY: Reject entries with TP:SL ratio below this (0=off)
+input bool        Inp_Global_Safety_CountBEInAggregateRisk = false;         // SAFETY: Count BE positions toward MaxTotalRisk (closes pyramiding gap)
+input int         Inp_Global_Safety_MaxPositionsPerDir    = 2;              // SAFETY: Max concurrent positions per direction (0=off)
+input bool        Inp_Global_Safety_DelayTrailUntilR      = false;          // SAFETY: Delay trailing until open profit reaches R-multiple
+input double      Inp_Global_Safety_TrailActivateR        = 0.0;            // SAFETY: R-multiple of profit before trailing engages (0=off)
+input bool        Inp_Global_Safety_RequirePriorAtBEToAdd = false;          // SAFETY: New trade only if all ar BE+ open same-symbol positions are at BE+ (staged risk)
+input double      Inp_Global_Safety_MaxEquityDrawdownPct  = 0.0;            // SAFETY: Pause new entries if peak→trough equity DD ≥ % (0=off)
+input double      Inp_Global_Safety_MinEquityFloor        = 0.0;            // SAFETY: Pause new entries if equity ≤ absolute value (0=off)
+input double      Inp_Global_Safety_MinRewardRiskRatio    = 0.0;            // SAFETY: Reject entries with TP:SL ratio below this (0=off)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -97,49 +97,49 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: F FILTERS (SPREAD/TIME/NEWS)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_VETO_UseSpread               = false;          // Veto Spread: enable
-input int         Inp_VETO_MaxSpreadRetryBars      = 3;              // Veto Spread: retry bars (0=unlimited)
-input double      Inp_VETO_MaxSpread               = 3.0;            // Veto Spread: max pips
+input bool        Inp_Global_VETO_UseSpread               = false;          // Veto Spread: enable
+input int         Inp_Global_VETO_MaxSpreadRetryBars      = 3;              // Veto Spread: retry bars (0=unlimited)
+input double      Inp_Global_VETO_MaxSpread               = 3.0;            // Veto Spread: max pips
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: TIME";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_VETO_UseTime                 = false;           // Veto Session: enable
-input int         Inp_VETO_StartHr                 = 8;              // Veto Session: start hour (broker time)
-input int         Inp_VETO_EndHr                   = 18;             // Veto Session: end hour (broker time)
+input bool        Inp_Global_VETO_UseTime                 = false;           // Veto Session: enable
+input int         Inp_Global_VETO_StartHr                 = 8;              // Veto Session: start hour (broker time)
+input int         Inp_Global_VETO_EndHr                   = 18;             // Veto Session: end hour (broker time)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: NEWS";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_VETO_UseNews                 = false;          // Veto News: enable
-input ENewsImpactLevel Inp_VETO_NewsImpactFilter    = NEWS_IMPACT_MED_PLUS; // F-AUDIT 2026-06: which impact levels block (default MED+ = legacy hardcode)
-input string      Inp_VETO_NewsFile                = "calendar_statement.csv"; // Veto News: CSV filename
-input int         Inp_VETO_NewsPreMinutes          = 60;             // Veto News: block minutes before
-input int         Inp_VETO_NewsPostMinutes         = 60;             // Veto News: block minutes after
+input bool        Inp_Global_VETO_UseNews                 = false;          // Veto News: enable
+input ENewsImpactLevel Inp_Global_VETO_NewsImpactFilter    = NEWS_IMPACT_MED_PLUS; // F-AUDIT 2026-06: which impact levels block (default MED+ = legacy hardcode)
+input string      Inp_Global_VETO_NewsFile                = "calendar_statement.csv"; // Veto News: CSV filename
+input int         Inp_Global_VETO_NewsPreMinutes          = 60;             // Veto News: block minutes before
+input int         Inp_Global_VETO_NewsPostMinutes         = 60;             // Veto News: block minutes after
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: TE QUALITY GATES (ADVANCED)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_VETO_TE_RecheckBarClose      = false;          // Veto TE: re-check price drift vs Close[1]
-input double      Inp_VETO_TE_BC_TolerancePips     = 3.0;            // Veto TE: drift tolerance pips
-input int         Inp_VETO_TE_OpenDelaySeconds     = 0;              // Veto TE: open delay seconds (0=off)
-input int         Inp_VETO_TE_SpreadMedianTicks    = 0;              // Veto TE: spread median filter ticks (0=off)
+input bool        Inp_Global_VETO_TE_RecheckBarClose      = false;          // Veto TE: re-check price drift vs Close[1]
+input double      Inp_Global_VETO_TE_BC_TolerancePips     = 3.0;            // Veto TE: drift tolerance pips
+input int         Inp_Global_VETO_TE_OpenDelaySeconds     = 0;              // Veto TE: open delay seconds (0=off)
+input int         Inp_Global_VETO_TE_SpreadMedianTicks    = 0;              // Veto TE: spread median filter ticks (0=off)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: MTF (Multi-Timeframe Confirmation)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_Ind_MTF_Enabled              = false;           // Veto MTF: enable
-input ENUM_TIMEFRAMES Inp_MTF_TF1                  = PERIOD_M5;      // Veto MTF: TF1 (primary)
-input ENUM_TIMEFRAMES Inp_MTF_TF2                  = PERIOD_M15;     // Veto MTF: TF2 (PERIOD_CURRENT = single TF)
-input int         Inp_MTF_EMA_Fast                 = 20;             // Veto MTF: fast EMA period
-input int         Inp_MTF_EMA_Slow                 = 50;             // Veto MTF: slow EMA period
-input bool        Inp_MTF_RequirePhase             = true;           // Veto MTF: require trending phase
-input bool        Inp_MTF_StrictAlignment          = true;           // Veto MTF: strict gate — all HTFs must agree
+input ENUM_TIMEFRAMES Inp_Global_MTF_TF1                  = PERIOD_M5;      // Veto MTF: TF1 (primary)
+input ENUM_TIMEFRAMES Inp_Global_MTF_TF2                  = PERIOD_M15;     // Veto MTF: TF2 (PERIOD_CURRENT = single TF)
+input int         Inp_Global_MTF_EMA_Fast                 = 20;             // Veto MTF: fast EMA period
+input int         Inp_Global_MTF_EMA_Slow                 = 50;             // Veto MTF: slow EMA period
+input bool        Inp_Global_MTF_RequirePhase             = true;           // Veto MTF: require trending phase
+input bool        Inp_Global_MTF_StrictAlignment          = true;           // Veto MTF: strict gate — all HTFs must agree
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: Climax";
 input group "╚════════════════════════════════════════════════════════╝";
 // ── CLIMAX / EXHAUSTION GUARD (global; blocks late entries into over-extended impulses) ──
-input int         Inp_ClimaxGuard_Lookback         = 13;              // Climax: window (bars) scanned for an impulse
-input int         Inp_ClimaxGuard_ATRPeriod        = 14;             // Climax: ATR baseline period (measured pre-impulse)
-input double      Inp_ClimaxGuard_BarATRMult       = 2.0;            // Climax: single-bar range threshold (x ATR)
-input double      Inp_ClimaxGuard_MoveATRMult      = 3.0;            // Climax: cumulative move threshold (x ATR)
-input bool        Inp_ClimaxGuard_ResetPullback    = false;           // Climax: on detection reset ALL layer PB states
+input int         Inp_Global_ClimaxGuard_Lookback         = 13;              // Climax: window (bars) scanned for an impulse
+input int         Inp_Global_ClimaxGuard_ATRPeriod        = 14;             // Climax: ATR baseline period (measured pre-impulse)
+input double      Inp_Global_ClimaxGuard_BarATRMult       = 2.0;            // Climax: single-bar range threshold (x ATR)
+input double      Inp_Global_ClimaxGuard_MoveATRMult      = 3.0;            // Climax: cumulative move threshold (x ATR)
+input bool        Inp_Global_ClimaxGuard_ResetPullback    = false;           // Climax: on detection reset ALL layer PB states
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 F-FILTERS (GLOBAL MASTERS — preset-agnostic)";
@@ -147,12 +147,12 @@ input group "╚═════════════════════�
 // F-AUDIT 2026-06: master enable switches for the F-factor sub-filters. Globalized so any
 // preset can opt in/out independently of strategy choice. Tuning sub-params (EmaFan*Pips,
 // PriceExt*, ClimaxGuard_*) remain where they are (preset-tuned or already global).
-input bool        Inp_F_EmaFanFilterEnabled        = false;          // F-Filter: EMA-fan over-extension master toggle
-input bool        Inp_F_PriceExtFilterEnabled      = false;          // F-Filter: price-vs-EMA over-extension master toggle
-input bool        Inp_F_DpiDecelFilterEnabled      = false;          // F-Filter: DPI GREEN deceleration master toggle (stateless)
-input bool        Inp_F_DPI_HistTrackingEnabled    = false;          // F-Filter: DPI histogram tracking master (prereq for hist-decel block)
-input bool        Inp_F_DPI_BlockOnDeceleration    = false;          // F-Filter: Block on DPI histogram decel (requires hist-tracking on)
-input bool        Inp_F_ClimaxGuard_Enabled        = false;          // F-Filter: Climax / exhaustion-guard master toggle
+input bool        Inp_Global_F_EmaFanFilterEnabled        = false;          // F-Filter: EMA-fan over-extension master toggle
+input bool        Inp_Global_F_PriceExtFilterEnabled      = false;          // F-Filter: price-vs-EMA over-extension master toggle
+input bool        Inp_Global_F_DpiDecelFilterEnabled      = false;          // F-Filter: DPI GREEN deceleration master toggle (stateless)
+input bool        Inp_Global_F_DPI_HistTrackingEnabled    = false;          // F-Filter: DPI histogram tracking master (prereq for hist-decel block)
+input bool        Inp_Global_F_DPI_BlockOnDeceleration    = false;          // F-Filter: Block on DPI histogram decel (requires hist-tracking on)
+input bool        Inp_Global_F_ClimaxGuard_Enabled        = false;          // F-Filter: Climax / exhaustion-guard master toggle
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -424,8 +424,8 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: DPI Pre-filter — GREEN Deceleration";
 input group "╚════════════════════════════════════════════════════════╝";
 // F-AUDIT 2026-06: 3 inputs removed (Inp_RRM_ORG_DPI_Decel_Filter, _DPI_BlockOnDeceleration,
-// _DPI_HistTrackingEnabled). Toggles globalized to Inp_F_DpiDecelFilterEnabled / Inp_F_DPI_BlockOnDeceleration
-// / Inp_F_DPI_HistTrackingEnabled. Tuning params for DPI (CCI period, EMA periods, thresholds) stay here.
+// _DPI_HistTrackingEnabled). Toggles globalized to Inp_Global_F_DpiDecelFilterEnabled / Inp_Global_F_DPI_BlockOnDeceleration
+// / Inp_Global_F_DPI_HistTrackingEnabled. Tuning params for DPI (CCI period, EMA periods, thresholds) stay here.
 input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // RRM ORG DPI: CCI deceleration lookback bars (needs tracking ON)
 //
 // Inp_RRM_ORG_DPI_Decel_Filter - Blocks entry when GREEN momentum is fading or has just disappeared.
@@ -623,7 +623,7 @@ input group "║   📐 RRM_ORG: QUALITY Gates";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_RequireRecoveryIntraday = false;        // RRM ORG QA: Require recovery <M15
 input bool        Inp_RRM_ORG_HtfFilter            = false;           // RRM ORG QA: HTF Trend Filter
-// F-AUDIT 2026-06: Inp_RRM_ORG_ClimaxGuard_Enabled removed — toggle globalized to Inp_F_ClimaxGuard_Enabled
+// F-AUDIT 2026-06: Inp_RRM_ORG_ClimaxGuard_Enabled removed — toggle globalized to Inp_Global_F_ClimaxGuard_Enabled
 input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM ORG QA: EMA1 period
 input int         Inp_RRM_ORG_Ema2Period           = 13;             // RRM ORG QA: EMA2 period
 input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG QA: EMA3 period
@@ -653,14 +653,14 @@ input bool        Inp_RRM_ORG_AllowLayerW          = true;                      
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: EMA Fan Filter (pips)";
 input group "╚════════════════════════════════════════════════════════╝";
-// F-AUDIT 2026-06: Inp_RRM_ORG_EmaFanFilter removed — toggle globalized to Inp_F_EmaFanFilterEnabled
+// F-AUDIT 2026-06: Inp_RRM_ORG_EmaFanFilter removed — toggle globalized to Inp_Global_F_EmaFanFilterEnabled
 input double      Inp_RRM_ORG_EmaFan_M5Pips        = 25.0;           // RRM ORG Fan: pips <M5
 input double      Inp_RRM_ORG_EmaFan_M30Pips       = 40.0;           // RRM ORG Fan: pips <M30
 input double      Inp_RRM_ORG_EmaFan_H1Pips        = 60.0;           // RRM ORG Fan: pips H1
 input double      Inp_RRM_ORG_EmaFan_H4Pips        = 100.0;          // RRM ORG Fan: pips H4
 input double      Inp_RRM_ORG_EmaFan_DailyPips     = 180.0;          // RRM ORG Fan: pips D1+
 input double      Inp_RRM_ORG_EmaFan_MaxPct        = 0.0;            // RRM ORG Fan: max gap % of price (>0 overrides pips; universal for all instruments)
-// F-AUDIT 2026-06: Inp_RRM_ORG_PriceExtFilter removed — toggle globalized to Inp_F_PriceExtFilterEnabled
+// F-AUDIT 2026-06: Inp_RRM_ORG_PriceExtFilter removed — toggle globalized to Inp_Global_F_PriceExtFilterEnabled
 input int         Inp_RRM_ORG_PriceExtRefEma       = 3;              // RRM ORG OverExt: ref EMA 1..4 (1=5 2=13 3=34 4=89)
 input double      Inp_RRM_ORG_PriceExtMaxATR       = 2.5;            // RRM ORG OverExt: block if |close-refEMA| > this x ATR
 input int         Inp_RRM_ORG_PriceExtAtrPeriod    = 14;             // RRM ORG OverExt: ATR period for distance
@@ -845,7 +845,7 @@ input bool        Inp_TI_TrailStartsAfterBE        = false;          // TI Exit:
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 TOPINVESTOR: STANDARD — EMA Fan Filter";
 input group "╚════════════════════════════════════════════════════════╝";
-// F-AUDIT 2026-06: Inp_TI_EmaFanFilterEnabled removed — toggle globalized to Inp_F_EmaFanFilterEnabled
+// F-AUDIT 2026-06: Inp_TI_EmaFanFilterEnabled removed — toggle globalized to Inp_Global_F_EmaFanFilterEnabled
 input double      Inp_TI_EmaFanBase_M1M5           = 50.0;           // TI Fan: max pips M1–M5
 input double      Inp_TI_EmaFanBase_M6M30          = 80.0;           // TI Fan: max pips M6–M30
 input double      Inp_TI_EmaFanBase_H1             = 120.0;          // TI Fan: max pips H1
@@ -930,7 +930,7 @@ input group "╔═════════════════════�
 input group "║   🔧 STEP 1: BIAS (Major Trend Direction)";
 input group "╚════════════════════════════════════════════════════════╝";
 input EBiasMode   Inp_CUSTOM_BiasMode              = BIAS_4EMA;      // Override: Bias Mode: Manual, 2-EMA, 4-EMA
-input EManualSide Inp_CUSTOM_ManualSide            = SIDE_BOTH;      // Override: Bias Side
+input EManualSide Inp_Global_ManualSide            = SIDE_BOTH;      // Override: Bias Side
 input bool        Inp_CUSTOM_BiasEnabled           = true;           // Override: Bias Enabled
 input int         Inp_CUSTOM_BiasFastID            = 2;              // Override: Bias Fast ID
 input int         Inp_CUSTOM_BiasSlowID            = 3;              // Override: Bias Slow ID
@@ -959,10 +959,10 @@ input bool        Inp_CUSTOM_BlockUnorderedPhase   = true;           // Override
 input bool        Inp_CUSTOM_BlockEmergingPhase    = false;          // Override: [PH] Block trades while phase is EMERGING
 input bool        Inp_CUSTOM_EnableLayerDetection  = true;           // Override: [LY] Enable EMA-layer detection (L1/L2/L3)
 input bool        Inp_CUSTOM_LayerPullbackEnabled  = false;          // Override: [LY] Enable layer pullback-recovery state machine
-input bool        Inp_CUSTOM_LayerS_Require_DirAlign  = true;       // [LY] Require Layer S (EMA3/EMA4) pos+slope w/ bias to allow M/W entries
-input bool        Inp_CUSTOM_LayerReset_OnRealign      = false;      // [LY] Reset layer pullback states on confirmed market-phase change
-input int         Inp_CUSTOM_LayerReset_PhaseConfirm   = 2;          // [LY]   ^ bars new phase must hold first (1=catch 1-bar phases)
-// F-AUDIT 2026-06: Inp_CUSTOM_ClimaxGuard_Enabled removed — toggle globalized to Inp_F_ClimaxGuard_Enabled
+input bool        Inp_Global_LayerS_Require_DirAlign  = true;       // [LY] Require Layer S (EMA3/EMA4) pos+slope w/ bias to allow M/W entries
+input bool        Inp_Global_LayerReset_OnRealign      = false;      // [LY] Reset layer pullback states on confirmed market-phase change
+input int         Inp_Global_LayerReset_PhaseConfirm   = 2;          // [LY]   ^ bars new phase must hold first (1=catch 1-bar phases)
+// F-AUDIT 2026-06: Inp_CUSTOM_ClimaxGuard_Enabled removed — toggle globalized to Inp_Global_F_ClimaxGuard_Enabled
 input bool        Inp_CUSTOM_VPRR_Enabled          = false;          // Override: [VP] Enable Volume Pullback-Recovery Ratio voter
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 4: Candle Close & Candle Body";
@@ -1009,7 +1009,7 @@ input bool        Inp_CUSTOM_RequireRecoveryIntraday = false;        // Custom: 
 input int         Inp_CUSTOM_DDMaxConsecLosses     = 3;              // Custom: [DD] Override max consecutive losses (0=use RRM default)
 input int         Inp_CUSTOM_DDMaxTradesPerDay     = 15;             // Custom: [DD] Override max trades per day (0=use RRM default)
 input double      Inp_CUSTOM_DDMaxDailyPct         = 8.0;            // Custom: [DD] Override max daily DD % (0=use RRM default)
-// F-AUDIT 2026-06: Inp_CUSTOM_EmaFanFilter removed — toggle globalized to Inp_F_EmaFanFilterEnabled
+// F-AUDIT 2026-06: Inp_CUSTOM_EmaFanFilter removed — toggle globalized to Inp_Global_F_EmaFanFilterEnabled
 input double      Inp_CUSTOM_EmaFan_M5Pips         = 25.0;           // Custom: [Fan] pips <M5
 input double      Inp_CUSTOM_EmaFan_M30Pips        = 40.0;           // Custom: [Fan] pips <M30
 input double      Inp_CUSTOM_EmaFan_H1Pips         = 60.0;           // Custom: [Fan] pips H1
@@ -1121,7 +1121,7 @@ input group "╚═════════════════════�
 input EMfiMode    Inp_CUSTOM_Ind_Mfi_Mode          = MFI_ZONE_FILTER; // Ind: TI Full: [MFI] Mode
 input bool        Inp_CUSTOM_Ind_Mfi_Enabled       = false;          // Ind: TI Full: [MFI] Enable MFI
 input int         Inp_CUSTOM_Ind_Mfi_Period        = 14;             // Ind: TI Full: [MFI] Period
-input double      Inp_CUSTOM_Ind_Mfi_Level         = 50.0;           // Ind: TI Full: [MFI] Threshold/level
+input double      Inp_Global_Ind_Mfi_Level         = 50.0;           // Ind: TI Full: [MFI] Threshold/level
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 P123 (Mark Crisp 1-2-3 fractal breakout pattern (see Ross Hook))";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1239,7 +1239,7 @@ input group "╔═════════════════════�
 input group "║   🛡 (TE) COOLDOWN BARS Post-Trade Protection";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_CUSTOM_MinBarsAfterClose      = 2;             // Custom: TE: Min bars cooldown (0=off)
-input int         Inp_CUSTOM_MinBarsAfterWeekendGap = 2;             // Custom: TS: Bars skip weekend gap (0=off, recommended 1-2)
+input int         Inp_Global_MinBarsAfterWeekendGap = 2;             // Custom: TS: Bars skip weekend gap (0=off, recommended 1-2)
 
 //+------------------------------------------------------------------+
 //| ADAPTIVE UTILITY FUNCTIONS                                       |
@@ -1332,8 +1332,8 @@ void InitializeConfig()
    Settings.RiskPercent             = Inp_RM_RiskPercentDefault;
    Settings.RiskCapMultiple         = (Inp_RM_RiskCapMultiple > 0.0) ? Inp_RM_RiskCapMultiple : 1.5;
    Settings.FixedLotSize            = 0.0; // 0 = risk-based sizing (default)
-   Settings.MaxSpread               = Inp_VETO_MaxSpread;
-   Settings.UseSpread               = Inp_VETO_UseSpread;
+   Settings.MaxSpread               = Inp_Global_VETO_MaxSpread;
+   Settings.UseSpread               = Inp_Global_VETO_UseSpread;
    Settings.ATR_VoteMinPips         = Inp_CUSTOM_Ind_Atr_VoteMinPips;
    Settings.ATR_VoteMaxPips         = Inp_CUSTOM_Ind_Atr_VoteMaxPips;
 
@@ -1366,7 +1366,7 @@ void InitializeConfig()
    // Bias
    Settings.BiasEnabled          = Inp_CUSTOM_BiasEnabled;
    Settings.BiasMode             = Inp_CUSTOM_BiasMode;
-   Settings.ManSide              = Inp_CUSTOM_ManualSide;
+   Settings.ManSide              = Inp_Global_ManualSide;
    Settings.BiasFastID           = MathMax(0, MathMin(3, Inp_CUSTOM_BiasFastID));
    Settings.BiasSlowID           = MathMax(0, MathMin(3, Inp_CUSTOM_BiasSlowID));
    Settings.AutoStrat            = Inp_CUSTOM_AutoStrat;
@@ -1375,20 +1375,20 @@ void InitializeConfig()
    Settings.ma_v_shift           = Inp_CUSTOM_MaVerShift;
    
    // Filters
-   Settings.UseTime              = Inp_VETO_UseTime;
-   Settings.StartHr              = Inp_VETO_StartHr;
-   Settings.EndHr                = Inp_VETO_EndHr;
-   Settings.UseNews              = Inp_VETO_UseNews;
-   Settings.NewsPre              = Inp_VETO_NewsPreMinutes;
-   Settings.NewsPost             = Inp_VETO_NewsPostMinutes;
-   Settings.NewsImpactFilter     = Inp_VETO_NewsImpactFilter;       // F-AUDIT 2026-06
+   Settings.UseTime              = Inp_Global_VETO_UseTime;
+   Settings.StartHr              = Inp_Global_VETO_StartHr;
+   Settings.EndHr                = Inp_Global_VETO_EndHr;
+   Settings.UseNews              = Inp_Global_VETO_UseNews;
+   Settings.NewsPre              = Inp_Global_VETO_NewsPreMinutes;
+   Settings.NewsPost             = Inp_Global_VETO_NewsPostMinutes;
+   Settings.NewsImpactFilter     = Inp_Global_VETO_NewsImpactFilter;       // F-AUDIT 2026-06
    Settings.Ind_MTF_Enabled      = Inp_Ind_MTF_Enabled;
-   Settings.MTF_TF1              = Inp_MTF_TF1;
-   Settings.MTF_TF2              = Inp_MTF_TF2;
-   Settings.MTF_EMA_Fast         = MathMax(1, Inp_MTF_EMA_Fast);
-   Settings.MTF_EMA_Slow         = MathMax(1, Inp_MTF_EMA_Slow);
-   Settings.MTF_RequirePhase     = Inp_MTF_RequirePhase;
-   Settings.MTF_StrictAlignment  = Inp_MTF_StrictAlignment;
+   Settings.MTF_TF1              = Inp_Global_MTF_TF1;
+   Settings.MTF_TF2              = Inp_Global_MTF_TF2;
+   Settings.MTF_EMA_Fast         = MathMax(1, Inp_Global_MTF_EMA_Fast);
+   Settings.MTF_EMA_Slow         = MathMax(1, Inp_Global_MTF_EMA_Slow);
+   Settings.MTF_RequirePhase     = Inp_Global_MTF_RequirePhase;
+   Settings.MTF_StrictAlignment  = Inp_Global_MTF_StrictAlignment;
 
    // Fibonacci voter (globally available)
    Settings.Ind_Fib_Enabled      = Inp_CUSTOM_Ind_Fib_Enabled;
@@ -1432,9 +1432,9 @@ void InitializeConfig()
    Settings.T_RsiOS              = Inp_CUSTOM_Ind_Rsi_OS;
    Settings.P_Cci                = Inp_CUSTOM_Ind_Cci_Period;
    Settings.P_Mfi                = Inp_CUSTOM_Ind_Mfi_Period;
-   Settings.T_Mfi                = Inp_CUSTOM_Ind_Mfi_Level;
-   Settings.T_MfiOB              = Inp_CUSTOM_Ind_Mfi_Level;
-   Settings.T_MfiOS              = Inp_CUSTOM_Ind_Mfi_Level;
+   Settings.T_Mfi                = Inp_Global_Ind_Mfi_Level;
+   Settings.T_MfiOB              = Inp_Global_Ind_Mfi_Level;
+   Settings.T_MfiOS              = Inp_Global_Ind_Mfi_Level;
    Settings.P_StoK               = Inp_CUSTOM_Ind_Sto_K;
    Settings.P_StoD               = Inp_CUSTOM_Ind_Sto_D;
    Settings.P_StoSlow            = Inp_CUSTOM_Ind_Sto_Slow;
@@ -1498,8 +1498,8 @@ void InitializeConfig()
     Settings.DPI_HistDecelLookback       = MathMax(1, MathMin(9, Inp_RRM_ORG_DPI_HistDecelLookback));
     // F-AUDIT 2026-06: was Inp_RRM_ORG_DPI_HistTrackingEnabled / DPI_BlockOnDeceleration
     // (cross-preset bleed: all 7 presets inherited RRM_ORG's value). Now globalized.
-    Settings.DPI_HistTrackingEnabled     = Inp_F_DPI_HistTrackingEnabled;
-    Settings.DPI_BlockOnDeceleration     = Inp_F_DPI_BlockOnDeceleration;
+    Settings.DPI_HistTrackingEnabled     = Inp_Global_F_DPI_HistTrackingEnabled;
+    Settings.DPI_BlockOnDeceleration     = Inp_Global_F_DPI_BlockOnDeceleration;
     Settings.DPI_ExitOnHistDisappear     = Inp_RRM_ORG_DPI_ExitOnHistDisappear;
     Settings.DPI_ExitThreshold           = MathMax(0.0, Inp_RRM_ORG_DPI_ExitThreshold);
     // DPI CCI Reset-Recovery
@@ -1627,14 +1627,14 @@ void InitializeConfig()
 
    // Account-level safety guards (preset-independent; mapped here so they are
    // never cleared by preset overrides applied later in ApplyPreset()).
-   Settings.Safety_MaxEquityDrawdownPct  = Inp_Safety_MaxEquityDrawdownPct;
-   Settings.Safety_MinEquityFloor        = Inp_Safety_MinEquityFloor;
-   Settings.Safety_MinRewardRiskRatio    = Inp_Safety_MinRewardRiskRatio;
-   Settings.Safety_CountBEInAggregateRisk = Inp_Safety_CountBEInAggregateRisk;
-   Settings.Safety_MaxPositionsPerDir    = MathMax(0, Inp_Safety_MaxPositionsPerDir);
-   Settings.Safety_DelayTrailUntilR      = Inp_Safety_DelayTrailUntilR;
-   Settings.Safety_TrailActivateR        = Inp_Safety_TrailActivateR;
-   Settings.Safety_RequirePriorAtBEToAdd = Inp_Safety_RequirePriorAtBEToAdd;
+   Settings.Safety_MaxEquityDrawdownPct  = Inp_Global_Safety_MaxEquityDrawdownPct;
+   Settings.Safety_MinEquityFloor        = Inp_Global_Safety_MinEquityFloor;
+   Settings.Safety_MinRewardRiskRatio    = Inp_Global_Safety_MinRewardRiskRatio;
+   Settings.Safety_CountBEInAggregateRisk = Inp_Global_Safety_CountBEInAggregateRisk;
+   Settings.Safety_MaxPositionsPerDir    = MathMax(0, Inp_Global_Safety_MaxPositionsPerDir);
+   Settings.Safety_DelayTrailUntilR      = Inp_Global_Safety_DelayTrailUntilR;
+   Settings.Safety_TrailActivateR        = Inp_Global_Safety_TrailActivateR;
+   Settings.Safety_RequirePriorAtBEToAdd = Inp_Global_Safety_RequirePriorAtBEToAdd;
 
    // B6 2026-06: was hardcoded 1. Now reads Inp_CUSTOM_SlopeLookbackBars
    // (default 1 preserves prior behavior). Clamped 1..5 to match the runtime
@@ -1643,9 +1643,9 @@ void InitializeConfig()
    // presets explicitly set SlopeLookbackBars in their preset block.
    Settings.SlopeLookbackBars      = MathMax(1, MathMin(5, Inp_CUSTOM_SlopeLookbackBars));
    Settings.LayerPullbackEnabled        = Inp_CUSTOM_LayerPullbackEnabled;
-   Settings.LayerS_RequireDirAlign      = Inp_CUSTOM_LayerS_Require_DirAlign;
-   Settings.LayerResetOnRealign         = Inp_CUSTOM_LayerReset_OnRealign;
-   Settings.LayerResetPhaseConfirmBars  = Inp_CUSTOM_LayerReset_PhaseConfirm;
+   Settings.LayerS_RequireDirAlign      = Inp_Global_LayerS_Require_DirAlign;
+   Settings.LayerResetOnRealign         = Inp_Global_LayerReset_OnRealign;
+   Settings.LayerResetPhaseConfirmBars  = Inp_Global_LayerReset_PhaseConfirm;
    Settings.LayerBaselineLookback       = 10;     // default; overwritten by ApplyPreset
    // Per-layer pullback-recovery defaults (seed for ALL presets so the shared
    // magnitude logic is safe; RRM_ORG/CUSTOM override these via ApplyPreset).
@@ -1665,12 +1665,12 @@ void InitializeConfig()
    // also global (was per-preset via Inp_CUSTOM_ClimaxGuard_Enabled / Inp_RRM_ORG_ClimaxGuard_Enabled;
    // 5/7 presets had no input at all). Climax is conceptually an F sub-filter
    // (market-state filter) — see EvaluateF.
-   Settings.ClimaxGuard_Enabled         = Inp_F_ClimaxGuard_Enabled;
-   Settings.ClimaxGuard_Lookback        = MathMax(1, Inp_ClimaxGuard_Lookback);
-   Settings.ClimaxGuard_ATRPeriod       = MathMax(1, Inp_ClimaxGuard_ATRPeriod);
-   Settings.ClimaxGuard_BarATRMult      = MathMax(0.0, Inp_ClimaxGuard_BarATRMult);
-   Settings.ClimaxGuard_MoveATRMult     = MathMax(0.0, Inp_ClimaxGuard_MoveATRMult);
-   Settings.ClimaxGuard_ResetPullback   = Inp_ClimaxGuard_ResetPullback;
+   Settings.ClimaxGuard_Enabled         = Inp_Global_F_ClimaxGuard_Enabled;
+   Settings.ClimaxGuard_Lookback        = MathMax(1, Inp_Global_ClimaxGuard_Lookback);
+   Settings.ClimaxGuard_ATRPeriod       = MathMax(1, Inp_Global_ClimaxGuard_ATRPeriod);
+   Settings.ClimaxGuard_BarATRMult      = MathMax(0.0, Inp_Global_ClimaxGuard_BarATRMult);
+   Settings.ClimaxGuard_MoveATRMult     = MathMax(0.0, Inp_Global_ClimaxGuard_MoveATRMult);
+   Settings.ClimaxGuard_ResetPullback   = Inp_Global_ClimaxGuard_ResetPullback;
 
     // VPRR defaults (disabled — only RRM_ORG preset wires it on)
     Settings.VPRR_Enabled         = Inp_CUSTOM_VPRR_Enabled;
@@ -1691,32 +1691,32 @@ void InitializeConfig()
 
    // Post-trade cooldown: disabled by default; presets may override
    Settings.MinBarsAfterClose      = Inp_CUSTOM_MinBarsAfterClose;
-   Settings.MinBarsAfterWeekendGap = MathMax(0, Inp_CUSTOM_MinBarsAfterWeekendGap);
+   Settings.MinBarsAfterWeekendGap = MathMax(0, Inp_Global_MinBarsAfterWeekendGap);
 
    // Spread retry cap: kill carry after N consecutive spread-blocked bars (0=unlimited)
-   Settings.MaxSpreadRetryBars    = Inp_VETO_MaxSpreadRetryBars;
+   Settings.MaxSpreadRetryBars    = Inp_Global_VETO_MaxSpreadRetryBars;
 
    // F-AUDIT 2026-06: F-filter master toggles now globalized. Tuning sub-params
    // (EmaFanMaxTotalPips/MaxPct, PriceExtMaxATR/RefEma/AtrPeriod) remain
    // preset-tuned via the preset blocks; if a preset has no tuning wiring,
    // these seed defaults apply.
-   Settings.EmaFanFilterEnabled   = Inp_F_EmaFanFilterEnabled;
+   Settings.EmaFanFilterEnabled   = Inp_Global_F_EmaFanFilterEnabled;
    Settings.EmaFanMaxTotalPips    = 60.0;    // default; overwritten by ApplyPreset for tuned presets
    Settings.EmaFanMaxPct          = 0.0;     // default; overwritten by ApplyPreset for tuned presets
-   Settings.PriceExtFilterEnabled = Inp_F_PriceExtFilterEnabled;
+   Settings.PriceExtFilterEnabled = Inp_Global_F_PriceExtFilterEnabled;
    Settings.PriceExtRefEma        = 3;        // default; overwritten by ApplyPreset for tuned presets
    Settings.PriceExtMaxATR        = 2.5;      // default; overwritten by ApplyPreset for tuned presets
    Settings.PriceExtAtrPeriod     = 14;       // default; overwritten by ApplyPreset for tuned presets
 
    // F-AUDIT 2026-06: DPI deceleration master toggle globalized (was bleeding
    // from Inp_RRM_ORG_DPI_Decel_Filter into all non-RRM_ORG presets).
-   Settings.DpiDecelFilterEnabled = Inp_F_DpiDecelFilterEnabled;
+   Settings.DpiDecelFilterEnabled = Inp_Global_F_DpiDecelFilterEnabled;
 
    // ── PHASE B: TE-side gates (user-configurable veto controls) ──
-   Settings.TE_RecheckBarClose    = Inp_VETO_TE_RecheckBarClose;
-   Settings.TE_BC_TolerancePips   = MathMax(0.0, Inp_VETO_TE_BC_TolerancePips);
-   Settings.TE_OpenDelaySeconds   = Inp_VETO_TE_OpenDelaySeconds;
-   Settings.TE_SpreadMedianTicks  = Inp_VETO_TE_SpreadMedianTicks;
+   Settings.TE_RecheckBarClose    = Inp_Global_VETO_TE_RecheckBarClose;
+   Settings.TE_BC_TolerancePips   = MathMax(0.0, Inp_Global_VETO_TE_BC_TolerancePips);
+   Settings.TE_OpenDelaySeconds   = Inp_Global_VETO_TE_OpenDelaySeconds;
+   Settings.TE_SpreadMedianTicks  = Inp_Global_VETO_TE_SpreadMedianTicks;
 
    // ── PHASE B: Recovery-sensitivity tuning defaults (all off; PRESET_RRM_ORG may override) ──
    Settings.DPI_IgnoreCCIForVote  = false;
