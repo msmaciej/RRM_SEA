@@ -1519,16 +1519,35 @@ private:
             // ABOVE entry for LONG / BELOW entry for SHORT. The trade enters at immediate
             // loss territory and likely auto-stops on the first tick. Path 1 (RRM profile)
             // had this guard since file authoring; Path 2 (SIMPLE profile — FPM/MA/TI users)
-            // was missed. Behavior matches Path 1: on invalid side, zero the anchor so the
-            // post-switch tail falls back to fixed pips. No secondary structural fallback
-            // (matches Path 1 simplicity); Path 2's SWING-with-PSAR-fallback pattern was a
-            // deliberate methodology choice for that mode and isn't propagated here.
+            // was missed. STEP17 zeroed the anchor on invalid side (→ fixed pips).
+            //
+            // STEP21 2026-06: secondary structural fallback added. The STEP17-era stance
+            // ("no secondary fallback — matches Path 1 simplicity") was the lone outlier
+            // among Path 2's anchor modes: SWING falls back to PSAR (line 1465+), and
+            // PSAR_DOT falls back to SWING (line 1494+). FRACTAL alone collapsed straight
+            // to "arbitrary distance" (fixed pips) on a wrong-side anchor — silently
+            // discarding the structural placement the user asked for. FRACTAL now mirrors
+            // PSAR_DOT: on wrong-side fractal, try Swing High/Low as the methodology-
+            // aligned secondary before degrading to fixed pips. Matches the author's
+            // broader pattern "structural anchor before fixed pips".
+            // NOTE: Path 1's FRACTAL case (RRM_GetStrictSL, ~line 1386) has the same gap
+            // and is flagged as a separate sibling follow-up.
             if(anchor > 0.0) {
                bool valid = isBuy ? (anchor < price) : (anchor > price);
                if(!valid) {
-                  PrintFormat("⚠️ [SL] Fractal anchor (%.5f) on wrong side of entry (%.5f) for %s — falling back to fixed pips",
+                  PrintFormat("⚠️ [SL] Fractal anchor (%.5f) on wrong side of entry (%.5f) for %s — trying Swing fallback before Fixed Pips",
                               anchor, price, isBuy ? "BUY" : "SELL");
-                  anchor = 0.0;   // post-switch tail will use fixed-pips fallback
+                  // STEP21 2026-06: Swing fallback (mirrors PSAR_DOT block at line 1494+).
+                  double swing_fb = GetSwingLevel(isBuy ? 1 : -1);
+                  bool swing_ok = (swing_fb > 0.0) &&
+                                  (isBuy ? (swing_fb < price) : (swing_fb > price));
+                  if(swing_ok) {
+                     anchor       = swing_fb;
+                     cushion_pips = m_settings.SL_SwingPipsCushion;   // already set above; explicit for parity with PSAR_DOT fallback
+                     PrintFormat("✅ [SL] Swing fallback used: anchor=%.5f", anchor);
+                  } else {
+                     anchor = 0.0;   // both failed → fixed pips below
+                  }
                }
             }
             break;
