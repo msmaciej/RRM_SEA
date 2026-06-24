@@ -987,10 +987,6 @@ input int         Inp_CUSTOM_TrailEMA_Shift        = 1;              // Override
 // violated preset isolation (CUSTOM should not depend on RRM_ORG inputs).
 // Defaults match the previously-leaked Inp_RRM_ORG_* defaults so behavior
 // is unchanged for existing .set files that did not override them.
-input EEmaRole    Inp_CUSTOM_TrailEMA_RibbonRole   = ROLE_EMA2;      // Custom: [Trail] ribbon EMA when Period=0 (EMA1=5,EMA2=13,EMA3=34,EMA4=89)
-input double      Inp_CUSTOM_TrailEMA_CushionAtrMult = 0.1;          // Custom: [Trail] EMA cushion = ATR×this (0=disabled; 0.1=recommended)
-input bool        Inp_CUSTOM_TrailStartsAfterBE    = false;          // Custom: [Trail] Safety override: trail after BE
-input int         Inp_CUSTOM_TrailPsarDotShift     = 1;              // Custom: [Trail] PSAR trail shift (1–3 bars back)
 
 // ── PRESET ISOLATION 2026-06 (PART 2): non-TM CUSTOM inputs ──────────
 // Previously CUSTOM block read 33 Inp_RRM_ORG_* inputs across HTF, MTF,
@@ -999,48 +995,11 @@ input int         Inp_CUSTOM_TrailPsarDotShift     = 1;              // Custom: 
 // Each new Inp_CUSTOM_* default matches the previously-leaked Inp_RRM_ORG_*
 // default — behavior is unchanged for existing .set files that did not
 // override these inputs.
-input bool        Inp_CUSTOM_HtfFilter             = false;          // Custom: [HTF] HTF Trend Filter master
-input double      Inp_CUSTOM_JpyGateMultiplier     = 1.3;            // Custom: [Fan] JPY Gate Multiplier (1.0=disabled)
-input bool        Inp_CUSTOM_Vote_AllowPsarFlip    = true;           // Custom: [PSAR] Allow PSAR flip signal in votes
-input int         Inp_CUSTOM_PhaseConfirmM5        = 0;              // Custom: [Phase] PhaseConfirmBars <M5
-input int         Inp_CUSTOM_PhaseConfirmM30       = 0;              // Custom: [Phase] PhaseConfirmBars <M30
-input int         Inp_CUSTOM_PhaseConfirmH1plus    = 0;              // Custom: [Phase] PhaseConfirmBars H1+
-input bool        Inp_CUSTOM_RequireRecoveryIntraday = false;        // Custom: [Layer] Require recovery <M15
-input int         Inp_CUSTOM_DDMaxConsecLosses     = 3;              // Custom: [DD] Override max consecutive losses (0=use RRM default)
-input int         Inp_CUSTOM_DDMaxTradesPerDay     = 15;             // Custom: [DD] Override max trades per day (0=use RRM default)
-input double      Inp_CUSTOM_DDMaxDailyPct         = 8.0;            // Custom: [DD] Override max daily DD % (0=use RRM default)
 // F-AUDIT 2026-06: Inp_CUSTOM_EmaFanFilter removed — toggle globalized to Inp_Global_F_EmaFanFilterEnabled
-input double      Inp_CUSTOM_EmaFan_M5Pips         = 25.0;           // Custom: [Fan] pips <M5
-input double      Inp_CUSTOM_EmaFan_M30Pips        = 40.0;           // Custom: [Fan] pips <M30
-input double      Inp_CUSTOM_EmaFan_H1Pips         = 60.0;           // Custom: [Fan] pips H1
-input double      Inp_CUSTOM_EmaFan_H4Pips         = 100.0;          // Custom: [Fan] pips H4
-input double      Inp_CUSTOM_EmaFan_DailyPips      = 180.0;          // Custom: [Fan] pips D1+
-input bool        Inp_CUSTOM_VPRR_AutoEnable       = false;          // Custom: [VPRR] Auto-enable based on instrument
-input EVPRRVolumeType Inp_CUSTOM_VPRR_VolumeType   = VPRR_VOL_AUTO;  // Custom: [VPRR] Volume type (AUTO/EXTERNAL/REAL/TICK)
-input int         Inp_CUSTOM_VPRR_RecoveryBars     = 5;              // Custom: [VPRR] Default recovery bars (1-10)
 // PRESET ISOLATION 2026-06 (Carry-over 2 / VRC): dedicated CUSTOM VRC inputs.
 // Previously the CUSTOM block did not assign cfg.VRC_* at all — fields silently
 // inherited from struct default or prior preset's leftover state. Defaults
 // match the hardcoded values used by FPM/MA/TI/TEST for consistency.
-input int         Inp_CUSTOM_VRC_ATR_Period        = 14;             // Custom: [VRC] ATR period for regime classification
-input int         Inp_CUSTOM_VRC_Lookback          = 100;            // Custom: [VRC] lookback bars
-input double      Inp_CUSTOM_VRC_LowThreshold      = 33.0;           // Custom: [VRC] low-volatility percentile threshold
-input int         Inp_CUSTOM_VRC_RefreshSec        = 14400;          // Custom: [VRC] percentile refresh interval (sec). M1: try 900; H1+: 14400 (4h)
-input bool        Inp_CUSTOM_DPI_Enabled           = true;           // Custom: [DPI] Enable DPI vote
-input int         Inp_CUSTOM_DPI_MacdFast          = 8;              // Custom: [DPI] MACD fast EMA period
-input int         Inp_CUSTOM_DPI_MacdSlow          = 13;             // Custom: [DPI] MACD slow EMA period
-input int         Inp_CUSTOM_DPI_RedSignalType     = 3;              // Custom: [DPI] Red line type (1=EMA_A 2=EMA_B 3=EMA_C 4=EMA_D 5=Double)
-input int         Inp_CUSTOM_DPI_RedEMA_A          = 5;              // Custom: [DPI] Red EMA period A
-input int         Inp_CUSTOM_DPI_RedEMA_B          = 8;              // Custom: [DPI] Red EMA period B
-input int         Inp_CUSTOM_DPI_RedEMA_C          = 13;             // Custom: [DPI] Red EMA period C
-input int         Inp_CUSTOM_DPI_RedEMA_D          = 21;             // Custom: [DPI] Red EMA period D
-input int         Inp_CUSTOM_DPI_DoubleSmoothFirst = 5;              // Custom: [DPI] Double-smooth first EMA
-input int         Inp_CUSTOM_DPI_DoubleSmoothSecond = 8;             // Custom: [DPI] Double-smooth second EMA
-input bool        Inp_CUSTOM_DPI_UseCCIReset       = false;          // Custom: [DPI] CCI can reset ribbon color
-input int         Inp_CUSTOM_DPI_CCI_Period        = 13;             // Custom: [DPI] CCI period
-input ENUM_APPLIED_PRICE Inp_CUSTOM_DPI_CCI_Price  = PRICE_TYPICAL;  // Custom: [DPI] CCI applied price
-input bool        Inp_CUSTOM_DPI_UseGreenHist      = false;          // Custom: [DPI] Also require GREEN overlay
-input bool        Inp_CUSTOM_DPI_Histogram_Growth_Boost = false;     // Custom: [DPI] Boost when histogram growing
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1105,7 +1064,6 @@ input int         Inp_CUSTOM_Ind_Fib_SwingLookback     = 50;             // Ind 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 MACD (Moving Average Convergence Divergence - Trend-Following Momentum)";
 input group "╚════════════════════════════════════════════════════════╝";
-input EMacdVoteMode  Inp_CUSTOM_Ind_Macd_Mode      = MACD_ZERO_AND_HIST; // Ind: TI Full: [MACD] Mode
 input bool        Inp_CUSTOM_Ind_Macd_Enabled      = false;          // Ind: TI Full: [MACD] Enable MACD
 input bool        Inp_CUSTOM_Ind_Macd_RequireSlope       = false;    // Ind: TI Full: [MACD] Require Slope
 input bool        Inp_CUSTOM_Ind_Macd_RequireDivergence  = false;    // Ind: TI Full: [MACD] Require Divergence
@@ -1215,10 +1173,6 @@ input group "╚═════════════════════�
 // reads its own inputs; without this default change CUSTOM users would see a
 // behavior shift when leaving the inputs at default). The previous 0.5/0.04
 // defaults were dead — never reached the cfg struct.
-input EPsarTrailCushionMode Inp_CUSTOM_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // Custom: PSAR cushion mode (PIPS / ATR / PERCENT)
-input int         Inp_CUSTOM_TrailCushionAtrPeriod = 14;            // Custom: PSAR cushion ATR period
-input double      Inp_CUSTOM_TrailCushionAtrMult   = 1.0;           // Custom: PSAR cushion ATR multiplier (cushion = ATR × this)
-input double      Inp_CUSTOM_TrailCushionPct       = 25.0;          // Custom: PSAR cushion % of price (PERCENT mode / safety floor)
 input ETrailingMode  Inp_CUSTOM_TrailMode          = TRAIL_EMA;     // Custom: Trailing Mode
 input ETrailTrigger  Inp_CUSTOM_TrailTrigger       = TRIGGER_IMMEDIATE; // Custom: When Trail
 input bool        Inp_CUSTOM_TrailLockProfit       = true;           // Custom: Trail Lock Profit
