@@ -1667,6 +1667,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
       cfg.PSAR_TrailPipsCushion     = 0.0;
       cfg.BE_Mode                   = BE_MODE_OFF;
+      // STEP24 2026-06: defensive explicit-zero for RRM-path BE fields. Mirrors FPM
+      // block at line 1426+ ("RRM-path field; dead on SIMPLE"). MA has ExitProfile=
+      // EXIT_PROFILE_NONE so these never fire; setting them explicitly prevents
+      // preset-state bleed-through from prior preset switches.
+      cfg.RRM_BE_RMultiple          = 0.0;                         // RRM-path field; dead on NONE
+      cfg.RRM_BE_BufferPips         = 0.0;                         // RRM-path field; dead on NONE
       
       // ================================================================
       // SL/TP STRATEGY MODES
@@ -1677,6 +1683,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SLPercent                 = 0.0;
       cfg.RRRatio                   = 0.0;
       cfg.SwingLookback             = 0;
+      // STEP24 2026-06: cross-instrument SL safety rails. Mirrors FPM (line 1393+),
+      // RRM_ORG (line 2107+), and TI (line 2524+). Without these, MA inherits
+      // Inp_Global_SL_MinPips (and related globals); on a volatile instrument with
+      // a small global default, CalcEntrySL's floor produces tiny SL distances —
+      // and RiskPercent-based lot sizing then computes oversized lots. These four
+      // fields apply universally regardless of SLMode/ExitProfile, so they are
+      // SAFETY rather than methodology. MA was the lone preset missing them.
+      cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
+      cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
+      cfg.SL_MinPips                = GetRecommendedInitialSlCushionPips();  // Instrument-aware minimum SL floor: prevents tiny-SL fallback from computing oversized lots
+      cfg.SL_WidenToMinimum         = true;  // Widen rather than block when SL too close — ensures trade always gets a sane SL
       
       // ================================================================
       // FRACTAL/PSAR SL/TP DEFAULTS
@@ -1904,6 +1921,18 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MacdRequireDivergence     = Inp_RRM_ORG_MacdDiv;
       cfg.MacdRequireHook           = false;
       cfg.MacdHistDecelEnabled      = false;  // RRM_ORG uses DPI voter (not MACD histogram) as its momentum gate — decel handled via DPI_BlockOnDeceleration
+      // STEP24B 2026-06: defensive default for flexibility. RRM_ORG's primary architecture
+      // is Option A: DPI=true, MACD=false, CCI=false (DPI internally bundles MACD+CCI;
+      // enabling them independently would double-count momentum AND double the
+      // calculations). When the operator picks Option B (DPI=false, MACD=true, CCI=true —
+      // break DPI apart for research) or any other research configuration that turns
+      // MACD voting on, MacdVoteMode determines how MACD votes. HISTOGRAM matches the
+      // original Russ Horn RRM methodology (momentum direction via histogram), aligns
+      // with TI's LOCKED HISTOGRAM choice (line 2531+), and is the natural fallback
+      // implied by the MacdHistDecelEnabled comment above. Inert under Option A
+      // (Ind_Macd_Enabled=false → vote mode never consulted), so adds zero behavioural
+      // impact when the operator runs the default RRM_ORG configuration.
+      cfg.MacdVoteMode              = MACD_HISTOGRAM;
       cfg.P_MacdFast                = Inp_RRM_ORG_MacdFast;
       cfg.P_MacdSlow                = Inp_RRM_ORG_MacdSlow;
       cfg.P_MacdSig                 = Inp_RRM_ORG_MacdSig;
