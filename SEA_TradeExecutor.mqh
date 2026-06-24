@@ -1506,8 +1506,22 @@ private:
                if(!valid) {
                   // FIX: was silently falling through to fixed pips — now tries PSAR as secondary fallback
                   PrintFormat("⚠️ [SL] Swing anchor (%.5f) on wrong side of entry (%.5f) for %s — trying PSAR fallback", anchor, price, isBuy ? "BUY" : "SELL");
+                  // STEP21D 2026-06: PSAR-validity check aligned with Path 2 PSAR_DOT primary
+                  // (line 1525+) — uses close[1] (CLOSED entry candle) rather than the live
+                  // entry price. Same methodology rule the trail path (CalcPsarTrailAnchorSL)
+                  // uses. Path 2's SWING-fallback was the lone PSAR-validity check still
+                  // using live price; that made this fallback MORE PERMISSIVE than the
+                  // PSAR_DOT primary, so on a tick that flipped PSAR's side relative to
+                  // close[1] but not price, this fallback would accept a PSAR that PSAR_DOT
+                  // primary would reject. Now consistent across all four PSAR-validity sites
+                  // (Path 1 PSAR_DOT primary + Path 1 SWING-fallback STEP21C + Path 2
+                  // PSAR_DOT primary + this site).
                   double psar_anchor = GetPSARAnchor(1);
-                  bool psar_valid = (psar_anchor > 0.0) && (isBuy ? (psar_anchor < price) : (psar_anchor > price));
+                  double close_ref   = iClose(m_symbol, PERIOD_CURRENT, 1);
+                  bool psar_valid = (psar_anchor > 0.0)
+                     && ((close_ref > 0.0)
+                        ? (isBuy ? (psar_anchor < close_ref) : (psar_anchor > close_ref))
+                        : (isBuy ? (psar_anchor < price)     : (psar_anchor > price)));   // safe fallback
                   if(psar_valid) {
                      anchor       = psar_anchor;
                      cushion_pips = m_settings.SL_PsarPipsCushion;
