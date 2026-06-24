@@ -1334,7 +1334,32 @@ private:
             if(swing_level > 0.0) {
                bool valid = isBuy ? (swing_level < price) : (swing_level > price);
                if(!valid) {
-                  PrintFormat("⚠️ [RRM SL] Swing anchor on wrong side. Using Fixed Pips.");
+                  PrintFormat("⚠️ [RRM SL] Swing wrong side. swing=%.5f entry=%.5f dir=%s — trying PSAR fallback",
+                              swing_level, price, isBuy ? "BUY" : "SELL");
+                  // STEP21C 2026-06: PSAR-first fallback (mirrors Path 2 SWING block at line 1481+).
+                  // Sibling of STEP21/STEP21B — matrix completion. PSAR_DOT and FRACTAL in Path 1
+                  // both have wrong-side structural fallbacks (lines 1362+, 1393+); SWING was the
+                  // lone outlier collapsing straight to fixed pips. Author's broader pattern:
+                  // "structural anchor before falling to fixed pips".
+                  // PSAR validity uses close[1] (the CLOSED entry candle) — matches Path 1's
+                  // PSAR_DOT primary check at line 1355+ and the trail path in
+                  // CalcPsarTrailAnchorSL. This is STRICTER than Path 2's mirror block, which
+                  // validates PSAR against the live entry price; that mismatch is flagged as
+                  // a separate sibling finding.
+                  double psar_fb = GetPSARAnchor(1);
+                  if(psar_fb > 0.0) {
+                     double close_ref = iClose(m_symbol, PERIOD_CURRENT, 1);
+                     bool psar_ok = (close_ref > 0.0)
+                        ? (isBuy ? (psar_fb < close_ref) : (psar_fb > close_ref))
+                        : (isBuy ? (psar_fb < price)     : (psar_fb > price));   // safe fallback
+                     if(psar_ok) {
+                        double cushion_price = m_settings.SL_PsarPipsCushion * pipSize;
+                        sl = isBuy ? (psar_fb - cushion_price) : (psar_fb + cushion_price);
+                        PrintFormat("✅ [RRM SL] PSAR fallback used: anchor=%.5f → SL=%.5f", psar_fb, sl);
+                        break;
+                     }
+                  }
+                  PrintFormat("⚠️ [RRM SL FALLBACK] Both Swing and PSAR invalid — Using Fixed Pips.");
                   break;
                }
                double cushion_price = m_settings.SL_SwingPipsCushion * pipSize;
