@@ -2116,12 +2116,41 @@ public:
       m_trade.LogLevel(LOG_LEVEL_ERRORS);
       
       ReleaseHandles();
+      // STEP25 2026-06: handle-creation diagnostics. iSAR/iFractals/iATR can return
+      // INVALID_HANDLE (rare — typically memory exhaustion, invalid period/parameter,
+      // or symbol subsystem hiccup). All downstream consumers guard with
+      //   `if(m_h_X == INVALID_HANDLE) return ...;`
+      // so failures degrade to silent feature no-op rather than crashes. Without these
+      // warnings, the operator gets no diagnostic when their configured SL/trail mode
+      // silently doesn't fire on this instrument. Each PrintFormat below identifies
+      // the failing handle, the parameters that produced it, and the user-visible
+      // impact (which feature degrades to fallback). Control flow is unchanged —
+      // Init still returns void; promoting failures to INIT_FAILED would require
+      // changing the OnInit→OrchestrateInit signature and is left to a future step.
       // FIX Bug4: use m_symbol instead of _Symbol for multi-symbol correctness
       m_h_psar = iSAR(m_symbol, PERIOD_CURRENT, m_settings.P_PsarStep, m_settings.P_PsarMax);
+      if(m_h_psar == INVALID_HANDLE)
+         PrintFormat("⚠️ [Executor.Init] iSAR(%s,step=%.4f,max=%.4f) returned INVALID_HANDLE — PSAR-based SL/trail features will be silently inert.",
+                     m_symbol, m_settings.P_PsarStep, m_settings.P_PsarMax);
+
       m_h_fractals = iFractals(m_symbol, PERIOD_CURRENT);
+      if(m_h_fractals == INVALID_HANDLE)
+         PrintFormat("⚠️ [Executor.Init] iFractals(%s) returned INVALID_HANDLE — Fractal-based SL features will be silently inert.", m_symbol);
+
       m_h_cushion_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.PSAR_TrailCushionAtrPeriod));
+      if(m_h_cushion_atr == INVALID_HANDLE)
+         PrintFormat("⚠️ [Executor.Init] iATR(%s,period=%d) [PSAR trail cushion] returned INVALID_HANDLE — PSAR ATR-cushion will be silently inert.",
+                     m_symbol, (int)MathMax(1, m_settings.PSAR_TrailCushionAtrPeriod));
+
       m_h_sl_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.SL_AtrPeriod));
+      if(m_h_sl_atr == INVALID_HANDLE)
+         PrintFormat("⚠️ [Executor.Init] iATR(%s,period=%d) [SL ATR] returned INVALID_HANDLE — SL_MODE_ATR will fall through to SL_MinPips floor.",
+                     m_symbol, (int)MathMax(1, m_settings.SL_AtrPeriod));
+
       m_h_trail_ema_atr = iATR(m_symbol, PERIOD_CURRENT, MathMax(1, m_settings.TrailEMA_CushionAtrPeriod > 0 ? m_settings.TrailEMA_CushionAtrPeriod : 14));
+      if(m_h_trail_ema_atr == INVALID_HANDLE)
+         PrintFormat("⚠️ [Executor.Init] iATR(%s,period=%d) [trail EMA cushion] returned INVALID_HANDLE — EMA-trail ATR-cushion will be silently inert.",
+                     m_symbol, (int)MathMax(1, m_settings.TrailEMA_CushionAtrPeriod > 0 ? m_settings.TrailEMA_CushionAtrPeriod : 14));
    }
 
    // STEP22 2026-06: UpdateSettings(ST_Settings&) deleted — was dead code (zero callers).
