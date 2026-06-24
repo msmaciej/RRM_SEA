@@ -1760,11 +1760,19 @@ private:
       double new_sl = CalcPsarTrailAnchorSL(isBuy, pipSize, digits);
       if(new_sl == 0.0) return;
 
-      double be_guard = m_settings.RRM_BE_BufferPips * pipSize;
+      // STEP16 2026-06: PSAR trail BE-floor fix (sibling pattern to Step 15's TRAIL_EMA bug).
+      // Previously this gate clamped new_sl to entry+RRM_BE_BufferPips, requiring the
+      // PSAR-derived SL to be 75+ pips above entry on XAGUSD M1 before trail could engage —
+      // effectively dormant for typical M1 trading. The buffer's actual purpose is the
+      // one-time BE-LOCK event (BE block earlier in RRM_ManageStrictNoATR); it must NOT
+      // also be a continuous threshold against trail engagement. Replaced with the simple
+      // BE-floor pattern used by ApplyTrailEMA (line 333) and CalculateProfitPercentTrailSL
+      // (line 208): never lock SL into loss territory, but allow trail as soon as the
+      // PSAR-derived SL is at or above entry. The SIMPLE-path PSAR clamp at
+      // EvaluateTM (~line 3230) gets the same fix.
       if(isBuy) {
-         double min_sl = entry + be_guard;
-         if(new_sl <= min_sl) {
-            if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot below entry+buffer (%.5f <= %.5f), trail blocked", ticket, new_sl, min_sl);
+         if(new_sl < entry) {
+            if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot below entry (%.5f < %.5f), trail blocked (BE-floor)", ticket, new_sl, entry);
             return;
          }
          if(m_settings.TrailLockProfit && cur_sl != 0.0 && new_sl <= cur_sl) {
@@ -1772,9 +1780,8 @@ private:
             return;
          }
       } else {
-         double max_sl = entry - be_guard;
-         if(new_sl >= max_sl) {
-            if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot above entry-buffer (%.5f >= %.5f), trail blocked", ticket, new_sl, max_sl);
+         if(new_sl > entry) {
+            if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot above entry (%.5f > %.5f), trail blocked (BE-floor)", ticket, new_sl, entry);
             return;
          }
          if(m_settings.TrailLockProfit && cur_sl != 0.0 && new_sl >= cur_sl) {
@@ -1831,109 +1838,22 @@ private:
          case TRAIL_PSAR_FLIP_EXIT: m_excursion.trail_active = true; m_excursion.trail_type = "PSAR"; break;
 
          case TRAIL_EMA:
-         {
+            // STEP15 2026-06: actual trail logic moved to ApplyTrailEMA helper (restoring
+            // Q3 design intent — see lines 240-269). Previously a duplicate inline TRAIL_EMA
+            // body lived here AND in ApplyTrailEMA, with both sharing m_trail_ema_last_bar
+            // as their per-bar gate. This inline copy ran FIRST per tick (via
+            // UpdateExcursionOnly→UpdatePositionExcursion, which fires before EvaluateTM
+            // dispatches RRM_ManageStrictNoATR→ApplyTrailEMA), so the gate variable was
+            // set here and ApplyTrailEMA was BLOCKED every bar. The effective trail logic
+            // was the OLD inline copy: buggy "entry+RRM_BE_BufferPips" clamp (delayed engage
+            // by ~75 pips on XAGUSD M1) AND PSAR cushion only (ignoring user's configured
+            // TrailEMA_CushionAtrMult / TrailEMA_CushionPips). ApplyTrailEMA's correct
+            // BE-floor + ATR/Fixed/PSAR cushion priority chain never ran for any preset.
+            // Removing the inline body leaves ApplyTrailEMA unshadowed; telemetry-only here
+            // matches every other TrailMode case in this switch.
             m_excursion.trail_active = true;
-            m_excursion.trail_type = "EMA";
-
-            // Guard: if TrailStartsAfterBE is set, don't trail until BE has been reached
-            if(m_settings.RRM_TrailStartsAfterBE && !m_excursion.be_reached)
-               break;
-
-            // Guard: only evaluate once per new bar (shift=1, consistent with TS logic)
-            datetime bar1_time = iTime(m_symbol, PERIOD_CURRENT, 1);
-            if(bar1_time == m_trail_ema_last_bar)
-               break;
-            m_trail_ema_last_bar = bar1_time;
-
-            // TRAIL_EMA: move SL to track EMA on each bar close.
-            // TopInvestor rule: trail SL at EMA(9) level + cushion.
-            // SL never moves backwards — only forward in profit direction.
-            // If price closes beyond EMA against bias, the SL catches it naturally.
-            // Evaluated once per bar close (shift=1), consistent with TS evaluation.
-            int ema_period = m_settings.TrailEMA_Period;
-            if(ema_period <= 0) ema_period = 9;
-
-            int h_trail_ema = iMA(m_symbol, PERIOD_CURRENT, ema_period,
-                                  0, MODE_EMA, PRICE_CLOSE);
-            if(h_trail_ema == INVALID_HANDLE) break;
-
-            int ema_shift = m_settings.TrailEMA_Shift;
-            if(ema_shift < 1) ema_shift = 1;
-            if(ema_shift > 5) ema_shift = 5;
-
-            double ema_val[];
-            ArraySetAsSeries(ema_val, true);
-            if(CopyBuffer(h_trail_ema, 0, ema_shift, 1, ema_val) != 1)
-            {
-               IndicatorRelease(h_trail_ema);
-               break;
-            }
-            IndicatorRelease(h_trail_ema);
-
-            bool is_long = (type == POSITION_TYPE_BUY);
-            double pipSize = GetPipSize();
-            int digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
-            double cushion = m_settings.PSAR_TrailPipsCushion * pipSize;
-            double entry = PositionGetDouble(POSITION_PRICE_OPEN);
-            double cur_sl = PositionGetDouble(POSITION_SL);
-            double cur_tp = PositionGetDouble(POSITION_TP);
-            double current_price = PositionGetDouble(POSITION_PRICE_CURRENT);
-
-            // Calculate proposed SL from EMA value + cushion
-            double new_sl = is_long
-               ? NormalizeDouble(ema_val[0] - cushion, digits)    // LONG: SL below EMA
-               : NormalizeDouble(ema_val[0] + cushion, digits);   // SHORT: SL above EMA
-
-            // Never move SL below entry (protect BE)
-            double be_guard = m_settings.RRM_BE_BufferPips * pipSize;
-            if(is_long && new_sl < entry + be_guard)
-            {
-               if(m_settings.DebugFlow)
-                  PrintFormat("[TRAIL_EMA] #%I64u: EMA SL=%.5f below entry+buffer=%.5f, skipped",
-                              ticket, new_sl, entry + be_guard);
-               break;
-            }
-            if(!is_long && new_sl > entry - be_guard)
-            {
-               if(m_settings.DebugFlow)
-                  PrintFormat("[TRAIL_EMA] #%I64u: EMA SL=%.5f above entry-buffer=%.5f, skipped",
-                              ticket, new_sl, entry - be_guard);
-               break;
-            }
-
-            // Never move SL backwards (lock profit)
-            if(m_settings.TrailLockProfit && cur_sl != 0.0)
-            {
-               if(is_long && new_sl <= cur_sl)
-                  break;
-               if(!is_long && new_sl >= cur_sl)
-                  break;
-            }
-
-            // TP guard: close at market if EMA trail has pushed SL past TP level
-            if(cur_tp > 0.0) {
-               bool sl_past_tp = is_long ? (new_sl >= cur_tp) : (new_sl <= cur_tp);
-               if(sl_past_tp) {
-                  if(IsModifyAllowed()) m_trade.PositionClose(ticket);
-                  break;
-               }
-            }
-
-            // Only move if new SL is on the correct side of current price
-            bool valid = is_long
-               ? (new_sl > cur_sl && new_sl < current_price)
-               : (cur_sl == 0.0 || new_sl < cur_sl) && (new_sl > current_price);
-
-            if(valid && IsModifyAllowed())
-            {
-               if(m_settings.DebugFlow)
-                  PrintFormat("[TRAIL_EMA] #%I64u: Moving SL %.5f -> %.5f | EMA(%d, shift=%d)=%.5f | cushion=%.1f pips",
-                              ticket, cur_sl, new_sl, ema_period, ema_shift, ema_val[0],
-                              m_settings.PSAR_TrailPipsCushion);
-               m_trade.PositionModify(ticket, new_sl, cur_tp);
-            }
+            m_excursion.trail_type   = "EMA";
             break;
-         }
          case TRAIL_FRACTAL: m_excursion.trail_active = true; m_excursion.trail_type = "FRACTAL"; break;
          case TRAIL_FIXED_PIPS: m_excursion.trail_active = true; m_excursion.trail_type = "FIXED"; break;
          case TRAIL_BREAKEVEN: m_excursion.trail_active = true; m_excursion.trail_type = "BE"; break;
@@ -3227,12 +3147,14 @@ public:
          return;
       }
 
+      // STEP16 2026-06: SIMPLE-path PSAR trail BE-floor fix — sibling of the RRM-path
+      // fix in RRM_ManageStrictNoATR. Same OLD entry+RRM_BE_BufferPips clamp shape lived
+      // here too; same fix applies. Uses `new_sl = 0.0` to skip modification (matches
+      // the existing SIMPLE-path convention) rather than `return` (RRM-path convention).
       if(new_sl != 0.0 && m_settings.TrailMode == TRAIL_PSAR) {
-         double be_guard = MathMax(0.0, m_settings.RRM_BE_BufferPips) * pipSize;
          if(type == POSITION_TYPE_BUY) {
-            double min_sl = entry_price + be_guard;
-            if(new_sl <= min_sl) {
-               if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot below entry+buffer (%.5f <= %.5f), trail blocked", ticket, new_sl, min_sl);
+            if(new_sl < entry_price) {
+               if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot below entry (%.5f < %.5f), trail blocked (BE-floor)", ticket, new_sl, entry_price);
                new_sl = 0.0;
             }
             else if(m_settings.TrailLockProfit && current_sl != 0.0 && new_sl <= current_sl) {
@@ -3241,9 +3163,8 @@ public:
             }
          }
          else {
-            double max_sl = entry_price - be_guard;
-            if(new_sl >= max_sl) {
-               if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot above entry-buffer (%.5f >= %.5f), trail blocked", ticket, new_sl, max_sl);
+            if(new_sl > entry_price) {
+               if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot above entry (%.5f > %.5f), trail blocked (BE-floor)", ticket, new_sl, entry_price);
                new_sl = 0.0;
             }
             else if(m_settings.TrailLockProfit && current_sl != 0.0 && new_sl >= current_sl) {
