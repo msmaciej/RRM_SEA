@@ -2133,7 +2133,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SL_WidenToMinimum         = true;  // Widen rather than block when SL too close — ensures trade always gets a sane SL
       cfg.SL_AtrPeriod              = Inp_RRM_ORG_SL_AtrPeriod;  // Used when SLMode = SL_MODE_ATR
       cfg.SL_AtrMult                = Inp_RRM_ORG_SL_AtrMult;    // Used when SLMode = SL_MODE_ATR; Gold M15: try 1.0–1.5
-      cfg.FixedTPPips               = 40.0;
+      // STEP26 2026-06: instrument-aware fallback (was raw 40.0 — Forex-only). RRM_ORG's
+      // primary TP path is TP_MODE_RR (Inp_RRM_ORG_TPMode defaults to TP_MODE_RR with
+      // RRRatio=1.25); this hardcode only fires if the operator switches TPMode to
+      // TP_MODE_FIXED_PIPS as a fallback/research mode. The prior raw 40 was the only
+      // non-zero instrument-insensitive value left in the RRM_ORG exit block — on Silver
+      // it gave ≈$0.40 of price movement, effectively a no-op TP. Multiplying by the
+      // instrument fan keeps the Forex meaning (×1.0 = 40 pips) while scaling Gold/
+      // Silver/indices/oil/crypto to ranges that actually exit the position. Mirrors
+      // the cross-instrument scaling pattern used by every other size-related setting
+      // (SL_*, RRM_BE_BufferPips, etc.). Sibling fix lands in TI at line 2607+.
+      cfg.FixedTPPips               = 40.0 * GetInstrumentFanMultiplier();
       cfg.SLPercent                 = 0.5;
 
       cfg.TrailMode                 = Inp_RRM_ORG_TrailMode;
@@ -2550,7 +2560,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.SL_WidenToMinimum         = true;
       cfg.SL_AtrPeriod              = Inp_TI_SL_AtrPeriod;    // Used when SLMode = SL_MODE_ATR
       cfg.SL_AtrMult                = Inp_TI_SL_AtrMult;      // Used when SLMode = SL_MODE_ATR
-      cfg.FixedTPPips               = 40.0;            // fallback only — unused when TPMode=TP_MODE_RR
+      // STEP26 2026-06: instrument-aware fallback (was raw 40.0 — Forex-only). TI primary
+      // TP path is TP_MODE_RR, so this fires only as a fallback. Sibling fix to RRM_ORG
+      // at line 2146+ — same hardcode-40 missed-sibling bug. See full rationale there.
+      cfg.FixedTPPips               = 40.0 * GetInstrumentFanMultiplier();            // fallback only — unused when TPMode=TP_MODE_RR
       cfg.SLPercent                 = 0.5;             // fallback only — unused when SLMode=SL_MODE_SWING
 
       // Trail: EMA(Ema1) is the TopInvestor exit, PSAR is fallback
