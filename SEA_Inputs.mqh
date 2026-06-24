@@ -1342,7 +1342,8 @@ input group "╔═════════════════════�
 input group "║   🎯 EXIT PROFILES";
 input group "╚════════════════════════════════════════════════════════╝";
 input EExitProfile   Inp_CUSTOM_ExitProfile        = EXIT_PROFILE_RRM; // Custom: Exit profile
-// input string   Inp_Exit_Zone_Info1              = "Active for: PRESET_TEST & PRESET_CUSTOM (direct input control)";
+// STEP2 2026-06: was "Active for: PRESET_TEST & PRESET_CUSTOM" — TEST removed; only CUSTOM uses direct exit-input control now.
+// input string   Inp_Exit_Zone_Info1              = "Active for: PRESET_CUSTOM (direct input control)";
 // input string   Inp_Exit_Zone_Info2              = "Other presets override exits with strategy-optimized values";
 // input string   Inp_CUSTOM_ExitProfile_Info      = "RRM: Swing-based SL, PSAR trail, no ATR multipliers";
 input group "╔════════════════════════════════════════════════════════╗";

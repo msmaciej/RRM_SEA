@@ -16,7 +16,7 @@
 //#define SEA_PRESET_RRM
 #define SEA_PRESET_RRM_ORG
 //#define SEA_PRESET_TOPINVESTOR
-//#define SEA_PRESET_TEST
+// STEP2 2026-06: SEA_PRESET_TEST removed (dev scaffold preset; never enabled)
 //
 // DO NOT EDIT BELOW — auto-derived helper:
 // SEA_PRESET_RRM_FAMILY = defined when RRM or RRM_ORG is active.
@@ -68,7 +68,7 @@ enum EStrategyPreset
    PRESET_CUSTOM,          // PRESET_CUSTOM: user-defined settings
    PRESET_MA,              // PRESET_MA: benchmark: MT5 MA EA compatibility
    PRESET_RRM,             // PRESET_RRM: phase-based layer detection system
-   PRESET_TEST,            // PRESET_TEST: development/debugging preset
+   // STEP2 2026-06: PRESET_TEST removed (dev scaffold, never enabled; preset block was #ifdef-gated off)
    PRESET_TOPINVESTOR,     // PRESET_TOPINVESTOR: Dr Świerk TopInvestor / OXO methodology (EMA50/200 confluence)
    PRESET_FPM,             // PRESET_FPM: Five-Point Method (PSAR+MACD+BB+SMA10/20)
    PRESET_RRM_ORG          // PRESET_RRM_ORG: Russ Horn Original RRM with inline DPI momentum voter
