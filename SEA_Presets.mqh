@@ -555,7 +555,7 @@ string PresetToString(EStrategyPreset p)
       case PRESET_CUSTOM:       return "CUSTOM";
       case PRESET_FPM:          return "FPM";
       case PRESET_MA:           return "MA";
-      case PRESET_RRM:          return "RRM";
+      // STEP3 2026-06: PRESET_RRM case removed
       case PRESET_RRM_ORG:      return "RRM_ORG";
       // STEP2 2026-06: PRESET_TEST case removed
       case PRESET_TOPINVESTOR:  return "TOPINVESTOR";
@@ -575,8 +575,7 @@ string GetPresetContractWording(EStrategyPreset preset)
          return "PRESET_FPM"; //: Five-Point Method locked (PSAR+MACD+BB_WIDENING+SMA10/20+BarClose); SL mode/TP mode/Trail user-controlled via Zone 3C.";
       case PRESET_MA:
          return "PRESET_MA"; //: benchmark mode: replicates MT5 Moving Average EA; all voting disabled.";
-      case PRESET_RRM:
-         return "PRESET_RRM"; //: phase-based system fixed (AutoStrat, EMA/MACD config, vote threshold); only Policy A gates and exits user-controlled.";
+      // STEP3 2026-06: PRESET_RRM wording removed
       case PRESET_RRM_ORG:
          return "PRESET_RRM_ORG"; //: Original Russ Horn RRM with DPI momentum voter locked (TSI R/S/U inline); phase/layer/recovery/PSAR/CandleBody fixed; exits user-controlled.";
       // STEP2 2026-06: PRESET_TEST wording removed
@@ -1036,16 +1035,7 @@ void ValidateMA_ExitConfig(ST_Settings &cfg)
    // No checks currently apply to MA. See header above for rationale.
 }
 
-// ───────────────────────────────────────────────────────────────────────
-// PRESET_RRM — exit config validator (architectural stub)
-// RRM locks ExitProfile=RRM and hardcodes BE_Mode=BE_MODE_R_MULTIPLE.
-// Q1 deadlock (TRAIL_PSAR + BE_OFF + StartsAfterBE) is NOT reachable
-// because BE_Mode cannot be OFF. Placeholder for future RRM-specific checks.
-// ───────────────────────────────────────────────────────────────────────
-void ValidateRRM_ExitConfig(ST_Settings &cfg)
-{
-   // No checks currently apply to RRM. See header above for rationale.
-}
+// STEP3 2026-06: ValidateRRM_ExitConfig removed (PRESET_RRM retired)
 
 // ───────────────────────────────────────────────────────────────────────
 // PRESET_TI (TOPINVESTOR) — exit config validator
@@ -2091,321 +2081,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    #endif // SEA_PRESET_MA
    
    
-   #ifdef SEA_PRESET_RRM_FAMILY
-   if(preset == PRESET_RRM)
-   {
-      // ================================================================
-      // PRESET_RRM: RRM Methodology — Phase-Based Trend Pullback
-      // ================================================================
-      //
-      // SIGNAL FORMULA (locked, no branches):
-      //   TS = Phase(4EMA) × Layer(EMA-pair) × BarClose × Indicators × Gates
-      //
-      // LOCKED (never user-changeable):
-      //   BiasMode    = BIAS_4EMA          (4-EMA phase: TRENDING/EMERGING/UNORDERED)
-      //   AutoStrat   = STRAT_4EMA_LAYER   (layer-based pullback entry)
-      //   VoteMode    = VOTE_MODE_ALL       (all enabled indicators must agree)
-      //   Phase/Layer detection ON, UNORDERED blocked
-      //
-      // FLEXIBLE (via dedicated Inp_RRM_* inputs):
-      //   EMA periods, indicator toggles, indicator parameters, SL/TP/Trail modes
-      //
-      // ================================================================
+   // STEP3 2026-06: PRESET_RRM preset block removed (~315 lines under #ifdef SEA_PRESET_RRM_FAMILY).
+   // Was a variant of RRM_ORG (Phase-Based Trend Pullback methodology) that wasn't
+   // actively traded. The RRM_FAMILY guard concept retired — RRM_ORG owns its
+   // own inputs (Inp_RRM_ORG_*) directly. ValidateRRM_ExitConfig also removed.
 
-      // ── SIGNAL ARCHITECTURE: locked ──────────────────────────────────
-      cfg.BiasMode               = BIAS_4EMA;
-      cfg.AutoStrat              = STRAT_4EMA_LAYER;
-      cfg.BiasFastID             = (int)ROLE_EMA3;    // EMA34: phase direction fast
-      cfg.BiasSlowID             = (int)ROLE_EMA4;    // EMA89: phase direction slow
-      cfg.MaType                 = METHOD_EMA;
-      cfg.CloseOnReverse         = false;
-      cfg.BiasEnabled            = true;              // true
-      cfg.RequirePriceCross      = false;
-      cfg.MABenchmarkStrict      = false;
-      cfg.UseMACompatSizer       = false;
-
-      // ── EMA PERIODS: flexible via Inp_RRM_* ──────────────────────────
-      cfg.P_Ema1                 = Inp_RRM_Ema1Period;   // default 5
-      cfg.P_Ema2                 = Inp_RRM_Ema2Period;   // default 13
-      cfg.P_Ema3                 = Inp_RRM_Ema3Period;   // default 34
-      cfg.P_Ema4                 = Inp_RRM_Ema4Period;   // default 89
-
-      // ── SPREAD: derived from pair type (Zone 3C), no mode branching ──
-      cfg.MaxSpread = op_MaxSpread;  // Policy A: user spread gate
-
-      // ── INDICATOR TOGGLES: flexible via Inp_RRM_* ────────────────────
-      cfg.Ind_Macd_Enabled       = Inp_RRM_Use_Macd;
-      cfg.Ind_Psar_Enabled       = Inp_RRM_Use_Psar;
-      cfg.Ind_CandleBody_Enabled = Inp_RRM_Use_CandleBody;
-      cfg.Ind_Cci_Enabled        = Inp_RRM_Use_Cci;
-      cfg.Ind_Rsi_Enabled        = Inp_RRM_Use_Rsi;
-      cfg.Ind_Adx_Enabled        = Inp_RRM_Use_Adx;
-      cfg.Ind_Sto_Enabled        = Inp_RRM_Use_Stoch;
-      cfg.Ind_Bb_Enabled         = Inp_RRM_Use_Bb;
-      cfg.Ind_Mfi_Enabled        = Inp_RRM_Use_Mfi;
-      // Always off in RRM (not part of RRM methodology):
-      cfg.Ind_Atr_Enabled        = false;
-      cfg.Ind_CI_Enabled         = Inp_RRM_Use_CI; // Intentional: PRESET_RRM now exposes the CI toggle in its own preset block.
-      cfg.CI_Period              = Inp_RRM_CiPeriod;            // CI now configurable in RRM (was ignoring this input)
-      cfg.CI_RangingThreshold    = Inp_RRM_CiRangingThreshold;  // CI now configurable in RRM (was ignoring this input)
-      cfg.Ind_VRC_Enabled        = false;
-      cfg.Ind_P123_Enabled       = false;
-      cfg.Ind_Ross_Enabled       = false;
-      cfg.Ind_SmaConverge_Enabled = false;
-      cfg.Ind_Dpi_Enabled        = false;
-      cfg.Ind_MTF_Enabled        = Inp_Ind_MTF_Enabled;
-      cfg.MTF_TF1                = GetSafeMTF_TF1(Inp_MTF_TF1);
-      cfg.MTF_TF2                = GetSafeMTF_TF2(Inp_MTF_TF2);
-      cfg.MTF_EMA_Fast           = Inp_MTF_EMA_Fast;
-      cfg.MTF_EMA_Slow           = Inp_MTF_EMA_Slow;
-      cfg.MTF_RequirePhase       = false;   // Position-only; slope kills signals due to HTF lag
-      cfg.MTF_StrictAlignment    = Inp_MTF_StrictAlignment;   // HTF directional gate: both HTFs must agree (strict). User-controlled.
-
-      // ── MACD SETTINGS: flexible via Inp_RRM_* ────────────────────────
-      cfg.P_MacdFast             = Inp_RRM_MacdFast;
-      cfg.P_MacdSlow             = Inp_RRM_MacdSlow;
-      cfg.P_MacdSig              = Inp_RRM_MacdSig;
-      cfg.MacdRequireSlope       = Inp_RRM_MacdSlope;
-      cfg.MacdRequireDivergence  = Inp_RRM_MacdDiv;
-      cfg.MacdRequireHook        = false;
-      cfg.MacdHistDecelEnabled   = Inp_RRM_MacdHistDecel;  // Decel pre-filter: block when histogram shrinking (analogous to DPI_BlockOnDeceleration)
-      cfg.MacdFreshBars          = Inp_RRM_MacdFreshBars;
-      cfg.MacdSlopeMin           = Inp_RRM_MacdSlopeMin;
-
-      // ── PSAR SETTINGS: flexible via Inp_RRM_* ────────────────────────
-      cfg.P_PsarStep             = Inp_RRM_PsarStep;
-      cfg.P_PsarMax              = Inp_RRM_PsarMax;
-      cfg.Vote_AllowPsarFlip     = true;              // true
-      cfg.Vote_PsarFlipDelay     = -1;
-
-      // ── CCI SETTINGS: flexible via Inp_RRM_* ─────────────────────────
-      cfg.P_Cci                  = Inp_RRM_CciPeriod;
-      cfg.CciMode                = Inp_RRM_CciMode;
-
-      // ── RSI SETTINGS: flexible via Inp_RRM_* ─────────────────────────
-      cfg.P_Rsi                  = Inp_RRM_RsiPeriod;
-      cfg.RsiMode                = Inp_RRM_RsiMode;
-      cfg.T_RsiOB                = Inp_RRM_Rsi_OB;
-      cfg.T_RsiOS                = Inp_RRM_Rsi_OS;
-
-      // ── ADX SETTINGS: flexible via Inp_RRM_* ─────────────────────────
-      cfg.ADX_Mode               = Inp_RRM_Adx_Mode;
-      cfg.P_Adx                  = Inp_RRM_AdxPeriod;
-      cfg.T_Adx                  = Inp_RRM_AdxThreshold;
-      cfg.ADX_Percentile         = Inp_RRM_Adx_Percentile;
-      cfg.ADX_Lookback           = Inp_RRM_Adx_Lookback;
-      cfg.ADX_PercentileRefreshSec = Inp_RRM_Adx_PercentileRefreshSec;
-      cfg.ADX_Threshold_Accumulation  = Inp_RRM_Adx_Thr_Accum;
-      cfg.ADX_Threshold_Trending      = Inp_RRM_Adx_Thr_Trending;
-      cfg.ADX_Threshold_Distribution  = Inp_RRM_Adx_Thr_Distrib;
-
-      // ── STOCH SETTINGS: fixed reasonable defaults ─────────────────────
-      cfg.StoMode                = Inp_RRM_Sto_Mode;
-      cfg.P_StoK                 = Inp_RRM_Sto_K;
-      cfg.P_StoD                 = Inp_RRM_Sto_D;
-      cfg.P_StoSlow              = Inp_RRM_Sto_Slow;
-      cfg.T_StoOB                = Inp_RRM_Sto_OB;
-      cfg.T_StoOS                = Inp_RRM_Sto_OS;
-
-      // ── BB SETTINGS: fixed reasonable defaults ────────────────────────
-      cfg.BbMode                 = Inp_RRM_Bb_Mode;
-      cfg.P_Bb                   = Inp_RRM_Bb_Period;
-      cfg.P_BbDev                = Inp_RRM_Bb_Deviation;
-
-      // ── MFI SETTINGS: fixed reasonable defaults ───────────────────────
-      cfg.MfiMode                = Inp_RRM_Mfi_Mode;
-      cfg.P_Mfi                  = Inp_RRM_Mfi_Period;
-      cfg.T_MfiOB                = Inp_RRM_Mfi_OB;
-      cfg.T_MfiOS                = Inp_RRM_Mfi_OS;
-
-      // ── CANDLE BODY SETTINGS ──────────────────────────────────────────
-      cfg.CandleBody_AvgPeriod   = Inp_RRM_CandleBody_AvgPeriod;
-      cfg.CandleBody_MaxMult     = Inp_RRM_CandleBody_MaxMult;
-      cfg.CandleBody_CheckBars   = Inp_RRM_CandleBody_CheckBars;
-      cfg.CandleBody_RequireDirection = Inp_RRM_CandleBody_RequireDir;
-      cfg.CandleBody_MinCloseRatio    = MathMax(0.0, MathMin(1.0, Inp_RRM_CandleBody_MinCloseRatio));
-
-      // ── BAR CLOSE (bcX) CONFIGURATION ────────────────────────────────
-      cfg.BarClose_Mode          = BC_LAYER_AWARE;
-      cfg.BarClose_DefaultEMA    = ROLE_EMA1;
-      cfg.BarClose_Enabled       = true;              // true
-
-      // ── PHASE DETECTION & LAYER FILTERING: locked ────────────────────
-      cfg.PhaseDetectionEnabled     = true;           // true
-      cfg.EnableLayerDetection      = true;           // true
-      cfg.BlockUnorderedPhase       = true;           // true
-      cfg.BlockEmergingPhase        = false;           // true: EM phase = no trades; TM phase = trades allowed
-      cfg.MinPhaseConfirmBars    = (_Period <= PERIOD_M5) ? 0 : 1;       // M1-M5: instant; M15+: require 1 bar confirmation
-      cfg.RequireMinPhaseConfirm = (cfg.MinPhaseConfirmBars > 0);        // CRITICAL: without this, m_diag_phase_confirm_bars stays 0 → pre-filter blocks ALL bars
-
-      // Layer permissions per phase (per RRM methodology PNGs):
-      //   TRENDING:  Weak + Medium + Strong trades allowed (user-controllable via Inp_RRM_Allow*)
-      //   EMERGING:  Weak + Medium allowed; Strong always blocked per RRM methodology
-      //   UNORDERED: all blocked (BlockUnorderedPhase = true)
-      cfg.Trending_AllowWeakTrades   = Inp_RRM_AllowWeak;
-      cfg.Emerging_AllowWeakTrades   = Inp_RRM_AllowWeak;
-      cfg.Trending_AllowMediumTrades = Inp_RRM_AllowMedium;
-      cfg.Emerging_AllowMediumTrades = Inp_RRM_AllowMedium;
-      cfg.Trending_AllowStrongTrades = Inp_RRM_AllowStrong;
-      cfg.Emerging_AllowStrongTrades = false;  // STRONG always blocked in EMERGING per RRM methodology
-
-      // ── PULLBACK DETECTION GATES ──────────────────────────────────────
-      cfg.RequireRecoveryMomentum      = false;   // Wick-touch recovery valid on M1/M5
-      cfg.LayerPullbackEnabled         = Inp_RRM_LayerPullbackEnabled;
-      cfg.LayerBaselineLookback        = Inp_RRM_LayerBaselineLookback;
-
-      cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
-      cfg.Gate_Recovery.value       = 1.0;
-      cfg.RRM_Lookback              = (_Period <= PERIOD_M1) ? 15 : (_Period <= PERIOD_M5) ? 10 : 12;
-
-      cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
-      cfg.Gate_EmaDiv.value         = 1.0;
-      cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
-      cfg.Gate_CandleDirection.value = 1.0;
-
-      // ── VOTE EVALUATION ───────────────────────────────────────────────
-      cfg.Vote_EvalShift            = 1;
-
-      // ── RISK MANAGEMENT ───────────────────────────────────────────────
-      cfg.CountBEasZeroRisk         = true;              // true
-      cfg.FixedLotSize              = 0.0;
-
-      // ── EXIT STRATEGY: flexible via Inp_RRM_* ────────────────────────
-      cfg.ExitProfile               = EXIT_PROFILE_RRM;
-      cfg.SLMode                    = Inp_RRM_SLMode;
-      cfg.TPMode                    = Inp_RRM_TPMode;
-      cfg.TP_Enabled                = (Inp_RRM_TPMode != TP_MODE_NONE);
-      cfg.RRRatio                   = Inp_RRM_RRRatio;
-      cfg.SwingLookback             = Inp_RRM_SwingLookback;
-      cfg.SL_SwingPipsCushion       = GetRecommendedInitialSlCushionPips();
-      cfg.SL_PsarPipsCushion        = GetRecommendedInitialSlCushionPips();
-      cfg.SL_MinPips                = GetRecommendedInitialSlCushionPips();  // Instrument-aware minimum SL floor: prevents tiny-SL fallback from computing oversized lots
-      cfg.SL_WidenToMinimum         = true;  // Widen rather than block when SL too close — ensures trade always gets a sane SL
-      cfg.SL_AtrPeriod              = Inp_RRM_SL_AtrPeriod;   // Used when SLMode = SL_MODE_ATR
-      cfg.SL_AtrMult                = Inp_RRM_SL_AtrMult;     // Used when SLMode = SL_MODE_ATR
-      cfg.FixedTPPips               = 40.0;
-      cfg.SLPercent                 = 0.5;
-
-      cfg.TrailMode                 = Inp_RRM_TrailMode;
-      cfg.PSAR_TrailCushionMode     = PSAR_CUSHION_PIPS;
-      cfg.PSAR_TrailPipsCushion     = GetRecommendedTrailPsarCushionPips();
-      cfg.RRM_TrailPsarDotShift   = Inp_RRM_TrailPsarDotShift;
-      cfg.RRM_FreezeTrailOnFlip     = Inp_RRM_FreezeTrailOnFlip;
-      cfg.RRM_TrailStartsAfterBE    = Inp_RRM_TrailStartsAfterBE;
-
-      // ── VRC: volatility regime classifier ──
-      // PRESET ISOLATION 2026-06 (Carry-over 2): previously RRM block did NOT
-      // assign cfg.VRC_* — the Inp_RRM_VRC_* inputs were declared in SEA_Inputs.mqh
-      // but no preset block read them (orphaned cockpit controls). Now properly
-      // wired so user changes to Inp_RRM_VRC_* take effect under PRESET_RRM.
-      cfg.VRC_ATR_Period            = Inp_RRM_VRC_ATR_Period;
-      cfg.VRC_Lookback              = Inp_RRM_VRC_Lookback;
-      cfg.VRC_LowThreshold          = Inp_RRM_VRC_LowThreshold;
-      cfg.VRC_RefreshSec            = Inp_RRM_VRC_RefreshSec;
-
-      // ── ADVANCED TRAILING TRIGGER ─────────────────────────────────────
-      ENUM_TIMEFRAMES tf            = (ENUM_TIMEFRAMES)_Period;
-      cfg.TrailTrigger              = Inp_RRM_TrailTrigger;
-      cfg.TrailDistancePips         = GetTFBasedCushion(tf);
-      cfg.TrailLockProfit           = Inp_RRM_TrailLockProfit;
-      cfg.TrailProfitPercent        = 2.0;  // used when TRIGGER_PROFIT_PERCENT is active
-      cfg.TrailStepPips             = Inp_RRM_TrailStepPips;
-
-      // -- BE
-      cfg.BE_Mode                   = BE_MODE_R_MULTIPLE;
-      cfg.BEThresholdPips           = GetTFBasedCushion(tf);
-      cfg.RRM_BE_RMultiple          = Inp_RRM_BE_RMultiple;
-      cfg.RRM_BE_ProgressPct        = Inp_RRM_BE_ProgressPct;
-      cfg.RRM_BE_BufferPips         = GetTFBasedCushion(tf);  // M15=5p M1=1.5p H1=8p — CRITICAL: was missing, caused 0 trades
-
-      // ── FRACTAL SL/TP DEFAULTS ────────────────────────────────────────
-      cfg.FractalPeriod             = 5;
-      cfg.TPFractalOffset           = 1;
-
-      // ── RRM DRAWDOWN PROTECTION ───────────────────────────────────────
-      cfg.RRM_EnableDrawdownProtection = Inp_RRM_EnableDrawdownProtection;
-      cfg.RRM_MaxConsecutiveLosses  = Inp_RRM_MaxConsecutiveLosses;
-      cfg.RRM_MaxTradesPerDay       = Inp_RRM_MaxTradesPerDay;
-      cfg.RRM_MaxDailyDrawdownPct   = Inp_RRM_MaxDailyDrawdownPct;
-
-      // ── SLOPE CALCULATION ─────────────────────────────────────────────
-      cfg.SlopeLookbackBars         = 1;
-
-      // ── POLICY A: RESTORE OPERATOR-CONTROLLED GATES ───────────────────
-      cfg.UseSpread                 = op_UseSpread;
-      cfg.UseTime                   = op_UseTime;
-      cfg.StartHr                   = op_StartHr;
-      cfg.EndHr                     = op_EndHr;
-      cfg.UseNews                   = op_UseNews;
-      cfg.NewsPre                   = op_NewsPre;
-      cfg.NewsPost                  = op_NewsPost;
-      cfg.RiskPercent               = GetEffectiveRiskPercent();
-      cfg.MaxOpenTrades             = op_MaxOpenTrades;
-      cfg.MaxTotalRisk              = op_MaxTotalRisk;
-      cfg.MinMarginLevel            = op_MinMarginLevel;
-      cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
-
-      // ── RE-ENTRY AFTER BREAKEVEN ──────────────────────────────────────
-      cfg.AllowReEntryAfterBE       = Inp_RRM_AllowReEntryAfterBE;
-      cfg.ReEntryLotScalePct        = MathMax(0, MathMin(100, Inp_RRM_ReEntryLotScalePct));  // 0=full size; 50=half-size re-entry
-
-      // ── POST-TRADE COOLDOWN ───────────────────────────────────────────
-      cfg.MinBarsAfterClose         = MathMax(0, Inp_RRM_MinBarsAfterClose);     // RRM cooldown (was hardcoded 3)
-
-      // ── VPRR: Volume Pullback-Recovery Ratio ──────────────────────────
-      if(Inp_RRM_VPRR_AutoEnable)
-      {
-         ST_VPRRAutoMode vprr_auto = GetVPRRRecommendedMode(
-            Inp_VPRR_MinRatio_Gold,      Inp_VPRR_MinRatio_Silver,
-            Inp_VPRR_MinRatio_IndicesUS, Inp_VPRR_MinRatio_IndicesEU,
-            Inp_VPRR_MinRatio_Oil,       Inp_VPRR_MinRatio_Crypto,
-            Inp_VPRR_MinRatio_Equities,  Inp_VPRR_MinRatio_FX,
-            Inp_VPRR_MinRatio_NonFXTick,
-            Inp_VPRR_RecBars_Gold,       Inp_VPRR_RecBars_Silver,
-            Inp_VPRR_RecBars_IndicesUS,  Inp_VPRR_RecBars_IndicesEU,
-            Inp_VPRR_RecBars_Oil,        Inp_VPRR_RecBars_Crypto,
-            Inp_VPRR_RecBars_Equities,   Inp_VPRR_RecBars_FX,
-            Inp_VPRR_TF_Mult_M5,         Inp_VPRR_TF_Mult_M15,
-            Inp_VPRR_TF_Mult_H1,         Inp_VPRR_TF_Mult_H4Plus,
-            Inp_VPRR_TF_ReduceRecBars,   Inp_RRM_VPRR_RecoveryBars
-         );
-         cfg.VPRR_Enabled         = vprr_auto.enabled;
-         cfg.VPRR_VolumeType      = vprr_auto.volume_type;
-         cfg.VPRR_MinRatio        = vprr_auto.min_ratio;
-         cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, vprr_auto.recovery_bars));
-      }
-      else
-      {
-         cfg.VPRR_Enabled         = Inp_RRM_VPRR_Enabled;
-         cfg.VPRR_VolumeType      = (int)Inp_RRM_VPRR_VolumeType;
-         cfg.VPRR_MinRatio        = MathMax(0.1, Inp_VPRR_MinRatio_FX);
-         cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, Inp_RRM_VPRR_RecoveryBars));
-      }
-      cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
-      PrintVPRRSummary(cfg, "RRM");
-
-      // ── SPREAD RETRY CAP ─────────────────────────────────────────────
-      cfg.MaxSpreadRetryBars        = MathMax(1, Inp_RRM_MaxSpreadRetryBars);
-
-      // ── EMA FAN OVEREXTENSION FILTER ──────────────────────────────────
-      // Inp_F_EmaFanFilterEnabled=false by default — user opt-in (global toggle).
-      // When enabled: Inp_RRM_EmaFanMaxTotalPips sets the pip threshold,
-      // Inp_RRM_EmaFanMaxPct sets the % threshold (0=use pips).
-      // Recommended starting values: M1/M5=25p, M15/H1=40-60p, H4+=80-120p.
-      // F-AUDIT 2026-06: EmaFanFilterEnabled toggle removed — globalized to Inp_F_EmaFanFilterEnabled
-      cfg.EmaFanMaxTotalPips        = (Inp_RRM_EmaFanMaxTotalPips > 0.0)
-                                         ? Inp_RRM_EmaFanMaxTotalPips * GetEmaFanMultiplier()
-                                         : 25.0 * GetEmaFanMultiplier();
-      cfg.EmaFanMaxPct              = Inp_RRM_EmaFanMaxPct;
-
-      // F-AUDIT 2026-06: DpiDecelFilterEnabled toggle removed — globalized to Inp_F_DpiDecelFilterEnabled.
-      // (PRESET_RRM previously hardcoded false because DPI voter wasn't enabled in this preset.
-      // The new global default false preserves that effective behavior.)
-
-      ValidateRRM_ExitConfig(cfg);
-      return;
-   }
-   #endif // SEA_PRESET_RRM_FAMILY
    
    
    #ifdef SEA_PRESET_RRM_ORG
@@ -2433,7 +2113,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Targets four failure modes seen in 100-trades reference set:
       //   (B) EM→TM flicker entries → MinPhaseConfirmBars TF-scaled > 0
       //   (C) Late-trend / overextended fan entries → EmaFanFilterEnabled
-      //       turned on with TF-scaled threshold (mirrors PRESET_RRM)
+      //       turned on with TF-scaled threshold (STEP3 2026-06: was "mirrors PRESET_RRM" — RRM removed)
       //   (C) DPI deceleration leaks → DPI voter forced ON (was opt-in,
       //       which silently disabled the already-coded decel pre-filter)
       //   (D) Tangled-ribbon false TM → MinPhaseConfirmBars + recovery

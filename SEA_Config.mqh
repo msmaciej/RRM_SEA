@@ -13,20 +13,12 @@
 //
 //#define SEA_PRESET_MA
 //#define SEA_PRESET_FPM
-//#define SEA_PRESET_RRM
+// STEP3 2026-06: SEA_PRESET_RRM removed (preset retired). SEA_PRESET_RRM_FAMILY
+// concept also retired — it existed solely to share Inp_RRM_* between RRM and
+// RRM_ORG; with RRM gone, RRM_ORG owns its own inputs (Inp_RRM_ORG_*) directly.
 #define SEA_PRESET_RRM_ORG
 //#define SEA_PRESET_TOPINVESTOR
 // STEP2 2026-06: SEA_PRESET_TEST removed (dev scaffold preset; never enabled)
-//
-// DO NOT EDIT BELOW — auto-derived helper:
-// SEA_PRESET_RRM_FAMILY = defined when RRM or RRM_ORG is active.
-// Covers the shared Inp_RRM_* inputs used by both presets.
-#ifdef SEA_PRESET_RRM
-#define SEA_PRESET_RRM_FAMILY
-#endif
-#ifdef SEA_PRESET_RRM_ORG
-#define SEA_PRESET_RRM_FAMILY
-#endif
 // ─────────────────────────────────────────────────────────────────────────────
 
 // NOTE: default values are now inlined as literals directly at each input
@@ -67,7 +59,7 @@ enum EStrategyPreset
 {
    PRESET_CUSTOM,          // PRESET_CUSTOM: user-defined settings
    PRESET_MA,              // PRESET_MA: benchmark: MT5 MA EA compatibility
-   PRESET_RRM,             // PRESET_RRM: phase-based layer detection system
+   // STEP3 2026-06: PRESET_RRM removed (variant of RRM_ORG that wasn't traded; full removal)
    // STEP2 2026-06: PRESET_TEST removed (dev scaffold, never enabled; preset block was #ifdef-gated off)
    PRESET_TOPINVESTOR,     // PRESET_TOPINVESTOR: Dr Świerk TopInvestor / OXO methodology (EMA50/200 confluence)
    PRESET_FPM,             // PRESET_FPM: Five-Point Method (PSAR+MACD+BB+SMA10/20)

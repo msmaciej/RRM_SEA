@@ -302,7 +302,8 @@ void PrintEffectiveConfig()
    Print("Effective EMA periods: ", Settings.P_Ema1, ",", Settings.P_Ema2, ",", Settings.P_Ema3, ",", Settings.P_Ema4);
    Print("Effective MACD periods: ", Settings.P_MacdFast, ",", Settings.P_MacdSlow, ",", Settings.P_MacdSig);
 
-   if(Settings.ExitProfile == EXIT_PROFILE_RRM || Inp_Global_Preset == PRESET_RRM)
+   // STEP3 2026-06: was `|| Inp_Global_Preset == PRESET_RRM` — PRESET_RRM removed
+   if(Settings.ExitProfile == EXIT_PROFILE_RRM)
    {
       Print("Effective: ExitProfile=", EnumToString(Settings.ExitProfile),
             " TP_Enabled=", (Settings.TP_Enabled ? "true" : "false"),
@@ -572,9 +573,9 @@ int OrchestrateInit()
          PrintFormat("  PSAR Cushion (TF-based): %.1f pips", Settings.PSAR_TrailPipsCushion);
          PrintFormat("  PSAR Trail Shift (live):   %d bars", Settings.RRM_TrailPsarDotShift);
          PrintFormat("  PSAR Delay (deprecated):   %d bars (mirrors trail shift)", Settings.PSAR_TrailDelay);
-#ifdef SEA_PRESET_RRM_FAMILY
-         PrintFormat("  RRM StartAfterBE Input:    %s", Inp_RRM_TrailStartsAfterBE ? "true" : "false");
-#endif // SEA_PRESET_RRM_FAMILY
+         // STEP3 2026-06: removed #ifdef SEA_PRESET_RRM_FAMILY block — printed
+         // Inp_RRM_TrailStartsAfterBE which no longer exists. Settings.RRM_TrailStartsAfterBE
+         // is sourced from Inp_RRM_ORG_TrailStartsAfterBE in the RRM_ORG block now.
          PrintFormat("  RRM StartAfterBE Settings: %s", Settings.RRM_TrailStartsAfterBE ? "true" : "false");
       }
       Print("");

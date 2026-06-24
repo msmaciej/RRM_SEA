@@ -79,8 +79,8 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "    🛡️ SAFETY GUARDS (GLOBAL) — off by default";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 // These guards are preset-independent: they are NOT cleared by preset overrides,
-// so they remain active under PRESET_RRM/FPM/etc. All default to 0 = disabled,
-// so enabling none reproduces existing backtest behavior exactly.
+// so they remain active under all presets (FPM/MA/RRM_ORG/TI/CUSTOM). All default to 0 = disabled,
+// so enabling none reproduces existing backtest behavior exactly. STEP3 2026-06: was "PRESET_RRM/FPM/etc"; RRM removed.
 input bool        Inp_Safety_CountBEInAggregateRisk = false;         // SAFETY: Count BE positions toward MaxTotalRisk (closes pyramiding gap)
 input int         Inp_Safety_MaxPositionsPerDir    = 2;              // SAFETY: Max concurrent positions per direction (0=off)
 input bool        Inp_Safety_DelayTrailUntilR      = false;          // SAFETY: Delay trailing until open profit reaches R-multiple
@@ -309,13 +309,24 @@ input bool        Inp_FPM_Ind_Mfi_Enabled          = true;           // FPM MFI:
 input int         Inp_FPM_Mfi_Period               = 14;             // FPM MFI: period (default 14)
 #endif // SEA_PRESET_FPM
 
-#ifdef SEA_PRESET_RRM_FAMILY
+// STEP3 2026-06: #ifdef SEA_PRESET_RRM_FAMILY guard removed.
+// The "family" concept existed solely to share Inp_RRM_* between PRESET_RRM
+// and PRESET_RRM_ORG. With PRESET_RRM gone, the family is just RRM_ORG.
+//
+// VPRR shared inputs (Inp_VPRR_*) and Inp_RRM_ORG_VPRR_* — used by CUSTOM,
+// RRM_ORG, and TOPINVESTOR — are now UNCONDITIONAL (no #ifdef wrapping).
+// This was a STRUCTURAL fix: prior code wrongly nested these inside the RRM
+// family guard, meaning TI/CUSTOM users were silently disabled if neither
+// RRM nor RRM_ORG was active.
+//
+// Inp_RRM_VPRR_* (4 RRM-only inputs) and the rest of PRESET_RRM inputs
+// (~25 inputs across TP/SL/TS/BE/DP/Layer/Indicators sections) — all removed.
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📊 VPRR — SHARED (PRESET_RRM / RRM_ORG / TOPINVESTOR)";
+input group "    📊 VPRR — SHARED (CUSTOM / RRM_ORG / TOPINVESTOR)"; // STEP3 2026-06: removed PRESET_RRM mention
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "    📊 VPRR (used by RRM/RRM_ORG/TOPINVESTOR presets)";
+input group "    📊 VPRR (used by CUSTOM / RRM_ORG / TOPINVESTOR presets)"; // STEP3 2026-06
 input group "╚════════════════════════════════════════════════════════╝";
 // Effective MinRatio = base x TF multiplier (auto-applied at EA start).
 // Restart EA after instrument or TF change to auto-update settings.
@@ -354,13 +365,7 @@ input double      Inp_VPRR_TF_Mult_M5              = 0.85;           // VPRR TF:
 input double      Inp_VPRR_TF_Mult_M15             = 1.00;           // VPRR TF: M15 multiplier (baseline)
 input double      Inp_VPRR_TF_Mult_H1              = 0.95;           // VPRR TF: H1 multiplier (fewer bars, loosen slightly)
 input double      Inp_VPRR_TF_Mult_H4Plus          = 0.90;           // VPRR TF: H4+ multiplier (very few cycles, loosen)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📊 VPRR RRM - Volume Confirmation";
-input group "╚════════════════════════════════════════════════════════╝";
-input EVPRRVolumeType Inp_RRM_VPRR_VolumeType      = VPRR_VOL_AUTO;  // RRM VPRR: Volume source (Auto=real then tick fallback)
-input bool        Inp_RRM_VPRR_AutoEnable          = true;           // RRM VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual toggle below)
-input bool        Inp_RRM_VPRR_Enabled             = false;          // RRM VPRR: Manual enable (only used when AutoEnable=OFF)
-input int         Inp_RRM_VPRR_RecoveryBars        = 5;              // RRM VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
+// STEP3 2026-06: Inp_RRM_VPRR_* (4 inputs) removed — RRM-only, no longer needed.
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 VPRR RRM_ORG - Volume Confirmation";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -369,191 +374,21 @@ input bool        Inp_RRM_ORG_VPRR_AutoEnable      = false;           // RRM ORG
 input bool        Inp_RRM_ORG_VPRR_Enabled         = false;          // RRM ORG VPRR: Manual enable (only used when AutoEnable=OFF)
 input int         Inp_RRM_ORG_VPRR_RecoveryBars    = 5;              // RRM ORG VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
 
-input group " ";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📐 PRESET_RRM";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+// STEP3 2026-06 FIX: 3 Inp_RRM_ORG_Allow* inputs were originally placed inside the
+// "PRESET_RRM — LAYER WMS Filter" sub-group of the RRM_FAMILY block (HEAD lines 427-429)
+// — visually grouped with RRM inputs but functionally RRM_ORG-specific. The Step 3 bulk
+// deletion of the family block accidentally removed them too. Restored here.
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: (TP) Take Profit - Risk Reward Ratio";
+input group "║   📐 RRM_ORG: LAYER WMS Filter";
 input group "╚════════════════════════════════════════════════════════╝";
-input ETPMode     Inp_RRM_TPMode                   = TP_MODE_RR;     // RRM TP: mode
-input double      Inp_RRM_RRRatio                  = 1.5;            // RRM TP: RRM R:R ratio (used with TP_MODE_RR)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: (SL) Stop Loss";
-input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode     Inp_RRM_SLMode                   = SL_MODE_SWING;  // RRM SL: SL_MODE_=*: *ATR, *FIXED_PIPS, *FRACTAL, *PERCENT, *PSAR_DOT, *SWING
-input int         Inp_RRM_SwingLookback            = 34;             // RRM SL: RRM Swing lookback bars (used with SL_MODE_SWING)
-input int         Inp_RRM_SL_AtrPeriod             = 14;             // RRM SL: ATR period (SL_MODE_ATR only)
-input double      Inp_RRM_SL_AtrMult               = 1.0;            // RRM SL: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR only; 0.5–1.5 typical)
-input int         Inp_RRM_MinBarsAfterClose        = 3;              // RRM SL: post-trade cooldown bars (0=off)
-input int         Inp_RRM_ReEntryLotScalePct       = 50;             // RRM Re-entry: lot size % for re-entry after BE (0=full size; 50=half; since original is at BE total risk stays controlled)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: (TS) Trailing Stop";
-input group "╚════════════════════════════════════════════════════════╝";
-input ETrailingMode Inp_RRM_TrailMode              = TRAIL_PSAR;     // RRM TS: MODE
-input ETrailTrigger Inp_RRM_TrailTrigger           = TRIGGER_BREAKEVEN; // RRM TS: TRIGGER
-input bool        Inp_RRM_TrailStartsAfterBE       = false;          // RRM TS: START after BE
-input bool        Inp_RRM_TrailLockProfit          = true;           // RRM TS: NEVER move SL backwards
-input bool        Inp_RRM_FreezeTrailOnFlip        = true;           // RRM TS: FREEZE on PSAR flip
-input int         Inp_RRM_TrailPsarDotShift        = 1;              // RRM TS: PSAR DOT shift (1..3) (TRAIL_PSAR only)
-input double      Inp_RRM_TrailStepPips            = 5.0;            // RRM TS: PIPS fixed-step
-input int         Inp_RRM_MaxSpreadRetryBars       = 3;              // RRM: SPREAD bars retry (if TE block)
-input bool        Inp_RRM_AllowReEntryAfterBE      = true;           // RRM: ALLOW re-entry after BE
-// input string   Inp_PSAR_TrailCushion_Note       = "PSAR trail cushion auto-set by timeframe (M15=3, H1=7, H4=10 pips)"
-// input string   Inp_RRM_Trail_Info               = "RRM trailing: PSAR-based with bar shift delay for flip stability";
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🛑 RRM: (BE) Breakeven (% Progress)";
-input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_RRM_BE_ProgressPct           = 50.0;           // RRM BE: BE at % to TP
-input double      Inp_RRM_BE_RMultiple             = 1.0;            // RRM BE: BE at R-multiple
-// input string   Inp_RRM_BE_Buffer_Note           = "BE buffer auto-set by timeframe (M15=5, H1=10, H4=20 pips)";
-// input string   Inp_RRM_BE_Example               = "Example: SL=10, TP=30 (3:1), BE@33% → triggers at +10 pips; SL locks at entry + TF-cushion";
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🔧 RRM: (DP) Drawdown Protection";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_EnableDrawdownProtection = false;          // RRM DP: Enable drawdown protection
-input int         Inp_RRM_MaxConsecutiveLosses     = 10;             // RRM DP: Max consecutive losses before pause
-input int         Inp_RRM_MaxTradesPerDay          = 50;             // RRM DP: Max trades per day
-input double      Inp_RRM_MaxDailyDrawdownPct      = 3.0;            // RRM DP: Max daily drawdown %
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: LAYER WMS Filter (sub-markets)";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_AllowWeak                = true;           // RRM Layer: Allow WEAK   trades (L1 EMA1/EMA2)
-input bool        Inp_RRM_AllowMedium              = true;           // RRM Layer: Allow MEDIUM trades (L2 EMA2/EMA3)
-input bool        Inp_RRM_AllowStrong              = true;           // RRM Layer: Allow STRONG trades (L3 EMA3/EMA4, TRENDING only)
-// PRESET ISOLATION 2026-06: dedicated RRM_ORG layer-allow inputs.
-// (previously RRM_ORG block read Inp_RRM_AllowWeak/Medium/Strong — RRM-preset inputs).
-// Defaults match the previously-leaked Inp_RRM_* defaults so behavior is unchanged.
 input bool        Inp_RRM_ORG_AllowWeak            = true;           // RRM ORG Layer: Allow WEAK trades (L1 EMA1/EMA2)
 input bool        Inp_RRM_ORG_AllowMedium          = true;           // RRM ORG Layer: Allow MEDIUM trades (L2 EMA2/EMA3)
 input bool        Inp_RRM_ORG_AllowStrong          = true;           // RRM ORG Layer: Allow STRONG trades (L3 EMA3/EMA4, TRENDING only)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: LAYER WMS Pullback-Recovery Detection";
-input group "╚════════════════════════════════════════════════════════╝";
-// This Layer system is independent from legacy RRM gate fields below.
-input bool        Inp_RRM_LayerPullbackEnabled     = true;           // RRM Layer PB: Layer PB: Enable pullback-recovery detection
-input int         Inp_RRM_LayerBaselineLookback    = 10;             // RRM Layer PB: Layer PB: Baseline slope lookback (bars, recommended 3+)
 
-input group " ";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📐 PRESET_RRM — INDICATORS";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: Indicators — Enable/Disable";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_Use_Adx                  = false;          // RRM Ind: ADX vote enabled
-input bool        Inp_RRM_Use_Bb                   = false;          // RRM Ind: BB vote enabled
-input bool        Inp_RRM_Use_CandleBody           = true;           // RRM Ind: CBody vote enabled
-input bool        Inp_RRM_Use_Cci                  = true;           // RRM Ind: CCI vote enabled
-input bool        Inp_RRM_Use_CI                   = false;          // RRM Ind: CI vote enabled
-input bool        Inp_RRM_Use_Macd                 = true;           // RRM Ind: MACD vote enabled
-input bool        Inp_RRM_Use_Mfi                  = false;          // RRM Ind: MFI vote enabled
-input bool        Inp_RRM_Use_Psar                 = true;           // RRM Ind: PSAR vote enabled
-input bool        Inp_RRM_Use_Rsi                  = false;          // RRM Ind: RSI vote enabled
-input bool        Inp_RRM_Use_Stoch                = false;          // RRM Ind: STO vote enabled
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: ADX Settings";
-input group "╚════════════════════════════════════════════════════════╝";
-input EADXMode    Inp_RRM_Adx_Mode                 = ADX_MODE_PHASE_AWARE; // RRM ADX: Mode
-input int         Inp_RRM_AdxPeriod                = 14;             // RRM ADX: Period
-input int         Inp_RRM_Adx_Lookback             = 100;            // RRM ADX: Lookback
-input int         Inp_RRM_Adx_PercentileRefreshSec = 14400;          // RRM ADX: DYNAMIC_PERCENTILE refresh interval (sec). M1 chart: try 900 (15min); H1+: 14400 (4h)
-input double      Inp_RRM_AdxThreshold             = 20.0;           // RRM ADX: Threshold
-input double      Inp_RRM_Adx_Percentile           = 50.0;           // RRM ADX: Percentile
-input double      Inp_RRM_Adx_Thr_Accum            = 12.0;           // RRM ADX: Thr Accumulation
-input double      Inp_RRM_Adx_Thr_Trending         = 25.0;           // RRM ADX: Thr Trending
-input double      Inp_RRM_Adx_Thr_Distrib          = 18.0;           // RRM ADX: Thr Distribution
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: ATR Settings";
-input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_RRM_P_Atr                    = 14;             // RRM ATR: ATR period
-input double      Inp_RRM_ATR_VoteMinPips          = 5.0;            // RRM ATR: min pips to allow trade
-input double      Inp_RRM_ATR_VoteMaxPips          = 50.0;           // RRM ATR: max pips to allow trade
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: BB Settings";
-input group "╚════════════════════════════════════════════════════════╝";
-input EBbMode     Inp_RRM_Bb_Mode                  = BB_TREND_FOLLOW; // RRM BB: Mode
-input int         Inp_RRM_Bb_Period                = 20;             // RRM BB: Period
-input double      Inp_RRM_Bb_Deviation             = 2.0;            // RRM BB: Deviation
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: CCI Settings";
-input group "╚════════════════════════════════════════════════════════╝";
-input ECciMode    Inp_RRM_CciMode                  = CCI_TREND_ZERO; // RRM CCI: Mode
-input int         Inp_RRM_CciPeriod                = 14;             // RRM CCI: Period
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: Candle Body Settings";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_CandleBody_RequireDir    = true;           // RRM CBody: Require direction
-input int         Inp_RRM_CandleBody_AvgPeriod     = 5;              // RRM CBody: Average period
-input int         Inp_RRM_CandleBody_CheckBars     = 3;              // RRM CBody: Bars to check
-input double      Inp_RRM_CandleBody_MaxMult       = 4;              // RRM CBody: Max multiplier
-input double      Inp_RRM_CandleBody_MinCloseRatio = 0.0;            // RRM CBody: Min close ratio (0=off, 0.75=TopInvestor)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: CI Settings";
-input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_RRM_CiPeriod                 = 14;             // RRM CI: Period
-input double      Inp_RRM_CiRangingThreshold       = 61.8;           // RRM CI: Threshold
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: EMA Periods";
-input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_RRM_Ema1Period               = 5;              // RRM EMA: RRM EMA1 Period ( 5)
-input int         Inp_RRM_Ema2Period               = 13;             // RRM EMA: RRM EMA2 Period (13)
-input int         Inp_RRM_Ema3Period               = 34;             // RRM EMA: RRM EMA3 Period (34)
-input int         Inp_RRM_Ema4Period               = 89;             // RRM EMA: RRM EMA4 Period (89)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: EMA Fan Filter";
-input group "╚════════════════════════════════════════════════════════╝";
-// F-AUDIT 2026-06: Inp_RRM_EmaFanFilterEnabled removed — toggle globalized to Inp_F_EmaFanFilterEnabled
-input double      Inp_RRM_EmaFanMaxTotalPips       = 0.0;            // RRM Fan: EMA1–EMA4 max gap pips (0=disabled; M1/M5 start: 25.0)
-input double      Inp_RRM_EmaFanMaxPct             = 0.0;            // RRM Fan: EMA1–EMA4 max gap % of price (0=use pips; 0.36≈40pip EURUSD)
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: MACD Settings";
-input group "╚════════════════════════════════════════════════════════╝";
-input EMacdVoteMode Inp_RRM_MacdMode               = MACD_ZERO_AND_HIST; // RRM MACD: mode
-input bool        Inp_RRM_MacdSlope                = false;          // RRM MACD: slope
-input bool        Inp_RRM_MacdDiv                  = false;          // RRM MACD: div
-input bool        Inp_RRM_MacdHistDecel            = true;           // RRM MACD: block when histogram shrinking bar-over-bar (decel pre-filter, analogous to DPI_BlockOnDeceleration)
-input int         Inp_RRM_MacdFast                 = 12;             // RRM MACD: Fast (12)
-input int         Inp_RRM_MacdSlow                 = 26;             // RRM MACD: Slow (26)
-input int         Inp_RRM_MacdSig                  = 9;              // RRM MACD: Signal (9)
-input int         Inp_RRM_MacdFreshBars            = 3;              // RRM MACD: max bars since zero-cross to be fresh
-input double      Inp_RRM_MacdSlopeMin             = 0.00001;        // RRM MACD: minimum histogram slope
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: MFI Settings";
-input group "╚════════════════════════════════════════════════════════╝";
-input EMfiMode    Inp_RRM_Mfi_Mode                 = MFI_ZONE_FILTER; // RRM MFI: Mode
-input int         Inp_RRM_Mfi_Period               = 14;             // RRM MFI: Period
-input double      Inp_RRM_Mfi_OB                   = 80.0;           // RRM MFI: Overbought
-input double      Inp_RRM_Mfi_OS                   = 20.0;           // RRM MFI: Oversold
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: PSAR Settings";
-input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_RRM_PsarStep                 = 0.05;           // RRM PSAR: Step
-input double      Inp_RRM_PsarMax                  = 0.5;            // RRM PSAR: Max
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: RSI Settings";
-input group "╚════════════════════════════════════════════════════════╝";
-input ERsiMode    Inp_RRM_RsiMode                  = RSI_TREND_ABOVE_50; // RRM RSI: Mode
-input int         Inp_RRM_RsiPeriod                = 14;             // RRM RSI: Period
-input double      Inp_RRM_Rsi_OB                   = 70.0;           // RRM RSI: Overbought
-input double      Inp_RRM_Rsi_OS                   = 30.0;           // RRM RSI: Oversold
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: Stochastic Settings";
-input group "╚════════════════════════════════════════════════════════╝";
-input EStochMode  Inp_RRM_Sto_Mode                 = STO_CROSS_SIGNAL; // RRM STO: Mode
-input int         Inp_RRM_Sto_K                    = 5;              // RRM STO: K period
-input int         Inp_RRM_Sto_D                    = 3;              // RRM STO: D period
-input int         Inp_RRM_Sto_Slow                 = 3;              // RRM STO: Slowing period
-input double      Inp_RRM_Sto_OB                   = 80.0;           // RRM STO: Overbought
-input double      Inp_RRM_Sto_OS                   = 20.0;           // RRM STO: Oversold
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM: VRC Settings";
-input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_RRM_VRC_ATR_Period           = 14;             // RRM VRC: ATR period for regime classification
-input int         Inp_RRM_VRC_Lookback             = 100;            // RRM VRC: lookback bars
-input double      Inp_RRM_VRC_LowThreshold         = 33.0;           // RRM VRC: low-volatility threshold
-input int         Inp_RRM_VRC_RefreshSec           = 14400;          // RRM VRC: percentile refresh interval (sec). M1: try 900; H1+: 14400 (4h)
-#endif // SEA_PRESET_RRM_FAMILY
+// STEP3 2026-06: PRESET_RRM block (~25 inputs across TP/SL/TS/BE/DP/Layer/Indicators) removed.
+// All inputs were RRM-only with no cross-preset reads (prior PRESET ISOLATION 2026-06 work
+// already cleaned cross-preset leaks; this is the final physical removal).
+
 
 #ifdef SEA_PRESET_RRM_ORG
 input group " ";
@@ -1616,7 +1451,7 @@ void InitializeConfig()
    Settings.MacdRequireDivergence= Inp_CUSTOM_Ind_Macd_RequireDivergence;
    Settings.MacdRequireHook      = Inp_CUSTOM_Ind_Macd_RequireHook;
    Settings.MacdFreshBars        = Inp_CUSTOM_Ind_Macd_FreshBars;
-   Settings.MacdHistDecelEnabled = false;  // RRM-only pre-filter; set true by PRESET_RRM via Inp_RRM_MacdHistDecel
+   Settings.MacdHistDecelEnabled = false;  // STEP3 2026-06: was "RRM-only; set true by PRESET_RRM" — RRM removed. All remaining presets explicitly set false or don't override.
    Settings.MacdSlopeMin         = Inp_CUSTOM_Ind_Macd_SlopeMin;
    Settings.RsiMode              = Inp_CUSTOM_Ind_Rsi_Mode;
    Settings.CciMode              = Inp_CUSTOM_Ind_Cci_Mode;

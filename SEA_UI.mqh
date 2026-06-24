@@ -577,9 +577,8 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
    AddLine(StringFormat("SL MODE:  %s", EnumToString(Settings.SLMode)), v_clr, lines, line_clrs);
    AddLine(StringFormat("RISK:     %.2f%%", Settings.RiskPercent), v_clr, lines, line_clrs);
    string rr_source = "Inp_CUSTOM_RRRatio";
-   if(Inp_Global_Preset == PRESET_RRM)
-      rr_source = "Inp_RRM_RRRatio";
-   else if(Inp_Global_Preset == PRESET_RRM_ORG)
+   // STEP3 2026-06: removed `if(Inp_Global_Preset == PRESET_RRM) rr_source = "Inp_RRM_RRRatio";` — PRESET_RRM gone
+   if(Inp_Global_Preset == PRESET_RRM_ORG)
       rr_source = "Inp_RRM_ORG_RRRatio";
    else if(Inp_Global_Preset == PRESET_FPM)
       rr_source = "Inp_FPM_RRRatio";
