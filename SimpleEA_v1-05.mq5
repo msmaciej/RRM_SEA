@@ -558,6 +558,14 @@ int OrchestrateInit()
    if(!Signal.Init(Settings, _Symbol))
    {
       Print("ERROR: Signal.Init() failed.");
+      // STEP23 2026-06: Release before INIT_FAILED. MT5 skips OnDeinit on INIT_FAILED,
+      // so OrchestrateDeinit's Signal.Release() at line 1409 never fires. Signal.Init
+      // can return false after partial-allocation of its ~19 handles (five "CRITICAL
+      // ERROR" checkpoints in SEA_SignalEngine.mqh:5760+). STEP18's defensive
+      // Release-at-top-of-Init only helps if the operator retries; if they remove
+      // the EA, partial state lingers until program unload. Release() is idempotent
+      // / null-safe — every handle guarded by != INVALID_HANDLE.
+      Signal.Release();
       return INIT_FAILED;
    }
 
@@ -586,6 +594,11 @@ int OrchestrateInit()
    if(!Signal.ValidateAndReportMA(Settings.PrintEffectiveConfig))
    {
       Print("ERROR: MA setup validation failed.");
+      // STEP23 2026-06: Signal is fully initialized by this point — passed Init at
+      // line 558, ran ValidateVPRRExternalSymbol, and possibly attached chart
+      // indicators. Release before INIT_FAILED to avoid orphaning all ~19 handles
+      // (MT5 skips OnDeinit on INIT_FAILED; matching rationale at Step D above).
+      Signal.Release();
       return INIT_FAILED;
    }
 
