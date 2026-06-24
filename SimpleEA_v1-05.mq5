@@ -228,19 +228,12 @@ void BuildUiReportingState()
 
    g_ui_ma_source = (Inp_Global_Preset == PRESET_MA ? "BENCHMARK" : "CUSTOM");
 
-   if(Inp_Global_Preset == PRESET_CUSTOM)
-   {
-      g_ui_used_flags    = "CUSTOM";
-      g_ui_ignored_flags = "";
-      g_ui_overrides     = "";
-   }
-   else
-   {
-      g_ui_used_flags    = "PRESET=" + PresetToString(Inp_Global_Preset);
-      g_ui_ignored_flags = "Strategy inputs ignored (preset authoritative)";
-      g_ui_overrides     = "Preset overwrote strategy-critical fields";
-      g_effectiveSigNote = "Preset is active; strategy inputs ignored.";
-   }
+   // STEP4 2026-06: PRESET_CUSTOM removed — the `if(Inp_Global_Preset == PRESET_CUSTOM)`
+   // branch was unreachable; merged the else branch (preset-active path) as the only path.
+   g_ui_used_flags    = "PRESET=" + PresetToString(Inp_Global_Preset);
+   g_ui_ignored_flags = "Strategy inputs ignored (preset authoritative)";
+   g_ui_overrides     = "Preset overwrote strategy-critical fields";
+   g_effectiveSigNote = "Preset is active; strategy inputs ignored.";
 }
 
 void PrintEffectiveConfig()
@@ -251,10 +244,9 @@ void PrintEffectiveConfig()
    Print("Symbol: ", _Symbol, " | Magic: ", Inp_Global_MagicNum);
    Print("Preset: ", EnumToString(Inp_Global_Preset), " (", (int)Inp_Global_Preset, ")");
 
-   if(Inp_Global_Preset != PRESET_CUSTOM)
-   {
-      Print("Preset ", PresetToString(Inp_Global_Preset), " is active; strategy inputs ignored");
-   }
+   // STEP4 2026-06: was `if(Inp_Global_Preset != PRESET_CUSTOM)` — PRESET_CUSTOM removed,
+   // so this condition is now always true; guard dropped.
+   Print("Preset ", PresetToString(Inp_Global_Preset), " is active; strategy inputs ignored");
 
    Print("Diagnostics: PrintEffectiveConfig=", (Settings.PrintEffectiveConfig ? "true" : "false"),
          " DebugFlow=", (Settings.DebugFlow ? "true" : "false"),
@@ -496,95 +488,13 @@ int OrchestrateInit()
    FlowLog("Step B1: InitializeIndicatorRegistry() (populate central indicator registry)");
    InitializeIndicatorRegistry(Settings);
 
-   // ═══════════════════════════════════════════════════════════════
-   // 🔍 DIAGNOSTIC: Verify exit settings after preset application
-   // ═══════════════════════════════════════════════════════════════
-   if(Settings.DebugLevel >= DEBUG_SUMMARY || Settings.PrintEffectiveConfig)
-   {
-      Print("════════════════════════════════════════════════════════════");
-      Print("🔍 DIAGNOSTIC: FINAL Exit Management Values");
-      Print("   (After InitializeConfig + ApplyPreset)");
-      Print("════════════════════════════════════════════════════════════");
-      Print("");
-      Print("📊 VERIFICATION - Input vs Settings:");
-      Print("");
+   // STEP4 2026-06: CUSTOM-comparison diagnostic Print block removed (Pass 1).
+   //   Was an 89-line "Settings.X vs Inp_CUSTOM_X — Match? ✅/❌" debug block.
+   //   The comparison was meaningful when CUSTOM was the runtime baseline. With
+   //   CUSTOM gone, comparing Settings against Inp_CUSTOM_* is incorrect (the
+   //   active preset's overrides are the truth). Block deleted; Settings can
+   //   still be inspected via DEBUG_SUMMARY level which logs effective values.
 
-      Print("Exit Profile:");
-      PrintFormat("  Input:    %s", EnumToString(Inp_CUSTOM_ExitProfile));
-      PrintFormat("  Settings: %s", EnumToString(Settings.ExitProfile));
-      PrintFormat("  ✓ Match:  %s", (Settings.ExitProfile == Inp_CUSTOM_ExitProfile) ? "YES ✅" : "NO ❌ BUG DETECTED!");
-      Print("");
-
-      Print("Stop Loss Mode:");
-      PrintFormat("  Input:    %s", EnumToString(Inp_CUSTOM_SLMode));
-      PrintFormat("  Settings: %s", EnumToString(Settings.SLMode));
-      PrintFormat("  ✓ Match:  %s", (Settings.SLMode == Inp_CUSTOM_SLMode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
-      if(Inp_CUSTOM_SLMode == SL_MODE_PSAR_DOT || Settings.SLMode == SL_MODE_PSAR_DOT)
-      {
-         PrintFormat("  PSAR Cushion (TF-based): %.1f pips", Settings.SL_PsarPipsCushion);
-      }
-      Print("");
-
-      Print("Take Profit Mode:");
-      PrintFormat("  Input:    %s (RRRatio: %.1f)", EnumToString(Inp_CUSTOM_TPMode), Inp_CUSTOM_RRRatio);
-      PrintFormat("  Settings: %s (RRRatio: %.1f)", EnumToString(Settings.TPMode), Settings.RRRatio);
-      PrintFormat("  ✓ Match:  %s", (Settings.TPMode == Inp_CUSTOM_TPMode && Settings.RRRatio == Inp_CUSTOM_RRRatio) ? "YES ✅" : "NO ❌ BUG DETECTED!");
-      Print("");
-
-      Print("Breakeven Mode:");
-      // Report the input that actually feeds BE_Mode for the ACTIVE preset.
-      // Previously this always printed Inp_CUSTOM_BE_Mode, which is only the
-      // source under PRESET_CUSTOM — under PRESET_RRM_ORG (and others) it made
-      // the diagnostic falsely report "BUG DETECTED" and show the wrong input,
-      // which masked that BE_Mode was in fact being driven by the preset's own
-      // input (e.g. an optimizer pass sweeping BE_MODE_OFF).
-      EBeMode be_input_active;
-      switch(Inp_Global_Preset)
-      {
-#ifdef SEA_PRESET_RRM_ORG
-         case PRESET_RRM_ORG:    be_input_active = Inp_RRM_ORG_BE_Mode; break;
-#else
-         case PRESET_RRM_ORG:    be_input_active = Inp_CUSTOM_BE_Mode;  break;
-#endif
-#ifdef SEA_PRESET_TOPINVESTOR
-         case PRESET_TOPINVESTOR:be_input_active = Inp_TI_BE_Mode;      break;
-#else
-         case PRESET_TOPINVESTOR:be_input_active = Inp_CUSTOM_BE_Mode;  break;
-#endif
-         default:                be_input_active = Inp_CUSTOM_BE_Mode;  break;
-      }
-      PrintFormat("  Preset:       %s", EnumToString(Inp_Global_Preset));
-      PrintFormat("  BE Input:     %s", EnumToString(be_input_active));
-      PrintFormat("  BE Settings:  %s", EnumToString(Settings.BE_Mode));
-      PrintFormat("  ✓ Match:      %s", (Settings.BE_Mode == be_input_active) ? "YES ✅" : "NO ❌ BUG DETECTED!");
-      if(be_input_active == BE_MODE_TP_PROGRESS_PCT || Settings.BE_Mode == BE_MODE_TP_PROGRESS_PCT)
-      {
-         PrintFormat("  Progress%% Settings: %.1f%%", Settings.RRM_BE_ProgressPct);
-         PrintFormat("  Buffer (TF-based):   %.1f pips", Settings.RRM_BE_BufferPips);
-      }
-      Print("");
-
-      Print("Trailing Stop Mode:");
-      PrintFormat("  Input:    %s", EnumToString(Inp_CUSTOM_TrailMode));
-      PrintFormat("  Settings: %s", EnumToString(Settings.TrailMode));
-      PrintFormat("  ✓ Match:  %s", (Settings.TrailMode == Inp_CUSTOM_TrailMode) ? "YES ✅" : "NO ❌ BUG DETECTED!");
-      if(Inp_CUSTOM_TrailMode == TRAIL_PSAR || Settings.TrailMode == TRAIL_PSAR)
-      {
-         PrintFormat("  PSAR Cushion (TF-based): %.1f pips", Settings.PSAR_TrailPipsCushion);
-         PrintFormat("  PSAR Trail Shift (live):   %d bars", Settings.RRM_TrailPsarDotShift);
-         PrintFormat("  PSAR Delay (deprecated):   %d bars (mirrors trail shift)", Settings.PSAR_TrailDelay);
-         // STEP3 2026-06: removed #ifdef SEA_PRESET_RRM_FAMILY block — printed
-         // Inp_RRM_TrailStartsAfterBE which no longer exists. Settings.RRM_TrailStartsAfterBE
-         // is sourced from Inp_RRM_ORG_TrailStartsAfterBE in the RRM_ORG block now.
-         PrintFormat("  RRM StartAfterBE Settings: %s", Settings.RRM_TrailStartsAfterBE ? "true" : "false");
-      }
-      Print("");
-
-      Print("════════════════════════════════════════════════════════════");
-      Print("🎯 DIAGNOSIS COMPLETE - Check for ❌ above to find bugs");
-      Print("════════════════════════════════════════════════════════════");
-      Print("");
-   }
 
    // Build UI/Reporting compatibility strings AFTER preset application
    BuildUiReportingState();

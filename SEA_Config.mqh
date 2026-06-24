@@ -57,7 +57,12 @@ enum EDebugLevel
 };
 enum EStrategyPreset
 {
-   PRESET_CUSTOM,          // PRESET_CUSTOM: user-defined settings
+   // STEP4 2026-06: PRESET_CUSTOM removed (Pass 1). The "CUSTOM preset" was
+   // architecturally a misnomer — its inputs Inp_CUSTOM_* serve as the SEED
+   // for all preset blocks (310 reads in InitializeConfig). The enum value,
+   // ApplyPreset block, and ValidateCUSTOM_ExitConfig are gone; Inp_CUSTOM_*
+   // declarations stay as seed defaults (rename to Inp_Global_* deferred to
+   // a later step).
    PRESET_MA,              // PRESET_MA: benchmark: MT5 MA EA compatibility
    // STEP3 2026-06: PRESET_RRM removed (variant of RRM_ORG that wasn't traded; full removal)
    // STEP2 2026-06: PRESET_TEST removed (dev scaffold, never enabled; preset block was #ifdef-gated off)

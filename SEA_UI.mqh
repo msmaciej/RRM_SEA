@@ -539,7 +539,7 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
    AddLine(StringFormat("VER:      %s", SEA_BUILD_STR), v_clr, lines, line_clrs);
    AddLine(StringFormat("SYMBOL:   %s %s", _Symbol, EnumToString(_Period)), v_clr, lines, line_clrs);
    AddLine(StringFormat("PRESET:   %s", EnumToString(Inp_Global_Preset)), v_clr, lines, line_clrs);
-   AddLine(StringFormat("MODE:     %s", (Inp_Global_Preset == PRESET_CUSTOM ? "CUSTOM" : "LOCKED")), v_clr, lines, line_clrs);
+   AddLine(StringFormat("MODE:     %s", "LOCKED"), v_clr, lines, line_clrs); // STEP4 2026-06: was `Inp_Global_Preset == PRESET_CUSTOM ? "CUSTOM" : "LOCKED"` — CUSTOM removed, all presets are locked
    AddLine("", (color)0, lines, line_clrs); // Spacer
 
    // --- ZONE 2: BIAS & STRUCTURE ---
@@ -576,12 +576,18 @@ void SEA_UI_UpdateSettingsPanel(EMarketPhase current_phase = PHASE_UNORDERED)
    AddLine(StringFormat("SIZER:    %s", (Settings.UseMACompatSizer ? "MA_COMPAT" : "RISK_PCT")), v_clr, lines, line_clrs);
    AddLine(StringFormat("SL MODE:  %s", EnumToString(Settings.SLMode)), v_clr, lines, line_clrs);
    AddLine(StringFormat("RISK:     %.2f%%", Settings.RiskPercent), v_clr, lines, line_clrs);
-   string rr_source = "Inp_CUSTOM_RRRatio";
-   // STEP3 2026-06: removed `if(Inp_Global_Preset == PRESET_RRM) rr_source = "Inp_RRM_RRRatio";` — PRESET_RRM gone
-   if(Inp_Global_Preset == PRESET_RRM_ORG)
-      rr_source = "Inp_RRM_ORG_RRRatio";
-   else if(Inp_Global_Preset == PRESET_FPM)
-      rr_source = "Inp_FPM_RRRatio";
+   // STEP4 2026-06: rr_source switch now covers all 4 remaining presets explicitly.
+   // Previously default was "Inp_CUSTOM_RRRatio" (a pre-existing bug for MA/TI users
+   // even before PRESET_CUSTOM removal). With CUSTOM gone, the switch is exhaustive.
+   string rr_source;
+   switch(Inp_Global_Preset)
+   {
+      case PRESET_RRM_ORG:    rr_source = "Inp_RRM_ORG_RRRatio"; break;
+      case PRESET_FPM:        rr_source = "Inp_FPM_RRRatio";     break;
+      case PRESET_MA:         rr_source = "Inp_CUSTOM_RRRatio (MA uses seed)"; break;
+      case PRESET_TOPINVESTOR:rr_source = "Inp_TI_RRRatio";       break;
+      default:                rr_source = "(unknown preset)";    break;
+   }
    AddLine(StringFormat("RR:       %.2f  (src: %s)", Settings.RRRatio, rr_source), v_clr, lines, line_clrs);
    AddLine(StringFormat("BE:       %s", (Settings.BE_Mode != BE_MODE_OFF ? "ENABLED" : "OFF")), v_clr, lines, line_clrs);
 

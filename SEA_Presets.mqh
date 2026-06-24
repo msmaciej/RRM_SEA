@@ -552,7 +552,7 @@ string PresetToString(EStrategyPreset p)
 {
    switch(p)
    {
-      case PRESET_CUSTOM:       return "CUSTOM";
+      // STEP4 2026-06: PRESET_CUSTOM case removed (Pass 1)
       case PRESET_FPM:          return "FPM";
       case PRESET_MA:           return "MA";
       // STEP3 2026-06: PRESET_RRM case removed
@@ -569,8 +569,7 @@ string GetPresetContractWording(EStrategyPreset preset)
 {
    switch(preset)
    {
-      case PRESET_CUSTOM:
-         return "PRESET_CUSTOM"; //: All inputs respected; you control strategy, indicators, and operator gates.";
+      // STEP4 2026-06: PRESET_CUSTOM wording removed (Pass 1)
       case PRESET_FPM:
          return "PRESET_FPM"; //: Five-Point Method locked (PSAR+MACD+BB_WIDENING+SMA10/20+BarClose); SL mode/TP mode/Trail user-controlled via Zone 3C.";
       case PRESET_MA:
@@ -860,138 +859,10 @@ bool ValidatePresetConfiguration(const ST_Settings &cfg, const string preset_nam
 // checks fire today.
 // ═══════════════════════════════════════════════════════════════════════
 
-// ───────────────────────────────────────────────────────────────────────
-// PRESET_CUSTOM — exit config validator
-// CUSTOM is the only preset where ExitProfile is fully user-tunable, so all
-// RRM-path checks gate on cfg.ExitProfile == EXIT_PROFILE_RRM.
-// ───────────────────────────────────────────────────────────────────────
-void ValidateCUSTOM_ExitConfig(ST_Settings &cfg)
-{
-   string warnings = "";
+// STEP4 2026-06: ValidateCUSTOM_ExitConfig removed (Pass 1 — PRESET_CUSTOM retired).
+//   Was a ~130-line validator with warnings about TPMode/BE/Trail conflicts.
+//   With PRESET_CUSTOM gone, conflicts can no longer arise in this preset.
 
-   // ── Patch A (extended 2026-06): TP_MODE_NONE with BE_MODE_TP_PROGRESS_PCT ──
-   // LPR mode (no TP) cannot evaluate "% progress toward TP" — auto-promote BE.
-   if(cfg.TPMode == TP_MODE_NONE && cfg.BE_Mode == BE_MODE_TP_PROGRESS_PCT)
-   {
-      EBeMode old_mode  = cfg.BE_Mode;
-      double  old_rmult = cfg.RRM_BE_RMultiple;
-      cfg.BE_Mode = BE_MODE_R_MULTIPLE;
-      if(cfg.RRM_BE_RMultiple <= 0.0)
-         cfg.RRM_BE_RMultiple = 0.7;
-      warnings += "[AUTO-CORRECTED] BE_Mode " + EnumToString(old_mode)
-                + " is incompatible with TP_MODE_NONE (LPR).\n";
-      warnings += StringFormat("  Promoted to BE_MODE_R_MULTIPLE with %.2fR trigger "
-                               "(was %s with %.2fR).\n",
-                               cfg.RRM_BE_RMultiple, EnumToString(old_mode), old_rmult);
-      warnings += "  To override: set Inp_CUSTOM_BE_Mode = BE_MODE_OFF (no breakeven) "
-                  "or pair LPR with a TP mode.\n\n";
-   }
-
-   // ── Q1 deadlock check (2026-06): TRAIL_PSAR + BE_OFF + StartsAfterBE=true ──
-   // Per user-stated precedence rule: RRM_TrailStartsAfterBE=true is the higher-
-   // magnitude intent (it declares BE as the trail gate), so BE_Mode=OFF is the
-   // lower-magnitude setting that gets auto-promoted. Without the fix, the trail
-   // never engages (line 1496 in RRM_ManageStrictNoATR returns forever).
-   if(cfg.ExitProfile == EXIT_PROFILE_RRM
-      && cfg.TrailMode == TRAIL_PSAR
-      && cfg.BE_Mode == BE_MODE_OFF
-      && cfg.RRM_TrailStartsAfterBE == true)
-   {
-      EBeMode old_be    = cfg.BE_Mode;
-      double  old_rmult = cfg.RRM_BE_RMultiple;
-      cfg.BE_Mode = BE_MODE_R_MULTIPLE;
-      if(cfg.RRM_BE_RMultiple <= 0.0)
-         cfg.RRM_BE_RMultiple = 0.7;
-      warnings += "[AUTO-CORRECTED] TRAIL_PSAR + BE_MODE_OFF + RRM_TrailStartsAfterBE=true is a deadlock.\n";
-      warnings += "  (Trail-entry gate waits for BE event that can never fire since BE is disabled.)\n";
-      warnings += StringFormat("  Promoted BE_Mode %s -> BE_MODE_R_MULTIPLE @ %.2fR (was %s @ %.2fR).\n",
-                               EnumToString(old_be), cfg.RRM_BE_RMultiple,
-                               EnumToString(old_be), old_rmult);
-      warnings += "  To override: set Inp_CUSTOM_TrailStartsAfterBE=false (trail engages immediately at TE)\n";
-      warnings += "              or leave BE on with a different TrailMode.\n\n";
-   }
-
-   // ── Conflict 2: TrailTrigger vs RRM_TrailStartsAfterBE (RRM path only) ──
-   if(cfg.ExitProfile == EXIT_PROFILE_RRM
-      && cfg.TrailTrigger == TRIGGER_IMMEDIATE && cfg.RRM_TrailStartsAfterBE == true)
-   {
-      warnings += "[OVERRIDE] TrailTrigger=IMMEDIATE but RRM_TrailStartsAfterBE=true\n";
-      warnings += "  Result: Trailing will WAIT for BE (safety override active).\n\n";
-   }
-
-   // ── Notice (Q10 2026-06): TrailTrigger has no effect on RRM path ──
-   // When CUSTOM user picks ExitProfile=RRM, any non-IMMEDIATE TrailTrigger is dead.
-   if(cfg.ExitProfile == EXIT_PROFILE_RRM && cfg.TrailTrigger != TRIGGER_IMMEDIATE)
-   {
-      warnings += "[NOTICE] TrailTrigger=" + EnumToString(cfg.TrailTrigger)
-                + " has no effect under ExitProfile=RRM.\n";
-      warnings += "  The RRM path uses RRM_TrailStartsAfterBE and Safety_DelayTrailUntilR\n";
-      warnings += "  as trail-entry gates; TrailTrigger is a SIMPLE-path field.\n";
-      warnings += "  Set Inp_CUSTOM_TrailTrigger=TRIGGER_IMMEDIATE for clarity, or switch\n";
-      warnings += "  Inp_CUSTOM_ExitProfile to SIMPLE if you want TrailTrigger to function.\n\n";
-   }
-
-   // ── Notice: LPR with fixed TP ──
-   if(cfg.TrailMode == TRAIL_PROFIT_PERCENT && cfg.TPMode != TP_MODE_NONE)
-   {
-      warnings += "[NOTICE] TRAIL_PROFIT_PERCENT (LPR) works best with TP_MODE_NONE.\n";
-      warnings += "  Current: Fixed TP will limit upside, trailing runs underneath.\n";
-      warnings += "  Recommended: Set Inp_CUSTOM_TPMode=TP_MODE_NONE for full LPR.\n\n";
-   }
-
-   // ── Risk warning: aggressive immediate trail without BE (RRM path only) ──
-   if(cfg.ExitProfile == EXIT_PROFILE_RRM
-      && cfg.TrailTrigger == TRIGGER_IMMEDIATE
-      && cfg.BE_Mode == BE_MODE_OFF
-      && cfg.RRM_TrailStartsAfterBE == false)
-   {
-      warnings += "[RISK WARNING] Trailing from entry with NO breakeven protection!\n";
-      warnings += "  SL can move into loss zone before profit is secured.\n";
-      warnings += "  Recommended: Enable BE or set Inp_CUSTOM_TrailStartsAfterBE=true.\n\n";
-   }
-
-   // ── M10 (Q10 2026-06): no proactive exit configured ──
-   // Universal — applies regardless of ExitProfile.
-   if(cfg.TPMode == TP_MODE_NONE && cfg.TrailMode == TRAIL_NONE)
-   {
-      warnings += "[NOTICE] TPMode=NONE + TrailMode=NONE: no proactive exit logic configured.\n";
-      warnings += "  Position will ride until SL hit, manual close, or emergency-margin event.\n";
-      warnings += "  If LPR was intended, set Inp_CUSTOM_TrailMode=TRAIL_PROFIT_PERCENT.\n\n";
-   }
-
-   // ── M4 (Q10 2026-06): TPMode and TrailMode both close on PSAR flip ──
-   // Both gates check the same event. Harmless but redundant. Only meaningful
-   // on SIMPLE path (TRAIL_PSAR_FLIP_EXIT silently no-ops on RRM path).
-   if(cfg.ExitProfile == EXIT_PROFILE_SIMPLE
-      && cfg.TPMode == TP_MODE_PSAR_FLIP
-      && cfg.TrailMode == TRAIL_PSAR_FLIP_EXIT)
-   {
-      warnings += "[NOTICE] TPMode=PSAR_FLIP + TrailMode=PSAR_FLIP_EXIT both close on PSAR flip.\n";
-      warnings += "  Redundant but harmless — same event closes position via either path.\n";
-      warnings += "  To remove redundancy: set Inp_CUSTOM_TPMode or Inp_CUSTOM_TrailMode to a\n";
-      warnings += "  different mode.\n\n";
-   }
-
-   // ── M5 (Q10 2026-06): PSAR drives both TP and trail ──
-   // Hybrid configuration: PSAR dots anchor the trail; PSAR flip closes the position.
-   // Working as intended for some strategies, but worth flagging.
-   if(cfg.ExitProfile == EXIT_PROFILE_SIMPLE
-      && cfg.TPMode == TP_MODE_PSAR_FLIP
-      && cfg.TrailMode == TRAIL_PSAR)
-   {
-      warnings += "[NOTICE] TPMode=PSAR_FLIP + TrailMode=TRAIL_PSAR: PSAR drives both TP and trail.\n";
-      warnings += "  Flip-exit fires first (closes position); trail engages on PSAR dots until\n";
-      warnings += "  a flip occurs. Working as intended for hybrid PSAR exit + trail.\n\n";
-   }
-
-   if(warnings != "")
-   {
-      Print("╔══════════════════════════════════════════════════════════╗");
-      Print("║  ⚠️  PRESET_CUSTOM EXIT CONFIG: WARNINGS / AUTO-FIXES   ║");
-      Print("╚══════════════════════════════════════════════════════════╝");
-      Print(warnings);
-   }
-}
 
 // ───────────────────────────────────────────────────────────────────────
 // PRESET_FPM — exit config validator
@@ -1288,7 +1159,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    //   - Risk:       Personal risk tolerance (RiskPercent, MaxOpenTrades, MaxTotalRisk, margin thresholds)
    //
    // Strategic filters (ATR voting, HTF) are preset-controlled.
-   // Users who want full control: Use PRESET_CUSTOM
+   // STEP4 2026-06: was "Users who want full control: Use PRESET_CUSTOM" — CUSTOM removed.
+   // Users who want full control now edit individual Inp_<preset>_* inputs on their chosen preset.
    // ================================================================
    const double op_MaxSpread     = cfg.MaxSpread;
    const bool   op_UseSpread     = cfg.UseSpread;
@@ -1308,218 +1180,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    const EExitProfile op_ExitProfile = cfg.ExitProfile;
 
 
-   // ════════════════════════════════════════════════════════════════
-   // PRESET_CUSTOM — universal base; defaults reproduce PRESET_RRM_ORG.
-   //
-   // Static identity fields (BiasMode, AutoStrat, ExitProfile, SL/Trail
-   // modes, RSI/STO/MACD, phase+layer toggles, R:R …) come from Inp_CUSTOM_*,
-   // whose DEFAULTS are set to RRM_ORG values in SEA_Inputs.mqh.
-   //
-   // Runtime-adaptive and RRM-specific voter fields are resolved here through
-   // the SAME helpers/inputs RRM_ORG uses, so default CUSTOM reproduces
-   // RRM_ORG trade-for-trade on any chart/timeframe.
-   //
-   // NOTE: the RRM-specific voter subsystems below (DPI, EMA-fan, VPRR,
-   // JPY-gate, drawdown caps, phase-confirm) currently read the Inp_RRM_ORG_*
-   // tuning inputs so the mirror is exact with zero duplication. A later
-   // organizational pass can split these into a clearly-grouped global /
-   // Inp_CUSTOM_* namespace (see refactor notes).
-   // ════════════════════════════════════════════════════════════════
-   if(preset == PRESET_CUSTOM)
-   {
-      // ── Risk / SL floors / cushions (instrument-aware) ──
-      cfg.RiskPercent              = GetEffectiveRiskPercent();
-      cfg.SL_MinPips               = GetRecommendedInitialSlCushionPips();
-      cfg.SL_PsarPipsCushion       = GetRecommendedInitialSlCushionPips();
-      cfg.SL_SwingPipsCushion      = GetRecommendedInitialSlCushionPips();
-      cfg.SL_WidenToMinimum        = true;   // widen (not block) when SL too close
-      cfg.PSAR_TrailPipsCushion    = GetRecommendedTrailPsarCushionPips();
-      // PRESET ISOLATION 2026-06: previously seeded outside this block from Inp_CUSTOM_*,
-      // then overwritten here with hardcoded 1.0 / 25.0. The hardcodes ignored the
-      // CUSTOM-namespaced inputs (Inp_CUSTOM_PSAR_TrailCushionMode/AtrPeriod/AtrMult/Pct),
-      // making those inputs dead. The seed is now removed from the outer scope (was a
-      // cross-preset leak source); the CUSTOM block reads its own inputs directly.
-      cfg.PSAR_TrailCushionMode    = Inp_CUSTOM_PSAR_TrailCushionMode;
-      cfg.PSAR_TrailCushionAtrPeriod = MathMax(1, Inp_CUSTOM_TrailCushionAtrPeriod);
-      cfg.PSAR_TrailCushionAtrMult = MathMax(0.0, Inp_CUSTOM_TrailCushionAtrMult);
-      cfg.PSAR_TrailCushionPct     = MathMax(0.0, Inp_CUSTOM_TrailCushionPct);
 
-      // ── Break-even / trail distances (TF-adaptive) ──
-      cfg.RRM_BE_BufferPips        = GetTFBasedCushion(_Period);
-      cfg.TrailDistancePips        = GetTFBasedCushion(_Period);
-      cfg.BEThresholdPips          = GetTFBasedCushion(_Period);
-      cfg.RRM_TrailStartsAfterBE   = Inp_CUSTOM_TrailStartsAfterBE;  // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_TrailStartsAfterBE (cross-preset leak)
-      cfg.RRM_BE_ProgressPct       = 25.0;
+   // STEP4 2026-06: PRESET_CUSTOM preset block removed (~210 lines).
+   // The CUSTOM block was an unconditional "if(preset == PRESET_CUSTOM)" branch
+   // (not behind #ifdef). It mirrored RRM_ORG by reading Inp_RRM_ORG_* tuning
+   // inputs directly. With PRESET_CUSTOM enum value gone, this branch is
+   // unreachable; physical removal here. The Inp_CUSTOM_* declarations remain
+   // in SEA_Inputs.mqh as seed defaults for InitializeConfig (~310 reads).
 
-      // ── Multi-timeframe / HTF confirmation (mirror RRM_ORG, two-TF) ──
-      cfg.Ind_MTF_Enabled          = Inp_CUSTOM_HtfFilter;          // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_HtfFilter
-      cfg.MTF_TF1                  = GetSafeMTF_TF1(Inp_MTF_TF1);
-      cfg.MTF_TF2                  = GetSafeMTF_TF2(Inp_MTF_TF2);     // PERIOD_CURRENT=1-TF, real TF=2-TF
-      cfg.MTF_EMA_Fast             = Inp_MTF_EMA_Fast;
-      cfg.MTF_EMA_Slow             = Inp_MTF_EMA_Slow;
-      cfg.MTF_RequirePhase         = false;
-      cfg.MTF_StrictAlignment      = Inp_MTF_StrictAlignment;
-      // F-AUDIT 2026-06: ClimaxGuard_Enabled wiring removed — globalized to Inp_F_ClimaxGuard_Enabled
-
-      // ── Directional gates: AUTO-TF scaling + JPY value-scaling ──
-      bool   custom_isJpy  = (StringFind(_Symbol, "JPY") >= 0);
-      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_JpyGateMultiplier
-      double custom_jpyMul = (Inp_CUSTOM_JpyGateMultiplier > 0.0) ? Inp_CUSTOM_JpyGateMultiplier : 1.0;
-      cfg.Gate_Recovery.mode         = GATE_SCALE_AUTO_TF;
-      cfg.Gate_Recovery.value        = custom_isJpy ? custom_jpyMul : 1.0;
-      cfg.Gate_EmaDiv.mode           = GATE_SCALE_AUTO_TF;
-      cfg.Gate_EmaDiv.value          = custom_isJpy ? custom_jpyMul : 1.0;
-      cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
-      cfg.Gate_CandleDirection.value = 1.0;
-
-      // ── MFI dual thresholds (single Inp_CUSTOM_Ind_Mfi_Level can't be 80/20) ──
-      cfg.T_MfiOB                  = 80.0;
-      cfg.T_MfiOS                  = 20.0;
-
-      // ── Layer pullback ──
-      cfg.LayerPullbackEnabled     = true;
-      cfg.LayerBaselineLookback    = 21;   // global fallback (= 21)
-      cfg.LayerBaselineLookback_W  = 13;
-      cfg.LayerBaselineLookback_M  = 21;
-      cfg.LayerBaselineLookback_S  = 34;
-      cfg.LayerPullbackRatio       = 0.5;
-      cfg.LayerFlatRatio           = 0.1;
-      cfg.LayerRecoveryRatio       = 0.3;
-      cfg.LayerRecoveryOnSlope     = false;
-      cfg.LayerRecoveryRatio_W     = 0.4;
-      cfg.LayerRecoveryRatio_M     = 0.3;
-      cfg.LayerRecoveryRatio_S     = 0.2;
-      cfg.LayerAllowReversalPullback = true;
-
-      // ── Re-entry / cooldown / PSAR vote timing ──
-      cfg.AllowReEntryAfterBE      = true;
-      cfg.ReEntryLotScalePct       = 50;
-      cfg.MinBarsAfterClose        = 1;
-      cfg.Vote_PsarFlipDelay       = 5;
-      cfg.Vote_AllowPsarFlip       = Inp_CUSTOM_Vote_AllowPsarFlip;     // PRESET ISOLATION 2026-06
-
-      // ── Phase confirmation + TF-adaptive lookbacks ──
-      cfg.Emerging_AllowStrongTrades   = false;
-      cfg.RequireMinPhaseConfirm       = true;
-      cfg.Require_Progressive_Momentum = false;
-      cfg.ma_h_shift                   = 0;
-      cfg.RRM_Lookback        = (_Period <= PERIOD_M1) ? 15 : (_Period <= PERIOD_M5) ? 10 : 12;
-      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_PhaseConfirm*
-      cfg.MinPhaseConfirmBars = (_Period <= PERIOD_M5)  ? Inp_CUSTOM_PhaseConfirmM5
-                              : (_Period <= PERIOD_M30) ? Inp_CUSTOM_PhaseConfirmM30
-                              :                           Inp_CUSTOM_PhaseConfirmH1plus;
-      cfg.RequireRecoveryMomentum = Inp_CUSTOM_RequireRecoveryIntraday && (_Period <= PERIOD_M15);  // PRESET ISOLATION 2026-06
-
-      // ── Daily-drawdown / frequency caps (RRM_ORG fallback logic) ──
-      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_DD*
-      cfg.RRM_MaxConsecutiveLosses = (Inp_CUSTOM_DDMaxConsecLosses > 0) ? Inp_CUSTOM_DDMaxConsecLosses : 4;
-      cfg.RRM_MaxTradesPerDay      = (Inp_CUSTOM_DDMaxTradesPerDay > 0) ? Inp_CUSTOM_DDMaxTradesPerDay : 5;
-      cfg.RRM_MaxDailyDrawdownPct  = (Inp_CUSTOM_DDMaxDailyPct > 0.0)   ? Inp_CUSTOM_DDMaxDailyPct   : 2.0;
-
-      // ── TP / PSAR-dot trail shift ──
-      cfg.TP_Enabled            = (Inp_CUSTOM_TPMode != TP_MODE_NONE);  // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_TPMode
-      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_TrailPsarDotShift (cross-preset leak)
-      cfg.RRM_TrailPsarDotShift = (Inp_CUSTOM_TrailPsarDotShift < 1) ? 1
-                                : (Inp_CUSTOM_TrailPsarDotShift > 3) ? 3
-                                :  Inp_CUSTOM_TrailPsarDotShift;
-
-      // ── EMA-fan filter: TF-adaptive base × volatility multiplier ──
-      // F-AUDIT 2026-06: EmaFanFilterEnabled toggle removed — globalized to Inp_F_EmaFanFilterEnabled.
-      // Tuning sub-params (TF-adaptive pips × instrument multiplier) stay preset-specific.
-      double custom_fan_base  = (_Period <= PERIOD_M5)  ? Inp_CUSTOM_EmaFan_M5Pips
-                              : (_Period <= PERIOD_M30) ? Inp_CUSTOM_EmaFan_M30Pips
-                              : (_Period <= PERIOD_H1)  ? Inp_CUSTOM_EmaFan_H1Pips
-                              : (_Period <= PERIOD_H4)  ? Inp_CUSTOM_EmaFan_H4Pips
-                              :                           Inp_CUSTOM_EmaFan_DailyPips;
-      cfg.EmaFanMaxTotalPips  = custom_fan_base * GetEmaFanMultiplier();
-
-      // ── TrailEMA: ribbon-role → period resolution (period 0 = derive from role) ──
-      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_TrailEMA_* (cross-preset leak).
-      // Note: Inp_CUSTOM_TrailEMA_Period default is 9 (not 0 like RRM_ORG's), so
-      // CUSTOM users whose .set files left the input untouched will now see
-      // TrailEMA_Period=9 instead of the previously-leaked 0→ribbon-role lookup.
-      cfg.TrailEMA_RibbonRole = (int)Inp_CUSTOM_TrailEMA_RibbonRole;
-      if(Inp_CUSTOM_TrailEMA_Period > 0)
-         cfg.TrailEMA_Period = Inp_CUSTOM_TrailEMA_Period;
-      else
-         switch((EEmaRole)cfg.TrailEMA_RibbonRole)
-         {
-            case ROLE_EMA1: cfg.TrailEMA_Period = cfg.P_Ema1; break;
-            case ROLE_EMA2: cfg.TrailEMA_Period = cfg.P_Ema2; break;
-            case ROLE_EMA3: cfg.TrailEMA_Period = cfg.P_Ema3; break;
-            case ROLE_EMA4: cfg.TrailEMA_Period = cfg.P_Ema4; break;
-            default:        cfg.TrailEMA_Period = cfg.P_Ema2; break;
-         }
-      cfg.TrailEMA_CushionAtrMult = MathMax(0.0, Inp_CUSTOM_TrailEMA_CushionAtrMult);
-
-      // ── DPI momentum voter (RRM_ORG's primary voter) ──
-      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_DPI_*
-      cfg.Ind_Dpi_Enabled            = Inp_CUSTOM_DPI_Enabled;
-      cfg.DPI_MACD_Fast              = Inp_CUSTOM_DPI_MacdFast;
-      cfg.DPI_MACD_Slow              = Inp_CUSTOM_DPI_MacdSlow;
-      cfg.DPI_RedSignalType          = Inp_CUSTOM_DPI_RedSignalType;
-      cfg.DPI_RedEMA_A               = Inp_CUSTOM_DPI_RedEMA_A;
-      cfg.DPI_RedEMA_B               = Inp_CUSTOM_DPI_RedEMA_B;
-      cfg.DPI_RedEMA_C               = Inp_CUSTOM_DPI_RedEMA_C;
-      cfg.DPI_RedEMA_D               = Inp_CUSTOM_DPI_RedEMA_D;
-      cfg.DPI_DoubleSmoothFirst      = Inp_CUSTOM_DPI_DoubleSmoothFirst;
-      cfg.DPI_DoubleSmoothSecond     = Inp_CUSTOM_DPI_DoubleSmoothSecond;
-      cfg.DPI_UseCCIReset            = Inp_CUSTOM_DPI_UseCCIReset;
-      cfg.DPI_CCI_Period             = Inp_CUSTOM_DPI_CCI_Period;
-      cfg.DPI_CCI_AppliedPrice       = (int)Inp_CUSTOM_DPI_CCI_Price;
-      cfg.DPI_UseGreenHist           = Inp_CUSTOM_DPI_UseGreenHist;
-      cfg.DPI_Histogram_Growth_Boost = Inp_CUSTOM_DPI_Histogram_Growth_Boost;
-
-      // ── VRC: volatility regime classifier ──
-      // PRESET ISOLATION 2026-06 (Carry-over 2): previously CUSTOM block did NOT
-      // assign cfg.VRC_* — fields inherited from struct default or prior preset
-      // leftover state. Now explicitly wired from Inp_CUSTOM_VRC_* inputs.
-      cfg.VRC_ATR_Period            = Inp_CUSTOM_VRC_ATR_Period;
-      cfg.VRC_Lookback              = Inp_CUSTOM_VRC_Lookback;
-      cfg.VRC_LowThreshold          = Inp_CUSTOM_VRC_LowThreshold;
-      cfg.VRC_RefreshSec            = Inp_CUSTOM_VRC_RefreshSec;
-
-      // ── VPRR auto-config (volume-based pullback-recovery voter) ──
-      // PRESET ISOLATION 2026-06: was Inp_RRM_ORG_VPRR_* (4 leaks)
-      if(Inp_CUSTOM_VPRR_AutoEnable)
-      {
-         ST_VPRRAutoMode custom_vprr = GetVPRRRecommendedMode(
-            Inp_VPRR_MinRatio_Gold,      Inp_VPRR_MinRatio_Silver,
-            Inp_VPRR_MinRatio_IndicesUS, Inp_VPRR_MinRatio_IndicesEU,
-            Inp_VPRR_MinRatio_Oil,       Inp_VPRR_MinRatio_Crypto,
-            Inp_VPRR_MinRatio_Equities,  Inp_VPRR_MinRatio_FX,
-            Inp_VPRR_MinRatio_NonFXTick,
-            Inp_VPRR_RecBars_Gold,       Inp_VPRR_RecBars_Silver,
-            Inp_VPRR_RecBars_IndicesUS,  Inp_VPRR_RecBars_IndicesEU,
-            Inp_VPRR_RecBars_Oil,        Inp_VPRR_RecBars_Crypto,
-            Inp_VPRR_RecBars_Equities,   Inp_VPRR_RecBars_FX,
-            Inp_VPRR_TF_Mult_M5,         Inp_VPRR_TF_Mult_M15,
-            Inp_VPRR_TF_Mult_H1,         Inp_VPRR_TF_Mult_H4Plus,
-            Inp_VPRR_TF_ReduceRecBars,   Inp_CUSTOM_VPRR_RecoveryBars
-         );
-         cfg.VPRR_Enabled      = custom_vprr.enabled;
-         cfg.VPRR_VolumeType   = custom_vprr.volume_type;
-         cfg.VPRR_MinRatio     = custom_vprr.min_ratio;
-         cfg.VPRR_RecoveryBars = MathMax(1, MathMin(10, custom_vprr.recovery_bars));
-      }
-      else
-      {
-         cfg.VPRR_Enabled      = Inp_CUSTOM_VPRR_Enabled;
-         cfg.VPRR_VolumeType   = (int)Inp_CUSTOM_VPRR_VolumeType;
-         cfg.VPRR_MinRatio     = MathMax(0.1, Inp_VPRR_MinRatio_FX);
-         cfg.VPRR_RecoveryBars = MathMax(1, MathMin(10, Inp_CUSTOM_VPRR_RecoveryBars));
-      }
-      cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
-      cfg.VPRR_ExternalSymbol  = Inp_VPRR_ExternalSymbol;
-      if(StringLen(Inp_VPRR_ExternalSymbol) > 0)
-      {
-         cfg.VPRR_VolumeType = (int)VPRR_VOL_EXTERNAL;
-         cfg.VPRR_Enabled    = true;   // user explicitly configured a proxy symbol
-      }
-
-      ValidateCUSTOM_ExitConfig(cfg);
-      return;
-   }
 
 #ifdef SEA_PRESET_FPM
    if(preset == PRESET_FPM)
@@ -1716,7 +1384,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── EXIT STRATEGY ─────────────────────────────────────────────────
       cfg.ExitProfile               = EXIT_PROFILE_SIMPLE;
 
-      // SL: Hardcode SL_MODE_SWING — swing is the FPM methodology; Inp_FPM_SLMode is kept for PRESET_CUSTOM only
+      // SL: Hardcode SL_MODE_SWING — swing is the FPM methodology
+      // STEP4 2026-06: was "Inp_FPM_SLMode is kept for PRESET_CUSTOM only" — CUSTOM removed; Inp_FPM_SLMode now exists for documentation/optimizer-pinning only
       // FIX: was cfg.SLMode = Inp_FPM_SLMode — user could accidentally switch to non-swing mode
       cfg.SLMode                    = SL_MODE_SWING;
       // FIX: was Inp_FPM_SwingLookback (default 5) — too short; use TF-aware helper instead
