@@ -958,12 +958,12 @@ input bool        Inp_CUSTOM_PhaseDetectionEnabled = true;           // Override
 input bool        Inp_CUSTOM_BlockUnorderedPhase   = true;           // Override: [PH] Block trades while phase is UNORDERED
 input bool        Inp_CUSTOM_BlockEmergingPhase    = false;          // Override: [PH] Block trades while phase is EMERGING
 input bool        Inp_CUSTOM_EnableLayerDetection  = true;           // Override: [LY] Enable EMA-layer detection (L1/L2/L3)
-input bool        Inp_CUSTOM_LayerPullbackEnabled  = false;          // Override: [LY] Enable layer pullback-recovery state machine
+input bool        Inp_Global_LayerPullbackEnabled  = false;          // Override: [LY] Enable layer pullback-recovery state machine
 input bool        Inp_Global_LayerS_Require_DirAlign  = true;       // [LY] Require Layer S (EMA3/EMA4) pos+slope w/ bias to allow M/W entries
 input bool        Inp_Global_LayerReset_OnRealign      = false;      // [LY] Reset layer pullback states on confirmed market-phase change
 input int         Inp_Global_LayerReset_PhaseConfirm   = 2;          // [LY]   ^ bars new phase must hold first (1=catch 1-bar phases)
 // F-AUDIT 2026-06: Inp_CUSTOM_ClimaxGuard_Enabled removed — toggle globalized to Inp_Global_F_ClimaxGuard_Enabled
-input bool        Inp_CUSTOM_VPRR_Enabled          = false;          // Override: [VP] Enable Volume Pullback-Recovery Ratio voter
+input bool        Inp_Global_VPRR_Enabled          = false;          // Override: [VP] Enable Volume Pullback-Recovery Ratio voter
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 4: Candle Close & Candle Body";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -979,8 +979,8 @@ input int         Inp_CUSTOM_Lookback              = 5;              // Override
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP X: Trail EMA (engine seed defaults)"; // STEP9 2026-06: was "(PRESET_CUSTOM)"; CUSTOM preset retired in Step 4
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_CUSTOM_TrailEMA_Period       = 9;              // Override: [Trail] EMA period for TRAIL_EMA mode
-input int         Inp_CUSTOM_TrailEMA_Shift        = 1;              // Override: [Trail] EMA shift (1=current bar, 2=one bar cushion)
+input int         Inp_Global_TrailEMA_Period       = 9;              // Override: [Trail] EMA period for TRAIL_EMA mode
+input int         Inp_Global_TrailEMA_Shift        = 1;              // Override: [Trail] EMA shift (1=current bar, 2=one bar cushion)
 
 // ── PRESET ISOLATION 2026-06: dedicated CUSTOM TM inputs ─────────────
 // Previously CUSTOM block read Inp_RRM_ORG_* for these fields, which
@@ -1013,7 +1013,7 @@ input bool        Inp_CUSTOM_Ind_Adx_Enabled       = false;          // Ind: [AD
 input int         Inp_CUSTOM_Ind_Adx_Period        = 14;             // Ind [ADX]: Period
 input int         Inp_CUSTOM_Ind_Adx_Threshold     = 20;             // Ind [ADX]: Threshold
 input int         Inp_CUSTOM_Ind_Adx_Lookback      = 100;            // Ind [ADX]: Lookback
-input int         Inp_CUSTOM_Ind_Adx_PercentileRefreshSec = 14400;   // Ind [ADX]: DYNAMIC_PERCENTILE refresh interval (sec). M1: try 900 (15min); H1+: 14400 (4h)
+input int         Inp_Global_Ind_Adx_PercentileRefreshSec = 14400;   // Ind [ADX]: DYNAMIC_PERCENTILE refresh interval (sec). M1: try 900 (15min); H1+: 14400 (4h)
 input double      Inp_CUSTOM_Ind_Adx_Percentile    = 50.0;           // Ind [ADX]: Percentile
 input double      Inp_CUSTOM_Ind_Adx_Thr_Accum     = 12.0;           // Ind [ADX]: Accumulation
 input double      Inp_CUSTOM_Ind_Adx_Thr_Trending  = 25.0;           // Ind [ADX]: Trending
@@ -1040,8 +1040,8 @@ input bool        Inp_CUSTOM_Ind_CandleBody_RequireDirection = true; // Ind [CBo
 input int         Inp_CUSTOM_Ind_CandleBody_AvgPeriod  = 5;          // Ind [CBody]: Average body period
 input int         Inp_CUSTOM_Ind_CandleBody_CheckBars  = 3;          // Ind [CBody]: Bars to check
 input double      Inp_CUSTOM_Ind_CandleBody_MaxMult    = 4.0;        // Ind [CBody]: Max body multiplier
-input double      Inp_CUSTOM_Ind_CandleBody_MinCloseRatio = 0.0;         // Ind [CBody]: Min close ratio (0=off, 0.75=TopInvestor)
-input bool        Inp_CUSTOM_Ind_CandleBody_CarryOnOverext = true;       // Ind [CBody]: carry CB=0 over-ext until next layer pullback-recovery
+input double      Inp_Global_Ind_CandleBody_MinCloseRatio = 0.0;         // Ind [CBody]: Min close ratio (0=off, 0.75=TopInvestor)
+input bool        Inp_Global_Ind_CandleBody_CarryOnOverext = true;       // Ind [CBody]: carry CB=0 over-ext until next layer pullback-recovery
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 CCI (Commodity Channel Index - Momentum Oscilator)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1057,10 +1057,10 @@ input double      Inp_CUSTOM_Ind_CI_RangingThreshold  = 61.8;        // Ind [CI]
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 Fib (Fibonacci Retracement Voter)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_CUSTOM_Ind_Fib_Enabled       = false;          // Ind [Fib]: Enable
-input double      Inp_CUSTOM_Ind_Fib_MinRetracement    = 0.38;           // Ind [Fib]: Min pullback depth
-input double      Inp_CUSTOM_Ind_Fib_MaxRetracement    = 0.618;          // Ind [Fib]: Max pullback depth
-input int         Inp_CUSTOM_Ind_Fib_SwingLookback     = 50;             // Ind [Fib]: Swing search bars
+input bool        Inp_Global_Ind_Fib_Enabled       = false;          // Ind [Fib]: Enable
+input double      Inp_Global_Ind_Fib_MinRetracement    = 0.38;           // Ind [Fib]: Min pullback depth
+input double      Inp_Global_Ind_Fib_MaxRetracement    = 0.618;          // Ind [Fib]: Max pullback depth
+input int         Inp_Global_Ind_Fib_SwingLookback     = 50;             // Ind [Fib]: Swing search bars
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 MACD (Moving Average Convergence Divergence - Trend-Following Momentum)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1143,19 +1143,19 @@ input group "╔═════════════════════�
 input group "║   🛑 (SL) STOP LOSS (engine seed defaults)"; // STEP9 2026-06: was "(CUSTOM only)"; CUSTOM preset retired
 input group "╚════════════════════════════════════════════════════════╝";
 input ESLMode     Inp_CUSTOM_SLMode                = SL_MODE_PSAR_DOT;  // Custom: SL mode
-input bool        Inp_CUSTOM_SL_WidenToMinimum     = false;          // Custom: If true: widen to min.; if false: block TE
+input bool        Inp_Global_SL_WidenToMinimum     = false;          // Custom: If true: widen to min.; if false: block TE
 // input string   Inp_SL_Help1                     = "FIXED_PIPS: Simple pip distance";
 // input string   Inp_SL_Help2                     = "MODE_SWING: Recent structure high/low";
 // input string   Inp_SL_Help3                     = "PSAR_DOT: PSAR level  |  PERCENT: % of price  |  FRACTAL: Bill Williams";
 // input string   Inp_SL_TFCushion_Note            = "PSAR/Swing cushions auto-set by timeframe (M15=5, H1=10, H4=20 pips)";
 input int         Inp_CUSTOM_SwingLookback         = 34;             // Custom: Swing lookback (bars SL_MODE_SWING)
-input double      Inp_CUSTOM_SL_FixedPips          = 20.0;           // Custom: SL distance (pips SL_MODE_FIXED_PIPS)
-input double      Inp_CUSTOM_SL_MinPips            = 3.0;            // Custom: Min. SL pips (0 = no user floor, broker minimum still applies)
+input double      Inp_Global_SL_FixedPips          = 20.0;           // Custom: SL distance (pips SL_MODE_FIXED_PIPS)
+input double      Inp_Global_SL_MinPips            = 3.0;            // Custom: Min. SL pips (0 = no user floor, broker minimum still applies)
 input double      Inp_CUSTOM_SLPercent             = 0.5;            // Custom: SL as % of entry
-input int         Inp_CUSTOM_SL_AtrPeriod          = 14;             // Custom: ATR period (SL_MODE_ATR only)
-input double      Inp_CUSTOM_SL_AtrMult            = 1.0;            // Custom: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical)
+input int         Inp_Global_SL_AtrPeriod          = 14;             // Custom: ATR period (SL_MODE_ATR only)
+input double      Inp_Global_SL_AtrMult            = 1.0;            // Custom: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical)
 // input group "--- SL Configuration Examples ---";
-// input string   Inp_Ex1_Header                   = "Example 1 - Simple Fixed SL: Inp_CUSTOM_SLMode=SL_MODE_FIXED_PIPS, Inp_CUSTOM_SL_FixedPips=20";
+// input string   Inp_Ex1_Header                   = "Example 1 - Simple Fixed SL: Inp_CUSTOM_SLMode=SL_MODE_FIXED_PIPS, Inp_Global_SL_FixedPips=20";
 // input string   Inp_Ex2_Header                   = "Example 2 - Swing Structure: Inp_CUSTOM_SLMode=SL_MODE_SWING, Inp_CUSTOM_SwingLookback=20";
 // input string   Inp_Ex3_Header                   = "Example 3 - Fractal SL:      Inp_CUSTOM_SLMode=SL_MODE_FRACTAL, Inp_CUSTOM_FractalPeriod=5, Inp_CUSTOM_TPFractalOffset=1";
 
@@ -1192,7 +1192,7 @@ input EBeMode     Inp_CUSTOM_BE_Mode               = BE_MODE_TP_PROGRESS_PCT; //
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛡 (TE) COOLDOWN BARS Post-Trade Protection";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_CUSTOM_MinBarsAfterClose      = 2;             // Custom: TE: Min bars cooldown (0=off)
+input int         Inp_Global_MinBarsAfterClose      = 2;             // Custom: TE: Min bars cooldown (0=off)
 input int         Inp_Global_MinBarsAfterWeekendGap = 2;             // Custom: TS: Bars skip weekend gap (0=off, recommended 1-2)
 
 //+------------------------------------------------------------------+
@@ -1345,19 +1345,19 @@ void InitializeConfig()
    Settings.MTF_StrictAlignment  = Inp_Global_MTF_StrictAlignment;
 
    // Fibonacci voter (globally available)
-   Settings.Ind_Fib_Enabled      = Inp_CUSTOM_Ind_Fib_Enabled;
-   Settings.Fib_MinRetracement   = MathMax(0.0, MathMin(1.0, Inp_CUSTOM_Ind_Fib_MinRetracement));
-   Settings.Fib_MaxRetracement   = MathMax(Settings.Fib_MinRetracement, MathMin(1.0, Inp_CUSTOM_Ind_Fib_MaxRetracement));
-   Settings.Fib_SwingLookback    = MathMax(10, Inp_CUSTOM_Ind_Fib_SwingLookback);
+   Settings.Ind_Fib_Enabled      = Inp_Global_Ind_Fib_Enabled;
+   Settings.Fib_MinRetracement   = MathMax(0.0, MathMin(1.0, Inp_Global_Ind_Fib_MinRetracement));
+   Settings.Fib_MaxRetracement   = MathMax(Settings.Fib_MinRetracement, MathMin(1.0, Inp_Global_Ind_Fib_MaxRetracement));
+   Settings.Fib_SwingLookback    = MathMax(10, Inp_Global_Ind_Fib_SwingLookback);
 
    // CandleBody close-ratio extension
-   Settings.CandleBody_MinCloseRatio = MathMax(0.0, MathMin(1.0, Inp_CUSTOM_Ind_CandleBody_MinCloseRatio));
-   Settings.CandleBody_CarryOnOverext = Inp_CUSTOM_Ind_CandleBody_CarryOnOverext;
+   Settings.CandleBody_MinCloseRatio = MathMax(0.0, MathMin(1.0, Inp_Global_Ind_CandleBody_MinCloseRatio));
+   Settings.CandleBody_CarryOnOverext = Inp_Global_Ind_CandleBody_CarryOnOverext;
 
    // TRAIL_EMA period
-   Settings.TrailEMA_Period           = MathMax(0, Inp_CUSTOM_TrailEMA_Period);
+   Settings.TrailEMA_Period           = MathMax(0, Inp_Global_TrailEMA_Period);
    Settings.TrailEMA_RibbonRole       = 0;  // CUSTOM: EMA1 as fallback
-   Settings.TrailEMA_Shift            = MathMax(1, MathMin(5, Inp_CUSTOM_TrailEMA_Shift));
+   Settings.TrailEMA_Shift            = MathMax(1, MathMin(5, Inp_Global_TrailEMA_Shift));
    Settings.TrailEMA_CushionPips      = 0.0;   // CUSTOM: set via preset or direct cfg override
    Settings.TrailEMA_CushionAtrMult   = 0.0;   // CUSTOM: 0 = disabled (falls back to pip or PSAR)
    Settings.TrailEMA_CushionAtrPeriod = 14;
@@ -1374,7 +1374,7 @@ void InitializeConfig()
    Settings.ADX_Mode                  = Inp_CUSTOM_Ind_Adx_Mode;
    Settings.ADX_Percentile            = Inp_CUSTOM_Ind_Adx_Percentile;
    Settings.ADX_Lookback              = Inp_CUSTOM_Ind_Adx_Lookback;
-   Settings.ADX_PercentileRefreshSec  = Inp_CUSTOM_Ind_Adx_PercentileRefreshSec;
+   Settings.ADX_PercentileRefreshSec  = Inp_Global_Ind_Adx_PercentileRefreshSec;
    Settings.ADX_Threshold_Accumulation= Inp_CUSTOM_Ind_Adx_Thr_Accum;
    Settings.ADX_Threshold_Trending    = Inp_CUSTOM_Ind_Adx_Thr_Trending;
    Settings.ADX_Threshold_Distribution= Inp_CUSTOM_Ind_Adx_Thr_Distrib;
@@ -1472,15 +1472,15 @@ void InitializeConfig()
    Settings.VRC_RefreshSec        = Inp_CUSTOM_Ind_VRC_RefreshSec;
 
    // Exits
-   Settings.SL_FixedPips         = Inp_CUSTOM_SL_FixedPips;
-   Settings.SL_MinPips           = MathMax(0.0, Inp_CUSTOM_SL_MinPips);
-   Settings.SL_WidenToMinimum    = Inp_CUSTOM_SL_WidenToMinimum;
+   Settings.SL_FixedPips         = Inp_Global_SL_FixedPips;
+   Settings.SL_MinPips           = MathMax(0.0, Inp_Global_SL_MinPips);
+   Settings.SL_WidenToMinimum    = Inp_Global_SL_WidenToMinimum;
    Settings.SLMode               = Inp_CUSTOM_SLMode;
    Settings.TPMode               = Inp_CUSTOM_TPMode;
    Settings.FixedTPPips          = Inp_CUSTOM_FixedTPPips;
    Settings.SLPercent            = Inp_CUSTOM_SLPercent;
-   Settings.SL_AtrPeriod         = Inp_CUSTOM_SL_AtrPeriod;   // CUSTOM: user-controlled; overridden by TI/RRM/RRM_ORG preset blocks
-   Settings.SL_AtrMult           = Inp_CUSTOM_SL_AtrMult;     // CUSTOM: user-controlled; overridden by TI/RRM/RRM_ORG preset blocks
+   Settings.SL_AtrPeriod         = Inp_Global_SL_AtrPeriod;   // CUSTOM: user-controlled; overridden by TI/RRM/RRM_ORG preset blocks
+   Settings.SL_AtrMult           = Inp_Global_SL_AtrMult;     // CUSTOM: user-controlled; overridden by TI/RRM/RRM_ORG preset blocks
    Settings.RRRatio              = Inp_CUSTOM_RRRatio;
    Settings.SwingLookback        = Inp_CUSTOM_SwingLookback;
    Settings.FractalPeriod        = Inp_CUSTOM_FractalPeriod;
@@ -1596,7 +1596,7 @@ void InitializeConfig()
    // when CUSTOM is active AND BiasMode=BIAS_1EMA/BIAS_2EMA. All non-CUSTOM
    // presets explicitly set SlopeLookbackBars in their preset block.
    Settings.SlopeLookbackBars      = MathMax(1, MathMin(5, Inp_CUSTOM_SlopeLookbackBars));
-   Settings.LayerPullbackEnabled        = Inp_CUSTOM_LayerPullbackEnabled;
+   Settings.LayerPullbackEnabled        = Inp_Global_LayerPullbackEnabled;
    Settings.LayerS_RequireDirAlign      = Inp_Global_LayerS_Require_DirAlign;
    Settings.LayerResetOnRealign         = Inp_Global_LayerReset_OnRealign;
    Settings.LayerResetPhaseConfirmBars  = Inp_Global_LayerReset_PhaseConfirm;
@@ -1627,7 +1627,7 @@ void InitializeConfig()
    Settings.ClimaxGuard_ResetPullback   = Inp_Global_ClimaxGuard_ResetPullback;
 
     // VPRR defaults (disabled — only RRM_ORG preset wires it on)
-    Settings.VPRR_Enabled         = Inp_CUSTOM_VPRR_Enabled;
+    Settings.VPRR_Enabled         = Inp_Global_VPRR_Enabled;
     Settings.VPRR_VolumeType      = (int)VPRR_VOL_AUTO;
     Settings.VPRR_RecoveryBars    = 3;
     Settings.VPRR_MinRecoveryBars = 2;
@@ -1644,7 +1644,7 @@ void InitializeConfig()
    Settings.ReEntryLotScalePct  = 0;    // 0 = full size (default for CUSTOM; overridden by RRM/RRM_ORG/TI presets)
 
    // Post-trade cooldown: disabled by default; presets may override
-   Settings.MinBarsAfterClose      = Inp_CUSTOM_MinBarsAfterClose;
+   Settings.MinBarsAfterClose      = Inp_Global_MinBarsAfterClose;
    Settings.MinBarsAfterWeekendGap = MathMax(0, Inp_Global_MinBarsAfterWeekendGap);
 
    // Spread retry cap: kill carry after N consecutive spread-blocked bars (0=unlimited)

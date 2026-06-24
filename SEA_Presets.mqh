@@ -1856,7 +1856,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // cfg.CandleBody_CheckBars      = (_Period <= PERIOD_M5) ? 3 : 5;
       cfg.CandleBody_RequireDirection  = Inp_RRM_ORG_CandleBody_RequireDir;
       // [SYNC 2026-06-04] Explicitly pin CarryOnOverext so RRM_ORG no longer inherits the
-      // PRESET_CUSTOM input leak from InitializeConfig() (Inp_CUSTOM_Ind_CandleBody_CarryOnOverext=true).
+      // PRESET_CUSTOM input leak from InitializeConfig() (Inp_Global_Ind_CandleBody_CarryOnOverext=true).
       cfg.CandleBody_CarryOnOverext = false;   // was effectively true (CUSTOM leak): held CBody=0 across bars after a spike
       // MinCloseRatio: now driven by Inp_RRM_ORG_CandleBody_MinCloseRatio (default 0.0 = off, preserves
       // prior hardcoded behavior). Set to 0.75 (TopInvestor) to reject doji-like signal bars where the
