@@ -1047,18 +1047,42 @@ private:
       if(tick_value <= 0.0) return 0.0; // could not establish a usable value
 
       // Loss of one lot from entry to the actual stop, in ACCOUNT currency,
-      // computed by the terminal's own profit engine (OrderCalcProfit). This is
-      // the value that was previously corrupted by the bad tick_value field.
+      // computed by the terminal's own profit engine (OrderCalcProfit). This
+      // is the SINGLE SOURCE OF TRUTH — no fallback path. The previous
+      // fallback used SYMBOL_TRADE_TICK_VALUE which the tester reports
+      // incorrectly under "profit in pips" / non-USD deposit (0.10 instead of
+      // ~1.00 for XAUUSD/XAGUSD on a CHF/EUR account), causing 10× oversize
+      // → 1% target realised as 10%. Refusing to size rather than trusting
+      // the broken field is the only safe response when the engine is
+      // unavailable; upstream treats lot=0 as VETO_INVALID_LOTS.
       double loss_per_lot = RiskMoneyPerLot(stop_dist);
       if(loss_per_lot <= 0.0) {
-         // engine path failed → reconstruct from the (resolved) per-tick value
-         loss_per_lot = (stop_dist / tick_size) * tick_value;
+         PrintFormat("🛑 [LOT CALC] %s | RiskMoneyPerLot failed (OrderCalcProfit unavailable). "
+                     "Blocking trade — refusing to fall through to SYMBOL_TRADE_TICK_VALUE, "
+                     "which is known-bad on metals / non-USD accounts in pip-mode tester. "
+                     "stop_dist=%.5f | ref_BID=%.5f ref_ASK=%.5f",
+                     m_symbol, stop_dist,
+                     SymbolInfoDouble(m_symbol, SYMBOL_BID),
+                     SymbolInfoDouble(m_symbol, SYMBOL_ASK));
+         return 0.0;
       }
-      if(loss_per_lot <= 0.0) return 0.0;
 
-      // ── Diagnostic: log full symbol economics on first call ──
+      // ── Diagnostic: log full symbol economics ──
+      // Fires on the first call, and on every call where the symbol is a
+      // suspected high-risk case for the SYMBOL_TRADE_TICK_VALUE bug
+      // (non-USD account, or metals/exotic where the tester's pip-mode
+      // misreports the field). This is exactly the population the historical
+      // 10× XAUUSD/XAGUSD oversize hit, so visibility there is mandatory.
       static bool s_first_calc = true;
-      if(s_first_calc)
+      string acc_ccy_check  = AccountInfoString(ACCOUNT_CURRENCY);
+      string profit_ccy_chk = SymbolInfoString(m_symbol, SYMBOL_CURRENCY_PROFIT);
+      bool   ccy_mismatch   = (acc_ccy_check != profit_ccy_chk);
+      bool   is_metal       = (StringFind(m_symbol, "XAU") >= 0 ||
+                               StringFind(m_symbol, "XAG") >= 0 ||
+                               StringFind(m_symbol, "XPT") >= 0 ||
+                               StringFind(m_symbol, "XPD") >= 0);
+      bool   high_risk_case = (ccy_mismatch || is_metal);
+      if(s_first_calc || high_risk_case)
       {
          s_first_calc = false;
          double contract_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_CONTRACT_SIZE);
@@ -1069,8 +1093,8 @@ private:
          double vol_step      = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_STEP);
          double raw_tv_loss   = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
          double raw_tv_gen    = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE);
-         PrintFormat("📊 [LOT DIAG] %s | account_ccy=%s | profit_ccy=%s | margin_ccy=%s",
-                     m_symbol, acc_ccy, profit_ccy, margin_ccy);
+         PrintFormat("📊 [LOT DIAG] %s | account_ccy=%s | profit_ccy=%s | margin_ccy=%s | high_risk=%s",
+                     m_symbol, acc_ccy, profit_ccy, margin_ccy, high_risk_case ? "YES" : "no");
          PrintFormat("📊 [LOT DIAG] %s | contract=%.0f | tick_sz=%.5f | raw_tv_loss=%.5f | raw_tv_generic=%.5f | tv_resolved=%.5f",
                      m_symbol, contract_size, tick_size, raw_tv_loss, raw_tv_gen, tick_value);
          PrintFormat("📊 [LOT DIAG] %s | loss_per_lot(engine)=%.4f for stop=%.5f | vol_min=%.2f | vol_step=%.2f",
@@ -1124,14 +1148,27 @@ private:
       double ref_px = SymbolInfoDouble(m_symbol, SYMBOL_BID);
       if(ref_px <= 0.0) ref_px = SymbolInfoDouble(m_symbol, SYMBOL_ASK);
       double engine_loss = 0.0;   // independent worst-case loss of raw_lot at the sizing stop
+      bool   engine_ok   = false;
       if(ref_px > 0.0)
       {
-         if(!OrderCalcProfit(ORDER_TYPE_BUY, m_symbol, raw_lot, ref_px, ref_px - stop_dist, engine_loss))
-            engine_loss = 0.0;   // engine call failed → fall back below
+         if(OrderCalcProfit(ORDER_TYPE_BUY, m_symbol, raw_lot, ref_px, ref_px - stop_dist, engine_loss))
+            engine_ok = true;
       }
       engine_loss = MathAbs(engine_loss);
-      // Fallback to the loss_per_lot estimate only if the engine call failed.
-      if(engine_loss <= 0.0) engine_loss = raw_lot * loss_per_lot;
+      // CRITICAL: previously, if the engine call failed we fell back to
+      // raw_lot * loss_per_lot — but loss_per_lot may itself be on the broken
+      // path (and matches the inflated raw_lot, so the cap thinks everything
+      // is fine). With the fallback removed at the sizing stage above, this
+      // path should now never reach here with bad data; but if the engine is
+      // unavailable at the cap stage too, BLOCK the trade rather than pretend
+      // to verify it.
+      if(!engine_ok || engine_loss <= 0.0)
+      {
+         PrintFormat("🛑 [RISK CAP] %s | Cap-stage engine check failed (raw_lot=%.4f stop=%.5f ref=%.5f). "
+                     "Blocking trade — cannot independently verify lot risk.",
+                     m_symbol, raw_lot, stop_dist, ref_px);
+         return 0.0;
+      }
 
       if(engine_loss > max_loss_allowed && engine_loss > 0.0)
       {
