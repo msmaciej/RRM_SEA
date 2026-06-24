@@ -5610,6 +5610,24 @@ public:
    }
 
    bool Init(ST_Settings &sets, string symbol) {
+      // STEP18 2026-06: defensive release of stale handles before creating new ones.
+      // Sibling of Executor.Init's ReleaseHandles() at SEA_TradeExecutor.mqh:2008.
+      // On the normal OnDeinit→OnInit lifecycle, Signal.Release() (called from
+      // OrchestrateDeinit) has already reset all member handles to INVALID_HANDLE,
+      // so this Release() is a no-op. It defends against:
+      //   1. MT5 lifecycle events where OnInit fires WITHOUT a preceding OnDeinit
+      //      (manual refresh, some template/optimization scenarios) — would otherwise
+      //      orphan the ~19 indicator handles from the previous Init.
+      //   2. Partial Init failures: this function can return false at five
+      //      "CRITICAL ERROR" checkpoints below (lines ~5760-5785) after creating
+      //      a subset of handles. The next Init call now cleans up that partial
+      //      leak before retrying.
+      // Matches the canonical pattern: constructor already initializes all handles
+      // to INVALID_HANDLE (lines ~4406+) with comment "Defensive init of indicator
+      // handles (prevents stale handles across re-inits)"; this Release() extends
+      // that intent to re-Init calls.
+      Release();
+
       m_settings = sets;
       m_symbol   = symbol;
       m_debug_buffer_size = 0;
