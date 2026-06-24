@@ -32,7 +32,7 @@ input double      Inp_RM_MarginUsageLimit          = 80.0;           // RM: Max 
 input double      Inp_RM_MinMarginLevel            = 100.0;          // RM: Min margin level (%) required to allow new entries (0 = disabled)
 input double      Inp_RM_EmergencyMarginLevel      = 80.0;           // RM: Emergency margin level (%) to force-close worst position (0 = disabled)
 // input string   Inp_Step9_Ref1                   = "Risk per trade applies to all presets unless overridden by Admin Override";
-// input string   Inp_Step9_Ref2                   = "To adjust exits under a strict preset: use PRESET_CUSTOM mode";
+// input string   Inp_Step9_Ref2                   = "To adjust exits under a preset: edit individual Inp_<preset>_* inputs"; // STEP9 2026-06: was "use PRESET_CUSTOM mode"; CUSTOM preset retired
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 (RM) ADAPTIVE RISK & MARGIN (GLOBAL)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -323,10 +323,10 @@ input int         Inp_FPM_Mfi_Period               = 14;             // FPM MFI:
 // (~25 inputs across TP/SL/TS/BE/DP/Layer/Indicators sections) — all removed.
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📊 VPRR — SHARED (CUSTOM / RRM_ORG / TOPINVESTOR)"; // STEP3 2026-06: removed PRESET_RRM mention
+input group "    📊 VPRR — SHARED (all remaining presets: FPM / MA / RRM_ORG / TI)"; // STEP3 2026-06: removed PRESET_RRM mention | STEP9 2026-06: CUSTOM preset retired; relabeled to "all presets"
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "    📊 VPRR (used by CUSTOM / RRM_ORG / TOPINVESTOR presets)"; // STEP3 2026-06
+input group "    📊 VPRR (used by FPM / MA / RRM_ORG / TI presets)"; // STEP3 2026-06 | STEP9 2026-06: was "CUSTOM / RRM_ORG / TOPINVESTOR"; CUSTOM preset retired
 input group "╚════════════════════════════════════════════════════════╝";
 // Effective MinRatio = base x TF multiplier (auto-applied at EA start).
 // Restart EA after instrument or TF change to auto-update settings.
@@ -923,9 +923,9 @@ input double      Inp_TI_CandleBody_FullRatio      = 0.75;           // TI Full:
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    ⚠️  PRESET_CUSTOM — SIGNAL (user-built)";
+input group "    ⚠️  ENGINE SEED DEFAULTS — SIGNAL (used by all presets unless overridden)"; // STEP9 2026-06: was "PRESET_CUSTOM — SIGNAL (user-built)"; CUSTOM preset retired in Step 4
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    ▸ TS voters (B·P·F·L·I) — only PRESET_CUSTOM edits these live; other presets set them in SEA_Presets.mqh";
+input group "    ▸ TS voters (B·P·F·L·I) — these are engine seed defaults; presets override most via SEA_Presets.mqh"; // STEP9 2026-06: was "only PRESET_CUSTOM edits these live"; CUSTOM preset retired in Step 4
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 1: BIAS (Major Trend Direction)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -977,7 +977,7 @@ input group "╚═════════════════════�
 input bool        Inp_CUSTOM_RequireRecoveryMomentum = false;        // Override: PULL recovery
 input int         Inp_CUSTOM_Lookback              = 5;              // Override: PULL lookback
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🔧 STEP X: Trail EMA (PRESET_CUSTOM)";
+input group "║   🔧 STEP X: Trail EMA (engine seed defaults)"; // STEP9 2026-06: was "(PRESET_CUSTOM)"; CUSTOM preset retired in Step 4
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_CUSTOM_TrailEMA_Period       = 9;              // Override: [Trail] EMA period for TRAIL_EMA mode
 input int         Inp_CUSTOM_TrailEMA_Shift        = 1;              // Override: [Trail] EMA shift (1=current bar, 2=one bar cushion)
@@ -1003,7 +1003,7 @@ input int         Inp_CUSTOM_TrailEMA_Shift        = 1;              // Override
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    ⚠️  PRESET_CUSTOM — INDICATORS";
+input group "    ⚠️  ENGINE SEED DEFAULTS — INDICATORS"; // STEP9 2026-06: was "PRESET_CUSTOM — INDICATORS"; CUSTOM preset retired in Step 4
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 ADX (Average Directional Index - Strength of Market Trend)";
@@ -1122,10 +1122,10 @@ input int         Inp_CUSTOM_Ind_VRC_RefreshSec    = 14400;          // Ind: TI 
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    🎯 PRESET_CUSTOM — EXITS (TP / SL / TS / BE)";
+input group "    🎯 ENGINE SEED DEFAULTS — EXITS (TP / SL / TS / BE)"; // STEP9 2026-06: was "PRESET_CUSTOM — EXITS"; CUSTOM preset retired in Step 4
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🎯 (TP) TAKE PROFIT (CUSTOM only)";
+input group "║   🎯 (TP) TAKE PROFIT (engine seed defaults)"; // STEP9 2026-06: was "(CUSTOM only)"; CUSTOM preset retired
 input group "╚════════════════════════════════════════════════════════╝";
 input ETPMode     Inp_CUSTOM_TPMode                = TP_MODE_RR;     // Custom: TP mode
 input bool        Inp_CUSTOM_TP_Enabled            = true;           // Custom: Enable TP
@@ -1140,7 +1140,7 @@ input EExitProfile   Inp_CUSTOM_ExitProfile        = EXIT_PROFILE_RRM; // Custom
 // input string   Inp_Exit_Zone_Info2              = "Other presets override exits with strategy-optimized values";
 // input string   Inp_CUSTOM_ExitProfile_Info      = "RRM: Swing-based SL, PSAR trail, no ATR multipliers";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🛑 (SL) STOP LOSS (CUSTOM only)";
+input group "║   🛑 (SL) STOP LOSS (engine seed defaults)"; // STEP9 2026-06: was "(CUSTOM only)"; CUSTOM preset retired
 input group "╚════════════════════════════════════════════════════════╝";
 input ESLMode     Inp_CUSTOM_SLMode                = SL_MODE_PSAR_DOT;  // Custom: SL mode
 input bool        Inp_CUSTOM_SL_WidenToMinimum     = false;          // Custom: If true: widen to min.; if false: block TE
@@ -1165,7 +1165,7 @@ input group "╚═════════════════════�
 input int         Inp_CUSTOM_FractalPeriod         = 5;              // Custom: Fractal period
 input int         Inp_CUSTOM_TPFractalOffset       = 1;              // Custom: Fractal offset
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📈 (TS) TRAILING STOP (CUSTOM only)";
+input group "║   📈 (TS) TRAILING STOP (engine seed defaults)"; // STEP9 2026-06: was "(CUSTOM only)"; CUSTOM preset retired
 input group "╚════════════════════════════════════════════════════════╝";
 // PSAR trail cushion (used by CUSTOM preset when TrailMode=TRAIL_PSAR):
 // PRESET ISOLATION 2026-06: Mult/Pct defaults updated from 0.5/0.04 → 1.0/25.0
@@ -1183,7 +1183,7 @@ input double      Inp_CUSTOM_BEThresholdPips       = 5.0;            // Custom: 
 input double      Inp_CUSTOM_TrailProfitPercent    = 25.0;           // Custom: Trail trigger as % of risk for TRIGGER_PROFIT_PERCENT
 input double      Inp_CUSTOM_TrailStepPips         = 5.0;            // Custom: Trail Step Pips
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   ⚖️ (BE) BREAK-EVEN (CUSTOM only)";
+input group "║   ⚖️ (BE) BREAK-EVEN (engine seed defaults)"; // STEP9 2026-06: was "(CUSTOM only)"; CUSTOM preset retired
 input group "╚════════════════════════════════════════════════════════╝";
 input EBeMode     Inp_CUSTOM_BE_Mode               = BE_MODE_TP_PROGRESS_PCT; // Custom: BE mode
 // input string   Inp_RRM_Info1                    = "RRM uses % of TP distance for BE — not absolute pips";
