@@ -1274,6 +1274,53 @@ private:
    //+------------------------------------------------------------------+
    //| REFACTORED: PURE PRICE ANCHOR SL CALCULATION                     |
    //+------------------------------------------------------------------+
+   //+------------------------------------------------------------------+
+   //| EnforceSLMinFloor — STEP19 2026-06                                |
+   //|                                                                  |
+   //| Applies the SL_MinPips (user) AND broker-minimum (SYMBOL_TRADE_  |
+   //| STOPS_LEVEL) floors to a candidate SL price. Single source of    |
+   //| truth for Path 2 (CalcEntrySL — SIMPLE exit profile / FPM/MA/TI).|
+   //|                                                                  |
+   //| Returns:                                                          |
+   //|   • the candidate SL unchanged if already at or beyond min dist   |
+   //|   • the widened SL (price ± min_dist) if SL_WidenToMinimum=true   |
+   //|     and the candidate was too close                               |
+   //|   • 0.0 if SL_WidenToMinimum=false and the candidate was too      |
+   //|     close — caller should treat this as a trade-block signal      |
+   //|                                                                   |
+   //| The Inp_Global_SL_MinPips comment promises "broker minimum still |
+   //| applies" — Path 1 (RRM_GetStrictSL, lines 1387-1408) honors this |
+   //| with the same logic inlined; Path 2 previously had NO floor at   |
+   //| all, silently dropping the user's SL_MinPips setting on the      |
+   //| SIMPLE exit profile. Path 2's five return points now route here. |
+   //+------------------------------------------------------------------+
+   double EnforceSLMinFloor(bool isBuy, double price, double sl) {
+      if(sl <= 0.0) return sl;   // upstream already blocking; pass through
+      double pipSize = GetPipSize();
+      double user_min_dist = m_settings.SL_MinPips * pipSize;
+      long stops_level_points = 0;
+      if(!SymbolInfoInteger(m_symbol, SYMBOL_TRADE_STOPS_LEVEL, stops_level_points)) {
+         Print("⚠️ [SL] Failed to read SYMBOL_TRADE_STOPS_LEVEL; using 0 points + 1 pip buffer fallback");
+         stops_level_points = 0;
+      }
+      double broker_min_dist = (double)stops_level_points * _Point + pipSize;
+      double min_sl_dist = MathMax(user_min_dist, broker_min_dist);
+
+      double actual_dist = MathAbs(price - sl);
+      if(actual_dist < min_sl_dist) {
+         if(m_settings.SL_WidenToMinimum) {
+            sl = isBuy ? (price - min_sl_dist) : (price + min_sl_dist);
+            PrintFormat("⚠️ [SL] SL too close (%.1f pips), widened to minimum (%.1f pips)",
+                        actual_dist / pipSize, min_sl_dist / pipSize);
+         } else {
+            PrintFormat("🚫 [SL] SL too close (%.1f pips < min %.1f pips), trade blocked",
+                        actual_dist / pipSize, min_sl_dist / pipSize);
+            return 0.0;
+         }
+      }
+      return sl;
+   }
+
    double RRM_GetStrictSL(bool isBuy, double price) {
       double pipSize = GetPipSize();
       double fixed_dist = m_settings.SL_FixedPips * pipSize;
@@ -1514,7 +1561,7 @@ private:
                double sl_atr = isBuy ? (anchor - cushion) : (anchor + cushion);
                PrintFormat("✅ [SL ATR] swing=%.5f ATR=%.5f mult=%.2f SL=%.5f",
                            anchor, atr_val, m_settings.SL_AtrMult, sl_atr);
-               return sl_atr;
+               return EnforceSLMinFloor(isBuy, price, sl_atr);   // STEP19 2026-06: SL_MinPips floor
             }
             else if(atr_val > 0.0) {
                // Swing failed/wrong side — ATR cushion from entry price
@@ -1522,7 +1569,7 @@ private:
                double sl_atr = isBuy ? (price - cushion) : (price + cushion);
                PrintFormat("⚠️ [SL ATR] Swing failed — ATR from entry: cushion=%.5f SL=%.5f",
                            cushion, sl_atr);
-               return sl_atr;
+               return EnforceSLMinFloor(isBuy, price, sl_atr);   // STEP19 2026-06: SL_MinPips floor
             }
             else {
                // ATR unavailable — SL_MinPips floor will apply below
@@ -1533,13 +1580,15 @@ private:
          }
          case SL_MODE_PERCENT: {
             double sl_pips = (price * m_settings.SLPercent / 100.0) / pipSize;
-            return isBuy ? (price - (sl_pips * pipSize)) : (price + (sl_pips * pipSize));
+            double sl_pct = isBuy ? (price - (sl_pips * pipSize)) : (price + (sl_pips * pipSize));
+            return EnforceSLMinFloor(isBuy, price, sl_pct);   // STEP19 2026-06: SL_MinPips floor
          }
          case SL_MODE_FIXED_PIPS:
          default: {
             double dist = m_settings.SL_FixedPips * pipSize;
             PrintFormat("ℹ️ [SL TRACE] Using FIXED PIPS: %.1f", m_settings.SL_FixedPips);
-            return isBuy ? (price - dist) : (price + dist);
+            double sl_fp = isBuy ? (price - dist) : (price + dist);
+            return EnforceSLMinFloor(isBuy, price, sl_fp);    // STEP19 2026-06: SL_MinPips floor
          }
       }
 
@@ -1552,7 +1601,7 @@ private:
          double fallback_dist = m_settings.SL_FixedPips * pipSize;
          sl = isBuy ? (price - fallback_dist) : (price + fallback_dist);
       }
-      return sl;
+      return EnforceSLMinFloor(isBuy, price, sl);   // STEP19 2026-06: SL_MinPips floor (anchor + fallback paths)
    }
 
    double RRM_GetStrictTP(bool isBuy, double entry, double sl) {
