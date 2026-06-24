@@ -2076,9 +2076,35 @@ private:
          // from DETECTED, and recovery bars are not themselves pullbacks). Keeping
          // DETECTED lets a pullback that began just before the new-phase
          // confirmation complete its recovery inside the new phase.
-         if(m_layer_w_pb_state == LAYER_PB_RECOVERED) m_layer_w_pb_state = LAYER_PB_NONE;
-         if(m_layer_m_pb_state == LAYER_PB_RECOVERED) m_layer_m_pb_state = LAYER_PB_NONE;
-         if(m_layer_s_pb_state == LAYER_PB_RECOVERED) m_layer_s_pb_state = LAYER_PB_NONE;
+         // STEP12 2026-06: VPRR invariant. UpdateSingleLayerPullback's NONE
+         // branch zeros vol_pb_avg/bars/vol_rec_avg/bars/vprr/baseline whenever
+         // state reaches NONE through normal flow. External resets that set
+         // state to NONE WITHOUT going through that branch must mirror that
+         // cleanup, or a subsequent NONE→DETECTED transition will accumulate
+         // the new pullback's pb_avg on top of the stale cycle's value
+         // (contaminated VPRR ratio, depressed by carry-over). Same fix lives
+         // in ResetAllLayerPullback (CLIMAX path).
+         if(m_layer_w_pb_state == LAYER_PB_RECOVERED) {
+            m_layer_w_pb_state    = LAYER_PB_NONE;
+            m_layer_w_vol_pb_avg  = 0.0; m_layer_w_vol_pb_bars  = 0;
+            m_layer_w_vol_rec_avg = 0.0; m_layer_w_vol_rec_bars = 0;
+            m_layer_w_vprr        = 0.0;
+            m_layer_w_baseline    = 0.0;
+         }
+         if(m_layer_m_pb_state == LAYER_PB_RECOVERED) {
+            m_layer_m_pb_state    = LAYER_PB_NONE;
+            m_layer_m_vol_pb_avg  = 0.0; m_layer_m_vol_pb_bars  = 0;
+            m_layer_m_vol_rec_avg = 0.0; m_layer_m_vol_rec_bars = 0;
+            m_layer_m_vprr        = 0.0;
+            m_layer_m_baseline    = 0.0;
+         }
+         if(m_layer_s_pb_state == LAYER_PB_RECOVERED) {
+            m_layer_s_pb_state    = LAYER_PB_NONE;
+            m_layer_s_vol_pb_avg  = 0.0; m_layer_s_vol_pb_bars  = 0;
+            m_layer_s_vol_rec_avg = 0.0; m_layer_s_vol_rec_bars = 0;
+            m_layer_s_vprr        = 0.0;
+            m_layer_s_baseline    = 0.0;
+         }
          if(m_settings.DebugFlow)
             DebugLog(StringFormat("[PHASE_RESET] Phase confirmed %s -> stale RECOVERED cleared, DETECTED preserved",
                                   EnumToString(m_phase_reset_confirmed)));
@@ -3671,9 +3697,29 @@ private:
 
    void ResetAllLayerPullback()
    {
-      m_layer_w_pb_state = LAYER_PB_NONE;
-      m_layer_m_pb_state = LAYER_PB_NONE;
-      m_layer_s_pb_state = LAYER_PB_NONE;
+      // STEP12 2026-06: extended to also clear VPRR volume metrics and baseline,
+      // mirroring the invariant in UpdateSingleLayerPullback's NONE branch.
+      // Previously only set pb_state to NONE, leaving stale vol_pb_avg/bars/
+      // vol_rec_avg/bars/vprr/baseline behind — which then contaminated the
+      // NEXT pullback cycle's measurement (depressed VPRR ratio). Same fix
+      // lives in MaybeResetLayersOnPhaseChange (phase-change path).
+      m_layer_w_pb_state    = LAYER_PB_NONE;
+      m_layer_w_vol_pb_avg  = 0.0; m_layer_w_vol_pb_bars  = 0;
+      m_layer_w_vol_rec_avg = 0.0; m_layer_w_vol_rec_bars = 0;
+      m_layer_w_vprr        = 0.0;
+      m_layer_w_baseline    = 0.0;
+
+      m_layer_m_pb_state    = LAYER_PB_NONE;
+      m_layer_m_vol_pb_avg  = 0.0; m_layer_m_vol_pb_bars  = 0;
+      m_layer_m_vol_rec_avg = 0.0; m_layer_m_vol_rec_bars = 0;
+      m_layer_m_vprr        = 0.0;
+      m_layer_m_baseline    = 0.0;
+
+      m_layer_s_pb_state    = LAYER_PB_NONE;
+      m_layer_s_vol_pb_avg  = 0.0; m_layer_s_vol_pb_bars  = 0;
+      m_layer_s_vol_rec_avg = 0.0; m_layer_s_vol_rec_bars = 0;
+      m_layer_s_vprr        = 0.0;
+      m_layer_s_baseline    = 0.0;
       if(m_settings.DebugFlow)
          DebugLog("[CLIMAX] All layer pullback states reset -> NONE (await fresh pullback-recovery)");
    }
