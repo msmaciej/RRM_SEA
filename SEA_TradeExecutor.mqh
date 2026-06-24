@@ -2946,8 +2946,14 @@ public:
       int F = EvaluateF(news_blocked_override);
       if(F == 0) {
          te_reject_reason = m_te_veto_reason;
-         // Spread retry cap: track consecutive spread-blocked bars
-         if(m_te_veto_reason == "VETO_SPREAD")
+         // STEP14 2026-06: include VETO_SPREAD_MEDIAN in the retry-counter trigger.
+         // Previously checked only "VETO_SPREAD"; with TE_SpreadMedianTicks > 0 the
+         // gate at EvaluateF (line ~2841) emits "VETO_SPREAD_MEDIAN", which failed
+         // this match and fell through to the else-branch that resets the counter
+         // to 0. Result: MaxSpreadRetryBars timeout never fires for users with
+         // median filter enabled — the carry can persist indefinitely waiting for
+         // spread to normalize. The instant-spread path (VETO_SPREAD) was unaffected.
+         if(m_te_veto_reason == "VETO_SPREAD" || m_te_veto_reason == "VETO_SPREAD_MEDIAN")
          {
             m_spread_block_bars++;
             if(m_settings.MaxSpreadRetryBars > 0 &&
