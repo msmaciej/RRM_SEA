@@ -1477,6 +1477,27 @@ private:
          case SL_MODE_FRACTAL:
             anchor = GetFractalLevel(isBuy ? 1 : -1);
             cushion_pips = m_settings.SL_SwingPipsCushion;  // FIX: was 0.0 — use same cushion as Swing
+            // STEP17 2026-06: side-validity check (sibling of RRM_GetStrictSL FRACTAL guard
+            // at line 1337+). Path 2 was the only anchor-based mode here without this gate
+            // — SWING/PSAR/ATR all validated their anchors against `price`, but FRACTAL went
+            // straight through. If GetFractalLevel returns a level on the WRONG side of entry
+            // (price ran past the most recent fractal in a sharp move, or regime-transition),
+            // the post-switch tail (lines ~1525+) would use it as the SL anchor — placing SL
+            // ABOVE entry for LONG / BELOW entry for SHORT. The trade enters at immediate
+            // loss territory and likely auto-stops on the first tick. Path 1 (RRM profile)
+            // had this guard since file authoring; Path 2 (SIMPLE profile — FPM/MA/TI users)
+            // was missed. Behavior matches Path 1: on invalid side, zero the anchor so the
+            // post-switch tail falls back to fixed pips. No secondary structural fallback
+            // (matches Path 1 simplicity); Path 2's SWING-with-PSAR-fallback pattern was a
+            // deliberate methodology choice for that mode and isn't propagated here.
+            if(anchor > 0.0) {
+               bool valid = isBuy ? (anchor < price) : (anchor > price);
+               if(!valid) {
+                  PrintFormat("⚠️ [SL] Fractal anchor (%.5f) on wrong side of entry (%.5f) for %s — falling back to fixed pips",
+                              anchor, price, isBuy ? "BUY" : "SELL");
+                  anchor = 0.0;   // post-switch tail will use fixed-pips fallback
+               }
+            }
             break;
          case SL_MODE_ATR: {
             // Full fallback hierarchy — ATR never falls back to raw fixed pips:
