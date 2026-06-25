@@ -194,39 +194,3 @@ User sets: Inp_RRM_ORG_RRRatio = 1.0
 Result: Uses RR = 1.0 (correct namespace, respects user input)
 ```
 
----
-
-## 2026-06 Refactor: Inp_CUSTOM_* → Inp_Global_* (CUSTOM preset removed)
-
-### Background
-
-`PRESET_CUSTOM` was removed as part of the 2026-06 refactor (`SEA_Config.mqh` STEP4 changelog comment). It was architecturally a misnomer — its `Inp_CUSTOM_*` inputs only served as the seed defaults that other presets read from, not as a real user-control surface.
-
-### Migration
-
-`Inp_CUSTOM_*` inputs that represented **cross-preset globals** (shared by every preset) were renamed to `Inp_Global_*`. Inputs that were truly per-preset moved to per-preset blocks (`Inp_RRM_ORG_*`, `Inp_FPM_*`, `Inp_TI_*`, `Inp_MA_*`).
-
-The complete current inputs file shows **138 `Inp_Global_*`** declarations and zero active `Inp_CUSTOM_*` input declarations. Surviving `Inp_CUSTOM_*` strings in the source are now only changelog markers in comments.
-
-### Categories of the rename
-
-| Old `Inp_CUSTOM_*` purpose | Where it moved | Example |
-|---|---|---|
-| Cross-preset filter/safety toggles | `Inp_Global_*` | `Inp_CUSTOM_VETO_*` → `Inp_Global_VETO_*` |
-| F sub-filter toggles | `Inp_Global_F_*` | `Inp_CUSTOM_EmaFanFilter` → `Inp_Global_F_EmaFanFilterEnabled` |
-| Per-preset RRM_ORG exits | `Inp_RRM_ORG_*` | `Inp_CUSTOM_RRRatio` → `Inp_RRM_ORG_RRRatio` |
-| Per-preset RRM_ORG indicator gates | `Inp_RRM_ORG_*` | `Inp_CUSTOM_ClimaxGuard_Enabled` → `Inp_Global_F_ClimaxGuard_Enabled` (climaxguard is global) |
-| Indicator periods/thresholds | `Inp_Global_Ind_*` or `Inp_RRM_ORG_Ind_*` | depends on whether toggle is shared or per-preset |
-
-### Action Required for existing `.set` files
-
-If your `.set` file was last saved before the 2026-06 refactor:
-
-1. Open the `.set` in a text editor.
-2. Replace all `Inp_CUSTOM_*` keys with their `Inp_Global_*` / `Inp_RRM_ORG_*` / `Inp_FPM_*` / `Inp_TI_*` / `Inp_MA_*` equivalents. The rules of thumb above cover the common cases; for the full mapping consult `SEA_Inputs.mqh` and grep for the old name in `SEA_Config.mqh` to see which preset-namespace adopted it.
-3. Alternatively, reconfigure via the MT5 inputs panel — the input groups are reorganised so that `Inp_Global_*` settings are clearly separated from per-preset blocks.
-
-### Removed-preset cleanup
-
-If your `.set` references `Inp_RRM_*` (the now-removed RRM variant) or `Inp_TEST_*` (the dev scaffold), those settings have no effect and can be deleted. The post-refactor preset list is `PRESET_MA`, `PRESET_FPM`, `PRESET_TOPINVESTOR`, `PRESET_RRM_ORG`.
-

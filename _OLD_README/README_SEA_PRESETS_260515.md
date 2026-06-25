@@ -6,22 +6,17 @@ Presets are applied in `OnInit()` via `ApplyPreset()` (in `SEA_Presets.mqh`).
 They overwrite strategy-critical fields **on top of** already-hydrated `Settings`.
 **Policy A** gates (spread, time, news, risk) are **always user-controlled** — no preset ever locks them.
 
-> **2026-06 refactor note.** Three presets were removed: `PRESET_CUSTOM` (its `Inp_CUSTOM_*` inputs were only seed defaults for other presets, not a real preset — globals moved to `Inp_Global_*`), `PRESET_RRM` (an untraded variant of `PRESET_RRM_ORG`), and `PRESET_TEST` (a dev scaffold that was `#ifdef`-gated off). The sections describing them further down this document are **historical only** and marked `[REMOVED]`. The current set is the four presets in the table below. The user-control surface that `PRESET_CUSTOM` formerly provided now lives in `Inp_Global_*` globals plus per-preset override blocks (`Inp_RRM_ORG_*`, `Inp_FPM_*`, `Inp_TI_*`, `Inp_MA_*`).
-
-## Current presets
-
 | Preset | Purpose | Indicators Locked? | Exits Locked? |
 |---|---|---|---|
-| `PRESET_RRM_ORG` | Russ Horn Original RRM — 4EMA, TM phase only, DPI+PSAR+CandleBody+MTF voting. **Current default.** | ✓ DPI+PSAR+CBody+MTF core | Configurable via `Inp_RRM_ORG_*` |
-| `PRESET_FPM` | Five-Point Method (Crucial Carlos) | ✓ PSAR+MACD+BB widening+SmaConverge+bar-close | ✗ (SL/TP/Trail user-controlled) |
-| `PRESET_TOPINVESTOR` | Dr Świerk TopInvestor / OXO — EMA50/200 confluence | ✓ profile-driven (CONSERVATIVE / BALANCED / AGGRESSIVE) | Configurable via `Inp_TI_*`. See `README_SEA_PRESET_TOPINVESTOR_MANUAL.md`. |
-| `PRESET_MA` | MT5 `Moving Average.mq5` sample EA benchmark | ✓ (none — voting disabled, threshold-=1) | ✓ fixed pips |
+| `PRESET_CUSTOM` | Full user control | ✗ | ✗ |
+| `PRESET_MA` | MT5 MA benchmark | ✓ (none — voting off) | ✓ fixed pips |
+| `PRESET_RRM` | Phase-based trend pullback | ✓ PSAR+MACD+CCI core | Partially (trail locked, SL/TP user) |
+| `PRESET_TEST` | Dev/debug bypass | ✗ (threshold=1) | ✓ fixed pips |
+| `PRESET_FPM` | Five-Point Method | ✓ PSAR+MACD+BB+SmaConv | ✗ (SL/TP/Trail user) |
 
 ---
 
-## ~~PRESET_CUSTOM~~ [REMOVED 2026-06]
-
-> Historical content preserved below for reference. `PRESET_CUSTOM` no longer exists. The user-control surface it provided has been split: cross-preset globals are now `Inp_Global_*`, and per-preset overrides live in dedicated blocks (`Inp_RRM_ORG_*`, `Inp_FPM_*`, `Inp_TI_*`, `Inp_MA_*`).
+## PRESET_CUSTOM
 
 No overrides. Every input is respected exactly as entered by the user.
 The signal pipeline runs in full with whatever indicators, bias mode, and exits are configured.
@@ -77,9 +72,7 @@ flowchart TD
 
 ---
 
-## ~~PRESET_RRM~~ [REMOVED 2026-06]
-
-> Historical content preserved below for reference. `PRESET_RRM` no longer exists. It was an untraded variant of `PRESET_RRM_ORG` (the current canonical RRM preset). The mechanics described here remain accurate for `PRESET_RRM_ORG` — phase-based trend pullback, 4EMA detection, layer-gated entries — though the indicator vote panel for `PRESET_RRM_ORG` is **DPI + PSAR + CandleBody + MTF** (not MACD + CCI/RSI/BB as listed for the old RRM).
+## PRESET_RRM
 
 Phase-based trend pullback system. Uses 4 EMAs to detect market structure phases, requires price to be in a valid pullback layer, and gates entry through PSAR + MACD + optional CCI/RSI/BB votes.
 
@@ -120,9 +113,7 @@ flowchart TD
 
 ---
 
-## ~~PRESET_TEST~~ [REMOVED 2026-06]
-
-> Historical content preserved below for reference. `PRESET_TEST` no longer exists. It was a dev scaffold preset that was `#ifdef`-gated off in shipping builds and never enabled in production.
+## PRESET_TEST
 
 Minimal development/debug preset. Bypasses the indicator consensus requirement (threshold = 1, so any single indicator passing is enough), uses fixed SL/TP, no trailing. Designed for rapid iteration during development.
 
@@ -149,44 +140,6 @@ flowchart TD
 **Locked settings:** Vote threshold = 1, fixed SL 20 pips, fixed TP 40 pips, no trailing, BE off.
 **User controls:** Bias mode and indicator selection (to test individual indicators in isolation).
 **Use when:** Debugging a new indicator or bias mode. Never use on a live account.
-
----
-
-## PRESET_TOPINVESTOR
-
-Dr Świerk TopInvestor / OXO methodology — EMA50/200 confluence with profile-driven indicator voting. Three profiles trade off filter strictness against trade frequency:
-
-| Profile | Voters | Use case |
-|---|---|---|
-| `TI_CONSERVATIVE` | 4 (PSAR + ADX + CandleBody + MTF) | Strict, low-frequency, high-conviction setups |
-| `TI_BALANCED` | 5 (adds MACD) | Default profile |
-| `TI_AGGRESSIVE` | 6 (adds RSI) | More entries, looser filter |
-
-```mermaid
-flowchart TD
-    Start([ApplyPreset: PRESET_TOPINVESTOR]) --> Lock[LOCKED:\nBIAS_2EMA on EMA50/EMA200\nProfile-driven voter set\nVOTE_MODE_ALL\nExit profile via Inp_TI_*]
-    Lock --> Filters{Pre-filters\nSpread / Time / News}
-    Filters -- Fail --> Reject([NO TRADE])
-    Filters -- Pass --> Bias{Price vs EMA50 vs EMA200}
-    Bias -- Aligned LONG --> Vote{All profile voters pass?}
-    Bias -- Aligned SHORT --> Vote
-    Bias -- Mis-aligned --> Reject([NO TRADE])
-    Vote -- No --> Reject
-    Vote -- Yes --> Exec([Execute trade with Inp_TI_* exits])
-
-    classDef locked fill:#fff3cd,stroke:#ff9800,stroke-width:2px;
-    classDef reject fill:#ffcccc,stroke:#cc0000,stroke-width:2px;
-    classDef accept fill:#ccffcc,stroke:#009900,stroke-width:2px;
-    class Lock,Vote locked;
-    class Reject reject;
-    class Exec accept;
-```
-
-**Locked settings:** `BIAS_2EMA` (EMA50/EMA200), profile-driven voter set, `VOTE_MODE_ALL`.
-**User controls:** profile selection via `Inp_TI_Profile`, all exit logic via `Inp_TI_*` block, Policy-A gates.
-**Use when:** longer-timeframe (M15-H4) trend-confluence trading where EMA50 over EMA200 is the structural anchor.
-
-**See `README_SEA_PRESET_TOPINVESTOR_MANUAL.md` for the full configuration and methodology reference.**
 
 ---
 

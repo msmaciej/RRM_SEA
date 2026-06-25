@@ -1,16 +1,6 @@
 PRESET_RRM_PRO
 Build 105001
 
-> **Document type: historical Q&A transcript.** This file captures a Copilot-assisted design conversation about improving the EA. It pre-dates the 2026-06 refactor and therefore references presets and structures that no longer exist as named:
->
-> - References to `PRESET_RRM:ORG` are typographic — read as `PRESET_RRM_ORG`.
-> - References to `PRESET_RRM` (without `_ORG`) describe a now-removed variant; in practice the surviving canonical RRM preset is `PRESET_RRM_ORG`.
-> - Code samples showing `PRESET_CUSTOM = 0`, `PRESET_RRM = 3`, `PRESET_TEST = 5` are from the old `EStrategyPreset` enum (pre-refactor). The current enum is `PRESET_MA / PRESET_TOPINVESTOR / PRESET_FPM / PRESET_RRM_ORG` only.
->
-> Treat the *design ideas* (multi-TF, session filters, volume integration, decel-filter usage) as still-relevant proposals; treat the *code snippets and identifier names* as time-stamped to mid-2026 and check them against current source before acting. For the current canonical preset/equation reference, use `README.md` and `Readme/README_SEA_PRESETS.md`.
-
----
-
 Q: Given your coding and trading experience, what can you say what EA systems are using institutionaltraders and banks?
 
 Copilot said: Based on my understanding of institutional trading

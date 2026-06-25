@@ -9,24 +9,15 @@ SimpleEA handles execution dynamically. All cushion and buffer values auto-adjus
 
 ## 1. Signal Reception & The Handshake
 
-The Signal Engine evaluates the core TS equation on the **CLOSED candle (shift=1)** to eliminate lag and false triggers. The entry logic is decoupled into structural alignment and price action triggers:
+The Signal Engine evaluates the core KISS equation on the **CLOSED candle (shift=1)** to eliminate lag and false triggers. The entry logic is decoupled into structural alignment and price action triggers:
 
-$$TS = Bias \times Phase \times \prod_{j=1}^{m} F_{j} \times Layer_{X} \times bc_{X} \times \prod_{i=1}^{n} Ind_{i}$$
+$$TS = Bias \times Layer_{X} \times bc_{X} \times \prod_{i=1}^{n} Ind_{i} \times \prod_{j=1}^{m} Filter_{j}$$
 
-or equivalently:
+* **Bias:** The master directional permission (1 = Long, -1 = Short, 0 = Neutral).
+* **LayerX ($Layer_W, Layer_M, Layer_S$):** Validates the structural alignment. Evaluates to 1 ONLY if the specific EMA pair's position and slope agree with the Bias.
+* **bcX ($bc_W, bc_M, bc_S$):** The precise price action trigger (Bar Close confirmation). Evaluates to 1 ONLY if the closed candle body successfully crosses or closes beyond the fast EMA of that active layer.
 
-$$TS = B \times P \times F \times L \times I$$
-
-* **B (Bias):** Master directional permission (1 = Long, −1 = Short, 0 = Neutral).
-* **P (Phase):** Market structure gate (TM / EM / UNO). UNO always blocks; EM blocked by default in `PRESET_RRM_ORG`.
-* **F (TS-side pre-filters):** EMA-fan over-extension × price over-extension × DPI deceleration × phase-age confirmation × Climax-Guard veto. All off by default in `PRESET_RRM_ORG`; the F factor is a no-op until a sub-filter is explicitly enabled.
-* **L (LayerX — $Layer_W, Layer_M, Layer_S$):** Per-layer pullback-recovery state machine. Evaluates to 1 ONLY when the layer's pos × slope × BC × BD all pass; priority walk L3 → L2 → L1.
-* **bcX:** Bar-close confirmation — the closed candle closes beyond the fast EMA of the active layer in the bias direction. Part of the L factor.
-* **I (Indicators):** All enabled voters must pass (unanimous AND): DPI + PSAR + CandleBody + MTF in `PRESET_RRM_ORG`.
-
-> **Two `EvaluateF` functions.** This TS-side F (engine: `CSignalEngine::EvaluateF`) runs at bar close and covers the pre-filters listed above. A second, *different* `EvaluateF` lives in `CTradeExecutor` (this file) and runs at bar open — that one is the TE-side **F'** factor and covers spread × session × news. They share the letter "F" by design; each is the filter factor of its respective equation. See `TE = F'` block below.
-
-If a setup passes the strict multiplicative consensus, it is stored in the global queue (`g_ts_dir = 1` or `-1`) precisely at `shift=1`. The Trade Executor then handles the *physical* execution with the broker strictly on `shift=0` (the open tick).
+If a setup passes this strict multiplicative consensus, it is stored in the global queue (`g_ts_active = 1` or `-1`) precisely at `shift=1`. The Trade Executor then handles the *physical* execution with the broker strictly on `shift=0` (the open tick).
 
 ---
 
@@ -161,7 +152,7 @@ flowchart TD
 
 ### Take Profit Modes (`ETPMode`)
 * `TP_MODE_FIXED_PIPS`: Strict pip distance via `Inp_FixedTPPips`.
-* `TP_MODE_RR`: Calculates TP based on actual SL distance multiplied by the active preset's RR-ratio input (e.g. `Inp_RRM_ORG_RRRatio = 2.0` → 1:2 R:R under `PRESET_RRM_ORG`).
+* `TP_MODE_RR`: Calculates TP based on actual SL distance multiplied by `Inp_CUSTOM_RRRatio` (e.g., 2.0 = 1:2 R:R). 
 * `TP_MODE_FRACTAL`: Targets the next opposing market fractal.
 * `TP_MODE_PSAR_FLIP`: No fixed TP; exits solely when the PSAR indicator flips direction.
 * `TP_MODE_NONE`: Relies entirely on the Trailing Stop to close the trade.

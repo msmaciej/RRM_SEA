@@ -1,6 +1,6 @@
 # SEA Bootstrap (How to start a new chat / task)
 
-This doc ensures every new chat starts with the same rules, preventing "context drift".
+This doc ensures every new chat starts with the same rules, preventing “context drift”.
 
 ## A) New chat start script (copy/paste)
 When starting a new conversation, paste:
@@ -9,18 +9,16 @@ When starting a new conversation, paste:
 - Role: **SEA Architect**
 - Use canonical docs only:
   - `README.md`
-  - `Readme/README_SEA_SYSTEM.md`
-  - `Readme/README_SEA_SIGNAL_REFERENCE.md`
-  - `Readme/README_SEA_TRADE_LOGIC.md`
+  - `Readme/README_SYSTEM.md`
+  - `Readme/README_INDICATORS.md`
+  - `Readme/README_SEA_RULES.md`
   - `Readme/README_SEA_AI-AGENTS.md`
   - `Readme/README_SEA_PRESETS.md`
-  - `Readme/README_SEA_VETO_REFERENCE.md`
-- Treat `_OLD_*/` directories (`_OLD_MQH/`, `_OLD_DPI_VPRR/`, `Readme/_OLD_README/`) as archive only:
+- Treat `Legacy/` as archive only:
   - do not use unless explicitly requested
 - Preset policy: **Model A**
-  - Available presets: `PRESET_MA`, `PRESET_FPM`, `PRESET_TOPINVESTOR`, `PRESET_RRM_ORG`
-  - Any preset fully defines strategy-critical fields; user controls Policy-A gates (spread/time/news/risk) plus per-preset overrides (`Inp_RRM_ORG_*`, `Inp_FPM_*`, etc.) and globals (`Inp_Global_*`)
-  - Removed in 2026-06 refactor: `PRESET_CUSTOM`, `PRESET_RRM`, `PRESET_TEST`
+  - `PRESET_CUSTOM` = inputs control
+  - any other preset = preset fully defines strategy, inputs ignored
 - Architecture constraints:
   - shift=1 evaluation only
   - shift=0 execution only
@@ -40,7 +38,7 @@ Then state the task in 1–3 sentences.
    - Backtest/sanity test
    - Adjust
 5. If architecture/behavior changed:
-   - update `Readme/README_SEA_SYSTEM.md` and/or `Readme/README_SEA_SIGNAL_REFERENCE.md`
+   - update `Readme/README_SYSTEM.md` and/or `Readme/README_INDICATORS.md`
 
 ## C) Standard “Delegation Plan” template
 SEA Architect output should follow this template:
@@ -70,6 +68,6 @@ SEA Architect output should follow this template:
 ## D) Testing expectations (minimal)
 - Always compile after changes.
 - For config/preset refactors:
-  - print "effective config" on init
+  - print “effective config” on init
   - confirm preset overrides are clearly reported
-  - confirm `Inp_Global_*` defaults and per-preset (`Inp_RRM_ORG_*`, `Inp_FPM_*`, ...) overrides agree with the `ApplyPreset` block
+  - confirm `PRESET_CUSTOM` preserves input behavior

@@ -5,17 +5,13 @@ This document provides the complete technical documentation for the SimpleEA sig
 
 The Signal Engine evaluates **EVERY condition on the CLOSED candle** (shift=1, the **TS — Trade Setup** evaluation) before allowing any trade. 
 
-The core system uses a strict multiplicative formula where unanimous agreement is required. The canonical form (post-F-AUDIT 2026-06) is:
+The core system uses a strict multiplicative formula where unanimous agreement is required. Based on the KISS architecture, the core equation is:
 
-$$TS = B \times P \times F \times L \times I$$
-
-Expanded with the layer-and-bar-close detail and the F sub-filters:
-
-$$TS = Bias \times Phase \times \prod_{j=1}^{m} F_{j} \times Layer_{X} \times bc_{X} \times \prod_{i=1}^{n} Ind_{i}$$
+$$TS = Bias \times Layer_{X} \times bc_{X} \times \prod_{i=1}^{n} Ind_{i} \times \prod_{j=1}^{m} Filter_{j} \times CX$$
 
 Where each factor returns 1 (pass/enabled), 0 (fail), or -1 (contradicts). Any 0 or -1 stops the pipeline.
 
-The **Climax / Exhaustion Guard** (previously called `CX` or `CG` as a separate sixth factor) was merged into **F** as a sub-filter in the 2026-06 F-AUDIT. `F = 0` with `F_reason = CLIMAX_GUARD` now blocks an otherwise fully-aligned signal when price has over-extended into a blow-off impulse (single-bar range > `ClimaxGuard_BarATRMult` × ATR, or cumulative move > `ClimaxGuard_MoveATRMult` × ATR, in the trade direction). The conceptual veto (climax-as-veto) is unchanged — only the position in the equation moved, so reason-code reporting reads cleanly under the F factor. The check still re-scans the last `ClimaxGuard_Lookback` bars on every bar (a sliding window, not a stored countdown), so it stays blocking only while the triggering bar is inside that window.
+The **Climax (exhaustion) factor `CX`** is the final term of that product. `CX = 0` blocks an otherwise fully-aligned signal when price has over-extended into a blow-off impulse (single-bar range > `ClimaxGuard_BarATRMult` × ATR, or cumulative move > `ClimaxGuard_MoveATRMult` × ATR, in the trade direction). Because the formula is 0/1 AND, `CX = 0` forces `TS = 0` exactly like any other factor — it **multiplies into the product**. It is evaluated **last** and is **not** an indicator vote: it sits outside ∏Ind as its own top-level factor. It re-scans the last `ClimaxGuard_Lookback` bars on every bar (a sliding window, not a stored countdown), so it stays 0 only while the triggering bar is inside that window.
 
 ---
 

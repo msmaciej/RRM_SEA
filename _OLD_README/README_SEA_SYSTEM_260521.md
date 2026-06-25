@@ -35,7 +35,7 @@ Core Philosophy: Simple systems that work > Complex systems that don't.
 * Configuration Guide
 * AI Agent Manifest
 
-For detailed technical documentation: See `Readme/README_SEA_SIGNAL_REFERENCE.md` (indicator logic), `Readme/README_SEA_TRADE_LOGIC.md` (TE / exit management), `Readme/README_SEA_SIGNAL_REFERENCE_DPI.md` (DPI deep dive).
+For detailed technical documentation: See README_INDICATORS.md
 
 
 ## System Architecture
@@ -52,27 +52,17 @@ The TS (Trade Setup) evaluation pipeline uses three hierarchical, **separate** e
 | Concept | Purpose | Depends on |
 |---|---|---|
 | **Bias** | Direction of the trade (LONG / SHORT / NONE) | Bias mode setting |
-| **Market Phase** | Structure quality of the trend | EMA2/EMA3/EMA4 position (under `BIAS_4EMA`) |
+| **Market Phase** | Structure quality of the trend | Only used with `BIAS_AUTO_PHASE` |
 | **Entry Layer** | Pullback-recovery timing within that trend | Bias direction (any mode) |
 
 These are **not** the same thing. Bias says *which way*, Market Phase says *how strong the structure is*, and Entry Layer says *when to time the entry*.
 
-**Formula (post-F-AUDIT 2026-06):**
+**Formula:**
 ```
-TS = B × P × F × L × I
+TS = Bias × MarketPhase × EntryLayer × [all indicators]
 ```
 
-| Factor | Name | Role |
-|---|---|---|
-| **B** | Bias | LONG / SHORT / NONE — direction permission |
-| **P** | Phase | TM / EM / UNO gate; UNO always blocks, EM blocked by default in `PRESET_RRM_ORG` |
-| **F** | Pre-filters | EMA-fan × price-over-ext × DPI-decel × phase-age × climax-guard. **All off by default in `PRESET_RRM_ORG`.** Climax (formerly a separate "CG" sixth factor) was merged into F as a sub-filter in the 2026-06 F-AUDIT; the F-AUDIT also moved Climax's reason-code reporting under `F_reason = CLIMAX_GUARD` for clean diagnostics. |
-| **L** | Layer | L3 → L2 → L1 priority walk; per-layer pos × slope × BC × BD |
-| **I** | Indicators | Unanimous AND of all enabled voters (DPI + PSAR + CandleBody + MTF in `PRESET_RRM_ORG`) |
-
-Because all factors multiply, **any zero stops the trade**.
-
-> **Doc currency note.** This document was written before the 2026-06 refactor and still contains references to removed presets (`PRESET_CUSTOM`, `PRESET_RRM`, `PRESET_TEST`) and pre-rename bias-mode names (`BIAS_AUTO`, `BIAS_AUTO_PHASE`). The current preset set is `PRESET_MA` / `PRESET_FPM` / `PRESET_TOPINVESTOR` / `PRESET_RRM_ORG`, and the current bias modes are `BIAS_MANUAL` / `BIAS_1EMA` / `BIAS_2EMA` / `BIAS_4EMA`. Wherever this doc mentions `PRESET_RRM` it should be read as `PRESET_RRM_ORG` (the canonical RRM preset post-refactor); wherever it mentions `BIAS_AUTO_PHASE` it should be read as `BIAS_4EMA`. A full rewrite is queued; see `Readme/README_SEA_PRESETS.md` for the current preset overview and the source `SEA_Config.mqh` `EBiasMode` enum for the current bias modes.
+Because they multiply, **any zero stops the trade**.
 
 ---
 
@@ -464,21 +454,9 @@ The pipeline evaluates in this order:
 ### Complete TS Formula
 
 ```
-TS = B × P × F × L × I    (canonical, post-F-AUDIT 2026-06)
+TS = Bias × MarketPhase × EntryLayer × MACD × CCI × PSAR × ATR × RSI × Stoch × ADX × BB × HTF × ...
 
-Expanded:
-  TS = Bias × Phase × (∏ F_filters) × Layer × (∏ I_voters)
-
-Where:
-  B = Bias       — direction permission (+1 LONG / −1 SHORT / 0 NONE)
-  P = Phase      — UNO always blocks; EM blocked by default in PRESET_RRM_ORG
-  F = ∏ filters  — EMA_FAN × PRICE_EXT × DPI_DECEL × PHASE_AGE × CLIMAX_GUARD
-                   (all off by default in PRESET_RRM_ORG; opt-in per filter)
-  L = Layer      — L3 → L2 → L1 priority; per-layer pos × slope × BC × BD
-  I = ∏ voters   — all enabled indicators must agree (unanimous AND)
-                   PRESET_RRM_ORG voter set: DPI + PSAR + CandleBody + MTF
-
-Each factor:
+Where each factor is:
   1  = pass (condition met, or feature disabled → neutral)
   0  = fail (condition not met)
  -1  = contradicts (used by directional checks)
@@ -1639,7 +1617,7 @@ Each indicator = Plugin with:
 
 ## AI Agent Manifest
 
-As the Lead System Architect, I orchestrate a team of 7 specialized coding agents. I am the only agent authorized and capable of modifying the system documentation (`README.md` and the `Readme/*.md` files). All code generation and modification tasks are strictly delegated to the following specialized agents to maintain a clean modular architecture:
+As the Lead System Architect, I orchestrate a team of 7 specialized coding agents. I am the only agent authorized and capable of modifying the system documentation (README.md and README_INDICATORS.md). All code generation and modification tasks are strictly delegated to the following specialized agents to maintain a clean modular architecture:
 
 1. SEA Architect (Me): Lead orchestrator, system design, code routing, and sole owner of documentation.
 2. SEA Config: Owns SEA_Config.mqh. Manages global EA_Settings struct, enums, and mapping user inputs via InitializeConfig().

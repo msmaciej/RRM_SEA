@@ -5,17 +5,13 @@ This document provides the complete technical documentation for the SimpleEA sig
 
 The Signal Engine evaluates **EVERY condition on the CLOSED candle** (shift=1, the **TS — Trade Setup** evaluation) before allowing any trade. 
 
-The core system uses a strict multiplicative formula where unanimous agreement is required. The canonical form (post-F-AUDIT 2026-06) is:
+The core system uses a strict multiplicative formula where unanimous agreement is required. Based on the KISS architecture, the core equation is:
 
-$$TS = B \times P \times F \times L \times I$$
-
-Expanded with the layer-and-bar-close detail and the F sub-filters:
-
-$$TS = Bias \times Phase \times \prod_{j=1}^{m} F_{j} \times Layer_{X} \times bc_{X} \times \prod_{i=1}^{n} Ind_{i}$$
+$$TS = Bias \times Layer_{X} \times bc_{X} \times \prod_{i=1}^{n} Ind_{i} \times \prod_{j=1}^{m} Filter_{j}$$
 
 Where each factor returns 1 (pass/enabled), 0 (fail), or -1 (contradicts). Any 0 or -1 stops the pipeline.
 
-The **Climax / Exhaustion Guard** (previously called `CX` or `CG` as a separate sixth factor) was merged into **F** as a sub-filter in the 2026-06 F-AUDIT. `F = 0` with `F_reason = CLIMAX_GUARD` now blocks an otherwise fully-aligned signal when price has over-extended into a blow-off impulse (single-bar range > `ClimaxGuard_BarATRMult` × ATR, or cumulative move > `ClimaxGuard_MoveATRMult` × ATR, in the trade direction). The conceptual veto (climax-as-veto) is unchanged — only the position in the equation moved, so reason-code reporting reads cleanly under the F factor. The check still re-scans the last `ClimaxGuard_Lookback` bars on every bar (a sliding window, not a stored countdown), so it stays blocking only while the triggering bar is inside that window.
+After all factors pass, a final **Climax (exhaustion) veto** is applied: a fully-aligned signal is still blocked when price has over-extended into a blow-off impulse (single-bar range > `ClimaxGuard_BarATRMult` × ATR, or cumulative move > `ClimaxGuard_MoveATRMult` × ATR, in the trade direction). It is a negative veto checked last — not part of the multiplicative product and not an indicator vote.
 
 ---
 
@@ -233,19 +229,6 @@ See also:
 - [`PRESET_RRM_ORG` preset flow](README_SEA_PRESETS.md#preset_rrm_org)
 - [DPI `mc_main` EA integration notes](../DPI_mc_main_README.md#ea-integration-preset_rrm_org)
 
-### CandleBody (CB) — Over-Extension Voter
-
-**Purpose:** blocks entries on a bar whose body is abnormally large vs the recent average — a single-bar over-extension filter inside the indicator product ∏Ind.
-
-**Sub-equation:** `CB = CB_body × CBOEB`
-
-- **CB_body** (stateless, per bar): `0` if any of the last `CandleBody_CheckBars` bars has body `|close-open| > CandleBody_MaxMult ×` the average body of the prior `CandleBody_AvgPeriod` bars, in the trade direction. Shift-relative (evaluates the signal bar, never bar 0). Optional close-in-range quality check (`CandleBody_MinCloseRatio`).
-- **CBOEB** (over-extension carry, stateful) — **[PENDING compile]**: once `CB_body` flags an over-extended bar, `CBOEB = 0` and holds the whole CB vote at 0 — so `CB = 1 × 0 = 0` even on a later bar whose own body is fine — until the **first of W/M/S completes a fresh pullback-recovery**, then it returns to 1. Edge-detected so a layer already recovered at trip-time does not clear it instantly. Toggle `CandleBody_CarryOnOverext` (default ON). Advanced once per bar in `UpdateLayerPullbackStates` (and the warmup replay), so live and scanner agree.
-
-CandleBody is independent of the Climax factor `CX`: **CB** measures *body size* inside ∏Ind; **CX** measures *range / cumulative move vs ATR* over a lookback window as its own top-level factor. Neither reads the other. (Neither measures *distance from the EMAs* — a bar far from EMA89 with a normal body and no fresh range spike passes both.)
-
-**Inputs:** `Ind_CandleBody_Enabled`, `CandleBody_AvgPeriod`, `CandleBody_MaxMult`, `CandleBody_CheckBars`, `CandleBody_RequireDirection`, `CandleBody_MinCloseRatio`, `CandleBody_CarryOnOverext` [PENDING].
-
 ---
 
 ## Part 3: Extending the System (Plugin Architecture)
@@ -349,7 +332,7 @@ The signal evaluation pipeline has been drastically simplified:
 
 The formula is now purely multiplicative with clear OR logic for layers:
 ```
-TS = Bias × (LayerW × bcW OR LayerM × bcM OR LayerS × bcS) × Indicators × Filters × CX   (CX = Climax factor)
+TS = Bias × (LayerW × bcW OR LayerM × bcM OR LayerS × bcS) × Indicators × Filters
 ```
 Any Bias=0 or all layers=0 immediately stops the pipeline.
 

@@ -7,8 +7,6 @@
 **Source:** RRM-topinvestor/ folder (3 PDFs, 243 pages total)  
 **Target:** SimpleEA v1.04+ (`SEA_Config.mqh`, `SEA_Presets.mqh`, `SEA_SignalEngine.mqh`, `SEA_TradeExecutor.mqh`)
 
-> **Status: integration landed.** The blueprint below was the May 2026 implementation manual for adding `PRESET_TOPINVESTOR`. The preset is now part of the shipping codebase — the enum, `ApplyPreset()` block, inputs, and indicator gating are all live in source. Sections 1-7 (methodology, signal logic, exit logic) remain the authoritative description of the preset's behavior. Sections 8-9 (code samples and integration instructions) are now **historical**: the post-2026-06 enum no longer contains `PRESET_CUSTOM`/`PRESET_RRM`/`PRESET_TEST`, and "after the existing `PRESET_RRM` block" no longer applies because `PRESET_RRM` was removed in the 2026-06 refactor. For the current preset enum and `ApplyPreset()` structure, refer to live source (`SEA_Config.mqh` / `SEA_Presets.mqh`) rather than the code samples in §8.
-
 ---
 
 ## 1. Executive Summary
