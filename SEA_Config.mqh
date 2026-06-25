@@ -504,13 +504,13 @@ struct ST_Settings
    bool   DPI_UseGreenHist;            // Enable GREEN momentum overlay (false = v29-equivalent)
    // Theme5a 2026-06: DPI exhaustion-divergence sub-filter.
    //
-   // SEMANTIC NOTE — INVERTED vs MacdRequireDivergence on purpose.
-   // MACD's RequireDivergence looks for divergence at REVERSAL POINTS (price lowest-low /
-   // highest-high) — used by swing-reversal strategies. RRM_ORG is trend-following on
-   // pullback-recovery, so the relevant divergence is at TREND CONTINUATION POINTS
-   // (price highest-high for LONG / lowest-low for SHORT). When divergence appears
-   // there, it signals EXHAUSTION, not reversal-confirmation. Therefore this gate
-   // BLOCKS the entry instead of requiring divergence.
+   // SEMANTIC: trend-following exhaustion-divergence detector. RRM_ORG is a
+   // pullback-recovery system entering in the TREND direction, so the relevant
+   // divergence appears at TREND CONTINUATION POINTS (price highest-high for LONG /
+   // lowest-low for SHORT). When divergence appears there, it signals EXHAUSTION
+   // and the entry is BLOCKED. As of Theme5a-extension 2026-06, MacdBlockOnDivergence
+   // uses the exact same semantics for symmetry — both indicators block on the same
+   // trend-exhaustion pattern.
    //
    // For LONG entry: BLOCK when price_high_curr > price_high_prev (price still
    //                 making higher highs) AND DPI_hist_curr < DPI_hist_prev (DPI
@@ -597,7 +597,26 @@ struct ST_Settings
    // Modes
    EMacdVoteMode MacdVoteMode;          // MACD base vote mode
    bool          MacdRequireSlope;      // Filter: require acceleration
-   bool          MacdRequireDivergence; // Filter: require divergence
+   // Theme5a-extension 2026-06: MACD exhaustion-divergence sub-filter.
+   //
+   // PRE-2026-06 behaviour was "MacdRequireDivergence" with REVERSAL-confirmation
+   // semantics (look for bullish divergence at price LOWS to confirm a LONG entry).
+   // That fit a swing-reversal strategy but NOT this codebase — RRM_ORG enters LONG
+   // in an uptrend after pullback-recovery, so the relevant divergence is at the
+   // trend's PRICE HIGHS, not at pullback lows. The pre-2026-06 logic looked at the
+   // wrong extremes and inverted the gate direction; was harmless only because the
+   // toggle was off by default.
+   //
+   // New semantics (matches DpiBlockOnDivergence exactly):
+   //   LONG  (bias=1):  BLOCK when price_high_curr > price_high_prev AND
+   //                   macd_high_curr < macd_high_prev  (bearish exhaustion at HH)
+   //   SHORT (bias=-1): BLOCK when price_low_curr  < price_low_prev  AND
+   //                   macd_low_curr  > macd_low_prev   (bullish exhaustion at LL)
+   bool          MacdBlockOnDivergence; // When true, Check_MACD BLOCKS the I-vote if contra-trend
+                                        // exhaustion divergence is detected (see semantic note above).
+                                        // Off by default; opt-in via Inp_RRM_ORG_MacdDiv.
+   int           MacdDivLookback;       // Window size in bars for MACD divergence detection (default 10).
+                                        // Two non-overlapping windows of this size are compared.
    bool          MacdRequireHook;       // Filter: require histogram flip
    int           MacdFreshBars;         // For _N modes: fresh signal validity
    double        MacdSlopeMin;          // Min slope threshold (0=disabled)

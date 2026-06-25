@@ -452,7 +452,7 @@ string SEA_UI_BuildIndicatorConfigs(const ST_Settings &cfg)
       output += StringFormat("  MACD: %d/%d/%d (Fast/Slow/Sig) [%s]\n",
                              cfg.P_MacdFast, cfg.P_MacdSlow, cfg.P_MacdSig,
                              GetMACDModeDescription(cfg.MacdVoteMode, cfg.MacdRequireSlope,
-                                                   cfg.MacdRequireDivergence, cfg.MacdRequireHook));
+                                                   cfg.MacdBlockOnDivergence, cfg.MacdRequireHook));
    if(cfg.Ind_Psar_Enabled) {
       string psar_mode = cfg.Vote_AllowPsarFlip ? StringFormat("[FLIP mode: delay=%d bars]", cfg.Vote_PsarFlipDelay) : "[DOT mode]";
       output += StringFormat("  PSAR: Step=%.2f, Max=%.2f %s\n", cfg.P_PsarStep, cfg.P_PsarMax, psar_mode);

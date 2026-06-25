@@ -1290,7 +1290,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_MacdSig              = Inp_FPM_MacdSig;
       cfg.MacdVoteMode           = MACD_CROSSOVER_N;  // Fresh cross only (within N bars)
       cfg.MacdRequireSlope       = false;
-      cfg.MacdRequireDivergence  = false;
+      cfg.MacdBlockOnDivergence  = false;  // Theme5a-extension 2026-06: was MacdRequireDivergence
+      cfg.MacdDivLookback        = 10;
       cfg.MacdRequireHook        = false;
       cfg.MacdHistDecelEnabled   = false;  // Not applicable: FPM uses MACD_CROSSOVER_N (event-based), not directional histogram
       cfg.MacdFreshBars          = 5;                  // Valid for 5 bars after cross (25 min on M5; allows Bias to confirm)
@@ -1576,7 +1577,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_MacdSig              = 9;
       cfg.MacdVoteMode           = MACD_HISTOGRAM;
       cfg.MacdRequireSlope       = false;
-      cfg.MacdRequireDivergence  = false;
+      cfg.MacdBlockOnDivergence  = false;  // Theme5a-extension 2026-06: was MacdRequireDivergence
+      cfg.MacdDivLookback        = 10;
       cfg.MacdRequireHook        = false;
       cfg.MacdHistDecelEnabled   = false;  // TEST preset: decel filter off — isolation mode for indicator debugging
       cfg.MacdFreshBars          = 3;
@@ -1926,7 +1928,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── MACD SETTINGS: safe defaults (disabled) ───────────────────────
       cfg.MacdRequireSlope          = Inp_RRM_ORG_MacdSlope;
-      cfg.MacdRequireDivergence     = Inp_RRM_ORG_MacdDiv;
+      // Theme5a-extension 2026-06: opt-in trend-exhaustion divergence (same semantics as DPI).
+      // Default off — preserves prior behavior. When on, BLOCKS the MACD vote if the bias-direction
+      // price made a new extreme that the MACD main value did not confirm.
+      cfg.MacdBlockOnDivergence     = Inp_RRM_ORG_MacdDiv;
+      cfg.MacdDivLookback           = MathMax(3, Inp_RRM_ORG_MacdDivLookback); // floor 3 (avoid degenerate windows)
       cfg.MacdRequireHook           = false;
       cfg.MacdHistDecelEnabled      = false;  // RRM_ORG uses DPI voter (not MACD histogram) as its momentum gate — decel handled via DPI_BlockOnDeceleration
       // STEP24B 2026-06: defensive default for flexibility. RRM_ORG's primary architecture
@@ -2462,7 +2468,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_MacdSig              = Inp_TI_MACD_Signal;
       cfg.MacdVoteMode           = MACD_HISTOGRAM;     // LOCKED: histogram mode (acceleration) is the TI vote logic; zero-line or crossover modes measure different aspects and would require re-tuning the whole voter set
       cfg.MacdRequireSlope       = true;               // LOCKED: histogram must be sloping in trade direction; flat histogram = no momentum = no trade in TI
-      cfg.MacdRequireDivergence  = false;              // LOCKED: divergence is not part of TI MACD voter; enabling it would filter out valid momentum entries
+      cfg.MacdBlockOnDivergence  = false;              // LOCKED (Theme5a-extension 2026-06: was MacdRequireDivergence): divergence is not part of TI MACD voter; enabling it would filter out valid momentum entries
+      cfg.MacdDivLookback        = 10;                 // Unused while MacdBlockOnDivergence=false; kept for struct completeness
       cfg.MacdRequireHook        = false;              // LOCKED: hook (reversal of histogram) is not a TI entry signal
       cfg.MacdHistDecelEnabled   = false;              // LOCKED: TI uses MacdRequireSlope=true which already enforces acceleration; double-filter not needed
       cfg.MacdFreshBars          = Inp_TI_MACD_FreshBars;

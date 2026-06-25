@@ -745,7 +745,8 @@ input group "║   📐 RRM_ORG: MACD Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input EMacdVoteMode Inp_RRM_ORG_MacdMode           = MACD_HISTOGRAM; // RRM ORG MACD: MACD Mode
 input bool        Inp_RRM_ORG_MacdSlope            = false;          // RRM ORG MACD: MACD require SLO
-input bool        Inp_RRM_ORG_MacdDiv              = false;          // RRM ORG MACD: MACD require DIV
+input bool        Inp_RRM_ORG_MacdDiv              = false;          // RRM ORG MACD: BLOCK entry on MACD trend-exhaustion divergence (price HH but MACD LH for LONG; mirror for SHORT)
+input int         Inp_RRM_ORG_MacdDivLookback      = 10;             // RRM ORG MACD: Divergence detection window in bars (two non-overlapping windows of this size)
 input int         Inp_RRM_ORG_MacdFast             = 8;              // RRM ORG MACD: MACD Fast
 input int         Inp_RRM_ORG_MacdSlow             = 13;             // RRM ORG MACD: MACD Slow
 input int         Inp_RRM_ORG_MacdSig              = 5;              // RRM ORG MACD: MACD Signal
@@ -1342,7 +1343,12 @@ void InitializeConfig()
 
    // Modes
    Settings.MacdRequireSlope     = false;
-   Settings.MacdRequireDivergence= false;
+   // Theme5a-extension 2026-06: MacdRequireDivergence → MacdBlockOnDivergence rename.
+   // Old name had REVERSAL-confirmation semantics (wrong for RRM_ORG trend-following);
+   // new name + new logic blocks on trend-exhaustion divergence at price highs/lows.
+   // Off by default, opt-in via Inp_RRM_ORG_MacdDiv. See ST_Settings comment for details.
+   Settings.MacdBlockOnDivergence= false;
+   Settings.MacdDivLookback      = 10;
    Settings.MacdRequireHook      = false;
    Settings.MacdFreshBars        = 3;
    Settings.MacdHistDecelEnabled = false;  // STEP3 2026-06: was "RRM-only; set true by PRESET_RRM" — RRM removed. All remaining presets explicitly set false or don't override.

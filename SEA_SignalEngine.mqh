@@ -2511,12 +2511,15 @@ private:
          }
       }
 
-      // Filter B: Divergence (price vs MACD disagreement)
-      if(m_settings.MacdRequireDivergence) {
-         if(!CheckMACDDivergence(bias, shift)) {
+      // Filter B: trend-exhaustion divergence (price vs MACD disagreement at trend extremes).
+      // Theme5a-extension 2026-06: semantics inverted from pre-2026-06 (was "require divergence
+      // to pass" with reversal-at-pullback-extremes logic; now "block if exhaustion divergence
+      // present" with trend-extremes logic). See ST_Settings comment for full description.
+      if(m_settings.MacdBlockOnDivergence) {
+         if(CheckMACDDivergence(bias, shift)) {
             if(m_settings.DebugFlow)
-               DebugLog(StringFormat("[IND_MACD] ENABLED | Main=%.5f Signal=%.5f | Result: FAIL (divergence)",
-                                     m, s));
+               DebugLog(StringFormat("[IND_MACD] bias=%d Main=%.5f Signal=%.5f → FAIL (%s exhaustion divergence)",
+                                     bias, m, s, (bias == 1) ? "BEARISH" : "BULLISH"));
             m_ind_cache.cached_bias = bias;
             m_ind_cache.macd_main = m;
             m_ind_cache.macd_signal = s;
@@ -2608,38 +2611,59 @@ private:
       return -1;  // No recent zero cross
    }
 
-   // MACD Helper: Check for bullish/bearish divergence
+   // CheckMACDDivergence — Theme5a-extension 2026-06: TREND-EXHAUSTION semantics.
+   //
+   // Returns true when contra-trend exhaustion divergence is PRESENT (caller should
+   // BLOCK the entry). Returns false when no divergence (safe to proceed) or when
+   // computation can't be performed (warmup / insufficient bars — fail-safe permissive).
+   //
+   // Mirrors CheckDPIDivergence exactly (just substitutes the MACD main buffer for
+   // the DPI histogram); both helpers use the same two-non-overlapping-windows pattern.
+   //
+   // Two windows of `lookback` bars each (configurable via Inp_RRM_ORG_MacdDivLookback):
+   //   recent: bars [shift              .. shift +   lookback - 1]
+   //   prior:  bars [shift +  lookback   .. shift + 2*lookback - 1]
+   //
+   // LONG (bias=1):  bearish divergence when price_high_recent > price_high_prior
+   //                 AND macd_main at price_high_recent < macd_main at price_high_prior.
+   //                 (Trend made new HH but momentum failed to confirm.)
+   // SHORT (bias=-1): bullish divergence when price_low_recent < price_low_prior
+   //                 AND macd_main at price_low_recent > macd_main at price_low_prior.
+   //                 (Trend made new LL but momentum failed to confirm.)
    bool CheckMACDDivergence(int bias, int shift) {
-      // Simple divergence check using two non-overlapping 10-bar windows
-      // Bullish divergence: price makes lower low, MACD makes higher low
-      // Bearish divergence: price makes higher high, MACD makes lower high
-
-      if(shift + 20 >= Bars(m_symbol, PERIOD_CURRENT)) return false;
+      int lookback = m_settings.MacdDivLookback;
+      if(lookback < 3) return false;
+      if(shift + 2 * lookback + 1 >= Bars(m_symbol, PERIOD_CURRENT)) return false;
 
       if(bias == 1) {
-         // Recent swing low (bars shift..shift+9) vs prior swing low (bars shift+10..shift+19)
-         int price_low_idx  = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, 10, shift);
-         int price_low_idx2 = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, 10, shift + 10);
-         double price_low_curr = iLow(m_symbol, PERIOD_CURRENT, price_low_idx);
-         double price_low_prev = iLow(m_symbol, PERIOD_CURRENT, price_low_idx2);
-         double macd_low_curr  = GetVal(h_macd, price_low_idx,  0);
-         double macd_low_prev  = GetVal(h_macd, price_low_idx2, 0);
+         // Two highest-high bars in non-overlapping windows
+         int hi_r = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, lookback, shift);
+         int hi_p = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, lookback, shift + lookback);
+         if(hi_r < 0 || hi_p < 0) return false;
+         double price_high_recent = iHigh(m_symbol, PERIOD_CURRENT, hi_r);
+         double price_high_prior  = iHigh(m_symbol, PERIOD_CURRENT, hi_p);
+         double macd_recent = GetVal(h_macd, hi_r, 0);
+         double macd_prior  = GetVal(h_macd, hi_p, 0);
 
-         // Bullish divergence: price lower low, MACD higher low
-         return (price_low_curr < price_low_prev && macd_low_curr > macd_low_prev);
+         // Bearish exhaustion divergence: new HH in price, lower MACD at the new HH.
+         return (price_high_recent > price_high_prior && macd_recent < macd_prior);
       }
-      else {
-         // Recent swing high (bars shift..shift+9) vs prior swing high (bars shift+10..shift+19)
-         int price_high_idx  = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, 10, shift);
-         int price_high_idx2 = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, 10, shift + 10);
-         double price_high_curr = iHigh(m_symbol, PERIOD_CURRENT, price_high_idx);
-         double price_high_prev = iHigh(m_symbol, PERIOD_CURRENT, price_high_idx2);
-         double macd_high_curr  = GetVal(h_macd, price_high_idx,  0);
-         double macd_high_prev  = GetVal(h_macd, price_high_idx2, 0);
 
-         // Bearish divergence: price higher high, MACD lower high
-         return (price_high_curr > price_high_prev && macd_high_curr < macd_high_prev);
+      if(bias == -1) {
+         // Two lowest-low bars in non-overlapping windows
+         int lo_r = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, lookback, shift);
+         int lo_p = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, lookback, shift + lookback);
+         if(lo_r < 0 || lo_p < 0) return false;
+         double price_low_recent = iLow(m_symbol, PERIOD_CURRENT, lo_r);
+         double price_low_prior  = iLow(m_symbol, PERIOD_CURRENT, lo_p);
+         double macd_recent = GetVal(h_macd, lo_r, 0);
+         double macd_prior  = GetVal(h_macd, lo_p, 0);
+
+         // Bullish exhaustion divergence: new LL in price, higher MACD at the new LL.
+         return (price_low_recent < price_low_prior && macd_recent > macd_prior);
       }
+
+      return false;
    }
 
    // MACD Mode description: returns human-readable string for active MACD configuration
@@ -2648,7 +2672,7 @@ private:
       return ::GetMACDModeDescription(
          m_settings.MacdVoteMode,
          m_settings.MacdRequireSlope,
-         m_settings.MacdRequireDivergence,
+         m_settings.MacdBlockOnDivergence,
          m_settings.MacdRequireHook
       );
    }
