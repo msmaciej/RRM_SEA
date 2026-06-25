@@ -2065,6 +2065,19 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       //   L2 (Medium/EMA13-EMA34): 0.3 — moderate, matches global default
       //   L3 (Strong/EMA34-EMA89): 0.2 — slow EMAs, early recovery is enough
       cfg.LayerPullbackEnabled        = Inp_RRM_ORG_LayerPBEnabled;
+      // Theme 2026-06 (UNO-exit cooldown): wire user input. Default 0 = off; opt-in
+      // value (2-3 typical on M1) blocks DETECTED→RECOVERED transitions until that
+      // many bars have passed since the last UNO bar. Prevents same-bar layer cycle
+      // completion immediately after a phase transitions out of UNO when EMA1/EMA2
+      // geometry is still dominated by UNO-period price action.
+      cfg.MinBarsAfterUNOExit         = MathMax(0, Inp_RRM_ORG_MinBarsAfterUNOExit);
+      // Theme 2026-06 (LayerS=TM-only): canonical RRM Trade Setups card restricts
+      // Strong (LayerS) trades to "during the Trending Phase" only. In Emerging the
+      // EMA3/EMA4 pair is oriented opposite to bias (e.g. EM_DN has EMA3>EMA4 while a
+      // valid SHORT setup needs EMA3<EMA4), so a LayerS pullback-recovery cycle in EM
+      // is geometrically counter-trend on its own EMA pair. Default off for backward
+      // compatibility; user-controlled via Inp_RRM_ORG_LayerS_TMOnly.
+      cfg.LayerS_TMOnly               = Inp_RRM_ORG_LayerS_TMOnly;
       cfg.LayerBaselineLookback       = MathMax(2, Inp_RRM_ORG_LayerPBLookback);   // global fallback (clamp fixed: 20-cap removed)
       cfg.LayerBaselineLookback_W     = MathMax(2, Inp_RRM_ORG_LayerPBLookback_W);
       cfg.LayerBaselineLookback_M     = MathMax(2, Inp_RRM_ORG_LayerPBLookback_M);

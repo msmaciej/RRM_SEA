@@ -785,8 +785,27 @@ struct ST_Settings
     bool     AllowLayer2_Entries;         // Allow Layer 2 (EMA2/EMA3 touch) entries
     bool     AllowLayer3_Entries;         // Allow Layer 3 (EMA3/EMA4 touch) entries
     bool     LayerS_RequireDirAlign;      // Gate L M/W entries on Layer S (EMA3/EMA4) pos+slope aligned w/ bias
+    // Theme 2026-06 (LayerS=TM-only): canonical RRM Trade Setups card specifies Strong
+    // (LayerS, EMA3/EMA4 pullback) trades occur "during the Trending Phase" — Emerging
+    // explicitly excluded. Reason: in EM, the EMA3/EMA4 pair is oriented OPPOSITE to
+    // bias direction (e.g. in EM_DN, EMA3 > EMA4 instead of EMA3 < EMA4), so a LayerS
+    // entry forming in EM would be geometrically counter-trend on its own EMA pair.
+    // When true, LayerS entries are blocked unless current phase is TM_UP or TM_DN.
+    // LayerW and LayerM are unaffected (they're explicitly allowed in both EM and TM
+    // per the canonical card). Off by default for backward compatibility — opt-in
+    // via Inp_RRM_ORG_LayerS_TMOnly. Only meaningful in BIAS_4EMA mode.
+    bool     LayerS_TMOnly;               // false = legacy behavior (LayerS allowed in EM+TM); true = LayerS only in TM
     bool     LayerResetOnRealign;         // Reset all layer PB states on a confirmed market-phase change
     int      LayerResetPhaseConfirmBars;  // Bars a new phase must hold before it triggers a realign reset
+    // Theme 2026-06 (UNO-exit cooldown): block DETECTED→RECOVERED transitions until
+    // N consecutive non-UNO bars have passed since the last UNO bar. Prevents a layer
+    // cycle from completing on the immediate post-UNO bars whose EMA1/EMA2 geometry
+    // is dominated by trailing effects of UNO-period price action. The DETECTED state
+    // can still be reached during the cooldown — only the recovery transition is held
+    // back. 0 = disabled (legacy behaviour: layer cycles can complete on the very
+    // first non-UNO bars). Only meaningful in BIAS_4EMA mode (other modes don't have
+    // UNO as a defined phase). Suggested starting value 2-3 for M1 timeframes.
+    int      MinBarsAfterUNOExit;         // 0 = disabled
     // Layer Pullback-Recovery Detection
     bool     LayerPullbackEnabled;        // Master enable for pullback detection
     int      LayerBaselineLookback;       // Bars for baseline direction lookback

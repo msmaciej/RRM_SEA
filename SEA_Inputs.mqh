@@ -636,6 +636,8 @@ input int         Inp_RRM_ORG_Ema4Period           = 89;             // RRM ORG 
 input int         Inp_RRM_ORG_PhaseConfirmM5       = 0;              // RRM ORG QA: PhaseConfirmBars <M5
 input int         Inp_RRM_ORG_PhaseConfirmM30      = 0;              // RRM ORG QA: PhaseConfirmBars <M30
 input int         Inp_RRM_ORG_PhaseConfirmH1plus   = 0;              // RRM ORG QA: PhaseConfirmBars H1+
+input int         Inp_RRM_ORG_MinBarsAfterUNOExit  = 0;              // RRM ORG QA: Min bars after UNO exit before any layer DETECTED→RECOVERED transition is allowed (0=disabled; try 2-3 for M1)
+input bool        Inp_RRM_ORG_LayerS_TMOnly        = false;          // RRM ORG QA: Restrict LayerS (EMA3/EMA4) entries to TRENDING phase only (per canonical RRM); false=legacy (LayerS allowed in EM+TM)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: LAYER WMS Pullback & Recovery";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1549,6 +1551,13 @@ void InitializeConfig()
    Settings.LayerS_RequireDirAlign      = Inp_Global_LayerS_Require_DirAlign;
    Settings.LayerResetOnRealign         = Inp_Global_LayerReset_OnRealign;
    Settings.LayerResetPhaseConfirmBars  = Inp_Global_LayerReset_PhaseConfirm;
+   // UNO-exit cooldown default (disabled; only RRM_ORG preset wires the user input).
+   // Other presets keep the legacy behaviour (cycles can complete immediately after
+   // a UNO exit). RRM_ORG users can opt in via Inp_RRM_ORG_MinBarsAfterUNOExit.
+   Settings.MinBarsAfterUNOExit         = 0;
+   // LayerS=TM-only default (disabled = legacy behavior). RRM_ORG users can opt in
+   // via Inp_RRM_ORG_LayerS_TMOnly to match the canonical RRM Trade Setups card.
+   Settings.LayerS_TMOnly               = false;
    Settings.LayerBaselineLookback       = 10;     // default; overwritten by ApplyPreset
    // Per-layer pullback-recovery defaults (seed for ALL presets so the shared
    // magnitude logic is safe; RRM_ORG/CUSTOM override these via ApplyPreset).

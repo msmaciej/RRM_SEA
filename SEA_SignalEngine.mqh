@@ -258,6 +258,15 @@ private:
     EMarketPhase m_phase_reset_pending;   // raw phase currently being debounced
     EMarketPhase m_phase_reset_confirmed; // last phase that triggered a realign reset
     int          m_phase_reset_count;     // consecutive bars the pending phase has held
+    // --- 2c.1b.2 UNO-EXIT COOLDOWN (Theme 2026-06, optional) ---
+    // Counts consecutive non-UNO bars since the last UNO bar. Used by
+    // UpdateSingleLayerPullback to BLOCK the DETECTED→RECOVERED transition until
+    // m_settings.MinBarsAfterUNOExit bars have accumulated. Reset to 0 on every
+    // UNO bar (the B==0 branch of the per-bar dispatch in EvaluateTS). Incremented
+    // on every non-UNO bar (B != 0 branch). Only meaningful in BIAS_4EMA mode.
+    // Sentinel large value at constructor + Reset so the very first bar always
+    // satisfies any user-configured minimum (no first-load false trigger).
+    int          m_bars_since_uno_exit;
     // --- 2c.1c CANDLEBODY OVER-EXTENSION CARRY (CBOEB, optional) ---
     bool         m_cb_oeb_blocked;        // CBOEB=0: hold CB vote at 0 (over-extension carry active)
     bool         m_cb_prev_any_rec;       // prev-bar 'any layer recovered' (fresh-recovery edge)
@@ -1959,7 +1968,27 @@ private:
       if(state == LAYER_PB_NONE && is_pullback)
          state = LAYER_PB_DETECTED;
       else if(state == LAYER_PB_DETECTED && is_recovery)
-         state = LAYER_PB_RECOVERED;
+      {
+         // Theme 2026-06 (UNO-exit cooldown): when MinBarsAfterUNOExit > 0, block
+         // the DETECTED→RECOVERED transition until that many non-UNO bars have
+         // accumulated since the last UNO bar. Rationale: EMA1/EMA2 geometry on
+         // the first non-UNO bars carries trailing influence from UNO-period
+         // price action; a "recovery" detected there isn't a true post-UNO cycle.
+         // State stays DETECTED — the next bar can re-attempt the transition
+         // when the cooldown has further progressed. Diagnostic line emitted at
+         // DEBUG_FLOW level so the operator can verify on the bar of interest.
+         if(m_settings.MinBarsAfterUNOExit > 0 &&
+            m_bars_since_uno_exit < m_settings.MinBarsAfterUNOExit)
+         {
+            if(m_settings.DebugFlow)
+               DebugLog(StringFormat("[%s_PB] DET→REC BLOCKED by UNO-exit cooldown: %d bars since UNO exit < required %d (state stays DETECTED)",
+                                     label, m_bars_since_uno_exit, m_settings.MinBarsAfterUNOExit));
+         }
+         else
+         {
+            state = LAYER_PB_RECOVERED;
+         }
+      }
       else if(state == LAYER_PB_RECOVERED && is_relapse_reversal)
          state = LAYER_PB_DETECTED;
 
@@ -3822,6 +3851,27 @@ private:
                               (bias == -1) ? (ema_fast < ema_slow) : false;
       if(!position_aligned) return 0;
 
+      // ── Theme 2026-06: LayerS=TM-only phase gate ──
+      // Canonical RRM Trade Setups card restricts Strong (LayerS, EMA3/EMA4) trades
+      // to TRENDING phase only. The EMA3/EMA4 pair has its position swapped in
+      // EM vs TM (e.g. EM_DN has EMA3>EMA4 while TM_DN has EMA3<EMA4), so a LayerS
+      // pullback-recovery cycle that completes in EM is geometrically counter-trend
+      // on its own EMA pair even though the position check above might pass during
+      // the EM→TM transition. Block here to match the canonical rule.
+      // Default off (legacy behavior); opt-in via Inp_RRM_ORG_LayerS_TMOnly.
+      if(layer_type == 3 && m_settings.LayerS_TMOnly)
+      {
+         EMarketPhase ph_now = DetectMarketPhase(shift);
+         bool is_tm = (ph_now == PHASE_TRENDING_UP || ph_now == PHASE_TRENDING_DN);
+         if(!is_tm)
+         {
+            if(m_settings.DebugFlow)
+               DebugLog(StringFormat("[%s] BLOCKED by LayerS_TMOnly: current phase %s is not TRENDING",
+                                     layer_label, EnumToString(ph_now)));
+            return 0;
+         }
+      }
+
       // ── Layer result: purely positional ──
       // Slope per bar is NOT checked here — it blocked entries on consolidating bars
       // even when all EMAs were correctly stacked (e.g. EMA1>EMA2>EMA3>EMA4 for LONG).
@@ -4613,6 +4663,7 @@ public:
       m_phase_reset_pending   = PHASE_UNORDERED;
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
+      m_bars_since_uno_exit   = 999999;   // sentinel — counts non-UNO bars since last UNO
       m_cb_oeb_blocked  = false;
       m_cb_prev_any_rec = false;
       // Session-once flag for DPI cold-start first-entry grant. Set here in
@@ -5678,6 +5729,7 @@ public:
       m_phase_reset_pending   = PHASE_UNORDERED;
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
+      m_bars_since_uno_exit   = 999999;   // sentinel — counts non-UNO bars since last UNO
       m_cb_oeb_blocked  = false;
       m_cb_prev_any_rec = false;
       m_layer_w_vol_pb_avg = 0.0; m_layer_w_vol_pb_bars = 0;
@@ -5888,6 +5940,7 @@ public:
       m_phase_reset_pending   = PHASE_UNORDERED;
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
+      m_bars_since_uno_exit   = 999999;   // sentinel — counts non-UNO bars since last UNO
       m_cb_oeb_blocked  = false;
       m_cb_prev_any_rec = false;
       m_last_dir_state_bias = 999;   // re-arm directional symmetry reset
@@ -7914,10 +7967,19 @@ public:
       {
          if(B != 0)
          {
+            // Non-UNO bar — accumulate cooldown bars (only meaningful when
+            // m_settings.MinBarsAfterUNOExit > 0; otherwise the counter still
+            // increments but is never checked). Cap at a large value to avoid
+            // overflow on long live sessions.
+            if(m_bars_since_uno_exit < 1000000) m_bars_since_uno_exit++;
             UpdateLayerPullbackStates(v_shift, B);
          }
          else
          {
+            // UNO bar — reset cooldown to 0. Any DETECTED→RECOVERED transition
+            // on the next non-UNO bars will be held back until MinBarsAfterUNOExit
+            // bars accumulate.
+            m_bars_since_uno_exit = 0;
             // Soft reset only — same effect as SignalScan's idle-engine branch.
             // Baselines, VPRR buffers, DPI reset state, CB carry, and
             // m_last_dir_state_bias are intentionally PRESERVED so the next
