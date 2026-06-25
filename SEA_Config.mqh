@@ -148,6 +148,26 @@ enum ENewsImpactLevel
    NEWS_IMPACT_MED_PLUS,   // MED+: medium and high impact block (default; legacy behavior)
    NEWS_IMPACT_HIGH_ONLY   // HIGH: only high impact blocks
 };
+// Theme2 2026-06: session-preset enum.
+// SESSION_CUSTOM preserves the legacy behavior where StartHr/EndHr come directly
+// from Inp_Global_VETO_StartHr/EndHr (no override). All other values auto-populate
+// StartHr/EndHr at OnInit with broker-time windows for the named session(s). User
+// can still tune StartHr/EndHr after init by editing those inputs and switching
+// the preset back to SESSION_CUSTOM. Hours are in BROKER TIME — operator must
+// know their broker's server timezone (most brokers use EET = UTC+2/+3 DST).
+// The defaults below match the typical EET broker server clock:
+//   London:  09:00 - 17:00 broker time  (~07:00 - 15:00 UTC outside DST)
+//   NY:      14:00 - 22:00 broker time  (~12:00 - 20:00 UTC outside DST)
+//   OVERLAP: 14:00 - 17:00 broker time  (London PM × NY AM = peak liquidity)
+//   AVOID_ASIAN: 08:00 - 23:00 broker time (covers London+NY+everything except Tokyo)
+enum ESessionPreset
+{
+   SESSION_CUSTOM,           // CUSTOM: use Inp_Global_VETO_StartHr / EndHr verbatim (default — preserves legacy behavior)
+   SESSION_LONDON,           // LONDON: 09-17 broker time (EET-typical; adjust StartHr/EndHr after switching to CUSTOM if your broker differs)
+   SESSION_NY,               // NY: 14-22 broker time
+   SESSION_LONDON_NY_OVERLAP,// OVERLAP: 14-17 broker time — highest-liquidity 3-hour window
+   SESSION_AVOID_ASIAN       // AVOID_ASIAN: 08-23 broker time — trade London+NY but not Tokyo/Sydney session
+};
 enum EAutoStrategy
 {
    STRAT_1EMA_SLOPE,       // STRAT_1EMA_SLOPE ... ONLY for BIAS_1EMA: single EMA slope direction
@@ -482,6 +502,26 @@ struct ST_Settings
    int    DPI_CCI_Period;              // CCI period (default 13)
    int    DPI_CCI_AppliedPrice;        // CCI price type ENUM_APPLIED_PRICE (default PRICE_TYPICAL)
    bool   DPI_UseGreenHist;            // Enable GREEN momentum overlay (false = v29-equivalent)
+   // Theme5a 2026-06: DPI exhaustion-divergence sub-filter.
+   //
+   // SEMANTIC NOTE — INVERTED vs MacdRequireDivergence on purpose.
+   // MACD's RequireDivergence looks for divergence at REVERSAL POINTS (price lowest-low /
+   // highest-high) — used by swing-reversal strategies. RRM_ORG is trend-following on
+   // pullback-recovery, so the relevant divergence is at TREND CONTINUATION POINTS
+   // (price highest-high for LONG / lowest-low for SHORT). When divergence appears
+   // there, it signals EXHAUSTION, not reversal-confirmation. Therefore this gate
+   // BLOCKS the entry instead of requiring divergence.
+   //
+   // For LONG entry: BLOCK when price_high_curr > price_high_prev (price still
+   //                 making higher highs) AND DPI_hist_curr < DPI_hist_prev (DPI
+   //                 not confirming = momentum fading) = bearish divergence.
+   // For SHORT entry: BLOCK when price_low_curr < price_low_prev AND
+   //                 DPI_hist_curr > DPI_hist_prev = bullish divergence.
+   bool   DpiBlockOnDivergence;        // When true, Check_DPI BLOCKS the I-vote if contra-trend
+                                       // exhaustion divergence is detected (see semantic note above).
+                                       // Off by default; opt-in via Inp_RRM_ORG_DpiDiv.
+   int    DpiDivLookback;              // Window size in bars for divergence detection (default 10, two non-overlapping
+                                       // windows of this size are compared: [shift..shift+N-1] vs [shift+N..shift+2N-1]).
    // DPI Histogram Tracking
    double DPI_HistMomentumThreshold;   // Momentum threshold for CCI-delta change (dimensionless)
    int    DPI_HistDecelLookback;       // Bars to analyze for deceleration
@@ -761,6 +801,16 @@ struct ST_Settings
     int      VPRR_RecoveryBars;           // Recovery bars to measure (clamped 1-10, default 3)
     int      VPRR_MinRecoveryBars;        // Min recovery bars before ratio is valid (default RecoveryBars-1)
     double   VPRR_MinRatio;               // Min recovery/pullback ratio to PASS (default 1.0)
+    // Theme3 2026-06: per-layer VPRR threshold overrides.
+    // 0 = "use VPRR_MinRatio above" (backward-compatible default; no change in behavior).
+    // > 0 = layer-specific threshold (e.g. L1=1.2 stricter, L3=0.8 looser).
+    // Rationale: L1 (EMA1/EMA2 pair, fastest) recovers in 1-3 bars on M1 metals which
+    // is rarely enough volume to differentiate from noise; setting a higher threshold
+    // on L1 filters its low-quality entries. L3 (EMA3/EMA4 pair, slowest) has multi-bar
+    // recoveries with more reliable volume signal; lower threshold accepts more entries.
+    double   VPRR_MinRatio_W;             // LayerW threshold override (0 = use VPRR_MinRatio)
+    double   VPRR_MinRatio_M;             // LayerM threshold override (0 = use VPRR_MinRatio)
+    double   VPRR_MinRatio_S;             // LayerS threshold override (0 = use VPRR_MinRatio)
     string   VPRR_ExternalSymbol;         // Proxy symbol for VPRR_VOL_EXTERNAL (e.g. "GC", "MGC"); empty = block all entries
 
     // Diagnostics: statistics configuration

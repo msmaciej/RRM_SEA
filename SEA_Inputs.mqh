@@ -104,8 +104,9 @@ input group "╔═════════════════════�
 input group "║   🚫 VETO: TIME";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_Global_VETO_UseTime                 = false;           // Veto Session: enable
-input int         Inp_Global_VETO_StartHr                 = 8;              // Veto Session: start hour (broker time)
-input int         Inp_Global_VETO_EndHr                   = 18;             // Veto Session: end hour (broker time)
+input ESessionPreset Inp_Global_VETO_SessionPreset         = SESSION_CUSTOM;  // Veto Session: preset (CUSTOM=use StartHr/EndHr below verbatim; others auto-fill window at OnInit)
+input int         Inp_Global_VETO_StartHr                 = 8;              // Veto Session: start hour (broker time; ignored if SessionPreset != CUSTOM)
+input int         Inp_Global_VETO_EndHr                   = 18;             // Veto Session: end hour (broker time; ignored if SessionPreset != CUSTOM)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: NEWS";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -417,6 +418,9 @@ input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // RRM ORG 
 input bool        Inp_RRM_ORG_DPI_UseCCIReset            = false;     // RRM ORG DPI: CCI can reset ribbon color (trend filter)
 input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
 input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;     // RRM ORG DPI: Also require GREEN overlay for vote pass
+// Theme5a 2026-06: DPI divergence sub-filter (mirrors Inp_RRM_ORG_MacdDiv pattern, off by default)
+input bool        Inp_RRM_ORG_DpiDiv                     = false;     // RRM ORG DPI: Require price-vs-DPI-histogram divergence (off by default)
+input int         Inp_RRM_ORG_DpiDivLookback             = 10;        // RRM ORG DPI: Divergence detection window in bars (two non-overlapping windows)
 // Yellow ribbon = BUY vote, Red ribbon = SELL vote.
 // CCI can reset ribbon color: hist>0 but CCI<0 → Red override (weakening).
 //
@@ -623,6 +627,7 @@ input group "║   📐 RRM_ORG: QUALITY Gates";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_RequireRecoveryIntraday = false;        // RRM ORG QA: Require recovery <M15
 input bool        Inp_RRM_ORG_HtfFilter            = false;           // RRM ORG QA: HTF Trend Filter
+input bool        Inp_RRM_ORG_MTF_RequirePhase     = false;           // RRM ORG QA: HTF slope-confirm (both EMAs must slope with position; blocks 'drifting' HTFs)
 // F-AUDIT 2026-06: Inp_RRM_ORG_ClimaxGuard_Enabled removed — toggle globalized to Inp_Global_F_ClimaxGuard_Enabled
 input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM ORG QA: EMA1 period
 input int         Inp_RRM_ORG_Ema2Period           = 13;             // RRM ORG QA: EMA2 period
@@ -945,6 +950,12 @@ input bool        Inp_Global_LayerReset_OnRealign      = false;      // [LY] Res
 input int         Inp_Global_LayerReset_PhaseConfirm   = 2;          // [LY]   ^ bars new phase must hold first (1=catch 1-bar phases)
 // F-AUDIT 2026-06: Inp_CUSTOM_ClimaxGuard_Enabled removed — toggle globalized to Inp_Global_F_ClimaxGuard_Enabled
 input bool        Inp_Global_VPRR_Enabled          = false;          // Override: [VP] Enable Volume Pullback-Recovery Ratio voter
+// Theme3 2026-06: per-layer VPRR threshold overrides (0 = fall back to VPRR_MinRatio).
+// Useful for tuning L1 (fast/noisy) stricter and L3 (slow/cleaner) looser. Defaults to 0
+// for all three = no override = backward-compatible (existing VPRR_MinRatio applies to every layer).
+input double      Inp_Global_VPRR_MinRatio_W       = 0.0;            // Override: [VP] LayerW (EMA1/EMA2) min ratio (0=use VPRR_MinRatio)
+input double      Inp_Global_VPRR_MinRatio_M       = 0.0;            // Override: [VP] LayerM (EMA2/EMA3) min ratio (0=use VPRR_MinRatio)
+input double      Inp_Global_VPRR_MinRatio_S       = 0.0;            // Override: [VP] LayerS (EMA3/EMA4) min ratio (0=use VPRR_MinRatio)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 4: Candle Close & Candle Body";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1229,6 +1240,38 @@ void InitializeConfig()
    Settings.UseTime              = Inp_Global_VETO_UseTime;
    Settings.StartHr              = Inp_Global_VETO_StartHr;
    Settings.EndHr                = Inp_Global_VETO_EndHr;
+   // Theme2 2026-06: named-session preset overrides StartHr/EndHr at init.
+   // SESSION_CUSTOM keeps the user's StartHr/EndHr (legacy behavior). All other
+   // values overwrite the window with broker-time defaults for that session.
+   // The user can re-edit StartHr/EndHr afterwards, but those edits only take
+   // effect when SessionPreset is set back to CUSTOM (preset re-init overwrites).
+   switch(Inp_Global_VETO_SessionPreset)
+   {
+      case SESSION_LONDON:
+         Settings.StartHr =  9; Settings.EndHr = 17;
+         PrintFormat("[SESSION] LONDON: StartHr=9 EndHr=17 (broker time; UseTime=%s)",
+                     Settings.UseTime ? "ON" : "OFF (gate inactive until UseTime=true)");
+         break;
+      case SESSION_NY:
+         Settings.StartHr = 14; Settings.EndHr = 22;
+         PrintFormat("[SESSION] NY: StartHr=14 EndHr=22 (broker time; UseTime=%s)",
+                     Settings.UseTime ? "ON" : "OFF (gate inactive until UseTime=true)");
+         break;
+      case SESSION_LONDON_NY_OVERLAP:
+         Settings.StartHr = 14; Settings.EndHr = 17;
+         PrintFormat("[SESSION] OVERLAP: StartHr=14 EndHr=17 (London PM × NY AM; UseTime=%s)",
+                     Settings.UseTime ? "ON" : "OFF (gate inactive until UseTime=true)");
+         break;
+      case SESSION_AVOID_ASIAN:
+         Settings.StartHr =  8; Settings.EndHr = 23;
+         PrintFormat("[SESSION] AVOID_ASIAN: StartHr=8 EndHr=23 (excludes Tokyo/Sydney; UseTime=%s)",
+                     Settings.UseTime ? "ON" : "OFF (gate inactive until UseTime=true)");
+         break;
+      case SESSION_CUSTOM:
+      default:
+         // No override — Settings.StartHr/EndHr already set from inputs above.
+         break;
+   }
    Settings.UseNews              = Inp_Global_VETO_UseNews;
    Settings.NewsPre              = Inp_Global_VETO_NewsPreMinutes;
    Settings.NewsPost             = Inp_Global_VETO_NewsPostMinutes;
@@ -1345,6 +1388,9 @@ void InitializeConfig()
    Settings.DPI_CCI_Period              = MathMax(1, Inp_RRM_ORG_DPI_CCI_Period);
    Settings.DPI_CCI_AppliedPrice        = (int)Inp_RRM_ORG_DPI_CCI_Price;
    Settings.DPI_UseGreenHist            = Inp_RRM_ORG_DPI_UseGreenHist;
+    // Theme5a 2026-06: DPI exhaustion-divergence sub-filter defaults (off; RRM_ORG preset wires the user inputs)
+    Settings.DpiBlockOnDivergence        = false;
+    Settings.DpiDivLookback              = 10;
     Settings.DPI_HistMomentumThreshold   = Inp_RRM_ORG_DPI_HistMomentumThreshold;
     Settings.DPI_HistDecelLookback       = MathMax(1, MathMin(9, Inp_RRM_ORG_DPI_HistDecelLookback));
     // F-AUDIT 2026-06: was Inp_RRM_ORG_DPI_HistTrackingEnabled / DPI_BlockOnDeceleration
@@ -1529,6 +1575,10 @@ void InitializeConfig()
     Settings.VPRR_RecoveryBars    = 3;
     Settings.VPRR_MinRecoveryBars = 2;
     Settings.VPRR_MinRatio        = 1.0;
+    // Theme3 2026-06: per-layer VPRR threshold overrides (0 = use VPRR_MinRatio above)
+    Settings.VPRR_MinRatio_W      = MathMax(0.0, Inp_Global_VPRR_MinRatio_W);
+    Settings.VPRR_MinRatio_M      = MathMax(0.0, Inp_Global_VPRR_MinRatio_M);
+    Settings.VPRR_MinRatio_S      = MathMax(0.0, Inp_Global_VPRR_MinRatio_S);
     Settings.VPRR_ExternalSymbol  = "";
 
     // BarClose (bcX) settings

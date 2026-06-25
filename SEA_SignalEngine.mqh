@@ -2248,7 +2248,21 @@ private:
    bool Check_VPRR(int v_shift)
    {
       double active_vprr = GetActiveLayerVPRR();
-      bool pass = (active_vprr >= m_settings.VPRR_MinRatio);
+
+      // Theme3 2026-06: resolve per-layer threshold; 0 = "use VPRR_MinRatio global".
+      // Rationale: L1 (fastest, EMA1/EMA2) recovers in 1-3 bars on M1 metals — rarely
+      // enough volume to differentiate, so a higher per-L1 threshold filters noise.
+      // L3 (slowest, EMA3/EMA4) has multi-bar recoveries with more reliable signal;
+      // a lower per-L3 threshold accepts more entries. Defaults of 0 preserve legacy
+      // behavior (single VPRR_MinRatio for all layers).
+      double layer_threshold = m_settings.VPRR_MinRatio;
+      switch(m_last_layer)
+      {
+         case 1: if(m_settings.VPRR_MinRatio_W > 0.0) layer_threshold = m_settings.VPRR_MinRatio_W; break;
+         case 2: if(m_settings.VPRR_MinRatio_M > 0.0) layer_threshold = m_settings.VPRR_MinRatio_M; break;
+         case 3: if(m_settings.VPRR_MinRatio_S > 0.0) layer_threshold = m_settings.VPRR_MinRatio_S; break;
+      }
+      bool pass = (active_vprr >= layer_threshold);
 
       if(m_settings.DebugFlow)
       {
@@ -2260,8 +2274,11 @@ private:
             case 2: pb_avg=m_layer_m_vol_pb_avg; pb_bars=m_layer_m_vol_pb_bars; rec_avg=m_layer_m_vol_rec_avg; rec_bars=m_layer_m_vol_rec_bars; break;
             case 3: pb_avg=m_layer_s_vol_pb_avg; pb_bars=m_layer_s_vol_pb_bars; rec_avg=m_layer_s_vol_rec_avg; rec_bars=m_layer_s_vol_rec_bars; break;
          }
-         DebugLog(StringFormat("[IND_VPRR] L%d | Ratio=%.2f (Min=%.2f) | PB_vol=%.0f (%d bars) | REC_vol=%.0f (%d bars) | Src=%s | %s",
-                               m_last_layer, active_vprr, m_settings.VPRR_MinRatio,
+         // Theme3 2026-06: log shows the EFFECTIVE threshold (per-layer or global) so the
+         // operator can see immediately which threshold is in force on this bar.
+         string thr_source = (layer_threshold == m_settings.VPRR_MinRatio) ? "global" : "L-override";
+         DebugLog(StringFormat("[IND_VPRR] L%d | Ratio=%.2f (Min=%.2f %s) | PB_vol=%.0f (%d bars) | REC_vol=%.0f (%d bars) | Src=%s | %s",
+                               m_last_layer, active_vprr, layer_threshold, thr_source,
                                pb_avg, pb_bars, rec_avg, rec_bars,
                                m_vprr_last_real ? "REAL" : "TICK",
                                pass ? "PASS" : "FAIL"));
@@ -3410,6 +3427,95 @@ private:
     //|       AND (if UseGreenHist) Blue/hist aligned same side of zero   |
     //| No static locals, no lambdas — safe for MQL5 on macOS/Wine.      |
     //+------------------------------------------------------------------+
+   //+------------------------------------------------------------------+
+   //| CheckDPIDivergence — Theme5a 2026-06                             |
+   //|                                                                  |
+   //| Detects price-vs-DPI-histogram EXHAUSTION divergence in the bias |
+   //| direction. Returns true when divergence is PRESENT (caller       |
+   //| should BLOCK the entry). Returns false when no divergence (safe  |
+   //| to proceed) OR when computation can't be performed (warmup /     |
+   //| insufficient bars — fail-safe permissive on divergence, the      |
+   //| underlying Check_DPI gates still apply).                         |
+   //|                                                                  |
+   //| Two non-overlapping windows of `lookback` bars each:             |
+   //|   recent: bars [v_shift     .. v_shift +   lookback - 1]         |
+   //|   prior:  bars [v_shift+lookback .. v_shift + 2*lookback - 1]    |
+   //|                                                                  |
+   //| LONG (bias=1):  bearish divergence when                          |
+   //|   price_high_recent > price_high_prior  (still trending up)      |
+   //|   AND dpi_hist at price_high_recent < dpi_hist at price_high_prior|
+   //|       (momentum NOT confirming the new high)                     |
+   //|                                                                  |
+   //| SHORT (bias=-1): bullish divergence when                         |
+   //|   price_low_recent  < price_low_prior  (still trending down)     |
+   //|   AND dpi_hist at price_low_recent > dpi_hist at price_low_prior |
+   //|       (momentum NOT confirming the new low)                      |
+   //+------------------------------------------------------------------+
+   bool CheckDPIDivergence(int bias, int v_shift, int lookback,
+                           double &out_p_recent, double &out_p_prior,
+                           double &out_d_recent, double &out_d_prior,
+                           int    &out_b_recent, int    &out_b_prior)
+   {
+      out_p_recent = out_p_prior = out_d_recent = out_d_prior = 0.0;
+      out_b_recent = out_b_prior = -1;
+
+      // Need 2*lookback bars beyond v_shift plus headroom for DPI computation
+      // (ComputeDPIMainHist needs ~MFast+MSlow+RedEMAs of history at any shift it's called).
+      if(lookback < 3) return false;
+      if(v_shift + 2 * lookback + 1 >= Bars(m_symbol, PERIOD_CURRENT)) return false;
+
+      if(bias == 1)
+      {
+         // LONG: compare two highest-high bars
+         int hi_r = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, lookback, v_shift);
+         int hi_p = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, lookback, v_shift + lookback);
+         if(hi_r < 0 || hi_p < 0) return false;
+         double price_recent = iHigh(m_symbol, PERIOD_CURRENT, hi_r);
+         double price_prior  = iHigh(m_symbol, PERIOD_CURRENT, hi_p);
+
+         // Sample DPI histogram at each swing-high bar.
+         double dpi_r = 0.0, dpi_p = 0.0;
+         double _hp = 0.0;
+         bool   _g  = false, _ma = false, _yc = false;
+         double _gmc = 0.0, _gmp = 0.0;
+         if(!ComputeDPIMainHist(hi_r, dpi_r, _hp, _g, _ma, _gmc, _gmp, _yc)) return false;
+         if(!ComputeDPIMainHist(hi_p, dpi_p, _hp, _g, _ma, _gmc, _gmp, _yc)) return false;
+
+         out_p_recent = price_recent; out_p_prior = price_prior;
+         out_d_recent = dpi_r;        out_d_prior = dpi_p;
+         out_b_recent = hi_r;         out_b_prior = hi_p;
+
+         // Bearish divergence: new HH in price, lower DPI hist value at the new HH.
+         return (price_recent > price_prior && dpi_r < dpi_p);
+      }
+
+      if(bias == -1)
+      {
+         // SHORT: compare two lowest-low bars
+         int lo_r = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, lookback, v_shift);
+         int lo_p = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, lookback, v_shift + lookback);
+         if(lo_r < 0 || lo_p < 0) return false;
+         double price_recent = iLow(m_symbol, PERIOD_CURRENT, lo_r);
+         double price_prior  = iLow(m_symbol, PERIOD_CURRENT, lo_p);
+
+         double dpi_r = 0.0, dpi_p = 0.0;
+         double _hp = 0.0;
+         bool   _g  = false, _ma = false, _yc = false;
+         double _gmc = 0.0, _gmp = 0.0;
+         if(!ComputeDPIMainHist(lo_r, dpi_r, _hp, _g, _ma, _gmc, _gmp, _yc)) return false;
+         if(!ComputeDPIMainHist(lo_p, dpi_p, _hp, _g, _ma, _gmc, _gmp, _yc)) return false;
+
+         out_p_recent = price_recent; out_p_prior = price_prior;
+         out_d_recent = dpi_r;        out_d_prior = dpi_p;
+         out_b_recent = lo_r;         out_b_prior = lo_p;
+
+         // Bullish divergence: new LL in price, higher DPI hist value at the new LL.
+         return (price_recent < price_prior && dpi_r > dpi_p);
+      }
+
+      return false;
+   }
+
    bool Check_DPI(int bias, int v_shift)
    {
       if(!m_settings.Ind_Dpi_Enabled) return true;
@@ -3447,12 +3553,30 @@ private:
       // NOTE: the old same-bar hist-vs-CCI agreement gate is REMOVED (canonical §7);
       //       CCI now drives the ribbon colour inside ComputeDPIMainHist instead.
 
-      bool result  = base_ok && green_ok && reset_ok;
+      // Theme5a 2026-06: DPI exhaustion-divergence sub-filter.
+      // Evaluated AFTER the base gates so the diagnostic priority is preserved
+      // (colour/green/reset failures dominate; divergence only matters when the
+      // earlier gates would have passed). Failing here counts as a DPI fail with
+      // its own sub-reason for cockpit / SignalScan attribution.
+      bool div_ok = true;
+      double div_p_r = 0.0, div_p_p = 0.0, div_d_r = 0.0, div_d_p = 0.0;
+      int    div_b_r = -1,  div_b_p = -1;
+      if(m_settings.DpiBlockOnDivergence)
+      {
+         bool divergence_present = CheckDPIDivergence(bias, v_shift,
+                                                     m_settings.DpiDivLookback,
+                                                     div_p_r, div_p_p,
+                                                     div_d_r, div_d_p,
+                                                     div_b_r, div_b_p);
+         div_ok = !divergence_present;
+      }
+
+      bool result  = base_ok && green_ok && reset_ok && div_ok;
 
       m_ind_cache.cached_bias = bias;
       m_ind_cache.dpi_result  = result ? 1 : 0;
       m_ind_cache.dpi_diag_hist = hist_cur;
-      m_ind_cache.dpi_diag_sub  = (!base_ok ? 1 : (!green_ok ? 3 : (!reset_ok ? 4 : 0)));
+      m_ind_cache.dpi_diag_sub  = (!base_ok ? 1 : (!green_ok ? 3 : (!reset_ok ? 4 : (!div_ok ? 5 : 0))));
       m_ind_cache.dpi_diag_yellow = dpi_wants_yellow;
 
       if(m_settings.DebugFlow)
@@ -3461,12 +3585,18 @@ private:
          if(!base_ok)  sub = sub + "COLOUR_MISMATCH ";
          if(!green_ok) sub = sub + "NO_GREEN ";
          if(!reset_ok) sub = sub + "RESET_WAIT ";
+         if(!div_ok)   sub = sub + "DIV_EXHAUSTION ";
          DebugLog(StringFormat("[IND_DPI] bias=%d hist=%.6f colour=%s green=%d reset_state=%d ignoreCCI=%s → %s%s",
                                bias, hist_cur, dpi_wants_yellow ? "YELLOW" : "RED",
                                dpi_green ? 1 : 0, m_dpi_reset_state,
                                m_settings.DPI_IgnoreCCIForVote ? "Y" : "N",
                                result ? "PASS" : "FAIL ",
                                result ? "" : ("(" + sub + ")")));
+         if(!div_ok)
+            DebugLog(StringFormat("[IND_DPI/DIV] %s divergence | bias=%d | price[%d]=%.5f vs price[%d]=%.5f | DPI[%d]=%.6f vs DPI[%d]=%.6f",
+                                  (bias == 1) ? "BEARISH" : "BULLISH",
+                                  bias, div_b_r, div_p_r, div_b_p, div_p_p,
+                                  div_b_r, div_d_r, div_b_p, div_d_p));
       }
       return result;
    }

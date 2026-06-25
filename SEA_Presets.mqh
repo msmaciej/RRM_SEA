@@ -1846,6 +1846,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.DPI_CCI_Period            = Inp_RRM_ORG_DPI_CCI_Period;         // default 13
       cfg.DPI_CCI_AppliedPrice      = (int)Inp_RRM_ORG_DPI_CCI_Price;     // default PRICE_TYPICAL
       cfg.DPI_UseGreenHist          = Inp_RRM_ORG_DPI_UseGreenHist;       // default true
+      // Theme5a 2026-06: DPI exhaustion-divergence sub-filter — opt-in.
+      // When ON: blocks the DPI vote if the bias direction's price made a new extreme
+      // but the DPI histogram did NOT confirm with its own new extreme (= contra-trend
+      // divergence = trend exhaustion). See ST_Settings comments for full semantics.
+      // Off by default — preserves prior behavior. The XAUUSD M1 12:33 entry scenario
+      // (price HH at 12:23 but DPI hist LH at 12:23) is the canonical case this catches.
+      cfg.DpiBlockOnDivergence      = Inp_RRM_ORG_DpiDiv;                 // default false
+      cfg.DpiDivLookback            = MathMax(3, Inp_RRM_ORG_DpiDivLookback); // default 10, floor 3 (avoid degenerate windows)
 
       // ── PSAR: LOCKED ON (timing/direction confirmation) ───────────────
       cfg.Ind_Psar_Enabled          = Inp_RRM_ORG_Use_Psar;
@@ -2247,7 +2255,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_TF2                   = GetSafeMTF_TF2(Inp_Global_MTF_TF2);
       cfg.MTF_EMA_Fast              = Inp_Global_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow              = Inp_Global_MTF_EMA_Slow;
-      cfg.MTF_RequirePhase          = false;
+      cfg.MTF_RequirePhase          = Inp_RRM_ORG_MTF_RequirePhase;     // Theme1 2026-06: was hardcoded false; now per-preset toggle (default off, user can enable for stricter HTF gating)
       cfg.MTF_StrictAlignment       = Inp_Global_MTF_StrictAlignment;
 
       // F-AUDIT 2026-06: ClimaxGuard_Enabled wiring removed — globalized to Inp_Global_F_ClimaxGuard_Enabled
