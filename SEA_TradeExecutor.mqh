@@ -1812,6 +1812,24 @@ private:
          m_rrm_be_reached   = false;
          if(m_rrm_initial_sl <= 0.0) m_rrm_initial_sl = PositionGetDouble(POSITION_SL);
          if(m_initial_sl_price <= 0.0) m_initial_sl_price = PositionGetDouble(POSITION_SL);
+
+         // Step19-audit 2026-06: surface a known config trap.
+         // BE_MODE_TP_PROGRESS_PCT measures progress as (move / tp_dist) where tp_dist
+         // requires a TP > 0. If the position has no TP (TP_Enabled=false, RRRatio<=0,
+         // or RRM_GetStrictTP returned 0 for any reason), the BE block's guard
+         // (`cur_tp > 0.0` at the TP_PROGRESS_PCT branch) silently skips every bar —
+         // the user's BE protection is inert and there is no diagnostic. Warn once
+         // per new ticket so the operator sees the mismatch in the journal at trade
+         // open, before risk accumulates. R_MULTIPLE mode is unaffected (uses R from
+         // initial SL, which is always set on entry).
+         if(m_settings.BE_Mode == BE_MODE_TP_PROGRESS_PCT &&
+            PositionGetDouble(POSITION_TP) <= 0.0)
+         {
+            PrintFormat("⚠️ [BE CONFIG] #%I64u %s: BE_Mode=TP_PROGRESS_PCT but position has no TP — "
+                        "BE will never trigger this trade. Check TP_Enabled / RRRatio, "
+                        "or switch BE_Mode to R_MULTIPLE.",
+                        ticket, m_symbol);
+         }
       }
 
       ENUM_POSITION_TYPE pos_type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
