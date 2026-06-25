@@ -888,14 +888,41 @@ void Eval(int shift, CSignalEngine &eng, int bias)
 
 //+------------------------------------------------------------------+
 //| EMAv — EMA value at shift                                        |
+//|                                                                  |
+//| Step19-2026-06: previous implementation created a fresh iMA      |
+//| handle on every call and never released it (both return paths    |
+//| missed the IndicatorRelease). On a history scan of N bars in     |
+//| 4EMA bias mode that leaked 3*N handles per session, eventually   |
+//| exhausting MT5's per-program handle pool.                        |
+//|                                                                  |
+//| Fix: route through the cached g_h_ema1..4 handles created in     |
+//| OnInit (already released cleanly in OnDeinit at lines 558-561).  |
+//| All in-tree callers (ScanBar SBIAS_1EMA/2EMA/4EMA branches) use  |
+//| EMA1..EMA4 periods, so the cache always hits in current use. The |
+//| off-ribbon fallback creates+releases the handle in a tight loop  |
+//| so it cannot leak if a future caller requests a custom period.   |
 //+------------------------------------------------------------------+
 double EMAv(int period, int shift)
 {
-   int h = iMA(_Symbol, PERIOD_CURRENT, period, 0, MODE_EMA, PRICE_CLOSE);
-   if(h==INVALID_HANDLE) return 0.0;
+   int  h = INVALID_HANDLE;
+   bool created_locally = false;
+
+   if(period == EMA1)      h = g_h_ema1;
+   else if(period == EMA2) h = g_h_ema2;
+   else if(period == EMA3) h = g_h_ema3;
+   else if(period == EMA4) h = g_h_ema4;
+
+   if(h == INVALID_HANDLE)
+   {
+      h = iMA(_Symbol, PERIOD_CURRENT, period, 0, MODE_EMA, PRICE_CLOSE);
+      if(h == INVALID_HANDLE) return 0.0;
+      created_locally = true;
+   }
+
    double buf[1];
-   if(CopyBuffer(h, 0, shift, 1, buf)!=1) return 0.0;
-   return buf[0];
+   int copied = CopyBuffer(h, 0, shift, 1, buf);
+   if(created_locally) IndicatorRelease(h);
+   return (copied == 1) ? buf[0] : 0.0;
 }
 
 //+------------------------------------------------------------------+

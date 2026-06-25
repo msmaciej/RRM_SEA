@@ -35,6 +35,12 @@ private:
    int         m_h_cushion_atr;  // ATR handle for PSAR_CUSHION_ATR (cached)
    int         m_h_sl_atr;       // ATR handle for SL_MODE_ATR initial SL (cached)
    int         m_h_trail_ema_atr; // ATR handle for TRAIL_EMA cushion (cached)
+   int         m_h_trail_ema;    // EMA handle for TRAIL_EMA value (cached). Step19-2026-06:
+                                 // previously created inline per-bar in ApplyTrailEMA at the cost
+                                 // of one iMA create+release per active TM tick — sibling pattern
+                                 // to the already-cached ATR cushion above.
+   int         m_trail_ema_period_cached; // EMA period resolved at Init for m_h_trail_ema (read by
+                                 // ApplyTrailEMA diagnostics; reused so no re-derivation per bar).
    
    // Telemetry Cache
    datetime    m_last_trade_bar;
@@ -275,21 +281,14 @@ private:
       if(bar1_time == m_trail_ema_last_bar) return;
       m_trail_ema_last_bar = bar1_time;
 
-      // Period: preset resolver should have set this; fallback chain just in case
-      int ema_period = m_settings.TrailEMA_Period;
-      if(ema_period <= 0) {
-         // Resolve from ribbon role at runtime (preset may not have had periods yet)
-         switch(m_settings.TrailEMA_RibbonRole) {
-            case 1:  ema_period = m_settings.P_Ema2; break;  // ROLE_EMA2 = 13
-            case 2:  ema_period = m_settings.P_Ema3; break;  // ROLE_EMA3 = 34
-            case 3:  ema_period = m_settings.P_Ema4; break;  // ROLE_EMA4 = 89
-            default: ema_period = m_settings.P_Ema1; break;  // ROLE_EMA1 = 5
-         }
-      }
-      if(ema_period <= 0) ema_period = 13; // absolute fallback: EMA13
-
-      int h_ema = iMA(m_symbol, PERIOD_CURRENT, ema_period, 0, MODE_EMA, PRICE_CLOSE);
-      if(h_ema == INVALID_HANDLE) return;
+      // Step19-2026-06: use the cached m_h_trail_ema handle. Previously this site
+      // called iMA(...) per bar and released the handle at the bottom — not a leak
+      // (release was correct) but wasteful: one create+release per active TM bar
+      // across all symbols. The period-resolution fallback chain (TrailEMA_Period
+      // → TrailEMA_RibbonRole → EMA13) now lives in Init() at the m_h_trail_ema
+      // creation site; MT5 settings are constant for the session, so the cached
+      // handle stays valid until the next OnDeinit→OnInit cycle.
+      if(m_h_trail_ema == INVALID_HANDLE) return;
 
       // shift: how many bars back to read EMA. 1=last closed bar (default, tight).
       // Higher values (2-5) give progressively more room — EMA was lower N bars ago.
@@ -299,8 +298,7 @@ private:
 
       double ema_val[];
       ArraySetAsSeries(ema_val, true);
-      if(CopyBuffer(h_ema, 0, ema_shift, 1, ema_val) != 1) { IndicatorRelease(h_ema); return; }
-      IndicatorRelease(h_ema);
+      if(CopyBuffer(m_h_trail_ema, 0, ema_shift, 1, ema_val) != 1) return;
 
       // EMA cushion priority: ATR-based > fixed pips > PSAR fallback.
       // ATR mode auto-scales with instrument volatility — recommended for Gold/Silver.
@@ -383,7 +381,7 @@ private:
       if(valid && IsModifyAllowed()) {
          if(m_settings.DebugFlow)
             PrintFormat("[TRAIL_EMA/%s] #%I64u: SL %.5f -> %.5f | EMA(%d,sh=%d)=%.5f cushion=%.1fp",
-                        path_tag, ticket, cur_sl, new_sl, ema_period, ema_shift, ema_val[0],
+                        path_tag, ticket, cur_sl, new_sl, m_trail_ema_period_cached, ema_shift, ema_val[0],
                         ema_cushion_pips);
          m_trade.PositionModify(ticket, new_sl, cur_tp);
       }
@@ -406,6 +404,7 @@ private:
       if(m_h_cushion_atr != INVALID_HANDLE) { IndicatorRelease(m_h_cushion_atr); m_h_cushion_atr = INVALID_HANDLE; }
       if(m_h_sl_atr != INVALID_HANDLE) { IndicatorRelease(m_h_sl_atr); m_h_sl_atr = INVALID_HANDLE; }
       if(m_h_trail_ema_atr != INVALID_HANDLE) { IndicatorRelease(m_h_trail_ema_atr); m_h_trail_ema_atr = INVALID_HANDLE; }
+      if(m_h_trail_ema != INVALID_HANDLE) { IndicatorRelease(m_h_trail_ema); m_h_trail_ema = INVALID_HANDLE; }
    }
 
    void GetSymbolCurrencies(string sym, string &base, string &quote) {
@@ -2044,7 +2043,7 @@ public:
                        m_te_rej_news(0),    m_te_pass_news(0),
                        m_te_rej_spread(0),  m_te_pass_spread(0),
                        m_spread_history_count(0), m_spread_history_idx(0),
-                       m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), m_h_cushion_atr(INVALID_HANDLE), m_h_sl_atr(INVALID_HANDLE), m_h_trail_ema_atr(INVALID_HANDLE), // CACHED HANDLES
+                       m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), m_h_cushion_atr(INVALID_HANDLE), m_h_sl_atr(INVALID_HANDLE), m_h_trail_ema_atr(INVALID_HANDLE), m_h_trail_ema(INVALID_HANDLE), m_trail_ema_period_cached(0), // CACHED HANDLES
                        m_dpi_hist_current(0.0), m_dpi_hist_trend(0), m_dpi_hist_decelerating(false), m_dpi_hist_green_present(false),
                        m_exits_dpi_hist(0)
    {
@@ -2188,6 +2187,29 @@ public:
       if(m_h_trail_ema_atr == INVALID_HANDLE)
          PrintFormat("⚠️ [Executor.Init] iATR(%s,period=%d) [trail EMA cushion] returned INVALID_HANDLE — EMA-trail ATR-cushion will be silently inert.",
                      m_symbol, (int)MathMax(1, m_settings.TrailEMA_CushionAtrPeriod > 0 ? m_settings.TrailEMA_CushionAtrPeriod : 14));
+
+      // Step19-2026-06: resolve TRAIL_EMA period at Init using the same fallback chain
+      // ApplyTrailEMA uses (lines ~280-289 there). MT5 inputs are constant for the
+      // session, so a single resolve+cache is sufficient — settings changes go through
+      // the OnDeinit→OnInit cycle which re-runs this block. The handle is created
+      // unconditionally (mirroring m_h_trail_ema_atr above) so the per-feature gate
+      // stays at the call site; the cost is one unused handle when TrailMode != TRAIL_EMA.
+      // The resolved period is also cached as m_trail_ema_period_cached so the
+      // ApplyTrailEMA diagnostic can read it without re-running this fallback.
+      m_trail_ema_period_cached = m_settings.TrailEMA_Period;
+      if(m_trail_ema_period_cached <= 0) {
+         switch(m_settings.TrailEMA_RibbonRole) {
+            case 1:  m_trail_ema_period_cached = m_settings.P_Ema2; break;  // ROLE_EMA2
+            case 2:  m_trail_ema_period_cached = m_settings.P_Ema3; break;  // ROLE_EMA3
+            case 3:  m_trail_ema_period_cached = m_settings.P_Ema4; break;  // ROLE_EMA4
+            default: m_trail_ema_period_cached = m_settings.P_Ema1; break;  // ROLE_EMA1
+         }
+      }
+      if(m_trail_ema_period_cached <= 0) m_trail_ema_period_cached = 13;
+      m_h_trail_ema = iMA(m_symbol, PERIOD_CURRENT, m_trail_ema_period_cached, 0, MODE_EMA, PRICE_CLOSE);
+      if(m_h_trail_ema == INVALID_HANDLE)
+         PrintFormat("⚠️ [Executor.Init] iMA(%s,period=%d) [trail EMA] returned INVALID_HANDLE — TRAIL_EMA mode will be silently inert.",
+                     m_symbol, m_trail_ema_period_cached);
    }
 
    // STEP22 2026-06: UpdateSettings(ST_Settings&) deleted — was dead code (zero callers).
@@ -2874,23 +2896,35 @@ public:
    }
 
    // ══════════════════════════════════════════════════════════════════════
-   // SIGNAL EVALUATION — TS/TE EQUATION
+   // SIGNAL EVALUATION — TS/TE EQUATION (post-F-AUDIT 2026-06)
    //
-   // TS = B × P × L × I        (bar close, shift=1)
-   // TE = F                     (bar open, shift=0)
+   // TS = B × P × F × L × I    (bar close, shift=1, engine: CSignalEngine)
+   // TE = F'                    (bar open,  shift=0, executor: this file)
    //
    // B  Bias:       Direction from slowest EMA pair (+1 LONG / -1 SHORT / 0 block)
    // P  Phase:      Market type — TM/EM allowed, UNO always blocks
    //                Evaluated via EMA2/EMA3/EMA4 position only (no slopes)
+   // F  Pre-filters (engine-side, NOT this file's EvaluateF — see
+   //                CSignalEngine::EvaluateF at SEA_SignalEngine.mqh:~4060):
+   //                EMA fan over-extension × price over-extension × DPI decel
+   //                × phase-age confirmation × climax guard (was separate CG
+   //                pre-F-AUDIT; now F sub-filter emitting F_reason=CLIMAX_GUARD)
    // L  Layer:      Pullback-recovery timing (L3 > L2 > L1 priority)
    //                Per layer: pos × slope × BC × BD
    //                  BC = bar close beyond fast EMA (close price vs EMA, no wicks)
    //                  BD = bar direction in bias (close > open LONG / close < open SHORT)
    // I  Indicators: All enabled must agree (MACD, PSAR, RSI, CCI, ADX, ...)
    //                CandleBody (spike filter) belongs here, not in L
-   // F  Filters:    Spread × session × news (execution-moment, TE only)
+   //
+   // F' Exec gates (TE-side, EvaluateF in THIS file at line ~2920):
+   //                Spread (live) × session time × news (live)
+   //                These cannot meaningfully replay at shift=1 so they stay
+   //                at TE-time. Stat counters bridged into engine.m_stats via
+   //                Signal.AddTeStats() at OnDeinit.
    //
    // Any factor = 0 → whole equation = 0 → NO TRADE
+   // The two `EvaluateF` functions are named-collision by design (each is the
+   // "F factor" of its respective equation); they check disjoint conditions.
    // ══════════════════════════════════════════════════════════════════════
 
    // ─────────────────────────────────────────────────────────────────────────

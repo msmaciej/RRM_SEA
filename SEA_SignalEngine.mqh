@@ -6733,27 +6733,17 @@ public:
       CAST_VOTE_STAT(m_settings.VPRR_Enabled,            Check_VPRR(v_shift),              m_stats.rejected_vprr,         m_stats.passed_vprr)
       #undef CAST_VOTE_STAT
 
-      // Calculate indicator pass counts for telemetry (all enabled indicators, including non-directional filters)
-      int s_enabled=0, s_passed=0;
-      if(m_settings.Ind_Adx_Enabled)         { s_enabled++; if(Check_ADX(v_shift)) s_passed++; }
-      if(m_settings.Ind_Macd_Enabled)        { s_enabled++; if(Check_MACD(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Rsi_Enabled)         { s_enabled++; if(Check_RSI(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Cci_Enabled)         { s_enabled++; if(Check_CCI(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Mfi_Enabled)         { s_enabled++; if(Check_MFI(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Sto_Enabled)         { s_enabled++; if(Check_Sto(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Bb_Enabled)          { s_enabled++; if(Check_BB(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Psar_Enabled)        { s_enabled++; if(m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_P123_Enabled)        { s_enabled++; if(Check_P123(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Ross_Enabled)        { s_enabled++; if(Check_Ross(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_SmaConverge_Enabled) { s_enabled++; if(Check_SmaConverge(v_shift)) s_passed++; }
-      if(m_settings.Ind_Dpi_Enabled)         { s_enabled++; if(Check_DPI(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Fib_Enabled)         { s_enabled++; if(Check_Fib(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_Atr_Enabled)         { s_enabled++; if(Check_ATR(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_CandleBody_Enabled)  { s_enabled++; if(Check_CandleBody(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_CI_Enabled)          { s_enabled++; if(Check_CI(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_VRC_Enabled)         { s_enabled++; if(Check_VRC(bias, v_shift)) s_passed++; }
-      if(m_settings.Ind_MTF_Enabled)         { s_enabled++; if(Check_MTF(bias, v_shift)) s_passed++; }
-      if(m_settings.VPRR_Enabled)            { s_enabled++; if(Check_VPRR(v_shift)) s_passed++; }
+      // Telemetry derives DIRECTLY from the CAST_VOTE_STAT counters above (Step19-perf
+      // 2026-06): the second `if(m_settings.Ind_X_Enabled) { s_enabled++; if(Check_X(...))
+      // s_passed++; }` loop that used to live here was a faithful duplicate of the macro
+      // pass — same gating, same Check_*, same result. For the 9 cache-hit indicators
+      // (ADX/MACD/RSI/CCI/MFI/Sto/BB/PSAR/...) the second call short-circuited via
+      // m_ind_cache, so the redundancy was effectively free; for the 5 uncached voters
+      // (P123/Ross/Fib/MTF/VPRR) the second call re-ran the full computation, doubling
+      // their per-bar cost. Reading from the macro's counters is exact (it iterates the
+      // identical indicator list) and removes the duplicate Check_* round entirely.
+      int s_enabled = vote_enab;
+      int s_passed  = vote_pass;
 
       // Always use indicator pass count for display (vote_pass counts enabled indicators that passed)
       m_diag_last_votes = s_passed;
@@ -7795,7 +7785,13 @@ public:
       // bd.F == -1 → F not reached (waterfall stopped at B/P); no F stats, as before.
 
       // ════════════════════════════════════════════════════════════
-      // FINAL DECISION: TS = B × P × L × I
+      // FINAL DECISION: TS = B × P × F × L × I  (F-AUDIT 2026-06)
+      // F sub-filters live in CSignalEngine::EvaluateF (engine-side
+      // pre-filters: EMA fan / price over-ext / DPI decel / phase-age /
+      // climax). The separate TE-side EvaluateF (TradeExecutor) handles
+      // spread / session / news at bar-open and is the "F'" of TE = F'.
+      // Verdict short-circuits in the bd.F == 0 branch above by setting
+      // m_eval_any_failure = true, which is the gate read at line 7802.
       // ════════════════════════════════════════════════════════════
       int final_signal = 0;
 
@@ -7876,12 +7872,35 @@ public:
          DebugLog("════════════════════════════════════════════════════════════");
          DebugLog("");
 
-         // F (FILTERS) NOTE — evaluated at TE (bar open), not at TS (bar close)
-         DebugLog("F (FILTERS) — spread/time/news evaluated at TE, MTF evaluated at TS:");
+         // F (FILTERS) — post-F-AUDIT 2026-06: TS-side and TE-side are now distinct.
+         //   TS-side F (engine: CSignalEngine::EvaluateF, bar-close shift=1):
+         //     EMA fan over-extension × price over-extension × DPI decel
+         //     × phase-age confirmation × climax guard
+         //   TE-side F' (executor: CTradeExecutor::EvaluateF, bar-open shift=0):
+         //     spread (live) × session time × news (live)
+         //   MTF is a voter inside EvaluateI (not part of F).
+         DebugLog("F (TS-side pre-filters — bar close, shift=1):");
+         DebugLog(StringFormat("  %s EMA fan:    %s",
+                               (m_settings.EmaFanFilterEnabled && (m_settings.EmaFanMaxTotalPips > 0.0 || m_settings.EmaFanMaxPct > 0.0)) ? "✅" : "⏭️",
+                               m_settings.EmaFanFilterEnabled ? "enabled" : "disabled"));
+         DebugLog(StringFormat("  %s Price ext:  %s",
+                               (m_settings.PriceExtFilterEnabled && m_settings.PriceExtMaxATR > 0.0) ? "✅" : "⏭️",
+                               m_settings.PriceExtFilterEnabled ? "enabled" : "disabled"));
+         DebugLog(StringFormat("  %s DPI decel:  %s",
+                               ((m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled) ||
+                                (m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled)) ? "✅" : "⏭️",
+                               (m_settings.DpiDecelFilterEnabled || m_settings.DPI_BlockOnDeceleration) ? "enabled" : "disabled"));
+         DebugLog(StringFormat("  %s Phase age:  %s",
+                               (m_settings.RequireMinPhaseConfirm && m_settings.MinPhaseConfirmBars > 0) ? "✅" : "⏭️",
+                               m_settings.RequireMinPhaseConfirm ? "enabled" : "disabled"));
+         DebugLog(StringFormat("  %s Climax:     %s",
+                               m_settings.ClimaxGuard_Enabled ? "✅" : "⏭️",
+                               m_settings.ClimaxGuard_Enabled ? "enabled" : "disabled"));
+         DebugLog("F' (TE-side exec gates — bar open, shift=0):");
          DebugLog("  ⏭️  Spread: checked at TE (" + (m_settings.UseSpread ? "enabled" : "disabled") + ")");
          DebugLog("  ⏭️  Time window: checked at TE (" + (m_settings.UseTime ? "active" : "disabled") + ")");
          DebugLog("  ⏭️  News filter: checked at TE (" + (m_settings.UseNews ? "active" : "disabled") + ")");
-         DebugLog("  ✅ MTF filter: checked at TS (" + (m_settings.Ind_MTF_Enabled ? "enabled" : "disabled") + ")");
+         DebugLog("  ✅ MTF voter: checked at TS within EvaluateI (" + (m_settings.Ind_MTF_Enabled ? "enabled" : "disabled") + ")");
          DebugLog("");
 
          // BIAS & STRUCTURE SECTION
