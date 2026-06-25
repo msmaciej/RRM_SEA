@@ -3526,12 +3526,35 @@ private:
       return StringToTime(dt);
    }
 
-   // Forex-like extraction: "EURUSD", tolerates broker suffixes (e.g. "EURUSD.a")
+   // Symbol-currency extraction for news filtering.
+   //
+   // Preferred path: MQL5's broker-canonical currency lookup
+   // (SymbolInfoString SYMBOL_CURRENCY_BASE / SYMBOL_CURRENCY_PROFIT) — returns
+   // ISO 4217 codes regardless of symbol-name format. Works for "GOLD", "BTCUSD",
+   // broker-suffixed "EURUSD.r", and any other naming convention the broker uses.
+   //
+   // Fallback path (preserved from original): strip non-letters then take 3+3.
+   // Triggered only when the broker hasn't populated the currency fields, which
+   // is rare but possible on some custom CFD / index symbols. The fallback is
+   // intentionally tolerant of broker suffixes (e.g. "EURUSD.a" → "EUR"/"USD"),
+   // but for non-FX-style names (e.g. "GOLD") it may silently return empty —
+   // the news filter then bypasses cleanly (IsNewsBlocked returns false on
+   // empty base/quote, line 4519).
    void GetSymbolCurrencies(string sym, string &base, string &quote) {
       base = "";
       quote = "";
 
-      // Keep only letters A-Z.
+      // Step19-audit 2026-06: prefer broker-canonical lookup over name slicing.
+      string b = SymbolInfoString(sym, SYMBOL_CURRENCY_BASE);
+      string p = SymbolInfoString(sym, SYMBOL_CURRENCY_PROFIT);
+      if(StringLen(b) >= 3 && StringLen(p) >= 3) {
+         base  = b;
+         quote = p;
+         return;
+      }
+
+      // Fallback: alphabetic 3+3 slice (legacy path).
+      // Keep only letters A-Z (tolerant of broker suffixes like "EURUSD.a").
       string letters = "";
       for(int i=0; i<StringLen(sym); i++) {
          int c = StringGetCharacter(sym, i);
@@ -5655,6 +5678,21 @@ public:
       m_adxHistorySize     = 0;
       m_cachedADXThreshold = (double)m_settings.T_Adx;
       m_lastADXCalculation = 0;
+
+      // Step19-audit 2026-06: VRC cache reset for parity with ADX above.
+      // Previously the VRC threshold cache (m_cachedVRCLowThreshold /
+      // m_lastVRCCalculation) and the rolling ATR history (m_atrHistory /
+      // m_atrHistorySize) were only reset in the constructor — not in Init().
+      // That meant a mid-session parameter change to VRC_LowThreshold,
+      // VRC_ATRPeriod, or VRC_LookbackBars wouldn't take effect until
+      // `refresh_sec` had elapsed since the previous CalculateVRCLowThreshold
+      // call. Forcing both to zero here drops the cache so the next Check_VRC
+      // call recomputes from current settings (matches the ADX pattern
+      // documented in the prior STEP18 audit).
+      ArrayInitialize(m_atrHistory, 0.0);
+      m_atrHistorySize         = 0;
+      m_lastVRCCalculation     = 0;
+      m_cachedVRCLowThreshold  = 0.0;
 
       // Initialize DPI histogram tracking
       ArrayInitialize(m_dpi_hist_values, 0.0);
