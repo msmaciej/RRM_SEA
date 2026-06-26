@@ -277,6 +277,32 @@ input datetime DateFrom = 0;   // From date/time (0=use BarsBack)
 input datetime DateTo   = 0;   // To date/time (0=current bar)
 input int      BarsBack = 500; // Bars back (if DateFrom=0)
 
+//+------------------------------------------------------------------+
+//| STEP7 — Live<->Scanner Config Sync (2026-06)                     |
+//|                                                                  |
+//| When enabled, the scanner loads the EA's final effective         |
+//| ST_Settings from MQL5/Files/SEA_LiveConfig_<symbol>_<period>.txt |
+//| (written by the EA in OnInit) and overlays them onto the         |
+//| scanner's own BuildSettings(). This guarantees the scanner       |
+//| evaluates TS with byte-identical config to the live EA.          |
+//|                                                                  |
+//| Default OFF preserves legacy scanner behaviour (scanner inputs   |
+//| are authoritative). If the snapshot is missing or older than     |
+//| Scn_Sync_MaxStaleSeconds the scanner falls back to its own       |
+//| inputs and logs a warning to the journal.                        |
+//+------------------------------------------------------------------+
+input group "═════════ STEP 7 · Live<->Scanner Sync ═════════";
+input bool        Scn_Sync_With_EA       = false;  // Sync ST_Settings from the live EA's snapshot file
+input int         Scn_Sync_MaxStaleSeconds = 60;   // Reject snapshot older than this (0 = no staleness check)
+
+#include <RRMS\SEA_ConfigSync.mqh>
+
+// Sync status (set by OnInit, displayed by DrawInfoPanel)
+int    g_sync_status   = 1;   // 0=OK 1=missing 2=stale 3=disabled-by-user
+int    g_sync_age_sec  = -1;
+int    g_sync_applied  = 0;
+string g_sync_diag     = "(sync disabled)";
+
 
 //+------------------------------------------------------------------+
 //| Globals                                                          |
@@ -472,6 +498,30 @@ int OnInit()
 
    ST_Settings s;
    BuildSettings(s);
+
+   // Live<->Scanner sync (2026-06): when enabled, overlay the EA's effective
+   // ST_Settings on top of the scanner's BuildSettings result. Keys not present
+   // in the snapshot retain the scanner's defaults. Failures (missing/stale) log
+   // a warning and fall through with scanner defaults.
+   if(Scn_Sync_With_EA)
+   {
+      g_sync_status = SEA_ReadConfigSnapshot(s,
+                                              Scn_Sync_MaxStaleSeconds,
+                                              g_sync_age_sec,
+                                              g_sync_applied,
+                                              g_sync_diag);
+      if(g_sync_status == 0)
+         PrintFormat("[SCN_SYNC] OK: %s", g_sync_diag);
+      else if(g_sync_status == 1)
+         PrintFormat("[SCN_SYNC] WARNING: live config snapshot missing, using scanner inputs (%s)", g_sync_diag);
+      else if(g_sync_status == 2)
+         PrintFormat("[SCN_SYNC] WARNING: live config snapshot stale, using scanner inputs (%s)", g_sync_diag);
+   }
+   else
+   {
+      g_sync_status = 3;
+      g_sync_diag   = "(sync disabled)";
+   }
 
    bool ok_l = true, ok_s = true;
    if(MarketBias != SBIAS_SHORT) ok_l = g_eng_long.Init(s, _Symbol);
@@ -1195,6 +1245,30 @@ void DrawInfoPanel()
    ADD("Bias:  " + bias_str,                                 clrCyan)
    ADD("EMA:   " + (string)EMA1 + " / " + (string)EMA2
       + " / " + (string)EMA3 + " / " + (string)EMA4,        clrCyan)
+
+   // ── Live<->Scanner sync status ──────────────────────────────────
+   //   0 = OK    : Sync: ON [N applied, age Xs]   (green)
+   //   1 = miss  : Sync: MISSING                  (red)
+   //   2 = stale : Sync: STALE [age Xs]           (orange)
+   //   3 = off   : Sync: OFF                      (dim gray)
+   {
+      string sync_line;
+      color  sync_clr;
+      if(g_sync_status == 0) {
+         sync_line = StringFormat("Sync:  ON  [%d applied, age %ds]", g_sync_applied, g_sync_age_sec);
+         sync_clr  = clrLime;
+      } else if(g_sync_status == 1) {
+         sync_line = "Sync:  MISSING (using scanner inputs)";
+         sync_clr  = clrTomato;
+      } else if(g_sync_status == 2) {
+         sync_line = StringFormat("Sync:  STALE  [age %ds] (using scanner inputs)", g_sync_age_sec);
+         sync_clr  = clrOrange;
+      } else {
+         sync_line = "Sync:  OFF";
+         sync_clr  = clrDimGray;
+      }
+      ADD(sync_line, sync_clr)
+   }
 
    // ── Gap ─────────────────────────────────────────────────────────
    ADD(" ",                                                  clrDimGray)

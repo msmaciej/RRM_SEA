@@ -39,6 +39,7 @@ void SEA_DrawTradeExecLine(datetime event_time, int direction, double price, con
 #include <RRMS\SEA_TradeExecutor.mqh>
 #include <RRMS\SEA_UI.mqh>
 #include <RRMS\SEA_Reporting.mqh>
+#include <RRMS\SEA_ConfigSync.mqh>
 
 #ifndef SEA_MOD_SIGNALENGINE_105001
 enum { __SEA_STALE_SEA_MOD_SIGNALENGINE_105001__ = SEA_MOD_SIGNALENGINE_105001 };
@@ -693,6 +694,14 @@ int OrchestrateInit()
 
    FlowLog("OnInit complete -> INIT_SUCCEEDED");
    ValidateConfiguration();
+
+   // Live<->Scanner config sync (2026-06): write a text snapshot of the FINAL
+   // effective ST_Settings so SEA_IND_SignalScan can mirror our runtime config
+   // exactly. Placed AFTER InitializeConfig + ApplyPreset + safety auto-corrects
+   // + ValidateConfiguration so what we serialize is what the engine will use.
+   // If the write fails, log only — the EA continues normally; the scanner will
+   // simply fall back to its own inputs and warn the user.
+   SEA_WriteConfigSnapshot(Settings);
 
    // Capture starting balance for end-of-test system analysis report
    g_starting_balance = AccountInfoDouble(ACCOUNT_BALANCE);
