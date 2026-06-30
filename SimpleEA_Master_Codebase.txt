@@ -10766,7 +10766,7 @@ public:
       return true;
    }
 
-   //==========================================================================
+//==========================================================================
    // EvaluateTS_Breakdown — THE single TS decision core (one source of truth).
    //   Evaluates P*F*L*I (+climax) at `shift` for the supplied `bias` (B) and
    //   fills `b` with each factor's outcome. Returns 1 iff every factor passes
@@ -10781,6 +10781,7 @@ public:
    {
       b.P = -1; b.P_reason = ""; b.F = -1; b.F_reason = "";
       b.L = -1; b.L_reason = ""; b.L_layer = 0; b.I = -1; b.I_reason = ""; b.CG = -1;
+      
       if(bias == 0) return 0;
 
       b.P = EvaluateP(shift, bias);
@@ -10796,9 +10797,23 @@ public:
       b.L_layer = m_last_layer;   // winning layer (1=W/2=M/3=S) for the inspector
       if(b.L == 0 && !full_eval) return 0;
 
-      b.I = EvaluateI(shift, bias);
-      if(b.I == 0) b.I_reason = m_diag_i_fails;
-      if(b.I == 0 && !full_eval) return 0;
+      // SURGICAL FIX: Structural Context Gate
+      // Prevents EvaluateI from executing (and improperly inflating telemetry 
+      // rejection counters) on bars that have already failed higher-priority 
+      // structural context (P, F, or L), even during a forced full_eval sweep.
+      if(b.P == 1 && b.F == 1 && b.L == 1)
+      {
+         b.I = EvaluateI(shift, bias);
+         if(b.I == 0) b.I_reason = m_diag_i_fails;
+         if(b.I == 0 && !full_eval) return 0;
+      }
+      else
+      {
+         // If structural factors failed, indicator evaluation is fundamentally invalid.
+         // Suppress evaluation and tag the structural bypass.
+         b.I = -1; 
+         b.I_reason = "SUPPRESSED_BY_STRUCTURE";
+      }
 
       // F-AUDIT 2026-06: Climax merged into F (TS = B × P × F × L × I).
       // EvaluateF now runs DetectClimax as its final sub-filter and emits
@@ -13988,7 +14003,7 @@ public:
       return (EvaluateIndicatorX(v_shift, bias) != 0) ? 1 : 0;
    }
 
-   // ───────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────────────
    // ComputeDPIMainHist — DPI v31 inline histogram computation
    // Architecture (mirrors DPI_v31_CLEAN_22_OK_FINAL_WORKING.mq5):
    //   Blue(i) = EMA(DPI_MACD_Fast, close)(i) − EMA(DPI_MACD_Slow, close)(i)
@@ -14010,6 +14025,9 @@ public:
                            bool &out_hist_wants_yellow)
    {
       if(!m_settings.Ind_Dpi_Enabled) return false;
+      
+      // SURGICAL FIX 1: Hard array bound protection
+      if(v_shift < 0) return false;
 
       int MFast  = m_settings.DPI_MACD_Fast;
       int MSlow  = m_settings.DPI_MACD_Slow;
@@ -14020,15 +14038,14 @@ public:
       int redPer2 = 1;  // secondary EMA period (only used when RST == 5 double-smooth)
       switch(RST)
       {
-         case 1: redPer1 = m_settings.DPI_RedEMA_A;           redPer2 = redPer1; break;
-         case 2: redPer1 = m_settings.DPI_RedEMA_B;           redPer2 = redPer1; break;
-         case 3: redPer1 = m_settings.DPI_RedEMA_C;           redPer2 = redPer1; break;
-         case 4: redPer1 = m_settings.DPI_RedEMA_D;           redPer2 = redPer1; break;
+         case 1: redPer1 = m_settings.DPI_RedEMA_A;            redPer2 = redPer1; break;
+         case 2: redPer1 = m_settings.DPI_RedEMA_B;            redPer2 = redPer1; break;
+         case 3: redPer1 = m_settings.DPI_RedEMA_C;            redPer2 = redPer1; break;
+         case 4: redPer1 = m_settings.DPI_RedEMA_D;            redPer2 = redPer1; break;
          case 5: redPer1 = m_settings.DPI_DoubleSmoothFirst;  redPer2 = m_settings.DPI_DoubleSmoothSecond; break;
          default: redPer1 = m_settings.DPI_RedEMA_C;          redPer2 = redPer1; break;
       }
 
-      // bars_needed: Slow-EMA warmup + max(Red EMA) + 1 prev-bar capture + v_shift + 5 safety
       // bars_needed: Slow-EMA warmup + max(Red EMA) + 1 prev-bar capture + v_shift + warmup margin.
       // The +500 warmup makes the recursive-EMA seed residual underflow to ~0 so the engine's
       // Blue/Red/hist are bit-identical to SEA_IND_DPI_mc_main.mq5 (which warms over full chart
@@ -14099,6 +14116,15 @@ public:
             hist_at_prev = hist;
          }
       }
+
+      // SURGICAL FIX 2: Epsilon Thresholding
+      // Floating point calculations often leave infinitesimal residuals (e.g., -1e-15)
+      // This forces them to absolute zero to prevent false directional flips in boolean logic
+      if(MathAbs(hist) < 1e-9) hist = 0.0;
+      if(MathAbs(blue) < 1e-9) blue = 0.0;
+      if(MathAbs(hist_at_prev) < 1e-9) hist_at_prev = 0.0;
+      if(MathAbs(blue_prev) < 1e-9) blue_prev = 0.0;
+
       out_hist_cur = hist;
 
       // out_green: Blue and hist on the same side of zero (momentum alignment)
@@ -14118,6 +14144,7 @@ public:
 
       // CCI value — computed once, shared by the colour lift and the legacy agreement flag.
       double cci_v = ComputeDPI_CCI(v_shift);
+      if(MathAbs(cci_v) < 1e-9) cci_v = 0.0; // Epsilon threshold for CCI
 
       // out_macd_agree: legacy trend-filter flag. NO LONGER READ by the vote (the old same-bar
       // gate was removed, canonical §7); kept so existing callers' signatures are unaffected.
@@ -14129,16 +14156,16 @@ public:
          out_macd_agree = (hist >= 0.0);
 
       // ── Ribbon COLOUR — must reproduce SEA_IND_DPI_mc_main.mq5 (lines 480-487) EXACTLY.
-      //    The indicator gates CCI-in-colour on InpEnableCCI (default TRUE), giving
-      //    colour = sign(CCI). The engine-equivalent of InpEnableCCI is "CCI is not
-      //    explicitly ignored" = !DPI_IgnoreCCIForVote.
-      //    BUGFIX: this previously also required DPI_UseCCIReset (default FALSE), so the
-      //    engine computed colour = sign(hist) while the painted ribbon used sign(CCI).
-      //    The two disagreed whenever hist and CCI sat on opposite sides of zero
-      //    (e.g. hist≈-0.000 but CCI bullish → ribbon YELLOW yet engine read SHORT,
-      //    producing false "DPI:DIR" blocks). DPI_UseCCIReset governs the RESET state
-      //    machine, not the colour, so it is no longer ANDed in here. With CCI in
-      //    colour → colour = sign(CCI); else (IgnoreCCIForVote=true) → colour = sign(hist).
+      //   The indicator gates CCI-in-colour on InpEnableCCI (default TRUE), giving
+      //   colour = sign(CCI). The engine-equivalent of InpEnableCCI is "CCI is not
+      //   explicitly ignored" = !DPI_IgnoreCCIForVote.
+      //   BUGFIX: this previously also required DPI_UseCCIReset (default FALSE), so the
+      //   engine computed colour = sign(hist) while the painted ribbon used sign(CCI).
+      //   The two disagreed whenever hist and CCI sat on opposite sides of zero
+      //   (e.g. hist≈-0.000 but CCI bullish → ribbon YELLOW yet engine read SHORT,
+      //   producing false "DPI:DIR" blocks). DPI_UseCCIReset governs the RESET state
+      //   machine, not the colour, so it is no longer ANDed in here. With CCI in
+      //   colour → colour = sign(CCI); else (IgnoreCCIForVote=true) → colour = sign(hist).
       bool cci_in_colour = !m_settings.DPI_IgnoreCCIForVote;   // ↔ indicator InpEnableCCI
       if(hist >= 0.0)
          out_hist_wants_yellow = !(cci_in_colour && cci_v <  0.0);
@@ -14147,7 +14174,7 @@ public:
 
       return true;
    }
-
+   
    // ══════════════════════════════════════════════════════════════════════
    // SIGNAL EVALUATION — TS/TE EQUATION
    //
