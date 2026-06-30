@@ -586,16 +586,28 @@ int OrchestrateInit()
       Print("  RequireRecoveryMomentum: ", (Settings.RequireRecoveryMomentum ? "true" : "false"));
 
       int enabled_count = 0;
-      if(Settings.Ind_Macd_Enabled)   { Print("  + MACD");   enabled_count++; }
-      if(Settings.Ind_Psar_Enabled)   { Print("  + PSAR");   enabled_count++; }
-      if(Settings.Ind_Cci_Enabled)    { Print("  + CCI");    enabled_count++; }
-      if(Settings.Ind_Rsi_Enabled)    { Print("  + RSI");    enabled_count++; }
-      if(Settings.Ind_Adx_Enabled)    { Print("  + ADX");    enabled_count++; }
-      if(Settings.Ind_Mfi_Enabled)    { Print("  + MFI");    enabled_count++; }
-      if(Settings.Ind_Sto_Enabled)    { Print("  + Stoch");  enabled_count++; }
-      if(Settings.Ind_Bb_Enabled)     { Print("  + BB");     enabled_count++; }
-      if(Settings.Ind_P123_Enabled)   { Print("  + P123");   enabled_count++; }
-      if(Settings.Ind_Ross_Enabled)   { Print("  + Ross");   enabled_count++; }
+      if(Settings.Ind_Macd_Enabled)       { Print("  + MACD");       enabled_count++; }
+      if(Settings.Ind_Psar_Enabled)       { Print("  + PSAR");       enabled_count++; }
+      if(Settings.Ind_Cci_Enabled)        { Print("  + CCI");        enabled_count++; }
+      if(Settings.Ind_Rsi_Enabled)        { Print("  + RSI");        enabled_count++; }
+      if(Settings.Ind_Adx_Enabled)        { Print("  + ADX");        enabled_count++; }
+      if(Settings.Ind_Mfi_Enabled)        { Print("  + MFI");        enabled_count++; }
+      if(Settings.Ind_Sto_Enabled)        { Print("  + Stoch");      enabled_count++; }
+      if(Settings.Ind_Bb_Enabled)         { Print("  + BB");         enabled_count++; }
+      if(Settings.Ind_P123_Enabled)       { Print("  + P123");       enabled_count++; }
+      if(Settings.Ind_Ross_Enabled)       { Print("  + Ross");       enabled_count++; }
+      // BUGFIX A11 2026-06: 9 voters were missing from this tally (ATR, CandleBody,
+      // CI, VRC, SmaConverge, DPI, Fib, MTF, VPRR). Operator saw "Total: 3" when
+      // PSAR+CBody+DPI were all active. Must match the 19-indicator CAST_VOTE_STAT list.
+      if(Settings.Ind_Atr_Enabled)        { Print("  + ATR");        enabled_count++; }
+      if(Settings.Ind_CandleBody_Enabled) { Print("  + CandleBody"); enabled_count++; }
+      if(Settings.Ind_CI_Enabled)         { Print("  + CI");         enabled_count++; }
+      if(Settings.Ind_VRC_Enabled)        { Print("  + VRC");        enabled_count++; }
+      if(Settings.Ind_SmaConverge_Enabled){ Print("  + SmaConv");    enabled_count++; }
+      if(Settings.Ind_Dpi_Enabled)        { Print("  + DPI");        enabled_count++; }
+      if(Settings.Ind_Fib_Enabled)        { Print("  + Fib");        enabled_count++; }
+      if(Settings.Ind_MTF_Enabled)        { Print("  + MTF");        enabled_count++; }
+      if(Settings.VPRR_Enabled)           { Print("  + VPRR");       enabled_count++; }
       Print("  Total: ", enabled_count, " indicators (ALL must pass)");
       Print("════════════════════════════════════════════");
    }

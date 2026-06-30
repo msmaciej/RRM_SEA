@@ -63,6 +63,7 @@ private:
    double      m_cached_lots;  // Lots from m_cached_sl (EvaluateCM)
    double      m_cached_risk;  // Risk % (EvaluateCM)
    int         m_spread_block_bars;  // consecutive new-bar EvaluateTE calls blocked by VETO_SPREAD
+   bool        m_first_lot_calc_logged;  // BUGFIX A2: replaces `static bool s_first_calc` in CalcLotByRisk (no-static-locals constraint)
 
    // ── PHASE A.1: TE-side rejection counters (read by SEA_SignalEngine via AddTeStats) ──
    int         m_te_rej_open_delay;
@@ -1072,7 +1073,11 @@ private:
       // (non-USD account, or metals/exotic where the tester's pip-mode
       // misreports the field). This is exactly the population the historical
       // 10× XAUUSD/XAGUSD oversize hit, so visibility there is mandatory.
-      static bool s_first_calc = true;
+      // BUGFIX A2: was `static bool s_first_calc = true;` — static locals are
+      // banned under the macOS/Wine/MQL5 constraint (persist across EA reinits;
+      // after one load the diag fires once and goes permanently silent across all
+      // subsequent parameter changes). Replaced with member m_first_lot_calc_logged
+      // (initialized false in constructor, reset on every Init/OnDeinit cycle).
       string acc_ccy_check  = AccountInfoString(ACCOUNT_CURRENCY);
       string profit_ccy_chk = SymbolInfoString(m_symbol, SYMBOL_CURRENCY_PROFIT);
       bool   ccy_mismatch   = (acc_ccy_check != profit_ccy_chk);
@@ -1081,9 +1086,9 @@ private:
                                StringFind(m_symbol, "XPT") >= 0 ||
                                StringFind(m_symbol, "XPD") >= 0);
       bool   high_risk_case = (ccy_mismatch || is_metal);
-      if(s_first_calc || high_risk_case)
+      if(!m_first_lot_calc_logged || high_risk_case)
       {
-         s_first_calc = false;
+         m_first_lot_calc_logged = true;
          double contract_size = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_CONTRACT_SIZE);
          string acc_ccy       = AccountInfoString(ACCOUNT_CURRENCY);
          string profit_ccy    = SymbolInfoString(m_symbol, SYMBOL_CURRENCY_PROFIT);
@@ -2054,7 +2059,7 @@ public:
                        m_last_tm_bar(0), m_initial_sl_price(0.0), m_rrm_freeze_time(0), m_last_marker_update(0),
                        m_last_te_time(0), m_last_te_result(""), m_last_te_reason(""),
                        m_cached_sl(0.0), m_cached_lots(0.0), m_cached_risk(0.0),
-                       m_spread_block_bars(0), m_rc_veto_reason(""),
+                       m_spread_block_bars(0), m_first_lot_calc_logged(false), m_rc_veto_reason(""),
                        m_te_rej_open_delay(0), m_te_rej_bc_recheck(0), m_te_rej_spread_median(0),
                        m_te_pass_open_delay(0), m_te_pass_bc_recheck(0), m_te_pass_spread_median(0),
                        m_te_rej_time(0),    m_te_pass_time(0),

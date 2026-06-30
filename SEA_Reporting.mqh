@@ -42,7 +42,7 @@ void SEA_Report_Generate()
       return;
    }
 
-   FileWrite(handle, "=== TEST CONFIGURATION (v1.02.015) ===");
+   FileWrite(handle, "=== TEST CONFIGURATION (" + SEA_BUILD_STR + ") ===");
    FileWrite(handle, "Preset Mode", EnumToString(Inp_Global_Preset));
    FileWrite(handle, "ExportCSV (Input)", (Inp_Debug_ExportCSV ? "true" : "false"));
    FileWrite(handle, "ExportCSV (Effective)", (Settings.ExportCSV ? "true" : "false"));

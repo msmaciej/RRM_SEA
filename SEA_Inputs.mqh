@@ -1413,8 +1413,13 @@ void InitializeConfig()
     Settings.DPI_ResetRecoveryBars       = MathMax(0, Inp_RRM_ORG_DPI_ResetRecoveryBars);
     Settings.DPI_ResetRequireGreen       = Inp_RRM_ORG_DPI_ResetRequireGreen;
     // Choppiness Index
-    Settings.CI_Period             = MathMax(5, 14);
-    Settings.CI_RangingThreshold   = MathMax(0.0, 61.8);
+    // BUGFIX A6 2026-06: was `MathMax(5, 14)` / `MathMax(0.0, 61.8)` which are
+    // compile-time constants masquerading as clamped input reads. No Inp_CI_*
+    // input variables exist in SEA_Inputs.mqh. Documented as honest seed defaults;
+    // PRESET_RRM_ORG overrides CI_Period via its preset block. To make CI_Period
+    // or CI_RangingThreshold tunable, add Inp_CI_* inputs and wire them here.
+    Settings.CI_Period             = 14;    // seed default (overwritten by presets that use CI)
+    Settings.CI_RangingThreshold   = 61.8;  // seed default (standard Dreiss threshold)
 
    // VRC
    Settings.VRC_ATR_Period        = MathMax(1, 14);

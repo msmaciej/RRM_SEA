@@ -317,6 +317,7 @@ private:
    // --- 2f. PSAR FLIP TRACKING ---
    datetime m_psar_last_flip_time_bull;  // Timestamp of last bullish flip (0 = none recorded)
    datetime m_psar_last_flip_time_bear;  // Timestamp of last bearish flip (0 = none recorded)
+   datetime m_psar_health_last_log;      // BUGFIX A2: replaces static local in DetectPSARFlipAt (no-static-locals constraint)
 
    // --- 2g. ADX HISTORY TRACKING (for DYNAMIC_PERCENTILE and PHASE_AWARE modes) ---
    double   m_adxHistory[];              // Rolling buffer of ADX values
@@ -2388,12 +2389,18 @@ private:
       if(sum_tr < min_value) return 100.0;
    
       // ══════════════════════════════════════════════════════════════════
-      // CORRECTED Choppiness Index Formula (TradingView standard)
+      // Choppiness Index Formula (Dreiss / TradingView standard)
       // ══════════════════════════════════════════════════════════════════
-      // CI = 100 * log10(sum_TR) / log10(range)
+      // CI = 100 * log10( Σ TR / (HH − LL) ) / log10(period)
       // Lower values (0-38.2) = strong trend
       // Higher values (61.8-100) = choppy/ranging market
-      double ci = 100.0 * MathLog10(sum_tr) / MathLog10(range);
+      //
+      // BUGFIX A7 2026-06: was `100 * log10(sum_tr) / log10(range)` which
+      // divides by log10(range) instead of log10(period) and omits the
+      // log10(sum_tr/range) ratio. The old formula produces values >100
+      // whenever sum_tr > range^1 (common), clamped to 100 → CI voter
+      // blocked nearly every bar as "ranging" when enabled.
+      double ci = 100.0 * MathLog10(sum_tr / range) / MathLog10((double)period);
       
       // Clamp result to valid range [0, 100]
       if(ci < 0.0) ci = 0.0;
@@ -2795,11 +2802,13 @@ private:
    // Uses closed bars only: checks shift vs shift+1 (shift+1 is the previous closed bar).
    int DetectPSARFlipAt(int shift) {
       // Log handle status periodically
-      static datetime last_log_time = 0;
+      // BUGFIX A2: was `static datetime last_log_time = 0;` — static locals are
+      // banned under the macOS/Wine/MQL5 constraint (persist across EA reinits).
+      // Replaced with member m_psar_health_last_log (zeroed in constructor).
       datetime current_time = TimeCurrent();
       
-      if(current_time - last_log_time > 86400) { // Log once per day
-         last_log_time = current_time;
+      if(current_time - m_psar_health_last_log > 86400) { // Log once per day
+         m_psar_health_last_log = current_time;
          DebugLog(StringFormat("[PSAR_HEALTH] Date: %s | Handle: %d | Valid: %s",
                                TimeToString(current_time, TIME_DATE),
                                h_psar,
@@ -4707,6 +4716,7 @@ public:
       // Initialize PSAR flip tracking
       m_psar_last_flip_time_bull = 0;
       m_psar_last_flip_time_bear = 0;
+      m_psar_health_last_log     = 0;   // BUGFIX A2: replaces static local
 
       // Initialize DEBUG_SIGNALS_ONLY buffer
       m_debug_buffer_size = 0;
@@ -6048,12 +6058,19 @@ public:
          return false;
       }
       if(m_settings.Ind_CI_Enabled && h_ci == INVALID_HANDLE) {
-         Print("CRITICAL ERROR: Failed to create Choppiness Index (CI) indicator.");
-         return false;
+         // BUGFIX A9 2026-06: was `return false;` (CRITICAL ERROR killing Init).
+         // Check_CI uses inline CalculateCI() from raw OHLC — h_ci is ONLY read
+         // by GetCiHandle() for chart visualization. Fatal here blocks the entire
+         // EA on clean installs without ChoppinessIndex.ex5, even though the
+         // voter functions correctly without it. Downgraded to warning.
+         Print("WARNING: CI chart indicator (ChoppinessIndex.ex5) unavailable — CI voter uses inline calculation; chart visualization disabled.");
       }
       if(m_settings.Ind_VRC_Enabled && h_vrc == INVALID_HANDLE) {
-         Print("CRITICAL ERROR: Failed to create VRC indicator.");
-         return false;
+         // BUGFIX A9 2026-06: was `return false;` (CRITICAL ERROR killing Init).
+         // Check_VRC uses h_atr + GetVolatilityRegime() — h_vrc is ONLY read by
+         // GetVrcHandle() for chart visualization. Fatal here blocks the EA on
+         // installs without VRC_Indicator.ex5. Downgraded to warning.
+         Print("WARNING: VRC chart indicator (VRC_Indicator.ex5) unavailable — VRC voter uses inline ATR percentile; chart visualization disabled.");
       }
       if(m_settings.Ind_MTF_Enabled && (h_mtf_tf1_fast == INVALID_HANDLE || h_mtf_tf1_slow == INVALID_HANDLE)) {
          Print("CRITICAL ERROR: Failed to create MTF TF1 EMA handles.");
@@ -6930,7 +6947,13 @@ public:
       }
 
       m_diag_last_bias = bias;
-      if(bias == 0) {
+      // BUGFIX A3 2026-06: the market_bias==0 handler (~line 6788) and SIGNAL_MISMATCH
+      // handler (~line 6931) already incremented m_reject_bias and m_stats.rejected_bias.
+      // Under Stats_FullEvaluation=true (the default), those handlers skip the early
+      // return and set m_eval_any_failure=true instead. This terminal block then
+      // re-incremented the same counters — double-counting every bias rejection in the
+      // OnDeinit report. Guard: only increment when no earlier handler already counted.
+      if(bias == 0 && !m_eval_any_failure) {
          m_diag_last_reason = "BIAS_ZERO";
          m_reject_bias++;
          m_stats.rejected_bias++;
@@ -6940,6 +6963,11 @@ public:
          }
          if(m_eval_first_failure == "") m_eval_first_failure = "BIAS_ZERO";
          m_eval_any_failure = true;
+      }
+      else if(bias == 0) {
+         // Earlier handler already counted and set m_eval_any_failure — propagate
+         // reason only, no re-increment.
+         if(m_diag_last_reason == "") m_diag_last_reason = "BIAS_ZERO";
       }
       else {
          m_stats.passed_bias++;
@@ -8232,6 +8260,11 @@ public:
          if(m_settings.Ind_SmaConverge_Enabled) s_enabled++; else s_disabled++;
          if(m_settings.Ind_Dpi_Enabled)         s_enabled++; else s_disabled++;
          if(m_settings.Ind_Fib_Enabled)         s_enabled++; else s_disabled++;
+         // BUGFIX A8 2026-06: MTF and VPRR voters were missing from this tally.
+         // CAST_VOTE_STAT (EvaluateIndicatorX) includes both — the diagnostic
+         // banner must match the actual voter set (19 indicators total).
+         if(m_settings.Ind_MTF_Enabled)          s_enabled++; else s_disabled++;
+         if(m_settings.VPRR_Enabled)             s_enabled++; else s_disabled++;
 
          DebugLog(StringFormat("INDICATORS (%d enabled, %d disabled):", s_enabled, s_disabled));
 
