@@ -658,7 +658,7 @@ void SEA_UI_UpdateCockpit(
    
    double ask_val = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    double bid_val = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   double spread_val = (ask_val - bid_val) / _Point;
+   double spread_val = GlobalSpreadPips(_Symbol); // BUGFIX D2 2026-07: was (ask_val - bid_val) / _Point which returns points on 5-digit brokers (IC Markets live); GlobalSpreadPips() uses GlobalPipSize() which applies ×10 correction for digits==3||5.
    long stop_lvl = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL);
    
    AddLine(StringFormat("SPREAD:    %.1f Pips", spread_val), v_clr, lines, line_clrs);

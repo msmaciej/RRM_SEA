@@ -322,8 +322,10 @@ enum EPairType
    PAIR_TYPE_MAJOR,        // PAIR_MAJOR : EUR/USD, GBP/USD, etc (tight spreads 1-2 pips)
    PAIR_TYPE_MINOR,        // PAIR_MINOR : EUR/GBP, EUR/AUD, etc (medium spreads 2-4 pips)
    PAIR_TYPE_EXOTIC,       // PAIR_EXOTIC : USD/TRY, USD/ZAR, etc (wide spreads 5-15 pips)
-   PAIR_TYPE_GOLD,         // PAIR_GOLD : XAU/USD (medium spreads 3-5 pips, high volatility)
-   PAIR_TYPE_CRYPTO        // PAIR_CRYPTO : BTC/USD (very wide spreads, extreme volatility)
+   PAIR_TYPE_GOLD,         // PAIR_GOLD : XAU/USD (12-20 pips on IC Markets raw)
+   PAIR_TYPE_SILVER,       // PAIR_SILVER : XAG/USD (wider than Gold, ~50-150 pips in XAG pips) // ADD 2026-07
+   PAIR_TYPE_INDICES,      // PAIR_INDICES : DAX/NAS100/SPX500/US30 (1-5 index-points typical) // ADD 2026-07
+   PAIR_TYPE_CRYPTO        // PAIR_CRYPTO : BTC/USD, ETH/USD (very wide spreads, extreme vol)
 };
 enum EUIFrameMode
 {
@@ -338,11 +340,13 @@ struct ST_AdaptiveSettings
 {
    // Pair type detection
    EPairType PairType;
-   // Spread limits by pair type (pips)
+   // Spread limits by pair type (pips / native instrument units)
    double Spread_Major;
    double Spread_Minor;
    double Spread_Exotic;
    double Spread_Gold;
+   double Spread_Silver;   // ADD 2026-07: XAG/USD spread limit
+   double Spread_Indices;  // ADD 2026-07: equity indices spread limit (index-points)
    double Spread_Crypto;
 };
 struct SGateConfig

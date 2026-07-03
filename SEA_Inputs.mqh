@@ -69,7 +69,9 @@ input group "╚═════════════════════�
 input double      Inp_Adaptive_Spread_Major        = 3.0;            // Pair: Max spread major (pips)
 input double      Inp_Adaptive_Spread_Minor        = 5.0;            // Pair: Max spread minor (pips)
 input double      Inp_Adaptive_Spread_Exotic       = 11.0;           // Pair: Max spread exotic (pips)
-input double      Inp_Adaptive_Spread_Gold         = 6.0;            // Pair: Max spread gold/XAU (pips)
+input double      Inp_Adaptive_Spread_Gold         = 20.0;           // Pair: Max spread gold/XAU (pips) // BUGFIX D1 2026-07: changed 6.0→20.0. XAUUSD spread on MetaQuotes demo (and IC Markets raw) is 12-18 pips at London+NY overlap. The 6.0-pip cap was activating the TE SPREAD VETO on every bar, blocking all XAUUSD TE execution regardless of TS signal quality. 20.0 allows entry up to typical peak-session spread; tighten to 15.0 on IC Markets raw once live spread data is available.
+input double      Inp_Adaptive_Spread_Silver       = 150.0;          // Pair: Max spread silver/XAG (native XAG pips, pip=0.001) // ADD 2026-07: XAG/USD has digits=3, pip=$0.001; IC Markets spread ~$0.03-0.08 = 30-80 native pips. 150 is a permissive ceiling; tighten to 80 once average session spread is observed.
+input double      Inp_Adaptive_Spread_Indices      = 20.0;           // Pair: Max spread indices (native index-points) // ADD 2026-07: DAX ~1-3 pts, NAS100 ~2-5 pts, US30 ~1-3 pts, SPX500 ~0.5-1 pt. 20 is a generous ceiling covering all major indices at peak spread; tighten per-instrument via the Inp_Adaptive_PairType override on each chart.
 input double      Inp_Adaptive_Spread_Crypto       = 50.0;           // Pair: Max spread crypto (pips)
 // input string   Inp_Adaptive_Note1               = "📝 Note: SL/TP cushions auto-adjust by timeframe (no input needed)";
 // input string   Inp_Adaptive_Note2               = "📝 M15=5 pips, H1=10 pips, H4=20 pips (see GetTFBasedCushion)";
@@ -643,14 +645,14 @@ input group "║   📐 RRM_ORG: LAYER WMS Pullback & Recovery";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_LayerPBEnabled       = true;           // RRM ORG PB: Enable pullback-recovery state machine (P2?)
 input int         Inp_RRM_ORG_LayerPBLookback      = 21;              // RRM ORG PB: Global baseline lookback (fallback; per-layer below)
-input int         Inp_RRM_ORG_LayerPBLookback_W    = 13;            // RRM ORG PB: LayerW baseline lookback (fast/responsive)
-input int         Inp_RRM_ORG_LayerPBLookback_M    = 21;            // RRM ORG PB: LayerM baseline lookback (medium)
-input int         Inp_RRM_ORG_LayerPBLookback_S    = 34;            // RRM ORG PB: LayerS baseline lookback (slow/stable)
-input double      Inp_RRM_ORG_LayerPBPullbackRatio = 0.5;  // RRM ORG PB: Pullback threshold (|ratio|<this = weakened)
+input int         Inp_RRM_ORG_LayerPBLookback_W    = 13;            // RRM ORG PB: LayerW baseline lookback (fast/responsive) // NOTE 2026-07: original value. Longer lookback = cleaner baseline (less contaminated by in-progress pullback bars) = lower effective ratio = easier pullback detection. Shorter lookbacks counter-intuitively harm detection.
+input int         Inp_RRM_ORG_LayerPBLookback_M    = 21;            // RRM ORG PB: LayerM baseline lookback (medium) // NOTE 2026-07: original value restored.
+input int         Inp_RRM_ORG_LayerPBLookback_S    = 34;            // RRM ORG PB: LayerS baseline lookback (slow/stable) // NOTE 2026-07: original value restored. At LB_S=34, a 40%-deep pullback lasting 12 bars still produces ratio=0.507 vs 0.65 threshold = DETECTED. At LB_S=21, same pullback produces ratio=0.609 = DETECTED. At LB_S=8, ratio=N/A (window exhausted by pullback alone).
+input double      Inp_RRM_ORG_LayerPBPullbackRatio = 0.65; // RRM ORG PB: Pullback threshold (ratio < this = weakened) // CORRECTION 2026-07: changed 0.50→0.65. is_pullback fires when |current_pace|/|baseline_pace| < threshold, so HIGHER threshold = more sensitive. At 0.50: only catches 40%-depth pullbacks lasting ≤3 bars at LB=13. At 0.65: catches 40%-depth pullbacks lasting up to 12 bars at LB=13, and up to 5 bars at LB=8. My previous change to 0.35 was backwards (stricter, caught fewer). Enable LayerAllowReversalPullback for 60-80%-depth shallow pullbacks that magnitude ratio cannot reach at any practical threshold.
 input double      Inp_RRM_ORG_LayerPBRecoveryRatio = 0.3;  // RRM ORG PB: Global recovery threshold (fallback)
 input bool        Inp_RRM_ORG_LayerPB_RecoveryOnSlope = false;        // RRM ORG PB: recover on slope resume+re-accel (t1; not magnitude)
 input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;      // RRM ORG PB: Flat threshold (|ratio|<this = flat)
-input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;  // RRM ORG PB: Count slope reversal as pullback
+input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;  // RRM ORG PB: Count slope reversal as pullback // NOTE 2026-07: already true (correct). This is the ONLY mechanism that detects shallow pullbacks (EMA decelerating to 60-80% of baseline pace) because their magnitude ratio stays above 0.65 regardless of threshold. When EMA direction reverses even briefly (current_bullish != baseline_bullish), is_pullback fires regardless of ratio. Critical for M5/M15 trending pullbacks where EMA5 barely decelerates before recovering.
 input double      Inp_RRM_ORG_RecoveryRatio_W      = 0.4;      // RRM ORG PB: LayerW recovery override (-1=use global)
 input double      Inp_RRM_ORG_RecoveryRatio_M      = 0.3;      // RRM ORG PB: LayerM recovery override (-1=use global)
 input double      Inp_RRM_ORG_RecoveryRatio_S      = 0.2;      // RRM ORG PB: LayerS recovery override (-1=use global)
@@ -765,11 +767,11 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: PSAR Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_Vote_AllowPsarFlip   = true;          // RRM ORG PSAR: PSAR Enable Flip   [SYNC 2026-06-04: true→false to match SignalScan TS_PSAR_Flip=false (PSAR votes on dot position only, no flip window)]
-input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = 5;              // RRM ORG PSAR: PSAR Flip delay (-1=persistent, 0-10=bars after flip)
+input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = -1;             // RRM ORG PSAR: PSAR Flip delay (-1=persistent, 0-10=bars after flip) // BUGFIX A1 2026-07: changed 5→-1. Default 5 expired the PSAR vote after 25 min on M5, blocking every bar in a sustained trend after the initial flip. Persistent mode (dot-position check only) allows entry at any bar where the PSAR dot is on the correct side, regardless of when the last flip occurred. Use per-layer overrides below to restore time-gating on specific layers.
 input int         Inp_RRM_ORG_TrailPsarDotShift    = 1;              // RRM ORG QA: PSAR trail shift (1–3 bars back)
-input int         Inp_RRM_ORG_PsarFlipDelay_W      = -99;            // RRM ORG PSAR: PSAR Flip delay LayerW override (-99=use global, 0=flip bar, 1-10=window)
-input int         Inp_RRM_ORG_PsarFlipDelay_M      = -99;            // RRM ORG PSAR: PSAR Flip delay LayerM override (-99=use global, 0=flip bar, 1-10=window)
-input int         Inp_RRM_ORG_PsarFlipDelay_S      = -99;            // RRM ORG PSAR: PSAR Flip delay LayerS override (-99=use global, 0=flip bar, 1-10=window)
+input int         Inp_RRM_ORG_PsarFlipDelay_W      = 5;              // RRM ORG PSAR: PSAR Flip delay LayerW override (-99=use global, 0=flip bar, 1-10=window) // BUGFIX A1 2026-07: changed -99→5. LayerW (EMA1/2 pair) is the fastest layer and most susceptible to whipsaw entries immediately after a trend re-entry; the 5-bar window provides a minimal freshness gate. Overrides the global -1 for this layer only.
+input int         Inp_RRM_ORG_PsarFlipDelay_M      = -1;             // RRM ORG PSAR: PSAR Flip delay LayerM override (-99=use global, 0=flip bar, 1-10=window) // BUGFIX A1 2026-07: changed -99→-1. LayerM (EMA2/3) entries confirmed by EMA13/34 structural alignment; persistent dot-position check is sufficient. Allows entries throughout the trend without requiring a fresh flip.
+input int         Inp_RRM_ORG_PsarFlipDelay_S      = -1;             // RRM ORG PSAR: PSAR Flip delay LayerS override (-99=use global, 0=flip bar, 1-10=window) // BUGFIX A1 2026-07: changed -99→-1. LayerS (EMA3/4) is the slowest, highest-conviction layer; a time-based flip gate adds no structural filtering value. Persistent mode.
 input int         Inp_RRM_ORG_PSAR_FlipGraceBars   = 0;              // RRM ORG PSAR: PSAR Ignore vote for N bars after an adverse flip (0=disabled)
 input double      Inp_RRM_ORG_PsarStep             = 0.05;           // RRM ORG PSAR: PSAR Step
 input double      Inp_RRM_ORG_PsarMax              = 0.5;            // RRM ORG PSAR: PSAR Max
@@ -1123,12 +1125,39 @@ EPairType DetectPairType(const string symbol)
    if(StringFind(sym, "AUDUSD") >= 0) return PAIR_TYPE_MAJOR;
    if(StringFind(sym, "USDCAD") >= 0) return PAIR_TYPE_MAJOR;
    if(StringFind(sym, "NZDUSD") >= 0) return PAIR_TYPE_MAJOR;
-   // Gold
+   // Gold — must match before Silver to avoid XAG prefix collision
    if(StringFind(sym, "XAUUSD") >= 0) return PAIR_TYPE_GOLD;
    if(StringFind(sym, "GOLD")   >= 0) return PAIR_TYPE_GOLD;
-   // Crypto
+   // Silver — ADD 2026-07
+   if(StringFind(sym, "XAGUSD") >= 0) return PAIR_TYPE_SILVER;
+   if(StringFind(sym, "XAG")    >= 0) return PAIR_TYPE_SILVER;
+   if(StringFind(sym, "SILVER") >= 0) return PAIR_TYPE_SILVER;
+   // US Equity Indices — ADD 2026-07
+   if(StringFind(sym, "NAS")    >= 0) return PAIR_TYPE_INDICES;   // NAS100, NASDAQ
+   if(StringFind(sym, "US100")  >= 0) return PAIR_TYPE_INDICES;
+   if(StringFind(sym, "SPX")    >= 0) return PAIR_TYPE_INDICES;   // SPX500, SP500
+   if(StringFind(sym, "SP500")  >= 0) return PAIR_TYPE_INDICES;
+   if(StringFind(sym, "US30")   >= 0) return PAIR_TYPE_INDICES;   // Dow Jones
+   if(StringFind(sym, "DJ30")   >= 0) return PAIR_TYPE_INDICES;
+   if(StringFind(sym, "USTEC")  >= 0) return PAIR_TYPE_INDICES;
+   // EU/UK Equity Indices — ADD 2026-07
+   if(StringFind(sym, "DAX")    >= 0) return PAIR_TYPE_INDICES;   // DAX40/GER40
+   if(StringFind(sym, "GER40")  >= 0) return PAIR_TYPE_INDICES;
+   if(StringFind(sym, "FTSE")   >= 0) return PAIR_TYPE_INDICES;   // FTSE100/UK100
+   if(StringFind(sym, "UK100")  >= 0) return PAIR_TYPE_INDICES;
+   if(StringFind(sym, "CAC")    >= 0) return PAIR_TYPE_INDICES;   // CAC40/FRA40
+   if(StringFind(sym, "FRA40")  >= 0) return PAIR_TYPE_INDICES;
+   if(StringFind(sym, "EUSTX50")>= 0) return PAIR_TYPE_INDICES;   // EuroStoxx50
+   // Crypto — ADD 2026-07: extended roster
    if(StringFind(sym, "BTC") >= 0) return PAIR_TYPE_CRYPTO;
    if(StringFind(sym, "ETH") >= 0) return PAIR_TYPE_CRYPTO;
+   if(StringFind(sym, "BNB") >= 0) return PAIR_TYPE_CRYPTO;
+   if(StringFind(sym, "SOL") >= 0) return PAIR_TYPE_CRYPTO;
+   if(StringFind(sym, "XRP") >= 0) return PAIR_TYPE_CRYPTO;
+   if(StringFind(sym, "LTC") >= 0) return PAIR_TYPE_CRYPTO;
+   if(StringFind(sym, "ADA") >= 0) return PAIR_TYPE_CRYPTO;
+   if(StringFind(sym, "DOT") >= 0) return PAIR_TYPE_CRYPTO;
+   if(StringFind(sym, "LINK")>= 0) return PAIR_TYPE_CRYPTO;
    // Exotics
    if(StringFind(sym, "TRY") >= 0) return PAIR_TYPE_EXOTIC;
    if(StringFind(sym, "ZAR") >= 0) return PAIR_TYPE_EXOTIC;
@@ -1143,12 +1172,14 @@ double GetAdaptiveSpreadLimit(EPairType pair_type, const ST_AdaptiveSettings &ad
 {
    switch(pair_type)
    {
-      case PAIR_TYPE_MAJOR:  return adaptive.Spread_Major;
-      case PAIR_TYPE_MINOR:  return adaptive.Spread_Minor;
-      case PAIR_TYPE_EXOTIC: return adaptive.Spread_Exotic;
-      case PAIR_TYPE_GOLD:   return adaptive.Spread_Gold;
-      case PAIR_TYPE_CRYPTO: return adaptive.Spread_Crypto;
-      default:               return adaptive.Spread_Minor;
+      case PAIR_TYPE_MAJOR:   return adaptive.Spread_Major;
+      case PAIR_TYPE_MINOR:   return adaptive.Spread_Minor;
+      case PAIR_TYPE_EXOTIC:  return adaptive.Spread_Exotic;
+      case PAIR_TYPE_GOLD:    return adaptive.Spread_Gold;
+      case PAIR_TYPE_SILVER:  return adaptive.Spread_Silver;   // ADD 2026-07
+      case PAIR_TYPE_INDICES: return adaptive.Spread_Indices;  // ADD 2026-07
+      case PAIR_TYPE_CRYPTO:  return adaptive.Spread_Crypto;
+      default:                return adaptive.Spread_Minor;
    }
 }
 
@@ -1506,6 +1537,8 @@ void InitializeConfig()
    Settings.Adaptive.Spread_Minor      = Inp_Adaptive_Spread_Minor;
    Settings.Adaptive.Spread_Exotic     = Inp_Adaptive_Spread_Exotic;
    Settings.Adaptive.Spread_Gold       = Inp_Adaptive_Spread_Gold;
+   Settings.Adaptive.Spread_Silver     = Inp_Adaptive_Spread_Silver;    // ADD 2026-07
+   Settings.Adaptive.Spread_Indices    = Inp_Adaptive_Spread_Indices;   // ADD 2026-07
    Settings.Adaptive.Spread_Crypto     = Inp_Adaptive_Spread_Crypto;
 
    if(Settings.Adaptive.PairType == PAIR_TYPE_AUTO)

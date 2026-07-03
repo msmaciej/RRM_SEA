@@ -1871,9 +1871,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // the PSAR flip by 1-3 bars, so they need a wider acceptance window.
       // The dot-position check always runs first (stale flips in ranging markets
       // are rejected regardless of window size).
-      cfg.Vote_PsarFlipDelay_W      = MathMax(-99, MathMin(10, Inp_RRM_ORG_PsarFlipDelay_W));
-      cfg.Vote_PsarFlipDelay_M      = MathMax(-99, MathMin(10, Inp_RRM_ORG_PsarFlipDelay_M));
-      cfg.Vote_PsarFlipDelay_S      = MathMax(-99, MathMin(10, Inp_RRM_ORG_PsarFlipDelay_S));
+      //
+      // BUGFIX A1c 2026-07: Fractal-correct PSAR delay — bar counts, NOT time scaling.
+      // W=5 is a structural post-flip confirmation bar count (same fractal wave phase
+      // at all TFs: M1 through H4). Time-based scaling broke the structural meaning
+      // by multiplying W on M1 (capped at 10) and collapsing it to 1 on H4. Direct
+      // wiring preserves fractal equivalence across all target TFs.
+      cfg.Vote_PsarFlipDelay_W = MathMax(-99, MathMin(10, Inp_RRM_ORG_PsarFlipDelay_W));
+      cfg.Vote_PsarFlipDelay_M = MathMax(-99, MathMin(10, Inp_RRM_ORG_PsarFlipDelay_M));
+      cfg.Vote_PsarFlipDelay_S = MathMax(-99, MathMin(10, Inp_RRM_ORG_PsarFlipDelay_S));
 
       // ── CANDLE BODY ───────────────────────────────────────────────────
       cfg.Ind_CandleBody_Enabled    = Inp_RRM_ORG_Use_CandleBody;
@@ -2079,9 +2085,21 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // compatibility; user-controlled via Inp_RRM_ORG_LayerS_TMOnly.
       cfg.LayerS_TMOnly               = Inp_RRM_ORG_LayerS_TMOnly;
       cfg.LayerBaselineLookback       = MathMax(2, Inp_RRM_ORG_LayerPBLookback);   // global fallback (clamp fixed: 20-cap removed)
-      cfg.LayerBaselineLookback_W     = MathMax(2, Inp_RRM_ORG_LayerPBLookback_W);
-      cfg.LayerBaselineLookback_M     = MathMax(2, Inp_RRM_ORG_LayerPBLookback_M);
-      cfg.LayerBaselineLookback_S     = MathMax(2, Inp_RRM_ORG_LayerPBLookback_S);
+      // BUGFIX A2c 2026-07: Fractal-correct layer lookback — bar counts, NOT time scaling.
+      // Price structure is fractal: a pullback-recovery wave occupies ~the same number
+      // of bars at M1, M5, H1, and H4 (Elliott wave / impulse-correction cycles repeat
+      // at all scales). Time-based scaling (5 min / TF_minutes) was architecturally
+      // wrong — it implied a pullback lasts a fixed wall-clock window rather than a
+      // fixed wave-bar count. Input values are applied directly as bar counts at all TFs.
+      // Exception: M1 gets a 1.5× noise guard because 1-minute bars carry proportionally
+      // higher per-bar tick variance (news, HFT, thin liquidity). M5 and above develop
+      // structurally equivalent patterns that the raw input values serve correctly.
+      {
+         double _lk_noise = (_Period <= PERIOD_M1) ? 1.5 : 1.0;
+         cfg.LayerBaselineLookback_W = MathMax(2, (int)MathRound(Inp_RRM_ORG_LayerPBLookback_W * _lk_noise));
+         cfg.LayerBaselineLookback_M = MathMax(2, (int)MathRound(Inp_RRM_ORG_LayerPBLookback_M * _lk_noise));
+         cfg.LayerBaselineLookback_S = MathMax(2, (int)MathRound(Inp_RRM_ORG_LayerPBLookback_S * _lk_noise));
+      }
       cfg.LayerPullbackRatio          = MathMax(0.01, Inp_RRM_ORG_LayerPBPullbackRatio);
       cfg.LayerFlatRatio              = MathMax(0.0,  Inp_RRM_ORG_LayerPBFlatRatio);
       cfg.LayerRecoveryRatio          = MathMax(0.01, Inp_RRM_ORG_LayerPBRecoveryRatio);
