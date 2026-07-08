@@ -111,6 +111,11 @@ struct ST_SignalTelemetry {
    double vprr_min_ratio;           // Configured pass threshold
    bool   vprr_pass;                // Whether the active-layer ratio passed
    string vprr_vol_source;          // "REAL" or "TICK" — which volume feed is in use
+   // A14/A20 2026-07: I-factor suppression flag (display I[?] instead of I[+/-])
+   // True when L failed for a structural reason (no layer aligned = L_NONE_ALIGNED),
+   // meaning the I factor was never evaluated — showing I[-] would be misleading.
+   // UI uses this to display "?" in the TS equation and "--/N [L-blocked]" in VOTE.
+   bool   i_suppressed;             // true = I not evaluated (L structurally blocked)
    // ── Ribbon EMA snapshot (single source of truth, slot-indexed) ──
    // Mirrors m_ribbon at the end of each EvaluateTS pass. Cockpit reads from
    // this for display. Periods are NOT hardcoded — labels are rendered from
@@ -4720,6 +4725,9 @@ public:
       m_telemetry.vprr_min_ratio  = m_settings.VPRR_MinRatio;
       m_telemetry.vprr_pass       = (m_telemetry.vprr_ratio >= m_settings.VPRR_MinRatio);
       m_telemetry.vprr_vol_source = m_vprr_last_real ? "REAL" : "TICK";
+      // A14/A20 2026-07: i_suppressed = true when L failed structurally (no layer aligned),
+      // meaning I was never evaluated. Detected by L_NONE_ALIGNED reason string.
+      m_telemetry.i_suppressed = (m_diag_last_reason == "L_NONE_ALIGNED");
    }
 
 
@@ -6102,6 +6110,7 @@ public:
       m_telemetry.vprr_min_ratio  = m_settings.VPRR_MinRatio;
       m_telemetry.vprr_pass       = false;
       m_telemetry.vprr_vol_source = "—";
+      m_telemetry.i_suppressed    = false;   // A14/A20 2026-07
       ZeroMemory(m_stats);
 
       ENUM_MA_METHOD method = (m_settings.MaType == METHOD_SMA) ? MODE_SMA : MODE_EMA;
@@ -8022,6 +8031,7 @@ public:
       m_telemetry.rejection_reason = SEA_STATUS_EVALUATING;
       m_telemetry.active_indicators = "0/0";
       m_telemetry.mtf_status = (m_settings.Ind_MTF_Enabled ? "[MTF] Pending" : "N/A");
+      m_telemetry.i_suppressed = false;   // A14/A20 2026-07: reset each bar; set in UpdateTelemetry
       m_bars_evaluated++;
       m_stats.total_bars++;
 
