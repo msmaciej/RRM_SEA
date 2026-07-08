@@ -653,6 +653,15 @@ input double      Inp_RRM_ORG_LayerPBRecoveryRatio = 0.3;  // RRM ORG PB: Global
 input bool        Inp_RRM_ORG_LayerPB_RecoveryOnSlope = false;        // RRM ORG PB: recover on slope resume+re-accel (t1; not magnitude)
 input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;      // RRM ORG PB: Flat threshold (|ratio|<this = flat)
 input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;  // RRM ORG PB: Count slope reversal as pullback // NOTE 2026-07: already true (correct). This is the ONLY mechanism that detects shallow pullbacks (EMA decelerating to 60-80% of baseline pace) because their magnitude ratio stays above 0.65 regardless of threshold. When EMA direction reverses even briefly (current_bullish != baseline_bullish), is_pullback fires regardless of ratio. Critical for M5/M15 trending pullbacks where EMA5 barely decelerates before recovering.
+// S2 2026-07: price-zone DETECTED gate. zone = EMA_slow + (1-PullbackRatio)*(EMA_fast-EMA_slow).
+// At PullbackRatio=0.65: zone_factor=0.35 = lower 35% of EMA band. Oracle: "price pulls back to touch EMA2" (flexible).
+// Additive OR with slope/reversal detection — does not replace either.
+input bool        Inp_RRM_ORG_LayerPriceTouchEnabled = true; // RRM ORG PB: S2 - wick entering lower EMA band zone also triggers DETECTED
+// A21 2026-07: minimum bars in DETECTED before RECOVERED is allowed.
+// Oracle: pullbacks last 2–8 bars at all timeframes before recovery bar. Prevents 1-bar spike entries.
+input int         Inp_RRM_ORG_MinPBBars_W   = 2;            // RRM ORG PB: A21 - LayerW min bars in DETECTED before RECOVERED (0=off)
+input int         Inp_RRM_ORG_MinPBBars_M   = 2;            // RRM ORG PB: A21 - LayerM min bars in DETECTED before RECOVERED (0=off)
+input int         Inp_RRM_ORG_MinPBBars_S   = 1;            // RRM ORG PB: A21 - LayerS min bars in DETECTED before RECOVERED (0=off)
 input double      Inp_RRM_ORG_RecoveryRatio_W      = 0.4;      // RRM ORG PB: LayerW recovery override (-1=use global)
 input double      Inp_RRM_ORG_RecoveryRatio_M      = 0.3;      // RRM ORG PB: LayerM recovery override (-1=use global)
 input double      Inp_RRM_ORG_RecoveryRatio_S      = 0.2;      // RRM ORG PB: LayerS recovery override (-1=use global)

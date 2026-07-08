@@ -288,6 +288,8 @@ private:
     int      m_layer_w_vol_rec_bars, m_layer_m_vol_rec_bars, m_layer_s_vol_rec_bars; // Bars counted in RECOVERED
     double   m_layer_w_vprr, m_layer_m_vprr, m_layer_s_vprr;                       // Final ratios
     bool     m_vprr_last_real;   // True if the last volume read used VOLUME_REAL (for UI source label)
+    // A21 2026-07: bars spent in DETECTED state per layer (for MinPullbackBars gate)
+    int      m_layer_w_bars_det, m_layer_m_bars_det, m_layer_s_bars_det;
     bool     m_vprr_real_warned; // One-shot guard: have we already warned the user that VPRR_VOL_REAL is
                                  // selected but the broker returned zero real volume? Without this, VPRR
                                  // votes silently fail every bar because GetCurrentBarVolume returns 0 →
@@ -1866,7 +1868,11 @@ private:
                                   ELayerPullbackState &state, double &baseline, string label,
                                   double &vol_pb_avg, int &vol_pb_bars,
                                   double &vol_rec_avg, int &vol_rec_bars,
-                                  double &vprr, int bias_dir = 0)
+                                  double &vprr, int &bars_det,
+                                  int bias_dir = 0,
+                                  int slow_ema_handle = INVALID_HANDLE,
+                                  bool use_price_touch = false,
+                                  int min_pb_bars = 0)
    {
       // -- Baseline DIRECTION (refined, kept): sign of the EMA slope on the bar
       //    JUST BEFORE the lookback window, so an in-progress pullback cannot
@@ -1908,6 +1914,46 @@ private:
       if(m_settings.LayerAllowReversalPullback &&
          (baseline_bullish != current_bullish) && (current_pace != 0.0))
          is_pullback = true;
+
+      // -- S2 2026-07: Price-zone DETECTED gate (Oracle Trade Setups card: "price pulls
+      //    back to touch the EMA2/3/4" — flexibly; wick reaching lower portion of band).
+      //    zone_factor = 1 - LayerPullbackRatio (at 0.65: zone = lower 35% of EMA band).
+      //    Additive OR: fires independently of slope; does not replace slope detection.
+      //    Only evaluated when slope gates did not already set is_pullback, to avoid
+      //    redundant log noise. Requires slow_ema_handle to be supplied by caller.
+      if(use_price_touch && !is_pullback && slow_ema_handle != INVALID_HANDLE)
+      {
+         double ema_slow_val = GetMAVal(slow_ema_handle, v_shift);
+         double ema_fast_val = GetMAVal(fast_ema_handle, v_shift);
+         if(ema_slow_val > 0.0 && ema_fast_val > 0.0)
+         {
+            double zone_factor = 1.0 - m_settings.LayerPullbackRatio;  // e.g. 0.35 at ratio=0.65
+            bool   zone_touched;
+            if(baseline_bullish)
+            {
+               // Bullish: EMA_fast > EMA_slow; price pulls back downward.
+               // Zone top = EMA_slow + zone_factor*(EMA_fast-EMA_slow).
+               // DETECTED when bar_low descends into or below zone_top.
+               double zone_top = ema_slow_val + zone_factor * (ema_fast_val - ema_slow_val);
+               zone_touched    = (iLow(m_symbol, PERIOD_CURRENT, v_shift) <= zone_top);
+            }
+            else
+            {
+               // Bearish: EMA_fast < EMA_slow; price pulls back upward.
+               // Zone bottom = EMA_slow - zone_factor*(EMA_slow-EMA_fast).
+               // DETECTED when bar_high rises into or above zone_bottom.
+               double zone_bot = ema_slow_val - zone_factor * (ema_slow_val - ema_fast_val);
+               zone_touched    = (iHigh(m_symbol, PERIOD_CURRENT, v_shift) >= zone_bot);
+            }
+            if(zone_touched)
+            {
+               is_pullback = true;
+               if(m_settings.DebugFlow)
+                  DebugLog(StringFormat("[%s_PB] S2 price-zone DETECTED: ema_fast=%.5f ema_slow=%.5f zone_factor=%.2f",
+                                        label, ema_fast_val, ema_slow_val, zone_factor));
+            }
+         }
+      }
 
       // -- Recovery (from DETECTED): the fast EMA's slope on the EVALUATED bar
       //    (1-bar: EMA[v_shift] vs EMA[v_shift+1]) has resumed the pre-pullback
@@ -1965,11 +2011,30 @@ private:
       //    both restores the pre-change trade frequency and lets VPRR measure.
       bool is_relapse_reversal = (baseline_bullish != current_bullish) && (current_pace != 0.0);
 
+      // A21 2026-07: advance bars_det counter before transition logic.
+      // Counts consecutive bars spent in DETECTED; resets to 0 when not in DETECTED.
+      // Transition DETECTED→RECOVERED is gated: bars_det must reach min_pb_bars first.
+      if(state == LAYER_PB_DETECTED)
+         bars_det++;
+      else
+         bars_det = 0;
+
       ELayerPullbackState prev_state = state;
       if(state == LAYER_PB_NONE && is_pullback)
-         state = LAYER_PB_DETECTED;
+      {
+         state    = LAYER_PB_DETECTED;
+         bars_det = 1;   // first bar of a fresh DETECTED cycle
+      }
       else if(state == LAYER_PB_DETECTED && is_recovery)
       {
+         // A21 gate: require minimum bars in DETECTED before allowing RECOVERED.
+         if(bars_det < min_pb_bars)
+         {
+            if(m_settings.DebugFlow)
+               DebugLog(StringFormat("[%s_PB] DET→REC BLOCKED by MinPullbackBars: %d bars < required %d (state stays DETECTED)",
+                                     label, bars_det, min_pb_bars));
+            // state stays DETECTED; bars_det already incremented above
+         }
          // Theme 2026-06 (UNO-exit cooldown): when MinBarsAfterUNOExit > 0, block
          // the DETECTED→RECOVERED transition until that many non-UNO bars have
          // accumulated since the last UNO bar. Rationale: EMA1/EMA2 geometry on
@@ -1978,8 +2043,8 @@ private:
          // State stays DETECTED — the next bar can re-attempt the transition
          // when the cooldown has further progressed. Diagnostic line emitted at
          // DEBUG_FLOW level so the operator can verify on the bar of interest.
-         if(m_settings.MinBarsAfterUNOExit > 0 &&
-            m_bars_since_uno_exit < m_settings.MinBarsAfterUNOExit)
+         else if(m_settings.MinBarsAfterUNOExit > 0 &&
+                 m_bars_since_uno_exit < m_settings.MinBarsAfterUNOExit)
          {
             if(m_settings.DebugFlow)
                DebugLog(StringFormat("[%s_PB] DET→REC BLOCKED by UNO-exit cooldown: %d bars since UNO exit < required %d (state stays DETECTED)",
@@ -1991,7 +2056,10 @@ private:
          }
       }
       else if(state == LAYER_PB_RECOVERED && is_relapse_reversal)
-         state = LAYER_PB_DETECTED;
+      {
+         state    = LAYER_PB_DETECTED;
+         bars_det = 1;   // first bar of a relapse DETECTED cycle
+      }
 
       if(m_settings.DebugFlow && state != prev_state)
       {
@@ -2070,6 +2138,15 @@ private:
       return rr;
    }
 
+   // A21 2026-07: per-layer minimum pullback bar count before RECOVERED is allowed.
+   int GetLayerMinPBBars(int layer)
+   {
+      int v = (layer == 1) ? m_settings.LayerMinPullbackBars_W :
+              (layer == 2) ? m_settings.LayerMinPullbackBars_M :
+                             m_settings.LayerMinPullbackBars_S;
+      return MathMax(0, v);
+   }
+
    //+------------------------------------------------------------------+
    //| MaybeResetLayersOnPhaseChange (optional)                         |
    //| Clear stale layer pullback-recovery states when the market re-   |
@@ -2120,6 +2197,7 @@ private:
             m_layer_w_vol_rec_avg = 0.0; m_layer_w_vol_rec_bars = 0;
             m_layer_w_vprr        = 0.0;
             m_layer_w_baseline    = 0.0;
+            m_layer_w_bars_det    = 0;   // A21 2026-07
          }
          if(m_layer_m_pb_state == LAYER_PB_RECOVERED) {
             m_layer_m_pb_state    = LAYER_PB_NONE;
@@ -2127,6 +2205,7 @@ private:
             m_layer_m_vol_rec_avg = 0.0; m_layer_m_vol_rec_bars = 0;
             m_layer_m_vprr        = 0.0;
             m_layer_m_baseline    = 0.0;
+            m_layer_m_bars_det    = 0;   // A21 2026-07
          }
          if(m_layer_s_pb_state == LAYER_PB_RECOVERED) {
             m_layer_s_pb_state    = LAYER_PB_NONE;
@@ -2134,6 +2213,7 @@ private:
             m_layer_s_vol_rec_avg = 0.0; m_layer_s_vol_rec_bars = 0;
             m_layer_s_vprr        = 0.0;
             m_layer_s_baseline    = 0.0;
+            m_layer_s_bars_det    = 0;   // A21 2026-07
          }
          if(m_settings.DebugFlow)
             DebugLog(StringFormat("[PHASE_RESET] Phase confirmed %s -> stale RECOVERED cleared, DETECTED preserved",
@@ -2243,15 +2323,21 @@ private:
       UpdateSingleLayerPullback(h_ema1, v_shift, GetLayerLookback(1), GetLayerRecovery(1),
                                 m_layer_w_pb_state, m_layer_w_baseline, "LayerW",
                                 m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
-                                m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr, bias_dir);
+                                m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr,
+                                m_layer_w_bars_det, bias_dir,
+                                h_ema2, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(1));
       UpdateSingleLayerPullback(h_ema2, v_shift, GetLayerLookback(2), GetLayerRecovery(2),
                                 m_layer_m_pb_state, m_layer_m_baseline, "LayerM",
                                 m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
-                                m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr, bias_dir);
+                                m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr,
+                                m_layer_m_bars_det, bias_dir,
+                                h_ema3, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(2));
       UpdateSingleLayerPullback(h_ema3, v_shift, GetLayerLookback(3), GetLayerRecovery(3),
                                 m_layer_s_pb_state, m_layer_s_baseline, "LayerS",
                                 m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
-                                m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr, bias_dir);
+                                m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr,
+                                m_layer_s_bars_det, bias_dir,
+                                h_ema4, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(3));
 
       UpdateCBOverExtCarry(v_shift);
    }
@@ -3957,18 +4043,21 @@ private:
       m_layer_w_vol_rec_avg = 0.0; m_layer_w_vol_rec_bars = 0;
       m_layer_w_vprr        = 0.0;
       m_layer_w_baseline    = 0.0;
+      m_layer_w_bars_det    = 0;   // A21 2026-07
 
       m_layer_m_pb_state    = LAYER_PB_NONE;
       m_layer_m_vol_pb_avg  = 0.0; m_layer_m_vol_pb_bars  = 0;
       m_layer_m_vol_rec_avg = 0.0; m_layer_m_vol_rec_bars = 0;
       m_layer_m_vprr        = 0.0;
       m_layer_m_baseline    = 0.0;
+      m_layer_m_bars_det    = 0;   // A21 2026-07
 
       m_layer_s_pb_state    = LAYER_PB_NONE;
       m_layer_s_vol_pb_avg  = 0.0; m_layer_s_vol_pb_bars  = 0;
       m_layer_s_vol_rec_avg = 0.0; m_layer_s_vol_rec_bars = 0;
       m_layer_s_vprr        = 0.0;
       m_layer_s_baseline    = 0.0;
+      m_layer_s_bars_det    = 0;   // A21 2026-07
       if(m_settings.DebugFlow)
          DebugLog("[CLIMAX] All layer pullback states reset -> NONE (await fresh pullback-recovery)");
    }
@@ -4027,6 +4116,10 @@ private:
       m_layer_w_baseline = 0.0;
       m_layer_m_baseline = 0.0;
       m_layer_s_baseline = 0.0;
+      // A21 2026-07: bars_det counters
+      m_layer_w_bars_det = 0;
+      m_layer_m_bars_det = 0;
+      m_layer_s_bars_det = 0;
       // Layer VPRR volume tracking
       m_layer_w_vol_pb_avg  = 0.0; m_layer_w_vol_pb_bars  = 0;
       m_layer_w_vol_rec_avg = 0.0; m_layer_w_vol_rec_bars = 0;
@@ -4247,17 +4340,17 @@ public:
    // Reset only the fired layer to NONE — other layers keep their independent states.
    void   Scanner_ResetLayerAfterFire(int layer)
    {
-      if(layer == 3) m_layer_s_pb_state = LAYER_PB_NONE;
-      else if(layer == 2) m_layer_m_pb_state = LAYER_PB_NONE;
-      else if(layer == 1) m_layer_w_pb_state = LAYER_PB_NONE;
+      if(layer == 3) { m_layer_s_pb_state = LAYER_PB_NONE; m_layer_s_bars_det = 0; }   // A21 2026-07
+      else if(layer == 2) { m_layer_m_pb_state = LAYER_PB_NONE; m_layer_m_bars_det = 0; }
+      else if(layer == 1) { m_layer_w_pb_state = LAYER_PB_NONE; m_layer_w_bars_det = 0; }
    }
    // Expire RECOVERED states when bias is absent — prevents stale state firing on bias return.
    // Preserves DETECTED so an in-progress pullback keeps tracking through brief bias gaps.
    void   Scanner_ExpireRecovered()
    {
-      if(m_layer_s_pb_state == LAYER_PB_RECOVERED) m_layer_s_pb_state = LAYER_PB_NONE;
-      if(m_layer_m_pb_state == LAYER_PB_RECOVERED) m_layer_m_pb_state = LAYER_PB_NONE;
-      if(m_layer_w_pb_state == LAYER_PB_RECOVERED) m_layer_w_pb_state = LAYER_PB_NONE;
+      if(m_layer_s_pb_state == LAYER_PB_RECOVERED) { m_layer_s_pb_state = LAYER_PB_NONE; m_layer_s_bars_det = 0; }   // A21 2026-07
+      if(m_layer_m_pb_state == LAYER_PB_RECOVERED) { m_layer_m_pb_state = LAYER_PB_NONE; m_layer_m_bars_det = 0; }
+      if(m_layer_w_pb_state == LAYER_PB_RECOVERED) { m_layer_w_pb_state = LAYER_PB_NONE; m_layer_w_bars_det = 0; }
    }
    bool   Scanner_Check_DPI(int bias, int shift) { return Check_DPI(bias, shift); }
    bool   Scanner_Check_PSAR(int bias, int shift){ return Check_PSAR(bias, shift); }
@@ -5751,6 +5844,9 @@ public:
       m_layer_w_baseline = 0.0;
       m_layer_m_baseline = 0.0;
       m_layer_s_baseline = 0.0;
+      m_layer_w_bars_det = 0;   // A21 2026-07
+      m_layer_m_bars_det = 0;   // A21 2026-07
+      m_layer_s_bars_det = 0;   // A21 2026-07
       m_phase_reset_pending   = PHASE_UNORDERED;
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
@@ -5808,6 +5904,9 @@ public:
             m_layer_w_pb_state = LAYER_PB_NONE;
             m_layer_m_pb_state = LAYER_PB_NONE;
             m_layer_s_pb_state = LAYER_PB_NONE;
+            m_layer_w_bars_det = 0;   // A21 2026-07
+            m_layer_m_bars_det = 0;   // A21 2026-07
+            m_layer_s_bars_det = 0;   // A21 2026-07
             m_layer_pb_last_update = bar_time;
             last_processed_shift = shift;
             continue;
@@ -5839,17 +5938,20 @@ public:
                                    m_layer_w_pb_state, m_layer_w_baseline, "LayerW_WU",
                                    m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
                                    m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars,
-                                   m_layer_w_vprr, b_wu);
+                                   m_layer_w_vprr, m_layer_w_bars_det, b_wu,
+                                   h_ema2, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(1));
          UpdateSingleLayerPullback(h_ema2, shift, lb_m, GetLayerRecovery(2),
                                    m_layer_m_pb_state, m_layer_m_baseline, "LayerM_WU",
                                    m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                    m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars,
-                                   m_layer_m_vprr, b_wu);
+                                   m_layer_m_vprr, m_layer_m_bars_det, b_wu,
+                                   h_ema3, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(2));
          UpdateSingleLayerPullback(h_ema3, shift, lb_s, GetLayerRecovery(3),
                                    m_layer_s_pb_state, m_layer_s_baseline, "LayerS_WU",
                                    m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                    m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars,
-                                   m_layer_s_vprr, b_wu);
+                                   m_layer_s_vprr, m_layer_s_bars_det, b_wu,
+                                   h_ema4, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(3));
 
          UpdateCBOverExtCarry(shift);
 
@@ -5944,6 +6046,9 @@ public:
       m_layer_w_baseline = 0.0;
       m_layer_m_baseline = 0.0;
       m_layer_s_baseline = 0.0;
+      m_layer_w_bars_det = 0;   // A21 2026-07
+      m_layer_m_bars_det = 0;   // A21 2026-07
+      m_layer_s_bars_det = 0;   // A21 2026-07
       m_layer_pb_last_update = 0;
       // VPRR volume tracking reset
       m_layer_w_vol_pb_avg = 0.0; m_layer_m_vol_pb_avg = 0.0; m_layer_s_vol_pb_avg = 0.0;
@@ -8043,6 +8148,9 @@ public:
             m_layer_w_pb_state = LAYER_PB_NONE;
             m_layer_m_pb_state = LAYER_PB_NONE;
             m_layer_s_pb_state = LAYER_PB_NONE;
+            m_layer_w_bars_det = 0;   // A21 2026-07
+            m_layer_m_bars_det = 0;   // A21 2026-07
+            m_layer_s_bars_det = 0;   // A21 2026-07
          }
       }
       
@@ -8150,18 +8258,21 @@ public:
             if(m_last_layer == 1 && m_layer_w_pb_state == LAYER_PB_RECOVERED)
             {
                m_layer_w_pb_state = LAYER_PB_NONE;
+               m_layer_w_bars_det = 0;   // A21 2026-07
                if(m_settings.DebugFlow)
                   DebugLog("[PB_RESET] LayerW: RECOVERED → NONE (TS=1 consumed pullback cycle)");
             }
             else if(m_last_layer == 2 && m_layer_m_pb_state == LAYER_PB_RECOVERED)
             {
                m_layer_m_pb_state = LAYER_PB_NONE;
+               m_layer_m_bars_det = 0;   // A21 2026-07
                if(m_settings.DebugFlow)
                   DebugLog("[PB_RESET] LayerM: RECOVERED → NONE (TS=1 consumed pullback cycle)");
             }
             else if(m_last_layer == 3 && m_layer_s_pb_state == LAYER_PB_RECOVERED)
             {
                m_layer_s_pb_state = LAYER_PB_NONE;
+               m_layer_s_bars_det = 0;   // A21 2026-07
                if(m_settings.DebugFlow)
                   DebugLog("[PB_RESET] LayerS: RECOVERED → NONE (TS=1 consumed pullback cycle)");
             }

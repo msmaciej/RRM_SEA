@@ -826,6 +826,16 @@ struct ST_Settings
     double   LayerRecoveryRatio_M;        // LayerM recovery override (-1 = use global)
     double   LayerRecoveryRatio_S;        // LayerS recovery override (-1 = use global)
     bool     LayerAllowReversalPullback;  // Count slope sign reversal as pullback
+    // S2 2026-07: price-zone DETECTED gate (wick enters lower portion of EMA band)
+    // Additive OR with slope detection. Zone = EMA_slow + (1-PullbackRatio)*(EMA_fast-EMA_slow).
+    // Oracle Trade Setups card: "price pulls back to touch the EMA2" — flexibly.
+    bool     LayerPriceTouchEnabled;      // When true, wick entering zone also triggers DETECTED
+    // A21 2026-07: minimum bars in DETECTED before RECOVERED is allowed
+    // Prevents 1-bar spike pullbacks from producing an immediate recovery signal.
+    // Oracle examples show pullbacks lasting 2–8 bars before recovery at all timeframes.
+    int      LayerMinPullbackBars_W;      // W layer minimum pullback duration (bars; 0 = off)
+    int      LayerMinPullbackBars_M;      // M layer minimum pullback duration (bars; 0 = off)
+    int      LayerMinPullbackBars_S;      // S layer minimum pullback duration (bars; 0 = off)
 
     // Climax / Exhaustion Guard (blocks late entries into over-extended impulses)
     bool     ClimaxGuard_Enabled;         // Master enable

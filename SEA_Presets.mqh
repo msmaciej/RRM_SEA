@@ -2108,6 +2108,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.LayerRecoveryRatio_M        = Inp_RRM_ORG_RecoveryRatio_M;
       cfg.LayerRecoveryRatio_S        = Inp_RRM_ORG_RecoveryRatio_S;
       cfg.LayerAllowReversalPullback  = Inp_RRM_ORG_LayerPBAllowReversal;
+      // S2 2026-07: price-zone DETECTED gate
+      cfg.LayerPriceTouchEnabled     = Inp_RRM_ORG_LayerPriceTouchEnabled;
+      // A21 2026-07: minimum bars in DETECTED before RECOVERED is allowed
+      cfg.LayerMinPullbackBars_W     = MathMax(0, Inp_RRM_ORG_MinPBBars_W);
+      cfg.LayerMinPullbackBars_M     = MathMax(0, Inp_RRM_ORG_MinPBBars_M);
+      cfg.LayerMinPullbackBars_S     = MathMax(0, Inp_RRM_ORG_MinPBBars_S);
       cfg.AllowLayer3_Entries         = Inp_RRM_ORG_AllowLayerS;   // S = EMA3/4
       cfg.AllowLayer2_Entries         = Inp_RRM_ORG_AllowLayerM;   // M = EMA2/3
       cfg.AllowLayer1_Entries         = Inp_RRM_ORG_AllowLayerW;   // W = EMA1/2
