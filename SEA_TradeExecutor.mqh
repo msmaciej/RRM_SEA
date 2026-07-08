@@ -2654,14 +2654,25 @@ public:
 
       if(m_settings.MaxOpenTrades > 0) {
          int open_count = 0;
+         int riskfree_count = 0;   // positions at BE or better (zero risk)
          for(int i = PositionsTotal() - 1; i >= 0; i--) {
             ulong ticket = PositionGetTicket(i);
             if(ticket == 0 || !PositionSelectByTicket(ticket)) continue;
             if(PositionGetString(POSITION_SYMBOL) != m_symbol || PositionGetInteger(POSITION_MAGIC) != (long)m_magic) continue;
             open_count++;
+            // BUGFIX 2026-07: when AllowReEntryAfterBE is on, positions with SL at or
+            // beyond entry (risk-free) are not consuming net risk and should not block
+            // re-entry. Count them separately so MaxOpenTrades only limits positions
+            // that still carry live loss exposure.
+            if(m_settings.AllowReEntryAfterBE && IsPositionSLatBEorBetter(ticket))
+               riskfree_count++;
          }
-         if(open_count >= m_settings.MaxOpenTrades) {
-            PrintFormat("🚫 [RC] Open trades %d >= MaxOpenTrades %d -- trade blocked", open_count, m_settings.MaxOpenTrades);
+         // Effective count: subtract risk-free positions when re-entry is enabled.
+         // A user with MaxOpenTrades=1 and one position trailed to BE should be able
+         // to add a re-entry — the original carries zero risk.
+         int effective_count = m_settings.AllowReEntryAfterBE ? (open_count - riskfree_count) : open_count;
+         if(effective_count >= m_settings.MaxOpenTrades) {
+            PrintFormat("🚫 [RC] Open trades %d (risk-bearing %d) >= MaxOpenTrades %d -- trade blocked", open_count, effective_count, m_settings.MaxOpenTrades);
             m_rc_veto_reason = "VETO_RC_MAX_OPEN_TRADES";
             return false;
          }
@@ -2750,10 +2761,15 @@ public:
    
       if((direction == 1 && buy_count > 0 && sell_count == 0) || (direction == -1 && sell_count > 0 && buy_count == 0)) {
          if(m_settings.AllowReEntryAfterBE) {
+            // BUGFIX 2026-07: was IsPositionAtBreakEven (checks |SL-entry|<=tolerance),
+            // which returned false the moment the trailing stop moved any distance into profit.
+            // A position with SL trailed to +20 pips above entry is risk-free and should
+            // allow re-entry. IsPositionSLatBEorBetter checks SL >= entry − tolerance,
+            // meaning any SL that cannot produce a loss passes — at BE or better.
             ulong ticket = GetMyPosition();
-            if(ticket > 0 && IsPositionAtBreakEven(ticket)) {
-               is_reentry = true;  // Mark: pyramid entry alongside a BE position
-               // Fall through: allow new entry alongside existing BE position
+            if(ticket > 0 && IsPositionSLatBEorBetter(ticket)) {
+               is_reentry = true;  // Mark: pyramid entry alongside a BE-or-better position
+               // Fall through: allow new entry alongside existing risk-free position
             } else {
                m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED"; m_last_te_reason = "ALREADY_IN_POSITION"; return;
             }
