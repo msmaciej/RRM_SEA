@@ -55,11 +55,11 @@ Uses the same phase detected by B. Answers: *is this market type acceptable for 
 
 | Phase | Default behaviour |
 |-------|-------------------|
-| TM (Trending) | Always passes |
-| EM (Emerging) | Blocked by default (`BlockEmergingPhase=true` in RRM_ORG) |
-| UNO (Unordered) | Always blocked |
+| TM (Trending) | Always passes — all layers (W/M/S) eligible |
+| EM (Emerging) | **Passes in RRM_ORG** (`BlockEmergingPhase=false`) — LayerW and LayerM eligible; LayerS always blocked in EM (`Emerging_AllowStrongTrades=false`) |
+| UNO (Unordered) | Always blocked (B=0, no bias direction possible) |
 
-In RRM_ORG only fully trending markets (TM) trade. The cockpit shows `PHASE: TRENDING UP [+]` when P passes.
+In RRM_ORG, Emerging phase **is** traded for LayerW and LayerM — Oracle Trade Setups card states both as *"during Emerging and Trending Phase"*. Strong (LayerS) is restricted to Trending only — Oracle states *"during the Trending Phase"*. UNO is always blocked because B=0 (no direction) eliminates the signal before P is evaluated.
 
 ---
 

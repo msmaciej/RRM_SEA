@@ -2021,6 +2021,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Emerging_AllowMediumTrades = Inp_RRM_ORG_AllowMedium;
       cfg.Emerging_AllowStrongTrades = false;         // STRONG always blocked in EMERGING per RRM methodology
 
+      // ORACLE FIX 2026-07: LayerS_RequireDirAlign must be FALSE for PRESET_RRM_ORG.
+      // The global default (Inp_Global_LayerS_Require_DirAlign=true) gates W and M entries
+      // on LayerS (EMA3/EMA4) being position+slope aligned. During EMERGING phase,
+      // EMA3/EMA4 are NOT aligned by definition (EM = EMA4 sandwiched between EMA2/EMA3),
+      // so this gate silently kills ALL W and M entries during EM even though
+      // BlockEmergingPhase=false and the Oracle explicitly permits W and M in EM.
+      // Oracle Trade Setups card: "during Emerging and Trending Phase" for both Weak and Medium.
+      // In TRENDING, LayerS is always geometrically aligned anyway, so forcing false here
+      // has zero effect on TM entries while correctly unblocking EM entries.
+      cfg.LayerS_RequireDirAlign     = false;
+
       // TRENDING phase: controlled by layer filter inputs (Inp_RRM_ORG_Allow*)
       cfg.Trending_AllowWeakTrades   = Inp_RRM_ORG_AllowWeak;
       cfg.Trending_AllowMediumTrades = Inp_RRM_ORG_AllowMedium;
