@@ -77,11 +77,28 @@ flowchart TD
     * *UNORDERED:* < 2 layers agree. Bias forced to 0.
 
 ### Step 3: Evaluate LayerX ($Layer_{W}, Layer_{M}, Layer_{S}$)
-**Purpose:** Validate the local structural alignment for a specific pair of moving averages.
-Instead of tracking dynamic wicks, the engine simply checks if the target EMA pair is structurally aligned with the Bias.
-* **LayerW (Weak / Ribbon):** Evaluates position and slope of EMA1 vs EMA2. Returns 1 if aligned.
-* **LayerM (Medium / Ghost):** Evaluates position and slope of EMA2 vs EMA3. Returns 1 if aligned.
-* **LayerS (Strong / Shark):** Evaluates position and slope of EMA3 vs EMA4. Returns 1 if aligned.
+**Purpose:** Confirm that the EMA pair is structurally aligned AND has completed a pullback-recovery cycle at this depth.
+
+Each layer runs two independent checks. Both must pass.
+
+**3a. Positional alignment:** the fast EMA is on the correct side of the slow EMA (above for LONG, below for SHORT). If misaligned, the layer fails immediately — the cascade rule (EMA1 crosses EMA2 → LayerW blocked, LayerM evaluates instead) is enforced here purely through position.
+
+**3b. Pullback-recovery state machine:** each layer independently tracks whether a pullback has occurred and recovered. Three states:
+- `LAYER_PB_NONE` — no pullback seen yet → **blocked** (must earn a pullback-recovery cycle first)
+- `LAYER_PB_DETECTED` — pullback in progress → **blocked**
+- `LAYER_PB_RECOVERED` — pullback completed, trend resumed → **allowed**
+
+**DETECTED triggers (OR logic — any one fires):**
+- Slope weakened: `|current_pace| / |baseline_pace| < LayerPullbackRatio` (default 0.65)
+- Slope flat: ratio `< LayerFlatRatio` (default 0.1)
+- Slope reversed: EMA direction flipped vs baseline (`LayerAllowReversalPullback=true` — catches shallow M1/M5 pullbacks where EMA barely decelerates)
+- **Price-zone touch (S2):** wick enters lower portion of EMA band — `bar_low ≤ EMA_slow + zone_factor × (EMA_fast − EMA_slow)` for LONG, mirrored for SHORT; `zone_factor = 1 − LayerPullbackRatio`. Oracle: *"price pulls back to touch EMA2"* (flexible). Toggle: `LayerPriceTouchEnabled` (default true).
+
+**Minimum duration gate (A21):** DETECTED must persist for at least `LayerMinPullbackBars_W/M/S` bars (defaults: W=2, M=2, S=1) before RECOVERED is allowed. Prevents 1-bar spike entries.
+
+**RECOVERED triggers:** close beyond the fast EMA in trade direction (close > EMA_fast LONG, close < EMA_fast SHORT) — after the minimum bar count is satisfied.
+
+Each layer's state is reset to NONE after a TS=1 signal consumes it, requiring a fresh pullback-recovery before the next entry on that layer.
 
 ### Step 4: Evaluate bcX ($bc_{W}, bc_{M}, bc_{S}$)
 **Purpose:** The final price action trigger verifying momentum resumption (Bar Close confirmation).
@@ -321,19 +338,26 @@ The UI renders these as a vertical audit list within the Cockpit panel, providin
 
 ## KISS Refactor Notes (v1.04+)
 
-The signal evaluation pipeline has been drastically simplified:
+The signal evaluation pipeline was significantly simplified in v1.04, then the pullback-recovery state machine was re-introduced and extended in subsequent sessions.
 
-**What was removed (v1.04):**
-- Dynamic pullback detection with 1% wick touch tolerance (~300 lines)
-- Historical bar scanning for pullback extremes
-- Complex recovery detection state machines
-- Phase-layer filtering logic
-- Pullback state tracking variables (`RequirePullback`, `PullbackLookback`, `Gate_UseMultiLayer`)
+**What was removed in v1.04:**
+- The original wick-touch pullback detection (1% tolerance, historical bar scanning, ~300 lines)
+- Complex multi-pass recovery state machines from the pre-v1.04 architecture
+- `RequirePullback`, `PullbackLookback`, `Gate_UseMultiLayer` legacy inputs
 
-**What replaced it:**
+**What replaced it (v1.04):**
 - **EvaluateLayerX()**: Pure structural alignment (position + slope) per EMA pair
 - **EvaluateBcX()**: Simple price close confirmation beyond fast EMA
-- **Result**: ~500 lines of dead code removed, clearer logic, faster execution
+- ~500 lines of dead code removed, clearer logic, faster execution
+
+**What was re-introduced and extended (post-v1.04, Sessions A1–S2):**
+- Full pullback-recovery state machine (`LAYER_PB_NONE / DETECTED / RECOVERED`) — one independent machine per layer
+- Slope-ratio DETECTED trigger: `|current_pace| / |baseline_pace| < LayerPullbackRatio`
+- Slope-reversal DETECTED trigger: `LayerAllowReversalPullback` — catches shallow pullbacks
+- **S2 price-zone DETECTED trigger:** wick entering lower EMA band zone fires DETECTED independently of slope
+- **A21 minimum pullback duration gate:** `LayerMinPullbackBars_W/M/S` — prevents 1-bar spike entries
+- VPRR (Volume Pullback-Recovery Ratio) — institutional volume confirmation gate on recovery
+- CBOEB (CandleBody Over-Extension Carry) — CB vote held at 0 until a fresh pullback-recovery cycle
 
 **Enum Clarity (v1.04):**
 - `BIAS_AUTO` renamed to `BIAS_2EMA` (2-EMA crossover)
@@ -347,27 +371,8 @@ The signal evaluation pipeline has been drastically simplified:
 - `STRAT_LAYER_DETECTION` renamed to `STRAT_4EMA_LAYER`
 - `ValidateBiasStratCombo()` added to enforce valid combinations
 
-The formula is now purely multiplicative with clear OR logic for layers:
+The current formula including the pullback gate:
 ```
-TS = Bias × (LayerW × bcW OR LayerM × bcM OR LayerS × bcS) × Indicators × Filters × CX   (CX = Climax factor)
+TS = Bias × Phase × F × (LayerW_rec × bcW  OR  LayerM_rec × bcM  OR  LayerS_rec × bcS) × Indicators × CG
 ```
-Any Bias=0 or all layers=0 immediately stops the pipeline.
-
-### Step 3 Detail: EvaluateLayerX
-Each layer checks two conditions for the selected EMA pair:
-1. **Position**: Fast EMA must be on the correct side of Slow EMA (above for LONG, below for SHORT).
-2. **Slope**: Both EMAs must be sloping in the direction of the Bias (rising for LONG, falling for SHORT).
-
-Returns 1 if both conditions pass, 0 otherwise. At least ONE of the three layers (LayerW, LayerM, LayerS) must return 1 to proceed.
-
-### Step 4 Detail: EvaluateBcX
-For each **active** layer (LayerX == 1), checks if the closed candle has momentum confirmation:
-- **LONG Setup**: `Close > Fast EMA` of the active layer
-- **SHORT Setup**: `Close < Fast EMA` of the active layer
-
-**Example (Short LayerW):**
-- Bias = -1 (SHORT)
-- LayerW = 1 (EMA1 < EMA2, both falling)
-- bcW = 1 when Close < EMA1
-
-At least ONE active layer must have its bcX confirmed to proceed.
+Where `LayerX_rec` = 1 only when that layer's state machine is in `LAYER_PB_RECOVERED`.
