@@ -55,11 +55,11 @@ Uses the same phase detected by B. Answers: *is this market type acceptable for 
 
 | Phase | Default behaviour |
 |-------|-------------------|
-| TM (Trending) | Always passes |
-| EM (Emerging) | Blocked by default (`BlockEmergingPhase=true` in RRM_ORG) |
-| UNO (Unordered) | Always blocked |
+| TM (Trending) | Always passes — all layers (W/M/S) eligible |
+| EM (Emerging) | **Passes in RRM_ORG** (`BlockEmergingPhase=false`) — LayerW and LayerM eligible; LayerS always blocked in EM (`Emerging_AllowStrongTrades=false`) |
+| UNO (Unordered) | Always blocked (B=0, no bias direction possible) |
 
-In RRM_ORG only fully trending markets (TM) trade. The cockpit shows `PHASE: TRENDING UP [+]` when P passes.
+In RRM_ORG, Emerging phase **is** traded for LayerW and LayerM — Oracle Trade Setups card states both as *"during Emerging and Trending Phase"*. Strong (LayerS) is restricted to Trending only — Oracle states *"during the Trending Phase"*. UNO is always blocked because B=0 (no direction) eliminates the signal before P is evaluated.
 
 ---
 
@@ -79,19 +79,24 @@ Priority walk: **L3 → L2 → L1**. First layer passing all checks wins. The ac
 
 1. **Position** — fast EMA is on the correct side of slow EMA (EMA1 > EMA2 for LONG, EMA1 < EMA2 for SHORT). Structural alignment.
 
-2. **Pullback state** — the layer must NOT be in active pullback. Each layer runs an independent state machine tracking the fast EMA's direction:
-   - `LAYER_PB_NONE` → EMA trending normally, no pullback seen → **entry allowed**
-   - `LAYER_PB_DETECTED` → EMA reversed direction vs baseline → **entry blocked**
-   - `LAYER_PB_RECOVERED` → EMA resumed trend direction after pullback → **entry allowed**
-   
-   Transition logic (magnitude-based slope ratio):
-   - **Baseline pace** = the EMA's *average* per-bar slope over its per-layer lookback window (`LayerBaselineLookback_W/M/S`, default 13/21/34 — fastest layer shortest, slowest layer longest).
-   - **Current pace** = the EMA's recent slope over the last `k` bars (`k = max(2, lookback/4)`, so the slow S-layer is smoothed more than the fast W-layer).
-   - **ratio** = |current pace| / |baseline pace|.
-   - **Pullback** = `ratio < LayerPullbackRatio` (weakened), or `< LayerFlatRatio` (flat), or a slope reversal (when `LayerAllowReversalPullback`).
-   - **Recovery** = trend direction resumed *and* `ratio >=` the layer's recovery threshold (`LayerRecoveryRatio_W/M/S`, default 0.4/0.3/0.2 — slower layers confirm on less momentum).
+2. **Pullback state** — before allowing an entry, each layer must have completed a full pullback-recovery cycle. Each layer runs an independent state machine:
+   - `LAYER_PB_NONE` → no pullback seen yet → **entry blocked** (must earn a pullback first)
+   - `LAYER_PB_DETECTED` → pullback in progress → **entry blocked**
+   - `LAYER_PB_RECOVERED` → pullback completed and trend resumed → **entry allowed**
 
-   Averaging both sides (rather than a single-bar slope) is what lets the slow S-layer EMAs register a genuine pause without false "weakened" readings. Each layer can be enabled/disabled independently via `AllowLayer{1,2,3}_Entries` (W/M/S), and the SignalScan inspector shows all three layers' states at the inspected bar.
+   **DETECTED fires when any of these is true (OR logic):**
+   - **Slope weakened:** `|current pace| / |baseline pace| < LayerPullbackRatio` (default 0.65) — EMA decelerated below 65% of its normal speed
+   - **Slope flat:** ratio `< LayerFlatRatio` (default 0.1)
+   - **Slope reversed:** EMA direction flipped vs baseline (`LayerAllowReversalPullback=true`) — catches shallow pullbacks where EMA barely decelerates
+   - **Price-zone touch (S2):** bar wick enters the lower portion of the EMA band — `bar_low ≤ EMA_slow + zone_factor × (EMA_fast − EMA_slow)` for LONG, mirrored for SHORT; `zone_factor = 1 − LayerPullbackRatio` (at 0.65 → zone = lower 35% of band). Oracle citation: Trade Setups card — *"price pulls back to touch the EMA2"* (flexible). Controlled by `LayerPriceTouchEnabled` (default true).
+
+   **Minimum duration gate (A21):** once DETECTED fires, the layer must remain in DETECTED for at least `LayerMinPullbackBars_W/M/S` bars (defaults: W=2, M=2, S=1) before RECOVERED is allowed. Prevents 1-bar spike entries — Oracle examples show pullbacks lasting 2–8 bars before recovery.
+
+   **RECOVERED fires when:** close is beyond the fast EMA in the trade direction (close > EMA_fast for LONG, close < EMA_fast for SHORT) — and the minimum bar count has been met.
+
+   **Baseline pace** = average per-bar EMA slope over `LayerBaselineLookback_W/M/S` bars (default 13/21/34). **Current pace** = slope over the last `k = max(2, lookback/4)` bars. Averaging prevents slow EMAs (EMA34, EMA89) from reading as falsely "weakened" on normal trending bars.
+
+   Each layer is independent: its state resets to NONE after a TS=1 signal is consumed on that layer. Layers can be enabled/disabled independently via `AllowLayer{1,2,3}_Entries`.
 
 3. **BC (Bar Close)** — signal bar close is beyond the fast EMA in bias direction (close > EMA1 for L1 LONG, close > EMA2 for L2 LONG, close > EMA3 for L3 LONG). Checks closing price level, not wicks or body.
 
@@ -165,7 +170,7 @@ Each factor reads `ok` (passed), `NO(code)` (blocked, with the reason), or `--` 
 | | `BC` | `BC_NOT_CONFIRMED` — bar close not yet beyond the fast EMA in bias direction |
 | | `BD` | `CandleDir` — signal bar not closed in the bias direction |
 | | `MOM` | `MOMENTUM_NOT_CONFIRMED` — progressive-momentum / DPI-growth check failed |
-| **I** | *names* | failing voters, comma-joined (e.g. `DPI,PSAR`) — voters: DPI, PSAR, CBODY, MTF, ADX, MACD, CCI |
+| **I** | *names* | failing voters, comma-joined (e.g. `DPI,PSAR`) — voters: DPI, PSAR, CBODY, MTF, ADX, MACD, CCI. When L failed for a structural reason (no layer aligned = `L_NONE_ALIGNED`), I was never evaluated — the cockpit shows `I[?]` and `i_suppressed=true` in telemetry rather than the misleading `I[-]` |
 | **F** | `EMAFAN` | `EMA_OVEREXT` — EMA fan over-extended |
 | | `DECEL` | `DPI_DECEL` — DPI histogram momentum decelerating |
 | | `RESET` | `DPI_RESET_WAIT` — DPI CCI reset-recovery not complete |

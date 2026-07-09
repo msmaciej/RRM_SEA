@@ -298,7 +298,181 @@ Inp_FPM_UseTrailing        = false
 
 ## PRESET_RRM_ORG
 
-Implements the original Russ Horn RRM methodology with DPI (Dynamic Price Index) as the primary momentum voter. This is the "ORG" (original) version using inline MACD-based momentum confirmation instead of standalone MACD indicator voting.
+Implements the original Russ Horn RRM methodology. Four EMAs (5/13/34/89) define market structure. Entries require a confirmed pullback-recovery cycle (price pulls back to the EMA band and closes back through it). DPI (Dynamic Price Index), PSAR, and CandleBody vote unanimously for entry.
+
+---
+
+### Architecture: TS pipeline vs TE execution
+
+**Critical separation — never mix these up:**
+
+| | When | Data | What it does |
+|--|--|--|--|
+| **TS=1 (signal)** | Shift=1 — previous closed bar | Immutable historical | Evaluates all signal conditions. If all pass → TS=1. |
+| **TE=1 (execute)** | Shift=0 — current open bar | Live market | Checks execution conditions only: spread, margin, session filter, position count. Never re-evaluates signal indicators. |
+
+A TS=1 generated at shift=1 is a valid signal. The PSAR dot at shift=0 (the entry bar) is irrelevant — the signal was evaluated against the dot at shift=1 (the signal bar close). What the chart shows at the entry candle is shift=0 data.
+
+---
+
+### Signal pipeline (TS equation)
+
+```
+TS = B[±1] × P[1] × L[1] × I[1] × F[1]
+```
+
+All six factors must equal 1. One zero kills the signal.
+
+```mermaid
+flowchart TD
+    A([New bar opens]) --> B{B — Bias\n4EMA phase detection}
+    B -- UNORDERED → B=0 --> Reject([NO TRADE])
+    B -- EMERGING/TRENDING → B=±1 --> P{P — Phase filter}
+    P -- Blocked --> Reject
+    P -- Pass --> L{L — Layer pullback-recovery\nNONE/DETECTED/RECOVERED}
+    L -- not RECOVERED --> Reject
+    L -- RECOVERED --> I{I — Indicators\nDPI + PSAR + CandleBody}
+    I -- any fail --> Reject
+    I -- all pass --> F{F — Final filters\nClimaxGuard etc.}
+    F -- blocked --> Reject
+    F -- pass --> TS1([TS=1 signal])
+    TS1 --> TE{TE — Execution\nspread · margin · session · positions}
+    TE -- blocked --> NotPlaced([SIGNAL VALID\nbut trade not placed])
+    TE -- pass --> Trade([TRADE PLACED])
+```
+
+---
+
+### B — Bias (4EMA phase detection)
+
+Uses EMAs: EMA1=5, EMA2=13, EMA3=34, EMA4=89.
+
+| EMA ordering | Phase | B |
+|---|---|---|
+| EMA13 > EMA34 > EMA89 | TRENDING UP | +1 |
+| EMA89 > EMA34 > EMA13 | TRENDING DN | −1 |
+| EMA13 > EMA89 > EMA34 | EMERGING UP | +1 |
+| EMA34 > EMA89 > EMA13 | EMERGING DN | −1 |
+| Any other ordering | UNORDERED | 0 → blocked |
+
+When EMA13 < EMA34 but EMA89 is still at the bottom (e.g. EMA34 > EMA13 > EMA89) the phase is UNORDERED. This is a transitional state during deep pullbacks; the EA waits for it to resolve before entering.
+
+---
+
+### P — Phase filter
+
+| Phase | LayerW | LayerM | LayerS |
+|---|---|---|---|
+| TRENDING | ✓ | ✓ | ✓ |
+| EMERGING | ✓ | ✓ | ✗ (always blocked) |
+| UNORDERED | ✗ | ✗ | ✗ |
+
+Strong setups (LayerS = EMA34/EMA89) are always blocked in EMERGING phase. This is enforced via `Emerging_AllowStrongTrades = false` (hard-coded in preset). User cannot change this.
+
+`LayerS_RequireDirAlign = false` in this preset — without this setting, the gate inside `EvaluateL` would block LayerW and LayerM entries when EMA34's slope flattens during pullbacks (which happens in EM phase by definition). This was the primary cause of missed EM-phase entries before 2026-07.
+
+---
+
+### L — Layer pullback-recovery state machine
+
+Each of the three EMA pairs runs an **independent** state machine: `NONE → DETECTED → RECOVERED`. Entry is only allowed when the state is `RECOVERED`. The cascade:
+
+**Pair assignments:**
+
+| Layer | Fast EMA | Slow EMA | Recovery close condition |
+|---|---|---|---|
+| W (Weak) | EMA1 (5) | EMA2 (13) | close > EMA5 (LONG) |
+| M (Medium) | EMA2 (13) | EMA3 (34) | close > EMA13 (LONG) |
+| S (Strong) | EMA3 (34) | EMA4 (89) | close > EMA34 (LONG) |
+
+**Cascade rule:** `EvaluateL` checks LayerS first, then M, then W. The first layer in RECOVERED state with positional alignment wins. When EMA5 crosses below EMA13 (LayerW position fails), LayerM evaluates. When EMA13 also crosses below EMA34, LayerS evaluates (TM only).
+
+**DETECTED triggers (any one fires):**
+
+1. **Slope weakened**: `|current_pace| / |baseline_pace| < LayerPBPullbackRatio` (default 0.65)
+2. **Slope flat**: ratio `< LayerFlatRatio` (default 0.1)
+3. **Slope reversed**: EMA direction flipped vs baseline (`LayerAllowReversalPullback = true`)
+4. **S2 price-zone touch**: bar wick enters lower portion of EMA band — `bar_low ≤ EMA_slow + (1−PullbackRatio) × (EMA_fast − EMA_slow)` for LONG. Oracle Trade Setups: *"price pulls back to touch the EMA2."* Toggle: `LayerPriceTouchEnabled` (default true).
+
+**S2 one-bar completion:** If S2 fires DETECTED AND the same bar's close satisfies recovery (`close > fast_EMA`), the state goes directly `NONE → RECOVERED` in one candle. This is the Oracle wick-rejection entry: wick touches the EMA zone, body closes beyond the fast EMA. The A21 minimum-bar gate is bypassed for this case — the wick is the pullback evidence, the close is the recovery.
+
+**A21 minimum pullback bars:** After DETECTED fires, at least `LayerMinPullbackBars` bars must stay in DETECTED before RECOVERED is allowed (default: W=1, M=1, S=1). Prevents 1-bar spike entries on non-S2 paths.
+
+**RECOVERED:** `close > fast_EMA` (LONG) or `close < fast_EMA` (SHORT) — after the minimum bar count is met.
+
+**After TS=1 is consumed:** only the winning layer resets to NONE. Other layers retain their state.
+
+---
+
+### I — Indicator voters (unanimous — all must pass)
+
+Three voters enabled. All must pass (`VOTE_MODE_ALL`). One fail → I=0 → TS=0.
+
+**DPI (Dynamic Price Index):**
+- Ribbon histogram direction must match bias (positive for LONG, negative for SHORT)
+- Default: Fast=8, Slow=13, RedSignalType=3 (EMA13), CCI reset=true
+
+**PSAR:**
+- Dot must be on the correct side at the signal bar (shift=1): close > PSAR dot (LONG), close < PSAR dot (SHORT)
+- Mode: `Vote_AllowPsarFlip = true`, global delay `= -1` (persistent = dot-position-only check)
+- LayerW override: `PsarFlipDelay_W = 5` — additionally requires a LONG flip within the last 5 bars. Counter-flips (bearish PSAR flip) clear the bullish flip record immediately; the 5-bar window cannot be carried past a counter-flip.
+- **⚠️ PSAR parameters: Step=0.05, Max=0.5** — more aggressive than MT5 default (0.02/0.2). These are intentional RRM-ORG settings. If you display PSAR on the chart, set it to Step=0.05, Max=0.5 to match the EA's internal PSAR. Mismatched parameters mean the chart dot and the EA's decision will diverge.
+
+**CandleBody:**
+- Entry candle body size must exceed minimum threshold
+
+---
+
+### Trade management defaults
+
+| Parameter | Default | Notes |
+|---|---|---|
+| `SLMode` | `SL_MODE_SWING` | Initial SL under recent swing low/high |
+| `SwingLookback` | `34` | **Search window** (not exact bar): scans up to 34 bars for the nearest structural swing. Wider window = less likely to miss a swing that occurred slightly outside a narrow window. |
+| `RRRatio` | `2.5` | TP = 2.5× SL distance. Minimum for positive expected value at ~52% win rate. |
+| `TrailMode` | `TRAIL_PSAR` | Trailing stop follows PSAR dots |
+| `TrailStartsAfterBE` | `true` | PSAR trail only activates after BE is reached — trade breathes toward TP first |
+| `BE_Mode` | `BE_MODE_R_MULTIPLE` | Move SL to BE when price reaches 1R profit |
+| `BE_RMultiple` | `1.0` | BE triggers at 1× initial risk distance |
+
+---
+
+### Session filter (global — not preset-owned)
+
+The session filter is a global operator setting, not locked by the preset. Set via `Inp_Session_*` inputs.
+
+| Input | Default | Description |
+|---|---|---|
+| `Inp_Session_Enabled` | `true` | Master on/off |
+| `Inp_Session_London` | `true` | London 09:00–17:00 EET |
+| `Inp_Session_London_Margin` | `0` | ±hours: 2 → 07:00–19:00 |
+| `Inp_Session_NY` | `true` | New York 14:00–22:00 EET |
+| `Inp_Session_NY_Margin` | `0` | ±hours extension |
+| `Inp_Session_Asia` | `false` | Asian 01:00–09:00 EET |
+| `Inp_Session_Win1/Win2` | `false` | Custom windows — e.g. 08:00–12:00 + 16:00–21:00 |
+
+Gate passes if ANY enabled session covers the current broker hour (OR logic). All hours are **broker time** — check your broker's server clock (typically EET = UTC+2 winter / UTC+3 summer).
+
+---
+
+### TE — Execution conditions (shift=0 only)
+
+The TE decision is entirely separate from the TS signal. It checks only:
+- Spread ≤ MaxSpread
+- Session filter active
+- Margin sufficient
+- Open positions ≤ MaxOpenTrades (risk-free positions at BE or better are exempt when `AllowReEntryAfterBE = true`)
+- Cooldown bars after last close
+
+TE **never** re-reads DPI, PSAR, layer states, or any signal indicator at shift=0. The TS=1 generated at shift=1 is final.
+
+---
+
+### Use when
+- Trading any timeframe with the Russ Horn RRM methodology
+- Structured pullback entries within EMA-ordered trending/emerging markets
+- Want Oracle-faithful wick-rejection entries (S2 one-bar completion)
+- Need DPI ribbon + PSAR + CandleBody confirmation
 
 ```mermaid
 flowchart TD

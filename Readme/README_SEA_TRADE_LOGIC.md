@@ -18,7 +18,7 @@ or equivalently:
 $$TS = B \times P \times F \times L \times I$$
 
 * **B (Bias):** Master directional permission (1 = Long, −1 = Short, 0 = Neutral).
-* **P (Phase):** Market structure gate (TM / EM / UNO). UNO always blocks; EM blocked by default in `PRESET_RRM_ORG`.
+* **P (Phase):** Market structure gate (TM / EM / UNO). UNO always blocks; in `PRESET_RRM_ORG` EM is **allowed for LayerW and LayerM**, blocked for LayerS (`Emerging_AllowStrongTrades = false`). UNO is always blocked (B=0 so signal is 0 before P is even evaluated).
 * **F (TS-side pre-filters):** EMA-fan over-extension × price over-extension × DPI deceleration × phase-age confirmation × Climax-Guard veto. All off by default in `PRESET_RRM_ORG`; the F factor is a no-op until a sub-filter is explicitly enabled.
 * **L (LayerX — $Layer_W, Layer_M, Layer_S$):** Per-layer pullback-recovery state machine. Evaluates to 1 ONLY when the layer's pos × slope × BC × BD all pass; priority walk L3 → L2 → L1.
 * **bcX:** Bar-close confirmation — the closed candle closes beyond the fast EMA of the active layer in the bias direction. Part of the L factor.

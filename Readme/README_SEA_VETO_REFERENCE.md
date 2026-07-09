@@ -12,7 +12,7 @@ This document lists all vetoes (trade rejection reasons), their configurability,
 |-----------|-------------|--------------|---------------|---------|
 | `VETO_SPREAD` | Current spread exceeds limit | ✅ Fully configurable | `Inp_VETO_UseSpread`, `Inp_VETO_MaxSpread` | `false`, `3.0` |
 | `VETO_SPREAD_TIMEOUT` | Spread blocked too many consecutive bars | ✅ Fully configurable | `Inp_VETO_MaxSpreadRetryBars` | `3` |
-| `VETO_TIME` | Outside trading session window | ✅ Fully configurable | `Inp_VETO_UseTime`, `Inp_VETO_StartHr`, `Inp_VETO_EndHr` | `false`, `8`, `20` |
+| `VETO_TIME` | Outside trading session window | ✅ Fully configurable | `Inp_Session_Enabled` (master on/off), `Inp_Session_London/NY/Asia` (named sessions), `Inp_Session_Win1/Win2` (custom windows) | London=true, NY=true, others=false |
 | `VETO_NEWS` | High-impact news event active | ✅ Fully configurable | `Inp_VETO_UseNews`, `Inp_VETO_NewsPreMinutes`, `Inp_VETO_NewsPostMinutes` | `false`, `60`, `60` |
 
 **Purpose**: Gate execution at shift=0 using real-time market conditions.
