@@ -716,11 +716,21 @@ void SEA_UI_UpdateCockpit(
    EMarketPhase disp_phase = (EMarketPhase)ts_telemetry.phase;
 
    // 1. Standardized Equation: TS = B * P * L * I * F
+   // BUGFIX A20 2026-07: I[.] and F[.] are ambiguous — they could mean "not evaluated"
+   // (structural cascade) or "evaluated and neutral". Use "?" for suppressed/unknown,
+   // "+" for pass, "-" for fail, "." only for genuinely not-applicable.
+   // ORACLE: the TS EQ display must accurately reflect which factors were independently
+   // evaluated vs which were suppressed by an upstream gate failure.
    int    disp_phase_val = (int)disp_phase;
    string b_eq = (disp_bias  > 0) ? "+" : ((disp_bias  < 0) ? "-" : ".");
    string p_eq = (disp_phase_val > 0) ? "+" : ((disp_phase_val < 0) ? "-" : ".");
    string l_eq = (ts_telemetry.layer > 0) ? "+" : ((ts_telemetry.layer < 0) ? "-" : ".");
-   string i_eq = (disp_votes > 0) ? "+" : ".";
+   // I: "+" if any voted pass, "-" if voted fail, "?" if structurally suppressed (A20)
+   string i_eq;
+   if(ts_telemetry.i_suppressed)
+      i_eq = "?";   // A20: suppressed by L=0 — not evaluated, not failed
+   else
+      i_eq = (disp_votes > 0) ? "+" : ((disp_votes == 0 && ts_telemetry.votes_total > 0) ? "-" : ".");
    bool filter_rejected = (StringFind(status_text, "HTF")    >= 0 ||
                            StringFind(status_text, "MTF")    >= 0 ||
                            StringFind(status_text, "Filter") >= 0 ||
@@ -729,10 +739,22 @@ void SEA_UI_UpdateCockpit(
                            StringFind(status_text, "NEWS")   >= 0);
    bool signal_valid    = (status_text == "Valid Signal" ||
                            status_text == "OK");
-   string f_eq = filter_rejected ? "-" : (signal_valid ? "+" : ".");
+   // F: "+" if passed, "-" if rejected, "?" if never reached (B or P already failed) (A20)
+   string f_eq;
+   if(disp_bias == 0)
+      f_eq = "?";   // A20: F not reached — B=0 stopped evaluation
+   else
+      f_eq = filter_rejected ? "-" : (signal_valid ? "+" : ".");
 
    AddLine(StringFormat("TS EQ: TS = B[%s] * P[%s] * L[%s] * I[%s] * F[%s]", b_eq, p_eq, l_eq, i_eq, f_eq), v_clr, lines, line_clrs);
-   AddLine(StringFormat("VOTE:  %d / %d", disp_votes, ts_telemetry.votes_total), v_clr, lines, line_clrs);
+   // BUGFIX A14 2026-07: distinguish I-suppression (structural gate) from I-failure (voters ran).
+   // ORACLE: "VOTE 0/3" falsely implies 3 voters independently failed; correct display shows block cause.
+   string vote_line;
+   if(ts_telemetry.i_suppressed)
+      vote_line = StringFormat("VOTE:  -- / %d  [L-blocked]", ts_telemetry.votes_total);
+   else
+      vote_line = StringFormat("VOTE:  %d / %d", disp_votes, ts_telemetry.votes_total);
+   AddLine(vote_line, v_clr, lines, line_clrs);
 
    // 2. Component Detail Audit
    string bias_sym = (disp_bias > 0) ? "[+]" : (disp_bias < 0 ? "[-]" : "[.]");

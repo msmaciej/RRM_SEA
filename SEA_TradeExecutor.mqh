@@ -3023,22 +3023,29 @@ public:
          m_te_pass_spread++;   // F-AUDIT 2026-06: spread filter ran and passed
       }
 
-      // F Gate 2: Session time check
-      if(m_settings.UseTime)
+      // F Gate 2: Trading hours filter — passes when current hour is inside ANY enabled session
+      if(m_settings.TradingHoursEnabled)
       {
          MqlDateTime dt;
          TimeCurrent(dt);
-         bool time_pass = (m_settings.StartHr < m_settings.EndHr) ?
-                          (dt.hour >= m_settings.StartHr && dt.hour < m_settings.EndHr) :
-                          (dt.hour >= m_settings.StartHr || dt.hour < m_settings.EndHr);
-         if(!time_pass)
+         int h = dt.hour;
+         // InWindow: true if h is within [start,end), handles midnight wrap (end < start)
+         #define IN_WIN(start,end) ((start)<(end) ? (h>=(start)&&h<(end)) : (h>=(start)||h<(end)))
+         bool pass = false;
+         if(m_settings.Session_London && !pass) pass = IN_WIN(m_settings.Session_London_Start, m_settings.Session_London_End);
+         if(m_settings.Session_NY     && !pass) pass = IN_WIN(m_settings.Session_NY_Start,     m_settings.Session_NY_End);
+         if(m_settings.Session_Asia   && !pass) pass = IN_WIN(m_settings.Session_Asia_Start,   m_settings.Session_Asia_End);
+         if(m_settings.Session_Win1   && !pass) pass = IN_WIN(m_settings.Session_Win1_Start,   m_settings.Session_Win1_End);
+         if(m_settings.Session_Win2   && !pass) pass = IN_WIN(m_settings.Session_Win2_Start,   m_settings.Session_Win2_End);
+         #undef IN_WIN
+         if(!pass)
          {
-            PrintFormat("[TE VETO] VETO_TIME | hour=%d outside window [%d-%d]", dt.hour, m_settings.StartHr, m_settings.EndHr);
+            PrintFormat("[TE VETO] VETO_TIME | hour=%02d — outside all enabled sessions", h);
             m_te_veto_reason = "VETO_TIME";
-            m_te_rej_time++;   // F-AUDIT 2026-06
+            m_te_rej_time++;
             return 0;
          }
-         m_te_pass_time++;   // F-AUDIT 2026-06
+         m_te_pass_time++;
       }
 
       // F Gate 3: News check

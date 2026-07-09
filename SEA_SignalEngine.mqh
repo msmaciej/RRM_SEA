@@ -5224,7 +5224,11 @@ public:
       PrintFormat("%-18s %-8s %7s %7s %7s   %s", "Gate", "Status", "Passed", "Failed", "Pass%", "Impact");
       Print("----------------------------------------------------------------");
       PrintGateStat("Spread",      m_settings.UseSpread,                          m_stats.passed_spread,        m_stats.rejected_spread,       StringFormat("%.1f pips max", m_settings.MaxSpread));
-      PrintGateStat("Time Window", m_settings.UseTime,     m_stats.passed_time,          m_stats.rejected_time,         m_settings.UseTime ? StringFormat("%02d:00-%02d:00", m_settings.StartHr, m_settings.EndHr) : "(disabled)");
+      PrintGateStat("Time Window", m_settings.TradingHoursEnabled, m_stats.passed_time, m_stats.rejected_time,
+                    m_settings.TradingHoursEnabled ? StringFormat("London:%s NY:%s Asia:%s",
+                       m_settings.Session_London ? "on" : "off",
+                       m_settings.Session_NY     ? "on" : "off",
+                       m_settings.Session_Asia   ? "on" : "off") : "(disabled)");
       PrintGateStat("News Filter", m_settings.UseNews,     m_stats.passed_news,          m_stats.rejected_news,         m_settings.UseNews  ? StringFormat("%dm pre/post", m_settings.NewsPre) : "(disabled)");
       Print("----------------------------------------------------------------");
       PrintFormat("Gates blocked: %d bars", m_stats.rejected_spread + m_stats.rejected_time + m_stats.rejected_news);
@@ -8328,7 +8332,7 @@ public:
                                m_settings.ClimaxGuard_Enabled ? "enabled" : "disabled"));
          DebugLog("F' (TE-side exec gates — bar open, shift=0):");
          DebugLog("  ⏭️  Spread: checked at TE (" + (m_settings.UseSpread ? "enabled" : "disabled") + ")");
-         DebugLog("  ⏭️  Time window: checked at TE (" + (m_settings.UseTime ? "active" : "disabled") + ")");
+         DebugLog("  ⏭️  Time window: checked at TE (" + (m_settings.TradingHoursEnabled ? "active" : "disabled") + ")");
          DebugLog("  ⏭️  News filter: checked at TE (" + (m_settings.UseNews ? "active" : "disabled") + ")");
          DebugLog("  ✅ MTF voter: checked at TS within EvaluateI (" + (m_settings.Ind_MTF_Enabled ? "enabled" : "disabled") + ")");
          DebugLog("");

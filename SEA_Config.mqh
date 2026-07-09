@@ -148,26 +148,11 @@ enum ENewsImpactLevel
    NEWS_IMPACT_MED_PLUS,   // MED+: medium and high impact block (default; legacy behavior)
    NEWS_IMPACT_HIGH_ONLY   // HIGH: only high impact blocks
 };
-// Theme2 2026-06: session-preset enum.
-// SESSION_CUSTOM preserves the legacy behavior where StartHr/EndHr come directly
-// from Inp_Global_VETO_StartHr/EndHr (no override). All other values auto-populate
-// StartHr/EndHr at OnInit with broker-time windows for the named session(s). User
-// can still tune StartHr/EndHr after init by editing those inputs and switching
-// the preset back to SESSION_CUSTOM. Hours are in BROKER TIME — operator must
-// know their broker's server timezone (most brokers use EET = UTC+2/+3 DST).
-// The defaults below match the typical EET broker server clock:
-//   London:  09:00 - 17:00 broker time  (~07:00 - 15:00 UTC outside DST)
-//   NY:      14:00 - 22:00 broker time  (~12:00 - 20:00 UTC outside DST)
-//   OVERLAP: 14:00 - 17:00 broker time  (London PM × NY AM = peak liquidity)
-//   AVOID_ASIAN: 08:00 - 23:00 broker time (covers London+NY+everything except Tokyo)
-enum ESessionPreset
-{
-   SESSION_CUSTOM,           // CUSTOM: use Inp_Global_VETO_StartHr / EndHr verbatim (default — preserves legacy behavior)
-   SESSION_LONDON,           // LONDON: 09-17 broker time (EET-typical; adjust StartHr/EndHr after switching to CUSTOM if your broker differs)
-   SESSION_NY,               // NY: 14-22 broker time
-   SESSION_LONDON_NY_OVERLAP,// OVERLAP: 14-17 broker time — highest-liquidity 3-hour window
-   SESSION_AVOID_ASIAN       // AVOID_ASIAN: 08-23 broker time — trade London+NY but not Tokyo/Sydney session
-};
+// Trading hours filter — broker time defaults (EET = UTC+2/+3 DST typical):
+//   London: 09:00–17:00   NY: 14:00–22:00   Asia/Tokyo: 01:00–09:00
+// Each session can be enabled independently with an optional ±hour margin.
+// Gate passes if current hour falls in ANY enabled session (OR logic).
+// All hours are in BROKER TIME — check your broker's server clock.
 enum EAutoStrategy
 {
    STRAT_1EMA_SLOPE,       // STRAT_1EMA_SLOPE ... ONLY for BIAS_1EMA: single EMA slope direction
@@ -450,9 +435,27 @@ struct ST_Settings
    int       ma_v_shift;
    
    // Filters
-   bool            UseTime;
-   int             StartHr;
-   int             EndHr;
+   // ── TRADING HOURS FILTER ──────────────────────────────────────────────
+   // Gate passes when current hour falls in ANY enabled session (OR logic).
+   // Named sessions and custom windows can be combined freely.
+   bool   TradingHoursEnabled;        // Master on/off for all session checks below
+   // Named sessions (computed from inputs + margin at init)
+   bool   Session_London;             // London: default 09-17 EET ± margin
+   int    Session_London_Start;       // computed
+   int    Session_London_End;         // computed
+   bool   Session_NY;                 // New York: default 14-22 EET ± margin
+   int    Session_NY_Start;           // computed
+   int    Session_NY_End;             // computed
+   bool   Session_Asia;               // Asian/Tokyo: default 01-09 EET ± margin
+   int    Session_Asia_Start;         // computed
+   int    Session_Asia_End;           // computed
+   // Custom time windows (for non-standard hours, e.g. 08-12 + 16-21)
+   bool   Session_Win1;               // Custom window 1
+   int    Session_Win1_Start;
+   int    Session_Win1_End;
+   bool   Session_Win2;               // Custom window 2
+   int    Session_Win2_Start;
+   int    Session_Win2_End;
    bool            UseNews;
    int             NewsPre;
    int             NewsPost;

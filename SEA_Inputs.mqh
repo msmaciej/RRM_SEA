@@ -105,10 +105,34 @@ input double      Inp_Global_VETO_MaxSpread               = 3.0;            // V
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: TIME";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Global_VETO_UseTime                 = false;           // Veto Session: enable
-input ESessionPreset Inp_Global_VETO_SessionPreset         = SESSION_CUSTOM;  // Veto Session: preset (CUSTOM=use StartHr/EndHr below verbatim; others auto-fill window at OnInit)
-input int         Inp_Global_VETO_StartHr                 = 8;              // Veto Session: start hour (broker time; ignored if SessionPreset != CUSTOM)
-input int         Inp_Global_VETO_EndHr                   = 18;             // Veto Session: end hour (broker time; ignored if SessionPreset != CUSTOM)
+// ═══════════════════════════════════════════════════════════════════════
+// TRADING HOURS FILTER
+// EA only enters trades when the current broker-time hour falls inside at
+// least one enabled session or custom window (OR logic across all active).
+// Broker time is typically EET (UTC+2 winter / UTC+3 summer). Check your
+// broker's server clock. All hours below are in that broker time.
+//
+// Named session defaults (EET):  London 09-17 · NY 14-22 · Asia 01-09
+// Margin extends a session symmetrically: London + 2h margin → 07-19.
+// Custom windows let you define any two arbitrary ranges, e.g. 08-12 + 16-21.
+// ═══════════════════════════════════════════════════════════════════════
+input bool   Inp_Session_Enabled          = true;   // Trading hours filter: true=only trade in enabled sessions | false=trade 24h
+// London session
+input bool   Inp_Session_London           = true;   // London session active (09:00–17:00 EET by default)
+input int    Inp_Session_London_Margin    = 0;      // Extend London ±N hours: 0=exact 09-17 · 1→08-18 · 2→07-19
+// New York session
+input bool   Inp_Session_NY               = true;   // New York session active (14:00–22:00 EET by default)
+input int    Inp_Session_NY_Margin        = 0;      // Extend NY ±N hours: 0=exact 14-22 · 1→13-23 · 2→12-24
+// Asian session
+input bool   Inp_Session_Asia             = false;  // Asian/Tokyo session active (01:00–09:00 EET by default)
+input int    Inp_Session_Asia_Margin      = 0;      // Extend Asia ±N hours: 0=exact 01-09 · 1→00-10
+// Custom windows — for non-standard hours, additive with named sessions above (OR logic)
+input bool   Inp_Session_Win1             = false;  // Custom window 1 active (e.g. morning only: 08-12)
+input int    Inp_Session_Win1_Start       = 8;      // Window 1 start hour (broker time, 0-23)
+input int    Inp_Session_Win1_End         = 12;     // Window 1 end hour
+input bool   Inp_Session_Win2             = false;  // Custom window 2 active (e.g. afternoon: 16-21)
+input int    Inp_Session_Win2_Start       = 16;     // Window 2 start hour (broker time, 0-23)
+input int    Inp_Session_Win2_End         = 21;     // Window 2 end hour
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: NEWS";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -498,7 +522,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: (TP) TAKE PROFIT TARGET";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETPMode     Inp_RRM_ORG_TPMode               = TP_MODE_RR;     // RRM ORG TP: TP_MODE=*: *FIXED_PIPS, *FRACTAL, *NONE, *PSAR_FLIP, *RR
-input double      Inp_RRM_ORG_RRRatio              = 1.25;            // RRM ORG TP: RR ratio
+input double      Inp_RRM_ORG_RRRatio              = 2.5;             // RRM ORG TP: RR ratio — 2.5 = TP at 2.5× SL distance. Oracle: winners should outpace losers. Was 1.25 (negative expected value at 52% win rate).
 //
 // Inp_RRM_ORG_TPMode - Take profit mode:
 // TP_MODE_FIXED_PIPS: TP at fixed pip distance
@@ -508,7 +532,7 @@ input double      Inp_RRM_ORG_RRRatio              = 1.25;            // RRM ORG
 // TP_MODE_NONE:       No TP target, rely on trailing stop only (LPR mode)
 //
 // Inp_RRM_ORG_RRRatio - Risk:Reward ratio: TP distance = SL distance × RR
-// Example: RR=2.0 and SL=20 pips → TP=40 pips
+// Example: RR=2.5 and SL=20 pips → TP=50 pips
 // Only used when TPMode = TP_MODE_RR
 //
 // ⚠️ TP vs trailing interaction:
@@ -518,8 +542,13 @@ input double      Inp_RRM_ORG_RRRatio              = 1.25;            // RRM ORG
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (SL) INITIAL STOP LOSS PLACEMENT";
 input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_PSAR_DOT;  // RRM ORG SL: SL_MODE_=*: *ATR, *FIXED_PIPS, *FRACTAL, *PERCENT, *PSAR_DOT, *SWING
-input int         Inp_RRM_ORG_SwingLookback        = 34;             // RRM ORG SL: SWING lookback bars
+// 2026-07: changed from SL_MODE_PSAR_DOT to SL_MODE_SWING.
+// PSAR on M1/M5 sits 2-8 pips from price during consolidation → SL hit by spread + 1 tick of noise.
+// XAUUSD was the ONLY profitable pair because its PSAR naturally lands 100-200 pips away.
+// SWING SL places the stop under the most recent definable swing low (Oracle Stop Loss card).
+// With lookback=13, M5 swing SL ≈ 12-25 pips FX / 150-300 pts XAU — above noise floor.
+input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;    // RRM ORG SL: SL_MODE_=*: *ATR, *FIXED_PIPS, *FRACTAL, *PERCENT, *PSAR_DOT, *SWING
+input int         Inp_RRM_ORG_SwingLookback        = 13;              // RRM ORG SL: SWING lookback bars (13 bars ≈ 65 min on M5; finds recent structure without going too far back)
 input int         Inp_RRM_ORG_SL_AtrPeriod         = 14;             // RRM ORG SL: ATR period (SL_MODE_ATR only)
 input double      Inp_RRM_ORG_SL_AtrMult           = 1.0;            // RRM ORG SL: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical; Gold M15 use 1.0–1.5)
 input int         Inp_RRM_ORG_MinBarsAfterClose    = 1;              // RRM ORG SL: post-trade cooldown bars (0=off)
@@ -541,7 +570,11 @@ input int         Inp_RRM_ORG_ReEntryLotScalePct   = 50;             // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (TSL) HOW TO TRAIL STOP LOSS";
 input group "╚════════════════════════════════════════════════════════╝";
-input ETrailingMode Inp_RRM_ORG_TrailMode             = TRAIL_EMA;   // RRM ORG TS: *BREAKEVEN, *EMA, *FIXED_PIPS, *FRACTAL, *NONE, *PROFIT_PERCENT, *PSAR, *PSAR_FLIP_EXIT
+// 2026-07: changed from TRAIL_EMA to TRAIL_PSAR with TrailStartsAfterBE=true.
+// TRAIL_EMA on M1/M5 trails too tightly — EMA hugs price and closes winners at ~0.5R before TP.
+// TRAIL_PSAR after BE: PSAR only activates once BE is reached, letting the trade breathe to TP.
+// Oracle trailing: "move stop loss as each new PSAR dot progresses past break-even level."
+input ETrailingMode Inp_RRM_ORG_TrailMode             = TRAIL_PSAR;   // RRM ORG TS: *BREAKEVEN, *EMA, *FIXED_PIPS, *FRACTAL, *NONE, *PROFIT_PERCENT, *PSAR, *PSAR_FLIP_EXIT
 input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // RRM ORG TS: PSAR cushion mode (PIPS / ATR / PERCENT)
 input int         Inp_RRM_ORG_TrailCushionAtrPeriod   = 14;          // RRM ORG TS: ATR period (ATR mode)
 input double      Inp_RRM_ORG_TrailCushionAtrMult     = 1.0;         // RRM ORG TS: cushion ATR multiplier (cushion = ATR × this)
@@ -574,7 +607,7 @@ input double      Inp_RRM_ORG_TrailEMA_CushionPips    = 0.0;         // RRM ORG 
 input double      Inp_RRM_ORG_TrailEMA_CushionAtrMult = 0.1;         // RRM ORG TS: EMA cushion = ATR×this (0=disabled; 0.1=recommended)
 input int         Inp_RRM_ORG_TrailEMA_CushionAtrPeriod = 14;        // RRM ORG TS: ATR period for EMA cushion
 input ETrailTrigger Inp_RRM_ORG_TrailTrigger          = TRIGGER_IMMEDIATE; // RRM ORG TS: *BREAKEVEN, *IMMEDIATE, *PROFIT_PERCENT, *PROFIT_PIPS, *PSAR_ALIGN
-input bool        Inp_RRM_ORG_TrailStartsAfterBE      = false;       // RRM ORG TS: Safety override: trail after BE
+input bool        Inp_RRM_ORG_TrailStartsAfterBE      = true;        // RRM ORG TS: PSAR trail activates only after BE is reached — lets trade breathe toward TP before trailing takes over
 input bool        Inp_RRM_ORG_TrailLockProfit         = true;        // RRM ORG TS: never move SL backwards (lock profit)
 input double      Inp_RRM_ORG_TrailStepPips           = 5.0;         // RRM ORG TS: step size for fixed-step trail modes
 // PRESET ISOLATION 2026-06: dedicated RRM_ORG freeze-on-flip input
@@ -1280,45 +1313,44 @@ void InitializeConfig()
    Settings.ma_v_shift           = 1;
    
    // Filters
-   Settings.UseTime              = Inp_Global_VETO_UseTime;
-   Settings.StartHr              = Inp_Global_VETO_StartHr;
-   Settings.EndHr                = Inp_Global_VETO_EndHr;
-   // Theme2 2026-06: named-session preset overrides StartHr/EndHr at init.
-   // SESSION_CUSTOM keeps the user's StartHr/EndHr (legacy behavior). All other
-   // values overwrite the window with broker-time defaults for that session.
-   // The user can re-edit StartHr/EndHr afterwards, but those edits only take
-   // effect when SessionPreset is set back to CUSTOM (preset re-init overwrites).
-   switch(Inp_Global_VETO_SessionPreset)
-   {
-      case SESSION_LONDON:
-         Settings.StartHr =  9; Settings.EndHr = 17;
-         PrintFormat("[SESSION] LONDON: StartHr=9 EndHr=17 (broker time; UseTime=%s)",
-                     Settings.UseTime ? "ON" : "OFF (gate inactive until UseTime=true)");
-         break;
-      case SESSION_NY:
-         Settings.StartHr = 14; Settings.EndHr = 22;
-         PrintFormat("[SESSION] NY: StartHr=14 EndHr=22 (broker time; UseTime=%s)",
-                     Settings.UseTime ? "ON" : "OFF (gate inactive until UseTime=true)");
-         break;
-      case SESSION_LONDON_NY_OVERLAP:
-         Settings.StartHr = 14; Settings.EndHr = 17;
-         PrintFormat("[SESSION] OVERLAP: StartHr=14 EndHr=17 (London PM × NY AM; UseTime=%s)",
-                     Settings.UseTime ? "ON" : "OFF (gate inactive until UseTime=true)");
-         break;
-      case SESSION_AVOID_ASIAN:
-         Settings.StartHr =  8; Settings.EndHr = 23;
-         PrintFormat("[SESSION] AVOID_ASIAN: StartHr=8 EndHr=23 (excludes Tokyo/Sydney; UseTime=%s)",
-                     Settings.UseTime ? "ON" : "OFF (gate inactive until UseTime=true)");
-         break;
-      case SESSION_CUSTOM:
-      default:
-         // No override — Settings.StartHr/EndHr already set from inputs above.
-         break;
-   }
    Settings.UseNews              = Inp_Global_VETO_UseNews;
    Settings.NewsPre              = Inp_Global_VETO_NewsPreMinutes;
    Settings.NewsPost             = Inp_Global_VETO_NewsPostMinutes;
    Settings.NewsImpactFilter     = Inp_Global_VETO_NewsImpactFilter;       // F-AUDIT 2026-06
+   // ── TRADING HOURS FILTER ─────────────────────────────────────────────
+   // Wire named-session inputs and compute start/end hours from margins.
+   Settings.TradingHoursEnabled  = Inp_Session_Enabled;
+   // London: default 09–17 EET
+   Settings.Session_London       = Inp_Session_London;
+   { int m = MathMax(0, Inp_Session_London_Margin);
+     Settings.Session_London_Start = MathMax(0,  9 - m);
+     Settings.Session_London_End   = MathMin(23, 17 + m); }
+   // New York: default 14–22 EET
+   Settings.Session_NY           = Inp_Session_NY;
+   { int m = MathMax(0, Inp_Session_NY_Margin);
+     Settings.Session_NY_Start   = MathMax(0, 14 - m);
+     Settings.Session_NY_End     = MathMin(23, 22 + m); }
+   // Asian: default 01–09 EET
+   Settings.Session_Asia         = Inp_Session_Asia;
+   { int m = MathMax(0, Inp_Session_Asia_Margin);
+     Settings.Session_Asia_Start = MathMax(0,  1 - m);
+     Settings.Session_Asia_End   = MathMin(23,  9 + m); }
+   // Custom windows
+   Settings.Session_Win1         = Inp_Session_Win1;
+   Settings.Session_Win1_Start   = Inp_Session_Win1_Start;
+   Settings.Session_Win1_End     = Inp_Session_Win1_End;
+   Settings.Session_Win2         = Inp_Session_Win2;
+   Settings.Session_Win2_Start   = Inp_Session_Win2_Start;
+   Settings.Session_Win2_End     = Inp_Session_Win2_End;
+   if(Settings.TradingHoursEnabled)
+   {
+      PrintFormat("[SESSION] Filter ON — London:%s NY:%s Asia:%s Win1:%s Win2:%s",
+                  Settings.Session_London ? StringFormat("✓ %02d-%02d", Settings.Session_London_Start, Settings.Session_London_End) : "off",
+                  Settings.Session_NY     ? StringFormat("✓ %02d-%02d", Settings.Session_NY_Start,     Settings.Session_NY_End)     : "off",
+                  Settings.Session_Asia   ? StringFormat("✓ %02d-%02d", Settings.Session_Asia_Start,   Settings.Session_Asia_End)   : "off",
+                  Settings.Session_Win1   ? StringFormat("✓ %02d-%02d", Settings.Session_Win1_Start,   Settings.Session_Win1_End)   : "off",
+                  Settings.Session_Win2   ? StringFormat("✓ %02d-%02d", Settings.Session_Win2_Start,   Settings.Session_Win2_End)   : "off");
+   }
    Settings.Ind_MTF_Enabled      = Inp_Ind_MTF_Enabled;
    Settings.MTF_TF1              = Inp_Global_MTF_TF1;
    Settings.MTF_TF2              = Inp_Global_MTF_TF2;

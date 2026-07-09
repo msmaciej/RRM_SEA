@@ -678,7 +678,7 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
    Print("");
    Print("🛡️  GATES (Policy A - User Controlled):");
    Print("  MaxSpread:      ", cfg.MaxSpread, " pips");
-   Print("  Time Filter:    ", (cfg.UseTime ? ("✓ " + IntegerToString(cfg.StartHr) + "h-" + IntegerToString(cfg.EndHr) + "h") : "✗"));
+   Print("  Time Filter:    ", (cfg.TradingHoursEnabled ? (string)"✓ London/NY/Asia per session settings" : "✗ OFF (24h trading)"));
    Print("  News Filter:    ", (cfg.UseNews ? ("✓ ±" + IntegerToString(cfg.NewsPre) + "/" + IntegerToString(cfg.NewsPost) + "min") : "✗"));
    Print("");
 
@@ -1164,9 +1164,23 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    // ================================================================
    const double op_MaxSpread     = cfg.MaxSpread;
    const bool   op_UseSpread     = cfg.UseSpread;
-   const bool   op_UseTime       = cfg.UseTime;
-   const int    op_StartHr       = cfg.StartHr;
-   const int    op_EndHr         = cfg.EndHr;
+   const bool   op_UseTime       = cfg.TradingHoursEnabled;   // kept as op_UseTime for legacy restore sites
+   // Session states saved as a block — restored verbatim by all presets (session is global)
+   const bool   op_Session_London      = cfg.Session_London;
+   const int    op_Session_London_Start = cfg.Session_London_Start;
+   const int    op_Session_London_End   = cfg.Session_London_End;
+   const bool   op_Session_NY          = cfg.Session_NY;
+   const int    op_Session_NY_Start     = cfg.Session_NY_Start;
+   const int    op_Session_NY_End       = cfg.Session_NY_End;
+   const bool   op_Session_Asia        = cfg.Session_Asia;
+   const int    op_Session_Asia_Start   = cfg.Session_Asia_Start;
+   const int    op_Session_Asia_End     = cfg.Session_Asia_End;
+   const bool   op_Session_Win1        = cfg.Session_Win1;
+   const int    op_Session_Win1_Start   = cfg.Session_Win1_Start;
+   const int    op_Session_Win1_End     = cfg.Session_Win1_End;
+   const bool   op_Session_Win2        = cfg.Session_Win2;
+   const int    op_Session_Win2_Start   = cfg.Session_Win2_Start;
+   const int    op_Session_Win2_End     = cfg.Session_Win2_End;
    const bool   op_UseNews       = cfg.UseNews;
    const int    op_NewsPre       = cfg.NewsPre;
    const int    op_NewsPost      = cfg.NewsPost;
@@ -1456,9 +1470,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── POLICY A: RESTORE OPERATOR-CONTROLLED GATES ───────────────────
       cfg.UseSpread                 = op_UseSpread;
       cfg.MaxSpread                 = op_MaxSpread;
-      cfg.UseTime                   = op_UseTime;
-      cfg.StartHr                   = op_StartHr;
-      cfg.EndHr                     = op_EndHr;
+      cfg.TradingHoursEnabled       = op_UseTime;
+      cfg.Session_London            = op_Session_London;      cfg.Session_London_Start = op_Session_London_Start; cfg.Session_London_End = op_Session_London_End;
+      cfg.Session_NY                = op_Session_NY;          cfg.Session_NY_Start     = op_Session_NY_Start;     cfg.Session_NY_End     = op_Session_NY_End;
+      cfg.Session_Asia              = op_Session_Asia;        cfg.Session_Asia_Start   = op_Session_Asia_Start;   cfg.Session_Asia_End   = op_Session_Asia_End;
+      cfg.Session_Win1              = op_Session_Win1;        cfg.Session_Win1_Start   = op_Session_Win1_Start;   cfg.Session_Win1_End   = op_Session_Win1_End;
+      cfg.Session_Win2              = op_Session_Win2;        cfg.Session_Win2_Start   = op_Session_Win2_Start;   cfg.Session_Win2_End   = op_Session_Win2_End;
       cfg.UseNews                   = op_UseNews;
       cfg.NewsPre                   = op_NewsPre;
       cfg.NewsPost                  = op_NewsPost;
@@ -1751,9 +1768,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ================================================================
       cfg.MaxSpread     = op_MaxSpread;
       cfg.UseSpread     = op_UseSpread;
-      cfg.UseTime       = op_UseTime;
-      cfg.StartHr       = op_StartHr;
-      cfg.EndHr         = op_EndHr;
+      cfg.TradingHoursEnabled       = op_UseTime;
+      cfg.Session_London            = op_Session_London;      cfg.Session_London_Start = op_Session_London_Start; cfg.Session_London_End = op_Session_London_End;
+      cfg.Session_NY                = op_Session_NY;          cfg.Session_NY_Start     = op_Session_NY_Start;     cfg.Session_NY_End     = op_Session_NY_End;
+      cfg.Session_Asia              = op_Session_Asia;        cfg.Session_Asia_Start   = op_Session_Asia_Start;   cfg.Session_Asia_End   = op_Session_Asia_End;
+      cfg.Session_Win1              = op_Session_Win1;        cfg.Session_Win1_Start   = op_Session_Win1_Start;   cfg.Session_Win1_End   = op_Session_Win1_End;
+      cfg.Session_Win2              = op_Session_Win2;        cfg.Session_Win2_Start   = op_Session_Win2_Start;   cfg.Session_Win2_End   = op_Session_Win2_End;
       cfg.UseNews       = op_UseNews;
       cfg.NewsPre       = op_NewsPre;
       cfg.NewsPost      = op_NewsPost;
@@ -2285,11 +2305,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ma_v_shift                = 1;
 
       // ── POLICY A: RESTORE OPERATOR-CONTROLLED GATES ───────────────────
+      // Session filter is GLOBAL — controlled by Inp_Session_* inputs, not by this preset.
       cfg.MaxSpread                 = op_MaxSpread;
       cfg.UseSpread                 = op_UseSpread;
-      cfg.UseTime                   = op_UseTime;
-      cfg.StartHr                   = op_StartHr;
-      cfg.EndHr                     = op_EndHr;
+      cfg.TradingHoursEnabled       = op_UseTime;
+      cfg.Session_London            = op_Session_London;      cfg.Session_London_Start = op_Session_London_Start; cfg.Session_London_End = op_Session_London_End;
+      cfg.Session_NY                = op_Session_NY;          cfg.Session_NY_Start     = op_Session_NY_Start;     cfg.Session_NY_End     = op_Session_NY_End;
+      cfg.Session_Asia              = op_Session_Asia;        cfg.Session_Asia_Start   = op_Session_Asia_Start;   cfg.Session_Asia_End   = op_Session_Asia_End;
+      cfg.Session_Win1              = op_Session_Win1;        cfg.Session_Win1_Start   = op_Session_Win1_Start;   cfg.Session_Win1_End   = op_Session_Win1_End;
+      cfg.Session_Win2              = op_Session_Win2;        cfg.Session_Win2_Start   = op_Session_Win2_Start;   cfg.Session_Win2_End   = op_Session_Win2_End;
       cfg.UseNews                   = op_UseNews;
       cfg.NewsPre                   = op_NewsPre;
       cfg.NewsPost                  = op_NewsPost;
@@ -2734,9 +2758,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── POLICY A: RESTORE OPERATOR-CONTROLLED GATES ───────────────
       cfg.UseSpread                 = op_UseSpread;
-      cfg.UseTime                   = op_UseTime;
-      cfg.StartHr                   = op_StartHr;
-      cfg.EndHr                     = op_EndHr;
+      cfg.TradingHoursEnabled       = op_UseTime;
+      cfg.Session_London            = op_Session_London;      cfg.Session_London_Start = op_Session_London_Start; cfg.Session_London_End = op_Session_London_End;
+      cfg.Session_NY                = op_Session_NY;          cfg.Session_NY_Start     = op_Session_NY_Start;     cfg.Session_NY_End     = op_Session_NY_End;
+      cfg.Session_Asia              = op_Session_Asia;        cfg.Session_Asia_Start   = op_Session_Asia_Start;   cfg.Session_Asia_End   = op_Session_Asia_End;
+      cfg.Session_Win1              = op_Session_Win1;        cfg.Session_Win1_Start   = op_Session_Win1_Start;   cfg.Session_Win1_End   = op_Session_Win1_End;
+      cfg.Session_Win2              = op_Session_Win2;        cfg.Session_Win2_Start   = op_Session_Win2_Start;   cfg.Session_Win2_End   = op_Session_Win2_End;
       cfg.UseNews                   = op_UseNews;
       cfg.NewsPre                   = op_NewsPre;
       cfg.NewsPost                  = op_NewsPost;
