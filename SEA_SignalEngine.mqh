@@ -1926,6 +1926,7 @@ private:
       //    Additive OR: fires independently of slope; does not replace slope detection.
       //    Only evaluated when slope gates did not already set is_pullback, to avoid
       //    redundant log noise. Requires slow_ema_handle to be supplied by caller.
+      bool s2_triggered = false;   // 2026-07: flag for same-bar one-candle completion
       if(use_price_touch && !is_pullback && slow_ema_handle != INVALID_HANDLE)
       {
          double ema_slow_val = GetMAVal(slow_ema_handle, v_shift);
@@ -1952,12 +1953,26 @@ private:
             }
             if(zone_touched)
             {
-               is_pullback = true;
+               is_pullback  = true;
+               s2_triggered = true;   // mark for potential same-bar completion below
                if(m_settings.DebugFlow)
                   DebugLog(StringFormat("[%s_PB] S2 price-zone DETECTED: ema_fast=%.5f ema_slow=%.5f zone_factor=%.2f",
                                         label, ema_fast_val, ema_slow_val, zone_factor));
             }
          }
+      }
+
+      // -- Recovery condition (raw close vs fast EMA) — computed unconditionally so
+      //    it is available for both the normal DETECTED→RECOVERED gate below AND the
+      //    S2 same-bar one-candle completion path (wick touches zone, close recovers).
+      //    This is separate from the guarded is_recovery flag used by DETECTED→RECOVERED.
+      bool   recovery_cond = false;   // raw: close beyond fast EMA in bias direction
+      if(bias_dir != 0)
+      {
+         double close_v_rc  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+         double fast_ema_rc = GetMAVal(fast_ema_handle, v_shift);
+         if(fast_ema_rc > 0.0)
+            recovery_cond = (bias_dir > 0) ? (close_v_rc > fast_ema_rc) : (close_v_rc < fast_ema_rc);
       }
 
       // -- Recovery (from DETECTED): the fast EMA's slope on the EVALUATED bar
@@ -1990,10 +2005,7 @@ private:
             // entry right after a counter-trend dip that window sits inside the dip
             // and points the WRONG way, so a valid long-after-dip recovery could
             // never confirm (the proven cause of DET-but-never-REC blocks).
-            double close_v  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-            double fast_ema = GetMAVal(fast_ema_handle, v_shift);
-            if(fast_ema > 0.0)
-               is_recovery = (bias_dir > 0) ? (close_v > fast_ema) : (close_v < fast_ema);
+            is_recovery = recovery_cond;   // reuse pre-computed raw condition
          }
          else
          {
@@ -2027,8 +2039,29 @@ private:
       ELayerPullbackState prev_state = state;
       if(state == LAYER_PB_NONE && is_pullback)
       {
-         state    = LAYER_PB_DETECTED;
-         bars_det = 1;   // first bar of a fresh DETECTED cycle
+         // 2026-07 S2 ONE-BAR COMPLETION: if S2 triggered DETECTED on this bar AND
+         // the same bar's close already satisfies the recovery condition (close beyond
+         // fast EMA in bias direction), the full pullback-recovery cycle is complete
+         // in one candle — a wick-rejection bar: wick touches EMA zone, body closes
+         // above (LONG) or below (SHORT) the fast EMA.
+         // Oracle Trade Checklist: "Enter at the close of the candle confirmed by
+         // all requirements." This candle IS confirmed — no extra delay needed.
+         // This bypasses A21 (min bars in DETECTED) intentionally: the wick is the
+         // pullback evidence, the close is the recovery — one complete Oracle candle.
+         if(s2_triggered && recovery_cond)
+         {
+            state    = LAYER_PB_RECOVERED;
+            bars_det = 1;
+            if(m_settings.DebugFlow)
+               DebugLog(StringFormat("[%s_PB] S2 ONE-BAR COMPLETE: NONE→RECOVERED "
+                                     "(wick touched zone + close recovered — Oracle wick-rejection candle)",
+                                     label));
+         }
+         else
+         {
+            state    = LAYER_PB_DETECTED;
+            bars_det = 1;   // first bar of a fresh DETECTED cycle
+         }
       }
       else if(state == LAYER_PB_DETECTED && is_recovery)
       {

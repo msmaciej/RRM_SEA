@@ -548,7 +548,7 @@ input group "╚═════════════════════�
 // SWING SL places the stop under the most recent definable swing low (Oracle Stop Loss card).
 // With lookback=13, M5 swing SL ≈ 12-25 pips FX / 150-300 pts XAU — above noise floor.
 input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;    // RRM ORG SL: SL_MODE_=*: *ATR, *FIXED_PIPS, *FRACTAL, *PERCENT, *PSAR_DOT, *SWING
-input int         Inp_RRM_ORG_SwingLookback        = 13;              // RRM ORG SL: SWING lookback bars (13 bars ≈ 65 min on M5; finds recent structure without going too far back)
+input int         Inp_RRM_ORG_SwingLookback        = 34;              // RRM ORG SL: SWING lookback bars — search window for the most recent swing high/low. Larger window = more likely to find a structurally meaningful level. 34 bars: M1=34min · M5=170min · H1=34h. If swing is 15 bars ago and window=13, it's missed; window=34 finds it.
 input int         Inp_RRM_ORG_SL_AtrPeriod         = 14;             // RRM ORG SL: ATR period (SL_MODE_ATR only)
 input double      Inp_RRM_ORG_SL_AtrMult           = 1.0;            // RRM ORG SL: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical; Gold M15 use 1.0–1.5)
 input int         Inp_RRM_ORG_MinBarsAfterClose    = 1;              // RRM ORG SL: post-trade cooldown bars (0=off)
@@ -692,8 +692,8 @@ input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;  // RRM ORG PB: Count
 input bool        Inp_RRM_ORG_LayerPriceTouchEnabled = true; // RRM ORG PB: S2 - wick entering lower EMA band zone also triggers DETECTED
 // A21 2026-07: minimum bars in DETECTED before RECOVERED is allowed.
 // Oracle: pullbacks last 2–8 bars at all timeframes before recovery bar. Prevents 1-bar spike entries.
-input int         Inp_RRM_ORG_MinPBBars_W   = 2;            // RRM ORG PB: A21 - LayerW min bars in DETECTED before RECOVERED (0=off)
-input int         Inp_RRM_ORG_MinPBBars_M   = 2;            // RRM ORG PB: A21 - LayerM min bars in DETECTED before RECOVERED (0=off)
+input int         Inp_RRM_ORG_MinPBBars_W   = 1;            // RRM ORG PB: A21 - LayerW min bars in DETECTED before RECOVERED (0=off; M5+ use 2, M1 use 1)
+input int         Inp_RRM_ORG_MinPBBars_M   = 1;            // RRM ORG PB: A21 - LayerM min bars in DETECTED before RECOVERED (0=off; M5+ use 2, M1 use 1)
 input int         Inp_RRM_ORG_MinPBBars_S   = 1;            // RRM ORG PB: A21 - LayerS min bars in DETECTED before RECOVERED (0=off)
 input double      Inp_RRM_ORG_RecoveryRatio_W      = 0.4;      // RRM ORG PB: LayerW recovery override (-1=use global)
 input double      Inp_RRM_ORG_RecoveryRatio_M      = 0.3;      // RRM ORG PB: LayerM recovery override (-1=use global)
