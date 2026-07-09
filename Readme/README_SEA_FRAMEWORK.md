@@ -164,15 +164,18 @@ C: no hallucinations · verify feature not already implemented · update README 
 
 ## Part H — Conversational intake (how every session starts)
 
-### The starter — what you type
+### ⛔ Do not use a short starter
 
-```
-Repo: github.com/msmaciej/RRM_SEA
-Framework: Readme/README_SEA_FRAMEWORK.md
-Problem: [one sentence in plain language — no need to know the class or framework]
-```
+A 3-line starter pointing to this document is not reliable — the AI may skip reading it and jump directly to the problem, causing hallucination and code-first shortcuts. All mandatory instructions must be present in the pasted text.
 
-That is all. The AI takes over from there and runs five intake steps, one at a time, waiting for your reply at each.
+### Use `Readme/SEA_CHAT_STARTER.md`
+
+Copy the **entire contents** of `Readme/SEA_CHAT_STARTER.md` and paste it as your first message in a new chat. Fill in the last line with your problem. That file contains:
+
+- `⛔ DO NOT` gate — AI cannot touch code until ORIENT is complete
+- Explicit file reading order: README → PDFs → setup cards → this framework
+- Mandatory confirmation before intake begins
+- The 5-step conversational intake below
 
 ---
 
