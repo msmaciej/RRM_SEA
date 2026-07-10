@@ -563,8 +563,15 @@ All steps must pass for entry:
 - `Inp_RRM_ORG_PsarStep` — PSAR step (default: 0.05)
 - `Inp_RRM_ORG_PsarMax` — PSAR max (default: 0.5)
 - `Inp_RRM_ORG_Vote_AllowPsarFlip` — Enable PSAR flip detection (default: true)
-- `Inp_RRM_ORG_Vote_PsarFlipDelay` — PSAR flip delay window `(-1, 0, 1..10)` (default: 2)
+- `Inp_RRM_ORG_Vote_PsarFlipDelay` — global PSAR flip delay window `(-1, 0, 1..10)` (default: **-1 = persistent, dot-position-only**). Effective runtime is **global `-1` (persistent) with a LayerW override of 5** (`PsarFlipDelay_W=5`, M/S `= -1`), printed by the cockpit as `PSAR: PERSIST [W=5 M=P S=P]`. (An earlier revision listed `2` here — stale; the running config is persistent + W=5, confirmed by the cockpit and `SEA_Presets.mqh`.)
 - `Inp_RRM_ORG_PSAR_FlipGraceBars` — Grace bars after adverse flip (default: 0)
+
+> **A22 — buffer-read hardening (symmetric, iSAR-parity-safe).** Every indicator voter that reads a buffer and compares it to a threshold or price level was exposed to a "not-ready" hazard: at an M1 bar boundary the handle read can transiently fail, and the reader returned a silent `0.0`. Because `0.0` sits on one side of the test, it **manufactured a spurious directional PASS** (PSAR/BB-trend → long with the dot/mid above price; RSI-filter/Sto-zone/MFI → wrong-side pass; MACD/CCI on partial reads) and the pass was then cached for the whole bar. Fixes:
+> - **PSAR:** reads go through `GetPSARValue()` — **iSAR primary** (exact chart parity at Step=0.05/Max=0.5); **manual Wilder SAR fallback** (`ComputePSARManual`, same Step/Max, from OHLC) when the handle is not-ready; if both fail, **fail-closed identically for LONG and SHORT**, uncached.
+> - **ADX / BB / CCI / MACD / MFI / RSI / Stochastic:** all base-vote reads go through `IndReadOK()` (validity-checked) and **fail-closed, uncached** on a not-ready read. ADX also no longer feeds a `0.0` into its dynamic-percentile history.
+> - **DPI** (computed via `ComputeDPIMainHist`, handle-free) and **CandleBody** (price-based) were never exposed.
+>
+> Result: no long/short asymmetry anywhere in the vote layer, and no `0.0`-read can pass a trade.
 
 **Exit Settings (RRM_ORG-specific inputs):**
 

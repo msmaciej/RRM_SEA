@@ -643,6 +643,22 @@ private:
       return b[0];
    }
 
+   //+------------------------------------------------------------------+
+   // IndReadOK — validity-checked single-buffer read for VOTE gating
+   //+------------------------------------------------------------------+
+   // Returns true and sets `out` only when the buffer read is READY and valid
+   // (not EMPTY_VALUE, no CopyBuffer error). On a not-ready read it returns
+   // false — callers MUST fail-closed rather than compute on the silent 0.0
+   // that GetVal returns on failure. Buffer-voter analogue of the PSAR A22 fix
+   // and GetMAValSafe: a 0.0 read compared against a threshold or price level
+   // would otherwise manufacture a spurious directional PASS.
+   bool IndReadOK(int handle, int shift, int buf, double &out)
+   {
+      bool ok = false;
+      out = GetVal(handle, shift, buf, ok);
+      return ok;
+   }
+
    // NOTE: In MT5, the iMA() 'ma_shift' parameter already shifts the indicator line.
    // Therefore CopyBuffer() returns a series aligned to that shifted plot.
    // IMPORTANT: Do NOT apply ma_h_shift a second time in logic reads.
@@ -1205,7 +1221,12 @@ private:
       if(IsCacheValidForShift(shift) && m_ind_cache.adx_result != -1)
          return (m_ind_cache.adx_result == 1);
 
-      double adx = GetVal(h_adx, shift);
+      double adx = 0.0;
+      if(!IndReadOK(h_adx, shift, 0, adx)) {          // A22: not-ready -> reject, uncached,
+         if(m_settings.DebugFlow)                      // and never push 0.0 into the percentile buffer
+            DebugLog(StringFormat("[IND_ADX] shift=%d not ready -> FAIL (uncached)", shift));
+         return false;
+      }
 
       // Update rolling history for dynamic modes (skip for static — no history needed)
       if(m_settings.ADX_Mode != ADX_MODE_STATIC)
@@ -1308,7 +1329,12 @@ private:
          m_ind_cache.cached_bias == bias)
          return (m_ind_cache.bb_result == 1);
 
-      double mid = GetVal(h_bb, shift, 0);
+      double mid = 0.0;
+      if(!IndReadOK(h_bb, shift, 0, mid)) {           // A22: BB handle not ready -> reject both dirs, uncached
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[IND_BB] shift=%d not ready -> FAIL (uncached)", shift));
+         return false;
+      }
       double cl  = iClose(m_symbol, PERIOD_CURRENT, shift);
       bool result;
       
@@ -1333,8 +1359,12 @@ private:
       }
       else {
          // Mean Reversion: Price touched Lower/Upper Band
-         double lower = GetVal(h_bb, shift, 2);
-         double upper = GetVal(h_bb, shift, 1);
+         double lower = 0.0, upper = 0.0;
+         if(!IndReadOK(h_bb, shift, 2, lower) || !IndReadOK(h_bb, shift, 1, upper)) {
+            m_ind_cache.cached_bias = bias;             // A22: bands not ready -> reject, uncached
+            m_ind_cache.bb_result   = -1;               // leave uncached so next tick recomputes
+            return false;
+         }
          double low   = iLow(m_symbol, PERIOD_CURRENT, shift);
          double high  = iHigh(m_symbol, PERIOD_CURRENT, shift);
          result = (bias==1) ? (low <= lower) : (high >= upper);
@@ -1518,7 +1548,12 @@ private:
          m_ind_cache.cached_bias == bias)
          return (m_ind_cache.cci_result == 1);
 
-      double c = GetVal(h_cci, shift);
+      double c = 0.0;
+      if(!IndReadOK(h_cci, shift, 0, c)) {            // A22: not ready -> reject, uncached
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[IND_CCI] shift=%d not ready -> FAIL (uncached)", shift));
+         return false;
+      }
       bool result;
       if(m_settings.CciMode == CCI_TREND_ZERO) result = (bias==1) ? (c > 0) : (c < 0);
       else result = (bias==1) ? (c > 100) : (c < -100);
@@ -2611,8 +2646,12 @@ private:
          m_ind_cache.cached_bias == bias)
          return (m_ind_cache.macd_result == 1);
 
-      double m = GetVal(h_macd, shift, 0);  // Main line
-      double s = GetVal(h_macd, shift, 1);  // Signal line
+      double m = 0.0, s = 0.0;                          // A22: both reads must be ready
+      if(!IndReadOK(h_macd, shift, 0, m) || !IndReadOK(h_macd, shift, 1, s)) {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[IND_MACD] shift=%d not ready -> FAIL (uncached)", shift));
+         return false;
+      }
       double h = m - s;                      // Histogram
 
       // ══════════════════════════════════════════════════════════
@@ -2880,7 +2919,12 @@ private:
          m_ind_cache.cached_bias == bias)
          return (m_ind_cache.mfi_result == 1);
 
-      double mfi = GetVal(h_mfi, shift);
+      double mfi = 0.0;
+      if(!IndReadOK(h_mfi, shift, 0, mfi)) {          // A22: not ready -> reject, uncached
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[IND_MFI] shift=%d not ready -> FAIL (uncached)", shift));
+         return false;
+      }
       bool result = (bias==1) ? (mfi > m_settings.T_MfiOB) : (mfi < m_settings.T_MfiOS);
       m_ind_cache.cached_bias = bias;
       m_ind_cache.mfi_value = mfi;
@@ -3440,7 +3484,12 @@ private:
          m_ind_cache.rsi_result != -1 &&
          m_ind_cache.cached_bias == bias)
          return (m_ind_cache.rsi_result == 1);
-      double r = GetVal(h_rsi, shift);
+      double r = 0.0;
+      if(!IndReadOK(h_rsi, shift, 0, r)) {            // A22: not ready -> reject, uncached
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[IND_RSI] shift=%d not ready -> FAIL (uncached)", shift));
+         return false;
+      }
       bool result;
       
       if(m_settings.RsiMode == RSI_FILTER_EXTREME) {
@@ -3472,8 +3521,12 @@ private:
          m_ind_cache.cached_bias == bias)
          return (m_ind_cache.sto_result == 1);
 
-      double k = GetVal(h_sto, shift, 0);
-      double d = GetVal(h_sto, shift, 1);
+      double k = 0.0, d = 0.0;                          // A22: both reads must be ready
+      if(!IndReadOK(h_sto, shift, 0, k) || !IndReadOK(h_sto, shift, 1, d)) {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[IND_STOCH] shift=%d not ready -> FAIL (uncached)", shift));
+         return false;
+      }
       bool result;
       
       if(m_settings.StoMode == STO_CROSS_SIGNAL) 
