@@ -2896,6 +2896,94 @@ private:
    }
 
    //+------------------------------------------------------------------+
+   // ComputePSARManual — self-contained Wilder Parabolic SAR (fallback)
+   //+------------------------------------------------------------------+
+   // Runs ONLY when the iSAR handle read is not-ready (would return 0.0) at a
+   // bar boundary. Computed from OHLC — which is populated before indicator
+   // buffers — so it never yields the spurious 0.0 that used to make (cl>p)
+   // pass every LONG and fail every SHORT. Uses the SAME Step/Max as the iSAR
+   // handle. PSAR is self-correcting: after the first flip inside the warm-up
+   // window the seed error washes out, so the value at `shift` tracks iSAR
+   // closely. iSAR stays PRIMARY (exact chart parity); this is last-resort.
+   double ComputePSARManual(int shift, bool &out_valid)
+   {
+      out_valid = false;
+      double step  = m_settings.P_PsarStep;
+      double maxaf = m_settings.P_PsarMax;
+      if(step <= 0.0 || maxaf <= 0.0 || shift < 0) return 0.0;
+
+      const int WARM = 300;                          // warm-up depth (PSAR self-corrects within it)
+      int total = Bars(m_symbol, PERIOD_CURRENT);
+      int start = shift + WARM;
+      if(start > total - 2) start = total - 2;       // need bar start+1 to exist
+      if(start <= shift) return 0.0;                 // insufficient history
+
+      double h_s  = iHigh(m_symbol, PERIOD_CURRENT, start);
+      double l_s  = iLow (m_symbol, PERIOD_CURRENT, start);
+      double h_s1 = iHigh(m_symbol, PERIOD_CURRENT, start + 1);
+      double l_s1 = iLow (m_symbol, PERIOD_CURRENT, start + 1);
+      if(h_s <= 0.0 || l_s <= 0.0 || h_s1 <= 0.0 || l_s1 <= 0.0) return 0.0;
+
+      bool   is_long = (h_s >= h_s1);                // initial trend guess (washes out)
+      double af      = step;
+      double ep      = is_long ? h_s  : l_s;         // extreme point
+      double sar     = is_long ? l_s1 : h_s1;        // seed from prior-bar extreme
+
+      for(int i = start - 1; i >= shift; i--)
+      {
+         double hi  = iHigh(m_symbol, PERIOD_CURRENT, i);
+         double lo  = iLow (m_symbol, PERIOD_CURRENT, i);
+         double hi1 = iHigh(m_symbol, PERIOD_CURRENT, i + 1);
+         double lo1 = iLow (m_symbol, PERIOD_CURRENT, i + 1);
+         if(hi <= 0.0 || lo <= 0.0 || hi1 <= 0.0 || lo1 <= 0.0) return 0.0;
+
+         sar = sar + af * (ep - sar);
+
+         if(is_long)
+         {
+            if(sar > lo1) sar = lo1;                 // SAR may not pierce prior/current low
+            if(sar > lo)  sar = lo;
+            if(hi > ep) { ep = hi; af = MathMin(af + step, maxaf); }
+            if(lo < sar) { is_long = false; sar = ep; ep = lo; af = step; }   // flip to short
+         }
+         else
+         {
+            if(sar < hi1) sar = hi1;                 // SAR may not pierce prior/current high
+            if(sar < hi)  sar = hi;
+            if(lo < ep) { ep = lo; af = MathMin(af + step, maxaf); }
+            if(hi > sar) { is_long = true; sar = ep; ep = hi; af = step; }    // flip to long
+         }
+      }
+      out_valid = true;
+      return sar;
+   }
+
+   //+------------------------------------------------------------------+
+   // GetPSARValue — validity-checked read: iSAR primary, manual fallback
+   //+------------------------------------------------------------------+
+   // Guarantees a REAL SAR value or out_valid=false — never a silent 0.0.
+   // Symmetric by construction: the identical value feeds LONG and SHORT.
+   double GetPSARValue(int shift, bool &out_valid)
+   {
+      double p = GetVal(h_psar, shift, 0, out_valid);      // PRIMARY: iSAR (chart parity)
+      if(out_valid && p > 0.0)
+         return p;
+
+      bool man_valid = false;                              // FALLBACK: manual Wilder SAR
+      double pm = ComputePSARManual(shift, man_valid);
+      if(man_valid && pm > 0.0)
+      {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[PSAR_READ] shift=%d iSAR not ready → manual SAR=%.5f", shift, pm));
+         out_valid = true;
+         return pm;
+      }
+
+      out_valid = false;                                   // both failed → caller must fail-closed
+      return 0.0;
+   }
+
+   //+------------------------------------------------------------------+
    // Check_PSAR: PSAR (basic price vs. PSAR position check)
    //+------------------------------------------------------------------+
    bool Check_PSAR(int bias, int shift) {
@@ -2904,8 +2992,22 @@ private:
          m_ind_cache.cached_bias == bias)
          return (m_ind_cache.psar_result == 1);
 
-      double p = GetVal(h_psar, shift);
+      bool   psar_valid = false;
+      double p  = GetPSARValue(shift, psar_valid);        // iSAR primary, manual fallback
       double cl = iClose(m_symbol, PERIOD_CURRENT, shift);
+
+      // A22 HARDENING — symmetric fail-closed. If neither iSAR nor the manual
+      // fallback yields a valid dot (or the close is unavailable), BLOCK both
+      // LONG and SHORT identically and DO NOT cache, so the next tick (data
+      // ready) recomputes the true verdict. Removes the old asymmetry where an
+      // unreadable read returned 0.0 → (cl > 0.0) passed every LONG while
+      // (cl < 0.0) failed every SHORT.
+      if(!psar_valid || p <= 0.0 || cl <= 0.0) {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[PSAR_DOT_CHECK] shift=%d NOT READY (p=%.5f cl=%.5f) -> FAIL both dirs (uncached)",
+                                  shift, p, cl));
+         return false;
+      }
 
       bool result = (bias==1) ? (cl > p) : (cl < p);
 
@@ -2982,8 +3084,8 @@ private:
       bool psar_curr_valid = false;
       bool psar_prev_valid = false;
 
-      double psar_curr = GetVal(h_psar, shift, 0, psar_curr_valid);
-      double psar_prev = GetVal(h_psar, shift + 1, 0, psar_prev_valid);
+      double psar_curr = GetPSARValue(shift,     psar_curr_valid);   // iSAR primary, manual fallback
+      double psar_prev = GetPSARValue(shift + 1, psar_prev_valid);
 
       if(!psar_curr_valid || !psar_prev_valid) {
          if(m_settings.DebugFlow)
