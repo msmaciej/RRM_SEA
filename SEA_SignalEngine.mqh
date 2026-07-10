@@ -2204,13 +2204,25 @@ private:
                vprr = 0.0;
             }
             // Accumulate running average of pullback volume.
-            vol_pb_avg = ((vol_pb_avg * vol_pb_bars) + (double)vol_current) / (vol_pb_bars + 1);
-            vol_pb_bars++;
+            // A22: skip bars whose volume read failed / returned 0. Averaging a spurious
+            // 0 into the PULLBACK volume lowers vol_pb_avg and INFLATES the ratio
+            // (vprr = rec/pb) -> spurious PASS. A genuine 0-volume bar is meaningless for
+            // the ratio too, so skipping <=0 is correct either way. Persistent no-volume
+            // then leaves vol_pb_bars=0 -> ratio never computed -> VPRR fails every bar
+            // (fail-closed), matching the documented REAL-mode warning.
+            if(vol_current > 0)
+            {
+               vol_pb_avg = ((vol_pb_avg * vol_pb_bars) + (double)vol_current) / (vol_pb_bars + 1);
+               vol_pb_bars++;
+            }
          }
          else if(state == LAYER_PB_RECOVERED)
          {
             // Measure recovery volume over the first N bars only.
-            if(vol_rec_bars < m_settings.VPRR_RecoveryBars)
+            // A22: same skip-on-invalid guard as the pullback branch (a 0 read here
+            // lowers rec_avg -> deflates the ratio, the safe direction, but skipping
+            // keeps the average built only from real volume bars for both sides).
+            if(vol_current > 0 && vol_rec_bars < m_settings.VPRR_RecoveryBars)
             {
                vol_rec_avg = ((vol_rec_avg * vol_rec_bars) + (double)vol_current) / (vol_rec_bars + 1);
                vol_rec_bars++;
@@ -3656,6 +3668,17 @@ private:
       if(h_atr == INVALID_HANDLE) {
          if(m_settings.DebugFlow) DebugLog("VRC: ATR handle invalid");
          m_ind_cache.vrc_result = 0;
+         return false;
+      }
+
+      // A22: fail-closed on a not-ready ATR read (operator chose fail-closed for the
+      // VRC vote, to match Check_ATR and the directional voters). GetVolatilityRegime()
+      // itself still fail-opens (returns NORMAL) for any non-vote caller by design; here
+      // the VOTE blocks instead. Uncached, so the next tick recomputes when data is ready.
+      bool   atr_ok  = false;
+      double atr_chk = GetVal(h_atr, 1, 0, atr_ok);
+      if(!atr_ok || atr_chk <= 0.0) {
+         if(m_settings.DebugFlow) DebugLog("VRC: ATR not ready -> FAIL (uncached)");
          return false;
       }
 
