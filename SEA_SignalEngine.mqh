@@ -2687,12 +2687,14 @@ private:
 
          case MACD_CROSSOVER_N: {
             int bars_since = GetBarsSinceMACDCrossover(bias, shift);
+            if(bars_since == INT_MIN) return false;   // A22: not-ready -> reject, uncached
             base_pass = (bars_since >= 0 && bars_since <= m_settings.MacdFreshBars);
             break;
          }
 
          case MACD_ZERO_CROSS_N: {
             int bars_since_zero = GetBarsSinceMACDZeroCross(bias, shift);
+            if(bars_since_zero == INT_MIN) return false;   // A22: not-ready -> reject, uncached
             base_pass = (bars_since_zero >= 0 && bars_since_zero <= m_settings.MacdFreshBars);
             break;
          }
@@ -2715,7 +2717,8 @@ private:
 
       // Filter A: Slope (MACD accelerating)
       if(m_settings.MacdRequireSlope) {
-         double m_prev = GetVal(h_macd, shift + 1, 0);
+         double m_prev = 0.0;
+         if(!IndReadOK(h_macd, shift + 1, 0, m_prev)) return false;   // A22: not-ready -> reject, uncached
          double slope  = m - m_prev;
 
          // Check minimum slope threshold (if configured)
@@ -2749,7 +2752,10 @@ private:
       // to pass" with reversal-at-pullback-extremes logic; now "block if exhaustion divergence
       // present" with trend-extremes logic). See ST_Settings comment for full description.
       if(m_settings.MacdBlockOnDivergence) {
-         if(CheckMACDDivergence(bias, shift)) {
+         bool div_ready = true;
+         bool div = CheckMACDDivergence(bias, shift, div_ready);
+         if(!div_ready) return false;   // A22: not-ready -> reject, uncached
+         if(div) {
             if(m_settings.DebugFlow)
                DebugLog(StringFormat("[IND_MACD] bias=%d Main=%.5f Signal=%.5f → FAIL (%s exhaustion divergence)",
                                      bias, m, s, (bias == 1) ? "BEARISH" : "BULLISH"));
@@ -2763,7 +2769,10 @@ private:
 
       // Filter C: Hook (histogram reversal)
       if(m_settings.MacdRequireHook) {
-         double h_prev = GetVal(h_macd, shift + 1, 0) - GetVal(h_macd, shift + 1, 1);
+         double hp_m = 0.0, hp_s = 0.0;
+         if(!IndReadOK(h_macd, shift + 1, 0, hp_m) || !IndReadOK(h_macd, shift + 1, 1, hp_s))
+            return false;   // A22: not-ready -> reject, uncached
+         double h_prev = hp_m - hp_s;
          bool hook = (bias == 1) ? (h > 0 && h_prev <= 0) : (h < 0 && h_prev >= 0);
          if(!hook) {
             if(m_settings.DebugFlow)
@@ -2782,7 +2791,10 @@ private:
       // even though direction is still correct. Prevents entering into fading moves.
       // Condition: |h[shift]| < |h[shift+1]| AND both same sign (direction still holds).
       if(m_settings.MacdHistDecelEnabled) {
-         double h_prev = GetVal(h_macd, shift + 1, 0) - GetVal(h_macd, shift + 1, 1);
+         double hp_m = 0.0, hp_s = 0.0;
+         if(!IndReadOK(h_macd, shift + 1, 0, hp_m) || !IndReadOK(h_macd, shift + 1, 1, hp_s))
+            return false;   // A22: not-ready -> reject, uncached
+         double h_prev = hp_m - hp_s;
          bool same_sign = (h > 0 && h_prev > 0) || (h < 0 && h_prev < 0);
          if(same_sign && MathAbs(h) < MathAbs(h_prev)) {
             if(m_settings.DebugFlow)
@@ -2810,10 +2822,10 @@ private:
    int GetBarsSinceMACDCrossover(int bias, int shift) {
       static const int MACD_EVENT_LOOKBACK = 20;  // Max bars to look back for a recent MACD event
       for(int i = shift; i < shift + MACD_EVENT_LOOKBACK; i++) {
-         double m_curr = GetVal(h_macd, i,     0);
-         double s_curr = GetVal(h_macd, i,     1);
-         double m_prev = GetVal(h_macd, i + 1, 0);
-         double s_prev = GetVal(h_macd, i + 1, 1);
+         double m_curr = 0.0, s_curr = 0.0, m_prev = 0.0, s_prev = 0.0;
+         if(!IndReadOK(h_macd, i,     0, m_curr) || !IndReadOK(h_macd, i,     1, s_curr) ||
+            !IndReadOK(h_macd, i + 1, 0, m_prev) || !IndReadOK(h_macd, i + 1, 1, s_prev))
+            return INT_MIN;   // A22: not-ready before a crossover was found -> caller fails-closed
 
          // Bullish crossover: main crosses above signal
          if(bias == 1 && m_prev <= s_prev && m_curr > s_curr)
@@ -2830,8 +2842,9 @@ private:
    int GetBarsSinceMACDZeroCross(int bias, int shift) {
       static const int MACD_EVENT_LOOKBACK = 20;  // Max bars to look back for a recent MACD event
       for(int i = shift; i < shift + MACD_EVENT_LOOKBACK; i++) {
-         double m_curr = GetVal(h_macd, i,     0);
-         double m_prev = GetVal(h_macd, i + 1, 0);
+         double m_curr = 0.0, m_prev = 0.0;
+         if(!IndReadOK(h_macd, i, 0, m_curr) || !IndReadOK(h_macd, i + 1, 0, m_prev))
+            return INT_MIN;   // A22: not-ready before a zero-cross was found -> caller fails-closed
 
          // Bullish: crosses above zero
          if(bias == 1 && m_prev <= 0 && m_curr > 0)
@@ -2863,7 +2876,8 @@ private:
    // SHORT (bias=-1): bullish divergence when price_low_recent < price_low_prior
    //                 AND macd_main at price_low_recent > macd_main at price_low_prior.
    //                 (Trend made new LL but momentum failed to confirm.)
-   bool CheckMACDDivergence(int bias, int shift) {
+   bool CheckMACDDivergence(int bias, int shift, bool &ready) {
+      ready = true;   // A22: set false only on a genuine buffer read failure (not warmup/insufficient bars)
       int lookback = m_settings.MacdDivLookback;
       if(lookback < 3) return false;
       if(shift + 2 * lookback + 1 >= Bars(m_symbol, PERIOD_CURRENT)) return false;
@@ -2875,8 +2889,8 @@ private:
          if(hi_r < 0 || hi_p < 0) return false;
          double price_high_recent = iHigh(m_symbol, PERIOD_CURRENT, hi_r);
          double price_high_prior  = iHigh(m_symbol, PERIOD_CURRENT, hi_p);
-         double macd_recent = GetVal(h_macd, hi_r, 0);
-         double macd_prior  = GetVal(h_macd, hi_p, 0);
+         double macd_recent = 0.0, macd_prior = 0.0;
+         if(!IndReadOK(h_macd, hi_r, 0, macd_recent) || !IndReadOK(h_macd, hi_p, 0, macd_prior)) { ready = false; return false; }
 
          // Bearish exhaustion divergence: new HH in price, lower MACD at the new HH.
          return (price_high_recent > price_high_prior && macd_recent < macd_prior);
@@ -2889,8 +2903,8 @@ private:
          if(lo_r < 0 || lo_p < 0) return false;
          double price_low_recent = iLow(m_symbol, PERIOD_CURRENT, lo_r);
          double price_low_prior  = iLow(m_symbol, PERIOD_CURRENT, lo_p);
-         double macd_recent = GetVal(h_macd, lo_r, 0);
-         double macd_prior  = GetVal(h_macd, lo_p, 0);
+         double macd_recent = 0.0, macd_prior = 0.0;
+         if(!IndReadOK(h_macd, lo_r, 0, macd_recent) || !IndReadOK(h_macd, lo_p, 0, macd_prior)) { ready = false; return false; }
 
          // Bullish exhaustion divergence: new LL in price, higher MACD at the new LL.
          return (price_low_recent < price_low_prior && macd_recent > macd_prior);
