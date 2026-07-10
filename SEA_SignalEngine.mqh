@@ -965,6 +965,14 @@ private:
       if(CopyBuffer(h_fast, 0, htf_base, 2, fast) != 2) return 0;
       if(CopyBuffer(h_slow, 0, htf_base, 2, slow) != 2) return 0;
 
+      // A22: CopyBuffer can return the requested count with EMPTY_VALUE contents
+      // during HTF warmup. Validate the values so a not-yet-computed HTF EMA can't
+      // produce a spurious ±1 that aligns with bias. Invalid -> unclear (0) ->
+      // CheckMTFFilter fails-closed (blocks). Matches IsValidIndicatorValue in GetVal.
+      if(!IsValidIndicatorValue(fast[0]) || !IsValidIndicatorValue(fast[1]) ||
+         !IsValidIndicatorValue(slow[0]) || !IsValidIndicatorValue(slow[1]))
+         return 0;
+
       // Legacy compatibility mode: single-EMA slope behavior (old HTF filter)
       if(m_settings.MTF_EMA_Fast == m_settings.MTF_EMA_Slow)
       {
@@ -1303,7 +1311,17 @@ private:
       // ATR value in pips. For default users (Inp_RRM_ORG_Use_Atr=false) zero
       // behavior change. For users who enable the voter, ATR_VoteMinPips /
       // ATR_VoteMaxPips now actually filter as documented.
-      double atr_pips = AtrPips();
+      // A22: validity-check the ATR read. Previously AtrPips() -> GetATR() (single-arg,
+      // discards validity) returned 0.0 on a not-ready read, making this gate's outcome
+      // config-dependent (Min set -> block; Max-only -> spurious pass). Now deterministic:
+      // a not-ready read rejects (fail-closed), uncached, so the next tick recomputes.
+      bool   atr_ok  = false;
+      double atr_raw = GetVal(h_atr, 1, 0, atr_ok);
+      if(!atr_ok || atr_raw <= 0.0) {
+         if(m_settings.DebugFlow) DebugLog("[IND_ATR] ATR not ready -> FAIL (uncached)");
+         return false;   // fail-closed; leave atr_result at -1 so next tick recomputes
+      }
+      double atr_pips = GlobalAtrPips(atr_raw, m_symbol);
       bool pass = true;
       
       if(m_settings.ATR_VoteMinPips > 0.0 && atr_pips < m_settings.ATR_VoteMinPips) pass = false;
@@ -6765,6 +6783,12 @@ public:
       // this reproduces the original bars 1..6 exactly (live EA unchanged); for
       // shift>1 it offsets every read off `base` so scanner/replay is correct.
       int base = (shift < 1) ? 1 : shift;
+
+      // A22: refuse to confirm the candle if the signal bar's OHLC isn't readable.
+      // Fail-closed keeps CandleBody consistent with the other I-voters — a bad
+      // price read must not let an unverified candle pass the unanimous vote.
+      if(!HasValidBarData(base))
+         return false;
 
       // ── Over-extension (spike) guard — ATR-based, signal bar only. ─────────
       //    Rejects only genuine spikes (range > SpikeMult × ATR of the prior
