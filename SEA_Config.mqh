@@ -813,6 +813,13 @@ struct ST_Settings
     // first non-UNO bars). Only meaningful in BIAS_4EMA mode (other modes don't have
     // UNO as a defined phase). Suggested starting value 2-3 for M1 timeframes.
     int      MinBarsAfterUNOExit;         // 0 = disabled
+    int      UNO_ToleranceBars;           // consecutive UNO bars tolerated before layer states wipe (0 = strict reset on first UNO bar)
+    // Path 2: pullback observation window (distinct from baseline lookback) + recovery max-age cap
+    int      LayerPullbackWindow_W;       // LayerW observation window (bars; 0 = use global)
+    int      LayerPullbackWindow_M;       // LayerM observation window (bars; 0 = use global)
+    int      LayerPullbackWindow_S;       // LayerS observation window (bars; 0 = use global)
+    int      LayerPullbackWindow;         // global observation-window override (0 = use per-layer)
+    bool     LayerRecoveryMaxAgeEnabled;  // expire a RECOVERED layer older than its observation window
     // Layer Pullback-Recovery Detection
     bool     LayerPullbackEnabled;        // Master enable for pullback detection
     int      LayerBaselineLookback;       // Bars for baseline direction lookback

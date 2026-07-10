@@ -672,6 +672,7 @@ input int         Inp_RRM_ORG_PhaseConfirmM5       = 0;              // RRM ORG 
 input int         Inp_RRM_ORG_PhaseConfirmM30      = 0;              // RRM ORG QA: PhaseConfirmBars <M30
 input int         Inp_RRM_ORG_PhaseConfirmH1plus   = 0;              // RRM ORG QA: PhaseConfirmBars H1+
 input int         Inp_RRM_ORG_MinBarsAfterUNOExit  = 0;              // RRM ORG QA: Min bars after UNO exit before any layer DETECTED→RECOVERED transition is allowed (0=disabled; try 2-3 for M1)
+input int         Inp_RRM_ORG_UNO_ToleranceBars    = 2;              // RRM ORG PB: consecutive UNO bars tolerated before layer states are wiped. A transient UNO flicker that resolves back to the SAME direction within this many bars PRESERVES DETECTED/RECOVERED (0=strict: reset on the first UNO bar)
 input bool        Inp_RRM_ORG_LayerS_TMOnly        = false;          // RRM ORG QA: Restrict LayerS (EMA3/EMA4) entries to TRENDING phase only (per canonical RRM); false=legacy (LayerS allowed in EM+TM)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: LAYER WMS Pullback & Recovery";
@@ -687,17 +688,27 @@ input bool        Inp_RRM_ORG_LayerPB_RecoveryOnSlope = false;        // RRM ORG
 input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;      // RRM ORG PB: Flat threshold (|ratio|<this = flat)
 input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;  // RRM ORG PB: Count slope reversal as pullback // NOTE 2026-07: already true (correct). This is the ONLY mechanism that detects shallow pullbacks (EMA decelerating to 60-80% of baseline pace) because their magnitude ratio stays above 0.65 regardless of threshold. When EMA direction reverses even briefly (current_bullish != baseline_bullish), is_pullback fires regardless of ratio. Critical for M5/M15 trending pullbacks where EMA5 barely decelerates before recovering.
 // S2 2026-07: price-zone DETECTED gate. zone = EMA_slow + (1-PullbackRatio)*(EMA_fast-EMA_slow).
-// At PullbackRatio=0.65: zone_factor=0.35 = lower 35% of EMA band. Oracle: "price pulls back to touch EMA2" (flexible).
-// Additive OR with slope/reversal detection — does not replace either.
-input bool        Inp_RRM_ORG_LayerPriceTouchEnabled = true; // RRM ORG PB: S2 - wick entering lower EMA band zone also triggers DETECTED
-// A21 2026-07: minimum bars in DETECTED before RECOVERED is allowed.
-// Oracle: pullbacks last 2–8 bars at all timeframes before recovery bar. Prevents 1-bar spike entries.
-input int         Inp_RRM_ORG_MinPBBars_W   = 1;            // RRM ORG PB: A21 - LayerW min bars in DETECTED before RECOVERED (0=off; M5+ use 2, M1 use 1)
-input int         Inp_RRM_ORG_MinPBBars_M   = 1;            // RRM ORG PB: A21 - LayerM min bars in DETECTED before RECOVERED (0=off; M5+ use 2, M1 use 1)
-input int         Inp_RRM_ORG_MinPBBars_S   = 1;            // RRM ORG PB: A21 - LayerS min bars in DETECTED before RECOVERED (0=off)
+// Path 2 (2026-07): the layer model is pure position+slope. Price-touch mixes a
+// PRICE test into pullback detection and is DISABLED by default. The input is
+// retained for back-compat only; leaving it true has no effect (the S2 gate code
+// was removed from UpdateSingleLayerPullback).
+input bool        Inp_RRM_ORG_LayerPriceTouchEnabled = false; // RRM ORG PB: (deprecated/no-op) price-zone touch — off under the slope model
+// A21: minimum bars in DETECTED before RECOVERED is allowed. Path 2: a pullback
+// cannot complete in one bar, so the floor is 2 on every layer/timeframe.
+input int         Inp_RRM_ORG_MinPBBars_W   = 2;            // RRM ORG PB: A21 - LayerW min bars in DETECTED before RECOVERED (2/2/2 default)
+input int         Inp_RRM_ORG_MinPBBars_M   = 2;            // RRM ORG PB: A21 - LayerM min bars in DETECTED before RECOVERED (2/2/2 default)
+input int         Inp_RRM_ORG_MinPBBars_S   = 2;            // RRM ORG PB: A21 - LayerS min bars in DETECTED before RECOVERED (2/2/2 default)
 input double      Inp_RRM_ORG_RecoveryRatio_W      = 0.4;      // RRM ORG PB: LayerW recovery override (-1=use global)
 input double      Inp_RRM_ORG_RecoveryRatio_M      = 0.3;      // RRM ORG PB: LayerM recovery override (-1=use global)
 input double      Inp_RRM_ORG_RecoveryRatio_S      = 0.2;      // RRM ORG PB: LayerS recovery override (-1=use global)
+// Path 2 (2026-07): pullback OBSERVATION WINDOW (distinct from the baseline slope
+// lookback 13/21/34). Bounds how long a RECOVERED layer stays entry-eligible before
+// it is treated as stale (the "not-too-late" cap). Per-layer; 0 = use the global.
+input int         Inp_RRM_ORG_LayerPullbackWindow_W = 21;         // RRM ORG PB: LayerW observation window (bars; 0=use global)
+input int         Inp_RRM_ORG_LayerPullbackWindow_M = 34;         // RRM ORG PB: LayerM observation window (bars; 0=use global)
+input int         Inp_RRM_ORG_LayerPullbackWindow_S = 55;         // RRM ORG PB: LayerS observation window (bars; 0=use global)
+input int         Inp_RRM_ORG_LayerPullbackWindow   = 0;          // RRM ORG PB: GLOBAL observation-window override (bars; 0=disabled, use per-layer)
+input bool        Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled = true;  // RRM ORG PB: expire a RECOVERED layer that has waited > its observation window to fire (prevents stale chase-entries)
 input bool        Inp_RRM_ORG_AllowLayerS          = true;                          // RRM ORG PB: allow Layer S (EMA3/4) entries
 input bool        Inp_RRM_ORG_AllowLayerM          = true;                          // RRM ORG PB: allow Layer M (EMA2/3) entries
 input bool        Inp_RRM_ORG_AllowLayerW          = true;                          // RRM ORG PB: allow Layer W (EMA1/2) entries
@@ -1634,6 +1645,15 @@ void InitializeConfig()
    // Other presets keep the legacy behaviour (cycles can complete immediately after
    // a UNO exit). RRM_ORG users can opt in via Inp_RRM_ORG_MinBarsAfterUNOExit.
    Settings.MinBarsAfterUNOExit         = 0;
+   // UNO tolerance default: preserve layer states across a short (<=2 bar) UNO
+   // flicker that resolves back to the same direction. EA-wide (all presets).
+   Settings.UNO_ToleranceBars           = 2;
+   // Pullback observation window (EA-wide defaults; RRM_ORG overlays its inputs).
+   Settings.LayerPullbackWindow_W       = 21;
+   Settings.LayerPullbackWindow_M       = 34;
+   Settings.LayerPullbackWindow_S       = 55;
+   Settings.LayerPullbackWindow         = 0;      // 0 = use per-layer values
+   Settings.LayerRecoveryMaxAgeEnabled  = true;
    // LayerS=TM-only default (disabled = legacy behavior). RRM_ORG users can opt in
    // via Inp_RRM_ORG_LayerS_TMOnly to match the canonical RRM Trade Setups card.
    Settings.LayerS_TMOnly               = false;

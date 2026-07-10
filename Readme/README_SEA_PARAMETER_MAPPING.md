@@ -241,19 +241,32 @@ All new; no migration required. Defaults are active out of the box.
 
 | Input | Default | Description |
 |-------|---------|-------------|
-| `Inp_RRM_ORG_LayerPriceTouchEnabled` | `true` | **S2** — wick entering the lower EMA band zone also triggers DETECTED. Zone = `EMA_slow + (1−PullbackRatio) × (EMA_fast − EMA_slow)`. At PullbackRatio=0.65: lower 35% of band. Additive OR with slope/reversal detection. Oracle: *"price pulls back to touch EMA2"*. |
-| `Inp_RRM_ORG_MinPBBars_W` | `2` | **A21** — LayerW (EMA1/2) must stay in DETECTED for at least this many bars before RECOVERED is allowed. Prevents 1-bar spike entries. Set to 0 to disable. |
+| `Inp_RRM_ORG_LayerPriceTouchEnabled` | `false` | **Deprecated (Path 2, 2026-07).** The S2 price-zone-touch DETECTED gate was a PRICE test; the layer model is now pure position+slope, so this is off by default and the gate code was removed from `UpdateSingleLayerPullback`. Retained for back-compat; leaving it `true` has no effect. |
+| `Inp_RRM_ORG_MinPBBars_W` | `2` | **A21** — LayerW (EMA1/2) must stay in DETECTED for at least this many bars before RECOVERED. A pullback cannot complete in one bar. Set to 0 to disable. |
 | `Inp_RRM_ORG_MinPBBars_M` | `2` | **A21** — same gate for LayerM (EMA2/3). |
-| `Inp_RRM_ORG_MinPBBars_S` | `1` | **A21** — same gate for LayerS (EMA3/4). S=1 because strong-layer pullbacks on H4/Daily are structurally deeper and the bar timeframe already filters noise. |
+| `Inp_RRM_ORG_MinPBBars_S` | `2` | **A21** — same gate for LayerS (EMA3/4). Path 2: 2/2/2 across all layers/timeframes. |
 
 ### New config fields — ST_Settings
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `LayerPriceTouchEnabled` | `bool` | S2 price-zone gate master toggle |
+| `LayerPriceTouchEnabled` | `bool` | (deprecated/no-op) S2 price-zone gate — off under the slope model |
 | `LayerMinPullbackBars_W` | `int` | A21 minimum bars in DETECTED for W layer |
 | `LayerMinPullbackBars_M` | `int` | A21 minimum bars in DETECTED for M layer |
 | `LayerMinPullbackBars_S` | `int` | A21 minimum bars in DETECTED for S layer |
+
+### Path 2 inputs (2026-07) — slope-based pullback-recovery
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `Inp_RRM_ORG_UNO_ToleranceBars` | `2` | Consecutive UNO bars tolerated before layer states wipe. A transient UNO flicker that resolves back to the SAME direction within this many bars PRESERVES DETECTED/RECOVERED. `0` = strict (reset on the first UNO bar). Plumbed to the scanner via ConfigSync. |
+| `Inp_RRM_ORG_LayerPullbackWindow_W` | `21` | LayerW pullback **observation window** (bars) — distinct from the baseline slope lookback (13/21/34). Bounds how long a RECOVERED layer stays entry-eligible (the recovery max-age default). `0` = use the global. |
+| `Inp_RRM_ORG_LayerPullbackWindow_M` | `34` | LayerM observation window. |
+| `Inp_RRM_ORG_LayerPullbackWindow_S` | `55` | LayerS observation window. |
+| `Inp_RRM_ORG_LayerPullbackWindow` | `0` | Global observation-window override (`0` = use per-layer values). |
+| `Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled` | `true` | When on, a RECOVERED layer that has waited longer than its observation window to fire expires to NONE (prevents stale chase-entries). Relapse (counter-`bias_dir` reversal) and TS=1 consumption still take precedence. |
+
+Corresponding `ST_Settings` fields: `UNO_ToleranceBars`, `LayerPullbackWindow_W/M/S`, `LayerPullbackWindow`, `LayerRecoveryMaxAgeEnabled`. All synced EA→scanner via `SEA_ConfigSync`.
 
 ### New telemetry field — ST_SignalTelemetry
 

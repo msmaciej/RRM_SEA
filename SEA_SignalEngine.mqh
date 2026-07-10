@@ -272,6 +272,11 @@ private:
     // Sentinel large value at constructor + Reset so the very first bar always
     // satisfies any user-configured minimum (no first-load false trigger).
     int          m_bars_since_uno_exit;
+    // Consecutive UNO (B==0) bars seen so far in the current UNO run. Used with
+    // m_settings.UNO_ToleranceBars: a transient UNO flicker that resolves back to
+    // the SAME direction within tolerance PRESERVES layer states (does not wipe
+    // DETECTED/RECOVERED). Reset to 0 on every non-UNO bar.
+    int          m_uno_run;
     // --- 2c.1c CANDLEBODY OVER-EXTENSION CARRY (CBOEB, optional) ---
     bool         m_cb_oeb_blocked;        // CBOEB=0: hold CB vote at 0 (over-extension carry active)
     bool         m_cb_prev_any_rec;       // prev-bar 'any layer recovered' (fresh-recovery edge)
@@ -295,6 +300,10 @@ private:
     bool     m_vprr_last_real;   // True if the last volume read used VOLUME_REAL (for UI source label)
     // A21 2026-07: bars spent in DETECTED state per layer (for MinPullbackBars gate)
     int      m_layer_w_bars_det, m_layer_m_bars_det, m_layer_s_bars_det;
+    // Path 2 2026-07: bars spent in RECOVERED state per layer (for the recovery
+    // max-age cap). Self-managed inside UpdateSingleLayerPullback (incremented
+    // while RECOVERED, zeroed otherwise) — needs no external reset.
+    int      m_layer_w_bars_rec, m_layer_m_bars_rec, m_layer_s_bars_rec;
     bool     m_vprr_real_warned; // One-shot guard: have we already warned the user that VPRR_VOL_REAL is
                                  // selected but the broker returned zero real volume? Without this, VPRR
                                  // votes silently fail every bar because GetCurrentBarVolume returns 0 →
@@ -1863,21 +1872,27 @@ private:
    //+------------------------------------------------------------------+
    //| UpdateSingleLayerPullback — State machine for one layer          |
    //+------------------------------------------------------------------+
-   // Slope evaluation: pullback = EMA direction reverses vs baseline.
-   // Recovery        = EMA direction matches baseline again (pure sign,
-   //                   one bar: EMA[shift] vs EMA[shift+1]). No ratio
-   //                   magnitude — a slow EMA gains momentum gradually.
+   // Path 2 (2026-07) — pure position+slope, evaluated vs bias_dir:
+   //   Pullback (DETECTED) = fast-EMA slope LEAVES the trend: FLAT or REVERSED
+   //                         (a shallower-but-same-direction slope is NOT a
+   //                          pullback). Price-vs-EMA is not used here.
+   //   Recovery (RECOVERED)= BOTH layer EMA slopes (fast AND slow) back in
+   //                         bias_dir. Slope-only — NOT close-vs-EMA (that is
+   //                         the separate BC gate) and NOT vs the historical
+   //                         baseline (which sits inside the dip).
    // VPRR: volume tracking fields accumulated per state, once-per-bar.
    void UpdateSingleLayerPullback(int fast_ema_handle, int v_shift, int lookback,
                                   double recovery_ratio,
                                   ELayerPullbackState &state, double &baseline, string label,
                                   double &vol_pb_avg, int &vol_pb_bars,
                                   double &vol_rec_avg, int &vol_rec_bars,
-                                  double &vprr, int &bars_det,
+                                  double &vprr, int &bars_det, int &bars_rec,
                                   int bias_dir = 0,
                                   int slow_ema_handle = INVALID_HANDLE,
                                   bool use_price_touch = false,
-                                  int min_pb_bars = 0)
+                                  int min_pb_bars = 0,
+                                  int window = 0,
+                                  bool maxage_enabled = false)
    {
       // -- Baseline DIRECTION (refined, kept): sign of the EMA slope on the bar
       //    JUST BEFORE the lookback window, so an in-progress pullback cannot
@@ -1911,106 +1926,103 @@ private:
       if(MathAbs(baseline_pace) >= SEA_LAYER_SLOPE_EPSILON)
          ratio = MathAbs(current_pace) / MathAbs(baseline_pace);
 
-      // -- Pullback: weakened (ratio below threshold) OR flat OR (optional)
-      //    slope reversal vs the trend baseline.
-      bool is_weakened = (ratio < m_settings.LayerPullbackRatio);
-      bool is_flat     = (ratio < m_settings.LayerFlatRatio);
-      bool is_pullback = (is_weakened || is_flat);
-      if(m_settings.LayerAllowReversalPullback &&
-         (baseline_bullish != current_bullish) && (current_pace != 0.0))
-         is_pullback = true;
-
-      // -- S2 2026-07: Price-zone DETECTED gate (Oracle Trade Setups card: "price pulls
-      //    back to touch the EMA2/3/4" — flexibly; wick reaching lower portion of band).
-      //    zone_factor = 1 - LayerPullbackRatio (at 0.65: zone = lower 35% of EMA band).
-      //    Additive OR: fires independently of slope; does not replace slope detection.
-      //    Only evaluated when slope gates did not already set is_pullback, to avoid
-      //    redundant log noise. Requires slow_ema_handle to be supplied by caller.
-      bool s2_triggered = false;   // 2026-07: flag for same-bar one-candle completion
-      if(use_price_touch && !is_pullback && slow_ema_handle != INVALID_HANDLE)
+      // -- Path 2 (2026-07): POSITION (cross) invalidation. If the fast EMA has
+      //    crossed to the WRONG side of the slow EMA, the ribbon is no longer
+      //    "on the proper side" (Oracle) and THIS layer's setup is invalid.
+      //    Reset the state machine to NONE so a FRESH pullback→recovery cycle is
+      //    required once position is restored — and skip pullback/recovery
+      //    processing this bar. EvaluateL's read-only cascade (CheckLayerPairAlign)
+      //    independently walks to the next-deeper layer (W→M→S). Only applied when
+      //    bias is known and a slow handle was supplied.
+      if(bias_dir != 0 && slow_ema_handle != INVALID_HANDLE)
       {
-         double ema_slow_val = GetMAVal(slow_ema_handle, v_shift);
-         double ema_fast_val = GetMAVal(fast_ema_handle, v_shift);
-         if(ema_slow_val > 0.0 && ema_fast_val > 0.0)
+         double pos_fast = GetMAVal(fast_ema_handle, v_shift);
+         double pos_slow = GetMAVal(slow_ema_handle, v_shift);
+         if(pos_fast > 0.0 && pos_slow > 0.0)
          {
-            double zone_factor = 1.0 - m_settings.LayerPullbackRatio;  // e.g. 0.35 at ratio=0.65
-            bool   zone_touched;
-            if(baseline_bullish)
+            bool position_ok = (bias_dir > 0) ? (pos_fast > pos_slow) : (pos_fast < pos_slow);
+            if(!position_ok)
             {
-               // Bullish: EMA_fast > EMA_slow; price pulls back downward.
-               // Zone top = EMA_slow + zone_factor*(EMA_fast-EMA_slow).
-               // DETECTED when bar_low descends into or below zone_top.
-               double zone_top = ema_slow_val + zone_factor * (ema_fast_val - ema_slow_val);
-               zone_touched    = (iLow(m_symbol, PERIOD_CURRENT, v_shift) <= zone_top);
-            }
-            else
-            {
-               // Bearish: EMA_fast < EMA_slow; price pulls back upward.
-               // Zone bottom = EMA_slow - zone_factor*(EMA_slow-EMA_fast).
-               // DETECTED when bar_high rises into or above zone_bottom.
-               double zone_bot = ema_slow_val - zone_factor * (ema_slow_val - ema_fast_val);
-               zone_touched    = (iHigh(m_symbol, PERIOD_CURRENT, v_shift) >= zone_bot);
-            }
-            if(zone_touched)
-            {
-               is_pullback  = true;
-               s2_triggered = true;   // mark for potential same-bar completion below
-               if(m_settings.DebugFlow)
-                  DebugLog(StringFormat("[%s_PB] S2 price-zone DETECTED: ema_fast=%.5f ema_slow=%.5f zone_factor=%.2f",
-                                        label, ema_fast_val, ema_slow_val, zone_factor));
+               if(state != LAYER_PB_NONE && m_settings.DebugFlow)
+                  DebugLog(StringFormat("[%s_PB] CROSS invalidation: fast/slow crossed (position lost) -> reset to NONE",
+                                        label));
+               state       = LAYER_PB_NONE;
+               bars_det    = 0;
+               bars_rec    = 0;
+               // Mirror the NONE-branch VPRR invariant (external reset path).
+               vol_pb_avg  = 0.0; vol_pb_bars  = 0;
+               vol_rec_avg = 0.0; vol_rec_bars = 0;
+               vprr        = 0.0;
+               return;   // invalidated layer — no pullback/recovery this bar
             }
          }
       }
 
-      // -- Recovery condition (raw close vs fast EMA) — computed unconditionally so
-      //    it is available for both the normal DETECTED→RECOVERED gate below AND the
-      //    S2 same-bar one-candle completion path (wick touches zone, close recovers).
-      //    This is separate from the guarded is_recovery flag used by DETECTED→RECOVERED.
-      bool   recovery_cond = false;   // raw: close beyond fast EMA in bias direction
+      // -- Pullback (Path 2, 2026-07): DETECTED when the fast EMA's slope has
+      //    LEFT the trend — FLAT or REVERSED. A fast EMA still sloping in the
+      //    trend direction, merely at a shallower angle, is normal trend
+      //    breathing and is NOT a pullback: the old magnitude-ratio
+      //    'is_weakened' trigger is removed (it oscillated state and produced
+      //    noise entries). 'ratio' is still used for the flat test below.
+      bool is_flat     = (ratio < m_settings.LayerFlatRatio);
+      bool is_pullback = is_flat;
+      // Reversed: fast-EMA slope sign now OPPOSITE the trend. Anchored to the
+      // LIVE bias (bias_dir) when supplied — the pre-pullback baseline is only
+      // a fallback for bias-less (warmup) calls.
+      bool slope_reversed;
       if(bias_dir != 0)
-      {
-         double close_v_rc  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
-         double fast_ema_rc = GetMAVal(fast_ema_handle, v_shift);
-         if(fast_ema_rc > 0.0)
-            recovery_cond = (bias_dir > 0) ? (close_v_rc > fast_ema_rc) : (close_v_rc < fast_ema_rc);
-      }
+         slope_reversed = (current_pace != 0.0) && ((bias_dir > 0) != (current_pace > 0.0));
+      else
+         slope_reversed = (baseline_bullish != current_bullish) && (current_pace != 0.0);
+      if(m_settings.LayerAllowReversalPullback && slope_reversed)
+         is_pullback = true;
 
-      // -- Recovery (from DETECTED): the fast EMA's slope on the EVALUATED bar
-      //    (1-bar: EMA[v_shift] vs EMA[v_shift+1]) has resumed the pre-pullback
-      //    (baseline) direction. PURE SIGN — no k-bar averaging, no magnitude
-      //    ratio. This matches the documented intent of this function and fixes
-      //    two defects of the previous averaged/ratio test:
-      //      1) Lateness: the magnitude gate (ratio >= recovery_ratio) lagged the
-      //         actual slope-direction resume by ~1 bar.
-      //      2) False recovery: the k-bar averaged direction smeared a violent
-      //         counter-leg into the "current" reading, so a layer read as still
-      //         travelling in the bias direction even after the latest bar had
-      //         turned against it (e.g. a SHORT layer firing on a sharp V-bounce).
-      //    The k-bar averaged pace is still used for PULLBACK detection above,
-      //    where it was legitimately needed to stop slow EMAs reading as falsely
-      //    weakened — only the RECOVERY test is changed.
-      //    NOTE: recovery_ratio is no longer consulted for the recovery decision;
-      //    it is retained in the signature for ABI/back-compat and VPRR callers.
+      // -- Path 2 (2026-07): the S2 price-zone-touch DETECTED gate and the raw
+      //    close-vs-EMA recovery_cond have been REMOVED. The layer model is now
+      //    pure position+slope (see header) — price-vs-EMA is confirmed only at
+      //    the separate BC gate, never inside the pullback-recovery machine.
+      //    `use_price_touch` is retained in the signature for ABI/back-compat but
+      //    is inert (LayerPriceTouchEnabled defaults false).
+
+      // -- Recovery (from DETECTED) — Path 2 (2026-07): RECOVERED when BOTH of the
+      //    layer's EMA slopes (fast AND slow) point in bias_dir again — momentum
+      //    has resumed in the trade direction. PURE SLOPE vs the LIVE bias:
+      //      * NOT close-vs-EMA: the previous close-based test duplicated the
+      //        separate BC gate (recovery == BC). Recovery is now structurally
+      //        distinct from BC.
+      //      * NOT baseline_bullish: a baseline measured 'lookback' bars back
+      //        sits INSIDE the dip and points the WRONG way after a counter-trend
+      //        pullback, so a valid recovery could never confirm (the proven
+      //        DET-but-never-REC block). bias_dir (the live B-factor direction) is
+      //        the correct, un-contaminated reference.
+      //    Requiring the SLOW EMA slope too filters the single-bar V-bounce false
+      //    recovery: the slow EMA does not flip on one violent counter-bar.
+      //    recovery_ratio / recovery_cond are no longer consulted here (retained
+      //    in the signature for ABI/back-compat and VPRR callers).
       bool is_recovery = false;
       if(state == LAYER_PB_DETECTED)
       {
          if(bias_dir != 0)
          {
-            // SPEC-FAITHFUL recovery (RRM "Trade Setups" card): after the pullback,
-            // the candle CLOSES back beyond the layer's FAST EMA in the trade
-            // direction — LONG closes ABOVE the fast EMA, SHORT closes BELOW it.
-            // This is the method's actual entry trigger, and it is independent of
-            // the historical slope baseline. The old slope test gated recovery on
-            // baseline_bullish (the fast-EMA slope 'lookback' bars back); for an
-            // entry right after a counter-trend dip that window sits inside the dip
-            // and points the WRONG way, so a valid long-after-dip recovery could
-            // never confirm (the proven cause of DET-but-never-REC blocks).
-            is_recovery = recovery_cond;   // reuse pre-computed raw condition
+            // Fast EMA k-bar slope (== current_pace) resumed in bias_dir.
+            bool fast_in_bias = (current_pace != 0.0) &&
+                                ((bias_dir > 0) == (current_pace > 0.0));
+            // Slow EMA k-bar slope (same k window) in bias_dir.
+            bool slow_in_bias = true;   // defensive default if no slow handle
+            if(slow_ema_handle != INVALID_HANDLE)
+            {
+               double slow_now  = GetMAVal(slow_ema_handle, v_shift);
+               double slow_kago = GetMAVal(slow_ema_handle, v_shift + k);
+               double slow_pace = (slow_now - slow_kago) / (double)k;
+               slow_in_bias = (slow_pace != 0.0) &&
+                              ((bias_dir > 0) == (slow_pace > 0.0));
+            }
+            is_recovery = fast_in_bias && slow_in_bias;
          }
          else
          {
             // Back-compat fallback when no bias is supplied (bias_dir == 0):
-            // original 1-bar slope-sign test against the historical baseline.
+            // 1-bar slope-sign test against the historical baseline direction.
             double ema_rec_now  = GetMAVal(fast_ema_handle, v_shift);
             double ema_rec_prev = GetMAVal(fast_ema_handle, v_shift + 1);
             double rec_slope    = ema_rec_now - ema_rec_prev;
@@ -2026,7 +2038,13 @@ private:
       //    VPRR ratio so it never passes the I-factor vote. Requiring a true
       //    reversal keeps RECOVERED durable across normal consolidation, which
       //    both restores the pre-change trade frequency and lets VPRR measure.
-      bool is_relapse_reversal = (baseline_bullish != current_bullish) && (current_pace != 0.0);
+      // Anchored to bias_dir (matches the recovery/pullback reference); falls
+      // back to the pre-pullback baseline only for bias-less (warmup) calls.
+      bool is_relapse_reversal;
+      if(bias_dir != 0)
+         is_relapse_reversal = (current_pace != 0.0) && ((bias_dir > 0) != (current_pace > 0.0));
+      else
+         is_relapse_reversal = (baseline_bullish != current_bullish) && (current_pace != 0.0);
 
       // A21 2026-07: advance bars_det counter before transition logic.
       // Counts consecutive bars spent in DETECTED; resets to 0 when not in DETECTED.
@@ -2036,32 +2054,23 @@ private:
       else
          bars_det = 0;
 
+      // Path 2 2026-07: advance bars_rec (bars spent in RECOVERED) for the
+      // recovery max-age cap. Self-managed — zeroed whenever not RECOVERED, so
+      // an external reset to NONE clears it on the next bar without extra wiring.
+      if(state == LAYER_PB_RECOVERED)
+         bars_rec++;
+      else
+         bars_rec = 0;
+
       ELayerPullbackState prev_state = state;
       if(state == LAYER_PB_NONE && is_pullback)
       {
-         // 2026-07 S2 ONE-BAR COMPLETION: if S2 triggered DETECTED on this bar AND
-         // the same bar's close already satisfies the recovery condition (close beyond
-         // fast EMA in bias direction), the full pullback-recovery cycle is complete
-         // in one candle — a wick-rejection bar: wick touches EMA zone, body closes
-         // above (LONG) or below (SHORT) the fast EMA.
-         // Oracle Trade Checklist: "Enter at the close of the candle confirmed by
-         // all requirements." This candle IS confirmed — no extra delay needed.
-         // This bypasses A21 (min bars in DETECTED) intentionally: the wick is the
-         // pullback evidence, the close is the recovery — one complete Oracle candle.
-         if(s2_triggered && recovery_cond)
-         {
-            state    = LAYER_PB_RECOVERED;
-            bars_det = 1;
-            if(m_settings.DebugFlow)
-               DebugLog(StringFormat("[%s_PB] S2 ONE-BAR COMPLETE: NONE→RECOVERED "
-                                     "(wick touched zone + close recovered — Oracle wick-rejection candle)",
-                                     label));
-         }
-         else
-         {
-            state    = LAYER_PB_DETECTED;
-            bars_det = 1;   // first bar of a fresh DETECTED cycle
-         }
+         // Path 2 (2026-07): a fresh pullback always enters DETECTED. The former
+         // S2 one-bar NONE→RECOVERED shortcut (wick touch + same-bar close
+         // recovery) is REMOVED — a pullback→recovery cycle cannot complete in a
+         // single bar, and the A21 minimum-duration gate below is never bypassed.
+         state    = LAYER_PB_DETECTED;
+         bars_det = 1;   // first bar of a fresh DETECTED cycle
       }
       else if(state == LAYER_PB_DETECTED && is_recovery)
       {
@@ -2097,6 +2106,18 @@ private:
       {
          state    = LAYER_PB_DETECTED;
          bars_det = 1;   // first bar of a relapse DETECTED cycle
+      }
+      else if(state == LAYER_PB_RECOVERED && maxage_enabled && window > 0 && bars_rec >= window)
+      {
+         // Recovery max-age (Path 2): a RECOVERED layer that has waited longer than
+         // its observation window to fire is stale — expire to NONE so a fresh
+         // pullback→recovery cycle is required (prevents a chase-entry far from the
+         // recovery point). Relapse (counter-trend reversal) takes precedence via
+         // the branch above; this is the quiet-timeout fallback.
+         state = LAYER_PB_NONE;
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[%s_PB] RECOVERED expired by max-age: %d bars >= window %d -> NONE",
+                                  label, bars_rec, window));
       }
 
       if(m_settings.DebugFlow && state != prev_state)
@@ -2183,6 +2204,19 @@ private:
               (layer == 2) ? m_settings.LayerMinPullbackBars_M :
                              m_settings.LayerMinPullbackBars_S;
       return MathMax(0, v);
+   }
+
+   // Path 2 2026-07: per-layer pullback OBSERVATION WINDOW (bars). Per-layer value,
+   // else the global override, else a hard 21/34/55 default. Also the default
+   // recovery max-age cap.
+   int GetLayerWindow(int layer)
+   {
+      int w = (layer == 1) ? m_settings.LayerPullbackWindow_W :
+              (layer == 2) ? m_settings.LayerPullbackWindow_M :
+                             m_settings.LayerPullbackWindow_S;
+      if(w <= 0) w = m_settings.LayerPullbackWindow;               // global override
+      if(w <= 0) w = (layer == 1) ? 21 : (layer == 2) ? 34 : 55;  // hard default
+      return w;
    }
 
    //+------------------------------------------------------------------+
@@ -2362,20 +2396,20 @@ private:
                                 m_layer_w_pb_state, m_layer_w_baseline, "LayerW",
                                 m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
                                 m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr,
-                                m_layer_w_bars_det, bias_dir,
-                                h_ema2, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(1));
+                                m_layer_w_bars_det, m_layer_w_bars_rec, bias_dir,
+                                h_ema2, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(1), GetLayerWindow(1), m_settings.LayerRecoveryMaxAgeEnabled);
       UpdateSingleLayerPullback(h_ema2, v_shift, GetLayerLookback(2), GetLayerRecovery(2),
                                 m_layer_m_pb_state, m_layer_m_baseline, "LayerM",
                                 m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                 m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr,
-                                m_layer_m_bars_det, bias_dir,
-                                h_ema3, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(2));
+                                m_layer_m_bars_det, m_layer_m_bars_rec, bias_dir,
+                                h_ema3, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(2), GetLayerWindow(2), m_settings.LayerRecoveryMaxAgeEnabled);
       UpdateSingleLayerPullback(h_ema3, v_shift, GetLayerLookback(3), GetLayerRecovery(3),
                                 m_layer_s_pb_state, m_layer_s_baseline, "LayerS",
                                 m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                 m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr,
-                                m_layer_s_bars_det, bias_dir,
-                                h_ema4, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(3));
+                                m_layer_s_bars_det, m_layer_s_bars_rec, bias_dir,
+                                h_ema4, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(3), GetLayerWindow(3), m_settings.LayerRecoveryMaxAgeEnabled);
 
       UpdateCBOverExtCarry(v_shift);
    }
@@ -4822,6 +4856,7 @@ public:
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
       m_bars_since_uno_exit   = 999999;   // sentinel — counts non-UNO bars since last UNO
+      m_uno_run               = 0;        // no UNO run in progress at (re)init
       m_cb_oeb_blocked  = false;
       m_cb_prev_any_rec = false;
       // Session-once flag for DPI cold-start first-entry grant. Set here in
@@ -5896,6 +5931,7 @@ public:
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
       m_bars_since_uno_exit   = 999999;   // sentinel — counts non-UNO bars since last UNO
+      m_uno_run               = 0;        // no UNO run in progress at (re)init
       m_cb_oeb_blocked  = false;
       m_cb_prev_any_rec = false;
       m_layer_w_vol_pb_avg = 0.0; m_layer_w_vol_pb_bars = 0;
@@ -5938,29 +5974,37 @@ public:
          // Compute this bar's bias the same way live evaluation does.
          int b_wu = EvaluateB(shift);
 
-         // ── B==0 (UNO/NEUTRAL) SOFT-reset path ─────────────────────────
-         // Mirror the EvaluateTS rule: on neutral bars only the layer
-         // pullback states are cleared; baselines / VPRR / DPI / CB carry
-         // are preserved, and m_last_dir_state_bias is NOT touched (so a
-         // brief UNO bar between two same-direction TM/EM bars doesn't
-         // count as a direction flip).
+         // ── B==0 (UNO/NEUTRAL) path — Path 2 UNO tolerance ─────────────
+         // Mirror the live EvaluateTS dispatch: a transient UNO flicker that
+         // resolves back to the same direction within UNO_ToleranceBars is
+         // tolerated (layer states preserved). Only sustained UNO beyond
+         // tolerance clears the layer pullback states; baselines / VPRR / DPI /
+         // CB carry and m_last_dir_state_bias are preserved throughout, so a
+         // brief UNO bar between two same-direction bars is not a flip.
          if(b_wu == 0)
          {
-            m_layer_w_pb_state = LAYER_PB_NONE;
-            m_layer_m_pb_state = LAYER_PB_NONE;
-            m_layer_s_pb_state = LAYER_PB_NONE;
-            m_layer_w_bars_det = 0;   // A21 2026-07
-            m_layer_m_bars_det = 0;   // A21 2026-07
-            m_layer_s_bars_det = 0;   // A21 2026-07
+            m_uno_run++;
+            if(m_uno_run > m_settings.UNO_ToleranceBars)
+            {
+               m_layer_w_pb_state = LAYER_PB_NONE;
+               m_layer_m_pb_state = LAYER_PB_NONE;
+               m_layer_s_pb_state = LAYER_PB_NONE;
+               m_layer_w_bars_det = 0;   // A21 2026-07
+               m_layer_m_bars_det = 0;   // A21 2026-07
+               m_layer_s_bars_det = 0;   // A21 2026-07
+            }
+            // else: within tolerance — preserve layer states.
             m_layer_pb_last_update = bar_time;
             last_processed_shift = shift;
             continue;
          }
+         // Non-UNO bar — end any UNO run.
+         m_uno_run = 0;
 
          // ── Directional symmetry: real LONG↔SHORT flips wipe state ────
-         // Same logic as UpdateLayerPullbackStates lines 1766–1773. Without
-         // this, SHORT-direction pullback state accumulated under the prior
-         // downtrend would leak into the new uptrend (and vice versa).
+         // Same logic as UpdateLayerPullbackStates. Without this, SHORT-
+         // direction pullback state accumulated under the prior downtrend
+         // would leak into the new uptrend (and vice versa).
          if(b_wu != m_last_dir_state_bias)
          {
             // Don't wipe on the initial sentinel→bias transition — that
@@ -5983,20 +6027,20 @@ public:
                                    m_layer_w_pb_state, m_layer_w_baseline, "LayerW_WU",
                                    m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
                                    m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars,
-                                   m_layer_w_vprr, m_layer_w_bars_det, b_wu,
-                                   h_ema2, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(1));
+                                   m_layer_w_vprr, m_layer_w_bars_det, m_layer_w_bars_rec, b_wu,
+                                   h_ema2, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(1), GetLayerWindow(1), m_settings.LayerRecoveryMaxAgeEnabled);
          UpdateSingleLayerPullback(h_ema2, shift, lb_m, GetLayerRecovery(2),
                                    m_layer_m_pb_state, m_layer_m_baseline, "LayerM_WU",
                                    m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                    m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars,
-                                   m_layer_m_vprr, m_layer_m_bars_det, b_wu,
-                                   h_ema3, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(2));
+                                   m_layer_m_vprr, m_layer_m_bars_det, m_layer_m_bars_rec, b_wu,
+                                   h_ema3, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(2), GetLayerWindow(2), m_settings.LayerRecoveryMaxAgeEnabled);
          UpdateSingleLayerPullback(h_ema3, shift, lb_s, GetLayerRecovery(3),
                                    m_layer_s_pb_state, m_layer_s_baseline, "LayerS_WU",
                                    m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                    m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars,
-                                   m_layer_s_vprr, m_layer_s_bars_det, b_wu,
-                                   h_ema4, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(3));
+                                   m_layer_s_vprr, m_layer_s_bars_det, m_layer_s_bars_rec, b_wu,
+                                   h_ema4, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(3), GetLayerWindow(3), m_settings.LayerRecoveryMaxAgeEnabled);
 
          UpdateCBOverExtCarry(shift);
 
@@ -6116,6 +6160,7 @@ public:
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
       m_bars_since_uno_exit   = 999999;   // sentinel — counts non-UNO bars since last UNO
+      m_uno_run               = 0;        // no UNO run in progress at (re)init
       m_cb_oeb_blocked  = false;
       m_cb_prev_any_rec = false;
       m_last_dir_state_bias = 999;   // re-arm directional symmetry reset
@@ -8174,30 +8219,43 @@ public:
       {
          if(B != 0)
          {
-            // Non-UNO bar — accumulate cooldown bars (only meaningful when
-            // m_settings.MinBarsAfterUNOExit > 0; otherwise the counter still
-            // increments but is never checked). Cap at a large value to avoid
-            // overflow on long live sessions.
+            // Non-UNO bar — end any UNO run and accumulate cooldown bars (only
+            // meaningful when MinBarsAfterUNOExit > 0). A same-direction return
+            // does NOT reset layer state: m_last_dir_state_bias was preserved
+            // through the tolerated flicker, so the guard inside
+            // UpdateLayerPullbackStates does not fire ResetDirectionalState.
+            // A genuine flip (B differs from the preserved direction) DOES fire
+            // it there — correct.
+            m_uno_run = 0;
             if(m_bars_since_uno_exit < 1000000) m_bars_since_uno_exit++;
             UpdateLayerPullbackStates(v_shift, B);
          }
          else
          {
-            // UNO bar — reset cooldown to 0. Any DETECTED→RECOVERED transition
-            // on the next non-UNO bars will be held back until MinBarsAfterUNOExit
-            // bars accumulate.
-            m_bars_since_uno_exit = 0;
-            // Soft reset only — same effect as SignalScan's idle-engine branch.
-            // Baselines, VPRR buffers, DPI reset state, CB carry, and
-            // m_last_dir_state_bias are intentionally PRESERVED so the next
-            // bar with B != 0 resumes the same direction's state machine
-            // without re-triggering ResetDirectionalState().
-            m_layer_w_pb_state = LAYER_PB_NONE;
-            m_layer_m_pb_state = LAYER_PB_NONE;
-            m_layer_s_pb_state = LAYER_PB_NONE;
-            m_layer_w_bars_det = 0;   // A21 2026-07
-            m_layer_m_bars_det = 0;   // A21 2026-07
-            m_layer_s_bars_det = 0;   // A21 2026-07
+            // UNO bar. Path 2 (2026-07): tolerate a transient UNO flicker.
+            m_uno_run++;
+            if(m_uno_run <= m_settings.UNO_ToleranceBars)
+            {
+               // Within tolerance — PRESERVE layer states so a brief UNO that
+               // resolves back to the SAME direction does not erase an
+               // in-progress DETECTED / RECOVERED. Do not advance the machine
+               // (bias absent), do not touch m_last_dir_state_bias, and do not
+               // arm the UNO-exit cooldown for a mere flicker.
+            }
+            else
+            {
+               // Sustained UNO beyond tolerance — the prior trend is gone. Soft
+               // reset layer states (baselines, VPRR, DPI reset, CB carry, and
+               // m_last_dir_state_bias are still preserved) and arm the
+               // UNO-exit cooldown.
+               m_bars_since_uno_exit = 0;
+               m_layer_w_pb_state = LAYER_PB_NONE;
+               m_layer_m_pb_state = LAYER_PB_NONE;
+               m_layer_s_pb_state = LAYER_PB_NONE;
+               m_layer_w_bars_det = 0;   // A21 2026-07
+               m_layer_m_bars_det = 0;   // A21 2026-07
+               m_layer_s_bars_det = 0;   // A21 2026-07
+            }
          }
       }
       

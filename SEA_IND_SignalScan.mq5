@@ -310,6 +310,14 @@ string g_sync_diag     = "(sync disabled)";
 CSignalEngine  g_eng_long;
 CSignalEngine  g_eng_short;
 
+// Path 2 (2026-07): UNO-flicker tolerance for the two-engine idle-reset below.
+// g_uno_run counts consecutive UNO (bias-absent) bars during a chronological
+// scan; a run within g_uno_tol PRESERVES both engines' layer states so a brief
+// UNO flicker does not erase an in-progress DETECTED/RECOVERED. g_uno_tol is
+// synced from ST_Settings.UNO_ToleranceBars in OnInit.
+int  g_uno_run = 0;
+int  g_uno_tol = 2;
+
 //+------------------------------------------------------------------+
 //| Scn_AddInd — add one indicator handle to the chart (add-only).   |
 //| INVALID_HANDLE is silently skipped; failures are logged.         |
@@ -523,6 +531,8 @@ int OnInit()
       g_sync_diag   = "(sync disabled)";
    }
 
+   g_uno_tol = s.UNO_ToleranceBars;   // Path 2: UNO-flicker tolerance for ScanBar
+
    bool ok_l = true, ok_s = true;
    if(MarketBias != SBIAS_SHORT) ok_l = g_eng_long.Init(s, _Symbol);
    if(MarketBias != SBIAS_LONG)  ok_s = g_eng_short.Init(s, _Symbol);
@@ -729,6 +739,7 @@ void RunFullScan()
 
    g_insp_valid = false;   // re-prove on this scan; stays false if the marked bar is outside the window
    ClearLines();
+   g_uno_run = 0;          // Path 2: fresh UNO-run count for this chronological scan
    g_sig_long = 0; g_sig_short = 0;
    g_sig_long_s = 0; g_sig_long_m = 0; g_sig_long_w = 0;
    g_sig_short_s = 0; g_sig_short_m = 0; g_sig_short_w = 0;
@@ -880,18 +891,35 @@ void ScanBar(int shift)
       g_eng_short.Scanner_UpdatePSARFlip(shift);
    }
 
-   // Layer pullback state: update only the engine matching current or last-known bias.
-   // During bias-absent bars (transitional), update neither engine to prevent
-   // cross-contamination of state between LONG and SHORT engines.
+   // Layer pullback state (two-engine model). An engine idle because the OTHER
+   // direction is active is reset every bar (correct isolation). An engine idle
+   // because the bar is UNO (bias absent) is NOT reset on a transient flicker:
+   // Path 2 (2026-07) tolerates up to g_uno_tol consecutive UNO bars, preserving
+   // both engines' DETECTED/RECOVERED so a brief UNO that resolves back to the
+   // same direction does not erase an in-progress cycle. This mirrors the EA's
+   // UNO_ToleranceBars behaviour so scanner and live stay identical.
    if(TS_LayerS || TS_LayerM || TS_LayerW)
    {
-      if(doL) g_eng_long.Scanner_UpdateLayerPullback(shift, +1);
-      if(doS) g_eng_short.Scanner_UpdateLayerPullback(shift, -1);
-      // When bias is absent: reset ALL layer states (DETECTED and RECOVERED) for the idle engine.
-      // This prevents DETECTED state accumulated under the wrong bias from transitioning
-      // to RECOVERED and firing the moment bias returns.
-      if(!doL) { g_eng_long.Scanner_ResetLayerAfterFire(1); g_eng_long.Scanner_ResetLayerAfterFire(2); g_eng_long.Scanner_ResetLayerAfterFire(3); }
-      if(!doS) { g_eng_short.Scanner_ResetLayerAfterFire(1); g_eng_short.Scanner_ResetLayerAfterFire(2); g_eng_short.Scanner_ResetLayerAfterFire(3); }
+      bool uno_bar = (!doL && !doS);
+      if(uno_bar)
+      {
+         g_uno_run++;
+         if(g_uno_run > g_uno_tol)
+         {
+            g_eng_long.Scanner_ResetLayerAfterFire(1);  g_eng_long.Scanner_ResetLayerAfterFire(2);  g_eng_long.Scanner_ResetLayerAfterFire(3);
+            g_eng_short.Scanner_ResetLayerAfterFire(1); g_eng_short.Scanner_ResetLayerAfterFire(2); g_eng_short.Scanner_ResetLayerAfterFire(3);
+         }
+         // else within tolerance — preserve both engines' layer states.
+      }
+      else
+      {
+         g_uno_run = 0;
+         if(doL) g_eng_long.Scanner_UpdateLayerPullback(shift, +1);
+         if(doS) g_eng_short.Scanner_UpdateLayerPullback(shift, -1);
+         // Reset the engine whose direction is NOT active this bar (idle isolation).
+         if(!doL) { g_eng_long.Scanner_ResetLayerAfterFire(1);  g_eng_long.Scanner_ResetLayerAfterFire(2);  g_eng_long.Scanner_ResetLayerAfterFire(3); }
+         if(!doS) { g_eng_short.Scanner_ResetLayerAfterFire(1); g_eng_short.Scanner_ResetLayerAfterFire(2); g_eng_short.Scanner_ResetLayerAfterFire(3); }
+      }
    }
 
    // Inspector capture BEFORE Eval: a fire inside Eval calls ResetLayerAfterFire,
@@ -994,6 +1022,7 @@ void BuildSettings(ST_Settings &s)
 
    // Pullback
    s.LayerPullbackEnabled  = (TS_LayerS || TS_LayerM || TS_LayerW);
+   s.UNO_ToleranceBars     = 2;   // Path 2: matches EA default; EA snapshot overlays when Scn_Sync_With_EA=true
    s.LayerS_RequireDirAlign = TS_LayerS_Require_DirAlign;
    s.LayerResetOnRealign = TS_LayerReset_OnRealign;
    s.LayerResetPhaseConfirmBars = TS_LayerReset_PhaseConfirm;

@@ -138,6 +138,12 @@ bool SEA_WriteConfigSnapshot(const ST_Settings &cfg)
    FileWriteString(h, "LayerS_RequireDirAlign=" + (cfg.LayerS_RequireDirAlign ? "true" : "false") + "\n");
    FileWriteString(h, "LayerS_TMOnly=" + (cfg.LayerS_TMOnly ? "true" : "false") + "\n");
    FileWriteString(h, "MinBarsAfterUNOExit=" + IntegerToString(cfg.MinBarsAfterUNOExit) + "\n");
+   FileWriteString(h, "UNO_ToleranceBars=" + IntegerToString(cfg.UNO_ToleranceBars) + "\n");
+   FileWriteString(h, "LayerPullbackWindow_W=" + IntegerToString(cfg.LayerPullbackWindow_W) + "\n");
+   FileWriteString(h, "LayerPullbackWindow_M=" + IntegerToString(cfg.LayerPullbackWindow_M) + "\n");
+   FileWriteString(h, "LayerPullbackWindow_S=" + IntegerToString(cfg.LayerPullbackWindow_S) + "\n");
+   FileWriteString(h, "LayerPullbackWindow=" + IntegerToString(cfg.LayerPullbackWindow) + "\n");
+   FileWriteString(h, "LayerRecoveryMaxAgeEnabled=" + (cfg.LayerRecoveryMaxAgeEnabled ? "true" : "false") + "\n");
    FileWriteString(h, "# -- 05 BarClose (bc factor) --\n");
    FileWriteString(h, "BarClose_DefaultEMA=" + IntegerToString((int)cfg.BarClose_DefaultEMA) + "\n");
    FileWriteString(h, "BarClose_Enabled=" + (cfg.BarClose_Enabled ? "true" : "false") + "\n");
@@ -450,6 +456,12 @@ bool SEA_CS_ApplyKey(ST_Settings &s, const string key, const string val)
    if(key == "MacdVoteMode") { s.MacdVoteMode = (EMacdVoteMode)(int)StringToInteger(val); return true; }
    if(key == "ManSide") { s.ManSide = (EManualSide)(int)StringToInteger(val); return true; }
    if(key == "MinBarsAfterUNOExit") { s.MinBarsAfterUNOExit = (int)StringToInteger(val); return true; }
+   if(key == "UNO_ToleranceBars") { s.UNO_ToleranceBars = (int)StringToInteger(val); return true; }
+   if(key == "LayerPullbackWindow_W") { s.LayerPullbackWindow_W = (int)StringToInteger(val); return true; }
+   if(key == "LayerPullbackWindow_M") { s.LayerPullbackWindow_M = (int)StringToInteger(val); return true; }
+   if(key == "LayerPullbackWindow_S") { s.LayerPullbackWindow_S = (int)StringToInteger(val); return true; }
+   if(key == "LayerPullbackWindow") { s.LayerPullbackWindow = (int)StringToInteger(val); return true; }
+   if(key == "LayerRecoveryMaxAgeEnabled") { s.LayerRecoveryMaxAgeEnabled = SEA_CS_ParseBool(val); return true; }
    if(key == "MinBarsAfterWeekendGap") { s.MinBarsAfterWeekendGap = (int)StringToInteger(val); return true; }
    if(key == "MinPhaseConfirmBars") { s.MinPhaseConfirmBars = (int)StringToInteger(val); return true; }
    if(key == "PSAR_FlipGraceBars") { s.PSAR_FlipGraceBars = (int)StringToInteger(val); return true; }

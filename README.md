@@ -79,24 +79,31 @@ Priority walk: **L3 → L2 → L1**. First layer passing all checks wins. The ac
 
 1. **Position** — fast EMA is on the correct side of slow EMA (EMA1 > EMA2 for LONG, EMA1 < EMA2 for SHORT). Structural alignment.
 
-2. **Pullback state** — before allowing an entry, each layer must have completed a full pullback-recovery cycle. Each layer runs an independent state machine:
+2. **Pullback state** — before allowing an entry, each layer must have completed a full pullback→recovery cycle, defined **purely by the position and slope of the layer's two EMAs** (no price-vs-EMA test — see the encoding note below). Each layer runs an independent state machine:
    - `LAYER_PB_NONE` → no pullback seen yet → **entry blocked** (must earn a pullback first)
    - `LAYER_PB_DETECTED` → pullback in progress → **entry blocked**
-   - `LAYER_PB_RECOVERED` → pullback completed and trend resumed → **entry allowed**
+   - `LAYER_PB_RECOVERED` → the fast EMA's slope has resumed the trend → **entry allowed**
 
-   **DETECTED fires when any of these is true (OR logic):**
-   - **Slope weakened:** `|current pace| / |baseline pace| < LayerPullbackRatio` (default 0.65) — EMA decelerated below 65% of its normal speed
-   - **Slope flat:** ratio `< LayerFlatRatio` (default 0.1)
-   - **Slope reversed:** EMA direction flipped vs baseline (`LayerAllowReversalPullback=true`) — catches shallow pullbacks where EMA barely decelerates
-   - **Price-zone touch (S2):** bar wick enters the lower portion of the EMA band — `bar_low ≤ EMA_slow + zone_factor × (EMA_fast − EMA_slow)` for LONG, mirrored for SHORT; `zone_factor = 1 − LayerPullbackRatio` (at 0.65 → zone = lower 35% of band). Oracle citation: Trade Setups card — *"price pulls back to touch the EMA2"* (flexible). Controlled by `LayerPriceTouchEnabled` (default true).
+   All slope tests are taken against **`bias_dir`** (the live B-factor direction), never a historical baseline: a baseline measured inside the dip points the wrong way and can strand a layer in DETECTED.
 
-   **Minimum duration gate (A21):** once DETECTED fires, the layer must remain in DETECTED for at least `LayerMinPullbackBars_W/M/S` bars (defaults: W=2, M=2, S=1) before RECOVERED is allowed. Prevents 1-bar spike entries — Oracle examples show pullbacks lasting 2–8 bars before recovery.
+   **DETECTED fires when the fast EMA's slope *leaves* the trend — flat OR reversed (OR logic):**
+   - **Slope flat:** `|slope| ≈ 0` within `LayerFlatRatio` (default 0.1) — the fast EMA has stopped advancing. Tolerant edge: catches shallow pullbacks early.
+   - **Slope reversed:** the fast-EMA slope sign is now opposite `bias_dir` (`LayerAllowReversalPullback=true`) — the fast EMA is rolling over toward the slow EMA. Conservative, unambiguous case — the picture the setup cards draw.
+   - A fast EMA still sloping in `bias_dir`, merely at a shallower angle, is **normal trend breathing and is NOT a pullback**. (The old magnitude-ratio "weakened" trigger is removed — it caused state oscillation and noise entries.)
 
-   **RECOVERED fires when:** close is beyond the fast EMA in the trade direction (close > EMA_fast for LONG, close < EMA_fast for SHORT) — and the minimum bar count has been met.
+   **Minimum duration gate (A21):** once DETECTED fires, the layer must stay in DETECTED for at least `LayerMinPullbackBars_W/M/S` bars (default 2/2/2) before RECOVERED is allowed. **A pullback cannot complete in one bar.**
 
-   **Baseline pace** = average per-bar EMA slope over `LayerBaselineLookback_W/M/S` bars (default 13/21/34). **Current pace** = slope over the last `k = max(2, lookback/4)` bars. Averaging prevents slow EMAs (EMA34, EMA89) from reading as falsely "weakened" on normal trending bars.
+   **RECOVERED fires when** both of the layer's EMA slopes (fast **and** slow) point in `bias_dir` again — the trend has resumed — and the minimum bar count has been met. This is slope-only; it is **not** a close-vs-EMA test (that is the separate BC gate below), so it is no longer a duplicate of BC.
+
+   **Recovery validity:** a RECOVERED layer stays entry-eligible until either (a) a TS=1 signal is consumed on it → state resets to NONE (a fresh cycle is then required), or (b) a genuine counter-`bias_dir` slope reversal relapses it to DETECTED. Mere one-bar weakening does **not** relapse it, so RECOVERED holds across normal trend fluctuation while the TS gates (DPI/PSAR/BC) line up. An optional cap `LayerRecoveryMaxAge` (default = the per-layer observation window) expires a RECOVERED state that has waited too long to fire, preventing a stale chase-entry.
+
+   **Cross invalidates the layer.** If the fast EMA crosses the slow EMA (position lost — Oracle: the ribbon *"stays on the proper side"*), that layer's setup is invalidated: its PB state resets and the walk cascades to the next-deeper layer (W→M→S).
+
+   **Windows (two, distinct, per-layer, user-editable):** **baseline slope lookback** `LayerBaselineLookback_W/M/S` (default 13/21/34) sets the slope-measurement span; **pullback observation window** `LayerPullbackWindow_W/M/S` (default 21/34/55) bounds how long a cycle is tracked. Both fall back to their globals. Current pace is the slope over the last `k = max(2, lookback/4)` bars; averaging prevents slow EMAs (34/89) from misreading normal trending bars.
 
    Each layer is independent: its state resets to NONE after a TS=1 signal is consumed on that layer. Layers can be enabled/disabled independently via `AllowLayer{1,2,3}_Entries`.
+
+   > **Encoding note — why slope, not price.** The Oracle setup cards and reports describe the setup for a *human reading price off a chart* ("price pulls back to touch the slow EMA, then closes past the fast EMA"). An EA cannot read price action; it reads deterministic series. The layer model therefore encodes the **same** setup as the position + slope of the layer's EMAs — which is exactly what the setup-card *diagrams* draw (sloped, stacked EMAs). This is an intentional, faithful translation of the Oracle intent into machine-deterministic terms, **not** a departure from it. The price-action confirmation still lives in the pipeline, at the separate **BC** gate (close past the fast EMA) and the **BD** gate.
 
 3. **BC (Bar Close)** — signal bar close is beyond the fast EMA in bias direction (close > EMA1 for L1 LONG, close > EMA2 for L2 LONG, close > EMA3 for L3 LONG). Checks closing price level, not wicks or body.
 

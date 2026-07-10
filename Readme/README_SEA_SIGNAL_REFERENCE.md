@@ -88,15 +88,17 @@ Each layer runs two independent checks. Both must pass.
 - `LAYER_PB_DETECTED` — pullback in progress → **blocked**
 - `LAYER_PB_RECOVERED` — pullback completed, trend resumed → **allowed**
 
-**DETECTED triggers (OR logic — any one fires):**
-- Slope weakened: `|current_pace| / |baseline_pace| < LayerPullbackRatio` (default 0.65)
-- Slope flat: ratio `< LayerFlatRatio` (default 0.1)
-- Slope reversed: EMA direction flipped vs baseline (`LayerAllowReversalPullback=true` — catches shallow M1/M5 pullbacks where EMA barely decelerates)
-- **Price-zone touch (S2):** wick enters lower portion of EMA band — `bar_low ≤ EMA_slow + zone_factor × (EMA_fast − EMA_slow)` for LONG, mirrored for SHORT; `zone_factor = 1 − LayerPullbackRatio`. Oracle: *"price pulls back to touch EMA2"* (flexible). Toggle: `LayerPriceTouchEnabled` (default true).
+All slope tests are taken against **`bias_dir`** (the live B-factor direction), not a historical baseline — a baseline measured inside the dip points the wrong way and can strand a layer in DETECTED.
 
-**Minimum duration gate (A21):** DETECTED must persist for at least `LayerMinPullbackBars_W/M/S` bars (defaults: W=2, M=2, S=1) before RECOVERED is allowed. Prevents 1-bar spike entries.
+**DETECTED triggers — the fast EMA's slope *leaves* the trend (flat OR reversed):**
+- Slope flat: `|slope| ≈ 0` within `LayerFlatRatio` (default 0.1) — fast EMA has stopped advancing (tolerant edge).
+- Slope reversed: fast-EMA slope sign now opposite `bias_dir` (`LayerAllowReversalPullback=true`) — fast EMA rolling over toward the slow EMA (conservative case).
+- A fast EMA still sloping in `bias_dir` at a shallower angle is normal trend breathing — **not** a pullback. (The magnitude-ratio "weakened" trigger is removed.)
+- Price-zone touch is a **price** test, not slope; it is excluded from this model and `LayerPriceTouchEnabled` defaults **false**.
 
-**RECOVERED triggers:** close beyond the fast EMA in trade direction (close > EMA_fast LONG, close < EMA_fast SHORT) — after the minimum bar count is satisfied.
+**Minimum duration gate (A21):** DETECTED must persist for at least `LayerMinPullbackBars_W/M/S` bars (default 2/2/2) before RECOVERED is allowed. A pullback cannot complete in one bar.
+
+**RECOVERED triggers:** both of the layer's EMA slopes (fast **and** slow) point in `bias_dir` again — after the minimum bar count is satisfied. Slope-only; **not** a close-vs-EMA test (that is the separate BC gate), so no longer a duplicate of BC. RECOVERED holds until a counter-`bias_dir` slope reversal relapses it to DETECTED or a TS=1 signal consumes it; optional `LayerRecoveryMaxAge` cap (default = observation window) expires a stale RECOVERED.
 
 Each layer's state is reset to NONE after a TS=1 signal consumes it, requiring a fresh pullback-recovery before the next entry on that layer.
 

@@ -2108,6 +2108,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // completion immediately after a phase transitions out of UNO when EMA1/EMA2
       // geometry is still dominated by UNO-period price action.
       cfg.MinBarsAfterUNOExit         = MathMax(0, Inp_RRM_ORG_MinBarsAfterUNOExit);
+      cfg.UNO_ToleranceBars           = MathMax(0, Inp_RRM_ORG_UNO_ToleranceBars);
+      cfg.LayerPullbackWindow_W       = MathMax(0, Inp_RRM_ORG_LayerPullbackWindow_W);
+      cfg.LayerPullbackWindow_M       = MathMax(0, Inp_RRM_ORG_LayerPullbackWindow_M);
+      cfg.LayerPullbackWindow_S       = MathMax(0, Inp_RRM_ORG_LayerPullbackWindow_S);
+      cfg.LayerPullbackWindow         = MathMax(0, Inp_RRM_ORG_LayerPullbackWindow);
+      cfg.LayerRecoveryMaxAgeEnabled  = Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled;
       // Theme 2026-06 (LayerS=TM-only): canonical RRM Trade Setups card restricts
       // Strong (LayerS) trades to "during the Trending Phase" only. In Emerging the
       // EMA3/EMA4 pair is oriented opposite to bias (e.g. EM_DN has EMA3>EMA4 while a

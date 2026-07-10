@@ -151,11 +151,14 @@ C: no hallucinations · verify feature not already implemented · update README 
 | Trade execution | shift=0 (open bar) — execution conditions only, no signal re-evaluation |
 | PSAR parameters | Step=0.05, Max=0.5 (intentional RRM-ORG) — chart PSAR must use same values |
 | PSAR vote | Dot position at shift=1 only (−1 persistent). Counter-flip clears record immediately. |
-| Cascade | EMA1<EMA2 → LayerW blocked → LayerM. EMA2<EMA3 → LayerM blocked → LayerS. |
+| Cascade | EMA1<EMA2 → LayerW invalidated → LayerM. EMA2<EMA3 → LayerM invalidated → LayerS. A fast-vs-slow cross invalidates that layer (position lost) and resets its PB state. |
 | EM phase | W and M allowed. S always blocked (`Emerging_AllowStrongTrades=false`). |
 | Session filter | Global `Inp_Session_*` — London/NY on by default. Not preset-owned. |
-| S2 one-bar | Wick touches EMA zone + close recovers = NONE→RECOVERED in one candle. A21 bypassed. |
-| A21 | MinPullbackBars W=1 M=1 S=1. Slope-path only. S2 path bypasses. |
+| Pullback (DETECTED) | Slope-only, vs `bias_dir`: flat (`LayerFlatRatio`) OR reversed (`LayerAllowReversalPullback`). Weakened-but-still-in-trend is NOT a pullback. Price-touch is OFF (`LayerPriceTouchEnabled=false`). |
+| Recovery (RECOVERED) | Slope-only: fast AND slow layer-EMA slopes back in `bias_dir`. Not a close-vs-EMA test (that is BC). No one-bar recovery. Valid until relapse (counter-`bias_dir` reversal) or TS=1 consumption; optional `LayerRecoveryMaxAge` cap (default = observation window). |
+| A21 | `LayerMinPullbackBars` W=2 M=2 S=2. A pullback cannot complete in one bar. |
+| Windows | Baseline slope lookback `LayerBaselineLookback_W/M/S` = 13/21/34. Pullback observation window `LayerPullbackWindow_W/M/S` = 21/34/55. Both user-editable (+ global fallback). |
+| UNO reset | Transient same-direction UNO tolerated up to `UNO_ToleranceBars` (=2) — DETECTED/RECOVERED preserved. Reset on sustained UNO, bias flip, or confirmed phase change. |
 | SL | SWING mode, lookback=34 (search window, not exact bar). |
 | RR | 2.5 — PSAR trail starts only after BE. |
 | LayerS_RequireDirAlign | false — prevents spurious block of LayerW/M during EM pullbacks. |
