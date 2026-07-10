@@ -9,7 +9,6 @@
 //| Settings must match EA inputs manually:                           |
 //|   Inp_MinRatio      = Inp_RRM_ORG_VPRR_MinRatio                  |
 //|   Inp_RecoveryBars  = Inp_RRM_ORG_VPRR_RecoveryBars              |
-//|   Inp_PullbackRatio = Inp_RRM_ORG_LayerPullbackRatio (global)    |
 //|   Inp_RecoveryRatio = Inp_RRM_ORG_LayerRecoveryRatio (global)    |
 //|                                                                    |
 //| Colour key:                                                        |

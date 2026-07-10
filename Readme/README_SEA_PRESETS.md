@@ -387,12 +387,12 @@ Each of the three EMA pairs runs an **independent** state machine: `NONE → DET
 
 **Cascade rule:** `EvaluateL` checks LayerS first, then M, then W. The first layer in RECOVERED state with positional alignment wins. When EMA5 crosses below EMA13 (LayerW position fails), LayerM evaluates. When EMA13 also crosses below EMA34, LayerS evaluates (TM only).
 
-**DETECTED triggers (any one fires):**
+**DETECTED triggers (slope-only, either one fires):**
 
-1. **Slope weakened**: `|current_pace| / |baseline_pace| < LayerPBPullbackRatio` (default 0.65)
-2. **Slope flat**: ratio `< LayerFlatRatio` (default 0.1)
-3. **Slope reversed**: EMA direction flipped vs baseline (`LayerAllowReversalPullback = true`)
-4. **S2 price-zone touch**: bar wick enters lower portion of EMA band — `bar_low ≤ EMA_slow + (1−PullbackRatio) × (EMA_fast − EMA_slow)` for LONG. Oracle Trade Setups: *"price pulls back to touch the EMA2."* Toggle: `LayerPriceTouchEnabled` (default true).
+1. **Slope flat**: ratio `< LayerFlatRatio` (default 0.1) — the fast EMA has stopped advancing.
+2. **Slope reversed**: fast-EMA slope sign now opposite `bias_dir` (`LayerAllowReversalPullback = true`) — the fast EMA is rolling over toward the slow EMA.
+
+The old magnitude-ratio **"slope weakened"** trigger (`LayerPullbackRatio`) has been **removed** — a fast EMA still sloping in `bias_dir`, merely at a shallower angle, is normal trend breathing, not a pullback (the ratio trigger oscillated state and produced noise entries). The `LayerPullbackRatio` input has been removed from the codebase. The **S2 price-zone touch** DETECTED gate is also removed: the layer model is pure position + slope, and price-vs-EMA is confirmed only at the separate **BC** gate (`LayerPriceTouchEnabled` defaults **false** and is inert).
 
 **S2 one-bar completion:** If S2 fires DETECTED AND the same bar's close satisfies recovery (`close > fast_EMA`), the state goes directly `NONE → RECOVERED` in one candle. This is the Oracle wick-rejection entry: wick touches the EMA zone, body closes beyond the fast EMA. The A21 minimum-bar gate is bypassed for this case — the wick is the pullback evidence, the close is the recovery.
 

@@ -253,7 +253,6 @@ Add the following block inside `ApplyPreset()`, after the existing `PRESET_RRM` 
       // ── LAYER: pullback-recovery detection ─────────────────────────
       cfg.LayerPullbackEnabled   = true;
       cfg.LayerBaselineLookback  = 10;
-      cfg.LayerPullbackRatio     = 0.5;     // pullback = slope weakened 50%
       cfg.LayerRecoveryRatio     = 0.3;     // recovery = 30% strength returned
       cfg.LayerAllowReversalPullback = true;
 

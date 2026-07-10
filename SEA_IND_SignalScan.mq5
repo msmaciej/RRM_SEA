@@ -243,7 +243,6 @@ input int      PB_Lookback          = 21;          // Lookback bars for baseline
 input int      PB_Lookback_W        = 13;            // LayerW baseline lookback (mirror EA)
 input int      PB_Lookback_M        = 21;            // LayerM baseline lookback
 input int      PB_Lookback_S        = 34;            // LayerS baseline lookback
-input double   PB_PullbackRatio     = 0.5;  // Pullback threshold (|ratio|<this = weakened)
 input double   PB_FlatRatio         = 0.1;      // Flat threshold
 input double   PB_RecoveryRatio     = 0.3;  // Global recovery threshold (fallback)
 input double   PB_RecoveryRatio_W   = 0.4;      // LayerW recovery override (-1=use global)
@@ -1031,7 +1030,6 @@ void BuildSettings(ST_Settings &s)
    s.LayerBaselineLookback_W = PB_Lookback_W;
    s.LayerBaselineLookback_M = PB_Lookback_M;
    s.LayerBaselineLookback_S = PB_Lookback_S;
-   s.LayerPullbackRatio      = PB_PullbackRatio;
    s.LayerFlatRatio          = PB_FlatRatio;
    s.LayerRecoveryRatio      = PB_RecoveryRatio;
    s.LayerRecoveryRatio_W    = PB_RecoveryRatio_W;

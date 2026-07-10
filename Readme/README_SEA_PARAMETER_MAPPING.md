@@ -105,7 +105,6 @@
 | `Inp_LayerBaselineLookback` | `Inp_RRM_LayerBaselineLookback` | RRM Preset | Yes |
 | `Inp_LayerFlatRatio` | `Inp_RRM_LayerFlatRatio` | RRM Preset | Yes |
 | `Inp_LayerPullbackEnabled` | `Inp_RRM_LayerPullbackEnabled` | RRM Preset | Yes |
-| `Inp_LayerPullbackRatio` | `Inp_RRM_LayerPullbackRatio` | RRM Preset | Yes |
 | `Inp_LayerRecoveryRatio` | `Inp_RRM_LayerRecoveryRatio` | RRM Preset | Yes |
 | `Inp_PSAR_TrailCushionMode` | `Inp_RRM_PSAR_TrailCushionMode` | RRM Preset | Yes |
 | `Inp_PSAR_TrailDelay` | `Inp_RRM_PSAR_TrailDelay` | RRM Preset | Yes |
