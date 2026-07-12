@@ -60,9 +60,15 @@ void SEA_Report_Generate()
    FileWrite(handle, "");
 
    FileWrite(handle, "=== BENCHMARK INPUTS (0c) ===");
+   // F-AUDIT 2026-07 CORRECTION: Inp_MA_Period/Inp_MA_Shift are themselves declared inside
+   // #ifdef SEA_PRESET_MA in SEA_Inputs.mqh (this repo builds one active preset at a time,
+   // selected in SEA_Config.mqh — currently SEA_PRESET_RRM_ORG). Restored the guard here to
+   // match; my first pass wrongly removed it, causing "undeclared identifier" when SEA_PRESET_MA
+   // isn't the active build. The old Inp_MA_MaximumRiskPct/Inp_MA_DecreaseFactor lines that used
+   // to live in this block are gone for good (proven dead sinks; see
+   // Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit") — the effective values are
+   // still reported unconditionally below via Settings.MA_MaximumRiskPct/MA_DecreaseFactor.
 #ifdef SEA_PRESET_MA
-   FileWrite(handle, "MA MaximumRiskPct (Input)", DoubleToString(Inp_MA_MaximumRiskPct, 4));
-   FileWrite(handle, "MA DecreaseFactor (Input)", DoubleToString(Inp_MA_DecreaseFactor, 2));
    FileWrite(handle, "MA Period (Input)", IntegerToString(Inp_MA_Period));
    FileWrite(handle, "MA Shift (Input)", IntegerToString(Inp_MA_Shift));
 #endif // SEA_PRESET_MA

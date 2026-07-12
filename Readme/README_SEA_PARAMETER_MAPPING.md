@@ -205,7 +205,10 @@ Result: Uses RR = 1.0 (correct namespace, respects user input)
 
 `Inp_CUSTOM_*` inputs that represented **cross-preset globals** (shared by every preset) were renamed to `Inp_Global_*`. Inputs that were truly per-preset moved to per-preset blocks (`Inp_RRM_ORG_*`, `Inp_FPM_*`, `Inp_TI_*`, `Inp_MA_*`).
 
-The complete current inputs file shows **138 `Inp_Global_*`** declarations and zero active `Inp_CUSTOM_*` input declarations. Surviving `Inp_CUSTOM_*` strings in the source are now only changelog markers in comments.
+The complete current inputs file shows **64 `Inp_Global_*`** declarations (corrected 2026-07 audit —
+previously misstated as 138 here; one further `Inp_Global_*` was removed as a proven-dead input in
+the same audit, see "Input Surface Audit" below) and zero active `Inp_CUSTOM_*` input declarations.
+Surviving `Inp_CUSTOM_*` strings in the source are now only changelog markers in comments.
 
 ### Categories of the rename
 
@@ -272,4 +275,122 @@ Corresponding `ST_Settings` fields: `UNO_ToleranceBars`, `LayerPullbackWindow_W/
 | Field | Type | Set when | UI effect |
 |-------|------|----------|-----------|
 | `i_suppressed` | `bool` | `m_diag_last_reason == "L_NONE_ALIGNED"` — no layer structurally aligned, I factor never evaluated | Cockpit shows `I[?]` and `--/N [L-blocked]` in VOTE display instead of misleading `I[-]` |
+
+---
+
+## Input Surface Audit (2026-07, F-AUDIT)
+
+Every `Inp_*` declaration in `SEA_Inputs.mqh` (457 at audit time, 442 after remediation) was traced
+to its consumer across `SEA_Config.mqh`, `SEA_Presets.mqh`, `SEA_SignalEngine.mqh`,
+`SEA_TradeExecutor.mqh`, `SEA_UI.mqh`, `SEA_Reporting.mqh`, `SEA_ConfigSync.mqh`, and
+`SimpleEA_v1-05.mq5`. Every input falls into exactly one status:
+
+| Status | Meaning |
+|---|---|
+| **LIVE** | Read, and the field it feeds is genuinely consumed by TS/TE/UI logic under at least one preset. |
+| **SEED DEFAULT** | Read into a field in `InitializeConfig()`, but unconditionally overridden by `ApplyPreset()` for at least one preset. **Do not delete** — see architecture below. |
+| **DEAD** | The value never reaches any consumer, under any preset. Traced and removed (or the field's inertness documented) below. |
+
+### The seed-then-override architecture (why some inputs *look* dead but aren't)
+
+`SEA_Inputs.mqh`'s `InitializeConfig()` populates every `ST_Settings` field once, up front, from
+the input panel — including the "⚠️ ENGINE SEED DEFAULTS" groups (the former `PRESET_CUSTOM`
+namespace, renamed `Inp_Global_*` in the 2026-06 refactor — see above). `ApplyPreset()`
+(`SEA_Presets.mqh`) then runs and **overwrites** most of those fields with preset-specific values.
+
+This means a seed-default input can look orphaned by a naive grep (its value is always replaced
+before use) while still being architecturally load-bearing: it's what a field falls back to for
+any preset that *doesn't* override it, and it's the value new presets inherit by default. **34
+`Inp_Global_*` inputs are in this position today** — every preset currently active happens to
+override them, but the wire from input → field → consumer is intact and the consumer (the field)
+genuinely reads it. This is different in kind from a DEAD input, where the field itself is never
+read at all. Do not delete a SEED DEFAULT input on the grounds that "no preset uses my override" —
+check whether the *field* has a live reader instead.
+
+**Full SEED DEFAULT list** (all `Inp_Global_*`, all overridden by ≥1 of the four presets):
+`Inp_Global_Ind_Adx_PercentileRefreshSec`, `Inp_Global_Ind_CandleBody_CarryOnOverext`,
+`Inp_Global_Ind_CandleBody_MinCloseRatio`, `Inp_Global_Ind_Fib_Enabled`,
+`Inp_Global_Ind_Fib_MaxRetracement`, `Inp_Global_Ind_Fib_MinRetracement`,
+`Inp_Global_Ind_Fib_SwingLookback`, `Inp_Global_Ind_Mfi_Level`, `Inp_Global_LayerPullbackEnabled`,
+`Inp_Global_LayerS_Require_DirAlign`, `Inp_Global_MTF_EMA_Fast`, `Inp_Global_MTF_EMA_Slow`,
+`Inp_Global_MTF_RequirePhase`, `Inp_Global_MTF_TF1`, `Inp_Global_MTF_TF2`,
+`Inp_Global_MinBarsAfterClose`, `Inp_Global_SL_AtrMult`, `Inp_Global_SL_AtrPeriod`,
+`Inp_Global_SL_FixedPips`, `Inp_Global_SL_MinPips`, `Inp_Global_SL_WidenToMinimum`,
+`Inp_Global_TrailEMA_Period`, `Inp_Global_TrailEMA_Shift`, `Inp_Global_VETO_MaxSpread`,
+`Inp_Global_VETO_MaxSpreadRetryBars`, `Inp_Global_VETO_NewsPostMinutes`,
+`Inp_Global_VETO_NewsPreMinutes`, `Inp_Global_VETO_TE_BC_TolerancePips`,
+`Inp_Global_VETO_TE_OpenDelaySeconds`, `Inp_Global_VETO_TE_RecheckBarClose`,
+`Inp_Global_VETO_TE_SpreadMedianTicks`, `Inp_Global_VETO_UseNews`, `Inp_Global_VETO_UseSpread`,
+`Inp_Global_VPRR_Enabled`.
+
+The remaining 27 `Inp_Global_*` inputs (`ClimaxGuard_*`, `Safety_*`, the `F_*` filter toggles,
+`VPRR_MinRatio_W/M/S`, `ManualSide`, `LayerReset_*`, `MinBarsAfterWeekendGap`,
+`VETO_NewsImpactFilter`) are **never** touched by `ApplyPreset()` for any preset — they are
+uniformly LIVE, not seed defaults, despite sitting in the same input groups. `Inp_Global_Preset`,
+`Inp_Global_MagicNum`, and `Inp_Global_VETO_NewsFile` are also LIVE, read directly by name outside
+the `ST_Settings` struct entirely (control flow / file path, not a tunable).
+
+### DEAD inputs found and removed
+
+The higher-priority defect: inputs that *look* tunable — normal per-preset inputs, indistinguishable
+in the panel from any other — but whose value never reaches a consumer. Sweeping one of these in an
+optimizer produces flat, meaningless noise and can be misread as "this parameter doesn't matter,"
+when in fact it was never being tested. 15 were found and removed in this audit (search history for
+`F-AUDIT 2026-07` in `SEA_Inputs.mqh` / `SEA_Presets.mqh` for the exact diffs):
+
+| Input (removed) | Fed field | Why it was dead |
+|---|---|---|
+| `Inp_RRM_ORG_MacdMode` | — (never assigned) | Never referenced outside its own declaration. `Settings.MacdVoteMode` (the field the MACD voter switches on) is hardcoded per-preset; default happened to match `MACD_HISTOGRAM`. |
+| `Inp_FPM_Ind_SmaConverge_Enabled` | — (never assigned) | Never referenced outside its own declaration. `Ind_SmaConverge_Enabled` is hardcoded `false` in every preset. |
+| `Inp_FPM_SLMode` | — (never assigned) | Disconnected by a deliberate prior fix ("user could accidentally switch to non-swing mode"); left declared afterward. |
+| `Inp_FPM_SwingLookback` | — (never assigned) | Disconnected by the same fix; `GetFPMSwingLookback()` (TF-aware helper) supplies the value instead. |
+| `Inp_MA_MaximumRiskPct` | `MA_MaximumRiskPct` | Field hardcoded `0.02` in `InitializeConfig()`, never touched by `ApplyPreset()` for any preset; default coincidentally matched. |
+| `Inp_MA_DecreaseFactor` | `MA_DecreaseFactor` | Same pattern, hardcoded `3.0`. |
+| `Inp_RRM_ORG_AllowWeak` | `Emerging_/Trending_AllowWeakTrades` | Neither field is ever read by the Phase/Layer gate. Real layer on/off is `AllowLayer1_Entries` (fed by `Inp_RRM_ORG_AllowLayerW`, which **is** live). |
+| `Inp_RRM_ORG_AllowMedium` | `Emerging_/Trending_AllowMediumTrades` | Same — real control is `AllowLayer2_Entries` / `Inp_RRM_ORG_AllowLayerM`. |
+| `Inp_RRM_ORG_AllowStrong` | `Trending_AllowStrongTrades` | Same — real control is `AllowLayer3_Entries` / `Inp_RRM_ORG_AllowLayerS`. (`Emerging_AllowStrongTrades`, the one sibling field that *is* read, is fed by `Inp_TI_Emerging_AllowStrong` instead — not this input.) |
+| `Inp_RRM_ORG_Mfi_Mode` | `MfiMode` | `Check_MFI()` only ever compares `T_MfiOB`/`T_MfiOS`; never branches on mode. |
+| `Inp_RRM_ORG_VRC_ATR_Period` | `VRC_ATR_Period` | VRC's shared ATR handle is built from `Settings.P_Atr`, not this field. |
+| `Inp_Debug_Stats_TrackRejections` | `Stats_TrackRejections` | Never read; only `Stats_FullEvaluation` gates the stats logic. |
+| `Inp_Debug_Stats_TrackPasses` | `Stats_TrackPasses` | Same. |
+| `Inp_Global_MTF_StrictAlignment` | `MTF_StrictAlignment` | Self-documented in code: *"retained for compatibility but the gate is strict-by-construction; the flag no longer relaxes it."* |
+| `Inp_RRM_ORG_LayerPB_RecoveryOnSlope` | `LayerRecoveryOnSlope` | Never read. Consistent with the slope-only RECOVERED model (README.md, Layer section) being unconditional post-refactor — same shape as the already-documented `Inp_RRM_ORG_LayerPriceTouchEnabled` deprecation. |
+
+For the fields above that are still touched by other, unrelated live code paths (`MA_MaximumRiskPct`
+in `SEA_TradeExecutor.mqh`'s lot sizing, `MTF_StrictAlignment` in `ConfigSync`), the removed input's
+old feed line was replaced with a literal matching its prior default — behaviour is unchanged,
+because these values were already provably not reaching any consumer before the edit.
+
+### Negative control
+
+`Emerging_AllowStrongTrades` — the one sibling of the three dead `Trending_/Emerging_Allow*Trades`
+fields that survived — **is** read, at `SEA_SignalEngine.mqh:7977`, matching README.md's documented
+Phase-gate behaviour ("LayerS always blocked in EM"). This confirms the dead-field detection isn't a
+false-positive sweep: the mechanism correctly distinguishes the one real flag in that family from its
+five decorative neighbours.
+
+### Known, pre-existing, intentionally-retained dead input
+
+`Inp_RRM_ORG_LayerPriceTouchEnabled` was already documented (S2 + A21 section, above) as deprecated
+and no-op, retained deliberately for `.set`-file back-compat. This audit re-confirms that
+classification and makes no further change to it — it is the one case in the input surface where
+"dead but intentionally kept" was already the correct, documented state before this audit.
+
+### Logged, out of scope
+
+- `Inp_FPM_SLFixedPips` is read into `Settings.SL_FixedPips`, a field genuinely consumed elsewhere —
+  but under `PRESET_FPM` specifically it is currently unreachable, because FPM's `SLMode` is
+  hardcoded `SL_MODE_SWING` (see the `Inp_FPM_SLMode` removal above) and `SL_FixedPips` only applies
+  under `SL_MODE_FIXED_PIPS`. Not reclassified as DEAD (the field has live readers under other
+  presets/modes), but worth a maintainer's attention if FPM's fixed-pips SL mode is ever meant to be
+  reachable again.
+- A parallel audit of internal `ST_Settings` struct fields (independent of whether an `Inp_*` feeds
+  them — e.g. the now-input-less `Trending_/Emerging_Allow*Trades`, `MfiMode`, `VRC_ATR_Period`,
+  `Stats_TrackRejections/Passes`, `MTF_StrictAlignment`, `LayerRecoveryOnSlope` fields, which remain
+  declared in the struct but unread) was not undertaken here — this audit's scope was the `Inp_*`
+  input surface only. Worth a session of its own.
+- The `#ifdef SEA_PRESET_MA` blocks in `SEA_Reporting.mqh` / `SimpleEA_v1-05.mq5` are dead code
+  today (`SEA_PRESET_MA` is never `#define`d — `SEA_Config.mqh:14`); fixed in place while touching
+  them for this audit, but the broader question of whether that preprocessor flag should exist at
+  all is out of scope.
 

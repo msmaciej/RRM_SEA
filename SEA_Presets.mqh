@@ -1400,7 +1400,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ExitProfile               = EXIT_PROFILE_SIMPLE;
 
       // SL: Hardcode SL_MODE_SWING — swing is the FPM methodology
-      // STEP4 2026-06: was "Inp_FPM_SLMode is kept for PRESET_CUSTOM only" — CUSTOM removed; Inp_FPM_SLMode now exists for documentation/optimizer-pinning only
+      // STEP4 2026-06: was "Inp_FPM_SLMode is kept for PRESET_CUSTOM only" — CUSTOM removed.
+      // F-AUDIT 2026-07: Inp_FPM_SLMode itself removed (SEA_Inputs.mqh) — it was never read
+      // after the fix below, so the "documentation/optimizer-pinning" input was a dead sweep trap.
       // FIX: was cfg.SLMode = Inp_FPM_SLMode — user could accidentally switch to non-swing mode
       cfg.SLMode                    = SL_MODE_SWING;
       // FIX: was Inp_FPM_SwingLookback (default 5) — too short; use TF-aware helper instead
@@ -2003,11 +2005,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Bb                      = Inp_RRM_ORG_Bb_Period;
       cfg.P_BbDev                   = Inp_RRM_ORG_Bb_Deviation;
 
-      cfg.MfiMode                   = Inp_RRM_ORG_Mfi_Mode;
+      // F-AUDIT 2026-07: MfiMode is a PROVEN DEAD SINK — Check_MFI() (SEA_SignalEngine.mqh) only
+      // ever compares T_MfiOB/T_MfiOS, never branches on MfiMode. Inp_RRM_ORG_Mfi_Mode (which fed
+      // this) is removed. Literal MFI_ZONE_FILTER matches every other preset's hardcoded value.
+      cfg.MfiMode                   = MFI_ZONE_FILTER;
       cfg.P_Mfi                     = Inp_RRM_ORG_Mfi_Period;
       cfg.T_MfiOB                   = Inp_RRM_ORG_Mfi_OB;
       cfg.T_MfiOS                   = Inp_RRM_ORG_Mfi_OS;
-      cfg.VRC_ATR_Period            = Inp_RRM_ORG_VRC_ATR_Period;
+      // F-AUDIT 2026-07: VRC_ATR_Period is a PROVEN DEAD SINK — VRC's shared ATR handle is built
+      // from Settings.P_Atr (SEA_SignalEngine.mqh:6419), not this field. Inp_RRM_ORG_VRC_ATR_Period
+      // (which fed this) is removed. Literal 14 matches every other preset's hardcoded value.
+      cfg.VRC_ATR_Period            = 14;
       cfg.VRC_Lookback              = Inp_RRM_ORG_VRC_Lookback;
       cfg.VRC_LowThreshold          = Inp_RRM_ORG_VRC_LowThreshold;
       cfg.VRC_RefreshSec            = Inp_RRM_ORG_VRC_RefreshSec;
@@ -2036,10 +2044,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
                                     :                           Inp_RRM_ORG_PhaseConfirmH1plus;
 
       // EMERGING phase: WEAK + MEDIUM only; STRONG always blocked per RRM methodology
-      // PRESET ISOLATION 2026-06: was Inp_RRM_Allow* (RRM-preset inputs)
-      cfg.Emerging_AllowWeakTrades   = Inp_RRM_ORG_AllowWeak;
-      cfg.Emerging_AllowMediumTrades = Inp_RRM_ORG_AllowMedium;
-      cfg.Emerging_AllowStrongTrades = false;         // STRONG always blocked in EMERGING per RRM methodology
+      // F-AUDIT 2026-07: Emerging_AllowWeakTrades / Emerging_AllowMediumTrades are PROVEN DEAD
+      // SINKS — SEA_SignalEngine.mqh never reads either field (only Emerging_AllowStrongTrades
+      // is actually consumed, at SEA_SignalEngine.mqh:7977). The real per-layer control for W/M
+      // is AllowLayer1_Entries / AllowLayer2_Entries below (fed by Inp_RRM_ORG_AllowLayerW/M).
+      // Inp_RRM_ORG_AllowWeak / Inp_RRM_ORG_AllowMedium (the inputs that used to feed this line)
+      // are removed — see Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit". Literal
+      // `true` retained here only to preserve the struct's documented intent for these dead fields.
+      cfg.Emerging_AllowWeakTrades   = true;
+      cfg.Emerging_AllowMediumTrades = true;
+      cfg.Emerging_AllowStrongTrades = false;         // STRONG always blocked in EMERGING per RRM methodology (this one IS live)
 
       // ORACLE FIX 2026-07: LayerS_RequireDirAlign must be FALSE for PRESET_RRM_ORG.
       // The global default (Inp_Global_LayerS_Require_DirAlign=true) gates W and M entries
@@ -2052,10 +2066,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // has zero effect on TM entries while correctly unblocking EM entries.
       cfg.LayerS_RequireDirAlign     = false;
 
-      // TRENDING phase: controlled by layer filter inputs (Inp_RRM_ORG_Allow*)
-      cfg.Trending_AllowWeakTrades   = Inp_RRM_ORG_AllowWeak;
-      cfg.Trending_AllowMediumTrades = Inp_RRM_ORG_AllowMedium;
-      cfg.Trending_AllowStrongTrades = Inp_RRM_ORG_AllowStrong;
+      // F-AUDIT 2026-07: Trending_AllowWeakTrades / _AllowMediumTrades / _AllowStrongTrades are
+      // ALL PROVEN DEAD SINKS — none is ever read by SEA_SignalEngine.mqh's Phase/Layer gate.
+      // The real per-layer control in Trending is AllowLayer1/2/3_Entries below (fed by
+      // Inp_RRM_ORG_AllowLayerW/M/S). Inp_RRM_ORG_AllowWeak/AllowMedium/AllowStrong (the inputs
+      // that used to feed this line) are removed — see Readme/README_SEA_PARAMETER_MAPPING.md
+      // "Input Surface Audit". Literal `true` retained only to preserve documented intent.
+      cfg.Trending_AllowWeakTrades   = true;
+      cfg.Trending_AllowMediumTrades = true;
+      cfg.Trending_AllowStrongTrades = true;
 
       // ── PULLBACK DETECTION GATES: LOCKED ON ──────────────────────────
       // PHASE A: require recovery momentum on M15-and-down. The original
@@ -2140,7 +2159,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.LayerPullbackRatio          = MathMax(0.01, Inp_RRM_ORG_LayerPBPullbackRatio);
       cfg.LayerFlatRatio              = MathMax(0.0,  Inp_RRM_ORG_LayerPBFlatRatio);
       cfg.LayerRecoveryRatio          = MathMax(0.01, Inp_RRM_ORG_LayerPBRecoveryRatio);
-      cfg.LayerRecoveryOnSlope        = Inp_RRM_ORG_LayerPB_RecoveryOnSlope;
+      // F-AUDIT 2026-07: LayerRecoveryOnSlope is a PROVEN DEAD SINK — never read anywhere.
+      // Consistent with the README's post-refactor model: layer RECOVERED is unconditionally
+      // slope-only now (same shape as the already-documented Inp_RRM_ORG_LayerPriceTouchEnabled
+      // deprecation). Inp_RRM_ORG_LayerPB_RecoveryOnSlope (which fed this) is removed.
+      cfg.LayerRecoveryOnSlope        = false;
       cfg.LayerRecoveryRatio_W        = Inp_RRM_ORG_RecoveryRatio_W;   // -1 = use global
       cfg.LayerRecoveryRatio_M        = Inp_RRM_ORG_RecoveryRatio_M;
       cfg.LayerRecoveryRatio_S        = Inp_RRM_ORG_RecoveryRatio_S;
@@ -2340,7 +2363,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Fast              = Inp_Global_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow              = Inp_Global_MTF_EMA_Slow;
       cfg.MTF_RequirePhase          = Inp_RRM_ORG_MTF_RequirePhase;     // Theme1 2026-06: was hardcoded false; now per-preset toggle (default off, user can enable for stricter HTF gating)
-      cfg.MTF_StrictAlignment       = Inp_Global_MTF_StrictAlignment;
+      cfg.MTF_StrictAlignment       = true;  // F-AUDIT 2026-07: proven dead sink; Inp_Global_MTF_StrictAlignment removed — see SEA_Inputs.mqh
 
       // F-AUDIT 2026-06: ClimaxGuard_Enabled wiring removed — globalized to Inp_Global_F_ClimaxGuard_Enabled
 
@@ -2488,7 +2511,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Fast           = Inp_TI_MTF_EMA_Fast;   // default 50 — institutional standard
       cfg.MTF_EMA_Slow           = Inp_TI_MTF_EMA_Slow;   // default 200 — institutional standard
       cfg.MTF_RequirePhase       = true;               // LOCKED: HTF phase must be trending; accepting unordered HTF is a different (lower-quality) system
-      cfg.MTF_StrictAlignment    = Inp_Global_MTF_StrictAlignment;
+      cfg.MTF_StrictAlignment    = true;  // F-AUDIT 2026-07: proven dead sink; Inp_Global_MTF_StrictAlignment removed — see SEA_Inputs.mqh
 
       // ── SPREAD: pair-adaptive from Zone 3C ─────────────────────────
       cfg.MaxSpread              = op_MaxSpread;

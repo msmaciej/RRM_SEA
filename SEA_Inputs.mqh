@@ -157,7 +157,10 @@ input ENUM_TIMEFRAMES Inp_Global_MTF_TF2                  = PERIOD_M15;     // V
 input int         Inp_Global_MTF_EMA_Fast                 = 20;             // Veto MTF: fast EMA period
 input int         Inp_Global_MTF_EMA_Slow                 = 50;             // Veto MTF: slow EMA period
 input bool        Inp_Global_MTF_RequirePhase             = true;           // Veto MTF: require trending phase
-input bool        Inp_Global_MTF_StrictAlignment          = true;           // Veto MTF: strict gate — all HTFs must agree
+// F-AUDIT 2026-07: Inp_Global_MTF_StrictAlignment REMOVED. Dev comment at SEA_SignalEngine.mqh
+// (near GetMTFBias) confirms: "MTF_StrictAlignment is retained for compatibility but the gate is
+// strict-by-construction; the flag no longer relaxes it." See
+// Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: Climax";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -261,8 +264,9 @@ input bool        Inp_Debug_PrintEffectiveConfig   = true;           // Debug: P
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔍 DEBUG: DIAGNOSTICS: STATISTICS";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Debug_Stats_TrackRejections  = true;           // Stats: Track rejection counts
-input bool        Inp_Debug_Stats_TrackPasses      = true;           // Stats: Track pass counts
+// F-AUDIT 2026-07: Inp_Debug_Stats_TrackRejections / Inp_Debug_Stats_TrackPasses REMOVED — both
+// fed proven-dead Settings fields; only Inp_Debug_Stats_FullEvaluation actually gates stats
+// tracking. See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
 input bool        Inp_Debug_Stats_FullEvaluation   = true;           // Stats: Evaluate ALL indicators per bar
 //input string    Inp_Stats_Info1                  = "FullEvaluation=false: waterfall (stop at first fail)";
 //input string    Inp_Stats_Info2                  = "FullEvaluation=true: evaluate all, identify true bottlenecks";
@@ -289,8 +293,11 @@ input group "║   🛑 MT5 Moving Average Benchmark (PRESET_MA)";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_MA_Period                    = 12;             // MA period
 input int         Inp_MA_Shift                     = 6;              // MA shift
-input double      Inp_MA_MaximumRiskPct            = 0.02;           // MA Max risk (%)
-input double      Inp_MA_DecreaseFactor            = 3.0;            // MA Lot decrease factor
+// F-AUDIT 2026-07: Inp_MA_MaximumRiskPct / Inp_MA_DecreaseFactor REMOVED — Settings.MA_MaximumRiskPct
+// and Settings.MA_DecreaseFactor (the fields SEA_TradeExecutor.mqh actually uses for MA-benchmark lot
+// sizing) are hardcoded in InitializeConfig() and never touched by ApplyPreset() for any preset; these
+// inputs were never read. Their defaults (0.02 / 3.0) coincidentally matched the hardcoded values,
+// masking the disconnect. See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit" section.
 #endif // SEA_PRESET_MA
 
 #ifdef SEA_PRESET_FPM
@@ -306,9 +313,13 @@ input double      Inp_FPM_RRRatio                  = 1.5;            // FPM TP: 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 FPM: (SL) Stop Loss Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-input ESLMode     Inp_FPM_SLMode                   = SL_MODE_SWING;  // FPM SL: mode — SWING (recent high/low) or FIXED_PIPS
-input int         Inp_FPM_SwingLookback            = 34;             // FPM SL: swing lookback bars (advisory; auto-scaled internally)
-input double      Inp_FPM_SLFixedPips              = 15.0;           // FPM SL: fixed distance in pips (SL_MODE_FIXED_PIPS only)
+// F-AUDIT 2026-07: Inp_FPM_SLMode REMOVED — never read since the STEP4 2026-06 fix
+// (cfg.SLMode is hardcoded SL_MODE_SWING for FPM; see SEA_Presets.mqh, "SL: Hardcode
+// SL_MODE_SWING — swing is the FPM methodology"). Re-wiring it would undo that fix.
+// F-AUDIT 2026-07: Inp_FPM_SwingLookback REMOVED — never read since the same fix;
+// GetFPMSwingLookback() (TF-aware helper) supplies SwingLookback instead.
+// See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit" section.
+input double      Inp_FPM_SLFixedPips              = 15.0;           // FPM SL: fixed distance in pips (SL_MODE_FIXED_PIPS only — unreachable under FPM's current SWING lock; retained for TradeExecutor's general SL_MODE_FIXED_PIPS path)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 FPM: (TS) Trailing Stop";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -325,10 +336,10 @@ input group "║   📐 FPM: PSAR Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input double      Inp_FPM_PsarStep                 = 0.02;           // FPM PSAR: step
 input double      Inp_FPM_PsarMax                  = 0.2;            // FPM PSAR: max
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📊 FPM: SMA Convergence";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_FPM_Ind_SmaConverge_Enabled  = false;          // FPM SMA: Enable SMA convergence vote (FPM Condition 4)
+// F-AUDIT 2026-07: Inp_FPM_Ind_SmaConverge_Enabled REMOVED — never read anywhere.
+// Ind_SmaConverge_Enabled is hardcoded false in every preset block (SEA_Presets.mqh,
+// see the FPM Condition 4 removal note there). A dead sweep target for FPM optimizers.
+// See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit" section.
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 FPM: MFI Volume Confirmation";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -408,9 +419,11 @@ input int         Inp_RRM_ORG_VPRR_RecoveryBars    = 5;              // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: LAYER WMS Filter";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_AllowWeak            = true;           // RRM ORG Layer: Allow WEAK trades (L1 EMA1/EMA2)
-input bool        Inp_RRM_ORG_AllowMedium          = true;           // RRM ORG Layer: Allow MEDIUM trades (L2 EMA2/EMA3)
-input bool        Inp_RRM_ORG_AllowStrong          = true;           // RRM ORG Layer: Allow STRONG trades (L3 EMA3/EMA4, TRENDING only)
+// F-AUDIT 2026-07: Inp_RRM_ORG_AllowWeak / AllowMedium / AllowStrong REMOVED — each fed only
+// proven-dead Settings fields (Emerging_/Trending_Allow*Trades — see SEA_Presets.mqh). The real,
+// live layer on/off controls are Inp_RRM_ORG_AllowLayerW/M/S just below (-> AllowLayer1/2/3_Entries,
+// actually read by SEA_SignalEngine.mqh). These three looked like duplicates of that real control
+// and were a live optimizer-sweep trap. See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
 
 // STEP3 2026-06: PRESET_RRM block (~25 inputs across TP/SL/TS/BE/DP/Layer/Indicators) removed.
 // All inputs were RRM-only with no cross-preset reads (prior PRESET ISOLATION 2026-06 work
@@ -684,7 +697,8 @@ input int         Inp_RRM_ORG_LayerPBLookback_M    = 21;            // RRM ORG P
 input int         Inp_RRM_ORG_LayerPBLookback_S    = 34;            // RRM ORG PB: LayerS baseline lookback (slow/stable) // NOTE 2026-07: original value restored. At LB_S=34, a 40%-deep pullback lasting 12 bars still produces ratio=0.507 vs 0.65 threshold = DETECTED. At LB_S=21, same pullback produces ratio=0.609 = DETECTED. At LB_S=8, ratio=N/A (window exhausted by pullback alone).
 input double      Inp_RRM_ORG_LayerPBPullbackRatio = 0.65; // RRM ORG PB: Pullback threshold (ratio < this = weakened) // CORRECTION 2026-07: changed 0.50→0.65. is_pullback fires when |current_pace|/|baseline_pace| < threshold, so HIGHER threshold = more sensitive. At 0.50: only catches 40%-depth pullbacks lasting ≤3 bars at LB=13. At 0.65: catches 40%-depth pullbacks lasting up to 12 bars at LB=13, and up to 5 bars at LB=8. My previous change to 0.35 was backwards (stricter, caught fewer). Enable LayerAllowReversalPullback for 60-80%-depth shallow pullbacks that magnitude ratio cannot reach at any practical threshold.
 input double      Inp_RRM_ORG_LayerPBRecoveryRatio = 0.3;  // RRM ORG PB: Global recovery threshold (fallback)
-input bool        Inp_RRM_ORG_LayerPB_RecoveryOnSlope = false;        // RRM ORG PB: recover on slope resume+re-accel (t1; not magnitude)
+// F-AUDIT 2026-07: Inp_RRM_ORG_LayerPB_RecoveryOnSlope REMOVED — fed Settings.LayerRecoveryOnSlope,
+// a proven dead sink (never read). See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
 input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;      // RRM ORG PB: Flat threshold (|ratio|<this = flat)
 input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;  // RRM ORG PB: Count slope reversal as pullback // NOTE 2026-07: already true (correct). This is the ONLY mechanism that detects shallow pullbacks (EMA decelerating to 60-80% of baseline pace) because their magnitude ratio stays above 0.65 regardless of threshold. When EMA direction reverses even briefly (current_bullish != baseline_bullish), is_pullback fires regardless of ratio. Critical for M5/M15 trending pullbacks where EMA5 barely decelerates before recovering.
 // S2 2026-07: price-zone DETECTED gate. zone = EMA_slow + (1-PullbackRatio)*(EMA_fast-EMA_slow).
@@ -800,7 +814,11 @@ input double      Inp_RRM_ORG_CiRangingThreshold   = 61.8;           // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: MACD Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-input EMacdVoteMode Inp_RRM_ORG_MacdMode           = MACD_HISTOGRAM; // RRM ORG MACD: MACD Mode
+// F-AUDIT 2026-07: Inp_RRM_ORG_MacdMode REMOVED — never referenced anywhere outside its
+// own declaration. Settings.MacdVoteMode (the field SEA_SignalEngine.mqh actually
+// switches on) is hardcoded MACD_HISTOGRAM per-preset in SEA_Presets.mqh; this input's
+// default happened to match, masking the disconnect. See Readme/README_SEA_PARAMETER_MAPPING.md
+// "Input Surface Audit" section.
 input bool        Inp_RRM_ORG_MacdSlope            = false;          // RRM ORG MACD: MACD require SLO
 input bool        Inp_RRM_ORG_MacdDiv              = false;          // RRM ORG MACD: BLOCK entry on MACD trend-exhaustion divergence (price HH but MACD LH for LONG; mirror for SHORT)
 input int         Inp_RRM_ORG_MacdDivLookback      = 10;             // RRM ORG MACD: Divergence detection window in bars (two non-overlapping windows of this size)
@@ -812,7 +830,8 @@ input double      Inp_RRM_ORG_MacdSlopeMin         = 0.00001;        // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: MFI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-input EMfiMode    Inp_RRM_ORG_Mfi_Mode             = MFI_ZONE_FILTER; // RRM ORG MFI: MFI Mode
+// F-AUDIT 2026-07: Inp_RRM_ORG_Mfi_Mode REMOVED — fed Settings.MfiMode, a proven dead sink;
+// Check_MFI() never branches on it. See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
 input int         Inp_RRM_ORG_Mfi_Period           = 14;             // RRM ORG MFI: MFI Period
 input double      Inp_RRM_ORG_Mfi_OB               = 80.0;           // RRM ORG MFI: MFI Overbought
 input double      Inp_RRM_ORG_Mfi_OS               = 20.0;           // RRM ORG MFI: MFI Oversold
@@ -850,7 +869,9 @@ input group "╚═════════════════════�
 input int         Inp_RRM_ORG_VRC_Lookback         = 100;            // RRM ORG VRC: lookback bars for regime classification
 input double      Inp_RRM_ORG_VRC_LowThreshold     = 33.0;           // RRM ORG VRC: low-volatility percentile threshold
 input int         Inp_RRM_ORG_VRC_RefreshSec       = 14400;          // RRM ORG VRC: percentile refresh interval (sec). M1: try 900; H1+: 14400 (4h)
-input int         Inp_RRM_ORG_VRC_ATR_Period       = 14;             // RRM ORG VRC: ATR period for VRC calculation
+// F-AUDIT 2026-07: Inp_RRM_ORG_VRC_ATR_Period REMOVED — fed Settings.VRC_ATR_Period, a proven
+// dead sink; VRC's shared ATR handle actually uses Settings.P_Atr. See
+// Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
 #endif // SEA_PRESET_RRM_ORG
 
 #ifdef SEA_PRESET_TOPINVESTOR
@@ -1253,8 +1274,10 @@ void InitializeConfig()
    Settings.DebugEvalTo              = Inp_Debug_EvalTo;
    Settings.DebugEvalAt              = Inp_Debug_EvalAt;
    Settings.DebugEvalMode            = Inp_Debug_EvalMode;
-   Settings.Stats_TrackRejections    = Inp_Debug_Stats_TrackRejections;
-   Settings.Stats_TrackPasses        = Inp_Debug_Stats_TrackPasses;
+   // F-AUDIT 2026-07: Settings.Stats_TrackRejections / Stats_TrackPasses REMOVED as proven dead
+   // sinks — neither field is read anywhere; only Stats_FullEvaluation gates the stats logic.
+   // Inp_Debug_Stats_TrackRejections / Inp_Debug_Stats_TrackPasses (which fed them) are removed.
+   // See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
    Settings.Stats_FullEvaluation     = Inp_Debug_Stats_FullEvaluation;
 
    Settings.UI_ShowStatusPanel       = Inp_UI_ShowStatusPanel;
@@ -1368,7 +1391,11 @@ void InitializeConfig()
    Settings.MTF_EMA_Fast         = MathMax(1, Inp_Global_MTF_EMA_Fast);
    Settings.MTF_EMA_Slow         = MathMax(1, Inp_Global_MTF_EMA_Slow);
    Settings.MTF_RequirePhase     = Inp_Global_MTF_RequirePhase;
-   Settings.MTF_StrictAlignment  = Inp_Global_MTF_StrictAlignment;
+   // F-AUDIT 2026-07: Settings.MTF_StrictAlignment is a PROVEN DEAD SINK — SEA_SignalEngine.mqh
+   // documents it directly: "MTF_StrictAlignment is retained for compatibility but the gate is
+   // strict-by-construction; the flag no longer relaxes it." Inp_Global_MTF_StrictAlignment (which
+   // fed this) is removed. Literal `true` preserves the field's value for ConfigSync round-tripping.
+   Settings.MTF_StrictAlignment  = true;
 
    // Fibonacci voter (globally available)
    Settings.Ind_Fib_Enabled      = Inp_Global_Ind_Fib_Enabled;

@@ -262,3 +262,4 @@ Use `SEA_ServerTime_Check.mq5` to verify whether your broker provides real volum
 - `Readme/README_SEA_PRESETS.md` — preset configuration reference
 - `Readme/README_SEA_VETO_REFERENCE.md` — full veto and filter catalog
 - `Readme/README_SEA_BOOTSTRAP.md` — AI agent instructions
+- `Readme/README_SEA_PARAMETER_MAPPING.md` — input rename history, seed-default architecture (which `Inp_Global_*` inputs are overridden by presets vs. genuinely global), and the 2026-07 input-surface audit (dead inputs found and removed)
