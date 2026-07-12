@@ -752,7 +752,40 @@ void ConsumeLatchedSignalTE()
    g_last_te_veto   = "";
 
    bool te_news_blocked = Signal.IsNewsBlocked();
-   int te = Executor.EvaluateTE(g_ts_dir, te_news_blocked);
+
+   // ── PSAR staleness re-check ──────────────────────────────────────────
+   // A latched TS=1 can persist across a bar boundary (spread retry /
+   // delayed fill / cooldown — g_te_retry_count resets every new bar, so
+   // a temporary veto can carry the signal for many bars). If the bar
+   // that just closed is NOT the bar that produced this signal, PSAR may
+   // have flipped since TS was armed, so re-validate it here at shift=1
+   // using the same hardened voter the signal itself used — mirrors the
+   // I-factor's own Vote_AllowPsarFlip branch (SEA_SignalEngine.mqh).
+   // A signal consumed in the SAME OnTick it was emitted has g_ts_time
+   // already equal to the current shift=1 bar, so it is fresh by
+   // construction and skips the recheck entirely (fires TE unchanged).
+   // Gated on Ind_Psar_Enabled: if this preset never votes PSAR, TS never
+   // depended on it, so TE must not newly veto on it either.
+   // See SEA_TradeExecutor.mqh EvaluateTE() psar_recheck_blocked / VETO_PSAR_STALE.
+   bool psar_recheck_blocked = false;
+   if(Settings.Ind_Psar_Enabled && g_ts_time > 0)
+   {
+      datetime latest_closed_bar = iTime(_Symbol, PERIOD_CURRENT, 1);
+      if(latest_closed_bar != g_ts_time)
+      {
+         bool psar_ok = Settings.Vote_AllowPsarFlip
+                        ? Signal.Scanner_Check_PSAR_Flip(g_ts_dir, 1)
+                        : Signal.Scanner_Check_PSAR(g_ts_dir, 1);
+         psar_recheck_blocked = !psar_ok;
+         if(psar_recheck_blocked && Settings.DebugFlow)
+            PrintFormat("[TE] PSAR staleness recheck FAILED: signal from %s, latest closed bar %s, dir=%s",
+                        TimeToString(g_ts_time, TIME_DATE|TIME_MINUTES),
+                        TimeToString(latest_closed_bar, TIME_DATE|TIME_MINUTES),
+                        (g_ts_dir > 0 ? "BUY" : "SELL"));
+      }
+   }
+
+   int te = Executor.EvaluateTE(g_ts_dir, te_news_blocked, psar_recheck_blocked);
 
    // Always count trades at ENTRY for accurate daily tracking (used by DrawdownProtection when enabled)
    // FIX Bug5: removed RRM_EnableDrawdownProtection gate so g_trades_today is always accurate for logging

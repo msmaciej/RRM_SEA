@@ -23,11 +23,12 @@ This document lists all vetoes (trade rejection reasons), their configurability,
 
 | Veto Code | Description | User Control | Input Setting | Default |
 |-----------|-------------|--------------|---------------|---------|
+| `VETO_PSAR_STALE` | Latched TS=1 survived into a new bar and PSAR no longer supports the direction at shift=1 of the bar that just closed | ⚠️ Structural, not a dedicated toggle — active whenever `Ind_Psar_Enabled=true` (fires only for signals that outlive the bar they were emitted on; same-OnTick fresh signals always pass) | `Ind_Psar_Enabled` (gate), `Vote_AllowPsarFlip` (selects `Scanner_Check_PSAR_Flip` vs `Scanner_Check_PSAR` as the recheck voter) | `Ind_Psar_Enabled=true` in `PRESET_RRM_ORG` |
 | `VETO_BC_STALE` | Live price drifted too far from `Close[1]` | ✅ Fully configurable | `Inp_VETO_TE_RecheckBarClose`, `Inp_VETO_TE_BC_TolerancePips` | `false`, `3.0` |
 | `VETO_OPEN_DELAY` | Bar age is below configured delay | ✅ Fully configurable | `Inp_VETO_TE_OpenDelaySeconds` | `0` (off) |
 | `VETO_SPREAD_MEDIAN` | Median spread filter rejected entry | ✅ Fully configurable | `Inp_VETO_TE_SpreadMedianTicks` | `0` (off) |
 
-**Purpose**: Optional conservative gates layered on top of F filters.
+**Purpose**: Optional conservative gates layered on top of F filters. `VETO_PSAR_STALE` is evaluated first — before the F filters below — inside `EvaluateTE()`; the boolean is computed by the caller, `ConsumeLatchedSignalTE()` in `SimpleEA_v1-05.mq5`, and passed in as `psar_recheck_blocked`. It is a **permanent** veto for the bar (not in `IsTemporaryVeto()`), so a stale-PSAR rejection consumes the signal rather than retrying it.
 
 ---
 
@@ -52,6 +53,9 @@ TS=1 generated at shift=1 (bar close)
     ↓
 shift=0 (bar open/ticks) → EvaluateTE()
     ↓
+PHASE 0: PSAR staleness (only if signal is latched past its origin bar)
+  • VETO_PSAR_STALE
+    ↓ (if pass, or signal is fresh)
 PHASE 1: F Filters
   • VETO_SPREAD / VETO_SPREAD_TIMEOUT
   • VETO_TIME

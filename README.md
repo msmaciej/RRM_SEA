@@ -142,14 +142,15 @@ Optional pre-entry gates evaluated by the engine's `EvaluateF`. **All off by def
 
 ## TE Equation — Trade Entry
 
-Once TS produces a signal direction, the trade-executor gate chain decides whether an order is actually placed. TE runs every tick at the next bar open (shift=0), evaluated by `EvaluateTE(direction)` in `SEA_TradeExecutor.mqh`:
+Once TS produces a signal direction, the trade-executor gate chain decides whether an order is actually placed. TE runs every tick at the next bar open (shift=0), evaluated by `EvaluateTE(direction, news_blocked_override, psar_recheck_blocked)` in `SEA_TradeExecutor.mqh`:
 
 ```
-TE = direction × F × open-delay × BC-recheck × CM × RC   → execute
+TE = direction × PSAR-stale × F × open-delay × BC-recheck × CM × RC   → execute
 ```
 
 | Gate | Checks | Veto on fail |
 |------|--------|--------------|
+| **PSAR-stale** | if the latched TS=1 signal survived into a new bar (spread retry / delayed fill / cooldown), PSAR is re-validated at shift=1 of the bar that just closed, using the same hardened voter TS used (`Vote_AllowPsarFlip`-gated). A signal consumed in the same OnTick it was emitted is fresh by construction and skips this check. Gated on `Ind_Psar_Enabled` — presets that don't vote PSAR are never blocked by it. Computed by the caller (`ConsumeLatchedSignalTE()` in `SimpleEA_v1-05.mq5`), not user-toggleable. | `VETO_PSAR_STALE` |
 | **F** | spread ≤ MaxSpread · session window · no high-impact news · spread-median | `VETO_SPREAD` / `VETO_SPREAD_TIMEOUT` / `VETO_TIME` / `VETO_NEWS` / `VETO_SPREAD_MEDIAN` |
 | **open-delay** | bar age ≥ `TE_OpenDelaySeconds` (lets the post-open spread spike resolve) | `VETO_OPEN_DELAY` |
 | **BC re-check** | live price within `TE_BC_TolerancePips` of `Close[1]` | `VETO_BC_STALE` |
