@@ -233,7 +233,6 @@ input group "║   🎨 UI: SIGNAL MARKERS & COLORS";
 input group "╚════════════════════════════════════════════════════════╝";
 input EUIFrameMode Inp_UI_FrameMode                = UI_FRAME_NONE;  // UI SM: Panel frame mode
 input bool        Inp_UI_DrawEntryLines            = true;           // UI SM: Draw entry marker lines
-input bool        Inp_UI_DrawTradeLines            = true;           // UI SM: Draw trade management lines
 input bool        Inp_UI_UseCustomColors           = true;           // UI SM: Use custom panel colors
 input color       Inp_UI_FontColor                 = clrYellow;      // UI SM: font color
 input int         Inp_UI_FramePadPx                = 6;              // UI SM: Panel padding (px)
@@ -673,7 +672,6 @@ input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: QUALITY Gates";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_RequireRecoveryIntraday = false;        // RRM ORG QA: Require recovery <M15
 input bool        Inp_RRM_ORG_HtfFilter            = false;           // RRM ORG QA: HTF Trend Filter
 input bool        Inp_RRM_ORG_MTF_RequirePhase     = false;           // RRM ORG QA: HTF slope-confirm (both EMAs must slope with position; blocks 'drifting' HTFs)
 // F-AUDIT 2026-06: Inp_RRM_ORG_ClimaxGuard_Enabled removed — toggle globalized to Inp_Global_F_ClimaxGuard_Enabled
@@ -714,7 +712,6 @@ input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;  // RRM ORG PB: Count
 // PRICE test into pullback detection and is DISABLED by default. The input is
 // retained for back-compat only; leaving it true has no effect (the S2 gate code
 // was removed from UpdateSingleLayerPullback).
-input bool        Inp_RRM_ORG_LayerPriceTouchEnabled = false; // RRM ORG PB: (deprecated/no-op) price-zone touch — off under the slope model
 // A21: minimum bars in DETECTED before RECOVERED is allowed. Path 2: a pullback
 // cannot complete in one bar, so the floor is 2 on every layer/timeframe.
 input int         Inp_RRM_ORG_MinPBBars_W   = 2;            // RRM ORG PB: A21 - LayerW min bars in DETECTED before RECOVERED (2/2/2 default)
@@ -800,7 +797,6 @@ input group "║   📐 RRM_ORG: CB Candle Body Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_CandleBody_RequireDir   = true;        // RRM ORG CBody: CBody Require direction
 input int         Inp_RRM_ORG_CandleBody_AvgPeriod    = 14;          // RRM ORG CBody: CBody Average period       [SYNC 2026-06-04: 5→14 to match SignalScan CB_AvgPeriod]
-input int         Inp_RRM_ORG_CandleBody_CheckBars    = 1;           // RRM ORG CBody: CBody Bars to check        [SYNC 2026-06-04: 3→1 to match SignalScan CB_CheckBars (inert — engine no longer uses CheckBars in ATR spike test)]
 input double      Inp_RRM_ORG_CandleBody_MaxMult      = 3.0;         // RRM ORG CBody: CBody Max multiplier       [SYNC 2026-06-04: 4.0→3.0 to match SignalScan CB_MaxMult]
 input double      Inp_RRM_ORG_CandleBody_MinCloseRatio = 0.0;        // RRM ORG CBody: Min close ratio (0=off, 0.75=TopInvestor — rejects doji-like signal bars)
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1289,13 +1285,8 @@ void InitializeConfig()
    // See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
    Settings.Stats_FullEvaluation     = Inp_Debug_Stats_FullEvaluation;
 
-   Settings.UI_ShowStatusPanel       = Inp_UI_ShowStatusPanel;
-   Settings.UI_ShowCockpitPanel      = Inp_UI_ShowCockpitPanel;
-   Settings.UI_ManageChartIndicators = Inp_UI_ManageChartIndicators;
    Settings.DrawEntryLines           = Inp_UI_DrawEntryLines;
-   Settings.DrawTradeLines           = Inp_UI_DrawTradeLines;
    Settings.ExportCSV                = Inp_Debug_ExportCSV;
-   Settings.ExportUseCommonFiles     = Inp_Debug_ExportUseCommonFiles;
    
    // === Tactical UI Theme Mapping ===
    Settings.clr_Header              = Inp_UI_clr_Header;   // Gold 
@@ -1305,8 +1296,6 @@ void InitializeConfig()
    Settings.clr_Disabled            = Inp_UI_clr_Disabled; // Gray
    
    // Master Toggle and Global Font Color
-   Settings.UseCustomColors         = Inp_UI_UseCustomColors; // 
-   Settings.UI_FontColor            = Inp_UI_FontColor;       // Yellow
 
    // === Strategy inputs ===
    Settings.CloseOnReverse          = false;
@@ -1320,7 +1309,6 @@ void InitializeConfig()
 
    Settings.CandleBody_AvgPeriod    = MathMax(1, 5);
    Settings.CandleBody_MaxMult      = 4.0;
-   Settings.CandleBody_CheckBars    = MathMax(1, 3);
    Settings.CandleBody_RequireDirection = true;
 
    Settings.UseMACompatSizer        = false;
@@ -1334,15 +1322,7 @@ void InitializeConfig()
    Settings.RequirePriceCross       = false;
    Settings.MABenchmarkStrict       = false;
 
-   Settings.RRM_Lookback               = 5;
-   Settings.RequireRecoveryMomentum    = false;
    
-   Settings.Gate_Recovery.mode         = GATE_SCALE_OFF;
-   Settings.Gate_Recovery.value        = 0.0;
-   Settings.Gate_EmaDiv.mode           = GATE_SCALE_OFF;
-   Settings.Gate_EmaDiv.value          = 0.0;
-   Settings.Gate_CandleDirection.mode  = GATE_SCALE_OFF;
-   Settings.Gate_CandleDirection.value = 0.0;
 
    // Bias
    Settings.BiasEnabled          = true;
@@ -1404,7 +1384,6 @@ void InitializeConfig()
    // documents it directly: "MTF_StrictAlignment is retained for compatibility but the gate is
    // strict-by-construction; the flag no longer relaxes it." Inp_Global_MTF_StrictAlignment (which
    // fed this) is removed. Literal `true` preserves the field's value for ConfigSync round-tripping.
-   Settings.MTF_StrictAlignment  = true;
 
    // Fibonacci voter (globally available)
    Settings.Ind_Fib_Enabled      = Inp_Global_Ind_Fib_Enabled;
@@ -1448,7 +1427,6 @@ void InitializeConfig()
    Settings.T_RsiOS              = 30.0;
    Settings.P_Cci                = 14;
    Settings.P_Mfi                = 14;
-   Settings.T_Mfi                = Inp_Global_Ind_Mfi_Level;
    Settings.T_MfiOB              = Inp_Global_Ind_Mfi_Level;
    Settings.T_MfiOS              = Inp_Global_Ind_Mfi_Level;
    Settings.P_StoK               = 5;
@@ -1478,7 +1456,6 @@ void InitializeConfig()
    Settings.CciMode              = CCI_TREND_ZERO;
    Settings.StoMode              = STO_CROSS_SIGNAL;
    Settings.BbMode               = BB_TREND_FOLLOW;
-   Settings.MfiMode              = MFI_ZONE_FILTER;
 
    // Active votes
    Settings.Ind_Adx_Enabled      = false;
@@ -1541,7 +1518,6 @@ void InitializeConfig()
     Settings.CI_RangingThreshold   = 61.8;  // seed default (standard Dreiss threshold)
 
    // VRC
-   Settings.VRC_ATR_Period        = MathMax(1, 14);
    Settings.VRC_Lookback          = MathMax(10, 100);
    Settings.VRC_LowThreshold      = MathMax(0.0, MathMin(100.0, 33.0));
    Settings.VRC_RefreshSec        = 14400;
@@ -1584,7 +1560,6 @@ void InitializeConfig()
    Settings.PSAR_TrailCushionAtrPeriod = 14;  // default; overwritten by ApplyPreset
    Settings.PSAR_TrailCushionAtrMult   = 0.5; // default; overwritten by ApplyPreset
    Settings.PSAR_TrailCushionPct       = 0.0; // default; overwritten by ApplyPreset
-   Settings.PSAR_TrailDelay         = 2;      // default; overwritten by ApplyPreset
 
    Settings.ExitProfile             = EXIT_PROFILE_RRM;
    Settings.BE_Mode                 = BE_MODE_TP_PROGRESS_PCT;
@@ -1640,12 +1615,7 @@ void InitializeConfig()
    Settings.RequireMinPhaseConfirm       = false;
    Settings.MinPhaseConfirmBars          = 0;
    
-   Settings.Emerging_AllowWeakTrades     = true;
-   Settings.Emerging_AllowMediumTrades   = true;
    Settings.Emerging_AllowStrongTrades   = true;
-   Settings.Trending_AllowWeakTrades     = true;
-   Settings.Trending_AllowMediumTrades   = true;
-   Settings.Trending_AllowStrongTrades   = true;
 
     Settings.EnableLayerDetection         = true;
     Settings.AllowLayer1_Entries          = true;
@@ -1708,13 +1678,7 @@ void InitializeConfig()
    // README_SEA_PRESETS.md) which already documented it as inert under the Path-2 slope model --
    // a documentation cross-reference this audit's first pass missed. Inp_RRM_ORG_LayerPBPullbackRatio
    // (which fed this) is removed. See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
-   Settings.LayerPullbackRatio_Legacy          = 0.5;
    Settings.LayerFlatRatio              = 0.1;
-   Settings.LayerRecoveryRatio          = 0.3;
-   Settings.LayerRecoveryOnSlope        = false;  // default; overwritten by ApplyPreset
-   Settings.LayerRecoveryRatio_W        = -1.0;  // -1 = use global
-   Settings.LayerRecoveryRatio_M        = -1.0;
-   Settings.LayerRecoveryRatio_S        = -1.0;
    Settings.LayerAllowReversalPullback  = true;
 
    // F-AUDIT 2026-06: Climax guard. Sub-params already global; master toggle now
@@ -1780,7 +1744,6 @@ void InitializeConfig()
 
    // ── PHASE B: Recovery-sensitivity tuning defaults (all off; PRESET_RRM_ORG may override) ──
    Settings.DPI_IgnoreCCIForVote  = false;
-   Settings.Layer_SlopeTolerance  = 0.0;
    Settings.BarClose_PipTolerance = 0.0;
    Settings.BarClose_LookbackBars        = 3;    // Default; overridden by PRESET_RRM_ORG via Inp_RRM_ORG_BarClose_LookbackBars
    Settings.Require_Progressive_Momentum = true; // Default; overridden by PRESET_RRM_ORG via Inp_RRM_ORG_BarClose_Require_Progressive_Momentum

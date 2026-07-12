@@ -444,3 +444,146 @@ This round's inputs bring the running total to **20 dead inputs removed**, input
 correctly classified from round 1: already documented, intentionally retained for back-compat, no
 further action.
 
+---
+
+## Struct Surface Audit (2026-07, F-AUDIT-STRUCT)
+
+The sequel the F-AUDIT logged as out of scope ("*a parallel audit of internal `ST_Settings` struct
+fields … was not undertaken here … Worth a session of its own*"). Every field of `ST_Settings`
+(360 at audit time, **327 after remediation**) was traced to a consumer.
+
+**Result: 33 dead fields removed. 4 EA inputs and 4 SignalScan inputs removed as orphans.
+Zero behavioural change** — by construction, since every removed field was proven unread.
+
+### Method — and the two ways a naive sweep lies
+
+A field is **LIVE** only if its *value* reaches a decision, calculation, or non-echo display. The
+audit is a data-flow trace, not a reference count, because reference counting fails in **both**
+directions:
+
+| Failure | Example | Consequence |
+|---|---|---|
+| **False LIVE** — referenced, never consulted | `LayerRecoveryRatio` is read by `GetLayerRecovery()` and passed to `UpdateSingleLayerPullback`'s `recovery_ratio` param — which the function's own comment says is *"no longer consulted here"*. Its only remaining use was a `DebugLog` string printing `RecThresh=` for a threshold that no longer thresholds anything. | Dead code survives an audit. |
+| **False DEAD** — read from an unexpected file | `UseAdaptiveRisk`, `AdaptiveRisk_M1/M5/M15Plus`, `Override_SL_Cushion`, `Override_BE_Cushion`, `FixedLotSize` are read in **`SEA_Presets.mqh`** — which hosts the TF-resolver and validator helpers (`:91`, `:119`, `:127`, `:817`), not just `ApplyPreset()`. | **Live risk-management code gets deleted.** |
+
+The second is the mirror image of the F-AUDIT's own round-2 bug (which wrongly *included*
+`SEA_ConfigSync.mqh` as proof of life). Both have the same root cause: **classifying a *file* as
+consumer-or-not, instead of classifying each *occurrence* as read-or-write.** The rule that
+survives both:
+
+> **A file is never a consumer. An occurrence is.** Classify every occurrence as READ (any use of the
+> value) or WRITE (LHS of `=`). `SEA_ConfigSync.mqh` reads are excluded entirely (serialization is
+> not use). Config-echo `Print`s and `DebugLog` strings are excluded (echoing a value is not use).
+> Everything else — *including `SEA_Presets.mqh` and `SEA_Config.mqh` helper functions* — counts.
+
+### Negative controls (the audit must distinguish these, or it is a false-positive sweep)
+
+| Field | Verdict | Why it proves the sweep is sound |
+|---|---|---|
+| `Emerging_AllowStrongTrades` | **LIVE** (`SEA_SignalEngine.mqh`) | The one live member of the six-field `*_Allow*Trades` matrix. Its five neighbours are dead. |
+| `DrawEntryLines` | **LIVE** (`SimpleEA_v1-05.mq5:994`) | Same struct section as the dead `DrawTradeLines`; distinguished correctly. |
+| `Override_Trail_Cushion` | **LIVE** (`SEA_TradeExecutor.mqh:1725`) | Live sibling of `Override_SL_Cushion` / `Override_BE_Cushion`. |
+| `T_MfiOB` / `T_MfiOS` | **LIVE** | Live siblings of the dead `T_Mfi` — all three fed by the *same* input. |
+| `LayerFlatRatio` | **LIVE** | The ratio that *replaced* `LayerPullbackRatio`. |
+
+### The dead-field classes
+
+**1. Bypassed mirrors (6)** — the field is unread, but its `Inp_*` **is** read *directly* by the
+consumer. The feature works; the struct copy is a decoy. **Invisible to an input audit** (the input
+is live) — this class is the reason the struct audit had to exist.
+
+| Field | The input, read directly at |
+|---|---|
+| `UI_ShowStatusPanel` | `SEA_UI.mqh:524` |
+| `UI_ShowCockpitPanel` | `SEA_UI.mqh:640` |
+| `UI_ManageChartIndicators` | `SimpleEA_v1-05.mq5:132`, `:642` |
+| `UseCustomColors` | `SEA_UI.mqh:158` |
+| `UI_FontColor` | `SEA_UI.mqh:159` |
+| `ExportUseCommonFiles` | `SEA_Reporting.mqh:35`, `:136` |
+
+The init config-echo in `SimpleEA_v1-05.mq5` was the *only* reader of these fields. It now reads the
+inputs directly — so the echo remains truthful and is no longer the thing keeping a dead field alive.
+
+**2. Dead field + orphaned input (4 EA, 4 scanner)** — the field's only writer was an input whose
+only sink was that field. Both removed. These are **new dead inputs the F-AUDIT missed**, because a
+config-echo or `DebugLog` made their fields look consumed:
+
+| Input removed | Fed | Note |
+|---|---|---|
+| `Inp_RRM_ORG_RequireRecoveryIntraday` | `RequireRecoveryMomentum` | **The worst of the set.** A user-facing QA toggle ("Require recovery <M15") that never reached a decision. A live decoy — exactly the optimizer-sweep trap the F-AUDIT exists to remove. |
+| `Inp_RRM_ORG_CandleBody_CheckBars` | `CandleBody_CheckBars` | Its own declaration comment already said *"(inert — engine no longer uses CheckBars in ATR spike test)"* — admitted inert, yet survived the input audit. |
+| `Inp_UI_DrawTradeLines` | `DrawTradeLines` | The "draw trade management lines" feature does not exist. |
+| `Inp_RRM_ORG_LayerPriceTouchEnabled` | `LayerPriceTouchEnabled` | See *Reversal* below. |
+| `PB_RecoveryRatio` `_W` `_M` `_S` (SignalScan) | `LayerRecoveryRatio*` | Scanner-side twins of the same dead sink. |
+
+**3. Dead sinks, no input (23)** — literal-seeded or preset-written fields that nothing reads:
+`Trending_AllowWeakTrades`, `Trending_AllowMediumTrades`, `Trending_AllowStrongTrades`,
+`Emerging_AllowWeakTrades`, `Emerging_AllowMediumTrades` (the permission matrix — 5 of 6 dead;
+real layer control is `AllowLayer{1,2,3}_Entries`) · `Gate_Recovery`, `Gate_EmaDiv`,
+`Gate_CandleDirection` (three `SGateConfig` structs, 10 writes each, **zero reads** — every preset
+carefully configures gates that do not exist) · `RRM_Lookback` (TopInvestor even TF-scales it) ·
+`LayerPullbackRatio_Legacy`, `LayerRecoveryRatio`, `LayerRecoveryRatio_W/M/S`, `LayerRecoveryOnSlope`,
+`LayerPriceTouchEnabled`, `Layer_SlopeTolerance` · `MfiMode`, `T_Mfi`, `VRC_ATR_Period` ·
+`MTF_StrictAlignment` · `PSAR_TrailDelay` · `RequireRecoveryMomentum` · `CandleBody_CheckBars` ·
+`Stats_TrackRejections`, `Stats_TrackPasses` (already input-less since the F-AUDIT).
+
+### Engine change (the only non-deletion edit)
+
+`UpdateSingleLayerPullback` lost two parameters — `recovery_ratio` and `use_price_touch` — and the
+`GetLayerRecovery()` resolver was deleted. Both params were retained "for ABI/back-compat"; MQL5 has
+no ABI concern for a private method, and with their feeding fields gone they had no callers.
+Arity: **20 params, 20 args at all 6 call sites** (live path ×3, warm-up replay ×3). The
+`[%s_PB]` DebugLog no longer prints `RecThresh=`.
+
+**This does not touch the P-R invariant** (`README_SEA_TRADE_LOGIC.md` §1.1): removing an argument
+that was never read cannot change a state transition. `LayerPriceTouchEnabled` was the last formal
+trace of the removed S2 price-touch gate — with it gone, the "no price inside the P-R machine"
+invariant is now enforced by *absence*, not by a `false` default.
+
+### Reversal of a prior decision — `Inp_RRM_ORG_LayerPriceTouchEnabled`
+
+The F-AUDIT kept this input as "dead but intentionally retained for `.set` back-compat". That
+decision is **reversed** here, because its premise is gone: it was retained to feed a field that no
+longer exists. An input with no sink is not back-compat — it is a pure decoy, the exact defect the
+F-AUDIT exists to remove. (MT5 ignores unknown keys in `.set` files, and 20 inputs were already
+removed under the breaking-change banner at the top of this document.) To restore it, re-add the
+input, the field, and the `use_price_touch` param — but note the gate code it fed was deleted in
+Path 2 and does not exist to be revived.
+
+### Running totals
+
+| Surface | Before | After |
+|---|---|---|
+| `ST_Settings` fields | 360 | **327** |
+| `SEA_Inputs.mqh` inputs | 437 | **433** |
+| `SEA_IND_SignalScan.mq5` inputs | 159 | **155** |
+
+### The `LayerPullbackRatio` compile error — root cause
+
+The F-AUDIT renamed `LayerPullbackRatio` → `LayerPullbackRatio_Legacy` as a diagnostic experiment
+after an *"undeclared identifier"* error at two call sites; the rename resolved it and was kept,
+root cause "never conclusively identified". **The field is now deleted outright, so the identifier
+no longer exists and the error is structurally impossible.** The workaround is dissolved, not
+enshrined — and the decoupled `ConfigSync` key it required is gone with it.
+
+The root cause is now identifiable, and it was never in the source:
+
+- Every module is included as `#include <RRMS\...>` — **angle brackets**. That resolves to
+  MetaTrader's `MQL5\Include\RRMS\` directory, **not the repo folder**. The repo is not what
+  MetaEditor compiles; a *copy* of it is.
+- The two failing sites were `SEA_ConfigSync.mqh`'s save and load. Both reference a field declared in
+  `SEA_Config.mqh`. That is exactly the error you get from a **partially-synced Include directory** —
+  `SEA_ConfigSync.mqh` freshly copied, `SEA_Config.mqh` stale (predating the field).
+- This explains the otherwise-baffling observation that the repo file was *"byte-identical and
+  syntactically valid"*: it was valid, and it was not the file being compiled.
+- It also explains why the rename "fixed" it. The rename **forced a re-copy** of `SEA_Config.mqh`
+  into the Include directory. The re-copy is what fixed it. The experiment confounded two changes
+  and credited the wrong one.
+
+> ⚠️ **Operational consequence.** This is stated as the hypothesis best consistent with the evidence,
+> not a traced defect — it cannot be proven from the repo, because the fault is *in the build
+> environment*, which the repo cannot see. It is falsifiable: check whether `MQL5\Include\RRMS\` is a
+> stale copy. **After any change to these files, re-copy ALL of them to `MQL5\Include\RRMS\` before
+> compiling.** Syncing a subset reproduces this class of phantom error. Making that directory a
+> symlink to the repo would eliminate it permanently.
+

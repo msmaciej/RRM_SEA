@@ -244,10 +244,6 @@ input int      PB_Lookback_W        = 13;            // LayerW baseline lookback
 input int      PB_Lookback_M        = 21;            // LayerM baseline lookback
 input int      PB_Lookback_S        = 34;            // LayerS baseline lookback
 input double   PB_FlatRatio         = 0.1;      // Flat threshold
-input double   PB_RecoveryRatio     = 0.3;  // Global recovery threshold (fallback)
-input double   PB_RecoveryRatio_W   = 0.4;      // LayerW recovery override (-1=use global)
-input double   PB_RecoveryRatio_M   = 0.3;      // LayerM recovery override
-input double   PB_RecoveryRatio_S   = 0.2;      // LayerS recovery override
 input bool     PB_AllowReversal     = true;  // Count slope reversal as pullback
 input group "--- RSI---"
 input int      RSI_Period           = 14;          // RSI period
@@ -1031,10 +1027,6 @@ void BuildSettings(ST_Settings &s)
    s.LayerBaselineLookback_M = PB_Lookback_M;
    s.LayerBaselineLookback_S = PB_Lookback_S;
    s.LayerFlatRatio          = PB_FlatRatio;
-   s.LayerRecoveryRatio      = PB_RecoveryRatio;
-   s.LayerRecoveryRatio_W    = PB_RecoveryRatio_W;
-   s.LayerRecoveryRatio_M    = PB_RecoveryRatio_M;
-   s.LayerRecoveryRatio_S    = PB_RecoveryRatio_S;
    s.LayerAllowReversalPullback = PB_AllowReversal;
    s.AllowLayer1_Entries   = TS_LayerW;   // per-layer entry toggle (W) -> walk gate
    s.AllowLayer2_Entries   = TS_LayerM;   // (M)
@@ -1086,12 +1078,10 @@ void BuildSettings(ST_Settings &s)
    s.ClimaxGuard_MoveATRMult   = CG_MoveATRMult;
    s.ClimaxGuard_ResetPullback = CG_ResetPullback;
    s.MTF_RequirePhase    = false;
-   s.MTF_StrictAlignment = false;
 
    // CandleBody
    s.Ind_CandleBody_Enabled      = TS_CandleBody;
    s.CandleBody_AvgPeriod        = CB_AvgPeriod;
-   s.CandleBody_CheckBars        = CB_CheckBars;
    s.CandleBody_MaxMult          = CB_MaxMult;
    s.CandleBody_CarryOnOverext   = CB_CarryOnOverext;
    s.CandleBody_RequireDirection = true;
@@ -1143,7 +1133,6 @@ void BuildSettings(ST_Settings &s)
    // MFI
    s.Ind_Mfi_Enabled = TS_MFI;
    s.P_Mfi           = MFI_Period;
-   s.T_Mfi           = MFI_Level;
    s.T_MfiOB         = MFI_Level;
    s.T_MfiOS         = 100.0 - MFI_Level;
 

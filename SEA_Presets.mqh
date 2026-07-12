@@ -1281,7 +1281,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Mfi                  = Inp_FPM_Mfi_Period;
       cfg.T_MfiOB                = 80.0;
       cfg.T_MfiOS                = 20.0;
-      cfg.MfiMode                = MFI_ZONE_FILTER;          // MFI>50 = bullish volume zone; <50 = bearish
       cfg.Ind_P123_Enabled       = false;
       cfg.Ind_Ross_Enabled       = false;
       cfg.Ind_Rsi_Enabled        = false;
@@ -1334,22 +1333,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MinPhaseConfirmBars       = 0;
 
       // Layer permissions (all irrelevant when detection is off, set safe defaults)
-      cfg.Trending_AllowWeakTrades   = true;
-      cfg.Emerging_AllowWeakTrades   = true;
-      cfg.Trending_AllowMediumTrades = true;
-      cfg.Emerging_AllowMediumTrades = true;
-      cfg.Trending_AllowStrongTrades = true;
       cfg.Emerging_AllowStrongTrades = true;
 
       // ── PULLBACK DETECTION GATES: disabled ────────────────────────────
-      cfg.RequireRecoveryMomentum   = false;
-      cfg.Gate_Recovery.mode        = GATE_SCALE_FIXED;
-      cfg.Gate_Recovery.value       = 0.0;
-      cfg.RRM_Lookback              = 0;
-      cfg.Gate_EmaDiv.mode          = GATE_SCALE_FIXED;
-      cfg.Gate_EmaDiv.value         = 0.0;
-      cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
-      cfg.Gate_CandleDirection.value = 0.0;
 
       // ── VOTE EVALUATION ───────────────────────────────────────────────
       cfg.Vote_EvalShift            = 1;
@@ -1368,11 +1354,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ATR_VoteMaxPips           = 50.0;  // ATR voter range default
       cfg.CandleBody_AvgPeriod      = 10;
       cfg.CandleBody_MaxMult        = 3.0;
-      cfg.CandleBody_CheckBars      = 1;
       cfg.CandleBody_RequireDirection = true;
       cfg.CI_Period                 = 14;
       cfg.CI_RangingThreshold       = 61.8;
-      cfg.VRC_ATR_Period            = 14;    // VRC LOCKED (FPM design choice — VRC tuning not exposed for this preset)
       cfg.VRC_Lookback              = 100;   // VRC LOCKED
       cfg.VRC_LowThreshold          = 33.0;  // VRC LOCKED
       cfg.VRC_RefreshSec            = 14400; // VRC LOCKED (4h refresh)
@@ -1568,7 +1552,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Candle Body
       cfg.CandleBody_AvgPeriod   = 10;
       cfg.CandleBody_MaxMult     = 3.0;
-      cfg.CandleBody_CheckBars   = 1;
       cfg.CandleBody_RequireDirection = true;
 
       // Choppiness Index
@@ -1576,7 +1559,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CI_RangingThreshold    = 61.8;
       
       // VRC (Volatility Regime Classifier) — LOCKED for MA preset (design choice; tuning not exposed)
-      cfg.VRC_ATR_Period         = 14;
       cfg.VRC_Lookback           = 100;
       cfg.VRC_LowThreshold       = 33.0;
       cfg.VRC_RefreshSec         = 14400;
@@ -1607,7 +1589,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Mfi                  = 14;
       cfg.T_MfiOB                = 80.0;
       cfg.T_MfiOS                = 20.0;
-      cfg.MfiMode                = MFI_ZONE_FILTER;
    
       // PSAR (Parabolic SAR)
       cfg.P_PsarStep             = 0.02;
@@ -1640,30 +1621,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MinPhaseConfirmBars       = 0;
       
       // Layer permissions per phase
-      cfg.Trending_AllowWeakTrades   = false;
-      cfg.Emerging_AllowWeakTrades   = false;
-      cfg.Trending_AllowMediumTrades = false;
-      cfg.Emerging_AllowMediumTrades = false;
-      cfg.Trending_AllowStrongTrades = false;
       cfg.Emerging_AllowStrongTrades = false;
       
       // ================================================================
       // PULLBACK DETECTION GATES
       // ================================================================
-      cfg.RequireRecoveryMomentum   = false;
       
       // Gate 2: Recovery momentum
-      cfg.Gate_Recovery.mode        = GATE_SCALE_FIXED;
-      cfg.Gate_Recovery.value       = 0.0;
-      cfg.RRM_Lookback              = 0;
       
       // Gate 3: EMA divergence
-      cfg.Gate_EmaDiv.mode          = GATE_SCALE_FIXED;
-      cfg.Gate_EmaDiv.value         = 0.0;
       
       // Gate 4: Candle direction
-      cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
-      cfg.Gate_CandleDirection.value = 0.0;
       
       // ================================================================
       // VOTE EVALUATION SETTINGS
@@ -1907,7 +1875,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_CandleBody_Enabled    = Inp_RRM_ORG_Use_CandleBody;
       cfg.CandleBody_AvgPeriod      = Inp_RRM_ORG_CandleBody_AvgPeriod;
       cfg.CandleBody_MaxMult        = Inp_RRM_ORG_CandleBody_MaxMult;
-      cfg.CandleBody_CheckBars      = Inp_RRM_ORG_CandleBody_CheckBars;
       // cfg.CandleBody_CheckBars      = (_Period <= PERIOD_M5) ? 3 : 5;
       cfg.CandleBody_RequireDirection  = Inp_RRM_ORG_CandleBody_RequireDir;
       // [SYNC 2026-06-04] Explicitly pin CarryOnOverext so RRM_ORG no longer inherits the
@@ -2008,14 +1975,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // F-AUDIT 2026-07: MfiMode is a PROVEN DEAD SINK — Check_MFI() (SEA_SignalEngine.mqh) only
       // ever compares T_MfiOB/T_MfiOS, never branches on MfiMode. Inp_RRM_ORG_Mfi_Mode (which fed
       // this) is removed. Literal MFI_ZONE_FILTER matches every other preset's hardcoded value.
-      cfg.MfiMode                   = MFI_ZONE_FILTER;
       cfg.P_Mfi                     = Inp_RRM_ORG_Mfi_Period;
       cfg.T_MfiOB                   = Inp_RRM_ORG_Mfi_OB;
       cfg.T_MfiOS                   = Inp_RRM_ORG_Mfi_OS;
       // F-AUDIT 2026-07: VRC_ATR_Period is a PROVEN DEAD SINK — VRC's shared ATR handle is built
       // from Settings.P_Atr (SEA_SignalEngine.mqh:6419), not this field. Inp_RRM_ORG_VRC_ATR_Period
       // (which fed this) is removed. Literal 14 matches every other preset's hardcoded value.
-      cfg.VRC_ATR_Period            = 14;
       cfg.VRC_Lookback              = Inp_RRM_ORG_VRC_Lookback;
       cfg.VRC_LowThreshold          = Inp_RRM_ORG_VRC_LowThreshold;
       cfg.VRC_RefreshSec            = Inp_RRM_ORG_VRC_RefreshSec;
@@ -2051,8 +2016,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Inp_RRM_ORG_AllowWeak / Inp_RRM_ORG_AllowMedium (the inputs that used to feed this line)
       // are removed — see Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit". Literal
       // `true` retained here only to preserve the struct's documented intent for these dead fields.
-      cfg.Emerging_AllowWeakTrades   = true;
-      cfg.Emerging_AllowMediumTrades = true;
       cfg.Emerging_AllowStrongTrades = false;         // STRONG always blocked in EMERGING per RRM methodology (this one IS live)
 
       // ORACLE FIX 2026-07: LayerS_RequireDirAlign must be FALSE for PRESET_RRM_ORG.
@@ -2072,9 +2035,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // Inp_RRM_ORG_AllowLayerW/M/S). Inp_RRM_ORG_AllowWeak/AllowMedium/AllowStrong (the inputs
       // that used to feed this line) are removed — see Readme/README_SEA_PARAMETER_MAPPING.md
       // "Input Surface Audit". Literal `true` retained only to preserve documented intent.
-      cfg.Trending_AllowWeakTrades   = true;
-      cfg.Trending_AllowMediumTrades = true;
-      cfg.Trending_AllowStrongTrades = true;
 
       // ── PULLBACK DETECTION GATES: LOCKED ON ──────────────────────────
       // PHASE A: require recovery momentum on M15-and-down. The original
@@ -2082,9 +2042,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // a second line — duplicate-write bug. Wick-touch recoveries are
       // the dominant noise mode on intraday, see trade #095.
       // Operator-tunable via Inp_RRM_ORG_RequireRecoveryIntraday.
-      cfg.RequireRecoveryMomentum   = Inp_RRM_ORG_RequireRecoveryIntraday && (_Period <= PERIOD_M15);
 
-      cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;
       // PHASE A: JPY pairs run ~1.3× the natural noise vs majors at the
       // same TF. Loosen recovery distance proportionally so we don't chop
       // out of legitimate setups (#001 USDJPY, #060 GBPJPY, #100 EURJPY).
@@ -2092,14 +2050,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       {
          bool isJpyOrg = (StringFind(_Symbol, "JPY") >= 0);
          double jpyMul = (Inp_RRM_ORG_JpyGateMultiplier > 0.0) ? Inp_RRM_ORG_JpyGateMultiplier : 1.0;
-         cfg.Gate_Recovery.value = isJpyOrg ? jpyMul : 1.0;
-         cfg.Gate_EmaDiv.value   = isJpyOrg ? jpyMul : 1.0;
       }
-      cfg.RRM_Lookback              = (_Period <= PERIOD_M1) ? 15 : (_Period <= PERIOD_M5) ? 10 : 12;
 
-      cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;
-      cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;
-      cfg.Gate_CandleDirection.value = 1.0;
 
       // ── P2: PULLBACK STATE MACHINE ─────────────────────────────────
       // Activates the NONE→DETECTED→RECOVERED state machine that already
@@ -2159,7 +2111,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // F-AUDIT 2026-07 (round 2): LayerPullbackRatio_Legacy proven dead (see SEA_Inputs.mqh).
       // Inp_RRM_ORG_LayerPBPullbackRatio removed. Literal preserves the field's prior effective
       // value for ConfigSync round-trip compatibility only -- it has no effect on trading logic.
-      cfg.LayerPullbackRatio_Legacy          = 0.65;
       cfg.LayerFlatRatio              = MathMax(0.0,  Inp_RRM_ORG_LayerPBFlatRatio);
       // F-AUDIT 2026-07 (round 2): LayerRecoveryRatio is a PROVEN DEAD SINK. Traced its consumer:
       // GetLayerRecovery() reads it into UpdateSingleLayerPullback()'s recovery_ratio parameter,
@@ -2168,21 +2119,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // is inside a DebugLog() string, never a decision. Already documented in
       // README_SEA_SIGNAL_REFERENCE.md / README_SEA_TRADE_LOGIC.md / README_SEA_PRESETS.md, a
       // cross-reference this audit's first pass missed. Inp_RRM_ORG_LayerPBRecoveryRatio removed.
-      cfg.LayerRecoveryRatio          = 0.3;
       // F-AUDIT 2026-07: LayerRecoveryOnSlope is a PROVEN DEAD SINK — never read anywhere.
       // Consistent with the README's post-refactor model: layer RECOVERED is unconditionally
       // slope-only now (same shape as the already-documented Inp_RRM_ORG_LayerPriceTouchEnabled
       // deprecation). Inp_RRM_ORG_LayerPB_RecoveryOnSlope (which fed this) is removed.
-      cfg.LayerRecoveryOnSlope        = false;
       // F-AUDIT 2026-07 (round 2): LayerRecoveryRatio_W/M/S are the same proven-dead sink as
       // LayerRecoveryRatio above (same recovery_ratio parameter, same unused-in-decision-logic
       // trace). Inp_RRM_ORG_RecoveryRatio_W/M/S removed.
-      cfg.LayerRecoveryRatio_W        = 0.4;   // matches prior input default; no effect on trading logic
-      cfg.LayerRecoveryRatio_M        = 0.3;
-      cfg.LayerRecoveryRatio_S        = 0.2;
       cfg.LayerAllowReversalPullback  = Inp_RRM_ORG_LayerPBAllowReversal;
       // S2 2026-07: price-zone DETECTED gate
-      cfg.LayerPriceTouchEnabled     = Inp_RRM_ORG_LayerPriceTouchEnabled;
       // A21 2026-07: minimum bars in DETECTED before RECOVERED is allowed
       cfg.LayerMinPullbackBars_W     = MathMax(0, Inp_RRM_ORG_MinPBBars_W);
       cfg.LayerMinPullbackBars_M     = MathMax(0, Inp_RRM_ORG_MinPBBars_M);
@@ -2376,7 +2321,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Fast              = Inp_Global_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow              = Inp_Global_MTF_EMA_Slow;
       cfg.MTF_RequirePhase          = Inp_RRM_ORG_MTF_RequirePhase;     // Theme1 2026-06: was hardcoded false; now per-preset toggle (default off, user can enable for stricter HTF gating)
-      cfg.MTF_StrictAlignment       = true;  // F-AUDIT 2026-07: proven dead sink; Inp_Global_MTF_StrictAlignment removed — see SEA_Inputs.mqh
 
       // F-AUDIT 2026-06: ClimaxGuard_Enabled wiring removed — globalized to Inp_Global_F_ClimaxGuard_Enabled
 
@@ -2420,7 +2364,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // pullback-recovery setups through.  All default to the conservative value that
       // preserves the original PRESET_RRM_ORG contract.
       cfg.DPI_IgnoreCCIForVote      = Inp_RRM_ORG_DPI_IgnoreCCIForVote;
-      cfg.Layer_SlopeTolerance      = 0.0;   // Hardcoded: obsolete pip-based slope tolerance removed
       cfg.BarClose_PipTolerance     = Inp_RRM_ORG_BarClose_PipTolerance;
       cfg.BarClose_LookbackBars        = MathMax(1, MathMin(4, Inp_RRM_ORG_BarClose_LookbackBars));
       cfg.Require_Progressive_Momentum = Inp_RRM_ORG_BarClose_Require_Progressive_Momentum;
@@ -2498,12 +2441,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // Layer permissions
       // Trending phase: all 3 layers allowed — TI trades any pullback depth in a confirmed trend
-      cfg.Trending_AllowWeakTrades   = true;           // LOCKED: weak pullbacks (L1) are valid TI entries in trending phase
-      cfg.Trending_AllowMediumTrades = true;           // LOCKED: medium pullbacks (L2) are valid TI entries in trending phase
-      cfg.Trending_AllowStrongTrades = true;           // LOCKED: strong pullbacks (L3) are valid TI entries in trending phase
       // Emerging phase: weak and medium allowed, strong controlled by user toggle
-      cfg.Emerging_AllowWeakTrades   = true;           // LOCKED: L1 allowed in EM — less aggressive pullback, safer in emerging trend
-      cfg.Emerging_AllowMediumTrades = true;           // LOCKED: L2 allowed in EM — standard confluence depth
       cfg.Emerging_AllowStrongTrades = Inp_TI_Emerging_AllowStrong; // user-controlled: strong EM trades are riskier (deeper pullback in unconfirmed trend)
 
       // ── LAYER: pullback-recovery detection ─────────────────────────
@@ -2524,7 +2462,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Fast           = Inp_TI_MTF_EMA_Fast;   // default 50 — institutional standard
       cfg.MTF_EMA_Slow           = Inp_TI_MTF_EMA_Slow;   // default 200 — institutional standard
       cfg.MTF_RequirePhase       = true;               // LOCKED: HTF phase must be trending; accepting unordered HTF is a different (lower-quality) system
-      cfg.MTF_StrictAlignment    = true;  // F-AUDIT 2026-07: proven dead sink; Inp_Global_MTF_StrictAlignment removed — see SEA_Inputs.mqh
 
       // ── SPREAD: pair-adaptive from Zone 3C ─────────────────────────
       cfg.MaxSpread              = op_MaxSpread;
@@ -2555,7 +2492,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_CandleBody_Enabled = true;               // LOCKED: CandleBody is a Conservative base voter; always on
       cfg.CandleBody_AvgPeriod   = Inp_TI_CandleBody_AvgPeriod;
       cfg.CandleBody_MaxMult     = Inp_TI_CandleBody_MaxMult;
-      cfg.CandleBody_CheckBars   = 1;                  // LOCKED: check the last bar only; checking multiple bars would reject valid pullback entries that follow a spike
       cfg.CandleBody_RequireDirection = true;          // LOCKED: candle must close in trade direction; direction-agnostic body check would allow counter-trend entries
       cfg.CandleBody_MinCloseRatio   = (Inp_TI_Profile >= TI_FULL) ? Inp_TI_CandleBody_FullRatio : 0.0;
 
@@ -2639,7 +2575,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ATR_VoteMinPips        = 5.0;
       cfg.ATR_VoteMaxPips        = 50.0;
       // VRC — LOCKED for TI preset (design choice; tuning not exposed)
-      cfg.VRC_ATR_Period         = 14;
       cfg.VRC_Lookback           = 100;
       cfg.VRC_LowThreshold       = 33.0;
       cfg.VRC_RefreshSec         = 14400;
@@ -2647,7 +2582,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Mfi                  = 14;
       cfg.T_MfiOB                = 80.0;
       cfg.T_MfiOS                = 20.0;
-      cfg.MfiMode                = MFI_ZONE_FILTER;
       cfg.P_Rsi                  = 14;
       cfg.T_RsiOB                = 70.0;
       cfg.T_RsiOS                = 30.0;
@@ -2660,14 +2594,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.StoMode                = STO_CROSS_SIGNAL;
 
       // ── PULLBACK DETECTION GATES ──────────────────────────────────
-      cfg.RequireRecoveryMomentum   = false;           // LOCKED: TI does not require a momentum candle at recovery; the layer ratio is sufficient confirmation
-      cfg.Gate_Recovery.mode        = GATE_SCALE_AUTO_TF;  // LOCKED: auto TF scaling gives correct gate width across M1–D1 without manual adjustment
-      cfg.Gate_Recovery.value       = 1.0;             // LOCKED: baseline multiplier of 1.0; auto-scaling handles the rest
-      cfg.RRM_Lookback              = (_Period <= PERIOD_M5) ? 10 : 12;  // LOCKED: auto-scaled by TF — shorter TFs use fewer bars to stay responsive
-      cfg.Gate_EmaDiv.mode          = GATE_SCALE_AUTO_TF;  // LOCKED: same auto-scaling rationale as Gate_Recovery
-      cfg.Gate_EmaDiv.value         = 1.0;             // LOCKED: baseline multiplier
-      cfg.Gate_CandleDirection.mode  = GATE_SCALE_FIXED;   // LOCKED: candle direction gate uses a fixed dimensionless ratio, not a pip/ATR value
-      cfg.Gate_CandleDirection.value = 1.0;            // LOCKED: ratio of 1.0 = candle must close fully in trade direction
 
       // ── VOTE EVALUATION ───────────────────────────────────────────
       cfg.Vote_EvalShift            = 1;               // LOCKED: evaluate on the previous closed bar (shift=1); shift=0 would evaluate on the forming bar — unreliable and repaints

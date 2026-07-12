@@ -365,15 +365,9 @@ struct ST_Settings
    color clr_Fail;         // Logic FAIL Color
    color clr_Disabled;     // Logic DISABLED Color
    
-   bool  UseCustomColors;  // Toggle for Inp_UI_UseCustomColors
-   color UI_FontColor;     // From Inp_UI_FontColor (Yellow)
    
    // --- UI ---
-   bool UI_ShowStatusPanel;
-   bool UI_ShowCockpitPanel;
-   bool UI_ManageChartIndicators;
    bool DrawEntryLines;
-   bool DrawTradeLines;
    
    // Logic
    bool CloseOnReverse;
@@ -406,7 +400,6 @@ struct ST_Settings
    // Candle Body Overextension Indicator (ATR spike guard, voting)
    int    CandleBody_AvgPeriod;        // ATR period N for the spike baseline (~14-20)
    double CandleBody_MaxMult;          // SpikeMult: block if (high-low) > MaxMult * ATR(N)
-   int    CandleBody_CheckBars;        // (legacy; unused by the ATR spike test — signal bar only)
    bool   CandleBody_RequireDirection; // CandleBody: Require signal bar to close in trade direction
    double CandleBody_MinCloseRatio;   // CandleBody: Min close-to-range ratio (0.0=disabled, 0.75=TopInvestor 75% rule)
    bool   CandleBody_CarryOnOverext;  // CandleBody: hold CB vote at 0 from an over-extended bar until next layer pullback-recovery
@@ -419,7 +412,6 @@ struct ST_Settings
    bool   MABenchmarkStrict;
    
    // RRM (Trend Pullback)
-   int    RRM_Lookback;
 
    // Bias
    bool          BiasEnabled;
@@ -466,7 +458,6 @@ struct ST_Settings
    int             MTF_EMA_Fast;       // MTF fast EMA period
    int             MTF_EMA_Slow;       // MTF slow EMA period
    bool            MTF_RequirePhase;   // Veto MTF: require trending phase
-   bool            MTF_StrictAlignment;// MTF: strict all-TF alignment
 
    // Fibonacci Retracement voter
    bool   Ind_Fib_Enabled;             // Fibonacci retracement depth voter
@@ -553,7 +544,6 @@ struct ST_Settings
                                        // effect when DPI_RequireResetRecovery=false.
    int    DPI_ResetRecoveryBars;       // Bars of recovery after CCI flip-back (0=immediate, 1+=confirmed)
    bool   DPI_ResetRequireGreen;       // Also require GREEN to reappear during recovery
-   int    VRC_ATR_Period;
    int    VRC_Lookback;
    double VRC_LowThreshold;            // Below this percentile = LOW regime (reject trade)
    int    VRC_RefreshSec;              // Volatility-percentile recalculation cadence in seconds (default 14400 = 4h).
@@ -585,7 +575,6 @@ struct ST_Settings
    double T_RsiOS;
    int    P_Cci;
    int    P_Mfi;
-   double T_Mfi;
    int    P_Atr;
    int    P_StoK;
    int    P_StoD;
@@ -649,12 +638,8 @@ struct ST_Settings
    bool Ind_CI_Enabled;
    
    // MFI mode
-   EMfiMode MfiMode;                // MFI vote mode (ZONE_FILTER or TREND_50)
 
    // RRM gate structures (SGateConfig defined above)
-   SGateConfig Gate_Recovery;       // Recovery momentum gate config
-   SGateConfig Gate_EmaDiv;         // EMA divergence gate config
-   SGateConfig Gate_CandleDirection;// Candle direction gate config
 
    // Fixed lot sizing (0 = use risk-based sizing)
    double FixedLotSize;             // Fixed lot size (0 = risk-based; >0 = fixed)
@@ -708,7 +693,6 @@ struct ST_Settings
    double              PSAR_TrailCushionAtrMult;      // ATR multiplier for PSAR_CUSHION_ATR
    double              PSAR_TrailCushionPct;          // % of price for PSAR_CUSHION_PERCENT and the safety floor
    double              PSAR_TrailPipsCushion;
-   int                 PSAR_TrailDelay;               // PSAR trailing bar-shift delay (1-3)
 
    // RRM exit contract
    EExitProfile ExitProfile;           // Exit profile selector
@@ -724,7 +708,6 @@ struct ST_Settings
    bool   RRM_TrailStartsAfterBE;      // RRM_Delay trail activation until BE is triggered
 
    // Gate system (reusable hard gates for any preset)
-   bool        RequireRecoveryMomentum;// Require recovery bar to close in trend direction
    int         Vote_EvalShift;         // Shift for vote evaluation
    bool        Vote_AllowPsarFlip;     // Allow PSAR flip signal in votes
    
@@ -747,7 +730,6 @@ struct ST_Settings
    EDebugLevel  DebugLevel;            // Debug verbosity level
    
    // Reporting
-   bool ExportUseCommonFiles;
 
    // Adaptive settings (pair-aware spread, TF-aware ATR/SL/TP/trail)
    ST_AdaptiveSettings Adaptive;
@@ -778,13 +760,8 @@ struct ST_Settings
    int      MinPhaseConfirmBars;          // Minimum bars to confirm phase stability
    
    // Phase-specific trade permissions
-   bool     Emerging_AllowWeakTrades;     // EMERGING phase: Allow EMA1/EMA2 entries
-   bool     Emerging_AllowMediumTrades;   // EMERGING phase: Allow EMA2/EMA3 entries
    bool     Emerging_AllowStrongTrades;   // EMERGING phase: Allow EMA3/EMA4 entries
    
-   bool     Trending_AllowWeakTrades;     // TRENDING phase: Allow EMA1/EMA2 entries
-   bool     Trending_AllowMediumTrades;   // TRENDING phase: Allow EMA2/EMA3 entries
-   bool     Trending_AllowStrongTrades;   // TRENDING phase: Allow EMA3/EMA4 entries
 
    // Layer detection settings
     bool     EnableLayerDetection;        // Master switch for multi-layer pullback detection
@@ -834,18 +811,11 @@ struct ST_Settings
     int      LayerBaselineLookback_M;     // M = medium
     int      LayerBaselineLookback_S;     // S = slow EMA pair (stable)
     // Magnitude (ratio) thresholds for pullback-recovery detection
-    double   LayerPullbackRatio_Legacy;          // |slope ratio| below this = pullback (weakened)
     double   LayerFlatRatio;              // |slope ratio| below this = flat
-    double   LayerRecoveryRatio;          // Global recovery threshold (fallback)
-   bool     LayerRecoveryOnSlope;        // t1: recover on slope resume+re-accel (not magnitude ratio)
-    double   LayerRecoveryRatio_W;        // LayerW recovery override (-1 = use global)
-    double   LayerRecoveryRatio_M;        // LayerM recovery override (-1 = use global)
-    double   LayerRecoveryRatio_S;        // LayerS recovery override (-1 = use global)
     bool     LayerAllowReversalPullback;  // Count slope sign reversal as pullback
     // S2 2026-07: price-zone DETECTED gate (wick enters lower portion of EMA band)
     // Additive OR with slope detection. Zone = EMA_slow + (1-PullbackRatio)*(EMA_fast-EMA_slow).
     // Oracle Trade Setups card: "price pulls back to touch the EMA2" — flexibly.
-    bool     LayerPriceTouchEnabled;      // When true, wick entering zone also triggers DETECTED
     // A21 2026-07: minimum bars in DETECTED before RECOVERED is allowed
     // Prevents 1-bar spike pullbacks from producing an immediate recovery signal.
     // Oracle examples show pullbacks lasting 2–8 bars before recovery at all timeframes.
@@ -882,8 +852,6 @@ struct ST_Settings
     string   VPRR_ExternalSymbol;         // Proxy symbol for VPRR_VOL_EXTERNAL (e.g. "GC", "MGC"); empty = block all entries
 
     // Diagnostics: statistics configuration
-    bool Stats_TrackRejections;           // Track rejection counts per indicator
-    bool Stats_TrackPasses;               // Track pass counts (positive stats)
     bool Stats_FullEvaluation;            // Evaluate ALL indicators per bar (no early exit)
 
    // Targeted bar evaluation debug (force-print window or pinpoint, independent of TS outcome)
@@ -945,7 +913,6 @@ struct ST_Settings
    // EMAs/bars are near the threshold.  Default=off to preserve the existing PRESET_RRM_ORG
    // contract.  Enable via the corresponding Inp_RRM_ORG_* inputs.
    bool   DPI_IgnoreCCIForVote;        // DPI vote: use raw histogram direction only (skip CCI-reset)
-   double Layer_SlopeTolerance;        // Layer slope tolerance in pips (0=strict; N pips = flat allowed)
    double BarClose_PipTolerance;       // Bar-close tolerance in pips (0=strict close>EMA; N=within N pips)
    // ── Multi-Bar Momentum Detection ──
    int    BarClose_LookbackBars;          // BC lookback window (1-4 bars, default 3)

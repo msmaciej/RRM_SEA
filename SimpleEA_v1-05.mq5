@@ -261,14 +261,16 @@ void PrintEffectiveConfig()
             " Mode=", EnumToString(Settings.DebugEvalMode));
    }
 
-   Print("UI: StatusPanel=", (Settings.UI_ShowStatusPanel ? "true" : "false"),
-         " CockpitPanel=", (Settings.UI_ShowCockpitPanel ? "true" : "false"),
-         " ManageChartIndicators=", (Settings.UI_ManageChartIndicators ? "true" : "false"),
-         " DrawEntryLines=", (Settings.DrawEntryLines ? "true" : "false"),
-         " DrawTradeLines=", (Settings.DrawTradeLines ? "true" : "false"));
+   // F-AUDIT-STRUCT 2026-07: these echoes now read the INPUTS directly. The mirrored
+   // ST_Settings fields were removed as proven-dead — SEA_UI.mqh always gated the panels
+   // on Inp_UI_* directly, never on the struct copies, so this echo is now truthful.
+   Print("UI: StatusPanel=", (Inp_UI_ShowStatusPanel ? "true" : "false"),
+         " CockpitPanel=", (Inp_UI_ShowCockpitPanel ? "true" : "false"),
+         " ManageChartIndicators=", (Inp_UI_ManageChartIndicators ? "true" : "false"),
+         " DrawEntryLines=", (Settings.DrawEntryLines ? "true" : "false"));
 
    Print("Reporting: ExportCSV=", (Settings.ExportCSV ? "true" : "false"),
-         " ExportUseCommonFiles=", (Settings.ExportUseCommonFiles ? "true" : "false"));
+         " ExportUseCommonFiles=", (Inp_Debug_ExportUseCommonFiles ? "true" : "false"));
 
    Print("Effective: CloseOnReverse=", (Settings.CloseOnReverse ? "true" : "false"),
          " Risk%=", DoubleToString(Settings.RiskPercent, 2),
@@ -586,7 +588,6 @@ int OrchestrateInit()
 
       Print("ENTRY LAYER:");
       Print("  EnableLayerDetection: ", (Settings.EnableLayerDetection ? "true" : "false"));
-      Print("  RequireRecoveryMomentum: ", (Settings.RequireRecoveryMomentum ? "true" : "false"));
 
       int enabled_count = 0;
       if(Settings.Ind_Macd_Enabled)       { Print("  + MACD");       enabled_count++; }

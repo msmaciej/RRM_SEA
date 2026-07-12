@@ -76,8 +76,8 @@ The EA **splits the perceptual packet into its two halves and gives each half it
 
 Enforced in code at HEAD `3935f36`:
 - `UpdateSingleLayerPullback` contains **no** price-series term (`Close/Open/High/Low/Bid/Ask/iClose/CopyClose`). Its only inputs are the ribbon EMA handles (volume appears only for VPRR bookkeeping and never drives a state transition).
-- `LayerPriceTouchEnabled` is **`false` and inert**: the S2 price-zone gate code is removed; the `use_price_touch` parameter survives in the signature for ABI/back-compat and is never read. Setting it `true` has no effect.
-- `LayerPullbackRatio` is a **slope** ratio (`|current_pace| / |baseline_pace|`, both EMA-slope paces) — it was never a price test. It is now **inert**: the DETECTED trigger consults `LayerFlatRatio` only. The input, struct field and config-sync entry still exist (dead knobs; see *Known dead inputs* below), so "inert" — not "deleted".
+- `LayerPriceTouchEnabled` is **gone** (F-AUDIT-STRUCT 2026-07): the S2 price-zone gate code was removed in Path 2, and the input, the `ST_Settings` field, and the `use_price_touch` parameter have now been removed too. There is no longer any switch — live, inert, or vestigial — by which price can re-enter the P-R machine.
+- `LayerPullbackRatio` was a **slope** ratio (`|current_pace| / |baseline_pace|`, both EMA-slope paces) — never a price test. It became inert when the DETECTED trigger was narrowed to `LayerFlatRatio` only, and it is now **deleted** (F-AUDIT-STRUCT 2026-07), along with `LayerRecoveryRatio` / `_W/_M/_S` and `LayerRecoveryOnSlope`. The DETECTED trigger consults `LayerFlatRatio` alone.
 - The EA path, the warm-up replay, and the SignalScan/inspector path all call the *same* `UpdateSingleLayerPullback` with a non-zero `bias_dir`, so all three decide P-R identically.
 
 ### Why this is faithful, not a departure
@@ -93,9 +93,17 @@ The slow-EMA ribbon *is* a function of price. "The fast EMA stops advancing or r
 
 If pullback **depth** is ever wanted back, the correct home is a **new, separate factor** (an F sub-filter, or a fourth per-layer sub-check evaluated alongside BC), never a price term readmitted into the P-R machine — that would re-create failure modes 1–4 above.
 
-### Known dead inputs (documented so they are not mistaken for live controls)
+### Known dead inputs — ✅ RESOLVED (F-AUDIT-STRUCT, 2026-07)
 
-`LayerPullbackRatio` (`Inp_RRM_ORG_LayerPBPullbackRatio`), `LayerRecoveryRatio` / `_W/_M/_S`, `LayerRecoveryOnSlope`, `LayerPriceTouchEnabled` are all present in the input surface and the `ST_Settings` struct but **not read by the engine** under the Path-2 slope model. Changing them changes nothing. They are retained for back-compat and config-file compatibility. Removing them from the UI is a separate task.
+**This section previously read:** *"`LayerPullbackRatio`, `LayerRecoveryRatio` / `_W/_M/_S`, `LayerRecoveryOnSlope`, `LayerPriceTouchEnabled` are all present in the input surface and the `ST_Settings` struct but not read by the engine … Removing them from the UI is a separate task."*
+
+**That separate task is done.** All of them — inputs, `ST_Settings` fields, and `SEA_ConfigSync` entries — are **removed**. There are no longer any dead knobs in the P-R surface to mistake for live controls.
+
+Two consequences worth carrying forward:
+
+1. **`UpdateSingleLayerPullback` lost the `recovery_ratio` and `use_price_touch` parameters.** They were "retained in the signature for ABI/back-compat"; with their feeding fields gone they had no callers. Removing an argument that was never read cannot change a state transition, so **the invariant above is untouched** — and is now stronger: the "no price inside the P-R machine" rule is enforced by the *absence* of any price-touch parameter, rather than by a `false` default that a future edit could flip.
+
+2. **The `LayerPullbackRatio` compile-error workaround is dissolved.** The `_Legacy` rename (and the decoupled `ConfigSync` key it needed) existed only because of an unexplained *"undeclared identifier"* error. The field is deleted, so the identifier cannot be undeclared. The root cause is now traced — a partially-synced `MQL5\Include\RRMS\` directory, *not* the source — see `README_SEA_PARAMETER_MAPPING.md` → *Struct Surface Audit*. **Re-copy all modules to the Include directory before compiling; syncing a subset reproduces the error.**
 
 ---
 

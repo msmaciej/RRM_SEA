@@ -1955,7 +1955,6 @@ private:
    //                         baseline (which sits inside the dip).
    // VPRR: volume tracking fields accumulated per state, once-per-bar.
    void UpdateSingleLayerPullback(int fast_ema_handle, int v_shift, int lookback,
-                                  double recovery_ratio,
                                   ELayerPullbackState &state, double &baseline, string label,
                                   double &vol_pb_avg, int &vol_pb_bars,
                                   double &vol_rec_avg, int &vol_rec_bars,
@@ -1963,7 +1962,6 @@ private:
                                   int &g1_recov, bool &g1_counted,
                                   int bias_dir = 0,
                                   int slow_ema_handle = INVALID_HANDLE,
-                                  bool use_price_touch = false,
                                   int min_pb_bars = 0,
                                   int window = 0,
                                   bool maxage_enabled = false)
@@ -2213,12 +2211,11 @@ private:
 
       if(m_settings.DebugFlow && state != prev_state)
       {
-         DebugLog(StringFormat("[%s_PB] State: %s -> %s | Ratio=%.2f | RecThresh=%.2f | Pace cur/base=%.6f/%.6f | Dir %s/%s",
+         DebugLog(StringFormat("[%s_PB] State: %s -> %s | Ratio=%.2f | Pace cur/base=%.6f/%.6f | Dir %s/%s",
                                label,
                                EnumToString(prev_state),
                                EnumToString(state),
                                ratio,
-                               recovery_ratio,
                                current_pace,
                                baseline_pace,
                                baseline_bullish ? "UP" : "DN",
@@ -2279,7 +2276,10 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   //| GetLayerLookback / GetLayerRecovery -- per-layer resolvers       |
+   //| GetLayerLookback -- per-layer resolver                           |
+   //| (GetLayerRecovery removed by F-AUDIT-STRUCT 2026-07: it resolved |
+   //|  LayerRecoveryRatio_W/M/S, a proven-dead sink whose value only   |
+   //|  ever reached a DebugLog string, never the RECOVERED decision.)  |
    //| layer: 1=W, 2=M, 3=S. Per-layer 0/<0 falls back to the global.   |
    //+------------------------------------------------------------------+
    int GetLayerLookback(int layer)
@@ -2290,14 +2290,6 @@ private:
       if(lb <= 0) lb = m_settings.LayerBaselineLookback;   // fall back to global
       if(lb < 1)  lb = 1;
       return lb;
-   }
-   double GetLayerRecovery(int layer)
-   {
-      double rr = (layer == 1) ? m_settings.LayerRecoveryRatio_W :
-                  (layer == 2) ? m_settings.LayerRecoveryRatio_M :
-                                 m_settings.LayerRecoveryRatio_S;
-      if(rr < 0.0) rr = m_settings.LayerRecoveryRatio;     // -1 = use global
-      return rr;
    }
 
    // A21 2026-07: per-layer minimum pullback bar count before RECOVERED is allowed.
@@ -2509,27 +2501,27 @@ private:
 
       MaybeResetLayersOnPhaseChange(v_shift);
 
-      UpdateSingleLayerPullback(h_ema1, v_shift, GetLayerLookback(1), GetLayerRecovery(1),
+      UpdateSingleLayerPullback(h_ema1, v_shift, GetLayerLookback(1),
                                 m_layer_w_pb_state, m_layer_w_baseline, "LayerW",
                                 m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
                                 m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr,
                                 m_layer_w_bars_det, m_layer_w_bars_rec,
                                 m_layer_w_g1_recov, m_layer_w_g1_counted, bias_dir,
-                                h_ema2, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(1), GetLayerWindow(1), m_settings.LayerRecoveryMaxAgeEnabled);
-      UpdateSingleLayerPullback(h_ema2, v_shift, GetLayerLookback(2), GetLayerRecovery(2),
+                                h_ema2, GetLayerMinPBBars(1), GetLayerWindow(1), m_settings.LayerRecoveryMaxAgeEnabled);
+      UpdateSingleLayerPullback(h_ema2, v_shift, GetLayerLookback(2),
                                 m_layer_m_pb_state, m_layer_m_baseline, "LayerM",
                                 m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                 m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr,
                                 m_layer_m_bars_det, m_layer_m_bars_rec,
                                 m_layer_m_g1_recov, m_layer_m_g1_counted, bias_dir,
-                                h_ema3, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(2), GetLayerWindow(2), m_settings.LayerRecoveryMaxAgeEnabled);
-      UpdateSingleLayerPullback(h_ema3, v_shift, GetLayerLookback(3), GetLayerRecovery(3),
+                                h_ema3, GetLayerMinPBBars(2), GetLayerWindow(2), m_settings.LayerRecoveryMaxAgeEnabled);
+      UpdateSingleLayerPullback(h_ema3, v_shift, GetLayerLookback(3),
                                 m_layer_s_pb_state, m_layer_s_baseline, "LayerS",
                                 m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                 m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr,
                                 m_layer_s_bars_det, m_layer_s_bars_rec,
                                 m_layer_s_g1_recov, m_layer_s_g1_counted, bias_dir,
-                                h_ema4, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(3), GetLayerWindow(3), m_settings.LayerRecoveryMaxAgeEnabled);
+                                h_ema4, GetLayerMinPBBars(3), GetLayerWindow(3), m_settings.LayerRecoveryMaxAgeEnabled);
 
       UpdateCBOverExtCarry(v_shift);
    }
@@ -6338,27 +6330,27 @@ public:
          // through to the back-compat 1-bar-slope-sign fallback inside
          // UpdateSingleLayerPullback and produced state transitions that
          // disagreed with live evaluation.
-         UpdateSingleLayerPullback(h_ema1, shift, lb_w, GetLayerRecovery(1),
+         UpdateSingleLayerPullback(h_ema1, shift, lb_w,
                                    m_layer_w_pb_state, m_layer_w_baseline, "LayerW_WU",
                                    m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
                                    m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars,
                                    m_layer_w_vprr, m_layer_w_bars_det, m_layer_w_bars_rec,
                                    m_layer_w_g1_recov, m_layer_w_g1_counted, b_wu,
-                                   h_ema2, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(1), GetLayerWindow(1), m_settings.LayerRecoveryMaxAgeEnabled);
-         UpdateSingleLayerPullback(h_ema2, shift, lb_m, GetLayerRecovery(2),
+                                   h_ema2, GetLayerMinPBBars(1), GetLayerWindow(1), m_settings.LayerRecoveryMaxAgeEnabled);
+         UpdateSingleLayerPullback(h_ema2, shift, lb_m,
                                    m_layer_m_pb_state, m_layer_m_baseline, "LayerM_WU",
                                    m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                    m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars,
                                    m_layer_m_vprr, m_layer_m_bars_det, m_layer_m_bars_rec,
                                    m_layer_m_g1_recov, m_layer_m_g1_counted, b_wu,
-                                   h_ema3, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(2), GetLayerWindow(2), m_settings.LayerRecoveryMaxAgeEnabled);
-         UpdateSingleLayerPullback(h_ema3, shift, lb_s, GetLayerRecovery(3),
+                                   h_ema3, GetLayerMinPBBars(2), GetLayerWindow(2), m_settings.LayerRecoveryMaxAgeEnabled);
+         UpdateSingleLayerPullback(h_ema3, shift, lb_s,
                                    m_layer_s_pb_state, m_layer_s_baseline, "LayerS_WU",
                                    m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                    m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars,
                                    m_layer_s_vprr, m_layer_s_bars_det, m_layer_s_bars_rec,
                                    m_layer_s_g1_recov, m_layer_s_g1_counted, b_wu,
-                                   h_ema4, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(3), GetLayerWindow(3), m_settings.LayerRecoveryMaxAgeEnabled);
+                                   h_ema4, GetLayerMinPBBars(3), GetLayerWindow(3), m_settings.LayerRecoveryMaxAgeEnabled);
 
          UpdateCBOverExtCarry(shift);
 
@@ -7688,9 +7680,9 @@ public:
 
             if(m_settings.Ind_CandleBody_Enabled) {
                bool cb_ok = CheckCandleBodyIndicator(bias);
-               DebugLog(StringFormat("[IND] CandleBody: avg period=%d max=x%.1f check=%d → %s",
+               DebugLog(StringFormat("[IND] CandleBody: avg period=%d max=x%.1f → %s",
                                      m_settings.CandleBody_AvgPeriod, m_settings.CandleBody_MaxMult,
-                                     m_settings.CandleBody_CheckBars, cb_ok ? "PASS" : "FAIL"));
+                                     cb_ok ? "PASS" : "FAIL"));
             } else
                DebugLog("[IND] CandleBody: DISABLED → SKIP");
 

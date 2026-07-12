@@ -128,15 +128,15 @@ bool SEA_WriteConfigSnapshot(const ST_Settings &cfg)
    FileWriteString(h, "LayerBaselineLookback_W=" + IntegerToString(cfg.LayerBaselineLookback_W) + "\n");
    FileWriteString(h, "LayerFlatRatio=" + DoubleToString(cfg.LayerFlatRatio, 8) + "\n");
    FileWriteString(h, "LayerPullbackEnabled=" + (cfg.LayerPullbackEnabled ? "true" : "false") + "\n");
-   // F-AUDIT 2026-07: field renamed LayerPullbackRatio -> LayerPullbackRatio_Legacy (diagnostic
-   // rename that resolved an unexplained MetaEditor "undeclared identifier" compile error tied to
-   // the original name -- root cause not identified, likely a stale local build artifact). The
-   // persisted key stays "LayerPullbackRatio" so old saved .set-sync files still round-trip.
-   FileWriteString(h, "LayerPullbackRatio=" + DoubleToString(cfg.LayerPullbackRatio_Legacy, 8) + "\n");
-   FileWriteString(h, "LayerRecoveryRatio=" + DoubleToString(cfg.LayerRecoveryRatio, 8) + "\n");
-   FileWriteString(h, "LayerRecoveryRatio_M=" + DoubleToString(cfg.LayerRecoveryRatio_M, 8) + "\n");
-   FileWriteString(h, "LayerRecoveryRatio_S=" + DoubleToString(cfg.LayerRecoveryRatio_S, 8) + "\n");
-   FileWriteString(h, "LayerRecoveryRatio_W=" + DoubleToString(cfg.LayerRecoveryRatio_W, 8) + "\n");
+   // F-AUDIT-STRUCT 2026-07: LayerPullbackRatio(_Legacy), LayerRecoveryRatio and LayerRecoveryRatio_W/M/S
+   // are REMOVED (proven-dead ST_Settings sinks -- never read by the P-R state machine; the recovery_ratio
+   // value only ever reached a DebugLog string). Their save/load entries and the decoupled "LayerPullbackRatio"
+   // persisted key are gone with them, so the _Legacy rename workaround is dissolved rather than enshrined.
+   // Old .set-sync files containing these keys still load: SEA_CS_ApplyKey() ignores unknown keys.
+   // NOTE: the "undeclared identifier" error that motivated the rename was NOT a source defect -- see
+   // README_SEA_PARAMETER_MAPPING.md (Struct Surface Audit). Modules are included as <RRMS\...>, i.e. from
+   // MQL5\Include\RRMS\, NOT from the repo. Re-copy ALL modules there before compiling; a partial sync
+   // (ConfigSync fresh, Config stale) reproduces exactly that phantom error.
    FileWriteString(h, "LayerResetOnRealign=" + (cfg.LayerResetOnRealign ? "true" : "false") + "\n");
    FileWriteString(h, "LayerResetPhaseConfirmBars=" + IntegerToString(cfg.LayerResetPhaseConfirmBars) + "\n");
    FileWriteString(h, "LayerS_RequireDirAlign=" + (cfg.LayerS_RequireDirAlign ? "true" : "false") + "\n");
@@ -238,7 +238,6 @@ bool SEA_WriteConfigSnapshot(const ST_Settings &cfg)
    FileWriteString(h, "# -- 17 CandleBody --\n");
    FileWriteString(h, "CandleBody_AvgPeriod=" + IntegerToString(cfg.CandleBody_AvgPeriod) + "\n");
    FileWriteString(h, "CandleBody_CarryOnOverext=" + (cfg.CandleBody_CarryOnOverext ? "true" : "false") + "\n");
-   FileWriteString(h, "CandleBody_CheckBars=" + IntegerToString(cfg.CandleBody_CheckBars) + "\n");
    FileWriteString(h, "CandleBody_MaxMult=" + DoubleToString(cfg.CandleBody_MaxMult, 8) + "\n");
    FileWriteString(h, "CandleBody_MinCloseRatio=" + DoubleToString(cfg.CandleBody_MinCloseRatio, 8) + "\n");
    FileWriteString(h, "CandleBody_RequireDirection=" + (cfg.CandleBody_RequireDirection ? "true" : "false") + "\n");
@@ -364,7 +363,6 @@ bool SEA_CS_ApplyKey(ST_Settings &s, const string key, const string val)
    if(key == "CI_RangingThreshold") { s.CI_RangingThreshold = StringToDouble(val); return true; }
    if(key == "CandleBody_AvgPeriod") { s.CandleBody_AvgPeriod = (int)StringToInteger(val); return true; }
    if(key == "CandleBody_CarryOnOverext") { s.CandleBody_CarryOnOverext = SEA_CS_ParseBool(val); return true; }
-   if(key == "CandleBody_CheckBars") { s.CandleBody_CheckBars = (int)StringToInteger(val); return true; }
    if(key == "CandleBody_MaxMult") { s.CandleBody_MaxMult = StringToDouble(val); return true; }
    if(key == "CandleBody_MinCloseRatio") { s.CandleBody_MinCloseRatio = StringToDouble(val); return true; }
    if(key == "CandleBody_RequireDirection") { s.CandleBody_RequireDirection = SEA_CS_ParseBool(val); return true; }
@@ -435,11 +433,6 @@ bool SEA_CS_ApplyKey(ST_Settings &s, const string key, const string val)
    if(key == "LayerBaselineLookback_W") { s.LayerBaselineLookback_W = (int)StringToInteger(val); return true; }
    if(key == "LayerFlatRatio") { s.LayerFlatRatio = StringToDouble(val); return true; }
    if(key == "LayerPullbackEnabled") { s.LayerPullbackEnabled = SEA_CS_ParseBool(val); return true; }
-   if(key == "LayerPullbackRatio") { s.LayerPullbackRatio_Legacy = StringToDouble(val); return true; }
-   if(key == "LayerRecoveryRatio") { s.LayerRecoveryRatio = StringToDouble(val); return true; }
-   if(key == "LayerRecoveryRatio_M") { s.LayerRecoveryRatio_M = StringToDouble(val); return true; }
-   if(key == "LayerRecoveryRatio_S") { s.LayerRecoveryRatio_S = StringToDouble(val); return true; }
-   if(key == "LayerRecoveryRatio_W") { s.LayerRecoveryRatio_W = StringToDouble(val); return true; }
    if(key == "LayerResetOnRealign") { s.LayerResetOnRealign = SEA_CS_ParseBool(val); return true; }
    if(key == "LayerResetPhaseConfirmBars") { s.LayerResetPhaseConfirmBars = (int)StringToInteger(val); return true; }
    if(key == "LayerS_RequireDirAlign") { s.LayerS_RequireDirAlign = SEA_CS_ParseBool(val); return true; }
