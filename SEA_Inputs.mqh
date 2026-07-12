@@ -1033,6 +1033,7 @@ input group "║   🔧 STEP 3b: PHASE / LAYER / VPRR (4-EMA Architecture)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_Global_LayerPullbackEnabled  = false;          // Override: [LY] Enable layer pullback-recovery state machine
 input bool        Inp_Global_LayerS_Require_DirAlign  = true;       // [LY] Require Layer S (EMA3/EMA4) pos+slope w/ bias to allow M/W entries
+input bool        Inp_Global_Guard1_SkipFirstPostFlipPR = false;    // [LY] GUARD 1: after a bias flip, skip the FIRST completed pullback-recovery per layer (default OFF - under test)
 input bool        Inp_Global_LayerReset_OnRealign      = false;      // [LY] Reset layer pullback states on confirmed market-phase change
 input int         Inp_Global_LayerReset_PhaseConfirm   = 2;          // [LY]   ^ bars new phase must hold first (1=catch 1-bar phases)
 // F-AUDIT 2026-06: Inp_CUSTOM_ClimaxGuard_Enabled removed — toggle globalized to Inp_Global_F_ClimaxGuard_Enabled
@@ -1674,6 +1675,10 @@ void InitializeConfig()
    Settings.SlopeLookbackBars      = MathMax(1, MathMin(5, 1));
    Settings.LayerPullbackEnabled        = Inp_Global_LayerPullbackEnabled;
    Settings.LayerS_RequireDirAlign      = Inp_Global_LayerS_Require_DirAlign;
+   // GUARD 1: mapped here (global, preset-independent) and deliberately NOT written by
+   // any ApplyPreset block, so it stays user-controlled under every preset and hooks the
+   // bias-direction signal rather than any preset's EMA arithmetic.
+   Settings.Guard1_SkipFirstPostFlipPR  = Inp_Global_Guard1_SkipFirstPostFlipPR;
    Settings.LayerResetOnRealign         = Inp_Global_LayerReset_OnRealign;
    Settings.LayerResetPhaseConfirmBars  = Inp_Global_LayerReset_PhaseConfirm;
    // UNO-exit cooldown default (disabled; only RRM_ORG preset wires the user input).

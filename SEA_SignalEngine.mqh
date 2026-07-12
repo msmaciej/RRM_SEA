@@ -304,6 +304,26 @@ private:
     // max-age cap). Self-managed inside UpdateSingleLayerPullback (incremented
     // while RECOVERED, zeroed otherwise) — needs no external reset.
     int      m_layer_w_bars_rec, m_layer_m_bars_rec, m_layer_s_bars_rec;
+    // ── GUARD 1 (2026-07): first-post-flip pullback-recovery skip ──────────────
+    // Counts COMPLETED pullback-recovery CYCLES per layer since the last genuine
+    // signed bias flip. The unit is the cycle, not the RECOVERED transition: a
+    // relapse (RECOVERED→DETECTED→RECOVERED, which never passes through NONE) is the
+    // SAME cycle re-completing and must NOT increment, or the guard would defeat
+    // itself in exactly the choppy market it targets. m_layer_*_g1_counted is the
+    // "this cycle already counted" latch; it is cleared at the single NONE→DETECTED
+    // transition — the only exit from NONE — so every external reset-to-NONE path
+    // (TS=1 consumption, max-age, cross, phase-clear, climax, sustained-UNO) clears it
+    // for free, exactly as bars_rec self-manages.
+    int      m_layer_w_g1_recov,   m_layer_m_g1_recov,   m_layer_s_g1_recov;
+    bool     m_layer_w_g1_counted, m_layer_m_g1_counted, m_layer_s_g1_counted;
+    // Armed only by a GENUINE ±1→∓1 flip. The 999 sentinel (cold start / warm-up
+    // hand-off) must NOT arm it, or the EA would skip its first pullback-recovery
+    // after every load, recompile and optimisation pass — silently corrupting any A/B.
+    bool     m_g1_armed;
+    // Set by CheckLayerPairAlign when GUARD 1 (and not the P-R gate) rejected a layer,
+    // so EvaluateL / the inspector can report L_G1_POSTFLIP instead of the misleading
+    // L_NONE_ALIGNED. Cleared once per bar alongside m_eval_layer_*.
+    bool     m_eval_g1_blocked;
     bool     m_vprr_real_warned; // One-shot guard: have we already warned the user that VPRR_VOL_REAL is
                                  // selected but the broker returned zero real volume? Without this, VPRR
                                  // votes silently fail every bar because GetCurrentBarVolume returns 0 →
@@ -1940,6 +1960,7 @@ private:
                                   double &vol_pb_avg, int &vol_pb_bars,
                                   double &vol_rec_avg, int &vol_rec_bars,
                                   double &vprr, int &bars_det, int &bars_rec,
+                                  int &g1_recov, bool &g1_counted,
                                   int bias_dir = 0,
                                   int slow_ema_handle = INVALID_HANDLE,
                                   bool use_price_touch = false,
@@ -2124,6 +2145,12 @@ private:
          // single bar, and the A21 minimum-duration gate below is never bypassed.
          state    = LAYER_PB_DETECTED;
          bars_det = 1;   // first bar of a fresh DETECTED cycle
+         // GUARD 1: a NEW pullback-recovery cycle begins here. This is the ONLY exit
+         // from NONE, so clearing the latch here covers every reset-to-NONE path
+         // (consumption / max-age / cross / phase-clear / climax / sustained-UNO)
+         // without wiring any of them. A relapse from RECOVERED does NOT come through
+         // this branch, so it correctly leaves the latch set (same cycle).
+         g1_counted = false;
       }
       else if(state == LAYER_PB_DETECTED && is_recovery)
       {
@@ -2153,6 +2180,17 @@ private:
          else
          {
             state = LAYER_PB_RECOVERED;
+            // GUARD 1: this is the ONE place the engine writes LAYER_PB_RECOVERED, so it
+            // is the canonical "pullback-recovery completed" event. Count it ONCE per
+            // cycle — a relapse that re-recovers must not advance the count.
+            if(!g1_counted)
+            {
+               g1_counted = true;
+               if(g1_recov < 1000000) g1_recov++;
+               if(m_settings.DebugFlow)
+                  DebugLog(StringFormat("[%s_G1] pullback-recovery cycle #%d completed since last bias flip",
+                                        label, g1_recov));
+            }
          }
       }
       else if(state == LAYER_PB_RECOVERED && is_relapse_reversal)
@@ -2451,7 +2489,21 @@ private:
          if(m_settings.DebugFlow && m_last_dir_state_bias != 999)
             DebugLog(StringFormat("[DIR_SYMMETRY] Bias changed %d→%d — resetting direction-dependent state",
                                   m_last_dir_state_bias, bias_dir));
-         ResetDirectionalState();
+         // GUARD 1: ARM only on a GENUINE signed flip. This function is never called
+         // with bias_dir == 0 (the UNO branch in EvaluateTS handles B==0 separately and
+         // preserves m_last_dir_state_bias), so m_last_dir_state_bias only ever holds
+         // ±1 or the 999 sentinel — which makes this test exactly "±1 → ∓1", i.e. the
+         // spec's flip definition, with UNO transparent by construction.
+         // The 999 sentinel is EA load / cold start, NOT a flip: arming there would make
+         // the EA skip its first pullback-recovery after every load and optimisation pass.
+         if(m_last_dir_state_bias != 999)
+         {
+            m_g1_armed = true;
+            if(m_settings.DebugFlow && m_settings.Guard1_SkipFirstPostFlipPR)
+               DebugLog(StringFormat("[GUARD1] Bias flip %d→%d — armed; first completed P-R cycle on each layer will be skipped",
+                                     m_last_dir_state_bias, bias_dir));
+         }
+         ResetDirectionalState();   // zeroes the GUARD 1 cycle counters
          m_last_dir_state_bias = bias_dir;
       }
 
@@ -2461,19 +2513,22 @@ private:
                                 m_layer_w_pb_state, m_layer_w_baseline, "LayerW",
                                 m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
                                 m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr,
-                                m_layer_w_bars_det, m_layer_w_bars_rec, bias_dir,
+                                m_layer_w_bars_det, m_layer_w_bars_rec,
+                                m_layer_w_g1_recov, m_layer_w_g1_counted, bias_dir,
                                 h_ema2, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(1), GetLayerWindow(1), m_settings.LayerRecoveryMaxAgeEnabled);
       UpdateSingleLayerPullback(h_ema2, v_shift, GetLayerLookback(2), GetLayerRecovery(2),
                                 m_layer_m_pb_state, m_layer_m_baseline, "LayerM",
                                 m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                 m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr,
-                                m_layer_m_bars_det, m_layer_m_bars_rec, bias_dir,
+                                m_layer_m_bars_det, m_layer_m_bars_rec,
+                                m_layer_m_g1_recov, m_layer_m_g1_counted, bias_dir,
                                 h_ema3, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(2), GetLayerWindow(2), m_settings.LayerRecoveryMaxAgeEnabled);
       UpdateSingleLayerPullback(h_ema3, v_shift, GetLayerLookback(3), GetLayerRecovery(3),
                                 m_layer_s_pb_state, m_layer_s_baseline, "LayerS",
                                 m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                 m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr,
-                                m_layer_s_bars_det, m_layer_s_bars_rec, bias_dir,
+                                m_layer_s_bars_det, m_layer_s_bars_rec,
+                                m_layer_s_g1_recov, m_layer_s_g1_counted, bias_dir,
                                 h_ema4, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(3), GetLayerWindow(3), m_settings.LayerRecoveryMaxAgeEnabled);
 
       UpdateCBOverExtCarry(v_shift);
@@ -4274,6 +4329,27 @@ private:
                                      layer_label, EnumToString(current_state)));
             return 0;
          }
+
+         // ── GUARD 1 (2026-07): skip the FIRST completed post-flip P-R cycle ──────
+         // Reached only when the layer is positionally aligned AND RECOVERED — i.e. on
+         // a bar that would otherwise be entry-eligible. Event-indexed: the counter is
+         // driven by cycle completions, never by a bar count. Per-layer, so W/M/S each
+         // burn their own skip (P-R typically begins in W, then M, then S).
+         // Hard block when enabled (no size-reduction variant), and inert until a
+         // genuine ±1→∓1 flip has armed it.
+         if(m_settings.Guard1_SkipFirstPostFlipPR && m_g1_armed)
+         {
+            int g1_n = (layer_type == 1) ? m_layer_w_g1_recov :
+                       (layer_type == 2) ? m_layer_m_g1_recov : m_layer_s_g1_recov;
+            if(g1_n <= 1)
+            {
+               m_eval_g1_blocked = true;   // so the reason reads L_G1_POSTFLIP, not L_NONE_ALIGNED
+               if(m_settings.DebugFlow)
+                  DebugLog(StringFormat("[%s] BLOCKED by GUARD1: first post-flip pullback-recovery (cycle %d of the current bias leg)",
+                                        layer_label, g1_n));
+               return 0;
+            }
+         }
       }
 
       if(m_settings.DebugFlow)
@@ -4421,6 +4497,11 @@ private:
       // CandleBody over-extension carry
       m_cb_oeb_blocked  = false;
       m_cb_prev_any_rec = false;
+      // GUARD 1: completed-cycle counters are per-flip — zero them here. (Arming is NOT
+      // done here: this function is also reached on the 999 sentinel, where no flip
+      // occurred. The two flip call sites arm explicitly.)
+      m_layer_w_g1_recov   = 0; m_layer_m_g1_recov   = 0; m_layer_s_g1_recov   = 0;
+      m_layer_w_g1_counted = false; m_layer_m_g1_counted = false; m_layer_s_g1_counted = false;
    }
 
    // Returns true if an over-extended impulse in `bias` direction is detected
@@ -4595,9 +4676,13 @@ public:
       if(!allow)     return st_s + " off";
       if(bias == 0)  return st_s + " NO(bias)";
 
-      int align = CheckLayerPairAlign(bias, layer, shift);   // position + RECOVERED gate
+      m_eval_g1_blocked = false;
+      int align = CheckLayerPairAlign(bias, layer, shift);   // position + RECOVERED + GUARD1 gates
       if(align == 0)
+      {
+         if(m_eval_g1_blocked) return st_s + " NO(G1)";   // GUARD 1: first post-flip P-R cycle
          return (st != LAYER_PB_RECOVERED) ? st_s + " NO(PB)" : st_s + " NO(ALIGN)";
+      }
 
       int layer_id = (layer==1) ? LAYER_1_WEAK : (layer==2) ? LAYER_2_MEDIUM : LAYER_3_STRONG;
       int lookback = MathMax(1, MathMin(4, m_settings.BarClose_LookbackBars));
@@ -5077,6 +5162,13 @@ public:
       // First call to UpdateLayerPullbackStates() will trigger a clean
       // ResetDirectionalState() regardless of bias direction.
       m_last_dir_state_bias = 999;
+
+      // GUARD 1: not armed until a genuine ±1→∓1 flip is observed (live or in the
+      // warm-up replay). Cold start is not a flip.
+      m_g1_armed           = false;
+      m_eval_g1_blocked    = false;
+      m_layer_w_g1_recov   = 0; m_layer_m_g1_recov   = 0; m_layer_s_g1_recov   = 0;
+      m_layer_w_g1_counted = false; m_layer_m_g1_counted = false; m_layer_s_g1_counted = false;
 
       m_diag_layer_w      = 0;
       m_diag_layer_m      = 0;
@@ -6137,6 +6229,11 @@ public:
       m_layer_w_bars_det = 0;   // A21 2026-07
       m_layer_m_bars_det = 0;   // A21 2026-07
       m_layer_s_bars_det = 0;   // A21 2026-07
+      // GUARD 1: the replay re-derives arming and the per-layer cycle counts from the
+      // replayed history, so clear them before it runs.
+      m_g1_armed           = false;
+      m_layer_w_g1_recov   = 0; m_layer_m_g1_recov   = 0; m_layer_s_g1_recov   = 0;
+      m_layer_w_g1_counted = false; m_layer_m_g1_counted = false; m_layer_s_g1_counted = false;
       m_phase_reset_pending   = PHASE_UNORDERED;
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
@@ -6222,7 +6319,15 @@ public:
             // under no-bias bars. The reset only matters for genuine
             // direction flips between bullish and bearish.
             if(m_last_dir_state_bias != 999)
+            {
+               // GUARD 1: a flip inside the replayed history arms the guard and zeroes the
+               // cycle counters exactly as the live path does — so a flip (and any P-R
+               // cycles that already completed after it) that happened BEFORE the EA was
+               // loaded are seeded correctly, and live evaluation does not re-skip a cycle
+               // history already spent. The sentinel is excluded here for the same reason.
+               m_g1_armed = true;
                ResetDirectionalState();
+            }
             m_last_dir_state_bias = b_wu;
          }
 
@@ -6237,19 +6342,22 @@ public:
                                    m_layer_w_pb_state, m_layer_w_baseline, "LayerW_WU",
                                    m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
                                    m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars,
-                                   m_layer_w_vprr, m_layer_w_bars_det, m_layer_w_bars_rec, b_wu,
+                                   m_layer_w_vprr, m_layer_w_bars_det, m_layer_w_bars_rec,
+                                   m_layer_w_g1_recov, m_layer_w_g1_counted, b_wu,
                                    h_ema2, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(1), GetLayerWindow(1), m_settings.LayerRecoveryMaxAgeEnabled);
          UpdateSingleLayerPullback(h_ema2, shift, lb_m, GetLayerRecovery(2),
                                    m_layer_m_pb_state, m_layer_m_baseline, "LayerM_WU",
                                    m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                    m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars,
-                                   m_layer_m_vprr, m_layer_m_bars_det, m_layer_m_bars_rec, b_wu,
+                                   m_layer_m_vprr, m_layer_m_bars_det, m_layer_m_bars_rec,
+                                   m_layer_m_g1_recov, m_layer_m_g1_counted, b_wu,
                                    h_ema3, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(2), GetLayerWindow(2), m_settings.LayerRecoveryMaxAgeEnabled);
          UpdateSingleLayerPullback(h_ema3, shift, lb_s, GetLayerRecovery(3),
                                    m_layer_s_pb_state, m_layer_s_baseline, "LayerS_WU",
                                    m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                    m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars,
-                                   m_layer_s_vprr, m_layer_s_bars_det, m_layer_s_bars_rec, b_wu,
+                                   m_layer_s_vprr, m_layer_s_bars_det, m_layer_s_bars_rec,
+                                   m_layer_s_g1_recov, m_layer_s_g1_counted, b_wu,
                                    h_ema4, m_settings.LayerPriceTouchEnabled, GetLayerMinPBBars(3), GetLayerWindow(3), m_settings.LayerRecoveryMaxAgeEnabled);
 
          UpdateCBOverExtCarry(shift);
@@ -8046,6 +8154,10 @@ public:
       else if(m_settings.LayerS_RequireDirAlign && !layerS_dir_ok && m_eval_layer_s == 0 &&
               (m_eval_layer_m == 1 || m_eval_layer_w == 1))
          m_diag_last_reason = "L_S_NOT_DIR_ALIGNED";
+      else if(m_eval_g1_blocked)
+         // GUARD 1 zeroes the layer, so this MUST precede L_NONE_ALIGNED or the block
+         // would be misreported as "no layer aligned" and be invisible in the A/B.
+         m_diag_last_reason = "L_G1_POSTFLIP";
       else if(m_eval_layer_w == 0 && m_eval_layer_m == 0 && m_eval_layer_s == 0)
          m_diag_last_reason = "L_NONE_ALIGNED";
       else if(!bd_pass)
@@ -8342,6 +8454,7 @@ public:
       m_eval_layer_w       = 0;
       m_eval_layer_m       = 0;
       m_eval_layer_s       = 0;
+      m_eval_g1_blocked    = false;   // GUARD 1: set by CheckLayerPairAlign this bar
          m_eval_all_pass      = false;
       m_last_layer         = 0;
       bool full_eval       = m_settings.Stats_FullEvaluation;

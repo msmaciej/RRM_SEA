@@ -820,6 +820,12 @@ struct ST_Settings
     int      LayerPullbackWindow_S;       // LayerS observation window (bars; 0 = use global)
     int      LayerPullbackWindow;         // global observation-window override (0 = use per-layer)
     bool     LayerRecoveryMaxAgeEnabled;  // expire a RECOVERED layer older than its observation window
+    // GUARD 1 (2026-07): after a genuine signed bias flip (+1→-1 or -1→+1), block the
+    // FIRST completed pullback-recovery CYCLE on each layer; allow entries from the
+    // second completed cycle onward. Event-indexed (no bar counts). UNO/neutral is
+    // transparent — it neither arms nor re-arms the guard. Per-layer: W/M/S each burn
+    // their own skip. Hypothesis under test — default OFF, see README_SEA_TRADE_LOGIC §1.2.
+    bool     Guard1_SkipFirstPostFlipPR;
     // Layer Pullback-Recovery Detection
     bool     LayerPullbackEnabled;        // Master enable for pullback detection
     int      LayerBaselineLookback;       // Bars for baseline direction lookback

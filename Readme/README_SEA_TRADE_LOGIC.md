@@ -99,6 +99,76 @@ If pullback **depth** is ever wanted back, the correct home is a **new, separate
 
 ---
 
+## 1.2 GUARD 1 — skip the first post-flip pullback-recovery
+
+**This section is the canonical statement of GUARD 1.** `Inp_Global_Guard1_SkipFirstPostFlipPR` — **default `false`.**
+
+### Status: hypothesis under test, NOT a traced defect
+
+> GUARD 1 rests on an assumption about **market behaviour** — *"after a bias flip, the first pullback→recovery is where a choppy move exhausts and bias reverses again; in a genuine trend, skipping it costs only one entry."* That premise is **not** derivable from the Oracle, and no code path contradicts the README without it. Per Framework Part F it is therefore a **(b) hypothesis**, and it ships **OFF by default** with an A/B protocol attached (below). It must not be switched on in a live account until the A/B has been run and reports a positive delta. The asymmetry argument is plausible; plausibility is not evidence.
+
+### The rule
+
+After a **genuine signed bias flip** (`+1 → −1` or `−1 → +1`), block the **first completed pullback-recovery cycle** on each layer. Allow entries from the **second completed cycle** onward. Hard block; no size-reduction variant.
+
+| Property | Behaviour |
+|---|---|
+| **Event-indexed, never time-indexed** | The counter advances on *cycle completions*, never on bar counts. The post-flip trend may run 1..N bars before the first pullback and N is undefined, so a bar-count guard is the wrong abstraction. (`BiasConfirmBars` was rejected in a prior session and is **not** reintroduced.) |
+| **Per-layer** | W / M / S each burn their own skip — P-R typically begins in W, then M, then S. |
+| **Bias-definition-agnostic** | Hooks the `bias_dir` signal handed to `UpdateLayerPullbackStates`, never any preset's EMA arithmetic. |
+| **UNO is transparent** | `0` neither arms nor re-arms the guard. See below — this is structural, not a special case. |
+| **Cold start is not a flip** | The `999` sentinel does not arm the guard. |
+
+### Why UNO cannot arm it (structural, not a special case)
+
+`UpdateLayerPullbackStates` is **only ever called with `B != 0`** — the `B == 0` branch of `EvaluateTS_Breakdown` handles UNO separately and explicitly **preserves `m_last_dir_state_bias`**. That member therefore only ever holds `+1`, `−1`, or the `999` sentinel, which makes the existing test
+
+```
+if(bias_dir != m_last_dir_state_bias)     // SEA_SignalEngine.mqh
+```
+
+**exactly** a signed `±1 → ∓1` flip test. GUARD 1 hooks it directly and adds no new bias tracking. This matters: `DetectMarketPhase` is purely positional and returns UNO **both** in a deep pullback inside a healthy trend **and** on a genuine reversal path — it is directionally ambiguous and cannot mean "bias flipped". If UNO re-armed the guard, every deep pullback would re-arm it and good continuation entries would be lost permanently.
+
+### The counting unit is the CYCLE, not the RECOVERED transition
+
+The state graph already distinguishes them, and the distinction is load-bearing:
+
+- Every **cycle-ending** event lands the layer back in `LAYER_PB_NONE` — TS=1 consumption, max-age expiry, fast/slow cross, phase-change clear, climax reset, sustained-UNO wipe.
+- A **relapse** (`RECOVERED → DETECTED`) does **not** pass through `NONE`.
+
+So a relapse that re-recovers is the **same cycle re-completing** and must **not** advance the count. Counting raw `→RECOVERED` transitions instead would let a wobbling first recovery present itself as "the second cycle" and be allowed — defeating the guard in precisely the choppy market it targets.
+
+Implementation: `m_layer_*_g1_counted` latches the cycle as counted at the single `→ LAYER_PB_RECOVERED` write, and is cleared at the single `NONE → DETECTED` transition — the **only** exit from `NONE`. Every reset-to-NONE path therefore clears it for free, with no wiring in any of them (the same self-management pattern as `bars_rec`).
+
+**A blocked first cycle that expires without firing still burns the skip** (`g1_recov` stays 1). Otherwise the guard would have no exit in a market that never offers a clean second cycle, and it would become an indefinite block.
+
+### Where it lives
+
+| Concern | Location (`SEA_SignalEngine.mqh`) |
+|---|---|
+| Arm on genuine flip (excl. `999`) | `UpdateLayerPullbackStates` + the warm-up replay — both, or live and warm-up desync |
+| Zero the counters on flip | `ResetDirectionalState()` |
+| Count a completed cycle | the single `state = LAYER_PB_RECOVERED` write in `UpdateSingleLayerPullback` |
+| Clear the per-cycle latch | the single `NONE → DETECTED` transition |
+| Block the entry | `CheckLayerPairAlign`, immediately after the RECOVERED gate |
+| Report | `L_G1_POSTFLIP` (engine reason) · `NO(G1)` (SignalScan inspector) |
+
+The counters are threaded through `UpdateSingleLayerPullback`, which the EA, the warm-up replay and SignalScan **all** call — so the three agree by construction, exactly as §1.1's invariant requires. The warm-up replay re-derives arming and the cycle counts from replayed history, so a flip that happened *before* the EA loaded is seeded correctly and live evaluation does not re-skip a cycle history already spent.
+
+### The A/B that confirms or kills it
+
+Same pair, same timeframe, same date range, same build (**≥ `e5aeadd`**, so the stale-PSAR path is already closed), `Inp_Global_Guard1_SkipFirstPostFlipPR` OFF vs ON. Report:
+
+1. PF, net P&L, trade count — both runs.
+2. **Trades removed by the guard, and their aggregate P&L in the OFF run.** This is the decisive number: **if the skipped trades were net-positive, GUARD 1 is dead**, whatever the equity curve does for other reasons.
+3. Count of `L_G1_POSTFLIP` blocks (guard fired) vs entries taken — to confirm the guard is firing at the expected rate and not silently inert.
+
+### Deferred — do NOT implement
+
+"GUARD 2", an indicator-based trending-vs-choppy modifier (ADX / Choppiness Index / EMA-fan width). All three are already in the engine, all three are **lagging confirmers, not predictors**. Build and measure GUARD 1 first.
+
+---
+
 ## 2. Adaptive Spread Limits (Zone 3C)
 Different instruments have inherently different liquidity and spread profiles. SimpleEA auto-detects the pair type and applies strict maximum spread limits at the exact moment of execution (shift=0).
 
