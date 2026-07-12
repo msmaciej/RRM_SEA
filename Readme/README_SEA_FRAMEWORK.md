@@ -140,6 +140,13 @@ C: no hallucinations · verify feature not already implemented · update README 
 - **No hallucinations or assumptions** about code, logic, or screenshots. Uncertain → check repo or ask.
 - **One logical fix = one commit** with clear message.
 - **No code change without README update** if observable behaviour changes.
+- **One problem per session.** See Part I. A session closes when its problem is closed.
+- **A hypothesis is never delivered as code.** Before writing any fix, state which of these it is:
+  - **(a) Traced defect** — a specific line/path that provably contradicts the README, the Oracle, or its own stated contract. *Implement.*
+  - **(b) Hypothesis** — a proposed change resting on an assumption about market behaviour, or on "this should help", with no traced defect behind it. **Do not implement.** Say plainly: *"This is a hypothesis, not a traced defect."* Then offer the audit or the A/B test that would confirm or kill it, and stop.
+
+  If a fix cannot be tied to (a), it is (b). Delivering (b) as working code — especially with confident framing — is the most damaging failure mode in this project: it puts untested guesses into the trading path wearing the costume of a fix.
+- **Magic numbers are a smell.** If a proposed fix introduces a tunable whose correct value cannot be derived from the Oracle or the code (e.g. "wait N bars"), stop and ask whether the rule should instead be **event-indexed** (tied to a structural event: a flip, a completed pullback-recovery, a cross) rather than **time-indexed**. Event-indexed rules need no magic number and scale across timeframes.
 
 ---
 
@@ -278,4 +285,49 @@ AI summarises everything before starting:
 > *Confirm to begin analysis, or correct anything above.*
 
 You confirm → analysis begins. No further intake questions unless something genuinely blocks the analysis.
+
+---
+
+## Part I — Session scope (one problem per session)
+
+### The rule
+
+**One session = one problem = one class = one framework = one commit.**
+
+When the problem is closed (fix delivered, README updated, compiled), the session is **done**. Start a new chat for the next problem.
+
+### Why
+
+Intake (Part H) runs *once*, at the start of a session, on the *first* problem. It has no natural re-entry point. So every problem raised *after* the first one in the same chat silently bypasses ORIENT, classification, and the evidence step — and inherits the previous problem's class and context, which do not apply to it.
+
+Observed failure mode: a correctly-executed C1 audit closes; the session then continues on momentum ("while you're at it, also fix X"); each follow-up skips intake; discipline erodes progressively; and the AI eventually delivers a **hypothesis as code** (Part F) because nothing forced it to state a class or produce evidence. The work *feels* productive — it is a stream of confident, compiling code — which is exactly what makes it dangerous.
+
+Momentum is not a reason to skip intake. **Momentum is the mechanism by which intake gets skipped.**
+
+### Mid-session problem switch (Part H.1)
+
+If a new problem surfaces mid-session — it will — the AI must **not** proceed on momentum. It must stop and say:
+
+> **This is a new problem, not a continuation of the current one.**
+>
+> - **Recommended:** close this session and open a fresh chat with the full starter (ORIENT + intake). This is the default.
+> - **If the new problem is genuinely small and self-contained** (typically C5 — a doc fix, an unwired parameter, a one-line defect), it may be handled in-session **only after** re-running intake STEP 3 → STEP 4 → STEP 5 (class → evidence → confirmation) for the *new* problem.
+>
+> Under no circumstances may a prior problem's class, framework, or evidence be carried into a new problem.
+
+### What counts as "the same problem"
+
+| Same problem (continue) | New problem (stop → new session) |
+|---|---|
+| Fixing a defect found *by* the current audit | A different symptom, even in the same file |
+| Extending the current fix to sibling code paths **that share the identical traced defect** | A new feature, filter, or guard |
+| README update mandated by the current fix (Part F) | A design change ("should we add X?") |
+| Correcting an error in this session's own work | Anything requiring a *different* problem class |
+
+The middle-left cell is the dangerous one — "same defect class, sibling code path" is legitimate, but only when the defect is **traced and identical**, not merely *similar*. When unsure: it is a new problem.
+
+### Scope discipline within a session
+
+- Findings outside the current problem's scope are **logged, not fixed.** State them plainly at the end ("noted, out of scope — worth a session of its own"), and let the operator decide.
+- Never bundle an unrelated fix into the current commit, however small or tempting.
 

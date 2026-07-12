@@ -24,8 +24,8 @@ Confirm the HEAD commit hash.
 
 1. All `README*.md` in repo root
 2. All `Readme/README*.md` files
-3. `_RRM-ORG-system/rrm-Russ Horn RRM.pdf` — RRM system reference
-4. `_RRM-ORG-setups/` — all 4 setup card images (market phases, trade setups, checklist, stop loss)
+3. `_RRM-ORG*system` PDF file OR if easier: `_RRM-ORG-system/rrm-Russ Horn RRM.pdf` — RRM system reference
+4. `_RRM-ORG*setups` PDF file OR if easier: `_RRM-ORG-setups/` — all 4 setup card images (market phases, trade setups, checklist, stop loss)
 5. `Readme/README_SEA_FRAMEWORK.md` — your operating framework for this session
 
 Do not read Oracle trade images (`_RRM-ORG-100-trades/`) unless needed for the problem — they are called on demand only.
@@ -57,7 +57,23 @@ Once I confirm Step 3, follow the intake protocol from `Readme/README_SEA_FRAMEW
 
 ---
 
+## STEP 5 — Session scope (`README_SEA_FRAMEWORK.md` Part I)
+
+**This chat handles ONE problem.** When it is closed (fix delivered, README updated), the session is done — I will open a new chat for the next problem.
+
+Two rules you must enforce on yourself, without being reminded:
+
+1. **No hypothesis delivered as code.** Before writing any fix, state which it is:
+   - **(a) Traced defect** — a specific line or path that provably contradicts the README, the Oracle, or its own stated contract → implement.
+   - **(b) Hypothesis** — rests on an assumption about market behaviour, or on "this should help", with no traced defect behind it → **do not implement.** Say *"This is a hypothesis, not a traced defect"*, propose the audit or A/B test that would confirm or kill it, and stop.
+
+   If it cannot be tied to (a), it is (b). Confident, compiling code built on a guess is the worst outcome of a session — worse than no answer.
+
+2. **If a new problem surfaces mid-chat, stop.** Do not proceed on momentum. Say: *"This is a new problem — recommend a fresh chat with ORIENT."* If it is genuinely small and self-contained (typically C5), re-run intake steps 3–5 for it first. Never carry this problem's class or evidence into a different one. Findings outside scope are **logged, not fixed**.
+
+---
+
 ## My problem
 
-**Problem:** [describe in plain language — one sentence is enough]
+**Problem:** [describe in plain language — one sentence is enough. ONE problem only.]
 
