@@ -280,7 +280,8 @@ Corresponding `ST_Settings` fields: `UNO_ToleranceBars`, `LayerPullbackWindow_W/
 
 ## Input Surface Audit (2026-07, F-AUDIT)
 
-Every `Inp_*` declaration in `SEA_Inputs.mqh` (457 at audit time, 442 after remediation) was traced
+Every `Inp_*` declaration in `SEA_Inputs.mqh` (457 at audit time, 437 after remediation — see Round 2
+below) was traced
 to its consumer across `SEA_Config.mqh`, `SEA_Presets.mqh`, `SEA_SignalEngine.mqh`,
 `SEA_TradeExecutor.mqh`, `SEA_UI.mqh`, `SEA_Reporting.mqh`, `SEA_ConfigSync.mqh`, and
 `SimpleEA_v1-05.mq5`. Every input falls into exactly one status:
@@ -389,8 +390,57 @@ classification and makes no further change to it — it is the one case in the i
   `Stats_TrackRejections/Passes`, `MTF_StrictAlignment`, `LayerRecoveryOnSlope` fields, which remain
   declared in the struct but unread) was not undertaken here — this audit's scope was the `Inp_*`
   input surface only. Worth a session of its own.
-- The `#ifdef SEA_PRESET_MA` blocks in `SEA_Reporting.mqh` / `SimpleEA_v1-05.mq5` are dead code
-  today (`SEA_PRESET_MA` is never `#define`d — `SEA_Config.mqh:14`); fixed in place while touching
-  them for this audit, but the broader question of whether that preprocessor flag should exist at
-  all is out of scope.
+- The `#ifdef SEA_PRESET_MA` blocks in `SEA_Reporting.mqh` / `SimpleEA_v1-05.mq5` are dead code in
+  the current build (`SEA_PRESET_MA` is not the active preset — `SEA_Config.mqh` currently has only
+  `SEA_PRESET_RRM_ORG` uncommented; this repo compiles one preset at a time). Fixed in place while
+  touching them for this audit (see Round 1 note below on a real bug this caused), but the broader
+  question of whether that preprocessor flag should exist at all is out of scope.
+
+### Round 2 (2026-07) — methodology correction, 5 more dead inputs found
+
+The first pass of this audit classified "is a field ever read" by searching `SEA_SignalEngine.mqh`,
+`SEA_TradeExecutor.mqh`, `SEA_UI.mqh`, `SEA_Reporting.mqh`, and `SEA_ConfigSync.mqh` together. That
+was too permissive: `SEA_ConfigSync.mqh` only serializes fields to/from `.set`-sync files for
+save/load round-tripping — it is not a functional consumer. A field referenced only there is just
+as dead as one referenced nowhere, but the first pass's script counted a ConfigSync read as
+sufficient to call a field LIVE. This masked one field entirely and would have masked more had three
+existing READMEs (`README_SEA_SIGNAL_REFERENCE.md`, `README_SEA_TRADE_LOGIC.md`,
+`README_SEA_PRESETS.md`) not already documented them independently — a cross-reference the first
+pass should have made and didn't.
+
+**Corrected rule:** a field is LIVE only if something in `SEA_SignalEngine.mqh`, `SEA_TradeExecutor.mqh`,
+`SEA_UI.mqh`, `SEA_Reporting.mqh` (excluding pure config-value echoes), or `SimpleEA_v1-05.mq5` uses
+its *value* in a decision, calculation, or display — not merely persists it. `SEA_ConfigSync.mqh`
+usage alone does not confer LIVE status.
+
+Re-running the corrected check found one further field directly (`LayerPullbackRatio`, now renamed
+`LayerPullbackRatio_Legacy` — see below). A second class needed manual data-flow tracing the script
+can't do automatically: `LayerRecoveryRatio` and its `_W/_M/_S` siblings *are* read into a local
+variable (`GetLayerRecovery()` → `UpdateSingleLayerPullback()`'s `recovery_ratio` parameter), so a
+naive "is it referenced" check calls them LIVE — but that parameter is explicitly, deliberately never
+consulted in the RECOVERED-transition decision (the function's own comment: *"recovery_ratio /
+recovery_cond are no longer consulted here (retained in the signature for ABI/back-compat)"*); its
+only remaining use is inside a `DebugLog()` string. Confirmed against the three READMEs above, which
+already described exactly this.
+
+| Input (removed) | Fed field | Why it was dead |
+|---|---|---|
+| `Inp_RRM_ORG_LayerPBPullbackRatio` | `LayerPullbackRatio` (renamed `LayerPullbackRatio_Legacy`, see below) | Never referenced outside `SEA_ConfigSync.mqh`'s serialization. Already documented as inert in three READMEs. Its removed input comment had an extensive tuning history ("changed 0.50→0.65 for sensitivity") written *after* the value had already stopped mattering — the exact optimizer-sweep trap this audit exists to catch. |
+| `Inp_RRM_ORG_LayerPBRecoveryRatio` | `LayerRecoveryRatio` | Traced to `GetLayerRecovery()` → `UpdateSingleLayerPullback()`'s `recovery_ratio` param, confirmed unused in the RECOVERED decision (only reaches a debug-log string). |
+| `Inp_RRM_ORG_RecoveryRatio_W` | `LayerRecoveryRatio_W` | Same trace as above. |
+| `Inp_RRM_ORG_RecoveryRatio_M` | `LayerRecoveryRatio_M` | Same trace as above. |
+| `Inp_RRM_ORG_RecoveryRatio_S` | `LayerRecoveryRatio_S` | Same trace as above. |
+
+**Field rename:** during troubleshooting an unrelated MetaEditor compile error ("undeclared
+identifier 'LayerPullbackRatio'" at two call sites, with root cause never conclusively identified —
+most likely a stale local build artifact predating this field, since the field, its declaration, and
+every reference were verified byte-identical and syntactically valid), the `ST_Settings` field was
+renamed `LayerPullbackRatio` → `LayerPullbackRatio_Legacy` as a diagnostic experiment. It resolved
+the compile error, so the rename was kept. The persisted `SEA_ConfigSync.mqh` key stays
+`"LayerPullbackRatio"` (decoupled from the field name) so old saved `.set`-sync files still round-trip.
+
+This round's inputs bring the running total to **20 dead inputs removed**, input count **457 → 437**.
+`Inp_RRM_ORG_LayerPriceTouchEnabled` was cross-checked against the same three READMEs and remains
+correctly classified from round 1: already documented, intentionally retained for back-compat, no
+further action.
 

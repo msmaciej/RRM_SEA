@@ -828,7 +828,7 @@ struct ST_Settings
     int      LayerBaselineLookback_M;     // M = medium
     int      LayerBaselineLookback_S;     // S = slow EMA pair (stable)
     // Magnitude (ratio) thresholds for pullback-recovery detection
-    double   LayerPullbackRatio;          // |slope ratio| below this = pullback (weakened)
+    double   LayerPullbackRatio_Legacy;          // |slope ratio| below this = pullback (weakened)
     double   LayerFlatRatio;              // |slope ratio| below this = flat
     double   LayerRecoveryRatio;          // Global recovery threshold (fallback)
    bool     LayerRecoveryOnSlope;        // t1: recover on slope resume+re-accel (not magnitude ratio)

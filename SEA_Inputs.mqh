@@ -695,8 +695,16 @@ input int         Inp_RRM_ORG_LayerPBLookback      = 21;              // RRM ORG
 input int         Inp_RRM_ORG_LayerPBLookback_W    = 13;            // RRM ORG PB: LayerW baseline lookback (fast/responsive) // NOTE 2026-07: original value. Longer lookback = cleaner baseline (less contaminated by in-progress pullback bars) = lower effective ratio = easier pullback detection. Shorter lookbacks counter-intuitively harm detection.
 input int         Inp_RRM_ORG_LayerPBLookback_M    = 21;            // RRM ORG PB: LayerM baseline lookback (medium) // NOTE 2026-07: original value restored.
 input int         Inp_RRM_ORG_LayerPBLookback_S    = 34;            // RRM ORG PB: LayerS baseline lookback (slow/stable) // NOTE 2026-07: original value restored. At LB_S=34, a 40%-deep pullback lasting 12 bars still produces ratio=0.507 vs 0.65 threshold = DETECTED. At LB_S=21, same pullback produces ratio=0.609 = DETECTED. At LB_S=8, ratio=N/A (window exhausted by pullback alone).
-input double      Inp_RRM_ORG_LayerPBPullbackRatio = 0.65; // RRM ORG PB: Pullback threshold (ratio < this = weakened) // CORRECTION 2026-07: changed 0.50→0.65. is_pullback fires when |current_pace|/|baseline_pace| < threshold, so HIGHER threshold = more sensitive. At 0.50: only catches 40%-depth pullbacks lasting ≤3 bars at LB=13. At 0.65: catches 40%-depth pullbacks lasting up to 12 bars at LB=13, and up to 5 bars at LB=8. My previous change to 0.35 was backwards (stricter, caught fewer). Enable LayerAllowReversalPullback for 60-80%-depth shallow pullbacks that magnitude ratio cannot reach at any practical threshold.
-input double      Inp_RRM_ORG_LayerPBRecoveryRatio = 0.3;  // RRM ORG PB: Global recovery threshold (fallback)
+// F-AUDIT 2026-07 (round 2): Inp_RRM_ORG_LayerPBPullbackRatio REMOVED -- fed LayerPullbackRatio_Legacy,
+// a proven dead sink (already documented in README_SEA_SIGNAL_REFERENCE.md / README_SEA_TRADE_LOGIC.md /
+// README_SEA_PRESETS.md as inert under the Path-2 slope model). This input had an extensive tuning
+// history in its old comment (0.50->0.65 "for sensitivity") that was already meaningless by the time
+// it was written -- the exact optimizer-sweep trap this audit exists to catch. See
+// Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
+// F-AUDIT 2026-07 (round 2): Inp_RRM_ORG_LayerPBRecoveryRatio REMOVED -- fed LayerRecoveryRatio,
+// a proven dead sink. Traced: GetLayerRecovery() -> UpdateSingleLayerPullback()'s recovery_ratio
+// parameter, which the function's own comment says is "no longer consulted" -- only reaches a
+// debug log string. See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
 // F-AUDIT 2026-07: Inp_RRM_ORG_LayerPB_RecoveryOnSlope REMOVED — fed Settings.LayerRecoveryOnSlope,
 // a proven dead sink (never read). See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
 input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;      // RRM ORG PB: Flat threshold (|ratio|<this = flat)
@@ -712,9 +720,9 @@ input bool        Inp_RRM_ORG_LayerPriceTouchEnabled = false; // RRM ORG PB: (de
 input int         Inp_RRM_ORG_MinPBBars_W   = 2;            // RRM ORG PB: A21 - LayerW min bars in DETECTED before RECOVERED (2/2/2 default)
 input int         Inp_RRM_ORG_MinPBBars_M   = 2;            // RRM ORG PB: A21 - LayerM min bars in DETECTED before RECOVERED (2/2/2 default)
 input int         Inp_RRM_ORG_MinPBBars_S   = 2;            // RRM ORG PB: A21 - LayerS min bars in DETECTED before RECOVERED (2/2/2 default)
-input double      Inp_RRM_ORG_RecoveryRatio_W      = 0.4;      // RRM ORG PB: LayerW recovery override (-1=use global)
-input double      Inp_RRM_ORG_RecoveryRatio_M      = 0.3;      // RRM ORG PB: LayerM recovery override (-1=use global)
-input double      Inp_RRM_ORG_RecoveryRatio_S      = 0.2;      // RRM ORG PB: LayerS recovery override (-1=use global)
+// F-AUDIT 2026-07 (round 2): Inp_RRM_ORG_RecoveryRatio_W/M/S REMOVED -- same proven-dead sink
+// as Inp_RRM_ORG_LayerPBRecoveryRatio above (LayerRecoveryRatio_W/M/S, unused-in-decision-logic
+// trace). See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
 // Path 2 (2026-07): pullback OBSERVATION WINDOW (distinct from the baseline slope
 // lookback 13/21/34). Bounds how long a RECOVERED layer stays entry-eligible before
 // it is treated as stale (the "not-too-late" cap). Per-layer; 0 = use the global.
@@ -1690,7 +1698,12 @@ void InitializeConfig()
    Settings.LayerBaselineLookback_W     = 0;     // 0 = fall back to global lookback
    Settings.LayerBaselineLookback_M     = 0;
    Settings.LayerBaselineLookback_S     = 0;
-   Settings.LayerPullbackRatio          = 0.5;
+   // F-AUDIT 2026-07 (round 2): LayerPullbackRatio_Legacy is a PROVEN DEAD SINK, confirmed by
+   // three existing READMEs (README_SEA_SIGNAL_REFERENCE.md, README_SEA_TRADE_LOGIC.md,
+   // README_SEA_PRESETS.md) which already documented it as inert under the Path-2 slope model --
+   // a documentation cross-reference this audit's first pass missed. Inp_RRM_ORG_LayerPBPullbackRatio
+   // (which fed this) is removed. See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
+   Settings.LayerPullbackRatio_Legacy          = 0.5;
    Settings.LayerFlatRatio              = 0.1;
    Settings.LayerRecoveryRatio          = 0.3;
    Settings.LayerRecoveryOnSlope        = false;  // default; overwritten by ApplyPreset

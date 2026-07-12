@@ -2156,17 +2156,30 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.LayerBaselineLookback_M = MathMax(2, (int)MathRound(Inp_RRM_ORG_LayerPBLookback_M * _lk_noise));
          cfg.LayerBaselineLookback_S = MathMax(2, (int)MathRound(Inp_RRM_ORG_LayerPBLookback_S * _lk_noise));
       }
-      cfg.LayerPullbackRatio          = MathMax(0.01, Inp_RRM_ORG_LayerPBPullbackRatio);
+      // F-AUDIT 2026-07 (round 2): LayerPullbackRatio_Legacy proven dead (see SEA_Inputs.mqh).
+      // Inp_RRM_ORG_LayerPBPullbackRatio removed. Literal preserves the field's prior effective
+      // value for ConfigSync round-trip compatibility only -- it has no effect on trading logic.
+      cfg.LayerPullbackRatio_Legacy          = 0.65;
       cfg.LayerFlatRatio              = MathMax(0.0,  Inp_RRM_ORG_LayerPBFlatRatio);
-      cfg.LayerRecoveryRatio          = MathMax(0.01, Inp_RRM_ORG_LayerPBRecoveryRatio);
+      // F-AUDIT 2026-07 (round 2): LayerRecoveryRatio is a PROVEN DEAD SINK. Traced its consumer:
+      // GetLayerRecovery() reads it into UpdateSingleLayerPullback()'s recovery_ratio parameter,
+      // but that function's own comment says plainly "recovery_ratio / recovery_cond are no longer
+      // consulted here (retained in the signature for ABI/back-compat)" -- its only remaining use
+      // is inside a DebugLog() string, never a decision. Already documented in
+      // README_SEA_SIGNAL_REFERENCE.md / README_SEA_TRADE_LOGIC.md / README_SEA_PRESETS.md, a
+      // cross-reference this audit's first pass missed. Inp_RRM_ORG_LayerPBRecoveryRatio removed.
+      cfg.LayerRecoveryRatio          = 0.3;
       // F-AUDIT 2026-07: LayerRecoveryOnSlope is a PROVEN DEAD SINK — never read anywhere.
       // Consistent with the README's post-refactor model: layer RECOVERED is unconditionally
       // slope-only now (same shape as the already-documented Inp_RRM_ORG_LayerPriceTouchEnabled
       // deprecation). Inp_RRM_ORG_LayerPB_RecoveryOnSlope (which fed this) is removed.
       cfg.LayerRecoveryOnSlope        = false;
-      cfg.LayerRecoveryRatio_W        = Inp_RRM_ORG_RecoveryRatio_W;   // -1 = use global
-      cfg.LayerRecoveryRatio_M        = Inp_RRM_ORG_RecoveryRatio_M;
-      cfg.LayerRecoveryRatio_S        = Inp_RRM_ORG_RecoveryRatio_S;
+      // F-AUDIT 2026-07 (round 2): LayerRecoveryRatio_W/M/S are the same proven-dead sink as
+      // LayerRecoveryRatio above (same recovery_ratio parameter, same unused-in-decision-logic
+      // trace). Inp_RRM_ORG_RecoveryRatio_W/M/S removed.
+      cfg.LayerRecoveryRatio_W        = 0.4;   // matches prior input default; no effect on trading logic
+      cfg.LayerRecoveryRatio_M        = 0.3;
+      cfg.LayerRecoveryRatio_S        = 0.2;
       cfg.LayerAllowReversalPullback  = Inp_RRM_ORG_LayerPBAllowReversal;
       // S2 2026-07: price-zone DETECTED gate
       cfg.LayerPriceTouchEnabled     = Inp_RRM_ORG_LayerPriceTouchEnabled;

@@ -128,7 +128,11 @@ bool SEA_WriteConfigSnapshot(const ST_Settings &cfg)
    FileWriteString(h, "LayerBaselineLookback_W=" + IntegerToString(cfg.LayerBaselineLookback_W) + "\n");
    FileWriteString(h, "LayerFlatRatio=" + DoubleToString(cfg.LayerFlatRatio, 8) + "\n");
    FileWriteString(h, "LayerPullbackEnabled=" + (cfg.LayerPullbackEnabled ? "true" : "false") + "\n");
-   FileWriteString(h, "LayerPullbackRatio=" + DoubleToString(cfg.LayerPullbackRatio, 8) + "\n");
+   // F-AUDIT 2026-07: field renamed LayerPullbackRatio -> LayerPullbackRatio_Legacy (diagnostic
+   // rename that resolved an unexplained MetaEditor "undeclared identifier" compile error tied to
+   // the original name -- root cause not identified, likely a stale local build artifact). The
+   // persisted key stays "LayerPullbackRatio" so old saved .set-sync files still round-trip.
+   FileWriteString(h, "LayerPullbackRatio=" + DoubleToString(cfg.LayerPullbackRatio_Legacy, 8) + "\n");
    FileWriteString(h, "LayerRecoveryRatio=" + DoubleToString(cfg.LayerRecoveryRatio, 8) + "\n");
    FileWriteString(h, "LayerRecoveryRatio_M=" + DoubleToString(cfg.LayerRecoveryRatio_M, 8) + "\n");
    FileWriteString(h, "LayerRecoveryRatio_S=" + DoubleToString(cfg.LayerRecoveryRatio_S, 8) + "\n");
@@ -430,7 +434,7 @@ bool SEA_CS_ApplyKey(ST_Settings &s, const string key, const string val)
    if(key == "LayerBaselineLookback_W") { s.LayerBaselineLookback_W = (int)StringToInteger(val); return true; }
    if(key == "LayerFlatRatio") { s.LayerFlatRatio = StringToDouble(val); return true; }
    if(key == "LayerPullbackEnabled") { s.LayerPullbackEnabled = SEA_CS_ParseBool(val); return true; }
-   if(key == "LayerPullbackRatio") { s.LayerPullbackRatio = StringToDouble(val); return true; }
+   if(key == "LayerPullbackRatio") { s.LayerPullbackRatio_Legacy = StringToDouble(val); return true; }
    if(key == "LayerRecoveryRatio") { s.LayerRecoveryRatio = StringToDouble(val); return true; }
    if(key == "LayerRecoveryRatio_M") { s.LayerRecoveryRatio_M = StringToDouble(val); return true; }
    if(key == "LayerRecoveryRatio_S") { s.LayerRecoveryRatio_S = StringToDouble(val); return true; }
