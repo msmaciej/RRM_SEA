@@ -392,11 +392,15 @@ Each of the three EMA pairs runs an **independent** state machine: `NONE → DET
 1. **Slope flat**: ratio `< LayerFlatRatio` (default 0.1) — the fast EMA has stopped advancing.
 2. **Slope reversed**: fast-EMA slope sign now opposite `bias_dir` (`LayerAllowReversalPullback = true`) — the fast EMA is rolling over toward the slow EMA.
 
-The old magnitude-ratio **"slope weakened"** trigger (`LayerPullbackRatio`) has been **removed** — a fast EMA still sloping in `bias_dir`, merely at a shallower angle, is normal trend breathing, not a pullback (the ratio trigger oscillated state and produced noise entries). The `LayerPullbackRatio` input has been removed from the codebase. The **S2 price-zone touch** DETECTED gate is also removed: the layer model is pure position + slope, and price-vs-EMA is confirmed only at the separate **BC** gate (`LayerPriceTouchEnabled` defaults **false** and is inert).
+The old magnitude-ratio **"slope weakened"** trigger (`LayerPullbackRatio`) has been **disabled** — a fast EMA still sloping in `bias_dir`, merely at a shallower angle, is normal trend breathing, not a pullback (the ratio trigger oscillated state and produced noise entries). The engine no longer reads `LayerPullbackRatio`; the input (`Inp_RRM_ORG_LayerPBPullbackRatio`), the `ST_Settings` field and the config-sync entry **still exist as dead knobs** for back-compat — changing them has no effect. (It was always a *slope* ratio — `|current_pace| / |baseline_pace|`, two EMA-slope paces — never a price test.)
 
-**S2 one-bar completion:** If S2 fires DETECTED AND the same bar's close satisfies recovery (`close > fast_EMA`), the state goes directly `NONE → RECOVERED` in one candle. This is the Oracle wick-rejection entry: wick touches the EMA zone, body closes beyond the fast EMA. The A21 minimum-bar gate is bypassed for this case — the wick is the pullback evidence, the close is the recovery.
+The **S2 price-zone touch** DETECTED gate is likewise removed: the layer model is pure position + slope, and price-vs-EMA is confirmed only at the separate **BC** gate. `LayerPriceTouchEnabled` defaults **false** and is **inert** — the gate code is gone from `UpdateSingleLayerPullback` and the `use_price_touch` parameter is never read, so setting it `true` changes nothing.
 
-**A21 minimum pullback bars:** After DETECTED fires, at least `LayerMinPullbackBars` bars must stay in DETECTED before RECOVERED is allowed (default: W=1, M=1, S=1). Prevents 1-bar spike entries on non-S2 paths.
+**No one-bar completion.** The former S2 shortcut (wick touches the zone → DETECTED, same candle closes beyond the fast EMA → RECOVERED, all in one bar) is **removed**. A fresh pullback always enters DETECTED, and the A21 gate is never bypassed: a pullback-recovery cycle cannot complete inside a single candle.
+
+**A21 minimum pullback bars:** After DETECTED fires, at least `LayerMinPullbackBars` bars must stay in DETECTED before RECOVERED is allowed (default: **W=2, M=2, S=2**). Prevents 1-bar spike entries.
+
+> **Why the layer model is EMA-only:** the Oracle states pullback-and-recovery as one human-perceptual packet; the EA splits it into two separately-decidable predicates — structure (P-R: EMA position + slope) and price (BC: close beyond the fast EMA) — and requires both on the same closed bar. Canonical rationale, invariant and accepted divergences: **`README_SEA_TRADE_LOGIC.md` §1.1**.
 
 **RECOVERED:** `close > fast_EMA` (LONG) or `close < fast_EMA` (SHORT) — after the minimum bar count is met.
 

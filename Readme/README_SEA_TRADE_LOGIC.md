@@ -30,6 +30,75 @@ If a setup passes the strict multiplicative consensus, it is stored in the globa
 
 ---
 
+## 1.1 Encoding the Oracle — why Pullback-Recovery is EMA-only
+
+**This section is the canonical statement of the P-R encoding decision.** `README_SEA_FRAMEWORK.md` (Part G) and `README_SEA_SIGNAL_REFERENCE.md` (§3b) state the resulting *rule*; this section states the *reason*. If the two ever disagree, this section is authoritative on intent and the rule tables are authoritative on values.
+
+### The Oracle description
+
+The RRM Trade Setups card describes each setup as a short list of conditions. For the Bullish Weak trade, verbatim:
+
+- EMA1 over the EMA2
+- **price pulls back to touch the EMA2**
+- **price closes above the EMA1**
+- EMA1 never crosses below EMA2 during this setup
+- EMA3 and EMA4 should be under the EMA2
+
+The two bolded lines are what a human reads as **one perceptual packet**: *the market dips into the ribbon and comes back out of it.* A trader does not evaluate them as two independent booleans — they see a shape on a chart, in one glance, and the shape either is or is not a pullback-recovery. The card's diagram draws exactly that shape: a stacked, sloped ribbon with price dipping toward it and turning back up.
+
+### Why the packet cannot be encoded as written
+
+Code cannot see a gestalt. It needs **separable, individually-decidable predicates**, evaluated bar by bar, each one true or false on its own. Translating the two lines literally — "wick touched EMA2" and "close is beyond EMA1" — and putting both **inside** the layer state machine fails in four specific ways, each of which was observed in this codebase and reverted:
+
+1. **Recovery would become a duplicate of BC.** "Price closes above EMA1" *is already* the BC gate (`Eval_BarClose`). If RECOVERED is also a close-vs-EMA test, the same predicate is evaluated twice — once as a state transition, once as a factor — and the layer machine adds no information the BC gate did not already carry. (Historic: the close-based `recovery_cond`, removed 2026-07.)
+2. **The cycle would complete in one bar.** Wick touches the zone (DETECTED) and the same candle closes beyond the fast EMA (RECOVERED) → `NONE → RECOVERED` inside a single candle. That is a spike, not a pullback. (Historic: the S2 one-bar shortcut, removed; the A21 minimum-duration gate now makes it structurally impossible.)
+3. **"Touch" is not decidable without a magic number.** An exact touch of a floating-point EMA essentially never happens, so a literal encoding needs a tolerance band — a tunable with no value derivable from the Oracle or the code (see Framework Part F, *magic numbers are a smell*). The band is also broker-, spread- and tick-noise-dependent: the same setup would decide differently on two feeds.
+4. **A wick is not evidence of a pullback.** A single spike into the zone on thin liquidity satisfies "touched" while the trend never paused at all.
+
+### What the EA does instead — the split
+
+The EA **splits the perceptual packet into its two halves and gives each half its own decidable predicate**, then requires both on the same bar:
+
+| Oracle phrase (human packet) | EA predicate | Where it lives | Uses price? |
+|---|---|---|---|
+| *"price pulls back…"* | fast-EMA slope **leaves** the trend vs `bias_dir` — flat (`LayerFlatRatio`) or reversed (`LayerAllowReversalPullback`) → `LAYER_PB_DETECTED` | `UpdateSingleLayerPullback` (P-R state machine) | **No** — EMA slope only |
+| *"…to touch the EMA2"* | (not tested — see *Accepted divergences* below) | — | — |
+| *"…and comes back"* (recovery) | **both** layer EMA slopes (fast **and** slow) point in `bias_dir` again, after `LayerMinPullbackBars` → `LAYER_PB_RECOVERED` | `UpdateSingleLayerPullback` | **No** — EMA slope only |
+| *"price closes above the EMA1"* | closed bar is beyond the layer's fast EMA in bias direction | **BC** gate, inside `EvaluateL` — *outside* the state machine | **Yes** |
+| *(bar must be a real move, not a doji)* | close vs open in bias direction | **BD** gate, inside `EvaluateL` | **Yes** |
+| *"EMA1 never crosses below EMA2 during this setup"* | fast/slow cross → layer invalidated, PB state reset to NONE, cascade W→M→S | `UpdateSingleLayerPullback` + `CheckLayerPairAlign` | **No** |
+
+`L = 1` requires *(layer is RECOVERED and positionally aligned)* **AND** *BC* **AND** *BD* — all on the same closed bar. **The conjunction reconstructs the Oracle packet.** The packet is not weakened by the split; it is made decidable. What changed is only *where each half is decided*.
+
+### The invariant
+
+> **Price never enters the pullback-recovery state machine.** The machine reads EMA values and EMA slopes only. Price re-enters the pipeline exactly twice, both as independent factors *outside* the machine: **BC** (close beyond the fast EMA) and **BD** (bar closed in bias direction) — plus the TE-side BC re-check at `shift=0`. This is a deliberate engineering decision, not an omission.
+
+Enforced in code at HEAD `3935f36`:
+- `UpdateSingleLayerPullback` contains **no** price-series term (`Close/Open/High/Low/Bid/Ask/iClose/CopyClose`). Its only inputs are the ribbon EMA handles (volume appears only for VPRR bookkeeping and never drives a state transition).
+- `LayerPriceTouchEnabled` is **`false` and inert**: the S2 price-zone gate code is removed; the `use_price_touch` parameter survives in the signature for ABI/back-compat and is never read. Setting it `true` has no effect.
+- `LayerPullbackRatio` is a **slope** ratio (`|current_pace| / |baseline_pace|`, both EMA-slope paces) — it was never a price test. It is now **inert**: the DETECTED trigger consults `LayerFlatRatio` only. The input, struct field and config-sync entry still exist (dead knobs; see *Known dead inputs* below), so "inert" — not "deleted".
+- The EA path, the warm-up replay, and the SignalScan/inspector path all call the *same* `UpdateSingleLayerPullback` with a non-zero `bias_dir`, so all three decide P-R identically.
+
+### Why this is faithful, not a departure
+
+The slow-EMA ribbon *is* a function of price. "The fast EMA stops advancing or rolls over" is the deterministic, feed-independent expression of "price pulled back **far enough to matter**". A dip too shallow to bend the fast EMA is trend breathing — the Oracle's own chart would not mark it as a setup either. And the setup-card diagrams draw sloped, stacked EMAs: slope *is* the machine-readable content of those pictures.
+
+### Accepted divergences (state them, don't hide them)
+
+| Oracle | EA | Consequence |
+|---|---|---|
+| Pullback must reach the **slow EMA of the pair** ("touch the EMA2") — a *depth* requirement | The EA tests **no depth at all**; any slope-leaving-trend qualifies | The EA is **more permissive** than the Oracle on shallow pullbacks. Accepted: depth was tested (S2) and cost more than it bought. |
+| A pullback *through* the slow EMA is still readable to a human as an aggressive dip | Fast/slow cross → layer **invalidated**, cascade to the next-deeper layer | The EA is **stricter** on deep pullbacks — but it does not lose the setup: the deeper layer picks it up. This matches the Oracle's own "EMA1 never crosses below EMA2 during this setup". |
+
+If pullback **depth** is ever wanted back, the correct home is a **new, separate factor** (an F sub-filter, or a fourth per-layer sub-check evaluated alongside BC), never a price term readmitted into the P-R machine — that would re-create failure modes 1–4 above.
+
+### Known dead inputs (documented so they are not mistaken for live controls)
+
+`LayerPullbackRatio` (`Inp_RRM_ORG_LayerPBPullbackRatio`), `LayerRecoveryRatio` / `_W/_M/_S`, `LayerRecoveryOnSlope`, `LayerPriceTouchEnabled` are all present in the input surface and the `ST_Settings` struct but **not read by the engine** under the Path-2 slope model. Changing them changes nothing. They are retained for back-compat and config-file compatibility. Removing them from the UI is a separate task.
+
+---
+
 ## 2. Adaptive Spread Limits (Zone 3C)
 Different instruments have inherently different liquidity and spread profiles. SimpleEA auto-detects the pair type and applies strict maximum spread limits at the exact moment of execution (shift=0).
 

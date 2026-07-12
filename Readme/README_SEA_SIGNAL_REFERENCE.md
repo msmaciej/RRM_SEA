@@ -102,6 +102,8 @@ All slope tests are taken against **`bias_dir`** (the live B-factor direction), 
 
 Each layer's state is reset to NONE after a TS=1 signal consumes it, requiring a fresh pullback-recovery before the next entry on that layer.
 
+> **Why this machine is EMA-only and price sits in BC instead:** the Oracle states pullback and recovery as one human-perceptual packet; the EA splits it into two decidable predicates — structure (P-R: EMA position + slope) and price (BC: close beyond the fast EMA) — and requires both on the same bar. Canonical rationale + the "no price inside P-R" invariant: **`README_SEA_TRADE_LOGIC.md` §1.1**.
+
 ### Step 4: Evaluate bcX ($bc_{W}, bc_{M}, bc_{S}$)
 **Purpose:** The final price action trigger verifying momentum resumption (Bar Close confirmation).
 * **Logic:** Evaluates to 1 ONLY if the closed candle body strictly crosses or closes beyond the fast EMA of the active layer. 
@@ -354,12 +356,19 @@ The signal evaluation pipeline was significantly simplified in v1.04, then the p
 
 **What was re-introduced and extended (post-v1.04, Sessions A1–S2):**
 - Full pullback-recovery state machine (`LAYER_PB_NONE / DETECTED / RECOVERED`) — one independent machine per layer
-- Slope-ratio DETECTED trigger: `|current_pace| / |baseline_pace| < LayerPullbackRatio`
+- Slope-flat DETECTED trigger: `ratio < LayerFlatRatio` — the fast EMA has stopped advancing
 - Slope-reversal DETECTED trigger: `LayerAllowReversalPullback` — catches shallow pullbacks
-- **S2 price-zone DETECTED trigger:** wick entering lower EMA band zone fires DETECTED independently of slope
-- **A21 minimum pullback duration gate:** `LayerMinPullbackBars_W/M/S` — prevents 1-bar spike entries
+- **A21 minimum pullback duration gate:** `LayerMinPullbackBars_W/M/S` (2/2/2) — a pullback cannot complete in one bar
 - VPRR (Volume Pullback-Recovery Ratio) — institutional volume confirmation gate on recovery
 - CBOEB (CandleBody Over-Extension Carry) — CB vote held at 0 until a fresh pullback-recovery cycle
+
+**What was removed again (Path 2, 2026-07) — do not reintroduce:**
+- **Slope-ratio "weakened" DETECTED trigger** (`|current_pace| / |baseline_pace| < LayerPullbackRatio`). A fast EMA still sloping in `bias_dir` at a shallower angle is normal trend breathing, not a pullback; the trigger oscillated state and produced noise entries. The engine no longer reads `LayerPullbackRatio` — the input and struct field survive as **dead knobs** (back-compat only; changing them has no effect).
+- **S2 price-zone DETECTED trigger** (wick entering the EMA band). It was a *price* test inside a state machine that is defined on EMA position + slope. `LayerPriceTouchEnabled` defaults `false` and the gate code is removed — the parameter is **inert**.
+- **Close-vs-EMA recovery** (`recovery_cond`). It duplicated the BC gate exactly; RECOVERED is now slope-only and structurally distinct from BC.
+- **The S2 one-bar `NONE → RECOVERED` shortcut.** A pullback-recovery cycle cannot complete inside a single candle; the A21 gate is never bypassed.
+
+See `README_SEA_TRADE_LOGIC.md` §1.1 for why each of these was removed and where price legitimately re-enters the pipeline.
 
 **Enum Clarity (v1.04):**
 - `BIAS_AUTO` renamed to `BIAS_2EMA` (2-EMA crossover)

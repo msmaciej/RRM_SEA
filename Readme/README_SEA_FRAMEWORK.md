@@ -170,6 +170,8 @@ C: no hallucinations · verify feature not already implemented · update README 
 | RR | 2.5 — PSAR trail starts only after BE. |
 | LayerS_RequireDirAlign | false — prevents spurious block of LayerW/M during EM pullbacks. |
 
+> **Why P-R is EMA-only (the Oracle→EA encoding split):** the Oracle describes pullback-and-recovery as one perceptual packet for a human ("price pulls back to touch the EMA, price closes back through it"); code needs separable predicates, so the EA decides P-R on EMA position + slope and re-admits price as the independent **BC** check inside L, never inside the state machine. Rationale, invariant, and accepted divergences: **`README_SEA_TRADE_LOGIC.md` §1.1 (canonical)**. Verified against code at HEAD `3935f36` — no price term reaches the P-R machine on the EA, warm-up, or SignalScan path.
+
 ---
 
 ## Part H — Conversational intake (how every session starts)
