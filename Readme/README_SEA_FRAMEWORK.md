@@ -153,23 +153,26 @@ C: no hallucinations · verify feature not already implemented · update README 
 
 ## Part G — Quick reference: PRESET_RRM_ORG
 
+> **Convention:** this table describes **contracts** and names the **input** that owns each tunable value — it does not restate the value, so it cannot drift when an input is tuned for testing or research. For the current value and its rationale, read that input's own comment in `SEA_Inputs.mqh` (the single source of truth). Three kinds of entry: **tunable** → input named, no number; **immutable/LOCKED** (fixed by contract or in `SEA_Presets.mqh`, no input) → stated as a contract; **logic** → the rule only, no number.
+
 | Fact | Detail |
 |---|---|
-| Signal evaluation | shift=1 (closed bar) — immutable |
-| Trade execution | shift=0 (open bar) — execution conditions only, no signal re-evaluation |
-| PSAR parameters | Step=0.05, Max=0.5 (intentional RRM-ORG) — chart PSAR must use same values |
-| PSAR vote | Dot position at shift=1 only (−1 persistent). Counter-flip clears record immediately. |
-| Cascade | EMA1<EMA2 → LayerW invalidated → LayerM. EMA2<EMA3 → LayerM invalidated → LayerS. A fast-vs-slow cross invalidates that layer (position lost) and resets its PB state. |
-| EM phase | W and M allowed. S always blocked (`Emerging_AllowStrongTrades=false`). |
-| Session filter | Global `Inp_Session_*` — London/NY on by default. Not preset-owned. |
-| Pullback (DETECTED) | Slope-only, vs `bias_dir`: flat (`LayerFlatRatio`) OR reversed (`LayerAllowReversalPullback`). Weakened-but-still-in-trend is NOT a pullback. Price-touch is OFF (`LayerPriceTouchEnabled=false`). |
-| Recovery (RECOVERED) | Slope-only: fast AND slow layer-EMA slopes back in `bias_dir`. Not a close-vs-EMA test (that is BC). No one-bar recovery. Valid until relapse (counter-`bias_dir` reversal) or TS=1 consumption; optional `LayerRecoveryMaxAge` cap (default = observation window). |
-| A21 | `LayerMinPullbackBars` W=2 M=2 S=2. A pullback cannot complete in one bar. |
-| Windows | Baseline slope lookback `LayerBaselineLookback_W/M/S` = 13/21/34. Pullback observation window `LayerPullbackWindow_W/M/S` = 21/34/55. Both user-editable (+ global fallback). |
-| UNO reset | Transient same-direction UNO tolerated up to `UNO_ToleranceBars` (=2) — DETECTED/RECOVERED preserved. Reset on sustained UNO, bias flip, or confirmed phase change. |
-| SL | SWING mode, lookback=34 (search window, not exact bar). |
-| RR | 2.5 — PSAR trail starts only after BE. |
-| LayerS_RequireDirAlign | false — prevents spurious block of LayerW/M during EM pullbacks. |
+| Signal evaluation | shift=1 (closed bar) — **immutable contract** |
+| Trade execution | shift=0 (open bar) — execution conditions only, no signal re-evaluation — **immutable contract** |
+| EMA ribbon | four EMAs per `Inp_RRM_ORG_Ema1Period`…`Ema4Period` (EMA1=fastest … EMA4=slowest). Periods are inputs — read them there, don't assume. |
+| PSAR parameters | Step / Max per `Inp_RRM_ORG_PsarStep` / `Inp_RRM_ORG_PsarMax`. The chart's PSAR indicator must be set to the EA's **configured** Step/Max, or its dots won't match the dots the EA votes on. |
+| PSAR vote | Enabled per `Inp_RRM_ORG_Use_Psar`. Governed by `Inp_RRM_ORG_Vote_AllowPsarFlip` + `Inp_RRM_ORG_Vote_PsarFlipDelay{,_W,_M,_S}`. **Contract:** dot on the correct side at shift=1; when the flip window is enabled, the matching flip must also be within N bars (`Check_PSAR_WithFlip` — step 1 dot-side is checked *before* the window); delay = −1 → persistent / dot-position-only. Live intent: a uniform window across all layers. This flip-window gate is an **admin-chosen divergence from the pure Oracle rule** (checklist item 4 = "is PSAR on the correct side?" = dot position only), accepted like the pullback-recovery encoding. Counter-flip clears the record immediately. |
+| Cascade | EMA1<EMA2 → LayerW invalidated → LayerM. EMA2<EMA3 → LayerM invalidated → LayerS. A fast-vs-slow cross invalidates that layer (position lost) and resets its PB state. — **logic** |
+| EM phase | W and M allowed in EM; S blocked unless strong-EM trading is enabled (`Emerging_AllowStrongTrades`, see inputs). |
+| Session filter | Global `Inp_Session_*` (not preset-owned) — see inputs for defaults. |
+| Pullback (DETECTED) | Slope-only, vs `bias_dir`: flat (`Inp_RRM_ORG_LayerPBFlatRatio`) OR reversed (`Inp_RRM_ORG_LayerPBAllowReversal`). Weakened-but-still-in-trend is NOT a pullback. Price-touch is off unless enabled (`LayerPriceTouchEnabled`, see inputs). |
+| Recovery (RECOVERED) | Slope-only: fast AND slow layer-EMA slopes back in `bias_dir`. Not a close-vs-EMA test (that is BC). No one-bar recovery. Valid until relapse (counter-`bias_dir` reversal) or TS=1 consumption; optional max-age cap per `Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled` (cap = the layer's observation window). |
+| A21 | Minimum pullback duration per `Inp_RRM_ORG_MinPBBars_W/M/S`. **Contract: ≥ 2 — a pullback cannot complete in one bar.** |
+| Windows | Baseline slope lookback per `Inp_RRM_ORG_LayerPBLookback_W/M/S`; pullback observation window per `Inp_RRM_ORG_LayerPullbackWindow_W/M/S`. Both user-editable (+ global fallback). |
+| UNO reset | Transient same-direction UNO tolerated up to `Inp_RRM_ORG_UNO_ToleranceBars` — DETECTED/RECOVERED preserved. Reset on sustained UNO, bias flip, or confirmed phase change. |
+| SL | Mode per `Inp_RRM_ORG_SLMode` (default SWING); swing search window per `Inp_RRM_ORG_SwingLookback` (a search window, not an exact bar). |
+| RR | Per `Inp_RRM_ORG_RRRatio`. PSAR trail starts only after BE (`Inp_RRM_ORG_TrailStartsAfterBE`). |
+| LayerS_RequireDirAlign | See inputs (default off) — prevents spurious block of LayerW/M during EM pullbacks. |
 
 > **Why P-R is EMA-only (the Oracle→EA encoding split):** the Oracle describes pullback-and-recovery as one perceptual packet for a human ("price pulls back to touch the EMA, price closes back through it"); code needs separable predicates, so the EA decides P-R on EMA position + slope and re-admits price as the independent **BC** check inside L, never inside the state machine. Rationale, invariant, and accepted divergences: **`README_SEA_TRADE_LOGIC.md` §1.1 (canonical)**. Verified against code at HEAD `3935f36` — no price term reaches the P-R machine on the EA, warm-up, or SignalScan path.
 
