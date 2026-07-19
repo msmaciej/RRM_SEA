@@ -2368,7 +2368,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BarClose_LookbackBars        = MathMax(1, MathMin(4, Inp_RRM_ORG_BarClose_LookbackBars));
       cfg.Require_Progressive_Momentum = Inp_RRM_ORG_BarClose_Require_Progressive_Momentum;
       cfg.DPI_Histogram_Growth_Boost   = Inp_RRM_ORG_DPI_Histogram_Growth_Boost;
-      cfg.PSAR_FlipGraceBars        = Inp_RRM_ORG_PSAR_FlipGraceBars;
+      cfg.PSAR_FlipGraceBars        = 0;   // LOCKED 0 (grace removed 2026-07-19): RRM_ORG PSAR is dot-side-only; a wrong-side dot always fails (Oracle checklist item 4). No user override.
 
       // ── PHASE B: TE-side hardening (standardized veto inputs) ──────────
       cfg.TE_RecheckBarClose        = Inp_Global_VETO_TE_RecheckBarClose;

@@ -171,7 +171,8 @@ Filters out trades during low volatility regimes. Evaluates as a non-directional
 ### PSAR (Trend Direction)
 * **LONG:** Close > PSAR dot.
 * **SHORT:** Close < PSAR dot.
-* **PSAR Flip Logic:** when the flip window is enabled (`Vote_AllowPsarFlip`, see inputs), also requires `bars_since_flip <= Vote_PsarFlipDelay{,_W,_M,_S}` so the entry lands early in the flip cycle. `Vote_PsarFlipDelay = -1` → persistent (dot position only).
+* **Dot side is absolute — no grace.** At shift=1 the dot is either on the correct side of price or the vote fails. There is **no** exception for a dot that has "recently flipped" to the wrong side. (The former `PSAR_FlipGraceBars` window, which passed a wrong-side dot for N bars after an adverse flip, was **removed 2026-07-19** — it inverted the rule and produced wrong-side-dot TS=1 false positives, contradicting RRM Trade Checklist item 4.)
+* **PSAR Flip Logic:** when the flip window is enabled (`Vote_AllowPsarFlip`, see inputs), the dot-side test above must pass **first**; only then does it also require `bars_since_flip <= Vote_PsarFlipDelay{,_W,_M,_S}` so the entry lands early in the flip cycle. `Vote_PsarFlipDelay = -1` → persistent (dot position only). The flip window can only make an already-correct-side dot *stricter*, never admit a wrong-side one.
 
 ### DPI (Dynamic Price Index) — Momentum Direction Voter
 

@@ -3146,27 +3146,18 @@ private:
 
       bool result = (bias==1) ? (cl > p) : (cl < p);
 
-      // PSAR_FlipGraceBars: when the dot is on the wrong side but recently flipped there
-      // (adverse flip within N bars), still pass the vote.  This handles pullback scenarios
-      // where PSAR temporarily flips against the trend direction and hasn't flipped back yet
-      // at the entry bar.  Default=0 (disabled).
-      if(!result && m_settings.PSAR_FlipGraceBars > 0)
-      {
-         datetime adverse_flip = (bias ==  1) ? m_psar_last_flip_time_bear
-                                              : m_psar_last_flip_time_bull;
-         if(adverse_flip > 0)
-         {
-            int flip_bar   = iBarShift(m_symbol, PERIOD_CURRENT, adverse_flip, false);
-            int bars_since = (flip_bar >= 0) ? (flip_bar - shift) : INT_MAX;
-            if(bars_since >= 0 && bars_since <= m_settings.PSAR_FlipGraceBars)
-            {
-               if(m_settings.DebugFlow)
-                  DebugLog(StringFormat("[PSAR_GRACE] dot wrong side but %d bars since adverse flip (grace=%d) → PASS",
-                                        bars_since, m_settings.PSAR_FlipGraceBars));
-               result = true;
-            }
-         }
-      }
+      // PSAR is a strict dot-side test: at shift=1 the dot is either on the correct
+      // side of price or it is not — there is no exception.
+      //
+      // REMOVED 2026-07-19 — the former `PSAR_FlipGraceBars` "grace window" passed a
+      // WRONG-side dot for N bars after an adverse flip. That inverted the rule: it
+      // let TS=1 fire while the dot was on the wrong market side (observed as a
+      // false positive, e.g. XAUUSD M1 2026-07-17 17:50, LONG with the dot above
+      // price 1 bar after a bearish flip). It also contradicted RRM Trade Checklist
+      // item 4 ("is the Parabolic SAR on the correct side of price?" — position only,
+      // no "recently flipped" allowance). The legitimate freshness mechanism is the
+      // flip window in Check_PSAR_WithFlip (Vote_PsarFlipDelay), which still requires
+      // the dot to be on the CORRECT side first. No grace: a wrong-side dot fails.
 
       m_ind_cache.cached_bias = bias;
       m_ind_cache.psar_value = p;
@@ -3281,8 +3272,8 @@ private:
    // happened") and removes stale counters from diagnostics.
    // Vote outcomes are unchanged — Check_PSAR_WithFlip's step 1 (dot side)
    // already rejected the cases where the cleared counter would have been
-   // read, and PSAR_FlipGraceBars reads the freshly-written opposite-side
-   // timestamp, never the cleared one.
+   // read. The flip timestamps feed the Vote_PsarFlipDelay window only
+   // (dot-side must pass first).
    void UpdatePSARFlipTracking(int shift = 1) {
       if(m_settings.DebugFlow)
          DebugLog("[DEBUG_TEST] UpdatePSARFlipTracking() CALLED");
@@ -8407,11 +8398,9 @@ public:
       }
 
       // Update PSAR flip tracking on each bar close (uses shift=1 for closed bar).
-      // Gated on Ind_Psar_Enabled, NOT Vote_AllowPsarFlip — because Check_PSAR's
-      // PSAR_FlipGraceBars feature also reads m_psar_last_flip_time_* and would
-      // silently degrade if tracking were skipped when AllowFlip=false. Also
-      // removes the startup hole where toggling AllowFlip on mid-session would
-      // find an empty tracker.
+      // Gated on Ind_Psar_Enabled, NOT Vote_AllowPsarFlip — so the flip timestamps
+      // that feed the Vote_PsarFlipDelay window are always current, and toggling
+      // AllowFlip on mid-session never finds an empty tracker (startup hole).
       if(m_settings.Ind_Psar_Enabled)
          UpdatePSARFlipTracking(m_settings.Vote_EvalShift);
 
