@@ -71,7 +71,7 @@ flowchart TD
   * `STRAT_2EMA_CROSS`: Signal at cross point only (one-bar signal)
   * `STRAT_PRICE_CROSS`: Signal when price crosses EMA (one-bar signal)
   * `STRAT_2EMA_POSITION`: Continuous signal when Fast>Slow + slopes agree
-* **BIAS_4EMA:** Four EMAs phase detection. Uses EMA1=5, EMA2=13, EMA3=34, EMA4=89.
+* **BIAS_4EMA:** Four EMAs phase detection. EMA periods per `Inp_RRM_ORG_Ema1Period`…`Ema4Period` (EMA1=fastest … EMA4=slowest).
     * *TRENDING:* 3 of 3 layers agree on position + slope. (Bias = ±1)
     * *EMERGING:* 2 of 3 layers agree. (Bias = ±1)
     * *UNORDERED:* < 2 layers agree. Bias forced to 0.
@@ -91,12 +91,12 @@ Each layer runs two independent checks. Both must pass.
 All slope tests are taken against **`bias_dir`** (the live B-factor direction), not a historical baseline — a baseline measured inside the dip points the wrong way and can strand a layer in DETECTED.
 
 **DETECTED triggers — the fast EMA's slope *leaves* the trend (flat OR reversed):**
-- Slope flat: `|slope| ≈ 0` within `LayerFlatRatio` (default 0.1) — fast EMA has stopped advancing (tolerant edge).
-- Slope reversed: fast-EMA slope sign now opposite `bias_dir` (`LayerAllowReversalPullback=true`) — fast EMA rolling over toward the slow EMA (conservative case).
+- Slope flat: `|slope| ≈ 0` within `LayerFlatRatio` (per `Inp_RRM_ORG_LayerPBFlatRatio`) — fast EMA has stopped advancing (tolerant edge).
+- Slope reversed: fast-EMA slope sign now opposite `bias_dir` (when `LayerAllowReversalPullback` is enabled, per `Inp_RRM_ORG_LayerPBAllowReversal`) — fast EMA rolling over toward the slow EMA (conservative case).
 - A fast EMA still sloping in `bias_dir` at a shallower angle is normal trend breathing — **not** a pullback. (The magnitude-ratio "weakened" trigger is removed.)
-- Price-zone touch is a **price** test, not slope; it is excluded from this model and `LayerPriceTouchEnabled` defaults **false**.
+- Price-zone touch is a **price** test, not slope; it is excluded from this model and `LayerPriceTouchEnabled` is off by default (see inputs).
 
-**Minimum duration gate (A21):** DETECTED must persist for at least `LayerMinPullbackBars_W/M/S` bars (default 2/2/2) before RECOVERED is allowed. A pullback cannot complete in one bar.
+**Minimum duration gate (A21):** DETECTED must persist for at least `LayerMinPullbackBars_W/M/S` bars (per `Inp_RRM_ORG_MinPBBars_W/M/S`; contract ≥ 2) before RECOVERED is allowed. A pullback cannot complete in one bar.
 
 **RECOVERED triggers:** both of the layer's EMA slopes (fast **and** slow) point in `bias_dir` again — after the minimum bar count is satisfied. Slope-only; **not** a close-vs-EMA test (that is the separate BC gate), so no longer a duplicate of BC. RECOVERED holds until a counter-`bias_dir` slope reversal relapses it to DETECTED or a TS=1 signal consumes it; optional `LayerRecoveryMaxAge` cap (default = observation window) expires a stale RECOVERED.
 
@@ -171,7 +171,7 @@ Filters out trades during low volatility regimes. Evaluates as a non-directional
 ### PSAR (Trend Direction)
 * **LONG:** Close > PSAR dot.
 * **SHORT:** Close < PSAR dot.
-* **PSAR Flip Logic:** (If `Vote_AllowPsarFlip=true`), checks `bars_since_flip <= Vote_PsarFlipDelay` to ensure entry happens early in the flip cycle.
+* **PSAR Flip Logic:** when the flip window is enabled (`Vote_AllowPsarFlip`, see inputs), also requires `bars_since_flip <= Vote_PsarFlipDelay{,_W,_M,_S}` so the entry lands early in the flip cycle. `Vote_PsarFlipDelay = -1` → persistent (dot position only).
 
 ### DPI (Dynamic Price Index) — Momentum Direction Voter
 
@@ -210,7 +210,7 @@ return 0;  // Fail
 - Indicates momentum confirmation strength
 - Does NOT affect EA voting logic
 
-**EA Settings (PRESET_RRM_ORG):**
+**EA Settings (PRESET_RRM_ORG)** — *non-authoritative snapshot. Authoritative current values live in the `Inp_RRM_ORG_DPI_*` inputs (`SEA_Inputs.mqh`); the defaults below are illustrative and may lag the inputs:*
 - `Ind_Dpi_Enabled` — Enable/disable DPI voter (default: true in RRM_ORG)
 - `DPI_MACD_Fast` — Fast EMA period (default: 8)
 - `DPI_MACD_Slow` — Slow EMA period (default: 13)

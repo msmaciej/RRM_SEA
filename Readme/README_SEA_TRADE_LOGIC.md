@@ -18,7 +18,7 @@ or equivalently:
 $$TS = B \times P \times F \times L \times I$$
 
 * **B (Bias):** Master directional permission (1 = Long, −1 = Short, 0 = Neutral).
-* **P (Phase):** Market structure gate (TM / EM / UNO). UNO always blocks; in `PRESET_RRM_ORG` EM is **allowed for LayerW and LayerM**, blocked for LayerS (`Emerging_AllowStrongTrades = false`). UNO is always blocked (B=0 so signal is 0 before P is even evaluated).
+* **P (Phase):** Market structure gate (TM / EM / UNO). UNO always blocks; in `PRESET_RRM_ORG` EM is **allowed for LayerW and LayerM**, blocked for LayerS unless strong-EM trading is enabled (`Emerging_AllowStrongTrades`, see inputs). UNO is always blocked (B=0 so signal is 0 before P is even evaluated).
 * **F (TS-side pre-filters):** EMA-fan over-extension × price over-extension × DPI deceleration × phase-age confirmation × Climax-Guard veto. All off by default in `PRESET_RRM_ORG`; the F factor is a no-op until a sub-filter is explicitly enabled.
 * **L (LayerX — $Layer_W, Layer_M, Layer_S$):** Per-layer pullback-recovery state machine. Evaluates to 1 ONLY when the layer's pos × slope × BC × BD all pass; priority walk L3 → L2 → L1.
 * **bcX:** Bar-close confirmation — the closed candle closes beyond the fast EMA of the active layer in the bias direction. Part of the L factor.
@@ -178,15 +178,16 @@ Same pair, same timeframe, same date range, same build (**≥ `e5aeadd`**, so th
 ---
 
 ## 2. Adaptive Spread Limits (Zone 3C)
-Different instruments have inherently different liquidity and spread profiles. SimpleEA auto-detects the pair type and applies strict maximum spread limits at the exact moment of execution (shift=0).
+Different instruments have inherently different liquidity and spread profiles. SimpleEA auto-detects the pair type (`DetectPairType`) and applies the configured maximum spread limit at the exact moment of execution (shift=0) via `GetAdaptiveSpreadLimit`. Limits are **inputs** — read the current value there, not here:
 
-| Pair Type | Example | Default Max Spread |
-|-----------|---------|--------------------|
-| **Major** | EURUSD  | 2.0 pips |
-| **Minor** | EURJPY  | 4.0 pips |
-| **Exotic** | USDZAR | 10.0 pips |
-| **Gold** | XAUUSD  | 5.0 pips |
-| **Crypto**| BTCUSD  | 50.0 pips |
+| Pair Type | Example | Max-spread input |
+|-----------|---------|------------------|
+| **Major** | EURUSD  | `Inp_Adaptive_Spread_Major` |
+| **Minor** | EURJPY  | `Inp_Adaptive_Spread_Minor` |
+| **Exotic** | USDZAR | `Inp_Adaptive_Spread_Exotic` |
+| **Gold** | XAUUSD  | `Inp_Adaptive_Spread_Gold` |
+| **Crypto**| BTCUSD  | `Inp_Adaptive_Spread_Crypto` |
+| **Indices** | US30 | `Inp_Adaptive_Spread_Indices` |
 
 *Note: ATR gates (Zone 2A) handle volatility filtering; these adaptive limits strictly handle execution cost management.*
 
@@ -194,6 +195,8 @@ Different instruments have inherently different liquidity and spread profiles. S
 
 ## 3. TF-Based Cushions
 Cushions automatically scale with the timeframe to provide appropriate noise protection for stops and trailing features. JPY pairs are automatically detected and scaled appropriately (×100 vs standard ×10).
+
+> **The per-TF values in this section are a non-authoritative snapshot** of the named code functions (`GetRecommendedInitialSlCushionPips`, `GetRecommendedTrailPsarCushionPips`, `GetTFBasedCushion`) and may lag them — those functions are the source of truth. `Inp_RM_Override_SL_Cushion` / `_Trail_Cushion` / `_BE_Cushion` (0 = auto) override them.
 
 ### SL Cushion (`GetRecommendedInitialSlCushionPips`)
 Applied to `SL_MODE_PSAR_DOT`, `SL_MODE_SWING`, and `SL_MODE_FRACTAL`.
