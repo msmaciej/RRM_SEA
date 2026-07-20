@@ -169,10 +169,13 @@ Filters out trades during low volatility regimes. Evaluates as a non-directional
 * **SHORT:** Main < 0 AND Main < Signal.
 
 ### PSAR (Trend Direction)
-* **LONG:** Close > PSAR dot.
-* **SHORT:** Close < PSAR dot.
-* **Dot side is absolute — no grace.** At shift=1 the dot is either on the correct side of price or the vote fails. There is **no** exception for a dot that has "recently flipped" to the wrong side. (The former `PSAR_FlipGraceBars` window, which passed a wrong-side dot for N bars after an adverse flip, was **removed 2026-07-19** — it inverted the rule and produced wrong-side-dot TS=1 false positives, contradicting RRM Trade Checklist item 4.)
-* **PSAR Flip Logic:** when the flip window is enabled (`Vote_AllowPsarFlip`, see inputs), the dot-side test above must pass **first**; only then does it also require `bars_since_flip <= Vote_PsarFlipDelay{,_W,_M,_S}` so the entry lands early in the flip cycle. `Vote_PsarFlipDelay = -1` → persistent (dot position only). The flip window can only make an already-correct-side dot *stricter*, never admit a wrong-side one.
+* **Dot side is measured against the candle BODY, not Close.** On the closed bar (shift=1):
+  * **LONG:** PSAR dot **below the body** — `dot < min(Open, Close)`.
+  * **SHORT:** PSAR dot **above the body** — `dot > max(Open, Close)`.
+  * A dot **inside** the body (between Open and Close) is on **neither** side and fails the vote. Using the body (not Close alone) is shape-robust — it judges dojis and long-wick bars correctly and matches how the dot sits relative to the candle. (Implemented by `PsarOnBullSide` / `PsarOnBearSide` in `SEA_SignalEngine.mqh`; the same body rule is used everywhere the dot side is evaluated, including the executor's trailing/SL anchoring.)
+* **Evaluated only at shift=1 (closed bar).** Intra-bar (shift=0) dot movement is irrelevant — the dot may flip many times within a forming bar; only the closed-bar position counts.
+* **Dot side is absolute — no grace.** At shift=1 the dot is either on the correct side of the body or the vote fails. There is **no** exception for a dot that has "recently flipped" to the wrong side. (The former `PSAR_FlipGraceBars` window was **removed 2026-07-19** — it inverted the rule and produced wrong-side-dot TS=1 false positives, contradicting RRM Trade Checklist item 4.)
+* **PSAR Flip window — stateless.** When enabled (`Vote_AllowPsarFlip`), the dot-side test above must pass **first**; only then must a flip into that side have occurred within the last N bars, where N = `Vote_PsarFlipDelay{,_W,_M,_S}`. This is evaluated by **re-scanning the last N closed bars** each call: a flip into the correct side happened iff the dot was clearly on the **opposite** side of the body on some bar in `[shift+1 … shift+N]`. `N = -1` → persistent (dot position only); `N = 0` → flip on this bar only. **No persisted flip tracker** is consulted — the window is re-derived from raw bars every evaluation, so it cannot be de-synced by warm-up seeding or a mistimed reset (mirrors the stateless `PSFCL` logic in the RRM_EAv0.1_PY reference). The flip window can only make an already-correct-side dot *stricter*, never admit a wrong-side one.
 
 ### DPI (Dynamic Price Index) — Momentum Direction Voter
 

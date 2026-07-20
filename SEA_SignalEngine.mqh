@@ -3119,7 +3119,30 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   // Check_PSAR: PSAR (basic price vs. PSAR position check)
+   // PSAR dot side vs the CLOSED candle BODY (open..close).
+   // Methodology (Stop Loss card / RRM_EAv0.1_PY reference, and the code's own
+   // executor comments): the dot is on the bullish/trend side when it sits
+   // BELOW the body, bearish when ABOVE it — NOT measured against Close alone,
+   // which misjudges bars by wick/shape and dojis. Evaluated on the CLOSED bar
+   // (caller passes shift=1); intra-bar (shift=0) dot movement is irrelevant.
+   // A dot INSIDE the body is on neither side (both return false) — it is not
+   // "on the correct side".
+   //+------------------------------------------------------------------+
+   bool PsarOnBullSide(double psar, int shift) {
+      double o = iOpen (m_symbol, PERIOD_CURRENT, shift);
+      double c = iClose(m_symbol, PERIOD_CURRENT, shift);
+      if(o <= 0.0 || c <= 0.0) return false;
+      return (psar < MathMin(o, c));      // dot below the body
+   }
+   bool PsarOnBearSide(double psar, int shift) {
+      double o = iOpen (m_symbol, PERIOD_CURRENT, shift);
+      double c = iClose(m_symbol, PERIOD_CURRENT, shift);
+      if(o <= 0.0 || c <= 0.0) return false;
+      return (psar > MathMax(o, c));      // dot above the body
+   }
+
+   //+------------------------------------------------------------------+
+   // Check_PSAR: PSAR (basic dot-vs-body position check)
    //+------------------------------------------------------------------+
    bool Check_PSAR(int bias, int shift) {
       if(IsCacheValidForShift(shift) &&
@@ -3144,10 +3167,10 @@ private:
          return false;
       }
 
-      bool result = (bias==1) ? (cl > p) : (cl < p);
+      bool result = (bias==1) ? PsarOnBullSide(p, shift) : PsarOnBearSide(p, shift);
 
       // PSAR is a strict dot-side test: at shift=1 the dot is either on the correct
-      // side of price or it is not — there is no exception.
+      // side of the candle BODY or it is not — there is no exception.
       //
       // REMOVED 2026-07-19 — the former `PSAR_FlipGraceBars` "grace window" passed a
       // WRONG-side dot for N bars after an adverse flip. That inverted the rule: it
@@ -3232,12 +3255,17 @@ private:
          DebugLog(StringFormat("[PSAR_FLIP_DETECT] shift=%d | psar_curr=%.5f cl_curr=%.5f psar_prev=%.5f cl_prev=%.5f",
                                shift, psar_curr, cl_curr, psar_prev, cl_prev));
 
-      bool curr_bullish = (cl_curr > psar_curr);
-      bool prev_bullish = (cl_prev > psar_prev);
+      // Dot side vs the candle BODY (not Close) on each closed bar — see
+      // PsarOnBullSide/PsarOnBearSide. A flip requires the dot to have been
+      // clearly on the OPPOSITE side of the body on the prior bar.
+      bool curr_bullish = PsarOnBullSide(psar_curr, shift);       // dot below the body now
+      bool prev_bullish = PsarOnBullSide(psar_prev, shift + 1);
+      bool curr_bearish = PsarOnBearSide(psar_curr, shift);       // dot above the body now
+      bool prev_bearish = PsarOnBearSide(psar_prev, shift + 1);
 
       int flip = 0;
-      if(curr_bullish && !prev_bullish) flip =  1;   // Bullish flip: PSAR moved below price
-      if(!curr_bullish && prev_bullish) flip = -1;   // Bearish flip: PSAR moved above price
+      if(curr_bullish && prev_bearish) flip =  1;   // Bullish flip: dot crossed from above the body to below it
+      if(curr_bearish && prev_bullish) flip = -1;   // Bearish flip: dot crossed from below the body to above it
 
       if(m_settings.DebugFlow)
          DebugLog(StringFormat("[PSAR_FLIP_DETECT] curr_bullish=%s prev_bullish=%s -> result=%s",
@@ -3400,13 +3428,16 @@ private:
          m_ind_cache.psar_diag_sub = 0;   // dot wrong side
 
          if(m_settings.DebugFlow) {
-            DebugLog("[PSAR_FLIP_CHECK] STEP 1 FAILED: DOT WRONG SIDE");
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    PSAR=%.5f | Close=%.5f | Dot is %s",
-                                  psar_val, close_val,
-                                  (close_val > psar_val ? "BELOW price (bullish)" : "ABOVE price (bearish)")));
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Need: %s | Got: %s",
-                                  (bias > 0 ? "dot BELOW price" : "dot ABOVE price"),
-                                  (close_val > psar_val ? "dot BELOW price" : "dot ABOVE price")));
+            double body_lo = MathMin(iOpen(m_symbol, PERIOD_CURRENT, shift), close_val);
+            double body_hi = MathMax(iOpen(m_symbol, PERIOD_CURRENT, shift), close_val);
+            string dot_pos = (psar_val < body_lo) ? "BELOW body (bullish)"
+                           : (psar_val > body_hi) ? "ABOVE body (bearish)"
+                                                  : "INSIDE body (no side)";
+            DebugLog("[PSAR_FLIP_CHECK] STEP 1 FAILED: DOT NOT ON TREND SIDE OF BODY");
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    PSAR=%.5f | body=[%.5f..%.5f] | Dot is %s",
+                                  psar_val, body_lo, body_hi, dot_pos));
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Need: %s",
+                                  (bias > 0 ? "dot BELOW body" : "dot ABOVE body")));
          }
 
           m_ind_cache.cached_bias = bias;
@@ -3417,141 +3448,47 @@ private:
       if(m_settings.DebugFlow)
          DebugLog("[PSAR_FLIP_CHECK] STEP 1 PASSED: Dot on correct side");
 
-      // 2. Check if a flip was recorded for this direction
-      datetime flip_time = (bias > 0) ? m_psar_last_flip_time_bull : m_psar_last_flip_time_bear;
-
-      // Display flip countdown status
-      if(m_settings.DebugFlow) {
-         if(flip_time == 0) {
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK] STEP 2: No live %s flip record",
-                                  (bias > 0 ? "BULLISH" : "BEARISH")));
-            DebugLog("[PSAR_FLIP_CHECK]    (either none seen yet, or it was cleared when the opposite-direction flip occurred)");
-         } else {
-            int bars_elapsed   = GetBarsSinceLastFlip(bias, shift);
-            int bars_remaining = effective_delay - bars_elapsed;
-            bool is_valid      = (bars_elapsed <= effective_delay);
-
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK] STEP 2: Flip recorded at %s",
-                                  TimeToString(flip_time, TIME_DATE|TIME_MINUTES)));
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Flip age: %d bars | Delay limit: %d bars (L%d) | Remaining: %d bars",
-                                  bars_elapsed,
-                                  effective_delay,
-                                  m_last_layer,
-                                  bars_remaining));
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Status: %s",
-                                  is_valid ? "VALID (within delay window)" : "EXPIRED (too old)"));
-         }
+      // -- 2-4. Flip window -- STATELESS re-scan (matches RRM_EAv0.1_PY
+      //    evaluate_psar / PSFCL). Dot side is already confirmed correct (step 1).
+      //    A flip to that side occurred within the last N bars iff at least one
+      //    bar in [shift+1 .. shift+N] had the dot on the OPPOSITE side. Derived
+      //    from raw bars every call -- NO persisted flip tracker -- so it cannot
+      //    be de-synced by an unseeded warmup or a mistimed reset (the reference
+      //    is stateless by design and immune to that whole bug class).
+      //      effective_delay == 0 -> flip must be on THIS bar -> check shift+1 only
+      //      effective_delay >= 1 -> flip anywhere in the last N bars
+      int scan_n = (effective_delay == 0) ? 1 : effective_delay;
+      bool flip_within_n = false;
+      for(int k = 1; k <= scan_n; k++)
+      {
+         bool   ok_k   = false;
+         double psar_k = GetPSARValue(shift + k, ok_k);
+         if(!ok_k || psar_k <= 0.0)
+            continue;                          // unreadable bar -- skip, keep scanning
+         // A flip INTO the correct side happened iff the dot was clearly on the
+         // OPPOSITE side of the body on some bar within the window (body-relative).
+         bool k_opposite = (bias == 1) ? PsarOnBearSide(psar_k, shift + k)
+                                       : PsarOnBullSide(psar_k, shift + k);
+         if(k_opposite) { flip_within_n = true; break; }
       }
 
-      if(flip_time == 0) {
-         m_diag_last_reason = StringFormat("PSAR_NO_FLIP_RECORDED (bias=%d)", bias);
-         m_ind_cache.psar_diag_sub = 1;   // no flip recorded
-
-         if(m_settings.DebugFlow) {
-            DebugLog("[PSAR_FLIP_CHECK] STEP 2 FAILED: NO LIVE FLIP RECORD");
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    No live %s flip — either none has occurred yet,",
-                                  (bias > 0 ? "bullish" : "bearish")));
-            DebugLog("[PSAR_FLIP_CHECK]    or it was cleared when the opposite-direction flip occurred.");
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    m_psar_last_flip_time_%s = 0",
-                                  (bias > 0 ? "bull" : "bear")));
-         }
-
-          m_ind_cache.cached_bias = bias;
-          m_ind_cache.psar_flip_result = 0;
-          return false;
-      }
-
-      if(m_settings.DebugFlow)
-         DebugLog(StringFormat("[PSAR_FLIP_CHECK] STEP 2 PASSED: Flip recorded at %s",
-                               TimeToString(flip_time, TIME_DATE|TIME_MINUTES)));
-
-      // 3. Calculate bars since flip
-      int flip_bar   = iBarShift(m_symbol, PERIOD_CURRENT, flip_time, false);
-      int bars_since = (flip_bar >= 0) ? (flip_bar - shift) : INT_MAX;
-      int delay      = effective_delay;  // P1: layer-aware delay
-
-      if(m_settings.DebugFlow) {
-         DebugLog("[PSAR_FLIP_CHECK] STEP 3: Calculate flip age");
-         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Flip time: %s", TimeToString(flip_time, TIME_DATE|TIME_MINUTES)));
-         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Flip bar index: %d", flip_bar));
-         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Current shift: %d", shift));
-         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Bars since flip: %d", bars_since));
-         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    Delay setting: %d bars", delay));
-      }
-
-      if(bars_since == INT_MAX) {
-         m_diag_last_reason = "PSAR_FLIP_INVALID";
-         // Internal error: flip_time is non-zero (passed step 2) but iBarShift
-         // can't resolve it. Should not happen on healthy data; treat as a
-         // catch-all reject so readers don't inherit a stale sub-code.
-         m_ind_cache.psar_diag_sub = 0;
-
+      if(!flip_within_n)
+      {
+         m_diag_last_reason        = StringFormat("PSAR_FLIP_STALE (no flip within %d bars)", effective_delay);
+         m_ind_cache.psar_diag_sub = 4;        // outside N-window (stale)
          if(m_settings.DebugFlow)
-            DebugLog("[PSAR_FLIP_CHECK] STEP 3 FAILED: iBarShift returned invalid index");
-
-          m_ind_cache.cached_bias = bias;
-          m_ind_cache.psar_flip_result = 0;
-          return false;
-      }
-
-      // 4. Flip-age check — GATE (enforces the TS equation).
-      //
-      // PSAR is a binary {0,1} factor of I; its evaluation mode determines HOW
-      // it resolves to 0 or 1, but the output is always {0,1}, never advisory.
-      // When flip+N-delay mode is active (effective_delay ∈ [0..10]):
-      //
-      //     PSAR = 1   iff   dot on correct side  AND  bars_since_flip ≤ N
-      //     PSAR = 0   otherwise
-      //
-      // Mode recap:
-      //   -1   = persistent      → handled at function top (fast-path)
-      //    0   = flip bar only   → window of zero bars (bars_since must == 0)
-      //   1..10 = N-bar window   → window of N bars (bars_since ∈ [0..N])
-      //
-      // Outside the window the flip-derived signal has expired by the user's
-      // contract: a mature trend whose last flip is 6+ bars in the past gets
-      // PSAR=0 unless the operator chose persistent (-1) mode for that layer.
-      // (Layer-aware delays via GetEffectivePsarFlipDelay() let LayerW/M/S be
-      // set to -1 if persistent behavior is desired for some layers.)
-      if(bars_since > delay) {
-         m_diag_last_reason = StringFormat("PSAR_FLIP_EXPIRED (bars_since=%d > delay=%d)",
-                                           bars_since, delay);
-         m_ind_cache.psar_diag_sub = 4;   // expired (outside N-window)
-
-         if(m_settings.DebugFlow) {
-            DebugLog("[PSAR_FLIP_CHECK] STEP 4 FAILED: FLIP EXPIRED");
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    %d bars elapsed > delay limit %d — outside N-window",
-                                  bars_since, delay));
-            DebugLog(StringFormat("[PSAR_FLIP_CHECK]    PSAR=0 (flip-derived signal has expired; use Vote_PsarFlipDelay=-1 for persistent mode)",
-                                  bars_since, delay));
-         }
-
-         m_ind_cache.cached_bias       = bias;
-         m_ind_cache.psar_flip_result  = 0;
+            DebugLog(StringFormat("[PSAR_FLIP_CHECK] STALE: dot correct but no flip within %d bars -> FAIL", effective_delay));
+         m_ind_cache.cached_bias      = bias;
+         m_ind_cache.psar_flip_result = 0;
          return false;
       }
 
-      m_ind_cache.psar_diag_sub = 3;   // within N-window
-
-      if(m_settings.DebugFlow) {
-         DebugLog("[PSAR_FLIP_CHECK] STEP 4 PASSED: Within N-window");
-         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    %d bars elapsed ≤ delay limit %d (fresh)",
-                               bars_since, delay));
-      }
-
-      // SUCCESS
-      if(m_settings.DebugFlow) {
-         DebugLog("[PSAR_FLIP_CHECK] ===========================================");
-         DebugLog("[PSAR_FLIP_CHECK] ALL CHECKS PASSED");
-         DebugLog(StringFormat("[PSAR_FLIP_CHECK]    %s flip from %s | within window (%d bars ago, N=%d)",
-                               (bias > 0 ? "Bullish" : "Bearish"),
-                               TimeToString(flip_time, TIME_DATE|TIME_MINUTES),
-                               bars_since, delay));
-      }
-
-       m_ind_cache.cached_bias = bias;
-       m_ind_cache.psar_flip_result = 1;
-       return true;
+      m_ind_cache.psar_diag_sub = 3;           // within N-window
+      if(m_settings.DebugFlow)
+         DebugLog(StringFormat("[PSAR_FLIP_CHECK] PASS: dot correct + flip within %d bars", effective_delay));
+      m_ind_cache.cached_bias      = bias;
+      m_ind_cache.psar_flip_result = 1;
+      return true;
    }
 
    //+------------------------------------------------------------------+

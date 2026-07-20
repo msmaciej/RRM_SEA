@@ -926,10 +926,10 @@ Bar N closes (shift=0→1):
 ### PSAR Logic Modes
 
 **Mode A: PSAR FLIP (Vote_AllowPsarFlip=true)**
-- Flip is detected when PSAR crosses price on a closed bar and stored with its timestamp
-- Each bar calculates `bars_since_flip` from the stored flip time
-- Passes only if `bars_since_flip <= Vote_PsarFlipDelay` and dot is on correct side
-- Example: Flip at bar 5, delay=2 → valid for bars 5 (N=2) and 4 (N=1), expires at bar 3
+- Dot side is measured against the candle **body** (below body = bullish, above body = bearish), evaluated on the closed bar (shift=1) — not against Close.
+- The flip window is **stateless**: each call re-scans the last N (= `Vote_PsarFlipDelay`) closed bars. A flip into the correct side occurred iff the dot was clearly on the **opposite** side of the body on some bar in `[shift+1 … shift+N]`. There is **no stored flip timestamp** and **no `bars_since_flip` counter** — the window is re-derived from raw bars every evaluation (immune to warm-up seeding / reset bugs).
+- Passes only if the dot is on the correct side **now** and a flip into that side occurred within the last N bars.
+- Example: delay=2 → passes on a bar whose dot is correct-side and where one of the previous 2 bars had the dot on the opposite side.
 
 **Mode B: Simple PSAR DOT (Vote_AllowPsarFlip=false)**
 - Just checks: is dot on correct side at shift=1?

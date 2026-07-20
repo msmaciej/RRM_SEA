@@ -1390,8 +1390,9 @@ private:
                   double psar_fb = GetPSARAnchor(1);
                   if(psar_fb > 0.0) {
                      double close_ref = iClose(m_symbol, PERIOD_CURRENT, 1);
-                     bool psar_ok = (close_ref > 0.0)
-                        ? (isBuy ? (psar_fb < close_ref) : (psar_fb > close_ref))
+                     double open_ref  = iOpen (m_symbol, PERIOD_CURRENT, 1);
+                     bool psar_ok = (close_ref > 0.0 && open_ref > 0.0)
+                        ? (isBuy ? (psar_fb < MathMin(open_ref, close_ref)) : (psar_fb > MathMax(open_ref, close_ref)))   // dot vs BODY, not Close
                         : (isBuy ? (psar_fb < price)     : (psar_fb > price));   // safe fallback
                      if(psar_ok) {
                         double cushion_price = m_settings.SL_PsarPipsCushion * pipSize;
@@ -1419,8 +1420,9 @@ private:
                // live entry price — keeps the rule identical to the trail
                // path in CalcPsarTrailAnchorSL.
                double close_ref = iClose(m_symbol, PERIOD_CURRENT, 1);
-               bool valid = (close_ref > 0.0)
-                  ? (isBuy ? (psar < close_ref) : (psar > close_ref))
+               double open_ref  = iOpen (m_symbol, PERIOD_CURRENT, 1);
+               bool valid = (close_ref > 0.0 && open_ref > 0.0)
+                  ? (isBuy ? (psar < MathMin(open_ref, close_ref)) : (psar > MathMax(open_ref, close_ref)))   // dot vs BODY, not Close
                   : (isBuy ? (psar < price)     : (psar > price));   // safe fallback
                if(!valid) {
                   PrintFormat("⚠️ [RRM SL] PSAR wrong side. psar=%.5f close[1]=%.5f entry=%.5f dir=%s — trying Swing fallback",
@@ -1559,9 +1561,10 @@ private:
                   // PSAR_DOT primary + this site).
                   double psar_anchor = GetPSARAnchor(1);
                   double close_ref   = iClose(m_symbol, PERIOD_CURRENT, 1);
+                  double open_ref    = iOpen (m_symbol, PERIOD_CURRENT, 1);
                   bool psar_valid = (psar_anchor > 0.0)
-                     && ((close_ref > 0.0)
-                        ? (isBuy ? (psar_anchor < close_ref) : (psar_anchor > close_ref))
+                     && ((close_ref > 0.0 && open_ref > 0.0)
+                        ? (isBuy ? (psar_anchor < MathMin(open_ref, close_ref)) : (psar_anchor > MathMax(open_ref, close_ref)))   // dot vs BODY, not Close
                         : (isBuy ? (psar_anchor < price)     : (psar_anchor > price)));   // safe fallback
                   if(psar_valid) {
                      anchor       = psar_anchor;
@@ -1789,8 +1792,10 @@ private:
       //    (break-even) level."  i.e. only progressing dots on the
       //    trend side qualify; dots on the wrong side do not.
       double close_ref = iClose(m_symbol, PERIOD_CURRENT, shift);
-      if(close_ref <= 0.0) return 0.0;
-      bool on_correct_side = isBuy ? (psar < close_ref) : (psar > close_ref);
+      double open_ref  = iOpen (m_symbol, PERIOD_CURRENT, shift);
+      if(close_ref <= 0.0 || open_ref <= 0.0) return 0.0;
+      // dot on the trend side of the candle BODY (not Close) — matches Check_PSAR
+      bool on_correct_side = isBuy ? (psar < MathMin(open_ref, close_ref)) : (psar > MathMax(open_ref, close_ref));
       if(!on_correct_side) {
          if(m_settings.DebugFlow)
             PrintFormat("[PSAR TRAIL] Wrong-side dot ignored: psar=%.5f close[%d]=%.5f dir=%s — SL held at last good value",
@@ -1928,8 +1933,10 @@ private:
       // past the freshly-flipped dot — and that's the exact scenario in which
       // CalcPsarTrailAnchorSL would otherwise propose a wrong-side anchor.
       double close_for_flip = iClose(m_symbol, PERIOD_CURRENT, shift);
-      bool psar_flipped = (close_for_flip > 0.0)
-         ? (isBuy ? (psar > close_for_flip) : (psar < close_for_flip))
+      double open_for_flip  = iOpen (m_symbol, PERIOD_CURRENT, shift);
+      // Flip = dot on the OPPOSITE side of the candle BODY (not Close) on the closed bar.
+      bool psar_flipped = (close_for_flip > 0.0 && open_for_flip > 0.0)
+         ? (isBuy ? (psar > MathMax(open_for_flip, close_for_flip)) : (psar < MathMin(open_for_flip, close_for_flip)))
          : (isBuy ? (psar > cur_price)      : (psar < cur_price));   // safe fallback if close unavailable
       if(psar_flipped) {
          if(m_settings.RRM_FreezeTrailOnFlip && !m_rrm_trail_frozen) {

@@ -417,9 +417,9 @@ Three voters enabled. All must pass (`VOTE_MODE_ALL`). One fail → I=0 → TS=0
 - Default: Fast=8, Slow=13, RedSignalType=3 (EMA13), CCI reset=true
 
 **PSAR:**
-- Dot must be on the correct side at the signal bar (shift=1): close > PSAR dot (LONG), close < PSAR dot (SHORT)
+- Dot must be on the correct side at the signal bar (shift=1), measured against the candle **body**: dot below `min(Open,Close)` (LONG), dot above `max(Open,Close)` (SHORT). A dot inside the body is on neither side. (Not measured against Close alone — see Signal Reference § PSAR.)
 - Mode: `Vote_AllowPsarFlip = true`, global delay `= -1` (persistent = dot-position-only check)
-- LayerW override: `PsarFlipDelay_W = 5` — additionally requires a LONG flip within the last 5 bars. Counter-flips (bearish PSAR flip) clear the bullish flip record immediately; the 5-bar window cannot be carried past a counter-flip.
+- LayerW override: `PsarFlipDelay_W = 5` — additionally requires a LONG flip within the last 5 bars, evaluated by a **stateless re-scan** of those bars (a bar in the window with the dot on the opposite side of the body = a flip into the correct side). No stored flip record; nothing to carry or clear.
 - **⚠️ PSAR parameters: Step=0.05, Max=0.5** — more aggressive than MT5 default (0.02/0.2). These are intentional RRM-ORG settings. If you display PSAR on the chart, set it to Step=0.05, Max=0.5 to match the EA's internal PSAR. Mismatched parameters mean the chart dot and the EA's decision will diverge.
 
 **CandleBody:**
