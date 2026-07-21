@@ -265,7 +265,7 @@ private:
     int          m_phase_reset_count;     // consecutive bars the pending phase has held
     // --- 2c.1b.2 UNO-EXIT COOLDOWN (Theme 2026-06, optional) ---
     // Counts consecutive non-UNO bars since the last UNO bar. Used by
-    // UpdateSingleLayerPullback to BLOCK the DETECTED→RECOVERED transition until
+    // UpdateSingleLayerPullback to BLOCK the DETECTED→IN-TREND transition until
     // m_settings.MinBarsAfterUNOExit bars have accumulated. Reset to 0 on every
     // UNO bar (the B==0 branch of the per-bar dispatch in EvaluateTS). Incremented
     // on every non-UNO bar (B != 0 branch). Only meaningful in BIAS_4EMA mode.
@@ -275,7 +275,7 @@ private:
     // Consecutive UNO (B==0) bars seen so far in the current UNO run. Used with
     // m_settings.UNO_ToleranceBars: a transient UNO flicker that resolves back to
     // the SAME direction within tolerance PRESERVES layer states (does not wipe
-    // DETECTED/RECOVERED). Reset to 0 on every non-UNO bar.
+    // DETECTED/IN-TREND). Reset to 0 on every non-UNO bar.
     int          m_uno_run;
     // --- 2c.1c CANDLEBODY OVER-EXTENSION CARRY (CBOEB, optional) ---
     bool         m_cb_oeb_blocked;        // CBOEB=0: hold CB vote at 0 (over-extension carry active)
@@ -295,19 +295,19 @@ private:
     double   m_layer_w_vol_pb_avg, m_layer_m_vol_pb_avg, m_layer_s_vol_pb_avg;     // Running avg pullback volume
     int      m_layer_w_vol_pb_bars, m_layer_m_vol_pb_bars, m_layer_s_vol_pb_bars;  // Bars counted in DETECTED
     double   m_layer_w_vol_rec_avg, m_layer_m_vol_rec_avg, m_layer_s_vol_rec_avg;  // Running avg recovery volume
-    int      m_layer_w_vol_rec_bars, m_layer_m_vol_rec_bars, m_layer_s_vol_rec_bars; // Bars counted in RECOVERED
+    int      m_layer_w_vol_rec_bars, m_layer_m_vol_rec_bars, m_layer_s_vol_rec_bars; // Bars counted in IN-TREND
     double   m_layer_w_vprr, m_layer_m_vprr, m_layer_s_vprr;                       // Final ratios
     bool     m_vprr_last_real;   // True if the last volume read used VOLUME_REAL (for UI source label)
     // A21 2026-07: bars spent in DETECTED state per layer (for MinPullbackBars gate)
     int      m_layer_w_bars_det, m_layer_m_bars_det, m_layer_s_bars_det;
-    // Path 2 2026-07: bars spent in RECOVERED state per layer (for the recovery
+    // Path 2 2026-07: bars spent in IN-TREND state per layer (for the recovery
     // max-age cap). Self-managed inside UpdateSingleLayerPullback (incremented
-    // while RECOVERED, zeroed otherwise) — needs no external reset.
+    // while IN-TREND, zeroed otherwise) — needs no external reset.
     int      m_layer_w_bars_rec, m_layer_m_bars_rec, m_layer_s_bars_rec;
     // ── GUARD 1 (2026-07): first-post-flip pullback-recovery skip ──────────────
     // Counts COMPLETED pullback-recovery CYCLES per layer since the last genuine
-    // signed bias flip. The unit is the cycle, not the RECOVERED transition: a
-    // relapse (RECOVERED→DETECTED→RECOVERED, which never passes through NONE) is the
+    // signed bias flip. The unit is the cycle, not the IN-TREND transition: a
+    // relapse (IN-TREND→DETECTED→IN-TREND, which never passes through NONE) is the
     // SAME cycle re-completing and must NOT increment, or the guard would defeat
     // itself in exactly the choppy market it targets. m_layer_*_g1_counted is the
     // "this cycle already counted" latch; it is cleared at the single NONE→DETECTED
@@ -1949,7 +1949,7 @@ private:
    //   Pullback (DETECTED) = fast-EMA slope LEAVES the trend: FLAT or REVERSED
    //                         (a shallower-but-same-direction slope is NOT a
    //                          pullback). Price-vs-EMA is not used here.
-   //   Recovery (RECOVERED)= BOTH layer EMA slopes (fast AND slow) back in
+   //   Recovery (IN-TREND)= BOTH layer EMA slopes (fast AND slow) back in
    //                         bias_dir. Slope-only — NOT close-vs-EMA (that is
    //                         the separate BC gate) and NOT vs the historical
    //                         baseline (which sits inside the dip).
@@ -2056,7 +2056,7 @@ private:
       //    `use_price_touch` is retained in the signature for ABI/back-compat but
       //    is inert (LayerPriceTouchEnabled defaults false).
 
-      // -- Recovery (from DETECTED) — Path 2 (2026-07): RECOVERED when BOTH of the
+      // -- Recovery (from DETECTED) — Path 2 (2026-07): IN-TREND when BOTH of the
       //    layer's EMA slopes (fast AND slow) point in bias_dir again — momentum
       //    has resumed in the trade direction. PURE SLOPE vs the LIVE bias:
       //      * NOT close-vs-EMA: the previous close-based test duplicated the
@@ -2102,13 +2102,13 @@ private:
          }
       }
 
-      // -- Relapse trigger (RECOVERED -> DETECTED): a COMPLETED recovery is
+      // -- Relapse trigger (IN-TREND -> DETECTED): a COMPLETED recovery is
       //    only invalidated by a genuine counter-trend reversal, NOT by mere
       //    slope weakening/flattening. Transient weakening one bar after a
       //    1-bar-sign recovery would otherwise oscillate the state and keep
       //    resetting VPRR's recovery-volume window (vol_rec_bars), starving the
       //    VPRR ratio so it never passes the I-factor vote. Requiring a true
-      //    reversal keeps RECOVERED durable across normal consolidation, which
+      //    reversal keeps IN-TREND durable across normal consolidation, which
       //    both restores the pre-change trade frequency and lets VPRR measure.
       // Anchored to bias_dir (matches the recovery/pullback reference); falls
       // back to the pre-pullback baseline only for bias-less (warmup) calls.
@@ -2120,16 +2120,16 @@ private:
 
       // A21 2026-07: advance bars_det counter before transition logic.
       // Counts consecutive bars spent in DETECTED; resets to 0 when not in DETECTED.
-      // Transition DETECTED→RECOVERED is gated: bars_det must reach min_pb_bars first.
+      // Transition DETECTED→IN-TREND is gated: bars_det must reach min_pb_bars first.
       if(state == LAYER_PB_DETECTED)
          bars_det++;
       else
          bars_det = 0;
 
-      // Path 2 2026-07: advance bars_rec (bars spent in RECOVERED) for the
-      // recovery max-age cap. Self-managed — zeroed whenever not RECOVERED, so
+      // Path 2 2026-07: advance bars_rec (bars spent in IN-TREND) for the
+      // recovery max-age cap. Self-managed — zeroed whenever not IN-TREND, so
       // an external reset to NONE clears it on the next bar without extra wiring.
-      if(state == LAYER_PB_RECOVERED)
+      if(state == LAYER_PB_INTREND)
          bars_rec++;
       else
          bars_rec = 0;
@@ -2138,7 +2138,7 @@ private:
       if(state == LAYER_PB_NONE && is_pullback)
       {
          // Path 2 (2026-07): a fresh pullback always enters DETECTED. The former
-         // S2 one-bar NONE→RECOVERED shortcut (wick touch + same-bar close
+         // S2 one-bar NONE→IN-TREND shortcut (wick touch + same-bar close
          // recovery) is REMOVED — a pullback→recovery cycle cannot complete in a
          // single bar, and the A21 minimum-duration gate below is never bypassed.
          state    = LAYER_PB_DETECTED;
@@ -2146,13 +2146,13 @@ private:
          // GUARD 1: a NEW pullback-recovery cycle begins here. This is the ONLY exit
          // from NONE, so clearing the latch here covers every reset-to-NONE path
          // (consumption / max-age / cross / phase-clear / climax / sustained-UNO)
-         // without wiring any of them. A relapse from RECOVERED does NOT come through
+         // without wiring any of them. A relapse from IN-TREND does NOT come through
          // this branch, so it correctly leaves the latch set (same cycle).
          g1_counted = false;
       }
       else if(state == LAYER_PB_DETECTED && is_recovery)
       {
-         // A21 gate: require minimum bars in DETECTED before allowing RECOVERED.
+         // A21 gate: require minimum bars in DETECTED before allowing IN-TREND.
          if(bars_det < min_pb_bars)
          {
             if(m_settings.DebugFlow)
@@ -2161,7 +2161,7 @@ private:
             // state stays DETECTED; bars_det already incremented above
          }
          // Theme 2026-06 (UNO-exit cooldown): when MinBarsAfterUNOExit > 0, block
-         // the DETECTED→RECOVERED transition until that many non-UNO bars have
+         // the DETECTED→IN-TREND transition until that many non-UNO bars have
          // accumulated since the last UNO bar. Rationale: EMA1/EMA2 geometry on
          // the first non-UNO bars carries trailing influence from UNO-period
          // price action; a "recovery" detected there isn't a true post-UNO cycle.
@@ -2177,8 +2177,8 @@ private:
          }
          else
          {
-            state = LAYER_PB_RECOVERED;
-            // GUARD 1: this is the ONE place the engine writes LAYER_PB_RECOVERED, so it
+            state = LAYER_PB_INTREND;
+            // GUARD 1: this is the ONE place the engine writes LAYER_PB_INTREND, so it
             // is the canonical "pullback-recovery completed" event. Count it ONCE per
             // cycle — a relapse that re-recovers must not advance the count.
             if(!g1_counted)
@@ -2191,21 +2191,21 @@ private:
             }
          }
       }
-      else if(state == LAYER_PB_RECOVERED && is_relapse_reversal)
+      else if(state == LAYER_PB_INTREND && is_relapse_reversal)
       {
          state    = LAYER_PB_DETECTED;
          bars_det = 1;   // first bar of a relapse DETECTED cycle
       }
-      else if(state == LAYER_PB_RECOVERED && maxage_enabled && window > 0 && bars_rec >= window)
+      else if(state == LAYER_PB_INTREND && maxage_enabled && window > 0 && bars_rec >= window)
       {
-         // Recovery max-age (Path 2): a RECOVERED layer that has waited longer than
+         // Recovery max-age (Path 2): a IN-TREND layer that has waited longer than
          // its observation window to fire is stale — expire to NONE so a fresh
          // pullback→recovery cycle is required (prevents a chase-entry far from the
          // recovery point). Relapse (counter-trend reversal) takes precedence via
          // the branch above; this is the quiet-timeout fallback.
          state = LAYER_PB_NONE;
          if(m_settings.DebugFlow)
-            DebugLog(StringFormat("[%s_PB] RECOVERED expired by max-age: %d bars >= window %d -> NONE",
+            DebugLog(StringFormat("[%s_PB] IN-TREND expired by max-age: %d bars >= window %d -> NONE",
                                   label, bars_rec, window));
       }
 
@@ -2230,7 +2230,7 @@ private:
 
          if(state == LAYER_PB_DETECTED)
          {
-            // Fresh entry into DETECTED (incl. RECOVERED→DETECTED relapse):
+            // Fresh entry into DETECTED (incl. IN-TREND→DETECTED relapse):
             // restart recovery measurement so a stale ratio can't carry over.
             if(prev_state != LAYER_PB_DETECTED)
             {
@@ -2251,7 +2251,7 @@ private:
                vol_pb_bars++;
             }
          }
-         else if(state == LAYER_PB_RECOVERED)
+         else if(state == LAYER_PB_INTREND)
          {
             // Measure recovery volume over the first N bars only.
             // A22: same skip-on-invalid guard as the pullback branch (a 0 read here
@@ -2279,7 +2279,7 @@ private:
    //| GetLayerLookback -- per-layer resolver                           |
    //| (GetLayerRecovery removed by F-AUDIT-STRUCT 2026-07: it resolved |
    //|  LayerRecoveryRatio_W/M/S, a proven-dead sink whose value only   |
-   //|  ever reached a DebugLog string, never the RECOVERED decision.)  |
+   //|  ever reached a DebugLog string, never the IN-TREND decision.)  |
    //| layer: 1=W, 2=M, 3=S. Per-layer 0/<0 falls back to the global.   |
    //+------------------------------------------------------------------+
    int GetLayerLookback(int layer)
@@ -2292,7 +2292,7 @@ private:
       return lb;
    }
 
-   // A21 2026-07: per-layer minimum pullback bar count before RECOVERED is allowed.
+   // A21 2026-07: per-layer minimum pullback bar count before IN-TREND is allowed.
    int GetLayerMinPBBars(int layer)
    {
       int v = (layer == 1) ? m_settings.LayerMinPullbackBars_W :
@@ -2341,7 +2341,7 @@ private:
       if(m_phase_reset_count >= confirm_need && m_phase_reset_pending != m_phase_reset_confirmed)
       {
          m_phase_reset_confirmed = m_phase_reset_pending;
-         // STALE-ONLY reset: clear a RECOVERED cycle earned under the OLD phase
+         // STALE-ONLY reset: clear a IN-TREND cycle earned under the OLD phase
          // (genuinely stale), but PRESERVE an in-progress DETECTED pullback. A
          // pullback's bounce is often what reorders the EMAs and triggers the
          // phase change itself, so a full reset to NONE here would erase the
@@ -2358,7 +2358,7 @@ private:
          // the new pullback's pb_avg on top of the stale cycle's value
          // (contaminated VPRR ratio, depressed by carry-over). Same fix lives
          // in ResetAllLayerPullback (CLIMAX path).
-         if(m_layer_w_pb_state == LAYER_PB_RECOVERED) {
+         if(m_layer_w_pb_state == LAYER_PB_INTREND) {
             m_layer_w_pb_state    = LAYER_PB_NONE;
             m_layer_w_vol_pb_avg  = 0.0; m_layer_w_vol_pb_bars  = 0;
             m_layer_w_vol_rec_avg = 0.0; m_layer_w_vol_rec_bars = 0;
@@ -2366,7 +2366,7 @@ private:
             m_layer_w_baseline    = 0.0;
             m_layer_w_bars_det    = 0;   // A21 2026-07
          }
-         if(m_layer_m_pb_state == LAYER_PB_RECOVERED) {
+         if(m_layer_m_pb_state == LAYER_PB_INTREND) {
             m_layer_m_pb_state    = LAYER_PB_NONE;
             m_layer_m_vol_pb_avg  = 0.0; m_layer_m_vol_pb_bars  = 0;
             m_layer_m_vol_rec_avg = 0.0; m_layer_m_vol_rec_bars = 0;
@@ -2374,7 +2374,7 @@ private:
             m_layer_m_baseline    = 0.0;
             m_layer_m_bars_det    = 0;   // A21 2026-07
          }
-         if(m_layer_s_pb_state == LAYER_PB_RECOVERED) {
+         if(m_layer_s_pb_state == LAYER_PB_INTREND) {
             m_layer_s_pb_state    = LAYER_PB_NONE;
             m_layer_s_vol_pb_avg  = 0.0; m_layer_s_vol_pb_bars  = 0;
             m_layer_s_vol_rec_avg = 0.0; m_layer_s_vol_rec_bars = 0;
@@ -2383,7 +2383,7 @@ private:
             m_layer_s_bars_det    = 0;   // A21 2026-07
          }
          if(m_settings.DebugFlow)
-            DebugLog(StringFormat("[PHASE_RESET] Phase confirmed %s -> stale RECOVERED cleared, DETECTED preserved",
+            DebugLog(StringFormat("[PHASE_RESET] Phase confirmed %s -> stale IN-TREND cleared, DETECTED preserved",
                                   EnumToString(m_phase_reset_confirmed)));
       }
    }
@@ -2440,9 +2440,9 @@ private:
          m_cb_oeb_blocked = false;
          return;
       }
-      bool any_rec = (m_layer_w_pb_state == LAYER_PB_RECOVERED
-                   || m_layer_m_pb_state == LAYER_PB_RECOVERED
-                   || m_layer_s_pb_state == LAYER_PB_RECOVERED);
+      bool any_rec = (m_layer_w_pb_state == LAYER_PB_INTREND
+                   || m_layer_m_pb_state == LAYER_PB_INTREND
+                   || m_layer_s_pb_state == LAYER_PB_INTREND);
       bool fresh_rec = any_rec && !m_cb_prev_any_rec;
       if(CB_BodyOverExtended(v_shift))
          m_cb_oeb_blocked = true;                 // (re)arm on an over-extended bar
@@ -4145,7 +4145,7 @@ private:
    //==========================================================================
    // DeriveLayerState — STATELESS re-derivation of one layer's pullback state
    //
-   // Returns NONE / DETECTED / RECOVERED for `layer` (1=W,2=M,3=S) as of `shift`
+   // Returns NONE / DETECTED / IN-TREND for `layer` (1=W,2=M,3=S) as of `shift`
    // by REPLAYING the exact live per-bar dispatch into LOCALS — no persisted
    // members, no warm-up seed. Bit-for-bit with the stateful path
    // (EvaluateTS L8465-8505 / UpdateLayerPullbackStates L2454-2527 /
@@ -4156,9 +4156,9 @@ private:
    //             sustained-UNO soft reset to NONE.
    //
    // replay_depth = window + min_pb + lookback + 1  (Stage-1 §3 proof: L reads
-   //   ONLY `== RECOVERED`; a truncated NONE-anchor cannot fabricate a false
-   //   RECOVERED, and max-age bounds a true RECOVERED to <= window bars). When
-   //   LayerRecoveryMaxAgeEnabled is OFF, RECOVERED is unbounded → the anchor is
+   //   ONLY `== IN-TREND`; a truncated NONE-anchor cannot fabricate a false
+   //   IN-TREND, and max-age bounds a true IN-TREND to <= window bars). When
+   //   LayerRecoveryMaxAgeEnabled is OFF, IN-TREND is unbounded → the anchor is
    //   extended to the most-recent fast/slow CROSS (a guaranteed NONE) inside a
    //   hard cap.
    //
@@ -4187,7 +4187,7 @@ private:
       int start_off = window + min_pb + lookback + 1;
       if(!maxage)
       {
-         // RECOVERED unbounded → walk back to a guaranteed-NONE cross anchor.
+         // IN-TREND unbounded → walk back to a guaranteed-NONE cross anchor.
          int cap = 3 * window + lookback + 1;
          int cross_off = -1;
          for(int off = start_off; off <= cap; off++)
@@ -4325,7 +4325,7 @@ private:
          }
       }
 
-      // relapse (RECOVERED→DETECTED on counter-reversal)
+      // relapse (IN-TREND→DETECTED on counter-reversal)
       bool is_relapse_reversal;
       if(bias_dir != 0)
          is_relapse_reversal = (current_pace != 0.0) && ((bias_dir > 0) != (current_pace > 0.0));
@@ -4334,7 +4334,7 @@ private:
 
       // counter advance (pre-transition state)
       if(state == LAYER_PB_DETECTED)  bars_det++; else bars_det = 0;
-      if(state == LAYER_PB_RECOVERED) bars_rec++; else bars_rec = 0;
+      if(state == LAYER_PB_INTREND) bars_rec++; else bars_rec = 0;
 
       // transitions (bit-for-bit)
       if(state == LAYER_PB_NONE && is_pullback)
@@ -4354,14 +4354,14 @@ private:
          }
          else
          {
-            state = LAYER_PB_RECOVERED;
+            state = LAYER_PB_INTREND;
          }
       }
-      else if(state == LAYER_PB_RECOVERED && is_relapse_reversal)
+      else if(state == LAYER_PB_INTREND && is_relapse_reversal)
       {
          state = LAYER_PB_DETECTED; bars_det = 1;
       }
-      else if(state == LAYER_PB_RECOVERED && maxage && window > 0 && bars_rec >= window)
+      else if(state == LAYER_PB_INTREND && maxage && window > 0 && bars_rec >= window)
       {
          state = LAYER_PB_NONE;
       }
@@ -4479,13 +4479,13 @@ private:
          // Gate logic:
          //   NONE     = no pullback seen yet → BLOCK (must earn recovery first)
          //   DETECTED = actively in pullback → BLOCK (wait for recovery)
-         //   RECOVERED= pullback completed and trend resumed → ALLOW
+         //   IN-TREND= pullback completed and trend resumed → ALLOW
          //
          // A trade is only valid after a confirmed pullback-recovery cycle.
          // NONE after reset (post-TS=1) means the cycle was consumed and a
          // fresh pullback is required before the next entry is allowed.
          // This prevents trend-extension entries with no preceding pullback.
-         if(current_state != LAYER_PB_RECOVERED)
+         if(current_state != LAYER_PB_INTREND)
          {
             if(m_settings.DebugFlow)
                DebugLog(StringFormat("[%s] BLOCKED: no pullback-recovery cycle (State=%s)",
@@ -4494,7 +4494,7 @@ private:
          }
 
          // ── GUARD 1 (2026-07): skip the FIRST completed post-flip P-R cycle ──────
-         // Reached only when the layer is positionally aligned AND RECOVERED — i.e. on
+         // Reached only when the layer is positionally aligned AND IN-TREND — i.e. on
          // a bar that would otherwise be entry-eligible. Event-indexed: the counter is
          // driven by cycle completions, never by a bar count. Per-layer, so W/M/S each
          // burn their own skip (P-R typically begins in W, then M, then S).
@@ -4832,7 +4832,7 @@ public:
    {
       ELayerPullbackState st = (layer==1) ? m_layer_w_pb_state :
                                (layer==2) ? m_layer_m_pb_state : m_layer_s_pb_state;
-      string st_s = (st==LAYER_PB_RECOVERED) ? "REC" : (st==LAYER_PB_DETECTED) ? "DET" : "NONE";
+      string st_s = (st==LAYER_PB_INTREND) ? "REC" : (st==LAYER_PB_DETECTED) ? "DET" : "NONE";
 
       bool allow = (layer==1) ? m_settings.AllowLayer1_Entries :
                    (layer==2) ? m_settings.AllowLayer2_Entries : m_settings.AllowLayer3_Entries;
@@ -4840,11 +4840,11 @@ public:
       if(bias == 0)  return st_s + " NO(bias)";
 
       m_eval_g1_blocked = false;
-      int align = CheckLayerPairAlign(bias, layer, shift);   // position + RECOVERED + GUARD1 gates
+      int align = CheckLayerPairAlign(bias, layer, shift);   // position + IN-TREND + GUARD1 gates
       if(align == 0)
       {
          if(m_eval_g1_blocked) return st_s + " NO(G1)";   // GUARD 1: first post-flip P-R cycle
-         return (st != LAYER_PB_RECOVERED) ? st_s + " NO(PB)" : st_s + " NO(ALIGN)";
+         return (st != LAYER_PB_INTREND) ? st_s + " NO(PB)" : st_s + " NO(ALIGN)";
       }
 
       int layer_id = (layer==1) ? LAYER_1_WEAK : (layer==2) ? LAYER_2_MEDIUM : LAYER_3_STRONG;
@@ -4874,13 +4874,13 @@ public:
       else if(layer == 2) { m_layer_m_pb_state = LAYER_PB_NONE; m_layer_m_bars_det = 0; }
       else if(layer == 1) { m_layer_w_pb_state = LAYER_PB_NONE; m_layer_w_bars_det = 0; }
    }
-   // Expire RECOVERED states when bias is absent — prevents stale state firing on bias return.
+   // Expire IN-TREND states when bias is absent — prevents stale state firing on bias return.
    // Preserves DETECTED so an in-progress pullback keeps tracking through brief bias gaps.
    void   Scanner_ExpireRecovered()
    {
-      if(m_layer_s_pb_state == LAYER_PB_RECOVERED) { m_layer_s_pb_state = LAYER_PB_NONE; m_layer_s_bars_det = 0; }   // A21 2026-07
-      if(m_layer_m_pb_state == LAYER_PB_RECOVERED) { m_layer_m_pb_state = LAYER_PB_NONE; m_layer_m_bars_det = 0; }
-      if(m_layer_w_pb_state == LAYER_PB_RECOVERED) { m_layer_w_pb_state = LAYER_PB_NONE; m_layer_w_bars_det = 0; }
+      if(m_layer_s_pb_state == LAYER_PB_INTREND) { m_layer_s_pb_state = LAYER_PB_NONE; m_layer_s_bars_det = 0; }   // A21 2026-07
+      if(m_layer_m_pb_state == LAYER_PB_INTREND) { m_layer_m_pb_state = LAYER_PB_NONE; m_layer_m_bars_det = 0; }
+      if(m_layer_w_pb_state == LAYER_PB_INTREND) { m_layer_w_pb_state = LAYER_PB_NONE; m_layer_w_bars_det = 0; }
    }
    bool   Scanner_Check_DPI(int bias, int shift) { return Check_DPI(bias, shift); }
    bool   Scanner_Check_PSAR(int bias, int shift){ return Check_PSAR(bias, shift); }
@@ -6765,7 +6765,7 @@ public:
       // NONE and block the first valid signal.
       // Scan back enough bars to capture one full baseline + pullback cycle,
       // then replay UpdateSingleLayerPullback bar-by-bar so the state machine
-      // arrives at the correct state (NONE / DETECTED / RECOVERED) at shift=1.
+      // arrives at the correct state (NONE / DETECTED / IN-TREND) at shift=1.
       if(m_settings.LayerPullbackEnabled && m_settings.BiasMode == BIAS_4EMA)
          WarmUpLayerPullbackStates();
 
@@ -8728,7 +8728,7 @@ public:
             {
                // Within tolerance — PRESERVE layer states so a brief UNO that
                // resolves back to the SAME direction does not erase an
-               // in-progress DETECTED / RECOVERED. Do not advance the machine
+               // in-progress DETECTED / IN-TREND. Do not advance the machine
                // (bias absent), do not touch m_last_dir_state_bias, and do not
                // arm the UNO-exit cooldown for a mere flicker.
             }
@@ -8808,8 +8808,16 @@ public:
       int final_signal = 0;
 
       if(m_eval_any_failure) {
-         // Stats_FullEvaluation mode: accumulated failure from B, P, or L
-         if(m_diag_last_reason == "") m_diag_last_reason = m_eval_first_failure;
+         // Stats_FullEvaluation runs EVERY factor, so EvaluateI may have
+         // overwritten m_diag_last_reason to "OK" (indicator all-pass, L7895)
+         // AFTER an earlier B/P/L/F factor already recorded the real failure in
+         // m_eval_first_failure. Restore the true rejecter so the cockpit shows
+         // "TS: <real reason>" instead of masking a blocked bar as "TS: OK"
+         // (which the UI mis-reads as a valid signal → SIGNAL: FLAT with no
+         // explanation). Bugfix 2026-07: was `== ""` only, which never fired
+         // because "OK" is non-empty.
+         if(m_diag_last_reason == "" || m_diag_last_reason == "OK")
+            m_diag_last_reason = m_eval_first_failure;
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
       }
       else if(I == 0) {
@@ -8840,36 +8848,36 @@ public:
             DebugLog(StringFormat("[RESULT] TS=%d", final_signal));
 
          // ── Pullback cycle reset after TS=1 ───────────────────────────
-         // A RECOVERED state is a one-shot gate: it is earned by a pullback
+         // A IN-TREND state is a one-shot gate: it is earned by a pullback
          // and consumed by the entry on THAT layer. Reset ONLY the winning
          // layer (m_last_layer) so the other two retain their independent
-         // RECOVERED setups — they represent different timeframes (W=EMA1/2,
+         // IN-TREND setups — they represent different timeframes (W=EMA1/2,
          // M=EMA2/3, S=EMA3/4) and each layer's cycle is independent of the
          // others. Previously all three were reset together, which created a
          // deadlock in trending markets: after one trade no layer could fire
          // until fresh pullback-recovery cycles completed on EACH layer.
          if(m_settings.LayerPullbackEnabled)
          {
-            if(m_last_layer == 1 && m_layer_w_pb_state == LAYER_PB_RECOVERED)
+            if(m_last_layer == 1 && m_layer_w_pb_state == LAYER_PB_INTREND)
             {
                m_layer_w_pb_state = LAYER_PB_NONE;
                m_layer_w_bars_det = 0;   // A21 2026-07
                if(m_settings.DebugFlow)
-                  DebugLog("[PB_RESET] LayerW: RECOVERED → NONE (TS=1 consumed pullback cycle)");
+                  DebugLog("[PB_RESET] LayerW: IN-TREND → NONE (TS=1 consumed pullback cycle)");
             }
-            else if(m_last_layer == 2 && m_layer_m_pb_state == LAYER_PB_RECOVERED)
+            else if(m_last_layer == 2 && m_layer_m_pb_state == LAYER_PB_INTREND)
             {
                m_layer_m_pb_state = LAYER_PB_NONE;
                m_layer_m_bars_det = 0;   // A21 2026-07
                if(m_settings.DebugFlow)
-                  DebugLog("[PB_RESET] LayerM: RECOVERED → NONE (TS=1 consumed pullback cycle)");
+                  DebugLog("[PB_RESET] LayerM: IN-TREND → NONE (TS=1 consumed pullback cycle)");
             }
-            else if(m_last_layer == 3 && m_layer_s_pb_state == LAYER_PB_RECOVERED)
+            else if(m_last_layer == 3 && m_layer_s_pb_state == LAYER_PB_INTREND)
             {
                m_layer_s_pb_state = LAYER_PB_NONE;
                m_layer_s_bars_det = 0;   // A21 2026-07
                if(m_settings.DebugFlow)
-                  DebugLog("[PB_RESET] LayerS: RECOVERED → NONE (TS=1 consumed pullback cycle)");
+                  DebugLog("[PB_RESET] LayerS: IN-TREND → NONE (TS=1 consumed pullback cycle)");
             }
          }
       }

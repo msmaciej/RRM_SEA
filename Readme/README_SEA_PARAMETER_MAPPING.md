@@ -244,7 +244,7 @@ All new; no migration required. Defaults are active out of the box.
 | Input | Default | Description |
 |-------|---------|-------------|
 | `Inp_RRM_ORG_LayerPriceTouchEnabled` | `false` | **Deprecated (Path 2, 2026-07).** The S2 price-zone-touch DETECTED gate was a PRICE test; the layer model is now pure position+slope, so this is off by default and the gate code was removed from `UpdateSingleLayerPullback`. Retained for back-compat; leaving it `true` has no effect. |
-| `Inp_RRM_ORG_MinPBBars_W` | `2` | **A21** — LayerW (EMA1/2) must stay in DETECTED for at least this many bars before RECOVERED. A pullback cannot complete in one bar. Set to 0 to disable. |
+| `Inp_RRM_ORG_MinPBBars_W` | `2` | **A21** — LayerW (EMA1/2) must stay in DETECTED for at least this many bars before IN-TREND. A pullback cannot complete in one bar. Set to 0 to disable. |
 | `Inp_RRM_ORG_MinPBBars_M` | `2` | **A21** — same gate for LayerM (EMA2/3). |
 | `Inp_RRM_ORG_MinPBBars_S` | `2` | **A21** — same gate for LayerS (EMA3/4). Path 2: 2/2/2 across all layers/timeframes. |
 
@@ -261,12 +261,12 @@ All new; no migration required. Defaults are active out of the box.
 
 | Input | Default | Description |
 |-------|---------|-------------|
-| `Inp_RRM_ORG_UNO_ToleranceBars` | `2` | Consecutive UNO bars tolerated before layer states wipe. A transient UNO flicker that resolves back to the SAME direction within this many bars PRESERVES DETECTED/RECOVERED. `0` = strict (reset on the first UNO bar). Plumbed to the scanner via ConfigSync. |
-| `Inp_RRM_ORG_LayerPullbackWindow_W` | `21` | LayerW pullback **observation window** (bars) — distinct from the baseline slope lookback (13/21/34). Bounds how long a RECOVERED layer stays entry-eligible (the recovery max-age default). `0` = use the global. |
+| `Inp_RRM_ORG_UNO_ToleranceBars` | `2` | Consecutive UNO bars tolerated before layer states wipe. A transient UNO flicker that resolves back to the SAME direction within this many bars PRESERVES DETECTED/IN-TREND. `0` = strict (reset on the first UNO bar). Plumbed to the scanner via ConfigSync. |
+| `Inp_RRM_ORG_LayerPullbackWindow_W` | `21` | LayerW pullback **observation window** (bars) — distinct from the baseline slope lookback (13/21/34). Bounds how long an IN-TREND layer stays entry-eligible (the recovery max-age default). `0` = use the global. |
 | `Inp_RRM_ORG_LayerPullbackWindow_M` | `34` | LayerM observation window. |
 | `Inp_RRM_ORG_LayerPullbackWindow_S` | `55` | LayerS observation window. |
 | `Inp_RRM_ORG_LayerPullbackWindow` | `0` | Global observation-window override (`0` = use per-layer values). |
-| `Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled` | `true` | When on, a RECOVERED layer that has waited longer than its observation window to fire expires to NONE (prevents stale chase-entries). Relapse (counter-`bias_dir` reversal) and TS=1 consumption still take precedence. |
+| `Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled` | `true` | When on, an IN-TREND layer that has waited longer than its observation window to fire expires to NONE (prevents stale chase-entries). Relapse (counter-`bias_dir` reversal) and TS=1 consumption still take precedence. |
 
 Corresponding `ST_Settings` fields: `UNO_ToleranceBars`, `LayerPullbackWindow_W/M/S`, `LayerPullbackWindow`, `LayerRecoveryMaxAgeEnabled`. All synced EA→scanner via `SEA_ConfigSync`.
 
@@ -355,7 +355,7 @@ when in fact it was never being tested. 15 were found and removed in this audit 
 | `Inp_Debug_Stats_TrackRejections` | `Stats_TrackRejections` | Never read; only `Stats_FullEvaluation` gates the stats logic. |
 | `Inp_Debug_Stats_TrackPasses` | `Stats_TrackPasses` | Same. |
 | `Inp_Global_MTF_StrictAlignment` | `MTF_StrictAlignment` | Self-documented in code: *"retained for compatibility but the gate is strict-by-construction; the flag no longer relaxes it."* |
-| `Inp_RRM_ORG_LayerPB_RecoveryOnSlope` | `LayerRecoveryOnSlope` | Never read. Consistent with the slope-only RECOVERED model (README.md, Layer section) being unconditional post-refactor — same shape as the already-documented `Inp_RRM_ORG_LayerPriceTouchEnabled` deprecation. |
+| `Inp_RRM_ORG_LayerPB_RecoveryOnSlope` | `LayerRecoveryOnSlope` | Never read. Consistent with the slope-only IN-TREND model (README.md, Layer section) being unconditional post-refactor — same shape as the already-documented `Inp_RRM_ORG_LayerPriceTouchEnabled` deprecation. |
 
 For the fields above that are still touched by other, unrelated live code paths (`MA_MaximumRiskPct`
 in `SEA_TradeExecutor.mqh`'s lot sizing, `MTF_StrictAlignment` in `ConfigSync`), the removed input's
@@ -418,7 +418,7 @@ Re-running the corrected check found one further field directly (`LayerPullbackR
 can't do automatically: `LayerRecoveryRatio` and its `_W/_M/_S` siblings *are* read into a local
 variable (`GetLayerRecovery()` → `UpdateSingleLayerPullback()`'s `recovery_ratio` parameter), so a
 naive "is it referenced" check calls them LIVE — but that parameter is explicitly, deliberately never
-consulted in the RECOVERED-transition decision (the function's own comment: *"recovery_ratio /
+consulted in the IN-TREND-transition decision (the function's own comment: *"recovery_ratio /
 recovery_cond are no longer consulted here (retained in the signature for ABI/back-compat)"*); its
 only remaining use is inside a `DebugLog()` string. Confirmed against the three READMEs above, which
 already described exactly this.
@@ -426,7 +426,7 @@ already described exactly this.
 | Input (removed) | Fed field | Why it was dead |
 |---|---|---|
 | `Inp_RRM_ORG_LayerPBPullbackRatio` | `LayerPullbackRatio` (renamed `LayerPullbackRatio_Legacy`, see below) | Never referenced outside `SEA_ConfigSync.mqh`'s serialization. Already documented as inert in three READMEs. Its removed input comment had an extensive tuning history ("changed 0.50→0.65 for sensitivity") written *after* the value had already stopped mattering — the exact optimizer-sweep trap this audit exists to catch. |
-| `Inp_RRM_ORG_LayerPBRecoveryRatio` | `LayerRecoveryRatio` | Traced to `GetLayerRecovery()` → `UpdateSingleLayerPullback()`'s `recovery_ratio` param, confirmed unused in the RECOVERED decision (only reaches a debug-log string). |
+| `Inp_RRM_ORG_LayerPBRecoveryRatio` | `LayerRecoveryRatio` | Traced to `GetLayerRecovery()` → `UpdateSingleLayerPullback()`'s `recovery_ratio` param, confirmed unused in the IN-TREND decision (only reaches a debug-log string). |
 | `Inp_RRM_ORG_RecoveryRatio_W` | `LayerRecoveryRatio_W` | Same trace as above. |
 | `Inp_RRM_ORG_RecoveryRatio_M` | `LayerRecoveryRatio_M` | Same trace as above. |
 | `Inp_RRM_ORG_RecoveryRatio_S` | `LayerRecoveryRatio_S` | Same trace as above. |

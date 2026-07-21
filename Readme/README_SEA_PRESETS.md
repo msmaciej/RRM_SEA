@@ -329,9 +329,9 @@ flowchart TD
     B -- UNORDERED → B=0 --> Reject([NO TRADE])
     B -- EMERGING/TRENDING → B=±1 --> P{P — Phase filter}
     P -- Blocked --> Reject
-    P -- Pass --> L{L — Layer pullback-recovery\nNONE/DETECTED/RECOVERED}
-    L -- not RECOVERED --> Reject
-    L -- RECOVERED --> I{I — Indicators\nDPI + PSAR + CandleBody}
+    P -- Pass --> L{L — Layer pullback-recovery\nNONE/DETECTED/IN-TREND}
+    L -- not IN-TREND --> Reject
+    L -- IN-TREND --> I{I — Indicators\nDPI + PSAR + CandleBody}
     I -- any fail --> Reject
     I -- all pass --> F{F — Final filters\nClimaxGuard etc.}
     F -- blocked --> Reject
@@ -375,7 +375,7 @@ Strong setups (LayerS = EMA34/EMA89) are always blocked in EMERGING phase. This 
 
 ### L — Layer pullback-recovery state machine
 
-Each of the three EMA pairs runs an **independent** state machine: `NONE → DETECTED → RECOVERED`. Entry is only allowed when the state is `RECOVERED`. The cascade:
+Each of the three EMA pairs runs an **independent** state machine: `NONE → DETECTED → IN-TREND`. Entry is only allowed when the state is `IN-TREND`. The cascade:
 
 **Pair assignments:**
 
@@ -385,7 +385,7 @@ Each of the three EMA pairs runs an **independent** state machine: `NONE → DET
 | M (Medium) | EMA2 (13) | EMA3 (34) | close > EMA13 (LONG) |
 | S (Strong) | EMA3 (34) | EMA4 (89) | close > EMA34 (LONG) |
 
-**Cascade rule:** `EvaluateL` checks LayerS first, then M, then W. The first layer in RECOVERED state with positional alignment wins. When EMA5 crosses below EMA13 (LayerW position fails), LayerM evaluates. When EMA13 also crosses below EMA34, LayerS evaluates (TM only).
+**Cascade rule:** `EvaluateL` checks LayerS first, then M, then W. The first layer in IN-TREND state with positional alignment wins. When EMA5 crosses below EMA13 (LayerW position fails), LayerM evaluates. When EMA13 also crosses below EMA34, LayerS evaluates (TM only).
 
 **DETECTED triggers (slope-only, either one fires):**
 
@@ -396,13 +396,13 @@ The old magnitude-ratio **"slope weakened"** trigger (`LayerPullbackRatio`) has 
 
 The **S2 price-zone touch** DETECTED gate is likewise removed: the layer model is pure position + slope, and price-vs-EMA is confirmed only at the separate **BC** gate. `LayerPriceTouchEnabled` defaults **false** and is **inert** — the gate code is gone from `UpdateSingleLayerPullback` and the `use_price_touch` parameter is never read, so setting it `true` changes nothing.
 
-**No one-bar completion.** The former S2 shortcut (wick touches the zone → DETECTED, same candle closes beyond the fast EMA → RECOVERED, all in one bar) is **removed**. A fresh pullback always enters DETECTED, and the A21 gate is never bypassed: a pullback-recovery cycle cannot complete inside a single candle.
+**No one-bar completion.** The former S2 shortcut (wick touches the zone → DETECTED, same candle closes beyond the fast EMA → IN-TREND, all in one bar) is **removed**. A fresh pullback always enters DETECTED, and the A21 gate is never bypassed: a pullback-recovery cycle cannot complete inside a single candle.
 
-**A21 minimum pullback bars:** After DETECTED fires, at least `LayerMinPullbackBars` bars must stay in DETECTED before RECOVERED is allowed (default: **W=2, M=2, S=2**). Prevents 1-bar spike entries.
+**A21 minimum pullback bars:** After DETECTED fires, at least `LayerMinPullbackBars` bars must stay in DETECTED before IN-TREND is allowed (default: **W=2, M=2, S=2**). Prevents 1-bar spike entries.
 
 > **Why the layer model is EMA-only:** the Oracle states pullback-and-recovery as one human-perceptual packet; the EA splits it into two separately-decidable predicates — structure (P-R: EMA position + slope) and price (BC: close beyond the fast EMA) — and requires both on the same closed bar. Canonical rationale, invariant and accepted divergences: **`README_SEA_TRADE_LOGIC.md` §1.1**.
 
-**RECOVERED:** `close > fast_EMA` (LONG) or `close < fast_EMA` (SHORT) — after the minimum bar count is met.
+**IN-TREND:** `close > fast_EMA` (LONG) or `close < fast_EMA` (SHORT) — after the minimum bar count is met.
 
 **After TS=1 is consumed:** only the winning layer resets to NONE. Other layers retain their state.
 

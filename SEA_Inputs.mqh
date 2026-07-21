@@ -682,8 +682,8 @@ input int         Inp_RRM_ORG_Ema4Period           = 89;             // RRM ORG 
 input int         Inp_RRM_ORG_PhaseConfirmM5       = 0;              // RRM ORG QA: PhaseConfirmBars <M5
 input int         Inp_RRM_ORG_PhaseConfirmM30      = 0;              // RRM ORG QA: PhaseConfirmBars <M30
 input int         Inp_RRM_ORG_PhaseConfirmH1plus   = 0;              // RRM ORG QA: PhaseConfirmBars H1+
-input int         Inp_RRM_ORG_MinBarsAfterUNOExit  = 0;              // RRM ORG QA: Min bars after UNO exit before any layer DETECTED→RECOVERED transition is allowed (0=disabled; try 2-3 for M1)
-input int         Inp_RRM_ORG_UNO_ToleranceBars    = 2;              // RRM ORG PB: consecutive UNO bars tolerated before layer states are wiped. A transient UNO flicker that resolves back to the SAME direction within this many bars PRESERVES DETECTED/RECOVERED (0=strict: reset on the first UNO bar)
+input int         Inp_RRM_ORG_MinBarsAfterUNOExit  = 0;              // RRM ORG QA: Min bars after UNO exit before any layer DETECTED→IN-TREND transition is allowed (0=disabled; try 2-3 for M1)
+input int         Inp_RRM_ORG_UNO_ToleranceBars    = 2;              // RRM ORG PB: consecutive UNO bars tolerated before layer states are wiped. A transient UNO flicker that resolves back to the SAME direction within this many bars PRESERVES DETECTED/IN-TREND (0=strict: reset on the first UNO bar)
 input bool        Inp_RRM_ORG_LayerS_TMOnly        = false;          // RRM ORG QA: Restrict LayerS (EMA3/EMA4) entries to TRENDING phase only (per canonical RRM); false=legacy (LayerS allowed in EM+TM)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: LAYER WMS Pullback & Recovery";
@@ -712,22 +712,22 @@ input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;  // RRM ORG PB: Count
 // PRICE test into pullback detection and is DISABLED by default. The input is
 // retained for back-compat only; leaving it true has no effect (the S2 gate code
 // was removed from UpdateSingleLayerPullback).
-// A21: minimum bars in DETECTED before RECOVERED is allowed. Path 2: a pullback
+// A21: minimum bars in DETECTED before IN-TREND is allowed. Path 2: a pullback
 // cannot complete in one bar, so the floor is 2 on every layer/timeframe.
-input int         Inp_RRM_ORG_MinPBBars_W   = 2;            // RRM ORG PB: A21 - LayerW min bars in DETECTED before RECOVERED (2/2/2 default)
-input int         Inp_RRM_ORG_MinPBBars_M   = 2;            // RRM ORG PB: A21 - LayerM min bars in DETECTED before RECOVERED (2/2/2 default)
-input int         Inp_RRM_ORG_MinPBBars_S   = 2;            // RRM ORG PB: A21 - LayerS min bars in DETECTED before RECOVERED (2/2/2 default)
+input int         Inp_RRM_ORG_MinPBBars_W   = 2;            // RRM ORG PB: A21 - LayerW min bars in DETECTED before IN-TREND (2/2/2 default)
+input int         Inp_RRM_ORG_MinPBBars_M   = 2;            // RRM ORG PB: A21 - LayerM min bars in DETECTED before IN-TREND (2/2/2 default)
+input int         Inp_RRM_ORG_MinPBBars_S   = 2;            // RRM ORG PB: A21 - LayerS min bars in DETECTED before IN-TREND (2/2/2 default)
 // F-AUDIT 2026-07 (round 2): Inp_RRM_ORG_RecoveryRatio_W/M/S REMOVED -- same proven-dead sink
 // as Inp_RRM_ORG_LayerPBRecoveryRatio above (LayerRecoveryRatio_W/M/S, unused-in-decision-logic
 // trace). See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
 // Path 2 (2026-07): pullback OBSERVATION WINDOW (distinct from the baseline slope
-// lookback 13/21/34). Bounds how long a RECOVERED layer stays entry-eligible before
+// lookback 13/21/34). Bounds how long a IN-TREND layer stays entry-eligible before
 // it is treated as stale (the "not-too-late" cap). Per-layer; 0 = use the global.
 input int         Inp_RRM_ORG_LayerPullbackWindow_W = 21;         // RRM ORG PB: LayerW observation window (bars; 0=use global)
 input int         Inp_RRM_ORG_LayerPullbackWindow_M = 34;         // RRM ORG PB: LayerM observation window (bars; 0=use global)
 input int         Inp_RRM_ORG_LayerPullbackWindow_S = 55;         // RRM ORG PB: LayerS observation window (bars; 0=use global)
 input int         Inp_RRM_ORG_LayerPullbackWindow   = 0;          // RRM ORG PB: GLOBAL observation-window override (bars; 0=disabled, use per-layer)
-input bool        Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled = true;  // RRM ORG PB: expire a RECOVERED layer that has waited > its observation window to fire (prevents stale chase-entries)
+input bool        Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled = true;  // RRM ORG PB: expire a IN-TREND layer that has waited > its observation window to fire (prevents stale chase-entries)
 input bool        Inp_RRM_ORG_AllowLayerS          = true;                          // RRM ORG PB: allow Layer S (EMA3/4) entries
 input bool        Inp_RRM_ORG_AllowLayerM          = true;                          // RRM ORG PB: allow Layer M (EMA2/3) entries
 input bool        Inp_RRM_ORG_AllowLayerW          = true;                          // RRM ORG PB: allow Layer W (EMA1/2) entries

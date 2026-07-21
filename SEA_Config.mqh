@@ -118,11 +118,16 @@ enum EEntryLayer {
 //+------------------------------------------------------------------+
 //| Layer Pullback State Machine                                     |
 //+------------------------------------------------------------------+
+// State names use IN-TREND (was RECOVERED, renamed 2026-07). RECOVERED wrongly
+// implied "eligible to trade NOW"; the state actually means "this layer is
+// trending in the BIAS direction again (fast & slow EMAs aligned + sloping with
+// BIAS)" and PERSISTS through the trend. Firing is a separate EDGE event (the
+// DETECTED→IN-TREND transition with voters agreeing), not the state itself.
 enum ELayerPullbackState
 {
-   LAYER_PB_NONE,        // LAYER_PB_NONE: No pullback detected yet (initial trending)
-   LAYER_PB_DETECTED,    // LAYER_PB_DETECTED: Pullback or flat phase observed
-   LAYER_PB_RECOVERED    // LAYER_PB_RECOVERED: Recovery confirmed (ready to trade)
+   LAYER_PB_NONE,        // LAYER_PB_NONE:    No BIAS/structure established yet (not a state a live trend falls into)
+   LAYER_PB_DETECTED,    // LAYER_PB_DETECTED: Layer is in a pullback (diverging from BIAS), awaiting re-alignment
+   LAYER_PB_INTREND      // LAYER_PB_INTREND:  Layer trending in BIAS direction again; persists through the trend
 };
 // VPRR: Volume Pullback-Recovery Ratio — volume source selection
 enum EVPRRVolumeType
@@ -781,7 +786,7 @@ struct ST_Settings
     bool     LayerS_TMOnly;               // false = legacy behavior (LayerS allowed in EM+TM); true = LayerS only in TM
     bool     LayerResetOnRealign;         // Reset all layer PB states on a confirmed market-phase change
     int      LayerResetPhaseConfirmBars;  // Bars a new phase must hold before it triggers a realign reset
-    // Theme 2026-06 (UNO-exit cooldown): block DETECTED→RECOVERED transitions until
+    // Theme 2026-06 (UNO-exit cooldown): block DETECTED→IN-TREND transitions until
     // N consecutive non-UNO bars have passed since the last UNO bar. Prevents a layer
     // cycle from completing on the immediate post-UNO bars whose EMA1/EMA2 geometry
     // is dominated by trailing effects of UNO-period price action. The DETECTED state
@@ -796,7 +801,7 @@ struct ST_Settings
     int      LayerPullbackWindow_M;       // LayerM observation window (bars; 0 = use global)
     int      LayerPullbackWindow_S;       // LayerS observation window (bars; 0 = use global)
     int      LayerPullbackWindow;         // global observation-window override (0 = use per-layer)
-    bool     LayerRecoveryMaxAgeEnabled;  // expire a RECOVERED layer older than its observation window
+    bool     LayerRecoveryMaxAgeEnabled;  // expire an IN-TREND layer older than its observation window
     // GUARD 1 (2026-07): after a genuine signed bias flip (+1→-1 or -1→+1), block the
     // FIRST completed pullback-recovery CYCLE on each layer; allow entries from the
     // second completed cycle onward. Event-indexed (no bar counts). UNO/neutral is
@@ -816,7 +821,7 @@ struct ST_Settings
     // S2 2026-07: price-zone DETECTED gate (wick enters lower portion of EMA band)
     // Additive OR with slope detection. Zone = EMA_slow + (1-PullbackRatio)*(EMA_fast-EMA_slow).
     // Oracle Trade Setups card: "price pulls back to touch the EMA2" — flexibly.
-    // A21 2026-07: minimum bars in DETECTED before RECOVERED is allowed
+    // A21 2026-07: minimum bars in DETECTED before IN-TREND is allowed
     // Prevents 1-bar spike pullbacks from producing an immediate recovery signal.
     // Oracle examples show pullbacks lasting 2–8 bars before recovery at all timeframes.
     int      LayerMinPullbackBars_W;      // W layer minimum pullback duration (bars; 0 = off)

@@ -86,7 +86,7 @@ Each layer runs two independent checks. Both must pass.
 **3b. Pullback-recovery state machine:** each layer independently tracks whether a pullback has occurred and recovered. Three states:
 - `LAYER_PB_NONE` — no pullback seen yet → **blocked** (must earn a pullback-recovery cycle first)
 - `LAYER_PB_DETECTED` — pullback in progress → **blocked**
-- `LAYER_PB_RECOVERED` — pullback completed, trend resumed → **allowed**
+- `LAYER_PB_INTREND` — pullback completed, trend resumed → **allowed**
 
 All slope tests are taken against **`bias_dir`** (the live B-factor direction), not a historical baseline — a baseline measured inside the dip points the wrong way and can strand a layer in DETECTED.
 
@@ -96,9 +96,9 @@ All slope tests are taken against **`bias_dir`** (the live B-factor direction), 
 - A fast EMA still sloping in `bias_dir` at a shallower angle is normal trend breathing — **not** a pullback. (The magnitude-ratio "weakened" trigger is removed.)
 - Price-zone touch is a **price** test, not slope; it is excluded from this model and `LayerPriceTouchEnabled` is off by default (see inputs).
 
-**Minimum duration gate (A21):** DETECTED must persist for at least `LayerMinPullbackBars_W/M/S` bars (per `Inp_RRM_ORG_MinPBBars_W/M/S`; contract ≥ 2) before RECOVERED is allowed. A pullback cannot complete in one bar.
+**Minimum duration gate (A21):** DETECTED must persist for at least `LayerMinPullbackBars_W/M/S` bars (per `Inp_RRM_ORG_MinPBBars_W/M/S`; contract ≥ 2) before IN-TREND is allowed. A pullback cannot complete in one bar.
 
-**RECOVERED triggers:** both of the layer's EMA slopes (fast **and** slow) point in `bias_dir` again — after the minimum bar count is satisfied. Slope-only; **not** a close-vs-EMA test (that is the separate BC gate), so no longer a duplicate of BC. RECOVERED holds until a counter-`bias_dir` slope reversal relapses it to DETECTED or a TS=1 signal consumes it; optional `LayerRecoveryMaxAge` cap (default = observation window) expires a stale RECOVERED.
+**IN-TREND triggers:** both of the layer's EMA slopes (fast **and** slow) point in `bias_dir` again — after the minimum bar count is satisfied. Slope-only; **not** a close-vs-EMA test (that is the separate BC gate), so no longer a duplicate of BC. IN-TREND holds until a counter-`bias_dir` slope reversal relapses it to DETECTED or a TS=1 signal consumes it; optional `LayerRecoveryMaxAge` cap (default = observation window) expires a stale IN-TREND.
 
 Each layer's state is reset to NONE after a TS=1 signal consumes it, requiring a fresh pullback-recovery before the next entry on that layer.
 
@@ -359,7 +359,7 @@ The signal evaluation pipeline was significantly simplified in v1.04, then the p
 - ~500 lines of dead code removed, clearer logic, faster execution
 
 **What was re-introduced and extended (post-v1.04, Sessions A1–S2):**
-- Full pullback-recovery state machine (`LAYER_PB_NONE / DETECTED / RECOVERED`) — one independent machine per layer
+- Full pullback-recovery state machine (`LAYER_PB_NONE / DETECTED / IN-TREND`) — one independent machine per layer
 - Slope-flat DETECTED trigger: `ratio < LayerFlatRatio` — the fast EMA has stopped advancing
 - Slope-reversal DETECTED trigger: `LayerAllowReversalPullback` — catches shallow pullbacks
 - **A21 minimum pullback duration gate:** `LayerMinPullbackBars_W/M/S` (2/2/2) — a pullback cannot complete in one bar
@@ -369,8 +369,8 @@ The signal evaluation pipeline was significantly simplified in v1.04, then the p
 **What was removed again (Path 2, 2026-07) — do not reintroduce:**
 - **Slope-ratio "weakened" DETECTED trigger** (`|current_pace| / |baseline_pace| < LayerPullbackRatio`). A fast EMA still sloping in `bias_dir` at a shallower angle is normal trend breathing, not a pullback; the trigger oscillated state and produced noise entries. The engine no longer reads `LayerPullbackRatio` — the input and struct field survive as **dead knobs** (back-compat only; changing them has no effect).
 - **S2 price-zone DETECTED trigger** (wick entering the EMA band). It was a *price* test inside a state machine that is defined on EMA position + slope. `LayerPriceTouchEnabled` defaults `false` and the gate code is removed — the parameter is **inert**.
-- **Close-vs-EMA recovery** (`recovery_cond`). It duplicated the BC gate exactly; RECOVERED is now slope-only and structurally distinct from BC.
-- **The S2 one-bar `NONE → RECOVERED` shortcut.** A pullback-recovery cycle cannot complete inside a single candle; the A21 gate is never bypassed.
+- **Close-vs-EMA recovery** (`recovery_cond`). It duplicated the BC gate exactly; IN-TREND is now slope-only and structurally distinct from BC.
+- **The S2 one-bar `NONE → IN-TREND` shortcut.** A pullback-recovery cycle cannot complete inside a single candle; the A21 gate is never bypassed.
 
 See `README_SEA_TRADE_LOGIC.md` §1.1 for why each of these was removed and where price legitimately re-enters the pipeline.
 
@@ -390,4 +390,4 @@ The current formula including the pullback gate:
 ```
 TS = Bias × Phase × F × (LayerW_rec × bcW  OR  LayerM_rec × bcM  OR  LayerS_rec × bcS) × Indicators × CG
 ```
-Where `LayerX_rec` = 1 only when that layer's state machine is in `LAYER_PB_RECOVERED`.
+Where `LayerX_rec` = 1 only when that layer's state machine is in `LAYER_PB_INTREND`.

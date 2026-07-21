@@ -166,10 +166,10 @@ C: no hallucinations · verify feature not already implemented · update README 
 | EM phase | W and M allowed in EM; S blocked unless strong-EM trading is enabled (`Emerging_AllowStrongTrades`, see inputs). |
 | Session filter | Global `Inp_Session_*` (not preset-owned) — see inputs for defaults. |
 | Pullback (DETECTED) | Slope-only, vs `bias_dir`: flat (`Inp_RRM_ORG_LayerPBFlatRatio`) OR reversed (`Inp_RRM_ORG_LayerPBAllowReversal`). Weakened-but-still-in-trend is NOT a pullback. Price-touch is off unless enabled (`LayerPriceTouchEnabled`, see inputs). |
-| Recovery (RECOVERED) | Slope-only: fast AND slow layer-EMA slopes back in `bias_dir`. Not a close-vs-EMA test (that is BC). No one-bar recovery. Valid until relapse (counter-`bias_dir` reversal) or TS=1 consumption; optional max-age cap per `Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled` (cap = the layer's observation window). |
+| Recovery (IN-TREND) | Slope-only: fast AND slow layer-EMA slopes back in `bias_dir`. Not a close-vs-EMA test (that is BC). No one-bar recovery. Valid until relapse (counter-`bias_dir` reversal) or TS=1 consumption; optional max-age cap per `Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled` (cap = the layer's observation window). |
 | A21 | Minimum pullback duration per `Inp_RRM_ORG_MinPBBars_W/M/S`. **Contract: ≥ 2 — a pullback cannot complete in one bar.** |
 | Windows | Baseline slope lookback per `Inp_RRM_ORG_LayerPBLookback_W/M/S`; pullback observation window per `Inp_RRM_ORG_LayerPullbackWindow_W/M/S`. Both user-editable (+ global fallback). |
-| UNO reset | Transient same-direction UNO tolerated up to `Inp_RRM_ORG_UNO_ToleranceBars` — DETECTED/RECOVERED preserved. Reset on sustained UNO, bias flip, or confirmed phase change. |
+| UNO reset | Transient same-direction UNO tolerated up to `Inp_RRM_ORG_UNO_ToleranceBars` — DETECTED/IN-TREND preserved. Reset on sustained UNO, bias flip, or confirmed phase change. |
 | SL | Mode per `Inp_RRM_ORG_SLMode` (default SWING); swing search window per `Inp_RRM_ORG_SwingLookback` (a search window, not an exact bar). |
 | RR | Per `Inp_RRM_ORG_RRRatio`. PSAR trail starts only after BE (`Inp_RRM_ORG_TrailStartsAfterBE`). |
 | LayerS_RequireDirAlign | See inputs (default off) — prevents spurious block of LayerW/M during EM pullbacks. |

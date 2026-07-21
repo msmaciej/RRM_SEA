@@ -50,8 +50,8 @@ The two bolded lines are what a human reads as **one perceptual packet**: *the m
 
 Code cannot see a gestalt. It needs **separable, individually-decidable predicates**, evaluated bar by bar, each one true or false on its own. Translating the two lines literally — "wick touched EMA2" and "close is beyond EMA1" — and putting both **inside** the layer state machine fails in four specific ways, each of which was observed in this codebase and reverted:
 
-1. **Recovery would become a duplicate of BC.** "Price closes above EMA1" *is already* the BC gate (`Eval_BarClose`). If RECOVERED is also a close-vs-EMA test, the same predicate is evaluated twice — once as a state transition, once as a factor — and the layer machine adds no information the BC gate did not already carry. (Historic: the close-based `recovery_cond`, removed 2026-07.)
-2. **The cycle would complete in one bar.** Wick touches the zone (DETECTED) and the same candle closes beyond the fast EMA (RECOVERED) → `NONE → RECOVERED` inside a single candle. That is a spike, not a pullback. (Historic: the S2 one-bar shortcut, removed; the A21 minimum-duration gate now makes it structurally impossible.)
+1. **Recovery would become a duplicate of BC.** "Price closes above EMA1" *is already* the BC gate (`Eval_BarClose`). If IN-TREND is also a close-vs-EMA test, the same predicate is evaluated twice — once as a state transition, once as a factor — and the layer machine adds no information the BC gate did not already carry. (Historic: the close-based `recovery_cond`, removed 2026-07.)
+2. **The cycle would complete in one bar.** Wick touches the zone (DETECTED) and the same candle closes beyond the fast EMA (IN-TREND) → `NONE → IN-TREND` inside a single candle. That is a spike, not a pullback. (Historic: the S2 one-bar shortcut, removed; the A21 minimum-duration gate now makes it structurally impossible.)
 3. **"Touch" is not decidable without a magic number.** An exact touch of a floating-point EMA essentially never happens, so a literal encoding needs a tolerance band — a tunable with no value derivable from the Oracle or the code (see Framework Part F, *magic numbers are a smell*). The band is also broker-, spread- and tick-noise-dependent: the same setup would decide differently on two feeds.
 4. **A wick is not evidence of a pullback.** A single spike into the zone on thin liquidity satisfies "touched" while the trend never paused at all.
 
@@ -63,12 +63,12 @@ The EA **splits the perceptual packet into its two halves and gives each half it
 |---|---|---|---|
 | *"price pulls back…"* | fast-EMA slope **leaves** the trend vs `bias_dir` — flat (`LayerFlatRatio`) or reversed (`LayerAllowReversalPullback`) → `LAYER_PB_DETECTED` | `UpdateSingleLayerPullback` (P-R state machine) | **No** — EMA slope only |
 | *"…to touch the EMA2"* | (not tested — see *Accepted divergences* below) | — | — |
-| *"…and comes back"* (recovery) | **both** layer EMA slopes (fast **and** slow) point in `bias_dir` again, after `LayerMinPullbackBars` → `LAYER_PB_RECOVERED` | `UpdateSingleLayerPullback` | **No** — EMA slope only |
+| *"…and comes back"* (recovery) | **both** layer EMA slopes (fast **and** slow) point in `bias_dir` again, after `LayerMinPullbackBars` → `LAYER_PB_INTREND` | `UpdateSingleLayerPullback` | **No** — EMA slope only |
 | *"price closes above the EMA1"* | closed bar is beyond the layer's fast EMA in bias direction | **BC** gate, inside `EvaluateL` — *outside* the state machine | **Yes** |
 | *(bar must be a real move, not a doji)* | close vs open in bias direction | **BD** gate, inside `EvaluateL` | **Yes** |
 | *"EMA1 never crosses below EMA2 during this setup"* | fast/slow cross → layer invalidated, PB state reset to NONE, cascade W→M→S | `UpdateSingleLayerPullback` + `CheckLayerPairAlign` | **No** |
 
-`L = 1` requires *(layer is RECOVERED and positionally aligned)* **AND** *BC* **AND** *BD* — all on the same closed bar. **The conjunction reconstructs the Oracle packet.** The packet is not weakened by the split; it is made decidable. What changed is only *where each half is decided*.
+`L = 1` requires *(layer is IN-TREND and positionally aligned)* **AND** *BC* **AND** *BD* — all on the same closed bar. **The conjunction reconstructs the Oracle packet.** The packet is not weakened by the split; it is made decidable. What changed is only *where each half is decided*.
 
 ### The invariant
 
@@ -137,16 +137,16 @@ if(bias_dir != m_last_dir_state_bias)     // SEA_SignalEngine.mqh
 
 **exactly** a signed `±1 → ∓1` flip test. GUARD 1 hooks it directly and adds no new bias tracking. This matters: `DetectMarketPhase` is purely positional and returns UNO **both** in a deep pullback inside a healthy trend **and** on a genuine reversal path — it is directionally ambiguous and cannot mean "bias flipped". If UNO re-armed the guard, every deep pullback would re-arm it and good continuation entries would be lost permanently.
 
-### The counting unit is the CYCLE, not the RECOVERED transition
+### The counting unit is the CYCLE, not the IN-TREND transition
 
 The state graph already distinguishes them, and the distinction is load-bearing:
 
 - Every **cycle-ending** event lands the layer back in `LAYER_PB_NONE` — TS=1 consumption, max-age expiry, fast/slow cross, phase-change clear, climax reset, sustained-UNO wipe.
-- A **relapse** (`RECOVERED → DETECTED`) does **not** pass through `NONE`.
+- A **relapse** (`IN-TREND → DETECTED`) does **not** pass through `NONE`.
 
-So a relapse that re-recovers is the **same cycle re-completing** and must **not** advance the count. Counting raw `→RECOVERED` transitions instead would let a wobbling first recovery present itself as "the second cycle" and be allowed — defeating the guard in precisely the choppy market it targets.
+So a relapse that re-recovers is the **same cycle re-completing** and must **not** advance the count. Counting raw `→IN-TREND` transitions instead would let a wobbling first recovery present itself as "the second cycle" and be allowed — defeating the guard in precisely the choppy market it targets.
 
-Implementation: `m_layer_*_g1_counted` latches the cycle as counted at the single `→ LAYER_PB_RECOVERED` write, and is cleared at the single `NONE → DETECTED` transition — the **only** exit from `NONE`. Every reset-to-NONE path therefore clears it for free, with no wiring in any of them (the same self-management pattern as `bars_rec`).
+Implementation: `m_layer_*_g1_counted` latches the cycle as counted at the single `→ LAYER_PB_INTREND` write, and is cleared at the single `NONE → DETECTED` transition — the **only** exit from `NONE`. Every reset-to-NONE path therefore clears it for free, with no wiring in any of them (the same self-management pattern as `bars_rec`).
 
 **A blocked first cycle that expires without firing still burns the skip** (`g1_recov` stays 1). Otherwise the guard would have no exit in a market that never offers a clean second cycle, and it would become an indefinite block.
 
@@ -156,9 +156,9 @@ Implementation: `m_layer_*_g1_counted` latches the cycle as counted at the singl
 |---|---|
 | Arm on genuine flip (excl. `999`) | `UpdateLayerPullbackStates` + the warm-up replay — both, or live and warm-up desync |
 | Zero the counters on flip | `ResetDirectionalState()` |
-| Count a completed cycle | the single `state = LAYER_PB_RECOVERED` write in `UpdateSingleLayerPullback` |
+| Count a completed cycle | the single `state = LAYER_PB_INTREND` write in `UpdateSingleLayerPullback` |
 | Clear the per-cycle latch | the single `NONE → DETECTED` transition |
-| Block the entry | `CheckLayerPairAlign`, immediately after the RECOVERED gate |
+| Block the entry | `CheckLayerPairAlign`, immediately after the IN-TREND gate |
 | Report | `L_G1_POSTFLIP` (engine reason) · `NO(G1)` (SignalScan inspector) |
 
 The counters are threaded through `UpdateSingleLayerPullback`, which the EA, the warm-up replay and SignalScan **all** call — so the three agree by construction, exactly as §1.1's invariant requires. The warm-up replay re-derives arming and the cycle counts from replayed history, so a flip that happened *before* the EA loaded is seeded correctly and live evaluation does not re-skip a cycle history already spent.

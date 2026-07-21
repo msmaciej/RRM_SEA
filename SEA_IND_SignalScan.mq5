@@ -308,7 +308,7 @@ CSignalEngine  g_eng_short;
 // Path 2 (2026-07): UNO-flicker tolerance for the two-engine idle-reset below.
 // g_uno_run counts consecutive UNO (bias-absent) bars during a chronological
 // scan; a run within g_uno_tol PRESERVES both engines' layer states so a brief
-// UNO flicker does not erase an in-progress DETECTED/RECOVERED. g_uno_tol is
+// UNO flicker does not erase an in-progress DETECTED/IN-TREND. g_uno_tol is
 // synced from ST_Settings.UNO_ToleranceBars in OnInit.
 int  g_uno_run = 0;
 int  g_uno_tol = 2;
@@ -890,7 +890,7 @@ void ScanBar(int shift)
    // direction is active is reset every bar (correct isolation). An engine idle
    // because the bar is UNO (bias absent) is NOT reset on a transient flicker:
    // Path 2 (2026-07) tolerates up to g_uno_tol consecutive UNO bars, preserving
-   // both engines' DETECTED/RECOVERED so a brief UNO that resolves back to the
+   // both engines' DETECTED/IN-TREND so a brief UNO that resolves back to the
    // same direction does not erase an in-progress cycle. This mirrors the EA's
    // UNO_ToleranceBars behaviour so scanner and live stay identical.
    if(TS_LayerS || TS_LayerM || TS_LayerW)
