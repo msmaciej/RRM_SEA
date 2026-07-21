@@ -4388,12 +4388,13 @@ private:
    {
       int h_fast = INVALID_HANDLE, h_slow = INVALID_HANDLE;
       ELayerPullbackState current_state = LAYER_PB_NONE;
+      int    current_bars_rec = 0;   // bars spent in IN-TREND (0 on the recovery-edge bar)
       string layer_label = "";
       switch(layer_type)
       {
-         case 1: h_fast = h_ema1; h_slow = h_ema2; current_state = m_layer_w_pb_state; layer_label = "LayerW"; break;
-         case 2: h_fast = h_ema2; h_slow = h_ema3; current_state = m_layer_m_pb_state; layer_label = "LayerM"; break;
-         case 3: h_fast = h_ema3; h_slow = h_ema4; current_state = m_layer_s_pb_state; layer_label = "LayerS"; break;
+         case 1: h_fast = h_ema1; h_slow = h_ema2; current_state = m_layer_w_pb_state; current_bars_rec = m_layer_w_bars_rec; layer_label = "LayerW"; break;
+         case 2: h_fast = h_ema2; h_slow = h_ema3; current_state = m_layer_m_pb_state; current_bars_rec = m_layer_m_bars_rec; layer_label = "LayerM"; break;
+         case 3: h_fast = h_ema3; h_slow = h_ema4; current_state = m_layer_s_pb_state; current_bars_rec = m_layer_s_bars_rec; layer_label = "LayerS"; break;
          default: return 0;
       }
 
@@ -4477,20 +4478,36 @@ private:
 
       if(m_settings.LayerPullbackEnabled && base_result == 1)
       {
-         // Gate logic:
-         //   NONE     = no pullback seen yet → BLOCK (must earn recovery first)
-         //   DETECTED = actively in pullback → BLOCK (wait for recovery)
-         //   IN-TREND= pullback completed and trend resumed → ALLOW
+         // ── Fire-on-EDGE gate (2026-07 model correction) ────────────────
+         //   NONE     = no pullback seen yet          → BLOCK
+         //   DETECTED = actively in pullback          → BLOCK (wait for recovery)
+         //   IN-TREND & bars_rec>0 = trend persisting → BLOCK (WAITING, not firing)
+         //   IN-TREND & bars_rec==0 = recovery EDGE   → ALLOW (this bar is the entry)
          //
-         // A trade is only valid after a confirmed pullback-recovery cycle.
-         // NONE after reset (post-TS=1) means the cycle was consumed and a
-         // fresh pullback is required before the next entry is allowed.
-         // This prevents trend-extension entries with no preceding pullback.
+         // The entry is the DETECTED→IN-TREND transition itself, NOT mere
+         // persistence in IN-TREND ("being in-trend is waiting, not firing").
+         // The edge is identified path-independently: UpdateSingleLayerPullback
+         // increments bars_rec only on IN-TREND bars AFTER the transition, so it
+         // is 0 on the transition (recovery-edge) bar and >=1 on every later
+         // IN-TREND bar. This REPLACES the former post-TS=1 consumption reset
+         // (removed in EvaluateTS): re-firing on persistence is impossible by
+         // construction (bars_rec>0), and IN-TREND now PERSISTS through the trend
+         // instead of being wiped to NONE after a fire — so the next entry needs a
+         // genuine new pullback→recovery edge (relapse then re-recovery), which is
+         // exactly the RRM "one entry per pullback" rule. This is the fix for the
+         // stranded-trend under-firing (valid in-window setups being skipped).
          if(current_state != LAYER_PB_INTREND)
          {
             if(m_settings.DebugFlow)
                DebugLog(StringFormat("[%s] BLOCKED: no pullback-recovery cycle (State=%s)",
                                      layer_label, EnumToString(current_state)));
+            return 0;
+         }
+         if(current_bars_rec != 0)
+         {
+            if(m_settings.DebugFlow)
+               DebugLog(StringFormat("[%s] WAITING: IN-TREND persisting, no fresh recovery edge (bars_rec=%d)",
+                                     layer_label, current_bars_rec));
             return 0;
          }
 
@@ -8848,39 +8865,21 @@ public:
          if(m_settings.DebugFlow && final_signal != 0)
             DebugLog(StringFormat("[RESULT] TS=%d", final_signal));
 
-         // ── Pullback cycle reset after TS=1 ───────────────────────────
-         // A IN-TREND state is a one-shot gate: it is earned by a pullback
-         // and consumed by the entry on THAT layer. Reset ONLY the winning
-         // layer (m_last_layer) so the other two retain their independent
-         // IN-TREND setups — they represent different timeframes (W=EMA1/2,
-         // M=EMA2/3, S=EMA3/4) and each layer's cycle is independent of the
-         // others. Previously all three were reset together, which created a
-         // deadlock in trending markets: after one trade no layer could fire
-         // until fresh pullback-recovery cycles completed on EACH layer.
-         if(m_settings.LayerPullbackEnabled)
-         {
-            if(m_last_layer == 1 && m_layer_w_pb_state == LAYER_PB_INTREND)
-            {
-               m_layer_w_pb_state = LAYER_PB_NONE;
-               m_layer_w_bars_det = 0;   // A21 2026-07
-               if(m_settings.DebugFlow)
-                  DebugLog("[PB_RESET] LayerW: IN-TREND → NONE (TS=1 consumed pullback cycle)");
-            }
-            else if(m_last_layer == 2 && m_layer_m_pb_state == LAYER_PB_INTREND)
-            {
-               m_layer_m_pb_state = LAYER_PB_NONE;
-               m_layer_m_bars_det = 0;   // A21 2026-07
-               if(m_settings.DebugFlow)
-                  DebugLog("[PB_RESET] LayerM: IN-TREND → NONE (TS=1 consumed pullback cycle)");
-            }
-            else if(m_last_layer == 3 && m_layer_s_pb_state == LAYER_PB_INTREND)
-            {
-               m_layer_s_pb_state = LAYER_PB_NONE;
-               m_layer_s_bars_det = 0;   // A21 2026-07
-               if(m_settings.DebugFlow)
-                  DebugLog("[PB_RESET] LayerS: IN-TREND → NONE (TS=1 consumed pullback cycle)");
-            }
-         }
+         // ── NO consumption reset after TS=1 (2026-07 model correction) ──
+         // The former per-winning-layer reset (IN-TREND → NONE on the layer that
+         // fired) is REMOVED. It is superseded by the fire-on-EDGE gate in
+         // CheckLayerPairAlign: a layer fires ONLY on its DETECTED→IN-TREND
+         // transition bar (bars_rec==0), so re-firing on mere persistence is
+         // already impossible — the reset is not needed to prevent it. Worse, the
+         // reset was actively harmful: wiping the winning layer to NONE forced a
+         // full fresh NONE→DETECTED→IN-TREND cycle before the next entry, which in
+         // a clean persistent trend (shallow subsequent pullbacks that never fully
+         // reset the fast-EMA slope) stranded the layer and SKIPPED valid in-window
+         // setups. IN-TREND now PERSISTS after a fire; the next entry is the next
+         // genuine pullback→recovery edge (relapse then re-recovery) — the RRM
+         // "one entry per pullback" rule, with the trend held in-trend between them.
+         // (This is the removal half of the coupled edge-fire / consumption change;
+         // removing it WITHOUT edge-firing would over-fire — the two ship together.)
       }
 
       // Ensure UI vote counter is up-to-date
