@@ -4143,6 +4143,231 @@ private:
    }
 
    //==========================================================================
+   // DeriveLayerState — STATELESS re-derivation of one layer's pullback state
+   //
+   // Returns NONE / DETECTED / RECOVERED for `layer` (1=W,2=M,3=S) as of `shift`
+   // by REPLAYING the exact live per-bar dispatch into LOCALS — no persisted
+   // members, no warm-up seed. Bit-for-bit with the stateful path
+   // (EvaluateTS L8465-8505 / UpdateLayerPullbackStates L2454-2527 /
+   //  UpdateSingleLayerPullback L1957-2276):
+   //   per bar (oldest→shift): B = EvaluateB(s);
+   //     B!=0  → dir-wipe on a signed flip, then the single-layer step;
+   //     B==0  → UNO-tolerance freeze (uno_run<=UNO_ToleranceBars) else
+   //             sustained-UNO soft reset to NONE.
+   //
+   // replay_depth = window + min_pb + lookback + 1  (Stage-1 §3 proof: L reads
+   //   ONLY `== RECOVERED`; a truncated NONE-anchor cannot fabricate a false
+   //   RECOVERED, and max-age bounds a true RECOVERED to <= window bars). When
+   //   LayerRecoveryMaxAgeEnabled is OFF, RECOVERED is unbounded → the anchor is
+   //   extended to the most-recent fast/slow CROSS (a guaranteed NONE) inside a
+   //   hard cap.
+   //
+   // Scope (Stage-1 approved): excludes VPRR bookkeeping (off for RRM_ORG/FX)
+   //   and the GUARD-1 cycle counters (neither feeds a state transition).
+   //   Assumes LayerResetOnRealign == false (RRM_ORG default); the phase-realign
+   //   reset is NOT replayed — enabling it would make re-derivation diverge
+   //   (documented limitation, inert under the default preset).
+   //==========================================================================
+   ELayerPullbackState DeriveLayerState(int layer, int bias, int shift)
+   {
+      int h_fast, h_slow;
+      switch(layer)
+      {
+         case 1: h_fast = h_ema1; h_slow = h_ema2; break;
+         case 2: h_fast = h_ema2; h_slow = h_ema3; break;
+         case 3: h_fast = h_ema3; h_slow = h_ema4; break;
+         default: return LAYER_PB_NONE;
+      }
+      int  lookback = GetLayerLookback(layer);
+      int  min_pb   = GetLayerMinPBBars(layer);
+      int  window   = GetLayerWindow(layer);
+      bool maxage   = m_settings.LayerRecoveryMaxAgeEnabled;
+
+      // ── Anchor depth (Stage-1 §3) ────────────────────────────────────
+      int start_off = window + min_pb + lookback + 1;
+      if(!maxage)
+      {
+         // RECOVERED unbounded → walk back to a guaranteed-NONE cross anchor.
+         int cap = 3 * window + lookback + 1;
+         int cross_off = -1;
+         for(int off = start_off; off <= cap; off++)
+         {
+            int    s  = shift + off;
+            double pf = GetMAVal(h_fast, s);
+            double ps = GetMAVal(h_slow, s);
+            if(pf <= 0.0 || ps <= 0.0) continue;
+            bool wrong = (bias > 0) ? (pf <= ps) : (pf >= ps);   // position lost = cross
+            if(wrong) { cross_off = off; break; }
+         }
+         start_off = (cross_off >= 0) ? cross_off : cap;
+      }
+
+      // ── Replay locals (mirror warm-up / constructor sentinels) ───────
+      ELayerPullbackState state = LAYER_PB_NONE;
+      int bars_det = 0;
+      int bars_rec = 0;
+      int uno_run  = 0;
+      int bars_since_uno_exit = 999999;
+      int last_dir_bias = 999;
+
+      for(int s = shift + start_off; s >= shift; s--)
+      {
+         int B = EvaluateB(s);
+         if(B != 0)
+         {
+            uno_run = 0;
+            if(bars_since_uno_exit < 1000000) bars_since_uno_exit++;
+            // Directional wipe on a signed flip (ResetDirectionalState, layer part).
+            if(B != last_dir_bias)
+            {
+               state = LAYER_PB_NONE; bars_det = 0; bars_rec = 0;
+               last_dir_bias = B;
+            }
+            // MaybeResetLayersOnPhaseChange: inert (LayerResetOnRealign=false) — not replayed.
+            DeriveLayerStep(h_fast, h_slow, s, lookback, min_pb, window, maxage, B,
+                            bars_since_uno_exit, state, bars_det, bars_rec);
+         }
+         else
+         {
+            uno_run++;
+            if(uno_run <= m_settings.UNO_ToleranceBars)
+            {
+               // within tolerance — freeze (preserve state), no advance
+            }
+            else
+            {
+               bars_since_uno_exit = 0;
+               state = LAYER_PB_NONE; bars_det = 0;   // bars_rec zeroed on next advance (matches live)
+            }
+         }
+      }
+      return state;
+   }
+
+   //==========================================================================
+   // DeriveLayerStep — state-only extract of UpdateSingleLayerPullback.
+   // Transitions copied bit-for-bit (L1968-2210); VPRR volume block and GUARD-1
+   // cycle counting omitted (neither feeds a state transition).
+   //==========================================================================
+   void DeriveLayerStep(int h_fast, int h_slow, int v_shift, int lookback,
+                        int min_pb, int window, bool maxage, int bias_dir,
+                        int bars_since_uno_exit,
+                        ELayerPullbackState &state, int &bars_det, int &bars_rec)
+   {
+      // baseline direction + averaged pace (denominator)
+      double ema_baseline_old = GetMAVal(h_fast, v_shift + lookback + 1);
+      double ema_baseline_new = GetMAVal(h_fast, v_shift + lookback);
+      double baseline_slope   = ema_baseline_new - ema_baseline_old;
+      bool   baseline_bullish = (baseline_slope > 0.0);
+      double ema_pace_old = GetMAVal(h_fast, v_shift + lookback + 1);
+      double ema_pace_new = GetMAVal(h_fast, v_shift + 1);
+      double baseline_pace = (lookback > 0) ? (ema_pace_new - ema_pace_old) / (double)lookback : 0.0;
+      // current pace (k-bar)
+      int    k        = (int)MathMax(2.0, (double)lookback / 4.0);
+      double ema_now  = GetMAVal(h_fast, v_shift);
+      double ema_kago = GetMAVal(h_fast, v_shift + k);
+      double current_pace    = (ema_now - ema_kago) / (double)k;
+      bool   current_bullish = (current_pace > 0.0);
+      double ratio = 0.0;
+      if(MathAbs(baseline_pace) >= SEA_LAYER_SLOPE_EPSILON)
+         ratio = MathAbs(current_pace) / MathAbs(baseline_pace);
+
+      // cross-invalidation (position lost) — resets and skips this bar
+      if(bias_dir != 0 && h_slow != INVALID_HANDLE)
+      {
+         double pos_fast = GetMAVal(h_fast, v_shift);
+         double pos_slow = GetMAVal(h_slow, v_shift);
+         if(pos_fast > 0.0 && pos_slow > 0.0)
+         {
+            bool position_ok = (bias_dir > 0) ? (pos_fast > pos_slow) : (pos_fast < pos_slow);
+            if(!position_ok)
+            {
+               state = LAYER_PB_NONE; bars_det = 0; bars_rec = 0;
+               return;
+            }
+         }
+      }
+
+      // pullback (flat OR reversed vs bias)
+      bool is_flat     = (ratio < m_settings.LayerFlatRatio);
+      bool is_pullback = is_flat;
+      bool slope_reversed;
+      if(bias_dir != 0)
+         slope_reversed = (current_pace != 0.0) && ((bias_dir > 0) != (current_pace > 0.0));
+      else
+         slope_reversed = (baseline_bullish != current_bullish) && (current_pace != 0.0);
+      if(m_settings.LayerAllowReversalPullback && slope_reversed)
+         is_pullback = true;
+
+      // recovery (from DETECTED): fast AND slow slopes in bias
+      bool is_recovery = false;
+      if(state == LAYER_PB_DETECTED)
+      {
+         if(bias_dir != 0)
+         {
+            bool fast_in_bias = (current_pace != 0.0) && ((bias_dir > 0) == (current_pace > 0.0));
+            bool slow_in_bias = true;
+            if(h_slow != INVALID_HANDLE)
+            {
+               double slow_now  = GetMAVal(h_slow, v_shift);
+               double slow_kago = GetMAVal(h_slow, v_shift + k);
+               double slow_pace = (slow_now - slow_kago) / (double)k;
+               slow_in_bias = (slow_pace != 0.0) && ((bias_dir > 0) == (slow_pace > 0.0));
+            }
+            is_recovery = fast_in_bias && slow_in_bias;
+         }
+         else
+         {
+            double ema_rec_now  = GetMAVal(h_fast, v_shift);
+            double ema_rec_prev = GetMAVal(h_fast, v_shift + 1);
+            double rec_slope    = ema_rec_now - ema_rec_prev;
+            is_recovery = (rec_slope != 0.0) && (baseline_bullish == (rec_slope > 0.0));
+         }
+      }
+
+      // relapse (RECOVERED→DETECTED on counter-reversal)
+      bool is_relapse_reversal;
+      if(bias_dir != 0)
+         is_relapse_reversal = (current_pace != 0.0) && ((bias_dir > 0) != (current_pace > 0.0));
+      else
+         is_relapse_reversal = (baseline_bullish != current_bullish) && (current_pace != 0.0);
+
+      // counter advance (pre-transition state)
+      if(state == LAYER_PB_DETECTED)  bars_det++; else bars_det = 0;
+      if(state == LAYER_PB_RECOVERED) bars_rec++; else bars_rec = 0;
+
+      // transitions (bit-for-bit)
+      if(state == LAYER_PB_NONE && is_pullback)
+      {
+         state = LAYER_PB_DETECTED; bars_det = 1;
+      }
+      else if(state == LAYER_PB_DETECTED && is_recovery)
+      {
+         if(bars_det < min_pb)
+         {
+            // stay DETECTED (A21 min-duration gate)
+         }
+         else if(m_settings.MinBarsAfterUNOExit > 0 &&
+                 bars_since_uno_exit < m_settings.MinBarsAfterUNOExit)
+         {
+            // stay DETECTED (UNO-exit cooldown)
+         }
+         else
+         {
+            state = LAYER_PB_RECOVERED;
+         }
+      }
+      else if(state == LAYER_PB_RECOVERED && is_relapse_reversal)
+      {
+         state = LAYER_PB_DETECTED; bars_det = 1;
+      }
+      else if(state == LAYER_PB_RECOVERED && maxage && window > 0 && bars_rec >= window)
+      {
+         state = LAYER_PB_NONE;
+      }
+   }
+
+   //==========================================================================
    // CheckLayerPairAlign — Structural alignment check (position + slope)
    // Returns 1 if the EMA pair is aligned with bias direction, 0 otherwise.
    //
@@ -4170,6 +4395,24 @@ private:
          case 3: h_fast = h_ema3; h_slow = h_ema4; current_state = m_layer_s_pb_state; layer_label = "LayerS"; break;
          default: return 0;
       }
+
+      // ── Stage-2 (stateless refactor) — SHADOW MODE ──────────────────
+      // The L-gate trades on the PROVEN PERSISTED machine (current_state, above,
+      // advanced live by UpdateLayerPullbackStates). DeriveLayerState runs in
+      // PARALLEL as a shadow, feeding ONLY the [PB_DERIVE_DIFF] log — it does
+      // NOT decide trades while we debug the derivation. Flip back (make derived
+      // the verdict) only once the diff is clean over a multi-regime sample.
+      //
+      // Diff compared at shift==1 only: the persisted member is the single LIVE
+      // state, so only shift==1 is apples-to-apples (at other shifts the member
+      // is intentionally stale while DeriveLayerState is shift-correct).
+      ELayerPullbackState derived_state = DeriveLayerState(layer_type, bias, shift);
+      if(m_settings.DebugFlow && shift == 1 && derived_state != current_state)
+         DebugLog(StringFormat("[PB_DERIVE_DIFF] %s shift=%d bias=%d persisted=%s derived=%s",
+                               layer_label, shift, bias,
+                               EnumToString(current_state), EnumToString(derived_state)));
+      // NOTE: current_state is deliberately LEFT as the persisted value here —
+      // the trade verdict below uses the proven machine. (Derived is shadow-only.)
 
       // Route through ribbon snapshot via GetMAValSafe (handles iMA → manual
       // fallback for ribbon handles). Refuse on invalid — fails safe.
