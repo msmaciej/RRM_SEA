@@ -2196,18 +2196,14 @@ private:
          state    = LAYER_PB_DETECTED;
          bars_det = 1;   // first bar of a relapse DETECTED cycle
       }
-      else if(state == LAYER_PB_INTREND && maxage_enabled && window > 0 && bars_rec >= window)
-      {
-         // Recovery max-age (Path 2): a IN-TREND layer that has waited longer than
-         // its observation window to fire is stale — expire to NONE so a fresh
-         // pullback→recovery cycle is required (prevents a chase-entry far from the
-         // recovery point). Relapse (counter-trend reversal) takes precedence via
-         // the branch above; this is the quiet-timeout fallback.
-         state = LAYER_PB_NONE;
-         if(m_settings.DebugFlow)
-            DebugLog(StringFormat("[%s_PB] IN-TREND expired by max-age: %d bars >= window %d -> NONE",
-                                  label, bars_rec, window));
-      }
+      // ── Point-1 refactor (2026-07): bar-count max-age expiry REMOVED. ──
+      // An IN-TREND layer no longer expires to NONE by waiting N bars. It
+      // persists until a genuine STRUCTURAL break — a counter-trend relapse
+      // (branch above), a fast/slow position cross, a BIAS flip, or a
+      // sustained-UNO wipe — matching the RRM model that a trend, once
+      // resumed, stays in-trend until structure actually breaks. (Formerly:
+      // else if(state==LAYER_PB_INTREND && maxage_enabled && bars_rec>=window)
+      // -> NONE. maxage_enabled input is now inert for this transition.)
 
       if(m_settings.DebugFlow && state != prev_state)
       {
@@ -4180,15 +4176,20 @@ private:
       }
       int  lookback = GetLayerLookback(layer);
       int  min_pb   = GetLayerMinPBBars(layer);
-      int  window   = GetLayerWindow(layer);
-      bool maxage   = m_settings.LayerRecoveryMaxAgeEnabled;
+      int  window   = GetLayerWindow(layer);   // retained only for the step's min-duration math
+      bool maxage   = false;                    // Point-1: max-age removed (see DeriveLayerStep)
 
-      // ── Anchor depth (Stage-1 §3) ────────────────────────────────────
-      int start_off = window + min_pb + lookback + 1;
-      if(!maxage)
+      // ── Anchor on the LAST structural break (Point-1 model) ──────────
+      // No fixed replay depth and no bar-count window: walk back to the most
+      // recent fast/slow position cross (position lost = a guaranteed-NONE
+      // anchor) HOWEVER FAR BACK it is, then replay forward from there. This
+      // lets IN-TREND persist across an arbitrarily long trend instead of
+      // being truncated by a ~90-bar window that manufactures a false NONE.
+      // The cap is a pure performance/data safety bound, NOT a state window.
+      int start_off = min_pb + lookback + 1;    // minimum offset to seed slopes
       {
-         // IN-TREND unbounded → walk back to a guaranteed-NONE cross anchor.
-         int cap = 3 * window + lookback + 1;
+         int avail = Bars(m_symbol, PERIOD_CURRENT) - shift - 2;
+         int cap   = (avail > start_off) ? (int)MathMin((double)avail, 5000.0) : start_off;
          int cross_off = -1;
          for(int off = start_off; off <= cap; off++)
          {
@@ -4361,10 +4362,10 @@ private:
       {
          state = LAYER_PB_DETECTED; bars_det = 1;
       }
-      else if(state == LAYER_PB_INTREND && maxage && window > 0 && bars_rec >= window)
-      {
-         state = LAYER_PB_NONE;
-      }
+      // Point-1 refactor (2026-07): bar-count max-age branch REMOVED here too,
+      // so the derivation matches the persisted machine — IN-TREND persists
+      // until a structural break (relapse above, or a position cross which
+      // zeroes state via the cross-invalidation guard earlier in this step).
    }
 
    //==========================================================================
