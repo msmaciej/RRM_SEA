@@ -314,6 +314,18 @@ private:
     // for free, exactly as bars_rec self-manages.
     int      m_layer_w_g1_recov,   m_layer_m_g1_recov,   m_layer_s_g1_recov;
     bool     m_layer_w_g1_counted, m_layer_m_g1_counted, m_layer_s_g1_counted;
+    // ── Fire-on-EDGE armed-latch (2026-07 under-fire fix) ──────────────────────
+    // SET at the DETECTED→IN-TREND recovery edge; CLEARED when a TS=1 consumes the
+    // winning layer. The layer is fire-eligible on ANY bar of its IN-TREND run while
+    // armed — so the unanimous voters (DPI+PSAR+CandleBody+MTF) may align on a bar
+    // OTHER than the single geometric edge bar, instead of the setup being lost when
+    // they lag it by a bar. Re-firing on mere persistence stays impossible (the arm is
+    // consumed on fire and only re-armed by the next genuine pullback→recovery edge —
+    // "one entry per pullback"). This REPLACES the strict `bars_rec==0` single-bar gate,
+    // which starved fast-layer (W/M) fires on M1 where the recovery edge rarely
+    // coincides with all voters. No reset-site wiring needed: the arm is (re)written at
+    // every transition, so any pre-transition value is irrelevant.
+    bool     m_layer_w_fire_armed, m_layer_m_fire_armed, m_layer_s_fire_armed;
     // Armed only by a GENUINE ±1→∓1 flip. The 999 sentinel (cold start / warm-up
     // hand-off) must NOT arm it, or the EA would skip its first pullback-recovery
     // after every load, recompile and optimisation pass — silently corrupting any A/B.
@@ -1958,6 +1970,7 @@ private:
                                   double &vol_rec_avg, int &vol_rec_bars,
                                   double &vprr, int &bars_det, int &bars_rec,
                                   int &g1_recov, bool &g1_counted,
+                                  bool &fire_armed,
                                   int bias_dir = 0,
                                   int slow_ema_handle = INVALID_HANDLE,
                                   int min_pb_bars = 0,
@@ -2176,6 +2189,11 @@ private:
          else
          {
             state = LAYER_PB_INTREND;
+            // Fire-on-edge armed-latch: this transition is the recovery edge — arm the
+            // layer so it becomes fire-eligible for the whole IN-TREND run until a fire
+            // consumes it. A relapse→re-recovery re-enters this branch and re-arms
+            // (next genuine pullback→recovery = next allowed entry).
+            fire_armed = true;
             // GUARD 1: this is the ONE place the engine writes LAYER_PB_INTREND, so it
             // is the canonical "pullback-recovery completed" event. Count it ONCE per
             // cycle — a relapse that re-recovers must not advance the count.
@@ -2500,21 +2518,21 @@ private:
                                 m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
                                 m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr,
                                 m_layer_w_bars_det, m_layer_w_bars_rec,
-                                m_layer_w_g1_recov, m_layer_w_g1_counted, bias_dir,
+                                m_layer_w_g1_recov, m_layer_w_g1_counted, m_layer_w_fire_armed, bias_dir,
                                 h_ema2, GetLayerMinPBBars(1), GetLayerWindow(1), m_settings.LayerRecoveryMaxAgeEnabled);
       UpdateSingleLayerPullback(h_ema2, v_shift, GetLayerLookback(2),
                                 m_layer_m_pb_state, m_layer_m_baseline, "LayerM",
                                 m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                 m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr,
                                 m_layer_m_bars_det, m_layer_m_bars_rec,
-                                m_layer_m_g1_recov, m_layer_m_g1_counted, bias_dir,
+                                m_layer_m_g1_recov, m_layer_m_g1_counted, m_layer_m_fire_armed, bias_dir,
                                 h_ema3, GetLayerMinPBBars(2), GetLayerWindow(2), m_settings.LayerRecoveryMaxAgeEnabled);
       UpdateSingleLayerPullback(h_ema3, v_shift, GetLayerLookback(3),
                                 m_layer_s_pb_state, m_layer_s_baseline, "LayerS",
                                 m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                 m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr,
                                 m_layer_s_bars_det, m_layer_s_bars_rec,
-                                m_layer_s_g1_recov, m_layer_s_g1_counted, bias_dir,
+                                m_layer_s_g1_recov, m_layer_s_g1_counted, m_layer_s_fire_armed, bias_dir,
                                 h_ema4, GetLayerMinPBBars(3), GetLayerWindow(3), m_settings.LayerRecoveryMaxAgeEnabled);
 
       UpdateCBOverExtCarry(v_shift);
@@ -4387,12 +4405,13 @@ private:
       int h_fast = INVALID_HANDLE, h_slow = INVALID_HANDLE;
       ELayerPullbackState current_state = LAYER_PB_NONE;
       int    current_bars_rec = 0;   // bars spent in IN-TREND (0 on the recovery-edge bar)
+      bool   current_fire_armed = false;   // armed-latch: fire-eligible this IN-TREND run
       string layer_label = "";
       switch(layer_type)
       {
-         case 1: h_fast = h_ema1; h_slow = h_ema2; current_state = m_layer_w_pb_state; current_bars_rec = m_layer_w_bars_rec; layer_label = "LayerW"; break;
-         case 2: h_fast = h_ema2; h_slow = h_ema3; current_state = m_layer_m_pb_state; current_bars_rec = m_layer_m_bars_rec; layer_label = "LayerM"; break;
-         case 3: h_fast = h_ema3; h_slow = h_ema4; current_state = m_layer_s_pb_state; current_bars_rec = m_layer_s_bars_rec; layer_label = "LayerS"; break;
+         case 1: h_fast = h_ema1; h_slow = h_ema2; current_state = m_layer_w_pb_state; current_bars_rec = m_layer_w_bars_rec; current_fire_armed = m_layer_w_fire_armed; layer_label = "LayerW"; break;
+         case 2: h_fast = h_ema2; h_slow = h_ema3; current_state = m_layer_m_pb_state; current_bars_rec = m_layer_m_bars_rec; current_fire_armed = m_layer_m_fire_armed; layer_label = "LayerM"; break;
+         case 3: h_fast = h_ema3; h_slow = h_ema4; current_state = m_layer_s_pb_state; current_bars_rec = m_layer_s_bars_rec; current_fire_armed = m_layer_s_fire_armed; layer_label = "LayerS"; break;
          default: return 0;
       }
 
@@ -4501,10 +4520,15 @@ private:
                                      layer_label, EnumToString(current_state)));
             return 0;
          }
-         if(current_bars_rec != 0)
+         // Armed-latch gate (2026-07 under-fire fix): fire-eligible for the whole
+         // IN-TREND run while armed (armed at the recovery edge, consumed on TS=1),
+         // instead of only the single geometric edge bar. Lets the unanimous voters
+         // align on any IN-TREND bar of this cycle; re-firing on persistence is still
+         // impossible (arm consumed on fire, re-armed only by the next P-R edge).
+         if(!current_fire_armed)
          {
             if(m_settings.DebugFlow)
-               DebugLog(StringFormat("[%s] WAITING: IN-TREND persisting, no fresh recovery edge (bars_rec=%d)",
+               DebugLog(StringFormat("[%s] WAITING: IN-TREND persisting, entry already consumed this cycle (bars_rec=%d)",
                                      layer_label, current_bars_rec));
             return 0;
          }
@@ -4681,6 +4705,7 @@ private:
       // occurred. The two flip call sites arm explicitly.)
       m_layer_w_g1_recov   = 0; m_layer_m_g1_recov   = 0; m_layer_s_g1_recov   = 0;
       m_layer_w_g1_counted = false; m_layer_m_g1_counted = false; m_layer_s_g1_counted = false;
+      m_layer_w_fire_armed = false; m_layer_m_fire_armed = false; m_layer_s_fire_armed = false;
    }
 
    // Returns true if an over-extended impulse in `bias` direction is detected
@@ -5334,6 +5359,7 @@ public:
       m_eval_g1_blocked    = false;
       m_layer_w_g1_recov   = 0; m_layer_m_g1_recov   = 0; m_layer_s_g1_recov   = 0;
       m_layer_w_g1_counted = false; m_layer_m_g1_counted = false; m_layer_s_g1_counted = false;
+      m_layer_w_fire_armed = false; m_layer_m_fire_armed = false; m_layer_s_fire_armed = false;
 
       m_diag_layer_w      = 0;
       m_diag_layer_m      = 0;
@@ -6387,6 +6413,7 @@ public:
       m_g1_armed           = false;
       m_layer_w_g1_recov   = 0; m_layer_m_g1_recov   = 0; m_layer_s_g1_recov   = 0;
       m_layer_w_g1_counted = false; m_layer_m_g1_counted = false; m_layer_s_g1_counted = false;
+      m_layer_w_fire_armed = false; m_layer_m_fire_armed = false; m_layer_s_fire_armed = false;
       m_phase_reset_pending   = PHASE_UNORDERED;
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
@@ -6496,21 +6523,21 @@ public:
                                    m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
                                    m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars,
                                    m_layer_w_vprr, m_layer_w_bars_det, m_layer_w_bars_rec,
-                                   m_layer_w_g1_recov, m_layer_w_g1_counted, b_wu,
+                                   m_layer_w_g1_recov, m_layer_w_g1_counted, m_layer_w_fire_armed, b_wu,
                                    h_ema2, GetLayerMinPBBars(1), GetLayerWindow(1), m_settings.LayerRecoveryMaxAgeEnabled);
          UpdateSingleLayerPullback(h_ema2, shift, lb_m,
                                    m_layer_m_pb_state, m_layer_m_baseline, "LayerM_WU",
                                    m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                    m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars,
                                    m_layer_m_vprr, m_layer_m_bars_det, m_layer_m_bars_rec,
-                                   m_layer_m_g1_recov, m_layer_m_g1_counted, b_wu,
+                                   m_layer_m_g1_recov, m_layer_m_g1_counted, m_layer_m_fire_armed, b_wu,
                                    h_ema3, GetLayerMinPBBars(2), GetLayerWindow(2), m_settings.LayerRecoveryMaxAgeEnabled);
          UpdateSingleLayerPullback(h_ema3, shift, lb_s,
                                    m_layer_s_pb_state, m_layer_s_baseline, "LayerS_WU",
                                    m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                    m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars,
                                    m_layer_s_vprr, m_layer_s_bars_det, m_layer_s_bars_rec,
-                                   m_layer_s_g1_recov, m_layer_s_g1_counted, b_wu,
+                                   m_layer_s_g1_recov, m_layer_s_g1_counted, m_layer_s_fire_armed, b_wu,
                                    h_ema4, GetLayerMinPBBars(3), GetLayerWindow(3), m_settings.LayerRecoveryMaxAgeEnabled);
 
          UpdateCBOverExtCarry(shift);
@@ -8814,6 +8841,14 @@ public:
          final_signal = 1;
          // Note: m_diag_last_bias was already set by EvaluateB; update for consistency
          m_diag_last_bias = B;
+         // Fire-on-edge armed-latch: consume the winning layer's arm so it does NOT
+         // re-fire on subsequent IN-TREND bars of the SAME pullback-recovery cycle.
+         // Re-arming happens only at the next genuine DETECTED→IN-TREND edge — the
+         // RRM "one entry per pullback" rule. m_last_layer is the layer that won the
+         // L3→L2→L1 walk this bar.
+         if(m_last_layer == 1)      m_layer_w_fire_armed = false;
+         else if(m_last_layer == 2) m_layer_m_fire_armed = false;
+         else if(m_last_layer == 3) m_layer_s_fire_armed = false;
          // TS-level counters (moved here from EvaluateIndicatorX so they reflect
          // actual TS=1 events, not just indicator-vote passes that B/P/L/CG/F
          // later veto).
