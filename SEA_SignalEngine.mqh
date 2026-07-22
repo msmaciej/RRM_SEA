@@ -168,7 +168,6 @@ struct SRejectionStats {
    int passed_emafan,     rejected_emafan;     // EMA fan overextension
    int passed_dpi_decel,  rejected_dpi_decel;  // DPI histogram deceleration
    int exits_dpi_hist;                          // Trades closed by DPI histogram exit
-   int passed_phase_age,  rejected_phase_age;  // MinPhaseConfirmBars not met
    int passed_htf_align,  rejected_htf_align;  // Legacy field retained for compatibility
    int passed_mtf,        rejected_mtf;        // MTF global filter statistics
    // F-AUDIT 2026-06: previously rolled into m_reject_filter only; now have
@@ -244,7 +243,6 @@ private:
       
    // Phase Detection Diagnostics
    EMarketPhase m_diag_last_phase;       // Last detected market phase
-   int          m_diag_phase_confirm_bars; // Number of consecutive bars in current phase
 
    // --- 2c. KISS LAYER DIAGNOSTICS ---
     int         m_diag_layer_w;       // Last evaluated LayerW result (0/1)
@@ -4911,18 +4909,7 @@ public:
    bool   Scanner_DetectClimax(int bias, int shift)     { return DetectClimax(bias, shift); }
    void   Scanner_ResetAllLayerPullback()               { ResetAllLayerPullback(); }
 
-   // Shift-aware PHASE_AGE: require the phase at `shift` to have persisted for
-   // MinPhaseConfirmBars consecutive bars. Mirrors the EA's m_diag_phase_confirm_bars
-   // gate, computed directly from DetectMarketPhase so it is valid at any shift.
-   bool PhaseAgeConfirmed(int shift)
-   {
-      int need = m_settings.MinPhaseConfirmBars;
-      if(need <= 0) return true;
-      EMarketPhase ph = DetectMarketPhase(shift);
-      for(int i = shift + 1; i <= shift + need - 1; i++)
-         if(DetectMarketPhase(i) != ph) return false;
-      return true;
-   }
+   // PhaseAgeConfirmed REMOVED 2026-07 (phase-confirm mechanism deleted SEA-wide).
 
    //==========================================================================
    // EvaluateF — shared F factor (pre-filters). Faithful, decision-only mirror
@@ -5030,14 +5017,12 @@ public:
       if(m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled)
          if(m_dpi_hist_decelerating) { m_last_f_reason = "DPI_DECEL"; return false; }
 
-      // ── Phase-age confirmation (reconstructed shift-aware) ──
-      // F-AUDIT 2026-06: now also requires RequireMinPhaseConfirm, matching the
-      // GetBias_4EMA_Direction gate (SEA_SignalEngine.mqh:~7091). Previously F
-      // gated on MinPhaseConfirmBars > 0 alone, so TI users with
-      // RequireMinPhaseConfirm=false but MinPhaseConfirmBars > 0 saw F block
-      // (PHASE_AGE) even though B explicitly skipped the confirm.
-      if(m_settings.RequireMinPhaseConfirm && m_settings.MinPhaseConfirmBars > 0)
-         if(!PhaseAgeConfirmed(shift)) { m_last_f_reason = "PHASE_AGE"; return false; }
+      // ── Phase-age confirmation REMOVED 2026-07 ──
+      // The phase-confirm mechanism (bias must have held the same phase for N
+      // prior bars) is removed SEA-wide: bias is defined mathematically by the
+      // EMA ribbon order at the evaluated closed bar (shift=1), with no N-bar
+      // persistence requirement (RRM Checklist item 2). The F-side PHASE_AGE
+      // gate — the twin of the GetBias_4EMA_Direction gate — is deleted with it.
 
       // ── Climax / exhaustion guard (F-AUDIT 2026-06: was separate factor CG) ──
       // Merged into F as the final sub-filter per the SimpleEA equation
@@ -5327,7 +5312,6 @@ public:
 
       // Initialize phase diagnostics
       m_diag_last_phase = PHASE_UNORDERED;
-      m_diag_phase_confirm_bars = 0;
       m_phase_reset_pending   = PHASE_UNORDERED;
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
@@ -5438,7 +5422,6 @@ public:
 
    // 260304_PR1: Phase Detection Diagnostics
    EMarketPhase GetLastDetectedPhase() const { return m_diag_last_phase; }
-   int          GetPhaseConfirmBars() const { return m_diag_phase_confirm_bars; }
 
    //+------------------------------------------------------------------+
    //| DPI Histogram Diagnostic Getters                                 |
@@ -5703,10 +5686,6 @@ public:
       reasons[idx].count = m_stats.rejected_dpi_decel;
       reasons[idx++].pct = m_stats.rejected_dpi_decel * 100.0 / m_stats.total_bars;
 
-      reasons[idx].name = "Phase Age";
-      reasons[idx].count = m_stats.rejected_phase_age;
-      reasons[idx++].pct = m_stats.rejected_phase_age * 100.0 / m_stats.total_bars;
-
       reasons[idx].name = "MTF Conflict";
       reasons[idx].count = m_stats.rejected_mtf;
       reasons[idx++].pct = m_stats.rejected_mtf * 100.0 / m_stats.total_bars;
@@ -5812,13 +5791,6 @@ public:
                     (m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled)
                        ? "momentum decelerating"
                        : "(disabled)");
-      PrintGateStat("Phase Age",
-                    (m_settings.MinPhaseConfirmBars > 0),
-                    m_stats.passed_phase_age,
-                    m_stats.rejected_phase_age,
-                    (m_settings.MinPhaseConfirmBars > 0)
-                       ? StringFormat(">=%d bars", m_settings.MinPhaseConfirmBars)
-                       : "(disabled)");
       // F-AUDIT 2026-06: PriceExt + Climax rows (previously counted only in m_reject_filter, no breakdown)
       PrintGateStat("Price OverExt",
                     m_settings.PriceExtFilterEnabled,
@@ -5856,7 +5828,7 @@ public:
       Print("----------------------------------------------------------------");
       PrintFormat("Pre-filter blocks: %d bars (TS), %d (TE), %d exits (DPI Hist)",
                   m_stats.rejected_emafan + m_stats.rejected_dpi_decel +
-                  m_stats.rejected_phase_age + m_stats.rejected_priceext +
+                  m_stats.rejected_priceext +
                   m_stats.rejected_climax,                                   // F-AUDIT 2026-06: PriceExt + Climax now counted
                   m_stats.rejected_te_open_delay + m_stats.rejected_te_bc_recheck +
                   m_stats.rejected_te_spread_median,
@@ -6654,7 +6626,6 @@ public:
       m_ts_status_str = "";
       m_te_status_str = "";
       m_diag_last_phase = PHASE_UNORDERED;
-      m_diag_phase_confirm_bars = 0;
       m_phase_reset_pending   = PHASE_UNORDERED;
       m_phase_reset_confirmed = PHASE_UNORDERED;
       m_phase_reset_count     = 0;
@@ -8004,13 +7975,8 @@ public:
       if(diag_bias)
          Print("[GET_BIAS_4EMA] phase=", EnumToString(phase));
 
-      if(m_settings.RequireMinPhaseConfirm && m_settings.MinPhaseConfirmBars > 0) {
-         if(!ConfirmPhaseStability(phase, m_settings.MinPhaseConfirmBars)) {
-            if(diag_bias)
-               Print("[GET_BIAS_4EMA] Phase not stable -> returning 0");
-            return 0;
-         }
-      }
+      // Phase-confirm gate REMOVED 2026-07: bias is defined by the ribbon order
+      // at shift=1 alone; it no longer waits N bars for the phase to "confirm".
 
       int result = 0;
       switch(phase)
@@ -8785,7 +8751,6 @@ public:
          m_reject_filter++;
          if(bd.F_reason == "EMA_OVEREXT")        m_stats.rejected_emafan++;
          else if(bd.F_reason == "DPI_DECEL")     m_stats.rejected_dpi_decel++;
-         else if(bd.F_reason == "PHASE_AGE")     m_stats.rejected_phase_age++;
          else if(bd.F_reason == "CLIMAX_GUARD")  m_stats.rejected_climax++;     // F-AUDIT 2026-06: new counter (Phase K)
          else if(bd.F_reason == "PRICE_OVEREXT") m_stats.rejected_priceext++;   // F-AUDIT 2026-06: new counter (Phase K)
          // F-AUDIT 2026-06: climax now arrives here as F_reason="CLIMAX_GUARD".
@@ -8805,8 +8770,6 @@ public:
          if((m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled) ||
             (m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled))
             m_stats.passed_dpi_decel++;
-         if(m_settings.MinPhaseConfirmBars > 0)
-            m_stats.passed_phase_age++;
          if(m_settings.PriceExtFilterEnabled && m_settings.PriceExtMaxATR > 0.0)
             m_stats.passed_priceext++;                                         // F-AUDIT 2026-06 (Phase K)
          if(m_settings.ClimaxGuard_Enabled)
@@ -8913,9 +8876,6 @@ public:
                                ((m_settings.DpiDecelFilterEnabled && m_settings.Ind_Dpi_Enabled) ||
                                 (m_settings.DPI_BlockOnDeceleration && m_settings.DPI_HistTrackingEnabled)) ? "✅" : "⏭️",
                                (m_settings.DpiDecelFilterEnabled || m_settings.DPI_BlockOnDeceleration) ? "enabled" : "disabled"));
-         DebugLog(StringFormat("  %s Phase age:  %s",
-                               (m_settings.RequireMinPhaseConfirm && m_settings.MinPhaseConfirmBars > 0) ? "✅" : "⏭️",
-                               m_settings.RequireMinPhaseConfirm ? "enabled" : "disabled"));
          DebugLog(StringFormat("  %s Climax:     %s",
                                m_settings.ClimaxGuard_Enabled ? "✅" : "⏭️",
                                m_settings.ClimaxGuard_Enabled ? "enabled" : "disabled"));
@@ -9292,45 +9252,12 @@ public:
    }
    
    //+------------------------------------------------------------------+
-   //| 260304_PR1: Confirm Phase Stability (Optional)                  |
-   //| Checks N consecutive bars in same phase (min_bars=0 = instant)  |
+   //| ConfirmPhaseStability REMOVED 2026-07                            |
+   //| The phase-confirm mechanism (require N consecutive bars in the   |
+   //| same phase before granting bias) is deleted SEA-wide: bias is    |
+   //| defined by the ribbon order at shift=1 alone. Its callers (the   |
+   //| GetBias_4EMA_Direction gate + the diagnostic updater) removed.   |
    //+------------------------------------------------------------------+
-   bool ConfirmPhaseStability(const EMarketPhase current_phase, const int min_bars)
-   {
-      if(min_bars <= 0) return true;  // 0=instant (no confirmation required)
-      
-      // Count consecutive bars in current phase
-      int confirmed_bars = 1;  // Current bar (shift=1) counts as 1
-      
-      for(int i = 2; i <= min_bars; i++)
-      {
-         EMarketPhase past_phase = DetectMarketPhase(i);
-         
-         if(past_phase == current_phase)
-         {
-            confirmed_bars++;
-         }
-         else
-         {
-            // Phase changed - not stable
-            if(m_settings.DebugFlow)
-               PrintFormat("[260304_PHASE] UNSTABLE: Current=%s, Bar[%d]=%s (need %d consecutive bars)", 
-                           EnumToString(current_phase), i, EnumToString(past_phase), min_bars);
-            
-            m_diag_phase_confirm_bars = confirmed_bars;
-            return false;
-         }
-      }
-      
-      // Phase is stable for required number of bars
-      m_diag_phase_confirm_bars = confirmed_bars;
-      
-      if(m_settings.DebugFlow)
-         PrintFormat("[260304_PHASE] STABLE: %s confirmed for %d/%d consecutive bars", 
-                     EnumToString(current_phase), confirmed_bars, min_bars);
-      
-      return true;
-   }
    
    //+------------------------------------------------------------------+
    //| 260304_PR1: Update Phase Diagnostics (passive observation only) |
@@ -9341,22 +9268,13 @@ public:
       if(!m_settings.PhaseDetectionEnabled)
       {
          m_diag_last_phase = PHASE_UNORDERED;
-         m_diag_phase_confirm_bars = 0;
          return;
       }
       
       // Detect current phase
       m_diag_last_phase = DetectMarketPhase(v_shift);
-      
-      // Check phase stability if required
-      if(m_settings.RequireMinPhaseConfirm)
-      {
-         ConfirmPhaseStability(m_diag_last_phase, m_settings.MinPhaseConfirmBars);
-      }
-      else
-      {
-         m_diag_phase_confirm_bars = 0;  // Stability check disabled
-      }
+
+      // Phase-confirm mechanism REMOVED 2026-07 — no stability tracking.
    }
 
    //+------------------------------------------------------------------+

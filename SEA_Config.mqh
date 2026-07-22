@@ -761,8 +761,6 @@ struct ST_Settings
    bool     PhaseDetectionEnabled;        // Master switch for phase system
    bool     BlockUnorderedPhase;          // Block trades during UNORDERED phase
    bool     BlockEmergingPhase;           // Block trades during EMERGING phase (trend forming, unconfirmed)
-   bool     RequireMinPhaseConfirm;       // Require N consecutive bars in same phase
-   int      MinPhaseConfirmBars;          // Minimum bars to confirm phase stability
    
    // Phase-specific trade permissions
    bool     Emerging_AllowStrongTrades;   // EMERGING phase: Allow EMA3/EMA4 entries

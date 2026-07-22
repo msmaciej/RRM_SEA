@@ -582,7 +582,6 @@ int OrchestrateInit()
       Print("BIAS & PHASE:");
       Print("  BiasMode: ", EnumToString(Settings.BiasMode));
       Print("  PhaseDetectionEnabled: ", (Settings.PhaseDetectionEnabled ? "true" : "false"));
-      Print("  MinPhaseConfirmBars: ", Settings.MinPhaseConfirmBars, " (0=instant EMA check)");
       Print("  BlockUnorderedPhase: ", (Settings.BlockUnorderedPhase ? "true" : "false"));
       Print("  BlockEmergingPhase:  ", (Settings.BlockEmergingPhase  ? "true" : "false"));
 

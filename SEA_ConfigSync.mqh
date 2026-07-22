@@ -113,9 +113,7 @@ bool SEA_WriteConfigSnapshot(const ST_Settings &cfg)
    FileWriteString(h, "BlockEmergingPhase=" + (cfg.BlockEmergingPhase ? "true" : "false") + "\n");
    FileWriteString(h, "BlockUnorderedPhase=" + (cfg.BlockUnorderedPhase ? "true" : "false") + "\n");
    FileWriteString(h, "Emerging_AllowStrongTrades=" + (cfg.Emerging_AllowStrongTrades ? "true" : "false") + "\n");
-   FileWriteString(h, "MinPhaseConfirmBars=" + IntegerToString(cfg.MinPhaseConfirmBars) + "\n");
    FileWriteString(h, "PhaseDetectionEnabled=" + (cfg.PhaseDetectionEnabled ? "true" : "false") + "\n");
-   FileWriteString(h, "RequireMinPhaseConfirm=" + (cfg.RequireMinPhaseConfirm ? "true" : "false") + "\n");
    FileWriteString(h, "# -- 04 Layer detection --\n");
    FileWriteString(h, "AllowLayer1_Entries=" + (cfg.AllowLayer1_Entries ? "true" : "false") + "\n");
    FileWriteString(h, "AllowLayer2_Entries=" + (cfg.AllowLayer2_Entries ? "true" : "false") + "\n");
@@ -462,7 +460,6 @@ bool SEA_CS_ApplyKey(ST_Settings &s, const string key, const string val)
    if(key == "LayerRecoveryMaxAgeEnabled") { s.LayerRecoveryMaxAgeEnabled = SEA_CS_ParseBool(val); return true; }
    if(key == "Guard1_SkipFirstPostFlipPR") { s.Guard1_SkipFirstPostFlipPR = SEA_CS_ParseBool(val); return true; }
    if(key == "MinBarsAfterWeekendGap") { s.MinBarsAfterWeekendGap = (int)StringToInteger(val); return true; }
-   if(key == "MinPhaseConfirmBars") { s.MinPhaseConfirmBars = (int)StringToInteger(val); return true; }
    if(key == "PSAR_FlipGraceBars") { s.PSAR_FlipGraceBars = (int)StringToInteger(val); return true; }
    if(key == "P_Adx") { s.P_Adx = (int)StringToInteger(val); return true; }
    if(key == "P_Atr") { s.P_Atr = (int)StringToInteger(val); return true; }
@@ -488,7 +485,6 @@ bool SEA_CS_ApplyKey(ST_Settings &s, const string key, const string val)
    if(key == "PriceExtFilterEnabled") { s.PriceExtFilterEnabled = SEA_CS_ParseBool(val); return true; }
    if(key == "PriceExtMaxATR") { s.PriceExtMaxATR = StringToDouble(val); return true; }
    if(key == "PriceExtRefEma") { s.PriceExtRefEma = (int)StringToInteger(val); return true; }
-   if(key == "RequireMinPhaseConfirm") { s.RequireMinPhaseConfirm = SEA_CS_ParseBool(val); return true; }
    if(key == "RequirePriceCross") { s.RequirePriceCross = SEA_CS_ParseBool(val); return true; }
    if(key == "Require_Progressive_Momentum") { s.Require_Progressive_Momentum = SEA_CS_ParseBool(val); return true; }
    if(key == "RsiMode") { s.RsiMode = (ERsiMode)(int)StringToInteger(val); return true; }

@@ -136,7 +136,8 @@ Optional pre-entry gates evaluated by the engine's `EvaluateF`. **All off by def
 | `EMA_OVEREXT` | EMA fan over-extended (spread too wide) | stateless / shift-correct |
 | `DPI_DECEL` | DPI histogram momentum decelerating | **stateful** — needs `UpdateDPIHistogramState` current for the bar |
 | `DPI_RESET_WAIT` | DPI CCI reset-recovery not yet complete | **stateful** |
-| `PHASE_AGE` | current phase younger than `MinPhaseConfirmBars` | shift-relative |
+
+*(The former `PHASE_AGE` sub-filter — which blocked when the phase was younger than `MinPhaseConfirmBars` — was removed SEA-wide in 2026-07 along with the phase-confirm mechanism; bias is defined by the ribbon order at shift=1 with no N-bar persistence requirement.)*
 
 > **Two different "F".** This TS-side F is **not** spread/session/news — those are TE-side gates (see TE Equation). They are separate functions in separate classes that happen to share the name. **MTF** (Multi-Timeframe alignment) is evaluated at TS time and counted as an **I** voter, not F. The DPI used here (decel / reset-recovery) is also distinct from the DPI **vote** in I, which is stateless.
 
@@ -186,10 +187,11 @@ Each factor reads `ok` (passed), `NO(code)` (blocked, with the reason), or `--` 
 | **F** | `EMAFAN` | `EMA_OVEREXT` — EMA fan over-extended |
 | | `DECEL` | `DPI_DECEL` — DPI histogram momentum decelerating |
 | | `RESET` | `DPI_RESET_WAIT` — DPI CCI reset-recovery not complete |
-| | `AGE` | `PHASE_AGE` — phase younger than `MinPhaseConfirmBars` |
 | **CG** | `climax` | climax/exhaustion veto fired *(over-threshold ATR margin ratios are a planned addition)* |
 
 When there is no bias the panel collapses to `TS=0 blocked by B (no bias)` and the per-factor line is not shown. The inspector is **passive** — it reproduces the shared `EvaluateTS_Breakdown` decision read-only and never mutates layer state.
+
+> **Full scanner reference:** see **`README_SIGNALSCAN.md`** for setup, the historical signal-marking scan, EA↔scanner config sync, the two-engine model, and exactly where the scanner matches or diverges from the live EA.
 
 ---
 

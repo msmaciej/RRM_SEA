@@ -1329,8 +1329,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EnableLayerDetection      = false;
       cfg.BlockUnorderedPhase       = false;
       cfg.BlockEmergingPhase        = false;
-      cfg.RequireMinPhaseConfirm    = false;
-      cfg.MinPhaseConfirmBars       = 0;
 
       // Layer permissions (all irrelevant when detection is off, set safe defaults)
       cfg.Emerging_AllowStrongTrades = true;
@@ -1617,8 +1615,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EnableLayerDetection      = false;
       cfg.BlockUnorderedPhase       = false;
       cfg.BlockEmergingPhase        = false;
-      cfg.RequireMinPhaseConfirm    = false;
-      cfg.MinPhaseConfirmBars       = 0;
       
       // Layer permissions per phase
       cfg.Emerging_AllowStrongTrades = false;
@@ -1996,17 +1992,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BlockUnorderedPhase       = true;           // UNORDERED → block all trades
       cfg.BlockEmergingPhase        = false;           // true: EM phase = no trades; TM phase = trades allowed
 
-      // PHASE A: TF-scaled phase-age confirmation. The previous setting
-      // (0 on every TF) lets a single bar that flickers into TM after UNO
-      // qualify as a setup — see trade #095 (EURJPY M5) and #075 (USDJPY
-      // M5) where the entry bar is the first/second TM bar after a
-      // tangled-ribbon zone and price reverses immediately. Requiring
-      // 1–3 bars of phase persistence kills these flickers cheaply.
-      // Operator-tunable via Inp_RRM_ORG_PhaseConfirm* (Phase B).
-      cfg.RequireMinPhaseConfirm    = true;  // ✅ ENABLE COUNTER UPDATE
-      cfg.MinPhaseConfirmBars       = (_Period <= PERIOD_M5)  ? Inp_RRM_ORG_PhaseConfirmM5
-                                    : (_Period <= PERIOD_M30) ? Inp_RRM_ORG_PhaseConfirmM30
-                                    :                           Inp_RRM_ORG_PhaseConfirmH1plus;
+      // Phase-confirm mechanism REMOVED 2026-07 (SEA-wide). Bias is defined
+      // mathematically by the EMA ribbon order at the evaluated closed bar
+      // (shift=1) — RRM Trade Checklist item 2 asks only "is the market in an
+      // Emerging or Trending phase?", with NO requirement that the phase have
+      // persisted for N prior bars. The former gate zeroed a valid ordered-ribbon
+      // bias for the first N bars of a fresh trend, skipping the turn-entry.
 
       // EMERGING phase: WEAK + MEDIUM only; STRONG always blocked per RRM methodology
       // F-AUDIT 2026-07: Emerging_AllowWeakTrades / Emerging_AllowMediumTrades are PROVEN DEAD
@@ -2436,8 +2427,6 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EnableLayerDetection      = true;            // LOCKED: layer detection is the core of System 1 (EMA bounce); disabling it removes pullback/recovery logic entirely
       cfg.BlockUnorderedPhase       = Inp_TI_BlockUnorderedPhase;
       cfg.BlockEmergingPhase        = !Inp_TI_PhaseAllowEM;
-      cfg.RequireMinPhaseConfirm    = Inp_TI_RequireMinPhaseConfirm;
-      cfg.MinPhaseConfirmBars       = (_Period <= PERIOD_M5) ? 1 : 2;  // LOCKED: auto-scaled by TF — shorter TFs need fewer confirm bars; hardcoding one value would over-filter on M1 or under-filter on H4
 
       // Layer permissions
       // Trending phase: all 3 layers allowed — TI trades any pullback depth in a confirmed trend

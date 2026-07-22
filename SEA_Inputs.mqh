@@ -679,9 +679,6 @@ input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM ORG 
 input int         Inp_RRM_ORG_Ema2Period           = 13;             // RRM ORG QA: EMA2 period
 input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG QA: EMA3 period
 input int         Inp_RRM_ORG_Ema4Period           = 89;             // RRM ORG QA: EMA4 period
-input int         Inp_RRM_ORG_PhaseConfirmM5       = 0;              // RRM ORG QA: PhaseConfirmBars <M5
-input int         Inp_RRM_ORG_PhaseConfirmM30      = 0;              // RRM ORG QA: PhaseConfirmBars <M30
-input int         Inp_RRM_ORG_PhaseConfirmH1plus   = 0;              // RRM ORG QA: PhaseConfirmBars H1+
 input int         Inp_RRM_ORG_MinBarsAfterUNOExit  = 0;              // RRM ORG QA: Min bars after UNO exit before any layer DETECTED→IN-TREND transition is allowed (0=disabled; try 2-3 for M1)
 input int         Inp_RRM_ORG_UNO_ToleranceBars    = 2;              // RRM ORG PB: consecutive UNO bars tolerated before layer states are wiped. A transient UNO flicker that resolves back to the SAME direction within this many bars PRESERVES DETECTED/IN-TREND (0=strict: reset on the first UNO bar)
 input bool        Inp_RRM_ORG_LayerS_TMOnly        = false;          // RRM ORG QA: Restrict LayerS (EMA3/EMA4) entries to TRENDING phase only (per canonical RRM); false=legacy (LayerS allowed in EM+TM)
@@ -898,7 +895,6 @@ input group "╔═════════════════════�
 input group "║   📐 TOPINVESTOR: STANDARD — Signal Architecture";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_TI_BlockUnorderedPhase       = true;           // TI Arch: block unordered phase
-input bool        Inp_TI_RequireMinPhaseConfirm    = true;           // TI Arch: require phase confirm bars
 input bool        Inp_TI_Emerging_AllowStrong      = false;          // TI Arch: allow strong trades in EM phase
 input bool        Inp_TI_CloseOnReverse            = false;          // TI Arch: close on bias reversal
 input group "╔════════════════════════════════════════════════════════╗";
@@ -1612,8 +1608,6 @@ void InitializeConfig()
    Settings.PhaseDetectionEnabled        = true;
    Settings.BlockUnorderedPhase          = true;
    Settings.BlockEmergingPhase           = false;
-   Settings.RequireMinPhaseConfirm       = false;
-   Settings.MinPhaseConfirmBars          = 0;
    
    Settings.Emerging_AllowStrongTrades   = true;
 

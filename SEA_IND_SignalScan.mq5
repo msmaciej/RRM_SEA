@@ -643,7 +643,6 @@ string InspCode(string raw)
    if(StringFind(raw,"EMA_OVEREXT")>=0)         return "EMAFAN";
    if(StringFind(raw,"DPI_DECEL")>=0)           return "DECEL";
    if(StringFind(raw,"DPI_RESET")>=0)           return "RESET";
-   if(StringFind(raw,"PHASE_AGE")>=0)           return "AGE";
    return raw;   // I-voter names (already compact, e.g. "DPI,PSAR") shown as-is
 }
 // Like InspMark but appends the engine reason code when a factor is NO.
@@ -939,17 +938,20 @@ void ScanBar(int shift)
 //+------------------------------------------------------------------+
 void Eval(int shift, CSignalEngine &eng, int bias)
 {
-   // ── Shared engine: single B*P*L*I (+climax) decision path ─────────
+   // ── Shared engine: single B*P*F*L*I (+climax) decision path ───────
    // SignalScan delegates the entire signal decision to the same core the EA
-   // uses (EvaluateTS_AtShift), so the scanner and the EA apply identical
-   // Phase / Layer(pullback-recovery) / Indicator / Climax logic at the
-   // scanned bar. Bias is supplied per-direction by ScanBar; the layer
-   // pullback and PSAR-flip state were already updated there.
+   // uses: EvaluateTS_AtShift -> EvaluateTS_Breakdown, which evaluates B, P,
+   // F (full EvaluateF: EMA-fan / price-ext / DPI-decel / DPI reset-recovery /
+   // climax), L (pullback-recovery) and I identically to the EA. Bias is
+   // supplied per-direction by ScanBar; layer-pullback and PSAR-flip state were
+   // already updated there.
    //
-   // NOTE: the F pre-filters (DPI reset-recovery, phase-age, EMA-fan,
-   // DPI-decel) are not yet in the shared core, so the scanner is slightly
-   // more permissive than the EA on those gates until F is unified. Phase (P)
-   // is a no-op here until the scanner config sets PhaseDetectionEnabled (2.4).
+   // PARITY: the ONLY thing that makes the scanner diverge from the live EA is
+   // config source. With Scn_Sync_With_EA=false the engine runs on scanner
+   // inputs; with it true the EA's effective ST_Settings snapshot is overlaid,
+   // so every gate (incl. every F sub-filter and Phase) matches the EA. F and P
+   // are NOT missing from the core — earlier notes to that effect were stale.
+
    if(eng.EvaluateTS_AtShift(shift, bias) != 1)
       return;
 
