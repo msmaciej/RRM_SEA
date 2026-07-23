@@ -4425,11 +4425,47 @@ private:
       // Diff compared at shift==1 only: the persisted member is the single LIVE
       // state, so only shift==1 is apples-to-apples (at other shifts the member
       // is intentionally stale while DeriveLayerState is shift-correct).
-      ELayerPullbackState derived_state = DeriveLayerState(layer_type, bias, shift);
-      if(m_settings.DebugFlow && shift == 1 && derived_state != current_state)
-         DebugLog(StringFormat("[PB_DERIVE_DIFF] %s shift=%d bias=%d persisted=%s derived=%s",
-                               layer_label, shift, bias,
-                               EnumToString(current_state), EnumToString(derived_state)));
+      // ── SHADOW DIAGNOSTIC — side-effect isolation (2026-07-22 fix) ──────
+      // DeriveLayerState() REPLAYS EvaluateB() across a range of historical bars.
+      // EvaluateB writes SHARED members (m_eval_any_failure, m_eval_first_failure,
+      // m_diag_last_reason/phase/bias, reject stats). On the LIVE path that side
+      // effect was catastrophic: whenever the replay window contained an UNORDERED
+      // historical bar, EvaluateB(bias==0) set m_eval_any_failure=true and stamped
+      // a bias-zero reason onto the LIVE bar — so a perfectly valid trending bar
+      // (BIAS+ / TM / layers in-trend) was blocked as "TS=0 by BIAS_ZERO/UNORDERED".
+      // That was the true cause of the "BIAS_ZERO blocks constantly" paradox, NOT
+      // the bias math. Derived state is SHADOW-ONLY (the verdict uses current_state),
+      // so: (a) run it ONLY under DebugFlow — it feeds nothing but [PB_DERIVE_DIFF];
+      // (b) snapshot & restore the shared state around it so a debug run cannot
+      // corrupt the live decision either.
+      if(m_settings.DebugFlow && shift == 1)
+      {
+         bool         sv_anyfail   = m_eval_any_failure;
+         string       sv_firstfail = m_eval_first_failure;
+         string       sv_reason    = m_diag_last_reason;
+         int          sv_bias      = m_diag_last_bias;
+         EMarketPhase sv_phase     = m_diag_last_phase;
+         string       sv_strB      = m_eval_str_B;
+         int          sv_reject    = m_reject_bias;
+         int          sv_rejstat   = m_stats.rejected_bias;
+
+         ELayerPullbackState derived_state = DeriveLayerState(layer_type, bias, shift);
+
+         // Restore — the shadow observation must not affect the live evaluation.
+         m_eval_any_failure   = sv_anyfail;
+         m_eval_first_failure = sv_firstfail;
+         m_diag_last_reason   = sv_reason;
+         m_diag_last_bias     = sv_bias;
+         m_diag_last_phase    = sv_phase;
+         m_eval_str_B         = sv_strB;
+         m_reject_bias        = sv_reject;
+         m_stats.rejected_bias = sv_rejstat;
+
+         if(derived_state != current_state)
+            DebugLog(StringFormat("[PB_DERIVE_DIFF] %s shift=%d bias=%d persisted=%s derived=%s",
+                                  layer_label, shift, bias,
+                                  EnumToString(current_state), EnumToString(derived_state)));
+      }
       // NOTE: current_state is deliberately LEFT as the persisted value here —
       // the trade verdict below uses the proven machine. (Derived is shadow-only.)
 
@@ -7432,18 +7468,21 @@ public:
                PrintFormat("[BIAS] EMA read invalid (fcurr=%d scurr=%d fprev=%d sprev=%d) → bias=0",
                            (int)ok_fcurr, (int)ok_scurr, (int)ok_fprev, (int)ok_sprev);
             }
+            // 2026-07-22: honest reason (consistency with the 4EMA path). A bias
+            // EMA read that came back invalid is "bias unknown (bad read)", NOT a
+            // real no-direction market. Report BIAS_INVALID_READ so a read defect
+            // is visible instead of masquerading as BIAS_ZERO.
             m_eval_str_B = "INV";
-            int market_bias_inv = 0;
-            if(market_bias_inv == 0) {
+            {
                m_diag_last_bias = 0;
-               m_diag_last_reason = "BIAS_ZERO";
+               m_diag_last_reason = "BIAS_INVALID_READ";
                m_reject_bias++;
                m_stats.rejected_bias++;
                if(!m_settings.Stats_FullEvaluation) {
                   m_ts_status_string = StringFormat("B[%s] | I[%s] | F[%s]", m_eval_str_B, m_eval_str_I, m_eval_str_F);
                   return 0;
                }
-               if(m_eval_first_failure == "") m_eval_first_failure = "BIAS_ZERO";
+               if(m_eval_first_failure == "") m_eval_first_failure = "BIAS_INVALID_READ";
                m_eval_any_failure = true;
             }
          }
@@ -7471,9 +7510,17 @@ public:
          }
          else
          {
-            if(f_curr > s_curr && fast_slope == 1)       { market_bias = 1;  m_eval_str_B = "+"; }
-            else if(f_curr < s_curr && fast_slope == -1) { market_bias = -1; m_eval_str_B = "+"; }
-            else m_eval_str_B = "SLOPE";
+            // BIAS = DIRECTION (position only). 2026-07-22 fix: the slope
+            // agreement that used to gate this (fast_slope==1/-1) was a
+            // MOMENTUM/pullback test — it belongs to the Layer pullback-recovery
+            // system, NOT to bias. ANDing it here rejected every pullback bar
+            // (fast still on the trend side of slow, but momentarily sloping
+            // against the trend) as BIAS_ZERO, blocking trades constantly.
+            // bias is direction; direction is position. bias=0 now requires an
+            // exact f==s tie (near-impossible), matching the intended semantics.
+            if(f_curr > s_curr)      { market_bias = 1;  m_eval_str_B = "+"; }
+            else if(f_curr < s_curr) { market_bias = -1; m_eval_str_B = "+"; }
+            else m_eval_str_B = "TIE";
 
             if(m_settings.DebugFlow) {
                datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
@@ -8100,7 +8147,25 @@ public:
       }
 
       if(bias == 0) {
-         m_diag_last_reason = "BIAS_ZERO";
+         // Honest reason (2026-07-22): bias==0 in 4EMA mode means the 13/34/89
+         // ribbon did not classify to a directional phase. Report WHY instead of
+         // the blanket "BIAS_ZERO", which conflated two very different cases and
+         // made an unordered pullback bar look like a mysterious bias failure:
+         //   • a 13/34/89 slot read INVALID (iMA AND manual both failed) → the
+         //     phase fell back to UNORDERED on bad data, NOT a real unordered
+         //     ribbon — a defect to chase (surfaces the GetMAValSafe suspicion).
+         //   • otherwise the ribbon is GENUINELY unordered (13/34/89 not stacked)
+         //     → correct no-trade, and it now reads "PHASE_UNORDERED" (matching
+         //     the P factor's own label) instead of "BIAS_ZERO".
+         // m_diag_last_phase was set inside GetBias_4EMA_Direction just above, and
+         // GetEmaValid reads the same snapshot DetectMarketPhase classified from.
+         bool ribbon_read_bad = (!GetEmaValid(2) || !GetEmaValid(3) || !GetEmaValid(4));
+         if(ribbon_read_bad)
+            m_diag_last_reason = "BIAS_INVALID_READ";
+         else if(m_diag_last_phase == PHASE_UNORDERED)
+            m_diag_last_reason = "PHASE_UNORDERED";
+         else
+            m_diag_last_reason = "BIAS_ZERO";   // safety fallback (e.g. bias detection off)
          m_reject_bias++;
          m_stats.rejected_bias++;
          if(!m_settings.Stats_FullEvaluation) {
@@ -8108,7 +8173,7 @@ public:
             m_diag_last_bias = 0;
             return 0;
          }
-         if(m_eval_first_failure == "") m_eval_first_failure = "BIAS_ZERO";
+         if(m_eval_first_failure == "") m_eval_first_failure = m_diag_last_reason;
          m_eval_any_failure = true;
        } else {
           m_stats.passed_bias++;

@@ -47,6 +47,8 @@ Uses **EMA2(13), EMA3(34), EMA4(89)** position to classify market direction. EMA
 
 EM (Emerging) is identified by EMA4 (slowest) sandwiched between EMA2 and EMA3 — the slow backbone is being overtaken by momentum. UNO is any arrangement not matching TM or EM — no coherent structure.
 
+> **Bias is direction only, and `BiasMode` is configurable.** The table above is the RRM_ORG default (4-EMA *phase* — pure ribbon position, no slope). `BiasMode` is a preset input, so any preset (RRM_ORG included) may instead run 1-EMA (slope) or 2-EMA (position) bias. Across all modes, bias encodes **direction** only — momentum/pullback timing lives in the Layer system (L), never in B. A bias of `0` therefore means a genuine no-direction structure (an exact EMA tie, a flat single EMA, or a genuinely unordered ribbon) and is rare by construction; frequent bias-`0` in a trend is a bug signal. **2026-07-22:** the 2-EMA pair mode was corrected to position-only (the old position-**and**-slope gate rejected every pullback bar as `BIAS_ZERO`), and a failed EMA read now reports `BIAS_INVALID_READ` instead of masquerading as `BIAS_ZERO`. Full bias-mode + reason-code reference: `Readme/README_SEA_SIGNAL_REFERENCE.md` §"Step 2: Evaluate Bias".
+
 ---
 
 ### P — Phase gate

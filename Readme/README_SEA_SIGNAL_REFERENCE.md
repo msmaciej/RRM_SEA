@@ -65,16 +65,31 @@ flowchart TD
 
 ### Step 2: Evaluate Bias
 **Purpose:** Determine the PRIMARY trend direction (LONG/SHORT/NEUTRAL).
+
+> **Bias is DIRECTION only.** Direction is defined by **structure**, per mode — *position* for the pair modes, *slope* for the single-EMA mode, *phase* for 4EMA. Momentum/pullback timing is **not** part of bias — that lives entirely in the Layer pullback-recovery system (Step 3). Consequently a directional bias returning `0` requires a genuine no-direction structure (an exact EMA tie, a mathematically flat single EMA, or a genuinely unordered ribbon), which is **rare by construction**. Frequent bias-`0` in a trending market is therefore a bug signal, not a market state. **`BiasMode` is preset-configurable** (`Inp_*`), so RRM_ORG may be run with 1-EMA or 2-EMA bias as well as its default 4-EMA phase — the semantics below apply to whichever mode is active, regardless of preset.
+
 * **BIAS_MANUAL:** Fixed operator direction.
-* **BIAS_1EMA:** Single EMA slope direction (up=LONG, down=SHORT, flat=NEUTRAL).
-* **BIAS_2EMA:** Two EMAs crossover or position+slope validation.
-  * `STRAT_2EMA_CROSS`: Signal at cross point only (one-bar signal)
-  * `STRAT_PRICE_CROSS`: Signal when price crosses EMA (one-bar signal)
-  * `STRAT_2EMA_POSITION`: Continuous signal when Fast>Slow + slopes agree
-* **BIAS_4EMA:** Four EMAs phase detection. EMA periods per `Inp_RRM_ORG_Ema1Period`…`Ema4Period` (EMA1=fastest … EMA4=slowest).
-    * *TRENDING:* 3 of 3 layers agree on position + slope. (Bias = ±1)
-    * *EMERGING:* 2 of 3 layers agree. (Bias = ±1)
-    * *UNORDERED:* < 2 layers agree. Bias forced to 0.
+* **BIAS_1EMA:** Single EMA **slope** direction (rising=LONG, falling=SHORT, exactly-flat=NEUTRAL). Flat is near-impossible, so `0` is rare. (Slope *is* the direction here — there is no second EMA to give position.)
+* **BIAS_2EMA:** Direction from the **position** of the two bias EMAs (fast above slow = LONG, fast below slow = SHORT). Bias = `0` only on an exact `fast == slow` tie (near-impossible).
+  * `STRAT_2EMA_CROSS`: entry signal at the cross point only (one-bar signal)
+  * `STRAT_PRICE_CROSS`: entry signal when price crosses the EMA (one-bar signal)
+  * `STRAT_2EMA_POSITION`: continuous entry signal while price is on the correct side of both EMAs
+  * *Fix 2026-07-22:* pair-mode bias is **position-only**. The former requirement that the fast EMA's **slope** also agree with its position was a momentum/pullback test wrongly folded into bias — it rejected **every pullback bar** (fast still on the trend side of slow but momentarily sloping against the trend) as `BIAS_ZERO`, blocking trades constantly. The slope/pullback check belongs to the Layer system, which already performs it, so it was removed from bias.
+* **BIAS_4EMA:** Four-EMA **phase** detection (pure ribbon *position* of EMA2/EMA3/EMA4 — no slope term). EMA periods per `Inp_RRM_ORG_Ema1Period`…`Ema4Period` (EMA1=fastest … EMA4=slowest).
+    * *TRENDING:* EMAs stacked descending/ascending (EMA2/3/4 ordered). (Bias = ±1)
+    * *EMERGING:* EMA4 sandwiched between EMA2 and EMA3. (Bias = ±1)
+    * *UNORDERED:* any other stacking. Bias forced to 0.
+
+**Bias reason codes** (what the cockpit / `m_diag_last_reason` reports when bias = 0):
+
+| Reason | Meaning |
+|--------|---------|
+| `BIAS_ZERO` | Genuine no-direction structure — an exact EMA tie, a flat single-EMA slope, or (4EMA) a genuinely unordered ribbon. A correct no-trade. |
+| `BIAS_INVALID_READ` | A bias EMA **read failed** (both iMA and the manual fallback returned invalid). This is *bias unknown*, **not** a real no-direction market — a read defect to chase, no longer masked as `BIAS_ZERO`. Applies to both the 2EMA and 4EMA paths (2026-07-22). |
+| `BIAS_DISABLED` | `BiasEnabled = false`. |
+| `PHASE_UNORDERED` | (4EMA) the ribbon read cleanly and is genuinely unordered — the honest label matching the P factor (2026-07-22). |
+
+> **Spurious bias-zero on a valid trending bar — fixed 2026-07-22 (root cause).** A separate defect could make a fully valid bar (`BIAS+` / TM / layers in-trend) report `TS=0` blocked by `BIAS_ZERO`/`PHASE_UNORDERED` — the "blocks constantly" paradox. Cause: the **shadow** layer-state derivation (`DeriveLayerState`, run in parallel for the `[PB_DERIVE_DIFF]` diagnostic and *not* used for the verdict) **replayed `EvaluateB()` across historical bars**, and `EvaluateB` writes shared members (`m_eval_any_failure`, `m_eval_first_failure`, `m_diag_last_reason`). When the replay window contained an unordered historical bar it set `m_eval_any_failure=true` on the **live** evaluation, forcing `TS=0` and stamping a stale bias-zero reason regardless of the live bar's true state. Fix: the shadow now runs **only under `DebugFlow`** and its shared-state writes are snapshotted and restored, so it can never affect the live decision. This was the true cause of frequent `BIAS_ZERO` in trending markets — not the bias computation itself.
 
 ### Step 3: Evaluate LayerX ($Layer_{W}, Layer_{M}, Layer_{S}$)
 **Purpose:** Confirm that the EMA pair is structurally aligned AND has completed a pullback-recovery cycle at this depth.
