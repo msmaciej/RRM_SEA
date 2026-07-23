@@ -162,7 +162,11 @@ input int    CG_Lookback         = 13;      // [Guard] Window (bars) scanned for
 input int    CG_ATRPeriod        = 14;     // [Guard] ATR baseline period (pre-impulse)
 input double CG_BarATRMult       = 2.0;    // [Guard] Single-bar range threshold (x ATR)
 input double CG_MoveATRMult      = 3.0;    // [Guard] Cumulative move threshold (x ATR)
-input bool   CG_ResetPullback    = true;   // [Guard] On detection reset ALL layer PB states
+// F-AUDIT 2026-07: CG_ResetPullback REMOVED with the mechanism it drove. Note it had
+// defaulted to TRUE here while the EA's Inp_Global_ClimaxGuard_ResetPullback defaulted to
+// FALSE -- and Scn_Sync_With_EA is off by default, so scanner inputs were authoritative.
+// Enabling TS_ClimaxGuard alone therefore armed the destructive layer-wipe on the scanner
+// but not on the EA: a silent parity break against the two-engine equivalence contract.
 input bool TS_DPI                = true;  // [I] DPI momentum
 input bool TS_MACD               = false;  // [I] MACD histogram
 input bool TS_MFI                = false;  // [I] MFI money flow
@@ -1078,7 +1082,7 @@ void BuildSettings(ST_Settings &s)
    s.ClimaxGuard_ATRPeriod     = CG_ATRPeriod;
    s.ClimaxGuard_BarATRMult    = CG_BarATRMult;
    s.ClimaxGuard_MoveATRMult   = CG_MoveATRMult;
-   s.ClimaxGuard_ResetPullback = CG_ResetPullback;
+   // F-AUDIT 2026-07: ClimaxGuard_ResetPullback mapping removed with the input and field.
    s.MTF_RequirePhase    = false;
 
    // CandleBody

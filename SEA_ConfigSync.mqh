@@ -289,7 +289,9 @@ bool SEA_WriteConfigSnapshot(const ST_Settings &cfg)
    FileWriteString(h, "ClimaxGuard_Enabled=" + (cfg.ClimaxGuard_Enabled ? "true" : "false") + "\n");
    FileWriteString(h, "ClimaxGuard_Lookback=" + IntegerToString(cfg.ClimaxGuard_Lookback) + "\n");
    FileWriteString(h, "ClimaxGuard_MoveATRMult=" + DoubleToString(cfg.ClimaxGuard_MoveATRMult, 8) + "\n");
-   FileWriteString(h, "ClimaxGuard_ResetPullback=" + (cfg.ClimaxGuard_ResetPullback ? "true" : "false") + "\n");
+   // F-AUDIT 2026-07: the ClimaxGuard_ResetPullback key is REMOVED with the mechanism.
+   // Older snapshots still containing it load without error -- SEA_CS_ApplyKey() ignores
+   // unknown keys, exactly as for the F-AUDIT-STRUCT keys retired above.
    FileWriteString(h, "# -- 24 VPRR --\n");
    FileWriteString(h, "VPRR_Enabled=" + (cfg.VPRR_Enabled ? "true" : "false") + "\n");
    FileWriteString(h, "VPRR_ExternalSymbol=" + cfg.VPRR_ExternalSymbol + "\n");
@@ -370,7 +372,8 @@ bool SEA_CS_ApplyKey(ST_Settings &s, const string key, const string val)
    if(key == "ClimaxGuard_Enabled") { s.ClimaxGuard_Enabled = SEA_CS_ParseBool(val); return true; }
    if(key == "ClimaxGuard_Lookback") { s.ClimaxGuard_Lookback = (int)StringToInteger(val); return true; }
    if(key == "ClimaxGuard_MoveATRMult") { s.ClimaxGuard_MoveATRMult = StringToDouble(val); return true; }
-   if(key == "ClimaxGuard_ResetPullback") { s.ClimaxGuard_ResetPullback = SEA_CS_ParseBool(val); return true; }
+   // F-AUDIT 2026-07: "ClimaxGuard_ResetPullback" parser removed; the key is now unknown
+   // and therefore ignored by design (backward-compatible with older snapshot files).
    if(key == "DPI_BlockOnDeceleration") { s.DPI_BlockOnDeceleration = SEA_CS_ParseBool(val); return true; }
    if(key == "DPI_CCI_AppliedPrice") { s.DPI_CCI_AppliedPrice = (int)StringToInteger(val); return true; }
    if(key == "DPI_CCI_Period") { s.DPI_CCI_Period = (int)StringToInteger(val); return true; }

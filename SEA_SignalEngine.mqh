@@ -2156,8 +2156,8 @@ private:
          bars_det = 1;   // first bar of a fresh DETECTED cycle
          // GUARD 1: a NEW pullback-recovery cycle begins here. This is the ONLY exit
          // from NONE, so clearing the latch here covers every reset-to-NONE path
-         // (consumption / max-age / cross / phase-clear / climax / sustained-UNO)
-         // without wiring any of them. A relapse from IN-TREND does NOT come through
+         // (cross / phase-clear / sustained-UNO — the consumption, max-age and climax
+         // paths were themselves removed in 2026-07) without wiring any of them. A relapse from IN-TREND does NOT come through
          // this branch, so it correctly leaves the latch set (same cycle).
          g1_counted = false;
       }
@@ -2368,8 +2368,9 @@ private:
          // state to NONE WITHOUT going through that branch must mirror that
          // cleanup, or a subsequent NONE→DETECTED transition will accumulate
          // the new pullback's pb_avg on top of the stale cycle's value
-         // (contaminated VPRR ratio, depressed by carry-over). Same fix lives
-         // in ResetAllLayerPullback (CLIMAX path).
+         // (contaminated VPRR ratio, depressed by carry-over). The CLIMAX path that
+         // used to carry the same fix (ResetAllLayerPullback) was removed 2026-07, so
+         // this stale-only clear is now the only phase-driven reset in the engine.
          if(m_layer_w_pb_state == LAYER_PB_INTREND) {
             m_layer_w_pb_state    = LAYER_PB_NONE;
             m_layer_w_vol_pb_avg  = 0.0; m_layer_w_vol_pb_bars  = 0;
@@ -4606,10 +4607,10 @@ private:
 
    //==========================================================================
    // Climax / Exhaustion Guard
-   //   Blocks signals that land into an over-extended impulse and (optionally)
-   //   resets ALL layer pullback-recovery states so a fresh cycle is required
-   //   before the next entry. Detection is side-effect-free; the reset is
-   //   performed explicitly by the caller via ResetAllLayerPullback().
+   //   Blocks signals that land into an over-extended impulse. Detection is
+   //   side-effect-free and the guard is now PURELY a veto: the optional
+   //   layer-wipe side effect (ClimaxGuard_ResetPullback / ResetAllLayerPullback)
+   //   was REMOVED 2026-07 -- a blocked bar no longer mutates layer P-R state.
    //==========================================================================
    double ManualATR(int period, int start_shift)
    {
@@ -4627,37 +4628,22 @@ private:
       return (n > 0) ? sum / n : 0.0;
    }
 
-   void ResetAllLayerPullback()
-   {
-      // STEP12 2026-06: extended to also clear VPRR volume metrics and baseline,
-      // mirroring the invariant in UpdateSingleLayerPullback's NONE branch.
-      // Previously only set pb_state to NONE, leaving stale vol_pb_avg/bars/
-      // vol_rec_avg/bars/vprr/baseline behind — which then contaminated the
-      // NEXT pullback cycle's measurement (depressed VPRR ratio). Same fix
-      // lives in MaybeResetLayersOnPhaseChange (phase-change path).
-      m_layer_w_pb_state    = LAYER_PB_NONE;
-      m_layer_w_vol_pb_avg  = 0.0; m_layer_w_vol_pb_bars  = 0;
-      m_layer_w_vol_rec_avg = 0.0; m_layer_w_vol_rec_bars = 0;
-      m_layer_w_vprr        = 0.0;
-      m_layer_w_baseline    = 0.0;
-      m_layer_w_bars_det    = 0;   // A21 2026-07
-
-      m_layer_m_pb_state    = LAYER_PB_NONE;
-      m_layer_m_vol_pb_avg  = 0.0; m_layer_m_vol_pb_bars  = 0;
-      m_layer_m_vol_rec_avg = 0.0; m_layer_m_vol_rec_bars = 0;
-      m_layer_m_vprr        = 0.0;
-      m_layer_m_baseline    = 0.0;
-      m_layer_m_bars_det    = 0;   // A21 2026-07
-
-      m_layer_s_pb_state    = LAYER_PB_NONE;
-      m_layer_s_vol_pb_avg  = 0.0; m_layer_s_vol_pb_bars  = 0;
-      m_layer_s_vol_rec_avg = 0.0; m_layer_s_vol_rec_bars = 0;
-      m_layer_s_vprr        = 0.0;
-      m_layer_s_baseline    = 0.0;
-      m_layer_s_bars_det    = 0;   // A21 2026-07
-      if(m_settings.DebugFlow)
-         DebugLog("[CLIMAX] All layer pullback states reset -> NONE (await fresh pullback-recovery)");
-   }
+   // ── ResetAllLayerPullback REMOVED 2026-07 (climax layer-wipe deleted SEA-wide) ──
+   // This was the ONLY consumer of ClimaxGuard_ResetPullback: on a climax block it
+   // forced all three layer P-R state machines to NONE. Removed because
+   //   (a) it is the same destructive class as the post-TS=1 consumption reset
+   //       deleted earlier in 2026-07 — and strictly broader: ALL THREE layers, on a
+   //       bar the engine had just REJECTED, not one layer after a fire;
+   //   (b) it contradicts the stale-only invariant this engine documents in
+   //       MaybeResetLayersOnPhaseChange — an unconditional NONE erases an in-progress
+   //       DETECTED at the pullback→recovery boundary, and the only exit from NONE is a
+   //       FRESH pullback (recovery bars are not pullback bars), so the layer is
+   //       stranded through the entire recovery it had already earned;
+   //   (c) no Oracle rule makes a blocked entry unmake the pullback structure, and the
+   //       structural invalidations that ARE Oracle-backed (fast/slow cross, BIAS flip,
+   //       sustained UNO, counter-trend relapse) all remain in force.
+   // The climax BLOCK is unchanged: DetectClimax still vetoes via F_reason
+   // "CLIMAX_GUARD", and it is side-effect-free exactly as its header claims.
 
    //==========================================================================
    // ResetDirectionalState — long/short symmetry primitive
@@ -4968,7 +4954,9 @@ public:
    bool   Scanner_Check_BB(int bias, int shift)  { return Check_BB(bias, shift); }
    bool   Scanner_Check_CandleBody(int bias, int shift) { return Check_CandleBody(bias, shift); }
    bool   Scanner_DetectClimax(int bias, int shift)     { return DetectClimax(bias, shift); }
-   void   Scanner_ResetAllLayerPullback()               { ResetAllLayerPullback(); }
+   // Scanner_ResetAllLayerPullback REMOVED 2026-07 together with ResetAllLayerPullback
+   // itself (it had no caller anywhere in the tree; SignalScan uses the per-layer soft
+   // resets Scanner_ResetLayerAfterFire / Scanner_ExpireRecovered instead).
 
    // PhaseAgeConfirmed REMOVED 2026-07 (phase-confirm mechanism deleted SEA-wide).
 
@@ -5087,11 +5075,10 @@ public:
 
       // ── Climax / exhaustion guard (F-AUDIT 2026-06: was separate factor CG) ──
       // Merged into F as the final sub-filter per the SimpleEA equation
-      // simplification (TS = B × P × F × L × I). DetectClimax is itself
-      // side-effect-free; the ResetAllLayerPullback side effect is applied
-      // by the EA-side callers (EvaluateTS, EvaluateTS_AtShift) when they
-      // see F_reason == "CLIMAX_GUARD". Scanner_InspectBar (passive) does
-      // NOT trigger the reset.
+      // simplification (TS = B × P × F × L × I). DetectClimax is side-effect-free,
+      // and since the 2026-07 removal of the layer-wipe so is every caller: no path
+      // mutates layer P-R state on a climax block. All three consumers (EvaluateTS,
+      // EvaluateTS_AtShift, Scanner_InspectBar) are now equally passive here.
       if(m_settings.ClimaxGuard_Enabled && DetectClimax(bias, shift))
       {
          m_last_f_reason = "CLIMAX_GUARD";
@@ -5161,9 +5148,9 @@ public:
 
    //==========================================================================
    // EvaluateTS_AtShift — scanner/EA verdict accessor: thin waterfall wrapper
-   // over the shared core. Applies the climax layer-reset side effect (the EA's
-   // stateful behavior); the inspector path (Scanner_InspectBar) does not (it
-   // stays passive by not going through this wrapper).
+   // over the shared core. 2026-07: the climax layer-reset side effect it used to
+   // apply is REMOVED, so this wrapper is side-effect-free — identical in that
+   // respect to the passive inspector path (Scanner_InspectBar).
    // F-AUDIT 2026-06: Climax now reported via b.F=0 with F_reason="CLIMAX_GUARD"
    // (merged into F). b.CG mirrors this for inspector backward compat.
    //==========================================================================
@@ -5171,9 +5158,8 @@ public:
    {
       STSBreakdown b;
       int verdict = EvaluateTS_Breakdown(shift, bias, b, false);   // waterfall
-      // Climax veto detected via F → apply layer reset (EA stateful behavior).
-      if(b.F == 0 && b.F_reason == "CLIMAX_GUARD" && m_settings.ClimaxGuard_ResetPullback)
-         ResetAllLayerPullback();
+      // 2026-07: climax layer-reset side effect removed — a climax block vetoes the
+      // bar and nothing else, so this wrapper is now as pure as the core it wraps.
       return verdict;
    }
    int GetLastLayer() const { return m_last_layer; }
@@ -8845,10 +8831,9 @@ public:
          else if(bd.F_reason == "DPI_DECEL")     m_stats.rejected_dpi_decel++;
          else if(bd.F_reason == "CLIMAX_GUARD")  m_stats.rejected_climax++;     // F-AUDIT 2026-06: new counter (Phase K)
          else if(bd.F_reason == "PRICE_OVEREXT") m_stats.rejected_priceext++;   // F-AUDIT 2026-06: new counter (Phase K)
-         // F-AUDIT 2026-06: climax now arrives here as F_reason="CLIMAX_GUARD".
-         // Apply the layer-reset side effect (was the dedicated bd.CG==0 handler).
-         if(bd.F_reason == "CLIMAX_GUARD" && m_settings.ClimaxGuard_ResetPullback)
-            ResetAllLayerPullback();
+         // F-AUDIT 2026-06: climax arrives here as F_reason="CLIMAX_GUARD".
+         // 2026-07: the layer-reset side effect that used to run here is REMOVED — a
+         // climax block is a veto for THIS bar only and leaves layer P-R state intact.
          if(m_settings.DebugFlow)
             DebugLog(StringFormat("[TS_PREFILTER] %s -> TS=0", bd.F_reason));
          if(m_eval_first_failure == "") m_eval_first_failure = bd.F_reason;
@@ -8898,8 +8883,8 @@ public:
          if(m_settings.DebugFlow) DebugLog(StringFormat("[RESULT] TS=0 REJECT (%s)", m_diag_last_reason));
       }
       // F-AUDIT 2026-06: dedicated `bd.CG == 0` handler removed — Climax now
-      // arrives via bd.F == 0 with F_reason == "CLIMAX_GUARD" (handled in the
-      // F=0 branch above, including the ResetAllLayerPullback side effect).
+      // arrives via bd.F == 0 with F_reason == "CLIMAX_GUARD" (handled in the F=0
+      // branch above, which since 2026-07 carries no side effect at all).
       else {
          // All factors passed → signal confirmed
          // TS = 1 (confirmed) or 0 (rejected). Direction is in m_diag_last_bias (+1/-1).

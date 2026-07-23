@@ -169,7 +169,14 @@ input int         Inp_Global_ClimaxGuard_Lookback         = 13;              // 
 input int         Inp_Global_ClimaxGuard_ATRPeriod        = 14;             // Climax: ATR baseline period (measured pre-impulse)
 input double      Inp_Global_ClimaxGuard_BarATRMult       = 2.0;            // Climax: single-bar range threshold (x ATR)
 input double      Inp_Global_ClimaxGuard_MoveATRMult      = 3.0;            // Climax: cumulative move threshold (x ATR)
-input bool        Inp_Global_ClimaxGuard_ResetPullback    = false;           // Climax: on detection reset ALL layer PB states
+// F-AUDIT 2026-07: Inp_Global_ClimaxGuard_ResetPullback REMOVED (mechanism deleted SEA-wide).
+// On a climax block it wiped ALL THREE layer P-R state machines to NONE -- the same destructive
+// class as the post-TS=1 consumption reset deleted earlier in 2026-07, but strictly broader:
+// all layers, on a bar the engine had just REJECTED. It also contradicted this engine's own
+// stale-only invariant (MaybeResetLayersOnPhaseChange): an unconditional NONE erases an
+// in-progress DETECTED at the pullback->recovery boundary, and NONE is exitable only by a
+// FRESH pullback, so the layer is stranded through the whole recovery it had earned.
+// The climax BLOCK is unchanged, still governed by Inp_Global_F_ClimaxGuard_Enabled below.
 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 F-FILTERS (GLOBAL MASTERS — preset-agnostic)";
@@ -1684,7 +1691,7 @@ void InitializeConfig()
    Settings.ClimaxGuard_ATRPeriod       = MathMax(1, Inp_Global_ClimaxGuard_ATRPeriod);
    Settings.ClimaxGuard_BarATRMult      = MathMax(0.0, Inp_Global_ClimaxGuard_BarATRMult);
    Settings.ClimaxGuard_MoveATRMult     = MathMax(0.0, Inp_Global_ClimaxGuard_MoveATRMult);
-   Settings.ClimaxGuard_ResetPullback   = Inp_Global_ClimaxGuard_ResetPullback;
+   // F-AUDIT 2026-07: ClimaxGuard_ResetPullback mapping REMOVED with its input and struct field.
 
     // VPRR defaults (disabled — only RRM_ORG preset wires it on)
     Settings.VPRR_Enabled         = Inp_Global_VPRR_Enabled;

@@ -832,7 +832,9 @@ struct ST_Settings
     int      ClimaxGuard_ATRPeriod;       // ATR baseline period (measured pre-impulse)
     double   ClimaxGuard_BarATRMult;      // Single-bar range climax threshold (x ATR)
     double   ClimaxGuard_MoveATRMult;     // Cumulative move climax threshold (x ATR)
-    bool     ClimaxGuard_ResetPullback;   // On detection, reset all layer PB states
+    // F-AUDIT 2026-07: ClimaxGuard_ResetPullback REMOVED -- the climax layer-wipe is deleted
+    // SEA-wide (destructive P-R reset; see SEA_Inputs.mqh and README.md). The guard's BLOCK
+    // behaviour is unaffected and remains governed by ClimaxGuard_Enabled above.
 
     // VPRR: Volume Pullback-Recovery Ratio (institutional participation confirmation)
     // Measures avg volume during recovery vs avg volume during pullback.

@@ -446,6 +446,55 @@ further action.
 
 ---
 
+## Climax layer-wipe removal (2026-07)
+
+`Inp_Global_ClimaxGuard_ResetPullback` is **removed**, together with its entire scaffolding. This is a
+mechanism deletion, not a dead-input sweep: the flag was wired end-to-end and would have executed the
+moment both it and the climax master toggle were set.
+
+### What was removed
+
+| Surface | File | Was |
+|---|---|---|
+| Input | `SEA_Inputs.mqh` | `input bool Inp_Global_ClimaxGuard_ResetPullback = false;` |
+| Settings mapping | `SEA_Inputs.mqh` | `Settings.ClimaxGuard_ResetPullback = Inp_Global_...;` |
+| Struct field | `SEA_Config.mqh` | `bool ClimaxGuard_ResetPullback;` |
+| Behaviour | `SEA_SignalEngine.mqh` | `ResetAllLayerPullback()` + both call sites (`EvaluateTS`, `EvaluateTS_AtShift`) |
+| Dead wrapper | `SEA_SignalEngine.mqh` | `Scanner_ResetAllLayerPullback()` — no caller anywhere in the tree |
+| Config-sync key | `SEA_ConfigSync.mqh` | snapshot writer + `SEA_CS_ApplyKey` parser for `ClimaxGuard_ResetPullback` |
+| Scanner input | `SEA_IND_SignalScan.mq5` | `input bool CG_ResetPullback = true;` + its `BuildSettings` mapping |
+
+### Why
+
+1. **Same destructive class as the removed consumption reset, but broader.** It forced all three layer
+   P-R state machines to `NONE`, on a bar the engine had just *rejected* — where the consumption reset
+   wiped one layer after a *fire*.
+2. **It contradicted the engine's own stale-only invariant.** `MaybeResetLayersOnPhaseChange` documents
+   why a full reset to `NONE` is wrong: it erases an in-progress `DETECTED` at the pullback→recovery
+   boundary, and `NONE` is exitable only by a *fresh* pullback, so the layer is stranded through the
+   whole recovery. `ResetAllLayerPullback` did exactly that, unconditionally, on every layer.
+3. **Blast radius wider than the README implied.** CG is the final sub-filter *inside* F (F-AUDIT
+   2026-06), so it is evaluated before L and I — the wipe could fire on bars that were never signal
+   candidates. The README text claiming CG "is checked last, only after B·P·L·I·F have all passed" was
+   corrected in the same change.
+4. **Cross-engine parity break.** The scanner defaulted `CG_ResetPullback = true` while the EA defaulted
+   `false`, and `Scn_Sync_With_EA` is off by default (scanner inputs authoritative) — so enabling
+   `TS_ClimaxGuard` alone armed the wipe on the scanner but not on the EA.
+5. **No Oracle mandate and no validation evidence.** No RRM rule makes a blocked entry unmake the
+   pullback structure, and the flag has no known run in which it was ever enabled.
+
+### Action required for existing `.set` files
+
+None. `Inp_Global_ClimaxGuard_ResetPullback` and the scanner's `CG_ResetPullback` simply disappear from
+the inputs dialog; MT5 ignores keys for inputs that no longer exist. Old config-sync snapshots that still
+carry the `ClimaxGuard_ResetPullback=` line load unchanged — `SEA_CS_ApplyKey()` ignores unknown keys, the
+same backward-compatible path used for the F-AUDIT-STRUCT keys retired below.
+
+**Unchanged:** the climax guard itself — `Inp_Global_F_ClimaxGuard_Enabled`, `ClimaxGuard_Lookback`,
+`ClimaxGuard_ATRPeriod`, `ClimaxGuard_BarATRMult`, `ClimaxGuard_MoveATRMult` — and its blocking behaviour.
+
+---
+
 ## Struct Surface Audit (2026-07, F-AUDIT-STRUCT)
 
 The sequel the F-AUDIT logged as out of scope ("*a parallel audit of internal `ST_Settings` struct
