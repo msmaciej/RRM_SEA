@@ -7029,9 +7029,14 @@ public:
       string proxy = m_settings.VPRR_ExternalSymbol;
       if(StringLen(proxy) == 0)
       {
+         // 2026-07-24: was "fall back to TICK" with the voter left ENABLED — which
+         // put VPRR live on tick volume, the one thing the design forbids. Failing
+         // to a disabled voter is the correct degradation: a voter that cannot be
+         // measured must not vote.
          Print("[VPRR_INIT] WARNING: VolumeType=EXTERNAL but VPRR_ExternalSymbol is empty. "
-               "Falling back to TICK. Set Inp_VPRR_ExternalSymbol (e.g. \"GC\" or \"MGC\").");
-         m_settings.VPRR_VolumeType = (int)VPRR_VOL_TICK;
+               "VPRR DISABLED (tick volume is not a valid VPRR source). "
+               "Set Inp_VPRR_ExternalSymbol (e.g. \"GC\" or \"MGC\") to enable it.");
+         m_settings.VPRR_Enabled = false;
          return true;
       }
 
@@ -7054,10 +7059,13 @@ public:
       }
       else
       {
+         // 2026-07-24: was "fall back to TICK" with the voter left ENABLED. Same
+         // defect as the empty-proxy branch above — a dead proxy silently converted
+         // VPRR into a tick-volume voter instead of switching it off.
          PrintFormat("[VPRR_INIT] WARNING: Proxy='%s' returned no real volume. "
-                     "Is it in MarketWatch? Falling back to TICK on primary symbol.",
+                     "Is it in MarketWatch? VPRR DISABLED (will not degrade to tick volume).",
                      proxy);
-         m_settings.VPRR_VolumeType = (int)VPRR_VOL_TICK;
+         m_settings.VPRR_Enabled = false;
       }
 
       return true;

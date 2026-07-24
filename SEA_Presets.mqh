@@ -484,6 +484,49 @@ ST_VPRRAutoMode GetVPRRRecommendedMode(
 }
 
 //+------------------------------------------------------------------+
+//| VPRR_RealVolumeAvailable — the guard the MANUAL path never had    |
+//|                                                                    |
+//| WHY THIS EXISTS (2026-07-24). GetVPRRRecommendedMode above refuses |
+//| to enable VPRR on FX and on any instrument whose broker supplies   |
+//| no real exchange volume. That refusal was reachable ONLY through   |
+//| the AutoEnable branch. The manual branch assigned                  |
+//| cfg.VPRR_Enabled = Inp_*_VPRR_Enabled with no instrument test at   |
+//| all, and Inp_RRM_ORG_VPRR_AutoEnable ships false — so on the       |
+//| DEFAULT preset the only reachable enable path was the unguarded    |
+//| one. Setting the manual toggle on EURUSD switched VPRR on, and     |
+//| GetCurrentBarVolume (VolumeType=AUTO, the shipped default) then    |
+//| fell through CopyRealVolume to CopyTickVolume — producing exactly  |
+//| the tick-volume ratio that README.md ("VPRR is never enabled for   |
+//| FX pairs regardless of settings"), the AUTO branch's own comment   |
+//| above, and README_SEA_PRESETS.md all state must never occur.       |
+//|                                                                    |
+//| Contract: true only when a MEANINGFUL volume source exists —       |
+//|   (a) a configured proxy symbol returning real volume, or          |
+//|   (b) real exchange volume on the traded symbol itself.            |
+//| Tick volume is never sufficient, by design.                        |
+//+------------------------------------------------------------------+
+bool VPRR_RealVolumeAvailable(const string proxy_symbol)
+{
+   // (a) External proxy takes priority — this is how a metals CFD legitimately
+   //     reads COMEX volume from e.g. "GC" / "MGC" while the traded symbol has none.
+   if(StringLen(proxy_symbol) > 0)
+   {
+      long proxy_vol[];
+      for(int probe_shift = 1; probe_shift <= 3; probe_shift++)
+         if(CopyRealVolume(proxy_symbol, PERIOD_CURRENT, probe_shift, 1, proxy_vol) == 1 && proxy_vol[0] > 0)
+            return true;
+   }
+
+   // (b) Real exchange volume on the traded symbol.
+   long real_vol[];
+   for(int probe_shift = 1; probe_shift <= 3; probe_shift++)
+      if(CopyRealVolume(_Symbol, PERIOD_CURRENT, probe_shift, 1, real_vol) == 1 && real_vol[0] > 0)
+         return true;
+
+   return false;
+}
+
+//+------------------------------------------------------------------+
 //| GetEmaFanMultiplier
 //| GetEmaFanMultiplier: price-level-aware EMA fan gap scaling        |
 //|                                                                    |
@@ -2156,6 +2199,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.VPRR_VolumeType      = (int)Inp_RRM_ORG_VPRR_VolumeType;
          cfg.VPRR_MinRatio        = MathMax(0.1, Inp_VPRR_MinRatio_FX);
          cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, Inp_RRM_ORG_VPRR_RecoveryBars));
+         // 2026-07-24: apply the same volume-availability guard the AutoEnable
+         // branch applies. Without it the manual toggle enabled VPRR on FX/tick
+         // volume, contradicting README.md and this file's own AUTO-branch rule.
+         if(cfg.VPRR_Enabled && !VPRR_RealVolumeAvailable(Inp_VPRR_ExternalSymbol))
+         {
+            cfg.VPRR_Enabled = false;
+            PrintFormat("📊 [VPRR RRM_ORG] Manual enable REFUSED on %s: no real exchange volume "
+                        "(and no working proxy in Inp_VPRR_ExternalSymbol). Tick volume is broker "
+                        "noise, not order flow — VPRR stays DISABLED. This matches the AutoEnable "
+                        "rule and README.md.", _Symbol);
+         }
       }
       cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
       // ── EXTERNAL SYMBOL: override VolumeType if proxy symbol is set ──
@@ -2165,10 +2219,25 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.VPRR_ExternalSymbol = Inp_VPRR_ExternalSymbol;
       if(StringLen(Inp_VPRR_ExternalSymbol) > 0)
       {
-         cfg.VPRR_VolumeType = (int)VPRR_VOL_EXTERNAL;
-         cfg.VPRR_Enabled    = true;   // force ON — user explicitly configured a proxy
-         PrintFormat("📊 [VPRR RRM_ORG] External symbol override: VolumeType → EXTERNAL, proxy=\"%s\"",
-                     Inp_VPRR_ExternalSymbol);
+         // 2026-07-24: force-ON is now conditional on the proxy actually supplying
+         // real volume. Previously an unconfigured/dead/not-in-MarketWatch proxy
+         // still set Enabled=true, and GetCurrentBarVolume's EXTERNAL branch then
+         // fell back to CopyTickVolume on the primary symbol — re-creating the
+         // tick-volume VPRR the guard above exists to prevent, by a second route.
+         if(VPRR_RealVolumeAvailable(Inp_VPRR_ExternalSymbol))
+         {
+            cfg.VPRR_VolumeType = (int)VPRR_VOL_EXTERNAL;
+            cfg.VPRR_Enabled    = true;   // proxy verified — user's explicit configuration honoured
+            PrintFormat("📊 [VPRR RRM_ORG] External symbol override: VolumeType → EXTERNAL, proxy=\"%s\"",
+                        Inp_VPRR_ExternalSymbol);
+         }
+         else
+         {
+            cfg.VPRR_Enabled = false;
+            PrintFormat("📊 [VPRR RRM_ORG] External symbol \"%s\" returned NO real volume "
+                        "(not in MarketWatch, or broker supplies none) → VPRR DISABLED rather than "
+                        "silently degraded to tick volume.", Inp_VPRR_ExternalSymbol);
+         }
       }
       PrintVPRRSummary(cfg, "RRM_ORG");
 
@@ -2706,6 +2775,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
          cfg.VPRR_VolumeType      = (int)Inp_TI_VPRR_VolumeType;
          cfg.VPRR_MinRatio        = MathMax(0.1, Inp_VPRR_MinRatio_FX);
          cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, Inp_TI_VPRR_RecoveryBars));
+         // 2026-07-24: identical guard to the RRM_ORG manual branch — same defect,
+         // same sibling code path. (TI ships AutoEnable=true, so this branch is
+         // reachable only if the operator deliberately turns auto off.)
+         if(cfg.VPRR_Enabled && !VPRR_RealVolumeAvailable(Inp_VPRR_ExternalSymbol))
+         {
+            cfg.VPRR_Enabled = false;
+            PrintFormat("📊 [VPRR TOPINVESTOR] Manual enable REFUSED on %s: no real exchange volume "
+                        "(and no working proxy). VPRR stays DISABLED.", _Symbol);
+         }
       }
       cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
       PrintVPRRSummary(cfg, "TOPINVESTOR");
