@@ -17,7 +17,7 @@ Crucially, it does **not** re-implement the strategy. Both jobs route the actual
    - **EMA periods** — `5 / 13 / 34 / 89` for RRM_ORG.
    - **MarketBias** — `SBIAS_4EMA_TM` = same bias mode as the RRM_ORG EA.
    - **TS Components** — set each component `true`/`false`. Every component set `true` must pass for a signal line to appear.
-   - Optionally **Scn_Sync_With_EA = true** to inherit the live EA's exact config (see [Config sync](#eascanner-config-sync)).
+   - **Scn_Sync_With_EA** is **on by default** — the scanner inherits the live EA's exact config where a fresh snapshot exists (see [Config sync](#eascanner-config-sync)). Set it `false` only to judge bars with the scanner's own inputs.
 4. Click OK. **Blue** vertical lines = LONG signals, **red** = SHORT signals; the top-left panel shows pair/TF, active components, and per-layer counts.
 5. To change settings: right-click chart → Indicators list → `SEA_IND_SignalScan` → Edit.
 
@@ -35,7 +35,7 @@ Inputs are organised into labelled groups. The signal-affecting ones:
 | **STEP5 · Indicator params** | per-indicator settings (ADX, ATR, Bollinger, CandleBody, CCI, Choppiness, DPI, MACD, MFI, MTF, PSAR, Pullback-Recovery, RSI, Stochastic) | only edit the group for each `true` item |
 | **Time window** | `DateFrom`, `DateTo`, `BarsBack` (=500) | `DateFrom=0` → scan back `BarsBack` bars |
 | **Bar Inspector** | `Scn_Inspect_Enabled` (=true), `Scn_Inspect_Color` (=`clrGold`), `Scn_Inspect_Time` | the draggable gold line |
-| **STEP7 · Sync** | `Scn_Sync_With_EA` (=false), `Scn_Sync_MaxStaleSeconds` (=60) | inherit the live EA config |
+| **STEP7 · Sync** | `Scn_Sync_With_EA` (=**true**), `Scn_Sync_MaxStaleSeconds` (=60) | inherit the live EA config |
 | **Display (STEP0)** | panel position/fonts, signal-line style, per-layer LONG/SHORT colours, EMA + HTF overlays | visuals only — no effect on signals |
 
 **`MarketBias` (`EScanBias`) values:**
@@ -118,7 +118,9 @@ Each factor reads `ok` (passed), `NO(code)` (blocked, with the engine's reason),
 
 ## EA↔scanner config sync
 
-By default the scanner runs on **its own inputs**. To make it evaluate with the **live EA's exact configuration**, set `Scn_Sync_With_EA = true`.
+**Since 2026-07-24 the scanner syncs by default** (`Scn_Sync_With_EA = true`): it evaluates with the **live EA's exact configuration** whenever a fresh snapshot is available. Set it `false` to fall back to the scanner's own inputs deliberately.
+
+> **The default flip does not by itself guarantee parity.** Sync can still be *unavailable* — a missing or stale snapshot silently reverts to scanner inputs (see the status line below). The flip removes the most common cause of accidental divergence; it does not remove the fallback. Always read the sync status line before trusting a marked-bar verdict.
 
 - **EA side:** no setting needed. The EA writes its *effective* `ST_Settings` snapshot **unconditionally on init** (`SEA_WriteConfigSnapshot`, after preset apply + safety auto-corrects + validation), so what it publishes is exactly what its engine will run.
 - **Scanner side:** with `Scn_Sync_With_EA = true`, `SEA_ReadConfigSnapshot` overlays that snapshot on top of the scanner's own settings. Keys absent from the snapshot keep the scanner defaults.
@@ -137,7 +139,7 @@ With `Scn_Sync_With_EA = true`, on the same symbol/TF, the scanner's **B · P ·
 
 **What can still differ:**
 
-1. **Config source.** With sync **off**, the scanner judges with its own inputs, not your preset — the single biggest divergence lever. Turn sync on (or set the scanner inputs to match the preset by hand).
+1. **Config source.** Sync is now **on by default**, but it is not unconditional: with sync turned off, or with the snapshot **missing or stale**, the scanner judges with its own inputs rather than your preset. This remains the single biggest divergence lever — the default flip changes which way it points, not whether it exists. Check the status line; if it does not read `Sync: ON`, the verdict came from scanner inputs.
 2. **Layer-state history across a bias flip.** The two-engine model (idle side reset each bar for isolation) is a careful *reconstruction* of the EA's single persistent layer machine. It matches on essentially all bars but is not guaranteed byte-identical through some bias-flip sequences. This only affects **L**; B/P/F/I/CG are unaffected.
 3. **Snapshot freshness / symbol-TF mismatch** — as above; if these aren't satisfied the scanner silently falls back to its own inputs (shown in the sync status line).
 

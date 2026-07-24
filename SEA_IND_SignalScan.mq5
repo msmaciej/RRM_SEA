@@ -164,7 +164,8 @@ input double CG_BarATRMult       = 2.0;    // [Guard] Single-bar range threshold
 input double CG_MoveATRMult      = 3.0;    // [Guard] Cumulative move threshold (x ATR)
 // F-AUDIT 2026-07: CG_ResetPullback REMOVED with the mechanism it drove. Note it had
 // defaulted to TRUE here while the EA's Inp_Global_ClimaxGuard_ResetPullback defaulted to
-// FALSE -- and Scn_Sync_With_EA is off by default, so scanner inputs were authoritative.
+// FALSE -- and Scn_Sync_With_EA was off by default AT THE TIME (flipped ON 2026-07-24),
+// so scanner inputs were authoritative.
 // Enabling TS_ClimaxGuard alone therefore armed the destructive layer-wipe on the scanner
 // but not on the EA: a silent parity break against the two-engine equivalence contract.
 input bool TS_DPI                = true;  // [I] DPI momentum
@@ -285,13 +286,13 @@ input int      BarsBack = 500; // Bars back (if DateFrom=0)
 //| scanner's own BuildSettings(). This guarantees the scanner       |
 //| evaluates TS with byte-identical config to the live EA.          |
 //|                                                                  |
-//| Default OFF preserves legacy scanner behaviour (scanner inputs   |
-//| are authoritative). If the snapshot is missing or older than     |
+//| Default ON (2026-07-24): the scanner inherits the live EA's      |
+//| effective config. If the snapshot is missing or older than       |
 //| Scn_Sync_MaxStaleSeconds the scanner falls back to its own       |
 //| inputs and logs a warning to the journal.                        |
 //+------------------------------------------------------------------+
 input group "═════════ STEP 7 · Live<->Scanner Sync ═════════";
-input bool        Scn_Sync_With_EA       = false;  // Sync ST_Settings from the live EA's snapshot file
+input bool        Scn_Sync_With_EA       = true;   // Sync ST_Settings from the live EA's snapshot file (default ON 2026-07-24)
 input int         Scn_Sync_MaxStaleSeconds = 60;   // Reject snapshot older than this (0 = no staleness check)
 
 #include <RRMS\SEA_ConfigSync.mqh>
@@ -953,8 +954,9 @@ void Eval(int shift, CSignalEngine &eng, int bias)
    // already updated there.
    //
    // PARITY: the ONLY thing that makes the scanner diverge from the live EA is
-   // config source. With Scn_Sync_With_EA=false the engine runs on scanner
-   // inputs; with it true the EA's effective ST_Settings snapshot is overlaid,
+   // config source. Scn_Sync_With_EA now defaults TRUE (2026-07-24) — when the
+   // snapshot is missing or stale the scanner still falls back to its own inputs,
+   // otherwise the EA's effective ST_Settings snapshot is overlaid —
    // so every gate (incl. every F sub-filter and Phase) matches the EA. F and P
    // are NOT missing from the core — earlier notes to that effect were stale.
 

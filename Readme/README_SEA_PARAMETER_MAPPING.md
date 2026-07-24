@@ -478,7 +478,7 @@ moment both it and the climax master toggle were set.
    candidates. The README text claiming CG "is checked last, only after B·P·L·I·F have all passed" was
    corrected in the same change.
 4. **Cross-engine parity break.** The scanner defaulted `CG_ResetPullback = true` while the EA defaulted
-   `false`, and `Scn_Sync_With_EA` is off by default (scanner inputs authoritative) — so enabling
+   `false`, and `Scn_Sync_With_EA` was off by default at that time (scanner inputs authoritative; the default was flipped ON 2026-07-24) — so enabling
    `TS_ClimaxGuard` alone armed the wipe on the scanner but not on the EA.
 5. **No Oracle mandate and no validation evidence.** No RRM rule makes a blocked entry unmake the
    pullback structure, and the flag has no known run in which it was ever enabled.
