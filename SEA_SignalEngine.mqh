@@ -4398,16 +4398,28 @@ private:
    }
 
    //==========================================================================
-   // CheckLayerPairAlign — Structural alignment check (position + slope)
-   // Returns 1 if the EMA pair is aligned with bias direction, 0 otherwise.
+   // CheckLayerPairAlign — FIRE-ELIGIBILITY check (position + P-R state), NOT
+   // structural alignment alone. Returns 1 only if the pair is positionally
+   // aligned AND the layer is entry-eligible this bar; 0 otherwise.
+   //
+   // Header corrected 2026-07-24: this comment previously read "Structural
+   // alignment check (position + slope)" and was wrong on BOTH counts — slope
+   // is not tested here (see the note at base_result below), and three P-R
+   // state gates it never mentioned can each return 0. That inaccuracy is why
+   // the cockpit and the L-reason both read a waiting-but-stacked ribbon as
+   // "nothing aligned"; the structural half is now published separately via
+   // m_align_pos_last / m_diag_layer_pos_* for display and reason purposes.
    //
    // layer_type: 1=LayerW (EMA1/EMA2), 2=LayerM (EMA2/EMA3), 3=LayerS (EMA3/EMA4)
    //
-   // Position: fast EMA must be on the correct side of slow EMA.
-   // Slope: BOTH EMAs must be moving in the bias direction.
-   //   - During pullback: fast EMA slope flattens/reverses → returns 0 naturally.
-   //   - On recovery: both slopes realign → returns 1 again.
-   //   - No wick-touch or pip-tolerance arithmetic needed.
+   // Returns 0 at, in order:
+   //   - invalid / warmup / corrupt EMA reads          (fails safe)
+   //   - Position: fast EMA on the wrong side of slow  → STRUCTURAL failure
+   //   - LayerS TM-only phase gate (layer 3, opt-in)   → STRUCTURAL failure
+   //   ---- everything below is fire-eligibility, NOT structure ----
+   //   - P-R state != IN-TREND   (no completed pullback-recovery)  → L_NO_EDGE
+   //   - fire_armed == false     (this cycle's entry consumed)     → L_WAITING
+   //   - GUARD 1 first post-flip cycle                             → L_G1_POSTFLIP
    //
    // SlopeLookbackBars: adaptive lookback from settings (default=1 for short TF,
    //   2 for H1+ swing). Higher values reduce noise sensitivity on lower timeframes.
