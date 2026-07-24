@@ -216,6 +216,7 @@ input color       Inp_UI_clr_Value                 = clrWhite;       // UI CP: M
 input color       Inp_UI_clr_Pass                  = clrLimeGreen;   // UI CP: Logic PASS Color
 input color       Inp_UI_clr_Fail                  = clrOrangeRed;   // UI CP: Logic FAIL Color
 input color       Inp_UI_clr_Disabled              = clrGray;        // UI CP: Logic DISABLED Color
+input color       Inp_UI_clr_Waiting               = clrYellow;      // UI CP: Logic WAITING Color (aligned, not firing)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: STATUS PANEL";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1297,6 +1298,7 @@ void InitializeConfig()
    Settings.clr_Pass                = Inp_UI_clr_Pass;     // LimeGreen 
    Settings.clr_Fail                = Inp_UI_clr_Fail;     // OrangeRed 
    Settings.clr_Disabled            = Inp_UI_clr_Disabled; // Gray
+   Settings.clr_Waiting             = Inp_UI_clr_Waiting;  // Yellow
    
    // Master Toggle and Global Font Color
 

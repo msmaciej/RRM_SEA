@@ -369,6 +369,7 @@ struct ST_Settings
    color clr_Pass;         // Logic PASS Color
    color clr_Fail;         // Logic FAIL Color
    color clr_Disabled;     // Logic DISABLED Color
+   color clr_Waiting;      // Logic WAITING Color (structurally aligned, not firing)
    
    
    // --- UI ---

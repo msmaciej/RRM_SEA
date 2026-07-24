@@ -196,7 +196,7 @@ struct STSBreakdown
    int    F;          // pre-filters (1/0)
    string F_reason;   // sub-filter that blocked when F==0
    int    L;          // layer
-   string L_reason;   // why L==0 (L_NONE_ALIGNED / L_BC_FAIL / L_BD_FAIL / L_MOMENTUM_FAIL / L_S_NOT_DIR_ALIGNED / L_S_BLOCK_EM)
+   string L_reason;   // why L==0 (L_NONE_ALIGNED / L_NO_EDGE / L_WAITING / L_BC_FAIL / L_BD_FAIL / L_MOMENTUM_FAIL / L_S_NOT_DIR_ALIGNED / L_S_BLOCK_EM)
    int    L_layer;    // winning layer when L==1 (1=W, 2=M, 3=S; 0=none)
    int    I;          // indicators (normalized 1/0)
    string I_reason;   // failing voter names when I==0 (e.g. "DPI,PSAR")
@@ -248,6 +248,17 @@ private:
     int         m_diag_layer_w;       // Last evaluated LayerW result (0/1)
     int         m_diag_layer_m;       // Last evaluated LayerM result (0/1)
     int         m_diag_layer_s;       // Last evaluated LayerS result (0/1)
+    // ── Diagnostic-only structural split (2026-07-24) ───────────────────────
+    // CheckLayerPairAlign conflates STRUCTURE (ribbon stacked in bias dir) with
+    // FIRE-ELIGIBILITY (P-R state + armed latch + GUARD1); it returns 0 for both
+    // "not stacked" and "stacked but waiting". These members carry the structural
+    // half so the panel and the L-reason can tell those apart. They are written
+    // by CheckLayerPairAlign / EvaluateL and READ ONLY by display + reason code —
+    // no decision path consumes them, so the L verdict is unaffected.
+    bool        m_align_pos_last;     // last CheckLayerPairAlign call: was it positionally aligned?
+    bool        m_align_wait_last;    // last call: IN-TREND but arm consumed (WAITING, not NO_EDGE)
+    int         m_diag_layer_pos_w, m_diag_layer_pos_m, m_diag_layer_pos_s;    // 1 = structurally stacked
+    bool        m_diag_layer_wait_w, m_diag_layer_wait_m, m_diag_layer_wait_s; // true = waiting (armed consumed)
     int         m_last_layer;         // Active layer that won (1=Weak, 2=Medium, 3=Strong, 0=none)
     // --- 2c.1 LAYER PULLBACK-RECOVERY STATE ---
     ELayerPullbackState m_layer_w_pb_state;   // LayerW pullback state
@@ -4404,6 +4415,8 @@ private:
    int CheckLayerPairAlign(int bias, int layer_type, int shift)
    {
       int h_fast = INVALID_HANDLE, h_slow = INVALID_HANDLE;
+      m_align_pos_last  = false;   // diagnostic-only; see member declarations
+      m_align_wait_last = false;
       ELayerPullbackState current_state = LAYER_PB_NONE;
       int    current_bars_rec = 0;   // bars spent in IN-TREND (0 on the recovery-edge bar)
       bool   current_fire_armed = false;   // armed-latch: fire-eligible this IN-TREND run
@@ -4529,6 +4542,9 @@ private:
       // Positional alignment already covers counter-trend crossovers.
       // Bar-close direction is enforced separately by Eval_BarClose / Check_BarClose.
       int base_result = position_aligned ? 1 : 0;
+      // Structural verdict is final at this point — everything below is
+      // fire-eligibility. Record it for the panel / L-reason (display only).
+      m_align_pos_last = (base_result == 1);
 
       if(m_settings.LayerPullbackEnabled && base_result == 1)
       {
@@ -4564,6 +4580,7 @@ private:
          // impossible (arm consumed on fire, re-armed only by the next P-R edge).
          if(!current_fire_armed)
          {
+            m_align_wait_last = true;   // WAITING (vs NO_EDGE); display only
             if(m_settings.DebugFlow)
                DebugLog(StringFormat("[%s] WAITING: IN-TREND persisting, entry already consumed this cycle (bars_rec=%d)",
                                      layer_label, current_bars_rec));
@@ -5302,7 +5319,12 @@ public:
       m_telemetry.vprr_vol_source = m_vprr_last_real ? "REAL" : "TICK";
       // A14/A20 2026-07: i_suppressed = true when L failed structurally (no layer aligned),
       // meaning I was never evaluated. Detected by L_NONE_ALIGNED reason string.
-      m_telemetry.i_suppressed = (m_diag_last_reason == "L_NONE_ALIGNED");
+      // The split of L_NONE_ALIGNED (2026-07-24) produced two further structural
+      // reasons; I is equally unevaluated under all three, so match all of them or
+      // the cockpit silently reverts to the misleading I[-] on waiting bars.
+      m_telemetry.i_suppressed = (m_diag_last_reason == "L_NONE_ALIGNED" ||
+                                  m_diag_last_reason == "L_NO_EDGE"      ||
+                                  m_diag_last_reason == "L_WAITING");
    }
 
 
@@ -5386,6 +5408,9 @@ public:
       m_diag_layer_w      = 0;
       m_diag_layer_m      = 0;
       m_diag_layer_s      = 0;
+      m_align_pos_last    = false; m_align_wait_last   = false;
+      m_diag_layer_pos_w  = 0;     m_diag_layer_pos_m  = 0;     m_diag_layer_pos_s  = 0;
+      m_diag_layer_wait_w = false; m_diag_layer_wait_m = false; m_diag_layer_wait_s = false;
       m_last_layer        = 0;
 
       m_bars_evaluated    = 0;
@@ -6686,6 +6711,9 @@ public:
       m_diag_layer_w = 0;
       m_diag_layer_m = 0;
       m_diag_layer_s = 0;
+      m_align_pos_last    = false; m_align_wait_last   = false;
+      m_diag_layer_pos_w  = 0;     m_diag_layer_pos_m  = 0;     m_diag_layer_pos_s  = 0;
+      m_diag_layer_wait_w = false; m_diag_layer_wait_m = false; m_diag_layer_wait_s = false;
       m_last_layer = 0;
       m_bars_evaluated = 0;
       m_signals_generated = 0;
@@ -8285,12 +8313,20 @@ public:
       }
 
       // Step 1: pos × slope alignment check for all three layers
+      // Capture the structural half immediately after each call — other callers of
+      // CheckLayerPairAlign also write m_align_*_last, so copy before the next call.
       m_eval_layer_w = CheckLayerPairAlign(bias, 1, v_shift);
+      m_diag_layer_pos_w = m_align_pos_last ? 1 : 0; m_diag_layer_wait_w = m_align_wait_last;
       m_eval_layer_m = CheckLayerPairAlign(bias, 2, v_shift);
+      m_diag_layer_pos_m = m_align_pos_last ? 1 : 0; m_diag_layer_wait_m = m_align_wait_last;
       m_eval_layer_s = CheckLayerPairAlign(bias, 3, v_shift);
-      m_diag_layer_w = m_eval_layer_w;
-      m_diag_layer_m = m_eval_layer_m;
-      m_diag_layer_s = m_eval_layer_s;
+      m_diag_layer_pos_s = m_align_pos_last ? 1 : 0; m_diag_layer_wait_s = m_align_wait_last;
+
+      // Panel feed is now TRI-state (display only; m_eval_layer_* is untouched):
+      //   1 = eligible to fire   -1 = structurally stacked but waiting   0 = not stacked
+      m_diag_layer_w = (m_eval_layer_w == 1) ? 1 : (m_diag_layer_pos_w == 1 ? -1 : 0);
+      m_diag_layer_m = (m_eval_layer_m == 1) ? 1 : (m_diag_layer_pos_m == 1 ? -1 : 0);
+      m_diag_layer_s = (m_eval_layer_s == 1) ? 1 : (m_diag_layer_pos_s == 1 ? -1 : 0);
 
       // Optional Layer-S direction gate: block faster M/W entries unless Layer S
       // (EMA3/EMA4) is position+slope aligned with bias. S's own entry is unaffected.
@@ -8384,7 +8420,18 @@ public:
          // would be misreported as "no layer aligned" and be invisible in the A/B.
          m_diag_last_reason = "L_G1_POSTFLIP";
       else if(m_eval_layer_w == 0 && m_eval_layer_m == 0 && m_eval_layer_s == 0)
-         m_diag_last_reason = "L_NONE_ALIGNED";
+      {
+         // No layer is fire-eligible. Distinguish the three structural cases so the
+         // reason stops claiming "nothing aligned" when the ribbon IS stacked:
+         //   L_NONE_ALIGNED - no layer positionally stacked in bias direction
+         //   L_WAITING      - stacked + IN-TREND, but this cycle's entry was consumed
+         //   L_NO_EDGE      - stacked, but no pullback-recovery cycle completed yet
+         if(m_diag_layer_pos_w == 1 || m_diag_layer_pos_m == 1 || m_diag_layer_pos_s == 1)
+            m_diag_last_reason = (m_diag_layer_wait_w || m_diag_layer_wait_m || m_diag_layer_wait_s)
+                                 ? "L_WAITING" : "L_NO_EDGE";
+         else
+            m_diag_last_reason = "L_NONE_ALIGNED";
+      }
       else if(!bd_pass)
          m_diag_last_reason = "L_BD_FAIL";
       else if(!momentum_confirmed)
@@ -9188,7 +9235,11 @@ public:
       // 5. Populate Final UI Telemetry Snapshot
       m_telemetry.bias = m_diag_last_bias;  // Direction (+1/-1), not TS result (1/0)
       m_telemetry.phase = (int)m_diag_last_phase;
-      m_telemetry.layer = (int)m_diag_layer_w | (m_diag_layer_m << 1) | (m_diag_layer_s << 2);
+      // Coerce the tri-state panel feed back to 0/1 — -1 (WAITING) is not an active
+      // layer, and a raw -1 here would sign-extend and set every bit of the mask.
+      m_telemetry.layer = (int)(m_diag_layer_w == 1 ? 1 : 0)
+                        | ((m_diag_layer_m == 1 ? 1 : 0) << 1)
+                        | ((m_diag_layer_s == 1 ? 1 : 0) << 2);
       m_telemetry.votes_for = m_diag_last_votes;
       m_telemetry.votes_total = total_enabled;
       // Mirror the ribbon snapshot — populated by RefreshRibbonSnapshot at top of EvaluateTS.

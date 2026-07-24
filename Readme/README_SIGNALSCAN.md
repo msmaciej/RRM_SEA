@@ -94,7 +94,9 @@ Each factor reads `ok` (passed), `NO(code)` (blocked, with the engine's reason),
 |--------|------|-------------------------|
 | **P** | `UNORD` | `PHASE_UNORDERED` — EMAs not in a tradable order |
 | | `EMERG` | `PHASE_EMERGING` — emerging phase, blocked by preset |
-| **L** | `ALIGN` | `LAYER_NONE_ALIGNED` — no layer's EMAs stacked in bias direction yet |
+| **L** | `ALIGN` | `L_NONE_ALIGNED` — no layer's EMAs stacked in bias direction |
+| | `EDGE` | `L_NO_EDGE` — a layer is stacked, but no pullback→recovery cycle completed yet |
+| | `WAIT` | `L_WAITING` — stacked and IN-TREND, entry already consumed this cycle |
 | | `BC` | `BC_NOT_CONFIRMED` — bar close not yet beyond the fast EMA in bias direction |
 | | `BD` | `CandleDir` — signal bar not closed in the bias direction |
 | | `MOM` | `MOMENTUM_NOT_CONFIRMED` — progressive-momentum / DPI-growth check failed |

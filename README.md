@@ -181,11 +181,13 @@ Each factor reads `ok` (passed), `NO(code)` (blocked, with the reason), or `--` 
 |--------|------|-------------------------|
 | **P** | `UNORD` | `PHASE_UNORDERED` — EMAs not in a tradable order |
 | | `EMERG` | `PHASE_EMERGING` — emerging phase, blocked by preset |
-| **L** | `ALIGN` | `LAYER_NONE_ALIGNED` — no layer's EMAs stacked in bias direction yet (structural: a pullback entry can't fire here) |
+| **L** | `ALIGN` | `L_NONE_ALIGNED` — no layer's EMAs stacked in bias direction (structural: a pullback entry can't fire here) |
+| | `EDGE` | `L_NO_EDGE` — a layer **is** stacked, but no pullback→recovery cycle has completed yet, so no layer is armed |
+| | `WAIT` | `L_WAITING` — a layer is stacked and IN-TREND, but this cycle's entry was already consumed; waiting for the next recovery edge |
 | | `BC` | `BC_NOT_CONFIRMED` — bar close not yet beyond the fast EMA in bias direction |
 | | `BD` | `CandleDir` — signal bar not closed in the bias direction |
 | | `MOM` | `MOMENTUM_NOT_CONFIRMED` — progressive-momentum / DPI-growth check failed |
-| **I** | *names* | failing voters, comma-joined (e.g. `DPI,PSAR`) — voters: DPI, PSAR, CBODY, MTF, ADX, MACD, CCI. When L failed for a structural reason (no layer aligned = `L_NONE_ALIGNED`), I was never evaluated — the cockpit shows `I[?]` and `i_suppressed=true` in telemetry rather than the misleading `I[-]` |
+| **I** | *names* | failing voters, comma-joined (e.g. `DPI,PSAR`) — voters: DPI, PSAR, CBODY, MTF, ADX, MACD, CCI. When L failed for a structural reason (`L_NONE_ALIGNED` / `L_NO_EDGE` / `L_WAITING`), I was never evaluated — the cockpit shows `I[?]` and `i_suppressed=true` in telemetry rather than the misleading `I[-]` |
 | **F** | `EMAFAN` | `EMA_OVEREXT` — EMA fan over-extended |
 | | `DECEL` | `DPI_DECEL` — DPI histogram momentum decelerating |
 | | `RESET` | `DPI_RESET_WAIT` — DPI CCI reset-recovery not complete |

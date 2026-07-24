@@ -844,12 +844,12 @@ void SEA_UI_UpdateCockpit(
    // Per-sub-market layer signals
    if(ts_telemetry.layer_detection_enabled)
    {
-      string lw_sym = (ts_telemetry.diag_layer_w ==  1 ? "[+]" : ts_telemetry.diag_layer_w == -1 ? "[-]" : "[.]");
-      string lm_sym = (ts_telemetry.diag_layer_m ==  1 ? "[+]" : ts_telemetry.diag_layer_m == -1 ? "[-]" : "[.]");
-      string ls_sym = (ts_telemetry.diag_layer_s ==  1 ? "[+]" : ts_telemetry.diag_layer_s == -1 ? "[-]" : "[.]");
-      color lw_clr = (ts_telemetry.diag_layer_w == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_w == -1 ? Settings.clr_Fail : Settings.clr_Disabled);
-      color lm_clr = (ts_telemetry.diag_layer_m == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_m == -1 ? Settings.clr_Fail : Settings.clr_Disabled);
-      color ls_clr = (ts_telemetry.diag_layer_s == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_s == -1 ? Settings.clr_Fail : Settings.clr_Disabled);
+      string lw_sym = (ts_telemetry.diag_layer_w ==  1 ? "[+]" : ts_telemetry.diag_layer_w == -1 ? "[~]" : "[.]");
+      string lm_sym = (ts_telemetry.diag_layer_m ==  1 ? "[+]" : ts_telemetry.diag_layer_m == -1 ? "[~]" : "[.]");
+      string ls_sym = (ts_telemetry.diag_layer_s ==  1 ? "[+]" : ts_telemetry.diag_layer_s == -1 ? "[~]" : "[.]");
+      color lw_clr = (ts_telemetry.diag_layer_w == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_w == -1 ? Settings.clr_Waiting : Settings.clr_Disabled);
+      color lm_clr = (ts_telemetry.diag_layer_m == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_m == -1 ? Settings.clr_Waiting : Settings.clr_Disabled);
+      color ls_clr = (ts_telemetry.diag_layer_s == 1 ? Settings.clr_Pass : ts_telemetry.diag_layer_s == -1 ? Settings.clr_Waiting : Settings.clr_Disabled);
       // Show active layer bitfield label
       string active_lbl = SEA_UI_EntryLayerLabel((EEntryLayer)ts_telemetry.layer);
       if(active_lbl == "") active_lbl = "(none)";

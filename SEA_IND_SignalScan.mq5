@@ -636,6 +636,8 @@ string InspCode(string raw)
 {
    if(raw=="") return "";
    if(StringFind(raw,"L_NONE_ALIGNED")>=0)      return "ALIGN";
+   if(StringFind(raw,"L_NO_EDGE")>=0)           return "EDGE";
+   if(StringFind(raw,"L_WAITING")>=0)           return "WAIT";
    if(StringFind(raw,"L_S_NOT_DIR_ALIGNED")>=0) return "SDIR";
    if(StringFind(raw,"L_S_BLOCK_EM")>=0)        return "S-EM";
    if(StringFind(raw,"L_BC_FAIL")>=0)           return "BC";
