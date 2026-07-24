@@ -376,6 +376,7 @@ input group "╚═════════════════════�
 // Effective MinRatio = base x TF multiplier (auto-applied at EA start).
 // Restart EA after instrument or TF change to auto-update settings.
 input bool        Inp_VPRR_TF_ReduceRecBars        = true;           // VPRR TF: Reduce RecBars by 1 on H4+ and M5
+input int         Inp_VPRR_MinRecoveryBars         = -1;             // VPRR: bars of recovery volume required before the ratio is VALID. -1 = auto (RecoveryBars-1, the legacy derivation); 1-10 = explicit. Separates "how many bars to MEASURE" (RecoveryBars) from "how many before the ratio COUNTS" (this). Added 2026-07-24: previously derived at two sites with no input, so its value was invisible to the operator.
 input string      Inp_VPRR_ExternalSymbol          = "";             // VPRR EXTERNAL: proxy symbol for real volume ("GC" gold futures, "MGC" micro gold). Only used when VolumeType=VPRR_VOL_EXTERNAL. Symbol must be in Market Watch.
 
 input double      Inp_VPRR_MinRatio_Gold           = 1.0;            // VPRR GOLD (XAU): MinRatio base (M15:1.0; TF mult auto-scales)
@@ -1697,7 +1698,10 @@ void InitializeConfig()
     Settings.VPRR_Enabled         = Inp_Global_VPRR_Enabled;
     Settings.VPRR_VolumeType      = (int)VPRR_VOL_AUTO;
     Settings.VPRR_RecoveryBars    = 3;
-    Settings.VPRR_MinRecoveryBars = 2;
+    // -1 sentinel = derive from RecoveryBars; presets re-resolve this after ApplyPreset.
+    Settings.VPRR_MinRecoveryBars = (Inp_VPRR_MinRecoveryBars > 0)
+                                    ? MathMax(1, MathMin(10, Inp_VPRR_MinRecoveryBars))
+                                    : 2;
     Settings.VPRR_MinRatio        = 1.0;
     // Theme3 2026-06: per-layer VPRR threshold overrides (0 = use VPRR_MinRatio above)
     Settings.VPRR_MinRatio_W      = MathMax(0.0, Inp_Global_VPRR_MinRatio_W);

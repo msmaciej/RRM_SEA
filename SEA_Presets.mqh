@@ -750,7 +750,9 @@ void PrintPresetConfiguration(const ST_Settings &cfg, const string preset_name)
       Print("  Volume source:  ", vol_src);
       PrintFormat("  MinRatio:       %.2f  ← effective value (base × TF multiplier)", cfg.VPRR_MinRatio);
       Print("  RecoveryBars:   ", cfg.VPRR_RecoveryBars, "  ← effective value (TF-adjusted)");
-      Print("  MinRecovBars:   ", cfg.VPRR_MinRecoveryBars);
+      Print("  MinRecovBars:   ", cfg.VPRR_MinRecoveryBars,
+            (Inp_VPRR_MinRecoveryBars > 0) ? "  <- SET explicitly (Inp_VPRR_MinRecoveryBars)"
+                                           : "  <- auto (RecoveryBars-1)");
             PrintFormat("  ℹ️  To change: adjust base inputs (MinRatio_Gold etc.) and TF multipliers");
       PrintFormat("  ℹ️  TF multipliers: M5=×0.85  M15=×1.00  H1=×0.95  H4+=×0.90 (see VPRR TF group)");
    }
@@ -2211,7 +2213,18 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
                         "rule and README.md.", _Symbol);
          }
       }
-      cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
+      // MinRecoveryBars: bars of recovery volume needed before the ratio is VALID.
+      // 2026-07-24: was unconditionally derived as RecoveryBars-1, with no input —
+      // so the operator could not see or set it, and RecoveryBars was silently doing
+      // two jobs ("how many bars to measure" AND "how many before the ratio counts").
+      // Inp_VPRR_MinRecoveryBars = -1 keeps the legacy derivation exactly; 1-10 sets
+      // it explicitly. Clamped to RecoveryBars: requiring more validity bars than are
+      // ever measured would make the ratio uncomputable and VPRR fail every bar.
+      if(Inp_VPRR_MinRecoveryBars > 0)
+         cfg.VPRR_MinRecoveryBars = MathMin(MathMax(1, MathMin(10, Inp_VPRR_MinRecoveryBars)),
+                                            cfg.VPRR_RecoveryBars);
+      else
+         cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
       // ── EXTERNAL SYMBOL: override VolumeType if proxy symbol is set ──
       // When Inp_VPRR_ExternalSymbol is non-empty, it takes priority over
       // auto-detection. This allows trading XAUUSD CFD on any broker while
@@ -2785,7 +2798,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
                         "(and no working proxy). VPRR stays DISABLED.", _Symbol);
          }
       }
-      cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
+      // Same resolution as the RRM_ORG block above (2026-07-24): -1 = legacy
+      // derivation, 1-10 = explicit, clamped to RecoveryBars so the ratio stays
+      // computable. Kept identical so the two presets cannot drift apart.
+      if(Inp_VPRR_MinRecoveryBars > 0)
+         cfg.VPRR_MinRecoveryBars = MathMin(MathMax(1, MathMin(10, Inp_VPRR_MinRecoveryBars)),
+                                            cfg.VPRR_RecoveryBars);
+      else
+         cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
       PrintVPRRSummary(cfg, "TOPINVESTOR");
 
       cfg.MaxSpreadRetryBars        = 3;               // LOCKED: retry blocked entries for up to 3 bars; longer retry risks entering on a stale signal
