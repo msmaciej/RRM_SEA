@@ -418,8 +418,9 @@ Three voters enabled. All must pass (`VOTE_MODE_ALL`). One fail → I=0 → TS=0
 
 **PSAR:**
 - Dot must be on the correct side at the signal bar (shift=1), measured against the candle **body**: dot below `min(Open,Close)` (LONG), dot above `max(Open,Close)` (SHORT). A dot inside the body is on neither side. (Not measured against Close alone — see Signal Reference § PSAR.)
-- Mode: `Vote_AllowPsarFlip = true`, global delay `= -1` (persistent = dot-position-only check)
-- LayerW override: `PsarFlipDelay_W = 5` — additionally requires a LONG flip within the last 5 bars, evaluated by a **stateless re-scan** of those bars (a bar in the window with the dot on the opposite side of the body = a flip into the correct side). No stored flip record; nothing to carry or clear.
+- Mode: governed by `Vote_AllowPsarFlip` plus `Vote_PsarFlipDelay{,_W,_M,_S}`. Dot side is tested **first**; only when it passes does any flip window apply. Delay semantics: `-1` persistent (dot position only) · `0` flip on this bar · `1..10` flip within the last N closed bars. A per-layer value overrides the global whenever it is not `-99`, so layers may be windowed independently or uniformly.
+- A window is evaluated by a **stateless re-scan** of the window bars (a bar in it with the dot on the opposite side of the body = a flip into the correct side). No stored flip record; nothing to carry or clear.
+- **Property of any window mode:** once the dot has been correctly-sided for longer than the window, PSAR fails `PSAR_FLIP_STALE` on every windowed layer until the next flip — a window expires the vote inside a sustained trend. Persistent mode has no such expiry. This is the accepted cost of a freshness gate and an admin-chosen divergence from Oracle checklist item 4 (dot position only, no recency clause), not a defect.
 - **⚠️ PSAR parameters: Step=0.05, Max=0.5** — more aggressive than MT5 default (0.02/0.2). These are intentional RRM-ORG settings. If you display PSAR on the chart, set it to Step=0.05, Max=0.5 to match the EA's internal PSAR. Mismatched parameters mean the chart dot and the EA's decision will diverge.
 
 **CandleBody:**
@@ -567,7 +568,7 @@ All steps must pass for entry:
 - `Inp_RRM_ORG_PsarStep` — PSAR step (default: 0.05)
 - `Inp_RRM_ORG_PsarMax` — PSAR max (default: 0.5)
 - `Inp_RRM_ORG_Vote_AllowPsarFlip` — Enable PSAR flip detection (default: true)
-- `Inp_RRM_ORG_Vote_PsarFlipDelay` — global PSAR flip delay window `(-1, 0, 1..10)` (default: **-1 = persistent, dot-position-only**). Effective runtime is **global `-1` (persistent) with a LayerW override of 5** (`PsarFlipDelay_W=5`, M/S `= -1`), printed by the cockpit as `PSAR: PERSIST [W=5 M=P S=P]`. (An earlier revision listed `2` here — stale; the running config is persistent + W=5, confirmed by the cockpit and `SEA_Presets.mqh`.)
+- `Inp_RRM_ORG_Vote_PsarFlipDelay` — global PSAR flip delay window `(-1, 0, 1..10)` and per-layer overrides `PsarFlipDelay_W/_M/_S`, where `-99` means "use the global". **This file does not restate the configured values** — per the convention in `README_SEA_FRAMEWORK.md` Part G, so it cannot drift when the inputs are tuned. For what is actually in force, read the `[PSAR_RESOLVED]` line printed at EA start, or the cockpit `PSAR:` row — both read live `Settings`. Source defaults in `SEA_Inputs.mqh` are **not** ground truth, because the MT5 dialog can override them.
 - `Inp_RRM_ORG_PSAR_FlipGraceBars` — Grace bars after adverse flip (default: 0)
 
 > **A22 — buffer-read hardening (symmetric, iSAR-parity-safe).** Every indicator voter that reads a buffer and compares it to a threshold or price level was exposed to a "not-ready" hazard: at an M1 bar boundary the handle read can transiently fail, and the reader returned a silent `0.0`. Because `0.0` sits on one side of the test, it **manufactured a spurious directional PASS** (PSAR/BB-trend → long with the dot/mid above price; RSI-filter/Sto-zone/MFI → wrong-side pass; MACD/CCI on partial reads) and the pass was then cached for the whole bar. Fixes:
