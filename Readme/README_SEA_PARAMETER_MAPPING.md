@@ -266,9 +266,9 @@ All new; no migration required. Defaults are active out of the box.
 | `Inp_RRM_ORG_LayerPullbackWindow_M` | `34` | LayerM observation window. |
 | `Inp_RRM_ORG_LayerPullbackWindow_S` | `55` | LayerS observation window. |
 | `Inp_RRM_ORG_LayerPullbackWindow` | `0` | Global observation-window override (`0` = use per-layer values). |
-| `Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled` | `true` | When on, an IN-TREND layer that has waited longer than its observation window to fire expires to NONE (prevents stale chase-entries). Relapse (counter-`bias_dir` reversal) and TS=1 consumption still take precedence. |
+| ~~`Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled`~~ | ~~`true`~~ | **REMOVED 2026-07-24** — see "Inert max-age flag removal" below. The mechanism it described was deleted in the 2026-07 fire-on-edge refactor; only the decoy input survived. |
 
-Corresponding `ST_Settings` fields: `UNO_ToleranceBars`, `LayerPullbackWindow_W/M/S`, `LayerPullbackWindow`, `LayerRecoveryMaxAgeEnabled`. All synced EA→scanner via `SEA_ConfigSync`.
+Corresponding `ST_Settings` fields: `UNO_ToleranceBars`, `LayerPullbackWindow_W/M/S`, `LayerPullbackWindow`. All synced EA→scanner via `SEA_ConfigSync`. (`LayerRecoveryMaxAgeEnabled` was removed 2026-07-24.)
 
 ### New telemetry field — ST_SignalTelemetry
 
@@ -492,6 +492,65 @@ same backward-compatible path used for the F-AUDIT-STRUCT keys retired below.
 
 **Unchanged:** the climax guard itself — `Inp_Global_F_ClimaxGuard_Enabled`, `ClimaxGuard_Lookback`,
 `ClimaxGuard_ATRPeriod`, `ClimaxGuard_BarATRMult`, `ClimaxGuard_MoveATRMult` — and its blocking behaviour.
+
+---
+
+## Inert max-age flag removal + diagnostic colour (2026-07-24)
+
+Two changes in the diagnostics-fidelity session. Neither alters a trade decision.
+
+### Removed — `Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled`
+
+The bar-count max-age expiry was deleted in the 2026-07 fire-on-edge refactor. The flag that
+had gated it was left wired end-to-end and **defaulted `true`** — an optimizer decoy of exactly
+the class the F-AUDIT exists to remove, and worse than the usual case because its default
+implied an active safety mechanism ("prevents stale chase-entries") that no longer existed.
+
+| Surface | File | Was |
+|---|---|---|
+| Input | `SEA_Inputs.mqh` | `input bool Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled = true;` |
+| Seed assignment | `SEA_Inputs.mqh` | `Settings.LayerRecoveryMaxAgeEnabled = true;` |
+| Struct field | `SEA_Config.mqh` | `bool LayerRecoveryMaxAgeEnabled;` |
+| Preset mapping | `SEA_Presets.mqh` | `cfg.LayerRecoveryMaxAgeEnabled = Inp_...;` |
+| Config-sync | `SEA_ConfigSync.mqh` | snapshot writer + `SEA_CS_ApplyKey` parser |
+| Engine parameter | `SEA_SignalEngine.mqh` | `bool maxage_enabled = false` + the argument at all 6 call sites |
+
+**Why removal is provably non-behavioural:** `maxage_enabled` appeared in the body of
+`UpdateSingleLayerPullback` only inside a *commented-out* transition
+(`// else if(state==LAYER_PB_INTREND && maxage_enabled && bars_rec>=window)`). No live
+expression read it, so no state transition can move. Same pattern as the `recovery_ratio` /
+`use_price_touch` removals in the Struct Surface Audit. Arity: **19 params, 19 args at all 6
+call sites** (live ×3, warm-up replay ×3).
+
+A stale reasoning comment in `DeriveLayerState` justified its replay depth partly on
+*"max-age bounds a true IN-TREND to <= window bars"*, with CROSS-anchor extension as the
+`OFF` branch. That branch has been unconditional since max-age was deleted; the comment now
+says so.
+
+### Removed — `Scanner_DetectClimax`
+
+One-line wrapper in `SEA_SignalEngine.mqh`, zero callers anywhere in the tree — same class as
+`Scanner_ResetAllLayerPullback`. `DetectClimax` itself is live via `EvaluateF` and untouched.
+
+### Added — `Inp_UI_clr_Waiting` / `ST_Settings.clr_Waiting`
+
+Not a removal. The cockpit layer rows gained a third state (`[~]`, structurally stacked but not
+fire-eligible) and it needs a colour distinct from `clr_Pass`, `clr_Fail` (`clrOrangeRed`) and
+`clr_Disabled`. Default `clrYellow`.
+
+### Net surface change
+
+| Surface | Before | After |
+|---|---|---|
+| `ST_Settings` fields | 327 | **327** (−`LayerRecoveryMaxAgeEnabled`, +`clr_Waiting`) |
+| `SEA_Inputs.mqh` inputs | 433 | **433** (−max-age, +`Inp_UI_clr_Waiting`) |
+
+### Action required for existing `.set` files
+
+None. `Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled` disappears from the dialog and MT5 ignores keys
+for inputs that no longer exist. Old config-sync snapshots still carrying
+`LayerRecoveryMaxAgeEnabled=` load unchanged — `SEA_CS_ApplyKey()` ignores unknown keys, the
+same backward-compatible path used for every prior retirement.
 
 ---
 

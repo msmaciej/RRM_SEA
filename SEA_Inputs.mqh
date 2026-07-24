@@ -732,7 +732,6 @@ input int         Inp_RRM_ORG_LayerPullbackWindow_W = 21;         // RRM ORG PB:
 input int         Inp_RRM_ORG_LayerPullbackWindow_M = 34;         // RRM ORG PB: LayerM observation window (bars; 0=use global)
 input int         Inp_RRM_ORG_LayerPullbackWindow_S = 55;         // RRM ORG PB: LayerS observation window (bars; 0=use global)
 input int         Inp_RRM_ORG_LayerPullbackWindow   = 0;          // RRM ORG PB: GLOBAL observation-window override (bars; 0=disabled, use per-layer)
-input bool        Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled = true;  // RRM ORG PB: expire a IN-TREND layer that has waited > its observation window to fire (prevents stale chase-entries)
 input bool        Inp_RRM_ORG_AllowLayerS          = true;                          // RRM ORG PB: allow Layer S (EMA3/4) entries
 input bool        Inp_RRM_ORG_AllowLayerM          = true;                          // RRM ORG PB: allow Layer M (EMA2/3) entries
 input bool        Inp_RRM_ORG_AllowLayerW          = true;                          // RRM ORG PB: allow Layer W (EMA1/2) entries
@@ -1666,7 +1665,6 @@ void InitializeConfig()
    Settings.LayerPullbackWindow_M       = 34;
    Settings.LayerPullbackWindow_S       = 55;
    Settings.LayerPullbackWindow         = 0;      // 0 = use per-layer values
-   Settings.LayerRecoveryMaxAgeEnabled  = true;
    // LayerS=TM-only default (disabled = legacy behavior). RRM_ORG users can opt in
    // via Inp_RRM_ORG_LayerS_TMOnly to match the canonical RRM Trade Setups card.
    Settings.LayerS_TMOnly               = false;

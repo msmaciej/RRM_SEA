@@ -1985,8 +1985,7 @@ private:
                                   int bias_dir = 0,
                                   int slow_ema_handle = INVALID_HANDLE,
                                   int min_pb_bars = 0,
-                                  int window = 0,
-                                  bool maxage_enabled = false)
+                                  int window = 0)
    {
       // -- Baseline DIRECTION (refined, kept): sign of the EMA slope on the bar
       //    JUST BEFORE the lookback window, so an in-progress pullback cannot
@@ -2230,7 +2229,9 @@ private:
       // sustained-UNO wipe — matching the RRM model that a trend, once
       // resumed, stays in-trend until structure actually breaks. (Formerly:
       // else if(state==LAYER_PB_INTREND && maxage_enabled && bars_rec>=window)
-      // -> NONE. maxage_enabled input is now inert for this transition.)
+      // -> NONE. The maxage_enabled parameter and its feeding input
+      // Inp_RRM_ORG_LayerRecoveryMaxAgeEnabled were REMOVED 2026-07-24: the
+      // parameter was never read, so removal is provably non-behavioural.)
 
       if(m_settings.DebugFlow && state != prev_state)
       {
@@ -2531,21 +2532,21 @@ private:
                                 m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr,
                                 m_layer_w_bars_det, m_layer_w_bars_rec,
                                 m_layer_w_g1_recov, m_layer_w_g1_counted, m_layer_w_fire_armed, bias_dir,
-                                h_ema2, GetLayerMinPBBars(1), GetLayerWindow(1), m_settings.LayerRecoveryMaxAgeEnabled);
+                                h_ema2, GetLayerMinPBBars(1), GetLayerWindow(1));
       UpdateSingleLayerPullback(h_ema2, v_shift, GetLayerLookback(2),
                                 m_layer_m_pb_state, m_layer_m_baseline, "LayerM",
                                 m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                 m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr,
                                 m_layer_m_bars_det, m_layer_m_bars_rec,
                                 m_layer_m_g1_recov, m_layer_m_g1_counted, m_layer_m_fire_armed, bias_dir,
-                                h_ema3, GetLayerMinPBBars(2), GetLayerWindow(2), m_settings.LayerRecoveryMaxAgeEnabled);
+                                h_ema3, GetLayerMinPBBars(2), GetLayerWindow(2));
       UpdateSingleLayerPullback(h_ema3, v_shift, GetLayerLookback(3),
                                 m_layer_s_pb_state, m_layer_s_baseline, "LayerS",
                                 m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                 m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr,
                                 m_layer_s_bars_det, m_layer_s_bars_rec,
                                 m_layer_s_g1_recov, m_layer_s_g1_counted, m_layer_s_fire_armed, bias_dir,
-                                h_ema4, GetLayerMinPBBars(3), GetLayerWindow(3), m_settings.LayerRecoveryMaxAgeEnabled);
+                                h_ema4, GetLayerMinPBBars(3), GetLayerWindow(3));
 
       UpdateCBOverExtCarry(v_shift);
    }
@@ -4181,10 +4182,10 @@ private:
    //
    // replay_depth = window + min_pb + lookback + 1  (Stage-1 §3 proof: L reads
    //   ONLY `== IN-TREND`; a truncated NONE-anchor cannot fabricate a false
-   //   IN-TREND, and max-age bounds a true IN-TREND to <= window bars). When
-   //   LayerRecoveryMaxAgeEnabled is OFF, IN-TREND is unbounded → the anchor is
+   //   IN-TREND). Max-age is GONE (removed 2026-07; its inert flag deleted
+   //   2026-07-24), so IN-TREND is ALWAYS unbounded and the anchor is ALWAYS
    //   extended to the most-recent fast/slow CROSS (a guaranteed NONE) inside a
-   //   hard cap.
+   //   hard cap — this is now unconditional, not the else-branch it once was.
    //
    // Scope (Stage-1 approved): excludes VPRR bookkeeping (off for RRM_ORG/FX)
    //   and the GUARD-1 cycle counters (neither feeds a state transition).
@@ -4970,7 +4971,9 @@ public:
    bool   Scanner_Check_ATR(int bias, int shift) { return Check_ATR(bias, shift); }
    bool   Scanner_Check_BB(int bias, int shift)  { return Check_BB(bias, shift); }
    bool   Scanner_Check_CandleBody(int bias, int shift) { return Check_CandleBody(bias, shift); }
-   bool   Scanner_DetectClimax(int bias, int shift)     { return DetectClimax(bias, shift); }
+   // Scanner_DetectClimax REMOVED 2026-07-24 — zero callers anywhere in the tree
+   // (same class as Scanner_ResetAllLayerPullback below). DetectClimax itself is
+   // live and reached via EvaluateF; only this unused wrapper is gone.
    // Scanner_ResetAllLayerPullback REMOVED 2026-07 together with ResetAllLayerPullback
    // itself (it had no caller anywhere in the tree; SignalScan uses the per-layer soft
    // resets Scanner_ResetLayerAfterFire / Scanner_ExpireRecovered instead).
@@ -6571,21 +6574,21 @@ public:
                                    m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars,
                                    m_layer_w_vprr, m_layer_w_bars_det, m_layer_w_bars_rec,
                                    m_layer_w_g1_recov, m_layer_w_g1_counted, m_layer_w_fire_armed, b_wu,
-                                   h_ema2, GetLayerMinPBBars(1), GetLayerWindow(1), m_settings.LayerRecoveryMaxAgeEnabled);
+                                   h_ema2, GetLayerMinPBBars(1), GetLayerWindow(1));
          UpdateSingleLayerPullback(h_ema2, shift, lb_m,
                                    m_layer_m_pb_state, m_layer_m_baseline, "LayerM_WU",
                                    m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                    m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars,
                                    m_layer_m_vprr, m_layer_m_bars_det, m_layer_m_bars_rec,
                                    m_layer_m_g1_recov, m_layer_m_g1_counted, m_layer_m_fire_armed, b_wu,
-                                   h_ema3, GetLayerMinPBBars(2), GetLayerWindow(2), m_settings.LayerRecoveryMaxAgeEnabled);
+                                   h_ema3, GetLayerMinPBBars(2), GetLayerWindow(2));
          UpdateSingleLayerPullback(h_ema3, shift, lb_s,
                                    m_layer_s_pb_state, m_layer_s_baseline, "LayerS_WU",
                                    m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                    m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars,
                                    m_layer_s_vprr, m_layer_s_bars_det, m_layer_s_bars_rec,
                                    m_layer_s_g1_recov, m_layer_s_g1_counted, m_layer_s_fire_armed, b_wu,
-                                   h_ema4, GetLayerMinPBBars(3), GetLayerWindow(3), m_settings.LayerRecoveryMaxAgeEnabled);
+                                   h_ema4, GetLayerMinPBBars(3), GetLayerWindow(3));
 
          UpdateCBOverExtCarry(shift);
 

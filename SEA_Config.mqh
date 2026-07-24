@@ -800,7 +800,6 @@ struct ST_Settings
     int      LayerPullbackWindow_M;       // LayerM observation window (bars; 0 = use global)
     int      LayerPullbackWindow_S;       // LayerS observation window (bars; 0 = use global)
     int      LayerPullbackWindow;         // global observation-window override (0 = use per-layer)
-    bool     LayerRecoveryMaxAgeEnabled;  // expire an IN-TREND layer older than its observation window
     // GUARD 1 (2026-07): after a genuine signed bias flip (+1→-1 or -1→+1), block the
     // FIRST completed pullback-recovery CYCLE on each layer; allow entries from the
     // second completed cycle onward. Event-indexed (no bar counts). UNO/neutral is

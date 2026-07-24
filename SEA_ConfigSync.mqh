@@ -145,7 +145,6 @@ bool SEA_WriteConfigSnapshot(const ST_Settings &cfg)
    FileWriteString(h, "LayerPullbackWindow_M=" + IntegerToString(cfg.LayerPullbackWindow_M) + "\n");
    FileWriteString(h, "LayerPullbackWindow_S=" + IntegerToString(cfg.LayerPullbackWindow_S) + "\n");
    FileWriteString(h, "LayerPullbackWindow=" + IntegerToString(cfg.LayerPullbackWindow) + "\n");
-   FileWriteString(h, "LayerRecoveryMaxAgeEnabled=" + (cfg.LayerRecoveryMaxAgeEnabled ? "true" : "false") + "\n");
    FileWriteString(h, "Guard1_SkipFirstPostFlipPR=" + (cfg.Guard1_SkipFirstPostFlipPR ? "true" : "false") + "\n");
    FileWriteString(h, "# -- 05 BarClose (bc factor) --\n");
    FileWriteString(h, "BarClose_DefaultEMA=" + IntegerToString((int)cfg.BarClose_DefaultEMA) + "\n");
@@ -460,7 +459,6 @@ bool SEA_CS_ApplyKey(ST_Settings &s, const string key, const string val)
    if(key == "LayerPullbackWindow_M") { s.LayerPullbackWindow_M = (int)StringToInteger(val); return true; }
    if(key == "LayerPullbackWindow_S") { s.LayerPullbackWindow_S = (int)StringToInteger(val); return true; }
    if(key == "LayerPullbackWindow") { s.LayerPullbackWindow = (int)StringToInteger(val); return true; }
-   if(key == "LayerRecoveryMaxAgeEnabled") { s.LayerRecoveryMaxAgeEnabled = SEA_CS_ParseBool(val); return true; }
    if(key == "Guard1_SkipFirstPostFlipPR") { s.Guard1_SkipFirstPostFlipPR = SEA_CS_ParseBool(val); return true; }
    if(key == "MinBarsAfterWeekendGap") { s.MinBarsAfterWeekendGap = (int)StringToInteger(val); return true; }
    if(key == "PSAR_FlipGraceBars") { s.PSAR_FlipGraceBars = (int)StringToInteger(val); return true; }
