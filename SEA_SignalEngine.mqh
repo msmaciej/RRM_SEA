@@ -1520,14 +1520,30 @@ private:
          bc_label = "bc";
       }
 
-      // Read EMA from ribbon snapshot. Refuse the gate if the slot is invalid.
-      if(!GetEmaValid(slot))
+      // ── Read the EMA AT v_shift ───────────────────────────────────────────
+      // FIX 2026-07-25. This previously used GetEmaValid(slot)/GetEmaBySlot(slot),
+      // which are shift-LESS snapshot accessors: they return whatever shift
+      // RefreshRibbonSnapshot last populated, regardless of the v_shift this
+      // function was asked about. Two consequences:
+      //   (a) Check_BarClose_MultiBar walks v_shift .. v_shift+lookback-1 and so
+      //       compared Close[2] and Close[3] against the EMA at shift 1 — the
+      //       close was shift-correct (iClose below) but the EMA was not;
+      //   (b) in SignalScan the snapshot is never populated at all, so the gate
+      //       read uninitialised memory (now also prevented at the root by the
+      //       constructor's snapshot init).
+      // ReadEmaSafe is the SAME function RefreshRibbonSnapshot calls to fill the
+      // snapshot, so where the snapshot WAS valid this returns a bit-identical
+      // value — the live EA's primary BC read at v_shift=1 is unchanged.
+      bool   bc_ema_ok  = false;
+      string bc_ema_src = "";
+      check_ema = ReadEmaSafe(slot, v_shift, bc_ema_ok, bc_ema_src);
+      if(!bc_ema_ok)
       {
          if(m_settings.DebugFlow)
-            DebugLog(StringFormat("[%s] EMA%d INVALID at v_shift=%d → REFUSE gate", bc_label, slot, v_shift));
+            DebugLog(StringFormat("[%s] EMA%d INVALID at v_shift=%d (src=%s) → REFUSE gate",
+                                  bc_label, slot, v_shift, bc_ema_src));
          return 0;
       }
-      check_ema = GetEmaBySlot(slot);
       ema_name  = StringFormat("EMA%d", slot);
       
       // ════════════════════════════════════════════════════════════════
@@ -5388,6 +5404,37 @@ public:
       h_mtf_tf2_fast = h_mtf_tf2_slow = INVALID_HANDLE;
       h_ci  = INVALID_HANDLE;
       h_vrc = INVALID_HANDLE;
+
+      // ── Ribbon snapshot: mark EMPTY until RefreshRibbonSnapshot fills it ──
+      // FIX 2026-07-25. SRibbonSnapshot contains string members, so MQL5 gives it
+      // an implicit constructor — but that constructor initialises ONLY strings,
+      // dynamic arrays and auto-objects. ema[], valid[], bar, shift and the
+      // all_valid flags are "fields of other types" and were left holding
+      // indeterminate values.
+      //
+      // RefreshRibbonSnapshot has exactly ONE call site (EvaluateTS), so the two
+      // SignalScan engines (g_eng_long / g_eng_short) never populate it at all, and
+      // every shift-less accessor — GetEmaValid / GetEmaBySlot / GetEma1..4 — was
+      // reading uninitialised memory there. Worse, DetectMarketPhase and
+      // GetMAValSafe both take a "shift == m_ribbon.shift" fast path, so a garbage
+      // shift value could match a genuine request and hand back garbage EMAs.
+      //
+      // shift = -1000 is a sentinel no caller can request (shifts are >= 0), so
+      // neither the "== shift" nor the "== shift + 1" fast path can ever match an
+      // unpopulated snapshot: both fall through to the safe ReadEmaSafe chain.
+      for(int ri = 0; ri < 4; ri++)
+      {
+         m_ribbon.ema[ri]        = 0.0;
+         m_ribbon.valid[ri]      = false;
+         m_ribbon.src[ri]        = "ERR";
+         m_ribbon.ema_prev[ri]   = 0.0;
+         m_ribbon.valid_prev[ri] = false;
+         m_ribbon.src_prev[ri]   = "ERR";
+      }
+      m_ribbon.bar            = 0;
+      m_ribbon.shift          = -1000;
+      m_ribbon.all_valid      = false;
+      m_ribbon.all_valid_prev = false;
 
       m_diag_last_bias   = 0;
       m_diag_last_votes  = 0;

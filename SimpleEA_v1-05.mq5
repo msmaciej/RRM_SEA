@@ -875,6 +875,12 @@ void OrchestrateTick()
    // 3. Excursion tracking runs every tick (MAE/MFE price tracking)
    Executor.UpdateExcursionOnly();
 
+   // 3b. Break-even at tick rate. Oracle (RRM manual SS IV.E): BE fires on an
+   //     intrabar TOUCH of the level, not on a bar close. Inert unless
+   //     BE_TriggerSource = BE_SRC_TICK; everything else in EvaluateTM stays
+   //     once-per-bar.
+   Executor.EvaluateBE_Tick();
+
    // 4. TE consumption — fires on every tick as soon as a pending TS signal exists,
    //    so TE executes intra-bar rather than waiting for the next new-bar event.
    //    Same-bar re-entry is still prevented by the guards inside ExecuteTrade()

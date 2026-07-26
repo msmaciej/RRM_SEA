@@ -1809,6 +1809,91 @@ private:
    }
 
    //+------------------------------------------------------------------+
+   //| BREAK-EVEN LOCK — single source of truth.                        |
+   //|                                                                  |
+   //| Extracted from RRM_ManageStrictNoATR (2026-07) so the identical  |
+   //| rule can run at tick rate as well as once per bar.               |
+   //|                                                                  |
+   //| Oracle: RRM manual SS IV.E (p.88) — "price only needs to touch"  |
+   //| the 70% level; the candle does not have to close there. Because  |
+   //| EvaluateTM is called only from the new-bar branch of             |
+   //| OrchestrateTick, the legacy sampler saw one price per bar and    |
+   //| missed every intrabar touch that retraced before the close.      |
+   //| m_settings.BE_TriggerSource selects the sampler:                 |
+   //|   BE_SRC_TICK        - live Bid/Ask, evaluated every tick        |
+   //|   BE_SRC_BAR_EXTREME - closed bar's favourable extreme (1 late)  |
+   //|   BE_SRC_BAR_CLOSE   - legacy single sample at the new-bar tick  |
+   //|                                                                  |
+   //| Idempotent: the lock is latched per ticket in m_position_states, |
+   //| so a tick-rate call followed by the per-bar call is a no-op.     |
+   //+------------------------------------------------------------------+
+   void TryMoveToBreakEven(ulong ticket) {
+      if(m_settings.BE_Mode == BE_MODE_OFF) return;
+      if(!PositionSelectByTicket(ticket)) return;
+      InitPositionState(ticket);
+      if(GetPositionBETriggered(ticket)) { m_rrm_be_reached = true; return; }
+
+      bool   isBuy     = ((ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY);
+      double entry     = PositionGetDouble(POSITION_PRICE_OPEN);
+      double cur_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_BID)
+                               : SymbolInfoDouble(m_symbol, SYMBOL_ASK);
+      double cur_sl    = PositionGetDouble(POSITION_SL);
+      double cur_tp    = PositionGetDouble(POSITION_TP);
+      int    digits    = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
+      double pipSize   = GetPipSize();
+      if(entry <= 0.0 || cur_price <= 0.0 || pipSize <= 0.0) return;
+
+      // R from the INITIAL stop, never the current one. Falls back to the live SL
+      // only when neither cached value is available (e.g. EA restarted on an open
+      // position before RRM_ManageStrictNoATR has run its ticket-change block).
+      double init_sl = (m_rrm_initial_sl   > 0.0) ? m_rrm_initial_sl
+                     : (m_initial_sl_price > 0.0) ? m_initial_sl_price : cur_sl;
+      double R = (init_sl > 0.0) ? MathAbs(entry - init_sl) : 0.0;
+
+      // ── select the price sample ────────────────────────────────────
+      double probe = cur_price;
+      if(m_settings.BE_TriggerSource == BE_SRC_BAR_EXTREME) {
+         // Only trust the closed bar when it opened at or after the fill, so the
+         // entry bar's pre-entry extreme can never trigger BE.
+         datetime bar1_time = iTime(m_symbol, PERIOD_CURRENT, 1);
+         datetime pos_time  = (datetime)PositionGetInteger(POSITION_TIME);
+         if(bar1_time > 0 && bar1_time >= pos_time) {
+            double ext = isBuy ? iHigh(m_symbol, PERIOD_CURRENT, 1)
+                               : iLow (m_symbol, PERIOD_CURRENT, 1);
+            if(ext > 0.0) probe = isBuy ? MathMax(cur_price, ext) : MathMin(cur_price, ext);
+         }
+      }
+
+      double move = isBuy ? (probe - entry) : (entry - probe);
+      bool should_be = false;
+
+      if(m_settings.BE_Mode == BE_MODE_TP_PROGRESS_PCT && cur_tp > 0.0) {
+         double tp_dist = MathAbs(cur_tp - entry);
+         if(tp_dist > 0.0 && m_settings.RRM_BE_ProgressPct > 0.0)
+            should_be = (move >= tp_dist * (m_settings.RRM_BE_ProgressPct / 100.0));
+      }
+      else if(m_settings.BE_Mode == BE_MODE_R_MULTIPLE && R > 0.0) {
+         should_be = (move >= m_settings.RRM_BE_RMultiple * R);
+      }
+      if(!should_be) return;
+
+      double be_buffer = m_settings.RRM_BE_BufferPips * pipSize;
+      double be_sl = isBuy ? NormalizeDouble(entry + be_buffer, digits)
+                           : NormalizeDouble(entry - be_buffer, digits);
+      bool already_locked = isBuy ? (cur_sl >= be_sl) : (cur_sl != 0.0 && cur_sl <= be_sl);
+      if(!(already_locked || (isBuy ? (be_sl > cur_sl) : (cur_sl == 0.0 || be_sl < cur_sl)))) return;
+
+      if(already_locked || (IsModifyAllowed() && m_trade.PositionModify(ticket, be_sl, cur_tp))) {
+         SetPositionBETriggered(ticket, true);
+         m_rrm_be_reached = true;
+         if(m_settings.DebugFlow)
+            PrintFormat("[BE] Position #%I64u locked at %.5f (one-time lock, src=%s)",
+                        ticket, already_locked ? cur_sl : be_sl,
+                        EnumToString(m_settings.BE_TriggerSource));
+      }
+   }
+
+   //+------------------------------------------------------------------+
    //| REFACTORED: STRICT TRAILING MANAGEMENT (No Double Scaling)       |
    //+------------------------------------------------------------------+
    void RRM_ManageStrictNoATR(ulong ticket) {
@@ -1854,34 +1939,12 @@ private:
       double R = (m_rrm_initial_sl > 0.0) ? MathAbs(entry - m_rrm_initial_sl) : 0.0;
       m_rrm_be_reached = GetPositionBETriggered(ticket);
 
-      // BREAKEVEN
-      if(m_settings.BE_Mode != BE_MODE_OFF && !m_rrm_be_reached) {
-         double move = isBuy ? (cur_price - entry) : (entry - cur_price);
-         bool should_be = false;
-
-         if(m_settings.BE_Mode == BE_MODE_TP_PROGRESS_PCT && cur_tp > 0.0) {
-            double tp_dist = MathAbs(cur_tp - entry);
-            if(tp_dist > 0.0 && m_settings.RRM_BE_ProgressPct > 0.0)
-               should_be = (move >= tp_dist * (m_settings.RRM_BE_ProgressPct / 100.0));
-         }
-         else if(m_settings.BE_Mode == BE_MODE_R_MULTIPLE && R > 0.0) {
-            should_be = (move >= m_settings.RRM_BE_RMultiple * R);
-         }
-
-         if(should_be) {
-            double be_buffer = m_settings.RRM_BE_BufferPips * pipSize;
-            double be_sl = isBuy ? NormalizeDouble(entry + be_buffer, digits) : NormalizeDouble(entry - be_buffer, digits);
-            bool already_locked = isBuy ? (cur_sl >= be_sl) : (cur_sl != 0.0 && cur_sl <= be_sl);
-            if(already_locked || (isBuy ? (be_sl > cur_sl) : (cur_sl == 0.0 || be_sl < cur_sl))) {
-               if(already_locked || (IsModifyAllowed() && m_trade.PositionModify(ticket, be_sl, cur_tp))) {
-                  SetPositionBETriggered(ticket, true);
-                  m_rrm_be_reached = true;
-                  if(!already_locked) cur_sl = be_sl;
-                  if(m_settings.DebugFlow) PrintFormat("[BE] Position #%I64u locked at %.5f (one-time lock)", ticket, already_locked ? cur_sl : be_sl);
-               }
-            }
-         }
-      }
+      // BREAKEVEN — body extracted to TryMoveToBreakEven (2026-07) so the identical
+      // rule also runs at tick rate via EvaluateBE_Tick when BE_TriggerSource is
+      // BE_SRC_TICK. Latched per ticket, so this per-bar call is a no-op once fired.
+      TryMoveToBreakEven(ticket);
+      m_rrm_be_reached = GetPositionBETriggered(ticket);
+      cur_sl = PositionGetDouble(POSITION_SL);   // re-read: BE may have just moved it
 
       // TRAILING
       // Allow TRAIL_EMA to pass through (handled below); all other non-PSAR modes exit here
@@ -1957,38 +2020,55 @@ private:
       double new_sl = CalcPsarTrailAnchorSL(isBuy, pipSize, digits);
       if(new_sl == 0.0) return;
 
-      // STEP16 2026-06: PSAR trail BE-floor fix (sibling pattern to Step 15's TRAIL_EMA bug).
-      // Previously this gate clamped new_sl to entry+RRM_BE_BufferPips, requiring the
-      // PSAR-derived SL to be 75+ pips above entry on XAGUSD M1 before trail could engage —
-      // effectively dormant for typical M1 trading. The buffer's actual purpose is the
-      // one-time BE-LOCK event (BE block earlier in RRM_ManageStrictNoATR); it must NOT
-      // also be a continuous threshold against trail engagement. Replaced with the simple
-      // BE-floor pattern used by ApplyTrailEMA (line 333) and CalculateProfitPercentTrailSL
-      // (line 208): never lock SL into loss territory, but allow trail as soon as the
-      // PSAR-derived SL is at or above entry. The SIMPLE-path PSAR clamp at
-      // EvaluateTM (~line 3230) gets the same fix.
-      if(isBuy) {
-         if(new_sl < entry) {
-            if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot below entry (%.5f < %.5f), trail blocked (BE-floor)", ticket, new_sl, entry);
-            return;
-         }
-         if(m_settings.TrailLockProfit && cur_sl != 0.0 && new_sl <= cur_sl) {
-            if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Would move SL backwards (%.5f <= %.5f), trail blocked", ticket, new_sl, cur_sl);
-            return;
-         }
-      } else {
-         if(new_sl > entry) {
-            if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Dot above entry (%.5f > %.5f), trail blocked (BE-floor)", ticket, new_sl, entry);
-            return;
-         }
-         if(m_settings.TrailLockProfit && cur_sl != 0.0 && new_sl >= cur_sl) {
-            if(m_settings.DebugFlow) PrintFormat("[PSAR GUARD] #%I64u: Would move SL backwards (%.5f >= %.5f), trail blocked", ticket, new_sl, cur_sl);
+      // At this point new_sl is a valid PSAR-derived stop on the correct side of the
+      // closed candle's body. Three questions decide whether we actually apply it.
+
+      // ── Q1: is the new stop still at a loss, and are we allowed to go there? ──
+      //
+      // Oracle, Stop Loss card, section "Move Stop Loss Towards Entry":
+      //   as the dots move toward the entry price, move the stop to each new dot.
+      // Oracle, manual SS IV.B (p.81): the purpose is stated outright — you move the
+      // stop from its initial position to one of lesser risk, so that you lose LESS
+      // if the trade does become a loser.
+      //
+      // Both of those happen BEFORE break-even, while the stop is still in the red.
+      // That is what turns a full-R loss into a partial loss, and it is the single
+      // biggest difference between this EA and the RRM_ORG Python reference.
+      //
+      // Set Inp_RRM_ORG_TrailAllowLossSide = false to restore the pre-2026-07
+      // behaviour, where the stop stayed frozen at its initial level until BE fired
+      // and every losing trade therefore lost the full R.
+      bool new_sl_is_still_at_a_loss = isBuy ? (new_sl < entry) : (new_sl > entry);
+      if(new_sl_is_still_at_a_loss && !m_settings.TrailAllowLossSide) {
+         if(m_settings.DebugFlow)
+            PrintFormat("[PSAR TRAIL] #%I64u: new SL %.5f is still at a loss vs entry %.5f — blocked (TrailAllowLossSide=false)",
+                        ticket, new_sl, entry);
+         return;
+      }
+
+      // ── Q2: would this move the stop BACKWARDS (away from price)? ──
+      //
+      // Oracle, manual SS IV.B (p.84): the stop is never moved backwards.
+      // This applies in the loss zone exactly as it does in profit, and it is what
+      // makes loss-side trailing safe: the stop may walk TOWARD entry, but it can
+      // never walk away from it, so risk only ever decreases.
+      if(m_settings.TrailLockProfit && cur_sl != 0.0) {
+         bool moves_backwards = isBuy ? (new_sl <= cur_sl) : (new_sl >= cur_sl);
+         if(moves_backwards) {
+            if(m_settings.DebugFlow)
+               PrintFormat("[PSAR TRAIL] #%I64u: new SL %.5f would move backwards from %.5f — blocked",
+                           ticket, new_sl, cur_sl);
             return;
          }
       }
 
-      bool can_move = isBuy ? (new_sl > cur_sl && new_sl < cur_price) : ((cur_sl == 0.0 || new_sl < cur_sl) && new_sl > cur_price);
-      if(can_move && IsModifyAllowed()) m_trade.PositionModify(ticket, new_sl, cur_tp);
+      // ── Q3: is it a real improvement, and will the broker accept it? ──
+      // The stop must be an improvement on the current one, and must stay on the
+      // correct side of live price or the modify is rejected.
+      bool improves_on_current = (cur_sl == 0.0) || (isBuy ? (new_sl > cur_sl) : (new_sl < cur_sl));
+      bool correct_side_of_price = isBuy ? (new_sl < cur_price) : (new_sl > cur_price);
+      if(improves_on_current && correct_side_of_price && IsModifyAllowed())
+         m_trade.PositionModify(ticket, new_sl, cur_tp);
    }
 
    void UpdatePositionExcursion(ulong ticket) {
@@ -3263,6 +3343,19 @@ public:
           return;
       }
       UpdatePositionExcursion(ticket);
+   }
+
+   // Public: break-even only, safe to call on every tick. Does nothing unless the
+   // operator selected BE_SRC_TICK — the other two samplers are bar-gated and are
+   // driven from EvaluateTM. Kept separate from EvaluateTM so the emergency-margin
+   // close, the DPI exit and the trailing engine all stay strictly once-per-bar.
+   void EvaluateBE_Tick() {
+      if(m_settings.ExitProfile != EXIT_PROFILE_RRM) return;
+      if(m_settings.BE_Mode == BE_MODE_OFF) return;
+      if(m_settings.BE_TriggerSource != BE_SRC_TICK) return;
+      ulong ticket = GetMyPosition();
+      if(ticket == 0) return;
+      TryMoveToBreakEven(ticket);
    }
 
    void EvaluateTM() {

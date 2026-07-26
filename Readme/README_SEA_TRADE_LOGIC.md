@@ -319,7 +319,56 @@ flowchart TD
 ### Breakeven Modes (`EBeMode`)
 * `BE_MODE_OFF`: Breakeven logic disabled.
 * `BE_MODE_TP_PROGRESS_PCT`: Moves SL to Entry + BE Buffer when price travels a specific percentage of the way to the Take Profit target.
-* `BE_MODE_R_MULTIPLE`: Moves SL to Entry + BE Buffer when price reaches a multiple of the initial risk (e.g., at +1R).
+* `BE_MODE_R_MULTIPLE`: Moves SL to Entry + BE Buffer when price reaches a multiple of the initial risk. In `PRESET_RRM_ORG` this is `0.7R`, per the Oracle's 70%-of-initial-stop rule.
+
+### Breakeven trigger source (`EBeTriggerSource`) — 2026-07
+
+The mode above decides **what level** fires break-even. This input decides **which price is compared against it**, and the two are independent.
+
+The Oracle is explicit (manual §IV.E, p.88): price only has to *touch* the level; the candle does not have to close there. `EvaluateTM()` is called only from the new-bar branch of `OrchestrateTick`, so before this input existed the EA compared a **single price sample taken at the new-bar tick** — every intrabar touch that retraced before the close was invisible. Measured on the repo's own M15 data: of entries that went on to reach the initial stop, 43.6% had touched the 0.7R level first, but only 29.4% ever *closed* at or beyond it — a 14.2 pp gap.
+
+| Value | Sampler | Latency | Oracle-conformant |
+|---|---|---|---|
+| `BE_SRC_TICK` | live Bid/Ask, evaluated on **every tick** | none | **yes** — this is the intrabar touch the Oracle describes |
+| `BE_SRC_BAR_EXTREME` | the **closed** bar's favourable extreme (`iHigh`/`iLow` at shift 1), once per bar | one bar | partially — sees every completed bar's touch, but never the still-forming bar |
+| `BE_SRC_BAR_CLOSE` | single price sample at the new-bar tick, once per bar | one bar | no — pre-2026-07 behaviour, retained for A/B comparison |
+
+Implementation notes:
+
+* The rule itself lives in **one** function, `CTradeExecutor::TryMoveToBreakEven`. `RRM_ManageStrictNoATR` calls it once per bar; `EvaluateBE_Tick` calls it per tick. Both paths therefore apply identical BE logic by construction.
+* The lock is **latched per ticket** (`m_position_states[].be_triggered`), so a tick-rate call followed by the per-bar call is a no-op. BE remains a one-time event.
+* `EvaluateBE_Tick` returns immediately unless `BE_TriggerSource == BE_SRC_TICK`. Nothing else in `EvaluateTM` — emergency-margin close, DPI exit, trailing engine — moves to tick rate; those stay strictly once-per-bar.
+* `BE_SRC_BAR_EXTREME` ignores the closed bar whenever it opened before the fill, so the entry bar's pre-entry extreme can never trigger BE.
+* **Baseline is `BE_SRC_BAR_CLOSE`** in `InitializeConfig()`, and `PRESET_TOPINVESTOR` pins it explicitly. Only `PRESET_RRM_ORG` opts in to the new sampler, so no other preset changes behaviour.
+
+### Loss-side trailing — the ratchet (2026-07)
+
+The Oracle Stop Loss card has **four** sections, and the EA previously implemented only three. The missing one is *"Move Stop Loss Towards Entry"*: as the PSAR dots move toward the entry price, the stop is moved to each newly formed dot — **before** break-even, while the stop is still in the red. Manual §IV.B (p.81) states the purpose plainly: you move the stop to a position of lesser risk so that you lose *less* if the trade becomes a loser. Manual §V (p.90) states the consequence: a stopped-out trade usually loses less than the full initial stop, which is why the realised reward:risk lands near 2:1 even with a 1:1 target.
+
+Two guards previously made that impossible, and together they meant the stop could only ever hold one of two values — the initial level, or `entry ± BE buffer`. An exit at the second is a small **win**, so *every* losing trade lost the full R by construction.
+
+| Guard | Was | Now |
+|---|---|---|
+| `RRM_TrailStartsAfterBE` | `true` — trail engine unreachable until BE fired | `false` — trail runs from the first managed bar |
+| BE-floor (`if(new_sl < entry) return;`) | hard-coded, no input | replaced by `TrailAllowLossSide`, default `true` |
+
+What did **not** change: `TrailLockProfit` still forbids moving the stop backwards, in the loss zone exactly as in profit. That is Oracle too (manual §IV.B p.84) and it is what makes loss-side trailing safe — the stop may walk toward entry, never away from it, so open risk only ever decreases.
+
+The apply path in `RRM_ManageStrictNoATR` now reads as three plain questions: *is the new stop still at a loss and are we allowed there* → *would it move backwards* → *is it an improvement the broker will accept*.
+
+Measured on the repo's own M15 data (9 symbols, 223 289 direction-agnostic entries, no signal filter — mechanism deltas only, not a P&L forecast):
+
+| exit regime | mean R | PF | win % | full-stop % | TP % |
+|---|---|---|---|---|---|
+| frozen initial SL, no BE, no trail | −0.041 | 0.94 | 26.9 | 71.3 | 26.9 |
+| legacy (BE on close, trail after BE, BE-floor) | +0.000 | 1.00 | 49.3 | 50.3 | 8.0 |
+| Oracle (ratchet from bar 1, BE on touch) | **+0.059** | **1.19** | 45.7 | **18.2** | 4.7 |
+
+Note the cost side honestly: the ratchet also **cuts winners short**. Win rate fell 49.3% → 45.7% and TP hits 8.0% → 4.7%. The loss truncation more than paid for it here, and the manual says the same thing in §V — a trailed trade can be stopped out prematurely when the market does not run. The simulation used a bare PSAR dot with no cushion; the EA applies `ResolveTrailCushionPrice` (ATR mode by default), so the live trail is looser than the measured one.
+
+To revert to the pre-2026-07 exit shape without touching code: `Inp_RRM_ORG_TrailAllowLossSide = false` and `Inp_RRM_ORG_TrailStartsAfterBE = true`. The active shape is printed in the startup journal as `[EXIT SHAPE]`.
+
+**Scope note.** The same BE-floor pattern still exists in three sibling helpers — `CalculateProfitPercentTrailSL`, `ApplyTrailEMA`, and the SIMPLE-path PSAR clamp in `EvaluateTM`. All three are unreachable under `PRESET_RRM_ORG` defaults and were deliberately left untouched.
 
 ### Trailing Stop Modes (`ETrailingMode`)
 * `TRAIL_PSAR`: Trails the SL strictly behind the PSAR dot, padded by the TF-Based Trail Cushion.

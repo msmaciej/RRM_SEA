@@ -436,9 +436,11 @@ Three voters enabled. All must pass (`VOTE_MODE_ALL`). One fail → I=0 → TS=0
 | `SwingLookback` | `34` | **Search window** (not exact bar): scans up to 34 bars for the nearest structural swing. Wider window = less likely to miss a swing that occurred slightly outside a narrow window. |
 | `RRRatio` | `2.5` | TP = 2.5× SL distance. Minimum for positive expected value at ~52% win rate. |
 | `TrailMode` | `TRAIL_PSAR` | Trailing stop follows PSAR dots |
-| `TrailStartsAfterBE` | `true` | PSAR trail only activates after BE is reached — trade breathes toward TP first |
-| `BE_Mode` | `BE_MODE_R_MULTIPLE` | Move SL to BE when price reaches 1R profit |
-| `BE_RMultiple` | `1.0` | BE triggers at 1× initial risk distance |
+| `TrailStartsAfterBE` | `false` | Trail engages immediately. **Oracle-anchored:** manual §IV.B — trailing starts as soon as the trade moves in your favour, not after break-even. *Changed 2026-07 from `true`.* |
+| `TrailAllowLossSide` | `true` | The PSAR trail may tighten the SL **while it is still at a loss**. **Oracle-anchored:** Stop Loss card, *"Move Stop Loss Towards Entry"*. This is what makes a partial loss reachable at all; with `false` every loser costs the full R. *Added 2026-07.* |
+| `BE_Mode` | `BE_MODE_R_MULTIPLE` | Move SL to BE when price reaches 0.7R profit |
+| `BE_RMultiple` | `0.7` | BE triggers at 0.7× the initial risk distance. **Oracle-anchored:** the Stop Loss card and manual §IV.E both set break-even at ~70% (two-thirds) of the initial stop. *Corrected 2026-07 — this table previously read `1.0`, which matched neither the committed input nor the Oracle.* |
+| `BE_TriggerSource` | `BE_SRC_TICK` | Which price sample fires BE. Oracle (manual §IV.E, p.88): price only has to **touch** the level — the candle need not close there. `BE_SRC_TICK` evaluates every tick and is the Oracle-exact sampler; `BE_SRC_BAR_EXTREME` checks the closed bar's high/low once per bar (one bar late); `BE_SRC_BAR_CLOSE` is the pre-2026-07 behaviour and misses any intrabar touch that retraces before the close. |
 
 ---
 
@@ -592,11 +594,13 @@ All steps must pass for entry:
 | `Inp_RRM_ORG_TPMode` | `TP_MODE_RR` | TP calculation mode |
 | `Inp_RRM_ORG_RRRatio` | `2.0` | Risk-reward ratio (1:2 = risk 1 to win 2) |
 | `Inp_RRM_ORG_TrailMode` | `TRAIL_PSAR` | Trailing stop mode |
-| `Inp_RRM_ORG_TrailStartsAfterBE` | `false` | Only trail after BE hit |
-| `Inp_RRM_ORG_PSAR_TrailCushionMode` | `PSAR_CUSHION_PIPS` | PSAR trail cushion mode |
+| `Inp_RRM_ORG_TrailStartsAfterBE` | `false` | Hold the trail back until BE fires (Oracle: `false`) |
+| `Inp_RRM_ORG_TrailAllowLossSide` | `true` | Let the trail tighten the SL while still at a loss (Oracle: `true`) |
+| `Inp_RRM_ORG_PSAR_TrailCushionMode` | `PSAR_CUSHION_ATR` | PSAR trail cushion mode *(doc corrected 2026-07 — previously read `PSAR_CUSHION_PIPS`)* |
 | `Inp_RRM_ORG_BE_Mode` | `BE_MODE_R_MULTIPLE` | Breakeven trigger mode |
-| `Inp_RRM_ORG_BE_RMultiple` | `1.0` | Move to BE at 1R profit |
-| `Inp_RRM_ORG_BE_ProgressPct` | `33.0` | BE trigger % to TP (if using BE_MODE_TP_PROGRESS_PCT) |
+| `Inp_RRM_ORG_BE_RMultiple` | `0.7` | Move to BE at 0.7R profit (Oracle: ~70% of the initial stop) |
+| `Inp_RRM_ORG_BE_ProgressPct` | `70.0` | BE trigger % to TP (if using BE_MODE_TP_PROGRESS_PCT) |
+| `Inp_RRM_ORG_BE_TriggerSource` | `BE_SRC_TICK` | Price sample that fires BE — TICK / BAR_EXTREME / BAR_CLOSE |
 
 **All RRM_ORG settings now in dedicated input groups** — no more mixing with CUSTOM inputs.
 

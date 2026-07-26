@@ -294,6 +294,16 @@ enum EBeMode
    BE_MODE_TP_PROGRESS_PCT,// BE_MODE_TP_PROGRESS_PCT: BE triggers at % progress toward TP (used with TP enabled)
    BE_MODE_R_MULTIPLE      // BE_MODE_R_MULTIPLE: BE triggers at k*R multiple (used when TP is disabled)
 };
+// Which price sample decides the BE trigger. The Oracle (RRM manual SS IV.E, p.88) is
+// explicit: price only has to TOUCH the level, the candle need not close there.
+// EvaluateTM runs once per bar, so BE_SRC_BAR_CLOSE samples a single price at the
+// new-bar tick and misses every intrabar touch that retraces before the close.
+enum EBeTriggerSource
+{
+   BE_SRC_TICK,            // BE_SRC_TICK: every tick, live Bid/Ask - Oracle-exact (intrabar touch)
+   BE_SRC_BAR_EXTREME,     // BE_SRC_BAR_EXTREME: once per bar, probe the CLOSED bar's high/low (one bar late)
+   BE_SRC_BAR_CLOSE        // BE_SRC_BAR_CLOSE: once per bar, price at the new-bar tick (pre-2026-07 behaviour)
+};
 enum EExitProfile
 {
    EXIT_PROFILE_NONE,      // EXIT_PROFILE_NONE: No exit profile (manual management)
@@ -709,9 +719,11 @@ struct ST_Settings
    double RRM_BE_ProgressPct;          // RRM_BE trigger: % progress toward TP (0..100); used with BE_MODE_TP_PROGRESS_PCT
    double RRM_BE_RMultiple;            // RRM_BE trigger: R-multiple threshold (e.g. 1.0); used with BE_MODE_R_MULTIPLE
    double RRM_BE_BufferPips;           // RRM_BE buffer in pips
+   EBeTriggerSource BE_TriggerSource;  // RRM_BE: which price sample decides the trigger (tick / closed-bar extreme / bar close)
    int    RRM_TrailPsarDotShift;     // RRM_PSAR trail bar-shift delay (1..3)
    bool   RRM_FreezeTrailOnFlip;       // RRM_Freeze trailing stop on PSAR flip signal
    bool   RRM_TrailStartsAfterBE;      // RRM_Delay trail activation until BE is triggered
+   bool   TrailAllowLossSide;          // RRM_Trail: may the trail tighten the SL while it is still at a loss? (Oracle: "Move Stop Loss Towards Entry")
 
    // Gate system (reusable hard gates for any preset)
    int         Vote_EvalShift;         // Shift for vote evaluation

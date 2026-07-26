@@ -628,8 +628,9 @@ input double      Inp_RRM_ORG_TrailEMA_CushionPips    = 0.0;         // RRM ORG 
 input double      Inp_RRM_ORG_TrailEMA_CushionAtrMult = 0.1;         // RRM ORG TS: EMA cushion = ATR×this (0=disabled; 0.1=recommended)
 input int         Inp_RRM_ORG_TrailEMA_CushionAtrPeriod = 14;        // RRM ORG TS: ATR period for EMA cushion
 input ETrailTrigger Inp_RRM_ORG_TrailTrigger          = TRIGGER_IMMEDIATE; // RRM ORG TS: *BREAKEVEN, *IMMEDIATE, *PROFIT_PERCENT, *PROFIT_PIPS, *PSAR_ALIGN
-input bool        Inp_RRM_ORG_TrailStartsAfterBE      = true;        // RRM ORG TS: PSAR trail activates only after BE is reached — lets trade breathe toward TP before trailing takes over
+input bool        Inp_RRM_ORG_TrailStartsAfterBE      = false;       // RRM ORG TS: hold the PSAR trail back until BE fires. Oracle (manual SS IV.B) says trailing starts as soon as the trade moves in your favour, so false is the Oracle-conformant value. true = pre-2026-07 behaviour
 input bool        Inp_RRM_ORG_TrailLockProfit         = true;        // RRM ORG TS: never move SL backwards (lock profit)
+input bool        Inp_RRM_ORG_TrailAllowLossSide      = true;        // RRM ORG TS: let the trail tighten the SL while it is STILL AT A LOSS (Oracle Stop Loss card: "Move Stop Loss Towards Entry"). false = SL frozen at its initial level until BE fires (pre-2026-07)
 input double      Inp_RRM_ORG_TrailStepPips           = 5.0;         // RRM ORG TS: step size for fixed-step trail modes
 // PRESET ISOLATION 2026-06: dedicated RRM_ORG freeze-on-flip input
 // (previously RRM_ORG block read Inp_RRM_FreezeTrailOnFlip — an RRM-preset input).
@@ -652,6 +653,11 @@ input group "╚═════════════════════�
 input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_R_MULTIPLE;  // RRM ORG BE: Breakeven trigger mode
 input double      Inp_RRM_ORG_BE_RMultiple            = 0.7;         // RRM ORG BE: BE trigger as R multiple
 input double      Inp_RRM_ORG_BE_ProgressPct          = 70.0;        // RRM ORG BE: BE trigger as TP progress %
+input EBeTriggerSource Inp_RRM_ORG_BE_TriggerSource   = BE_SRC_TICK;  
+// RRM ORG BE: which price sample fires BE - 
+//    *TICK (Oracle: intrabar touch), 
+//    *BAR_EXTREME (closed bar high/low, 1 bar late), 
+//    *BAR_CLOSE (legacy, misses intrabar touches)
 //
 // Inp_RRM_ORG_BE_Mode - Breakeven trigger mode:
 // BE_MODE_OFF:             Breakeven disabled
@@ -690,7 +696,9 @@ input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG 
 input int         Inp_RRM_ORG_Ema4Period           = 89;             // RRM ORG QA: EMA4 period
 input int         Inp_RRM_ORG_MinBarsAfterUNOExit  = 0;              // RRM ORG QA: Min bars after UNO exit before any layer DETECTED→IN-TREND transition is allowed (0=disabled; try 2-3 for M1)
 input int         Inp_RRM_ORG_UNO_ToleranceBars    = 2;              // RRM ORG PB: consecutive UNO bars tolerated before layer states are wiped. A transient UNO flicker that resolves back to the SAME direction within this many bars PRESERVES DETECTED/IN-TREND (0=strict: reset on the first UNO bar)
-input bool        Inp_RRM_ORG_LayerS_TMOnly        = false;          // RRM ORG QA: Restrict LayerS (EMA3/EMA4) entries to TRENDING phase only (per canonical RRM); false=legacy (LayerS allowed in EM+TM)
+input bool        Inp_RRM_ORG_LayerS_TMOnly        = false;          
+// RRM ORG QA: Restrict LayerS (EMA3/EMA4) entries to TRENDING phase only (per canonical RRM); 
+//    false=legacy (LayerS allowed in EM+TM)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: LAYER WMS Pullback & Recovery";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1570,9 +1578,17 @@ void InitializeConfig()
    Settings.BE_Mode                 = BE_MODE_TP_PROGRESS_PCT;
    Settings.RRM_BE_ProgressPct      = 50.0;   // default; overwritten by ApplyPreset
    Settings.RRM_BE_RMultiple        = 1.0;    // default; overwritten by ApplyPreset
+   // Baseline is the LEGACY sampler on purpose: every preset that does not
+   // explicitly opt in keeps its pre-2026-07 behaviour. Only PRESET_RRM_ORG
+   // opts in, via Inp_RRM_ORG_BE_TriggerSource.
+   Settings.BE_TriggerSource        = BE_SRC_BAR_CLOSE;
    Settings.RRM_TrailPsarDotShift = 2;      // default; overwritten by ApplyPreset
    Settings.RRM_FreezeTrailOnFlip   = true;   // default; overwritten by ApplyPreset
    Settings.RRM_TrailStartsAfterBE  = false;  // default; overwritten by ApplyPreset
+   // Baseline is the pre-2026-07 behaviour on purpose: every preset that does not
+   // explicitly opt in keeps a stop that is frozen until BE. Only PRESET_RRM_ORG
+   // opts in, via Inp_RRM_ORG_TrailAllowLossSide.
+   Settings.TrailAllowLossSide      = false;
 
    Settings.Vote_EvalShift       = 1;
    Settings.Vote_AllowPsarFlip   = false;

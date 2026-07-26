@@ -1164,6 +1164,30 @@ void ValidateRRM_ORG_ExitConfig(ST_Settings &cfg)
       warnings += "  If LPR (let-profit-run) was intended, set Inp_RRM_ORG_TrailMode=TRAIL_PROFIT_PERCENT.\n\n";
    }
 
+   // ── 2026-07: state the active loss-protection shape explicitly at startup ──
+   // These two settings together decide whether a losing trade can exit for less
+   // than the full R. Print them unconditionally so the operator never has to
+   // infer the exit shape from behaviour.
+   if(cfg.ExitProfile == EXIT_PROFILE_RRM && cfg.TrailMode == TRAIL_PSAR)
+   {
+      if(cfg.TrailAllowLossSide && !cfg.RRM_TrailStartsAfterBE)
+      {
+         warnings += "[EXIT SHAPE] Oracle: the SL ratchets behind the PSAR dots from entry,\n";
+         warnings += "  including while still at a loss. A losing trade can exit for less than 1R.\n";
+         warnings += "  (TrailAllowLossSide=true, TrailStartsAfterBE=false)\n\n";
+      }
+      else
+      {
+         warnings += "[EXIT SHAPE] Legacy: the SL is frozen at its initial level until BE fires,\n";
+         warnings += "  so EVERY losing trade loses the full R and no partial loss is reachable.\n";
+         warnings += StringFormat("  (TrailAllowLossSide=%s, TrailStartsAfterBE=%s)\n",
+                                  cfg.TrailAllowLossSide ? "true" : "false",
+                                  cfg.RRM_TrailStartsAfterBE ? "true" : "false");
+         warnings += "  Set Inp_RRM_ORG_TrailAllowLossSide=true and Inp_RRM_ORG_TrailStartsAfterBE=false\n";
+         warnings += "  for the Oracle behaviour.\n\n";
+      }
+   }
+
    // ── Print warnings if any ──────────────────────────────────────────
    if(warnings != "")
    {
@@ -2317,6 +2341,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.TrailEMA_CushionAtrPeriod    = MathMax(1,   Inp_RRM_ORG_TrailEMA_CushionAtrPeriod);
       cfg.RRM_TrailPsarDotShift   = (Inp_RRM_ORG_TrailPsarDotShift < 1) ? 1 : (Inp_RRM_ORG_TrailPsarDotShift > 3) ? 3 : Inp_RRM_ORG_TrailPsarDotShift; // PSAR DOT trail shift (TRAILING only); default 2 for flip stability
       cfg.RRM_TrailStartsAfterBE    = Inp_RRM_ORG_TrailStartsAfterBE;
+      cfg.TrailAllowLossSide        = Inp_RRM_ORG_TrailAllowLossSide;
       // FIX (2026-06): pin freeze-on-flip explicitly so RRM_ORG does NOT
       // silently inherit it from InitializeConfig(). Combined with the
       // close-based flip detector in RRM_ManageStrictNoATR and the
@@ -2335,6 +2360,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RRM_BE_RMultiple          = Inp_RRM_ORG_BE_RMultiple;
       cfg.RRM_BE_ProgressPct        = Inp_RRM_ORG_BE_ProgressPct;
       cfg.RRM_BE_BufferPips         = GetTFBasedCushion(_Period);
+      cfg.BE_TriggerSource          = Inp_RRM_ORG_BE_TriggerSource;
 
       ENUM_TIMEFRAMES tfOrg         = (ENUM_TIMEFRAMES)_Period;
       cfg.TrailTrigger              = Inp_RRM_ORG_TrailTrigger;
@@ -2705,6 +2731,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // BE: move to breakeven at N×R profit
       cfg.BE_Mode                   = Inp_TI_BE_Mode;
+      // Pinned to legacy: TI is out of scope for the 2026-07 BE-sampling fix and
+      // must not inherit a behaviour change from the RRM_ORG work.
+      cfg.BE_TriggerSource          = BE_SRC_BAR_CLOSE;
+      cfg.TrailAllowLossSide        = false;   // pinned to legacy; TI is out of scope for the 2026-07 trail work
       cfg.RRM_BE_RMultiple          = Inp_TI_BE_RMultiple;
       cfg.RRM_BE_BufferPips         = GetTFBasedCushion(_Period);   // LOCKED: TF-adaptive buffer; hardcoding would be wrong across M1–D1
       cfg.BEThresholdPips           = 0.0;             // LOCKED: 0 = use R-multiple threshold (set by BE_Mode); a fixed pip threshold would conflict with RR-based logic
