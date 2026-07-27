@@ -253,6 +253,18 @@ The GREEN momentum overlay is visualisation only — it does not gate the vote.
 
 ---
 
+## EMA ribbon — read path and fallback
+
+Ribbon slots are read via `iMA`. If a slot's `CopyBuffer` fails, the engine attempts **one handle re-creation**, and only then falls back to an internal EMA computed from raw closes. The cockpit annotates provenance per slot on the `EMAS:` line: no tag = `iMA`, `(MAN)` = fallback, `(ERR)` = both paths failed. An `(ERR)` slot marks the ribbon invalid and **suppresses the phase** rather than classifying on an unusable ribbon.
+
+The fallback uses MT5's own EMA semantics (`MovingAverages.mqh :: ExponentialMAOnBuffer`): seeded on the **oldest available close**, then `EMA_i = α·C_i + (1−α)·EMA_(i−1)` run forward over the entire series. There is no lookback window and no convergence multiplier — an EMA is defined by its recursion over the series, and the series is the available history, which is exactly what `iMA` uses. The recursion is **carried forward**, not re-derived: one full pass per slot on first use, then one multiply-add per newly closed bar, O(1) for any shift thereafter.
+
+> **2026-07 fix — divergent EMA34/EMA89 fabricating `PHASE_UNORDERED`.** The fallback previously re-derived the EMA on every call over a `period * 4` window, and its guard accepted windows as short as `period + shift + 1`. A windowed re-derivation is an approximation whose error **grows with the period**: EMA5 and EMA13 stayed correct while EMA34 and EMA89 drifted by pips (measured worst case on GBPJPY M1: 3.75 and 4.62 pips). That inverted ribbon order, producing a false `PHASE_UNORDERED` → `B = 0` → `TS = 0` on every bar, and — via the sustained-UNO layer wipe — left layers at `LAYER_PB_NONE` so even bars with a correct ribbon reported `L_NO_EDGE`. Observed as one terminal trading normally while a second terminal running the identical build stayed silent, because only the second had fallen back. Additionally, **only `h_ema1` was validated at init**; a failed `h_ema2/3/4` passed silently and routed that slot to the fallback for the whole session. All four are now validated.
+
+> **Diagnostics.** `[EMA_FALLBACK]` prints the source and value of all eight ribbon slots on any evaluation pass that used the fallback. `[EMA_REINIT]` prints when a handle is successfully re-created. Neither should appear in steady state.
+
+---
+
 ## VPRR — Volume Pullback-Recovery Ratio
 
 VPRR measures whether recovery volume exceeds pullback volume for metals instruments. It is only meaningful with real exchange volume (CME/COMEX feed via a futures-linked broker or proxy symbol).

@@ -210,7 +210,24 @@ private:
    int h_ema2;    // Period 2
    int h_ema3;    // Period 3
    int h_ema4;    // Period 4 (Slowest)
-   
+
+   // --- 1b. MANUAL-EMA INCREMENTAL STATE (fallback read path) --------
+   // One EMA series per ribbon slot, stored ASCENDING (index 0 = oldest
+   // closed bar, index n-1 = shift 1). Maintained incrementally: built
+   // once by a full forward recursion over all available history, then
+   // extended by one multiply-add per newly closed bar. This mirrors MT5
+   // MovingAverages.mqh :: ExponentialMAOnBuffer, so the fallback is
+   // definitionally EQUAL to iMA rather than approximately equal.
+   // There is no lookback window and no convergence multiplier: an EMA
+   // is defined by its recursion over the series, and the series is the
+   // available history — the same bound iMA itself observes.
+   double   m_mema_b1[];
+   double   m_mema_b2[];
+   double   m_mema_b3[];
+   double   m_mema_b4[];
+   datetime m_mema_anchor[4];   // iTime(_,_,1) each buffer is aligned to
+   int      m_mema_period[4];   // period each buffer was built with
+
    int h_macd, h_rsi, h_cci, h_sto;      // Oscillators
    int h_atr, h_bb, h_psar, h_fractals;  // Volatility & Trend
    int h_adx, h_mfi;                     // Strength & Volume
@@ -716,50 +733,169 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   //| ManualEMA — exponential MA computed from raw closes              |
+   //| Manual EMA — incremental, MT5-equivalent                         |
    //+------------------------------------------------------------------+
    // Fallback path when MT5's iMA/CopyBuffer fails. Uses CopyClose (a
    // different MT5 code path than CopyBuffer on an indicator handle —
    // much more reliable in practice).
    //
-   // Method: seed with SMA over the first `period` closes in the read
-   // window, then iterate the EMA recursion forward to the target shift.
-   // The read window is `period * 4` bars deep, which is enough that any
-   // residual seeding error decays to negligible by the target bar.
+   // Semantics are MT5's own (MovingAverages.mqh ::
+   // ExponentialMAOnBuffer): seed on the OLDEST available close, then
+   // run  EMA_i = a*C_i + (1-a)*EMA_(i-1)  forward across every bar.
+   // There is NO lookback window and NO convergence multiplier — an EMA
+   // is defined by its recursion over the series, and the series is the
+   // available history, which is exactly what iMA uses.
    //
-   // Returns the EMA value with out_valid=true on success. On failure
-   // (insufficient history, CopyClose error) returns 0.0 with
-   // out_valid=false — the caller MUST check out_valid before use.
-   double ManualEMA(const int period, const int shift, bool &out_valid)
+   // (2026-07 fix) The previous implementation re-derived the EMA on
+   // every call over a `period * 4` window and accepted windows as short
+   // as `period + shift + 1`. That is an approximation whose error GROWS
+   // WITH `period`: EMA5/EMA13 stayed correct while EMA34/EMA89 drifted
+   // by pips, inverting ribbon order, fabricating PHASE_UNORDERED,
+   // forcing B=0 and silencing the EA on terminals that fell back.
+   //
+   // Cost: one forward pass per slot on first use (or after a period
+   // change / history gap); one multiply-add per newly closed bar
+   // thereafter; O(1) for any shift once current.
+
+   // Largest number of newly-closed bars still worth extending rather
+   // than rebuilding. NOT a tuning parameter: both branches produce the
+   // identical series — this only selects the cheaper route.
+   #ifndef SEA_MEMA_MAX_EXTEND
+   #define SEA_MEMA_MAX_EXTEND 512
+   #endif
+
+   //--- Build one slot's series by full forward recursion over all closed bars.
+   bool MEMA_Build(const int s0, const int period, double &buf[])
    {
-      out_valid = false;
-      if(period < 2 || shift < 0) return 0.0;
+      const int avail = Bars(m_symbol, PERIOD_CURRENT);
+      if(avail < period + 2) return false;
 
-      const int seed_bars  = period * 4;          // seed depth for clean convergence
-      const int total_bars = seed_bars + shift + 1;
-
+      const int want = avail - 1;              // closed bars only (exclude shift 0)
       double closes[];
-      ArraySetAsSeries(closes, true);
-      int got = CopyClose(m_symbol, PERIOD_CURRENT, 0, total_bars, closes);
-      if(got < period + shift + 1) return 0.0;    // not enough history
+      ArraySetAsSeries(closes, false);         // ascending: [0] = oldest
+      const int got = CopyClose(m_symbol, PERIOD_CURRENT, 1, want, closes);
+      if(got < period + 1) return false;
+
+      ArraySetAsSeries(buf, false);
+      if(ArrayResize(buf, got) != got) return false;
 
       const double alpha = 2.0 / (period + 1.0);
+      buf[0] = closes[0];                      // seed = oldest available close
+      for(int i = 1; i < got; i++)
+         buf[i] = alpha * closes[i] + (1.0 - alpha) * buf[i - 1];
 
-      // Seed = SMA of the oldest `period` closes in the window.
-      // closes[] is series-indexed: index 0 = forming bar, index 1 = last
-      // closed bar, ... index (got-1) = oldest fetched bar.
-      double sma = 0.0;
-      for(int i = got - 1; i >= got - period; i--)
-         sma += closes[i];
-      sma /= (double)period;
+      m_mema_anchor[s0] = iTime(m_symbol, PERIOD_CURRENT, 1);
+      m_mema_period[s0] = period;
+      return true;
+   }
 
-      // Iterate EMA from (got - period - 1) down to (shift), oldest -> newest.
-      double ema = sma;
-      for(int i = got - period - 1; i >= shift; i--)
-         ema = alpha * closes[i] + (1.0 - alpha) * ema;
+   //--- Extend one slot's series by `nbars` newly closed bars.
+   bool MEMA_Extend(const int s0, const int period, double &buf[], const int nbars)
+   {
+      if(nbars < 1 || nbars > SEA_MEMA_MAX_EXTEND) return false;
+      const int old_n = ArraySize(buf);
+      if(old_n < 1) return false;
 
+      double closes[];
+      ArraySetAsSeries(closes, false);         // ascending: [0] = oldest of the new run
+      if(CopyClose(m_symbol, PERIOD_CURRENT, 1, nbars, closes) < nbars) return false;
+
+      ArraySetAsSeries(buf, false);
+      if(ArrayResize(buf, old_n + nbars) != old_n + nbars) return false;
+
+      const double alpha = 2.0 / (period + 1.0);
+      for(int i = 0; i < nbars; i++)
+         buf[old_n + i] = alpha * closes[i] + (1.0 - alpha) * buf[old_n + i - 1];
+
+      m_mema_anchor[s0] = iTime(m_symbol, PERIOD_CURRENT, 1);
+      return true;
+   }
+
+   //--- Bring one slot's series up to the current closed bar.
+   bool MEMA_Ensure(const int s0, const int period, double &buf[])
+   {
+      const datetime t1 = iTime(m_symbol, PERIOD_CURRENT, 1);
+      if(t1 == 0) return false;                         // history not ready
+
+      if(m_mema_period[s0] != period || ArraySize(buf) == 0)
+         return MEMA_Build(s0, period, buf);
+
+      if(m_mema_anchor[s0] == t1) return true;          // already current
+
+      // How far has the anchor bar receded? shift 1 -> shift 1+k means k new bars.
+      const int gap = iBarShift(m_symbol, PERIOD_CURRENT, m_mema_anchor[s0], false);
+      if(gap > 1 && (gap - 1) <= SEA_MEMA_MAX_EXTEND)
+         return MEMA_Extend(s0, period, buf, gap - 1);
+
+      return MEMA_Build(s0, period, buf);               // gap unknown / too large
+   }
+
+   //--- Dispatch helpers (MQL5 has no array-of-dynamic-arrays).
+   bool MEMA_EnsureSlot(const int s0, const int period)
+   {
+      switch(s0)
+      {
+         case 0: return MEMA_Ensure(s0, period, m_mema_b1);
+         case 1: return MEMA_Ensure(s0, period, m_mema_b2);
+         case 2: return MEMA_Ensure(s0, period, m_mema_b3);
+         case 3: return MEMA_Ensure(s0, period, m_mema_b4);
+      }
+      return false;
+   }
+
+   bool MEMA_At(const int s0, const int shift, double &out)
+   {
+      int n = 0;
+      switch(s0)
+      {
+         case 0: n = ArraySize(m_mema_b1); break;
+         case 1: n = ArraySize(m_mema_b2); break;
+         case 2: n = ArraySize(m_mema_b3); break;
+         case 3: n = ArraySize(m_mema_b4); break;
+         default: return false;
+      }
+      const int idx = n - shift;               // shift 1 -> last element
+      if(idx < 0 || idx >= n) return false;
+      switch(s0)
+      {
+         case 0: out = m_mema_b1[idx]; break;
+         case 1: out = m_mema_b2[idx]; break;
+         case 2: out = m_mema_b3[idx]; break;
+         case 3: out = m_mema_b4[idx]; break;
+      }
+      return true;
+   }
+
+   //--- Public read. Returns the EMA for `slot1based` at `shift`, or
+   //    out_valid=false if the series cannot be produced — callers MUST
+   //    check out_valid and fail closed rather than compute on 0.0.
+   double ManualEMA(const int slot1based, const int period,
+                    const int shift, bool &out_valid)
+   {
+      out_valid = false;
+      if(slot1based < 1 || slot1based > 4) return 0.0;
+      if(period < 2 || shift < 0)          return 0.0;
+
+      const int s0 = slot1based - 1;
+      if(!MEMA_EnsureSlot(s0, period)) return 0.0;
+
+      if(shift == 0)
+      {
+         // Forming bar: iMA's buffer[0] tracks the live close, so derive
+         // it from the last closed EMA rather than storing it.
+         double v1 = 0.0;
+         if(!MEMA_At(s0, 1, v1)) return 0.0;
+         const double c0 = iClose(m_symbol, PERIOD_CURRENT, 0);
+         if(c0 <= 0.0) return 0.0;
+         const double alpha = 2.0 / (period + 1.0);
+         out_valid = true;
+         return alpha * c0 + (1.0 - alpha) * v1;
+      }
+
+      double v = 0.0;
+      if(!MEMA_At(s0, shift, v)) return 0.0;
       out_valid = true;
-      return ema;
+      return v;
    }
 
    //+------------------------------------------------------------------+
@@ -813,8 +949,33 @@ private:
       double v = GetMAVal(handle, shift, 0, ok);
       if(ok) { out_valid = true; out_src = "iMA"; return v; }
 
+      // Tier 1b: one re-creation attempt (2026-07).
+      // A handle can fail at OnInit on a cold terminal whose history is not
+      // yet synced — the deeper the period, the more likely. Without this the
+      // slot is routed to the fallback for the ENTIRE session, permanently
+      // splitting the ribbon across two read paths.
+      if(handle == INVALID_HANDLE)
+      {
+         const ENUM_MA_METHOD mm = (m_settings.MaType == METHOD_SMA) ? MODE_SMA : MODE_EMA;
+         const int nh = iMA(m_symbol, PERIOD_CURRENT, period,
+                            m_settings.ma_h_shift, mm, PRICE_CLOSE);
+         if(nh != INVALID_HANDLE)
+         {
+            switch(slot1based)
+            {
+               case 1: h_ema1 = nh; break;
+               case 2: h_ema2 = nh; break;
+               case 3: h_ema3 = nh; break;
+               case 4: h_ema4 = nh; break;
+            }
+            PrintFormat("[EMA_REINIT] slot=%d period=%d handle recreated", slot1based, period);
+            v = GetMAVal(nh, shift, 0, ok);
+            if(ok) { out_valid = true; out_src = "iMA"; return v; }
+         }
+      }
+
       // Tier 2: manual computation from raw closes
-      v = ManualEMA(period, shift, ok);
+      v = ManualEMA(slot1based, period, shift, ok);
       if(ok) { out_valid = true; out_src = "MAN"; return v; }
 
       // Both tiers failed
@@ -5436,6 +5597,17 @@ public:
       m_ribbon.all_valid      = false;
       m_ribbon.all_valid_prev = false;
 
+      // Manual-EMA incremental state: force a cold build on first use.
+      for(int mi = 0; mi < 4; mi++)
+      {
+         m_mema_anchor[mi] = 0;
+         m_mema_period[mi] = 0;
+      }
+      ArrayFree(m_mema_b1);
+      ArrayFree(m_mema_b2);
+      ArrayFree(m_mema_b3);
+      ArrayFree(m_mema_b4);
+
       m_diag_last_bias   = 0;
       m_diag_last_votes  = 0;
       m_diag_last_reason = "";
@@ -6854,8 +7026,17 @@ public:
       }
       
       // C. Validation Checkpoints
-      if(h_ema1 == INVALID_HANDLE) {
-         Print("CRITICAL ERROR: Failed to create essential indicators (EMA).");
+      // 2026-07 fix: previously ONLY h_ema1 was validated. A failed h_ema2/3/4
+      // passed init silently and routed that slot to the manual fallback for
+      // the whole session — the ribbon then ran on two different read paths.
+      // Matches the PSAR treatment a few lines below (loud + fatal).
+      if(h_ema1 == INVALID_HANDLE || h_ema2 == INVALID_HANDLE ||
+         h_ema3 == INVALID_HANDLE || h_ema4 == INVALID_HANDLE) {
+         PrintFormat("CRITICAL ERROR: EMA handle creation failed — "
+                     "E1=%d E2=%d E3=%d E4=%d (periods %d/%d/%d/%d) Error=%d",
+                     h_ema1, h_ema2, h_ema3, h_ema4,
+                     m_settings.P_Ema1, m_settings.P_Ema2,
+                     m_settings.P_Ema3, m_settings.P_Ema4, GetLastError());
          return false;
       }
       if(need_atr && h_atr == INVALID_HANDLE) {
