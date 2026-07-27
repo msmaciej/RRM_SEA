@@ -1163,6 +1163,17 @@ void BuildSettings(ST_Settings &s)
    s.VPRR_MinRatio        = VPRR_MinRatio;
    s.VPRR_RecoveryBars    = VPRR_RecovBars;
    s.VPRR_MinRecoveryBars = 1;
+   // 2026-07-27 measurement layer. Set EXPLICITLY rather than left to default:
+   // the scanner is a fallback path used when the EA config snapshot is absent, and
+   // an unset RVOL_Sessions (0) silently disables RVOL here while the EA has it on -
+   // producing two different VPRR readings from one shared engine.
+   // Logging is OFF in the scanner: the EA owns the measurement corpus, and two
+   // writers appending to one CSV would interleave rows.
+   s.VPRR_Validated        = false;   // scanner never re-arms VPRR
+   s.VPRR_ResearchTickMode = false;   // overridden by the EA snapshot when present
+   s.VPRR_RVOL_Sessions    = 20;      // matches the Inp_VPRR_RVOL_Sessions default
+   s.VPRR_RVOL_MinSamples  = 5;       // matches the Inp_VPRR_RVOL_MinSamples default
+   s.VPRR_LogPerSignal     = false;   // EA owns the CSV
 
    // Choppiness Index
    s.Ind_CI_Enabled = TS_CI;

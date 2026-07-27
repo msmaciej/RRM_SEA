@@ -301,6 +301,14 @@ bool SEA_WriteConfigSnapshot(const ST_Settings &cfg)
    FileWriteString(h, "VPRR_MinRecoveryBars=" + IntegerToString(cfg.VPRR_MinRecoveryBars) + "\n");
    FileWriteString(h, "VPRR_RecoveryBars=" + IntegerToString(cfg.VPRR_RecoveryBars) + "\n");
    FileWriteString(h, "VPRR_VolumeType=" + IntegerToString(cfg.VPRR_VolumeType) + "\n");
+   // 2026-07-27 measurement layer. These MUST be synced: the scanner runs the same
+   // engine, so an unsynced field makes it compute a DIFFERENT VPRR than the EA -
+   // the same engine/scanner divergence class as defect V5.
+   FileWriteString(h, "VPRR_Validated=" + (cfg.VPRR_Validated ? "true" : "false") + "\n");
+   FileWriteString(h, "VPRR_ResearchTickMode=" + (cfg.VPRR_ResearchTickMode ? "true" : "false") + "\n");
+   FileWriteString(h, "VPRR_RVOL_Sessions=" + IntegerToString(cfg.VPRR_RVOL_Sessions) + "\n");
+   FileWriteString(h, "VPRR_RVOL_MinSamples=" + IntegerToString(cfg.VPRR_RVOL_MinSamples) + "\n");
+   FileWriteString(h, "VPRR_LogPerSignal=" + (cfg.VPRR_LogPerSignal ? "true" : "false") + "\n");
    FileWriteString(h, "# -- 25 Extension filters --\n");
    FileWriteString(h, "EmaFanFilterEnabled=" + (cfg.EmaFanFilterEnabled ? "true" : "false") + "\n");
    FileWriteString(h, "EmaFanMaxPct=" + DoubleToString(cfg.EmaFanMaxPct, 8) + "\n");
@@ -508,6 +516,11 @@ bool SEA_CS_ApplyKey(ST_Settings &s, const string key, const string val)
    if(key == "VPRR_MinRecoveryBars") { s.VPRR_MinRecoveryBars = (int)StringToInteger(val); return true; }
    if(key == "VPRR_RecoveryBars") { s.VPRR_RecoveryBars = (int)StringToInteger(val); return true; }
    if(key == "VPRR_VolumeType") { s.VPRR_VolumeType = (int)StringToInteger(val); return true; }
+   if(key == "VPRR_Validated") { s.VPRR_Validated = SEA_CS_ParseBool(val); return true; }
+   if(key == "VPRR_ResearchTickMode") { s.VPRR_ResearchTickMode = SEA_CS_ParseBool(val); return true; }
+   if(key == "VPRR_RVOL_Sessions") { s.VPRR_RVOL_Sessions = (int)StringToInteger(val); return true; }
+   if(key == "VPRR_RVOL_MinSamples") { s.VPRR_RVOL_MinSamples = (int)StringToInteger(val); return true; }
+   if(key == "VPRR_LogPerSignal") { s.VPRR_LogPerSignal = SEA_CS_ParseBool(val); return true; }
    if(key == "VRC_Lookback") { s.VRC_Lookback = (int)StringToInteger(val); return true; }
    if(key == "VRC_LowThreshold") { s.VRC_LowThreshold = StringToDouble(val); return true; }
    if(key == "VRC_RefreshSec") { s.VRC_RefreshSec = (int)StringToInteger(val); return true; }

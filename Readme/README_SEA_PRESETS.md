@@ -583,6 +583,8 @@ All steps must pass for entry:
 >
 > **Resolved — VRC flipped to fail-closed; VPRR volume-pollution closed.** The operator chose consistency + safety, so the **`Check_VRC` vote now fails-closed** on a not-ready ATR read (validity-checked read at the top of the voter; a bad read blocks, uncached). `GetVolatilityRegime()` keeps its own documented fail-open contract for any *non-vote* caller — only the VRC vote changed. **`Check_VPRR` (metals/real-volume path):** `GetCurrentBarVolume` returns `0` on a failed read; that `0` was being averaged into the pullback volume, lowering `vol_pb_avg` and **inflating** `vprr = rec/pb` → spurious PASS (the division-by-zero was already guarded, but not the inflation). Fixed: bars with an invalid volume read (`<= 0`) are **skipped** in both the pullback and recovery accumulators, so the averages are built only from real volume. Persistent no-volume then leaves `vol_pb_bars = 0` → ratio never computed → VPRR fails every bar (fail-closed), matching the documented REAL-mode warning. VPRR stays disabled for FX (tick volume) regardless.
 >
+> **SUPERSEDED 2026-07-27.** VPRR is no longer a voter at all - `Check_VPRR` casts no vote and cannot block a trade. The A22 skip-on-invalid guard described above is retained and still correct, but "fails-closed / VPRR fails every bar" no longer describes a trading consequence: it describes a *reading* of 0.00. FX is also no longer unconditionally excluded from MEASUREMENT - see `Inp_VPRR_ResearchTickMode` in `README.md`, which permits tick-sourced measurement (never a decision). Full detail: `README_SEA_VPRR_MEASUREMENT.md`.
+>
 > Result: no long/short asymmetry anywhere in the vote layer, and no `0.0`-read can pass a trade.
 
 **Exit Settings (RRM_ORG-specific inputs):**

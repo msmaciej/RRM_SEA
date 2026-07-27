@@ -378,7 +378,7 @@ The signal evaluation pipeline was significantly simplified in v1.04, then the p
 - Slope-flat DETECTED trigger: `ratio < LayerFlatRatio` — the fast EMA has stopped advancing
 - Slope-reversal DETECTED trigger: `LayerAllowReversalPullback` — catches shallow pullbacks
 - **A21 minimum pullback duration gate:** `LayerMinPullbackBars_W/M/S` (2/2/2) — a pullback cannot complete in one bar
-- VPRR (Volume Pullback-Recovery Ratio) — institutional volume confirmation gate on recovery
+- VPRR (Volume Pullback-Recovery Ratio) — **NO LONGER A GATE OR A VOTER (2026-07-27).** It measures and logs only; it cannot block a trade under any preset or setting. See `README.md` "VPRR — measurement-only" and `README_SEA_VPRR_MEASUREMENT.md`
 - CBOEB (CandleBody Over-Extension Carry) — CB vote held at 0 until a fresh pullback-recovery cycle
 
 **What was removed again (Path 2, 2026-07) — do not reintroduce:**
