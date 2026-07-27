@@ -325,6 +325,48 @@ VPRR may influence a trading decision only when **both** keys are turned:
 
 `Inp_VPRR_Validated` ships `false` and **has no caller today, by design**. It exists so that re-arming VPRR is a deliberate act with a named precondition — never a side effect of configuring a proxy symbol, which is exactly what defect V4 was.
 
+### Research tick mode — measuring without a real-volume feed
+
+`Inp_VPRR_ResearchTickMode` (ships `false`). When enabled **and** no real volume exists,
+VPRR measures using **tick volume** and logs it. It still votes on nothing.
+
+**Why this is not a reversal of the real-volume rule.** That rule exists so a tick-derived
+number can never *block a trade*. VPRR no longer votes, so there is no trade to block. The
+fail-closed rule introduced with defect V9 was calibrated for a voter; once the voter was
+removed it stopped protecting a decision and merely prevented measurement.
+
+**Why tick volume is usable for this and not for voting.** The standing objection is that
+tick volume is a broker-specific *count*, not a quantity. RVOL normalisation cancels
+exactly that: dividing by the same broker's own median at the same minute-of-day removes
+broker scale and leaves *relative activity*. That is weaker than exchange volume, still
+unsigned, and still not order flow — but it is measurable today.
+
+**Two independent safety guards, either sufficient alone:**
+
+1. VPRR casts no vote anywhere (`VPRR-DEVOTE`), so no decision path exists for the number
+   to reach.
+2. `VPRR_MayInfluenceDecisions()` additionally requires `m_vprr_last_src == REAL`, so even
+   a future re-arm cannot consume a tick reading.
+
+**Provenance is recorded, never inferred.** Every CSV row carries `REAL` / `TICK` / `NONE`.
+Real-volume and tick-sourced observations are different measurements and must never be
+pooled in analysis.
+
+**Applies to metals too.** Your broker quotes XAUUSD, so it produces tick counts for
+XAUUSD exactly as it does for FX. Running research mode on gold *and* on an FX pair, then
+comparing, is the cheapest available evidence for whether pursuing a real-volume feed is
+worth anything — obtained before spending money on one.
+
+> **Correction (2026-07-27).** An earlier version of this session's analysis stated that
+> tick-mode measurement "cannot answer the metals question." That was wrong: it carried a
+> limit from the voting design into the measurement design without rechecking it. The
+> accurate and narrower claim is that tick counts cannot show *institutional participation*
+> — a quote-update count cannot report contracts traded or which side was the aggressor.
+> That is a real limit on interpretation. It is not a reason to skip the measurement.
+
+**Full measurement schema and analysis procedure: `Readme/README_SEA_VPRR_MEASUREMENT.md`.
+Capability roadmap: `Readme/README_SEA_VPRR_ROADMAP.md`.**
+
 ### Thresholds are PROVISIONAL
 
 No VPRR threshold in this repo has been validated against outcome data. The per-instrument values are reasoned starting points, not findings. **Exposing an input does not validate its value.**
@@ -337,7 +379,7 @@ No VPRR threshold in this repo has been validated against outcome data. The per-
 4. Only if separation appears: A/B a threshold, then consider re-arming via the two-key gate.
 5. If nothing separates: delete the subsystem. That is a legitimate and cheap outcome.
 
-**Without a real-volume feed every reading is `0.00` and `src=NONE`.** That is correct behaviour, not a defect — it is what "no COMEX access" looks like from inside the EA.
+**Without a real-volume feed, and with research tick mode OFF, every reading is `0.00` and `src=NONE`.** That is correct behaviour, not a defect. With research tick mode ON, readings are populated and stamped `src=TICK` — measurable, but not exchange volume.
 
 ### Audit trail
 
@@ -347,6 +389,8 @@ The 2026-07-27 audit found eleven traced defects (V1–V11), fixed in commit 2/5
 
 ## Detailed Reference
 
+- `Readme/README_SEA_VPRR_MEASUREMENT.md` — VPRR CSV schema, reading rules, and the analysis that settles whether VPRR has an edge
+- `Readme/README_SEA_VPRR_ROADMAP.md` — VPRR capability roadmap: what is fixable now, what is blocked, what data is required
 - `Readme/README_SEA_SIGNAL_REFERENCE.md` — full indicator logic and voting details
 - `Readme/README_SEA_TRADE_LOGIC.md` — TE execution, SL/TP, trailing
 - `Readme/README_SEA_PRESETS.md` — preset configuration reference

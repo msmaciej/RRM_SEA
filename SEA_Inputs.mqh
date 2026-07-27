@@ -391,6 +391,25 @@ input bool        Inp_VPRR_Validated               = false;          // VPRR: th
 input int         Inp_VPRR_RVOL_Sessions           = 20;             // VPRR RVOL: trailing sessions used for the same-minute-of-day volume baseline (0=disable RVOL)
 input int         Inp_VPRR_RVOL_MinSamples         = 5;              // VPRR RVOL: minimum valid samples before RVOL is considered computable
 input bool        Inp_VPRR_LogPerSignal            = true;           // VPRR: append a CSV row of raw components on every signal bar (measurement corpus)
+// RESEARCH TICK MODE (2026-07-27, added after the audit). Allows VPRR to MEASURE
+// using tick volume when no real volume exists - for DATA COLLECTION ONLY.
+//
+// WHY THIS IS NOT A REVERSAL OF THE REAL-VOLUME RULE. That rule exists because a
+// tick-derived number must never BLOCK A TRADE. VPRR no longer votes, so there is
+// no trade to block. The V9 fail-closed rule was calibrated for a voter and, once
+// the voter was removed, it stopped protecting a decision and merely prevented
+// measurement - blocking the very data collection that would settle whether any
+// of this works.
+//
+// The objection to tick volume is that it is a broker-specific COUNT rather than a
+// quantity. RVOL normalisation cancels exactly that: dividing by the same broker's
+// own median at the same minute-of-day removes broker scale and leaves relative
+// activity. Weaker than real volume, unsigned, and NOT order flow - but testable
+// today, on the instrument you actually trade, at zero cost.
+//
+// HARD INVARIANT: a tick-sourced reading can never influence a decision.
+// VPRR_MayInfluenceDecisions() requires a REAL source regardless of this input.
+input bool        Inp_VPRR_ResearchTickMode        = false;          // VPRR: allow TICK volume for MEASUREMENT/LOGGING only when no real volume exists (never influences a decision)
 
 input double      Inp_VPRR_MinRatio_Gold           = 1.0;            // VPRR GOLD (XAU): MinRatio base (M15:1.0; TF mult auto-scales)
 input int         Inp_VPRR_RecBars_Gold            = 3;              // VPRR Gold: RecoveryBars base
@@ -1743,6 +1762,7 @@ void InitializeConfig()
     Settings.VPRR_RVOL_Sessions   = MathMax(0, Inp_VPRR_RVOL_Sessions);
     Settings.VPRR_RVOL_MinSamples = MathMax(1, Inp_VPRR_RVOL_MinSamples);
     Settings.VPRR_LogPerSignal    = Inp_VPRR_LogPerSignal;
+    Settings.VPRR_ResearchTickMode = Inp_VPRR_ResearchTickMode;
 
     // BarClose (bcX) settings
     Settings.BarClose_Enabled    = true;

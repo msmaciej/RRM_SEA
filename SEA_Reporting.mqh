@@ -182,7 +182,7 @@ bool SEA_VPRRLog_Append(const string symbol,
                         const double pb_vpr,    const double rec_vpr,
                         const double pb_slope,  const double rec_slope,
                         const int    pb_bars,   const int    rec_bars,
-                        const bool   src_real,
+                        const int    src_code,
                         const bool   ts_fired)
 {
    string fname = SEA_VPRRLog_FileName(symbol);
@@ -222,7 +222,7 @@ bool SEA_VPRRLog_Append(const string symbol,
       DoubleToString(rec_slope, 6),
       IntegerToString(pb_bars),
       IntegerToString(rec_bars),
-      (src_real ? "REAL" : "NONE"),
+      (src_code == 1 ? "REAL" : (src_code == 2 ? "TICK" : "NONE")),
       (ts_fired ? "1" : "0"));
 
    FileClose(h);

@@ -598,10 +598,23 @@ void VPRR_EnforceInvariant(ST_Settings &cfg)
 
    if(!VPRR_RealVolumeAvailable(cfg.VPRR_ExternalSymbol))
    {
+      if(cfg.VPRR_ResearchTickMode)
+      {
+         // Research tick mode: VPRR stays ENABLED to MEASURE, not to decide. Safe
+         // because VPRR casts no vote (VPRR-DEVOTE) and because
+         // VPRR_MayInfluenceDecisions() independently requires a REAL source.
+         PrintFormat("📊 [VPRR GUARD] %s: no real exchange volume → RESEARCH TICK MODE. "
+                     "VPRR will MEASURE using tick volume (RVOL-normalised) and LOG it. "
+                     "It casts no vote and cannot influence any decision. Readings are "
+                     "labelled src=TICK and must not be compared across brokers.", _Symbol);
+         if(cfg.VPRR_MinRatio <= 0.0) cfg.VPRR_MinRatio = 1.0;
+         return;
+      }
       cfg.VPRR_Enabled = false;
       PrintFormat("📊 [VPRR GUARD] %s: no real exchange volume and no working proxy → VPRR DISABLED. "
-                  "Tick volume is a broker-specific tick COUNT, not traded volume; a ratio built "
-                  "from it measures nothing. (Universal post-preset invariant.)", _Symbol);
+                  "Tick volume is a broker-specific tick COUNT, not traded volume. Enable "
+                  "Inp_VPRR_ResearchTickMode to collect tick-based measurements for research. "
+                  "(Universal post-preset invariant.)", _Symbol);
       return;
    }
 

@@ -1034,10 +1034,10 @@ void OrchestrateTick()
       {
          double v_ratio, v_thr, v_pbrv, v_recrv, v_pbvpr, v_recvpr, v_pbsl, v_recsl;
          int    v_pbn, v_recn;
-         bool   v_real;
+         int    v_src;   // 0=NONE 1=REAL 2=TICK(research)
          Signal.GetVPRRSnapshot(v_ratio, v_thr, v_pbrv, v_recrv,
                                 v_pbvpr, v_recvpr, v_pbsl, v_recsl,
-                                v_pbn, v_recn, v_real);
+                                v_pbn, v_recn, v_src);
          SEA_VPRRLog_Append(_Symbol,
                             iTime(_Symbol, PERIOD_CURRENT, 1),
                             snap_bias,
@@ -1047,7 +1047,7 @@ void OrchestrateTick()
                             v_pbvpr, v_recvpr,
                             v_pbsl, v_recsl,
                             v_pbn, v_recn,
-                            v_real,
+                            v_src,
                             (ts != 0));
       }
 

@@ -872,6 +872,7 @@ struct ST_Settings
     int      VPRR_RVOL_Sessions;          // trailing sessions for the minute-of-day baseline (0=off)
     int      VPRR_RVOL_MinSamples;        // min valid samples before RVOL is computable
     bool     VPRR_LogPerSignal;           // append raw components to the measurement CSV
+    bool     VPRR_ResearchTickMode;       // allow TICK volume for MEASUREMENT only (never a decision)
 
     // Diagnostics: statistics configuration
     bool Stats_FullEvaluation;            // Evaluate ALL indicators per bar (no early exit)

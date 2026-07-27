@@ -417,6 +417,10 @@ private:
     int      m_layer_w_vol_rec_bars, m_layer_m_vol_rec_bars, m_layer_s_vol_rec_bars; // Bars counted in IN-TREND
     double   m_layer_w_vprr, m_layer_m_vprr, m_layer_s_vprr;                       // Final ratios
     bool     m_vprr_last_real;   // True if the last volume read used VOLUME_REAL (for UI source label)
+    // 0 = NONE (nothing measurable), 1 = REAL exchange volume, 2 = TICK (research
+    // mode; measurement only, can never reach a decision). Supersedes the bare
+    // m_vprr_last_real bool, which is retained as (m_vprr_last_src == 1).
+    int      m_vprr_last_src;
     // VPRR measurement layer (2026-07-27). Per-layer, per-leg accumulators for the
     // quantities the original ratio could not express: RVOL (clock-normalised
     // participation), volume-per-range (effort vs result) and the volume SLOPE within
@@ -2211,20 +2215,23 @@ private:
             long ext_vol[];
             if(CopyRealVolume(m_settings.VPRR_ExternalSymbol, PERIOD_CURRENT, shift, 1, ext_vol) == 1 && ext_vol[0] > 0)
             {
-               m_vprr_last_real = true;
+               m_vprr_last_real = true; m_vprr_last_src = 1;
                return ext_vol[0];
             }
          }
-         // V9: was "fall back to tick on the primary symbol". Now fail-closed.
+         // V9: no silent degradation. Tick is admitted ONLY in research mode, and
+         // only as a LABELLED measurement that cannot reach a decision.
          m_vprr_last_real = false;
          if(!m_vprr_real_warned)
          {
-            PrintFormat("[VPRR] WARN: proxy '%s' returned no real volume at shift=%d. VPRR reads 0.00 "
-                        "(no tick fallback — tick volume is not a valid VPRR source).",
-                        m_settings.VPRR_ExternalSymbol, shift);
+            PrintFormat("[VPRR] WARN: proxy '%s' returned no real volume at shift=%d. %s",
+                        m_settings.VPRR_ExternalSymbol, shift,
+                        m_settings.VPRR_ResearchTickMode
+                          ? "Research tick mode ON — measuring TICK volume (logged, never decides)."
+                          : "VPRR reads 0.00 (no tick fallback).");
             m_vprr_real_warned = true;
          }
-         return 0;
+         return ResearchTickVolume(shift);
       }
 
       // ── TICK: explicitly selected, but not a valid VPRR source ───────
@@ -2236,18 +2243,20 @@ private:
          if(!m_vprr_real_warned)
          {
             PrintFormat("[VPRR] WARN: VolumeType=TICK on %s. Tick volume is a broker-specific tick "
-                        "COUNT, not traded volume — a VPRR ratio built from it measures nothing. "
-                        "VPRR reads 0.00. Use REAL, or EXTERNAL with a futures proxy.", m_symbol);
+                        "COUNT, not traded volume. %s", m_symbol,
+                        m_settings.VPRR_ResearchTickMode
+                          ? "Research tick mode ON — measuring it anyway, LOGGED ONLY."
+                          : "VPRR reads 0.00. Enable Inp_VPRR_ResearchTickMode to measure it for research.");
             m_vprr_real_warned = true;
          }
-         return 0;
+         return ResearchTickVolume(shift);
       }
 
       // ── REAL / AUTO: real volume on the primary symbol ───────────────
       long real_vol[];
       if(CopyRealVolume(m_symbol, PERIOD_CURRENT, shift, 1, real_vol) == 1 && real_vol[0] > 0)
       {
-         m_vprr_last_real = true;
+         m_vprr_last_real = true; m_vprr_last_src = 1;
          return real_vol[0];
       }
 
@@ -2255,12 +2264,50 @@ private:
       // auto-detected", not "real volume, else something else".
       if(!m_vprr_real_warned)
       {
-         PrintFormat("[VPRR] WARN: no real volume from CopyRealVolume on %s. VPRR reads 0.00 until a "
-                     "real-volume source is available. Set Inp_VPRR_ExternalSymbol to a futures proxy "
-                     "(e.g. \"GC\" / \"MGC\") if the traded symbol supplies none.", m_symbol);
+         PrintFormat("[VPRR] WARN: no real volume from CopyRealVolume on %s. %s", m_symbol,
+                     m_settings.VPRR_ResearchTickMode
+                       ? "Research tick mode ON — measuring TICK volume (RVOL-normalised, logged, never decides)."
+                       : "VPRR reads 0.00. Set Inp_VPRR_ExternalSymbol to a futures proxy, or enable "
+                         "Inp_VPRR_ResearchTickMode to collect tick-based measurements for research.");
          m_vprr_real_warned = true;
       }
       m_vprr_last_real = false;
+      return ResearchTickVolume(shift);
+   }
+
+   //+------------------------------------------------------------------+
+   //| ResearchTickVolume — tick volume, LABELLED, measurement-only      |
+   //|                                                                    |
+   //| Returns 0 unless research tick mode is explicitly on. When on, it  |
+   //| returns tick volume and marks the source as TICK (m_vprr_last_src  |
+   //| = 2) so every consumer can tell what it is holding.                |
+   //|                                                                    |
+   //| SAFETY. This cannot re-open the tick-volume-decides hole the audit |
+   //| closed, for two independent reasons:                               |
+   //|   1. VPRR casts no vote at all (VPRR-DEVOTE 2026-07-27), so there  |
+   //|      is no decision path for this number to reach; and             |
+   //|   2. VPRR_MayInfluenceDecisions() additionally requires a REAL     |
+   //|      source, so even a future re-arm cannot consume a tick reading.|
+   //| Two independent guards, either sufficient on its own.              |
+   //|                                                                    |
+   //| WHY ALLOW IT AT ALL. The standing objection to tick volume is that |
+   //| it is a broker-specific COUNT, not a quantity. RVOL normalisation  |
+   //| cancels precisely that — dividing by the same broker's own median  |
+   //| at the same minute-of-day removes broker scale and leaves relative |
+   //| activity. That is weaker than real volume and still unsigned, but  |
+   //| it is measurable TODAY on the instrument actually being traded,    |
+   //| which beats a correct measurement of nothing.                      |
+   //+------------------------------------------------------------------+
+   long ResearchTickVolume(int shift)
+   {
+      if(!m_settings.VPRR_ResearchTickMode) { m_vprr_last_src = 0; return 0; }
+      long tv[];
+      if(CopyTickVolume(m_symbol, PERIOD_CURRENT, shift, 1, tv) == 1 && tv[0] > 0)
+      {
+         m_vprr_last_src = 2;   // TICK — research only
+         return tv[0];
+      }
+      m_vprr_last_src = 0;
       return 0;
    }
 
@@ -2723,7 +2770,7 @@ private:
             // 2026-07-27 measurement layer: legs + RVOL cache share this invariant.
             VPRRLeg_Reset(m_leg_pb_w); VPRRLeg_Reset(m_leg_pb_m); VPRRLeg_Reset(m_leg_pb_s);
             VPRRLeg_Reset(m_leg_rec_w); VPRRLeg_Reset(m_leg_rec_m); VPRRLeg_Reset(m_leg_rec_s);
-            m_rvol_cache_time = 0; m_rvol_cache_shift = -1; m_rvol_cache_value = 0.0;
+            m_rvol_cache_time = 0; m_rvol_cache_shift = -1; m_rvol_cache_value = 0.0; m_vprr_last_src = 0;
             m_layer_s_baseline    = 0.0;
             m_layer_s_bars_det    = 0;   // A21 2026-07
          }
@@ -5232,7 +5279,7 @@ private:
       // 2026-07-27 measurement layer: legs + RVOL cache share this invariant.
       VPRRLeg_Reset(m_leg_pb_w); VPRRLeg_Reset(m_leg_pb_m); VPRRLeg_Reset(m_leg_pb_s);
       VPRRLeg_Reset(m_leg_rec_w); VPRRLeg_Reset(m_leg_rec_m); VPRRLeg_Reset(m_leg_rec_s);
-      m_rvol_cache_time = 0; m_rvol_cache_shift = -1; m_rvol_cache_value = 0.0;
+      m_rvol_cache_time = 0; m_rvol_cache_shift = -1; m_rvol_cache_value = 0.0; m_vprr_last_src = 0;
       // DPI CCI reset-recovery cycle (trend colour reference becomes stale)
       m_dpi_reset_state         = 0;
       m_dpi_reset_recovery_bars = 0;
@@ -7025,7 +7072,7 @@ public:
       // 2026-07-27 measurement layer: legs + RVOL cache share this invariant.
       VPRRLeg_Reset(m_leg_pb_w); VPRRLeg_Reset(m_leg_pb_m); VPRRLeg_Reset(m_leg_pb_s);
       VPRRLeg_Reset(m_leg_rec_w); VPRRLeg_Reset(m_leg_rec_m); VPRRLeg_Reset(m_leg_rec_s);
-      m_rvol_cache_time = 0; m_rvol_cache_shift = -1; m_rvol_cache_value = 0.0;
+      m_rvol_cache_time = 0; m_rvol_cache_shift = -1; m_rvol_cache_value = 0.0; m_vprr_last_src = 0;
 
       // Track the bias direction that owned the previous bar's state. We
       // use the same 999 sentinel as UpdateLayerPullbackStates so the very
@@ -7245,7 +7292,7 @@ public:
       // 2026-07-27 measurement layer: legs + RVOL cache share this invariant.
       VPRRLeg_Reset(m_leg_pb_w); VPRRLeg_Reset(m_leg_pb_m); VPRRLeg_Reset(m_leg_pb_s);
       VPRRLeg_Reset(m_leg_rec_w); VPRRLeg_Reset(m_leg_rec_m); VPRRLeg_Reset(m_leg_rec_s);
-      m_rvol_cache_time = 0; m_rvol_cache_shift = -1; m_rvol_cache_value = 0.0;
+      m_rvol_cache_time = 0; m_rvol_cache_shift = -1; m_rvol_cache_value = 0.0; m_vprr_last_src = 0;
       m_vprr_last_real = false;
       m_vprr_real_warned = false;        // Re-arm one-shot REAL-volume warning on (re)init
       m_diag_last_bias = 0;
@@ -7584,11 +7631,14 @@ public:
                         double &pb_rvol,  double &rec_rvol,
                         double &pb_vpr,   double &rec_vpr,
                         double &pb_slope, double &rec_slope,
-                        int &pb_bars, int &rec_bars, bool &src_real)
+                        int &pb_bars, int &rec_bars, int &src_code)
    {
       ratio     = GetActiveLayerVPRR();
       threshold = GetVPRR_EffectiveThreshold();
-      src_real  = m_vprr_last_real;
+      // 0 = NONE, 1 = REAL, 2 = TICK (research). The CSV records this per row so the
+      // analysis can separate real-volume observations from tick-sourced ones - they
+      // are NOT the same measurement and must never be pooled.
+      src_code  = m_vprr_last_src;
 
       switch(m_last_layer)
       {
@@ -7636,7 +7686,11 @@ public:
    //+------------------------------------------------------------------+
    bool VPRR_MayInfluenceDecisions() const
    {
-      return (m_settings.VPRR_Enabled && m_settings.VPRR_Validated);
+      // The source check is deliberate and non-negotiable: a tick-sourced reading
+      // (research mode) must never influence a decision, however the other two keys
+      // are set. This is the second of two independent guards - the first being that
+      // VPRR casts no vote at all.
+      return (m_settings.VPRR_Enabled && m_settings.VPRR_Validated && m_vprr_last_src == 1);
    }
 
    //+------------------------------------------------------------------+
