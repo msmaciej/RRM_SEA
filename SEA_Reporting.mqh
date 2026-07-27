@@ -138,3 +138,93 @@ void SEA_Report_Generate()
    else
       Print("Report: Saved ", filename, " (Terminal Files) | DataFolder -> MQL5 -> Files");
 }
+
+//+------------------------------------------------------------------+
+//| SEA_VPRRLog — per-signal-bar measurement corpus (2026-07-27)      |
+//|                                                                    |
+//| PURPOSE. The audit could establish that VPRR was mis-coded; it     |
+//| could NOT establish whether a volume edge exists on metals. That   |
+//| is an empirical question and no amount of code reading answers it. |
+//| This writer exists so the question can eventually be settled with  |
+//| data: it appends one row per signal bar recording the RAW          |
+//| components, with VPRR casting no vote and blocking nothing.        |
+//|                                                                    |
+//| The intended use is: run with VPRR enabled on a real-volume metals |
+//| feed, collect a few hundred signal bars, then check whether any of |
+//| these columns separates winners from losers BEFORE letting VPRR    |
+//| influence anything. Costs nothing and risks nothing, because the   |
+//| voter is gone.                                                     |
+//|                                                                    |
+//| A 0.0 in any measurement column means NOT COMPUTABLE, not "zero" - |
+//| see GetVPRRSnapshot. Analysis must exclude those rows per column   |
+//| rather than treating them as observations, or the sample will be   |
+//| silently contaminated with absent readings.                        |
+//|                                                                    |
+//| On a broker with no real volume every row reads 0.00 and src=NONE. |
+//| That is CORRECT behaviour, not a defect - it is what "we do not    |
+//| have COMEX access yet" looks like from inside the EA.              |
+//+------------------------------------------------------------------+
+
+string SEA_VPRRLog_FileName(const string symbol)
+{
+   return StringFormat("SEA_VPRR_%s_%s.csv", symbol, TFToString());
+}
+
+// Writes the header once, on creation. Returns false if the file cannot be
+// opened - logging is best-effort and must never interrupt trading.
+bool SEA_VPRRLog_Append(const string symbol,
+                        const datetime bar_time,
+                        const int    bias,
+                        const int    layer,
+                        const double ratio,
+                        const double threshold,
+                        const double pb_rvol,   const double rec_rvol,
+                        const double pb_vpr,    const double rec_vpr,
+                        const double pb_slope,  const double rec_slope,
+                        const int    pb_bars,   const int    rec_bars,
+                        const bool   src_real,
+                        const bool   ts_fired)
+{
+   string fname = SEA_VPRRLog_FileName(symbol);
+   bool   fresh = !FileIsExist(fname, FILE_COMMON);
+
+   int h = FileOpen(fname, FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI|FILE_COMMON, ',');
+   if(h == INVALID_HANDLE)
+      return false;
+
+   FileSeek(h, 0, SEEK_END);
+
+   if(fresh)
+   {
+      FileWrite(h,
+         "bar_time","symbol","tf","bias","layer",
+         "vprr_ratio","threshold",
+         "pb_rvol","rec_rvol",
+         "pb_volPerRange","rec_volPerRange",
+         "pb_volSlope","rec_volSlope",
+         "pb_bars","rec_bars",
+         "vol_source","ts_fired");
+   }
+
+   FileWrite(h,
+      TimeToString(bar_time, TIME_DATE|TIME_MINUTES|TIME_SECONDS),
+      symbol,
+      TFToString(),
+      IntegerToString(bias),
+      IntegerToString(layer),
+      DoubleToString(ratio, 4),
+      DoubleToString(threshold, 4),
+      DoubleToString(pb_rvol, 4),
+      DoubleToString(rec_rvol, 4),
+      DoubleToString(pb_vpr, 4),
+      DoubleToString(rec_vpr, 4),
+      DoubleToString(pb_slope, 6),
+      DoubleToString(rec_slope, 6),
+      IntegerToString(pb_bars),
+      IntegerToString(rec_bars),
+      (src_real ? "REAL" : "NONE"),
+      (ts_fired ? "1" : "0"));
+
+   FileClose(h);
+   return true;
+}

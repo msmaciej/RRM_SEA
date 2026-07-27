@@ -322,7 +322,8 @@ double GetInstrumentFanMultiplier()
 }
 
 //+------------------------------------------------------------------+
-//| GetVPRRRecommendedMode — instrument + TF aware VPRR auto-config  |
+//| VPRR TUNING SECTION — instrument + timeframe aware configuration  |
+//| (TF helpers → instrument tuning → auto mode → volume guard)       |
 //|                                                                    |
 //| Instrument classes (separate tuning):                             |
 //|   Gold (XAU)    — COMEX real vol, strong institutional footprint  |
@@ -341,9 +342,18 @@ double GetInstrumentFanMultiplier()
 //+------------------------------------------------------------------+
 
 // ── TF helpers ─────────────────────────────────────────────────────
+// DEFECT V1 (audit 2026-07-27) — FIXED. Both helpers read `PERIOD_CURRENT` as if it
+// were the chart's timeframe. It is not: PERIOD_CURRENT == 0, a SENTINEL meaning
+// "use the chart's timeframe" when handed to CopyRates-family calls. Assigning it to
+// an int yields 0, so `0 <= PERIOD_M5` (5) was ALWAYS true and:
+//   - GetVPRR_TFMultiplier returned the M5 multiplier on EVERY timeframe, making
+//     Inp_VPRR_TF_Mult_M15 / _H1 / _H4Plus unreachable dead inputs; and
+//   - GetVPRR_TFRecBars ALWAYS took the reduce branch whenever the flag was set.
+// The whole TF-adaptive block was inert. Correct accessor is Period() (== _Period),
+// which returns the actual ENUM_TIMEFRAMES value of the chart.
 double GetVPRR_TFMultiplier(double m_M5, double m_M15, double m_H1, double m_H4Plus)
 {
-   int tf = PERIOD_CURRENT;
+   int tf = (int)Period();          // V1: was PERIOD_CURRENT (always 0)
    if(tf <= PERIOD_M5)  return m_M5;
    if(tf <= PERIOD_M15) return m_M15;
    if(tf <= PERIOD_H1)  return m_H1;
@@ -353,7 +363,7 @@ double GetVPRR_TFMultiplier(double m_M5, double m_M15, double m_H1, double m_H4P
 int GetVPRR_TFRecBars(int base_bars, bool reduce_flag)
 {
    if(!reduce_flag) return base_bars;
-   int tf = PERIOD_CURRENT;
+   int tf = (int)Period();          // V1: was PERIOD_CURRENT (always 0)
    if(tf <= PERIOD_M5 || tf >= PERIOD_H4)
       return MathMax(1, base_bars - 1);
    return base_bars;
@@ -367,25 +377,127 @@ struct ST_VPRRAutoMode
    int    recovery_bars;  // Per-instrument + TF adjusted
 };
 
-ST_VPRRAutoMode GetVPRRRecommendedMode(
-   // Per-instrument MinRatio (base, before TF adjustment)
-   double mr_gold,      double mr_silver,
-   double mr_idx_us,    double mr_idx_eu,
-   double mr_oil,       double mr_crypto,
-   double mr_equities,  double mr_fx,
-   double mr_non_fx_tick,
-   // Per-instrument RecoveryBars (base, before TF adjustment)
-   int    rb_gold,      int    rb_silver,
-   int    rb_idx_us,    int    rb_idx_eu,
-   int    rb_oil,       int    rb_crypto,
-   int    rb_equities,  int    rb_fx,
-   // TF multipliers
-   double tf_m5,        double tf_m15,
-   double tf_h1,        double tf_h4plus,
-   bool   tf_reduce_rb,
-   // Default RecoveryBars fallback
-   int    rb_default
-)
+//+------------------------------------------------------------------+
+//| ST_VPRRInstrument — per-instrument tuning, resolved ONCE          |
+//|                                                                    |
+//| DEFECT V2 (audit 2026-07-27) — FIXED HERE.                        |
+//| Instrument classification used to live INSIDE GetVPRRRecommendedMode,|
+//| reachable only from the AutoEnable branch. Both MANUAL branches    |
+//| (RRM_ORG and TOPINVESTOR) therefore did:                          |
+//|      cfg.VPRR_MinRatio = MathMax(0.1, Inp_VPRR_MinRatio_FX);      |
+//| i.e. they applied the FX threshold to EVERY instrument. Since      |
+//| Inp_RRM_ORG_VPRR_AutoEnable ships false, that was the DEFAULT path:|
+//| on XAUUSD the shipped config used 0.7 (the FX value) and never     |
+//| read Inp_VPRR_MinRatio_Gold at all — mis-tuning the one asset class|
+//| VPRR exists for, using the value for the class it may never run on.|
+//|                                                                    |
+//| Classification now lives here and BOTH paths call it, so they      |
+//| cannot drift apart again.                                          |
+//+------------------------------------------------------------------+
+struct ST_VPRRInstrument
+{
+   bool   is_fx;            // true => FX pair: VPRR must never be enabled
+   string class_name;       // "Gold" / "Silver" / "IdxUS" / "IdxEU" / "Oil" / "Crypto" / "Equity" / "FX"
+   double base_min_ratio;   // per-instrument base, BEFORE the TF multiplier
+   int    base_rec_bars;    // per-instrument base, BEFORE the TF reduction
+};
+
+//+------------------------------------------------------------------+
+//| VPRR_ProbeRealVolume — single shared real-volume probe            |
+//|                                                                    |
+//| DEFECT V11 (audit 2026-07-27) — FIXED. Two probes disagreed on     |
+//| depth: GetVPRRRecommendedMode tested shift=1 ONLY, while           |
+//| VPRR_RealVolumeAvailable tested shifts 1..3. A single quiet bar at |
+//| shift=1 therefore disabled VPRR on the auto path but not on the    |
+//| manual one — the same instrument classified two ways depending on  |
+//| which branch asked. One probe, one depth, used by both.            |
+//+------------------------------------------------------------------+
+bool VPRR_ProbeRealVolume(const string sym, const int max_shift = 3)
+{
+   if(StringLen(sym) == 0) return false;
+   long v[];
+   for(int probe_shift = 1; probe_shift <= max_shift; probe_shift++)
+      if(CopyRealVolume(sym, PERIOD_CURRENT, probe_shift, 1, v) == 1 && v[0] > 0)
+         return true;
+   return false;
+}
+
+//+------------------------------------------------------------------+
+//| GetVPRR_InstrumentTuning — classify _Symbol and return its tuning |
+//|                                                                    |
+//| Reads the Inp_VPRR_* globals directly (idiomatic in this file).    |
+//| has_real_vol is required only to separate an individual equity     |
+//| (real exchange volume, no commodity/index keyword) from an FX pair.|
+//+------------------------------------------------------------------+
+ST_VPRRInstrument GetVPRR_InstrumentTuning(const bool has_real_vol)
+{
+   ST_VPRRInstrument r;
+   string sym = _Symbol;
+
+   bool is_gold   = (StringFind(sym, "XAU")  >= 0 || StringFind(sym, "GOLD") >= 0);
+   bool is_silver = (StringFind(sym, "XAG")  >= 0 || StringFind(sym, "SILVER") >= 0);
+   bool is_idx_us = (StringFind(sym, "NAS")  >= 0 || StringFind(sym, "NDX")  >= 0 ||
+                     StringFind(sym, "US30") >= 0 || StringFind(sym, "US500")>= 0 ||
+                     StringFind(sym, "SPX")  >= 0 || StringFind(sym, "SP500")>= 0 ||
+                     StringFind(sym, "DOW")  >= 0);
+   bool is_idx_eu = (StringFind(sym, "GER")  >= 0 || StringFind(sym, "DAX")  >= 0 ||
+                     StringFind(sym, "UK100")>= 0 || StringFind(sym, "FTSE") >= 0 ||
+                     StringFind(sym, "FRA40")>= 0 || StringFind(sym, "STOXX")>= 0 ||
+                     StringFind(sym, "JP225")>= 0 || StringFind(sym, "AUS200")>=0);
+   bool is_oil    = (StringFind(sym, "WTI")  >= 0 || StringFind(sym, "BRENT")>= 0 ||
+                     StringFind(sym, "OIL")  >= 0 || StringFind(sym, "USOIL")>= 0 ||
+                     StringFind(sym, "UKOIL")>= 0);
+   bool is_crypto = (StringFind(sym, "BTC")  >= 0 || StringFind(sym, "ETH")  >= 0 ||
+                     StringFind(sym, "CRYPTO")>=0 || StringFind(sym, "LTC")  >= 0 ||
+                     StringFind(sym, "XRP")  >= 0);
+   bool is_non_fx = (is_gold || is_silver || is_idx_us || is_idx_eu || is_oil || is_crypto);
+   bool is_equity = (!is_non_fx && has_real_vol);
+
+   r.is_fx = (!is_non_fx && !is_equity);
+
+   if(is_gold)        { r.class_name="Gold";   r.base_min_ratio=Inp_VPRR_MinRatio_Gold;      r.base_rec_bars=Inp_VPRR_RecBars_Gold;      }
+   else if(is_silver) { r.class_name="Silver"; r.base_min_ratio=Inp_VPRR_MinRatio_Silver;    r.base_rec_bars=Inp_VPRR_RecBars_Silver;    }
+   else if(is_idx_us) { r.class_name="IdxUS";  r.base_min_ratio=Inp_VPRR_MinRatio_IndicesUS; r.base_rec_bars=Inp_VPRR_RecBars_IndicesUS; }
+   else if(is_idx_eu) { r.class_name="IdxEU";  r.base_min_ratio=Inp_VPRR_MinRatio_IndicesEU; r.base_rec_bars=Inp_VPRR_RecBars_IndicesEU; }
+   else if(is_oil)    { r.class_name="Oil";    r.base_min_ratio=Inp_VPRR_MinRatio_Oil;       r.base_rec_bars=Inp_VPRR_RecBars_Oil;       }
+   else if(is_crypto) { r.class_name="Crypto"; r.base_min_ratio=Inp_VPRR_MinRatio_Crypto;    r.base_rec_bars=Inp_VPRR_RecBars_Crypto;    }
+   else if(is_equity) { r.class_name="Equity"; r.base_min_ratio=Inp_VPRR_MinRatio_Equities;  r.base_rec_bars=Inp_VPRR_RecBars_Equities;  }
+   else
+   {
+      // FX. These values are recorded for the journal only — VPRR is never
+      // enabled on FX by any path, so they can never reach a measurement.
+      r.class_name     = "FX";
+      r.base_min_ratio = Inp_VPRR_MinRatio_FX;
+      r.base_rec_bars  = Inp_VPRR_RecBars_FX;
+   }
+   return r;
+}
+
+//+------------------------------------------------------------------+
+//| GetVPRR_ResolvedMinRatio — base tuning with the TF multiplier     |
+//| applied. The single place a VPRR threshold is computed.           |
+//+------------------------------------------------------------------+
+double GetVPRR_ResolvedMinRatio(const ST_VPRRInstrument &inst)
+{
+   double tf_mult = GetVPRR_TFMultiplier(Inp_VPRR_TF_Mult_M5,  Inp_VPRR_TF_Mult_M15,
+                                         Inp_VPRR_TF_Mult_H1,  Inp_VPRR_TF_Mult_H4Plus);
+   return MathMax(0.1, inst.base_min_ratio * tf_mult);
+}
+
+//+------------------------------------------------------------------+
+//| GetVPRRRecommendedMode — instrument + TF aware VPRR auto-config  |
+//|                                                                    |
+//| DEFECT V10 (audit 2026-07-27) — FIXED. This function previously   |
+//| took 19 parameters, of which THREE were never read in its body:   |
+//| mr_fx, rb_fx and mr_non_fx_tick. They became dead when FX and     |
+//| tick-only instruments were hard-disabled, but stayed in the        |
+//| signature — so Inp_VPRR_MinRatio_NonFXTick and Inp_VPRR_RecBars_FX |
+//| were live inputs the operator could set with no effect anywhere.   |
+//| The parameter list is now a single preset-specific fallback; every |
+//| other value is read from its Inp_ global through the shared        |
+//| resolver above, so a dead knob cannot hide in a long argument list.|
+//+------------------------------------------------------------------+
+ST_VPRRAutoMode GetVPRRRecommendedMode(const int rb_default)
 {
    ST_VPRRAutoMode result;
    result.enabled       = false;
@@ -395,72 +507,29 @@ ST_VPRRAutoMode GetVPRRRecommendedMode(
 
    string sym = _Symbol;
 
-   // ── Volume availability probe ──────────────────────────────────
-   long real_vol[];
-   bool has_real_vol = (CopyRealVolume(sym, PERIOD_CURRENT, 1, 1, real_vol) == 1 && real_vol[0] > 0);
+   // V11: shared probe depth (was shift=1 only here).
+   bool has_real_vol = VPRR_ProbeRealVolume(sym);
    long tick_vol[];
    bool has_tick_vol = (CopyTickVolume(sym, PERIOD_CURRENT, 1, 1, tick_vol) == 1 && tick_vol[0] > 0);
 
-   // ── Instrument classification (granular) ───────────────────────
-   bool is_gold      = (StringFind(sym, "XAU")  >= 0 || StringFind(sym, "GOLD") >= 0);
-   bool is_silver    = (StringFind(sym, "XAG")  >= 0 || StringFind(sym, "SILVER") >= 0);
-   bool is_idx_us    = (StringFind(sym, "NAS")  >= 0 || StringFind(sym, "NDX")  >= 0 ||
-                        StringFind(sym, "US30") >= 0 || StringFind(sym, "US500")>= 0 ||
-                        StringFind(sym, "SPX")  >= 0 || StringFind(sym, "SP500")>= 0 ||
-                        StringFind(sym, "DOW")  >= 0);
-   bool is_idx_eu    = (StringFind(sym, "GER")  >= 0 || StringFind(sym, "DAX")  >= 0 ||
-                        StringFind(sym, "UK100")>= 0 || StringFind(sym, "FTSE") >= 0 ||
-                        StringFind(sym, "FRA40")>= 0 || StringFind(sym, "STOXX")>= 0 ||
-                        StringFind(sym, "JP225")>= 0 || StringFind(sym, "AUS200")>=0);
-   bool is_oil       = (StringFind(sym, "WTI")  >= 0 || StringFind(sym, "BRENT")>= 0 ||
-                        StringFind(sym, "OIL")  >= 0 || StringFind(sym, "USOIL")>= 0 ||
-                        StringFind(sym, "UKOIL")>= 0);
-   bool is_crypto    = (StringFind(sym, "BTC")  >= 0 || StringFind(sym, "ETH")  >= 0 ||
-                        StringFind(sym, "CRYPTO")>=0 || StringFind(sym, "LTC")  >= 0 ||
-                        StringFind(sym, "XRP")  >= 0);
-   // Equities: individual stocks — detected by real exchange vol when no other class matches.
-   // Typical broker symbols: NVDA, AAPL, TSLA, MSFT, AMZN, GOOG (no commodity/index keyword)
-   bool is_metals    = (is_gold || is_silver);
-   bool is_indices   = (is_idx_us || is_idx_eu);
-   bool is_non_fx    = (is_metals || is_indices || is_oil || is_crypto);
-   // Equity: has real vol but no commodity/index keyword matched → individual stock
-   bool is_equity    = (!is_non_fx && has_real_vol);
+   ST_VPRRInstrument inst = GetVPRR_InstrumentTuning(has_real_vol);
 
-   // ── TF multiplier ──────────────────────────────────────────────
-   double tf_mult = GetVPRR_TFMultiplier(tf_m5, tf_m15, tf_h1, tf_h4plus);
-
-   // ── Assign base values by class, then apply TF adjustment ──────
-   if(is_non_fx || is_equity)
+   if(!inst.is_fx)
    {
       if(has_real_vol)
       {
-         result.enabled     = true;
-         result.volume_type = (int)VPRR_VOL_REAL;
-         double base_mr; int base_rb;
-
-         if(is_gold)        { base_mr = mr_gold;      base_rb = rb_gold;      }
-         else if(is_silver) { base_mr = mr_silver;    base_rb = rb_silver;    }
-         else if(is_idx_us) { base_mr = mr_idx_us;    base_rb = rb_idx_us;    }
-         else if(is_idx_eu) { base_mr = mr_idx_eu;    base_rb = rb_idx_eu;    }
-         else if(is_oil)    { base_mr = mr_oil;       base_rb = rb_oil;       }
-         else if(is_crypto) { base_mr = mr_crypto;    base_rb = rb_crypto;    }
-         else               { base_mr = mr_equities;  base_rb = rb_equities;  }  // equity
-
-         result.min_ratio     = MathMax(0.1, base_mr * tf_mult);
-         result.recovery_bars = GetVPRR_TFRecBars(base_rb, tf_reduce_rb);
-         PrintFormat("📊 [VPRR AUTO] %s TF:%s: %s real vol → MinRatio=%.2f (base=%.2f × %.2f) RecBars=%d",
-                     sym, TFToString(),
-                     is_gold ? "Gold" : is_silver ? "Silver" :
-                     is_idx_us ? "IdxUS" : is_idx_eu ? "IdxEU" :
-                     is_oil ? "Oil" : is_crypto ? "Crypto" : "Equity",
-                     result.min_ratio, base_mr, tf_mult, result.recovery_bars);
+         result.enabled       = true;
+         result.volume_type   = (int)VPRR_VOL_REAL;
+         result.min_ratio     = GetVPRR_ResolvedMinRatio(inst);
+         result.recovery_bars = GetVPRR_TFRecBars(inst.base_rec_bars, Inp_VPRR_TF_ReduceRecBars);
+         PrintFormat("📊 [VPRR AUTO] %s TF:%s: %s real vol → MinRatio=%.2f (base=%.2f) RecBars=%d",
+                     sym, TFToString(), inst.class_name,
+                     result.min_ratio, inst.base_min_ratio, result.recovery_bars);
       }
       else if(has_tick_vol)
       {
-         // Tick volume is broker-specific tick count, not real traded volume.
-         // VPRR requires real exchange volume to produce a meaningful ratio.
-         // Enabling VPRR on tick data produces random pass/fail unrelated to
-         // institutional participation — disable unconditionally.
+         // Tick volume is a broker-specific tick COUNT, not traded volume. A ratio
+         // built from it is unrelated to participation — disable unconditionally.
          result.enabled = false;
          PrintFormat("📊 [VPRR AUTO] %s: non-FX but no real volume → DISABLED (tick volume is broker noise, not order flow)",
                      sym);
@@ -470,11 +539,7 @@ ST_VPRRAutoMode GetVPRRRecommendedMode(
    }
    else
    {
-      // FX: VPRR disabled unconditionally.
-      // Real exchange volume is not available for FX pairs; tick volume is a
-      // broker-specific tick count with no relationship to actual order flow or
-      // institutional participation. A VPRR ratio computed from tick data is
-      // meaningless and will randomly block valid TS=1 setups.
+      // FX: no real exchange volume exists (OTC, fragmented, no consolidated tape).
       result.enabled = false;
       PrintFormat("📊 [VPRR AUTO] %s: FX → DISABLED (real volume unavailable; tick volume invalid for VPRR)",
                   sym);
@@ -486,44 +551,68 @@ ST_VPRRAutoMode GetVPRRRecommendedMode(
 //+------------------------------------------------------------------+
 //| VPRR_RealVolumeAvailable — the guard the MANUAL path never had    |
 //|                                                                    |
-//| WHY THIS EXISTS (2026-07-24). GetVPRRRecommendedMode above refuses |
-//| to enable VPRR on FX and on any instrument whose broker supplies   |
-//| no real exchange volume. That refusal was reachable ONLY through   |
-//| the AutoEnable branch. The manual branch assigned                  |
-//| cfg.VPRR_Enabled = Inp_*_VPRR_Enabled with no instrument test at   |
-//| all, and Inp_RRM_ORG_VPRR_AutoEnable ships false — so on the       |
-//| DEFAULT preset the only reachable enable path was the unguarded    |
-//| one. Setting the manual toggle on EURUSD switched VPRR on, and     |
-//| GetCurrentBarVolume (VolumeType=AUTO, the shipped default) then    |
-//| fell through CopyRealVolume to CopyTickVolume — producing exactly  |
-//| the tick-volume ratio that README.md ("VPRR is never enabled for   |
-//| FX pairs regardless of settings"), the AUTO branch's own comment   |
-//| above, and README_SEA_PRESETS.md all state must never occur.       |
-//|                                                                    |
-//| Contract: true only when a MEANINGFUL volume source exists —       |
+//| Contract: true only when a MEANINGFUL volume source exists —      |
 //|   (a) a configured proxy symbol returning real volume, or          |
 //|   (b) real exchange volume on the traded symbol itself.            |
 //| Tick volume is never sufficient, by design.                        |
+//|                                                                    |
+//| V11: now delegates to VPRR_ProbeRealVolume so probe depth cannot   |
+//| diverge from the auto path's.                                      |
 //+------------------------------------------------------------------+
 bool VPRR_RealVolumeAvailable(const string proxy_symbol)
 {
    // (a) External proxy takes priority — this is how a metals CFD legitimately
    //     reads COMEX volume from e.g. "GC" / "MGC" while the traded symbol has none.
-   if(StringLen(proxy_symbol) > 0)
-   {
-      long proxy_vol[];
-      for(int probe_shift = 1; probe_shift <= 3; probe_shift++)
-         if(CopyRealVolume(proxy_symbol, PERIOD_CURRENT, probe_shift, 1, proxy_vol) == 1 && proxy_vol[0] > 0)
-            return true;
-   }
+   if(VPRR_ProbeRealVolume(proxy_symbol)) return true;
 
    // (b) Real exchange volume on the traded symbol.
-   long real_vol[];
-   for(int probe_shift = 1; probe_shift <= 3; probe_shift++)
-      if(CopyRealVolume(_Symbol, PERIOD_CURRENT, probe_shift, 1, real_vol) == 1 && real_vol[0] > 0)
-         return true;
+   return VPRR_ProbeRealVolume(_Symbol);
+}
 
-   return false;
+//+------------------------------------------------------------------+
+//| VPRR_EnforceInvariant — the guard NO preset branch can bypass     |
+//|                                                                    |
+//| DEFECT V3 (audit 2026-07-27) — FIXED HERE.                        |
+//| README.md claimed the real-volume requirement was "enforced on     |
+//| every enable path (2026-07-24)". It was enforced on FOUR. There is |
+//| a FIFTH: cfg.VPRR_Enabled is assigned ONLY inside the RRM_ORG and  |
+//| TOPINVESTOR blocks of ApplyPreset. Under PRESET_FPM and PRESET_MA  |
+//| nothing touches it, so it retains the InitializeConfig seed —      |
+//|      Settings.VPRR_Enabled = Inp_Global_VPRR_Enabled;             |
+//| — a user-settable input, with VolumeType defaulting to AUTO and no |
+//| volume test anywhere on that route. Setting that one global under  |
+//| FPM on EURUSD produced tick-volume VPRR: precisely the behaviour   |
+//| the 2026-07-24 work existed to abolish, by a path it never listed. |
+//|                                                                    |
+//| Fixing it inside ApplyPreset is NOT possible: that function uses a |
+//| per-preset early `return`, so an end-of-body guard would never run |
+//| for TOPINVESTOR. It is therefore a separate, unconditional step    |
+//| invoked from OrchestrateInit immediately after ApplyPreset, and it |
+//| applies to EVERY preset including ones added later. A future preset|
+//| that forgets VPRR entirely inherits the correct behaviour by       |
+//| default — which is the property the previous design lacked.        |
+//+------------------------------------------------------------------+
+void VPRR_EnforceInvariant(ST_Settings &cfg)
+{
+   if(!cfg.VPRR_Enabled) return;   // already off — nothing to enforce
+
+   if(!VPRR_RealVolumeAvailable(cfg.VPRR_ExternalSymbol))
+   {
+      cfg.VPRR_Enabled = false;
+      PrintFormat("📊 [VPRR GUARD] %s: no real exchange volume and no working proxy → VPRR DISABLED. "
+                  "Tick volume is a broker-specific tick COUNT, not traded volume; a ratio built "
+                  "from it measures nothing. (Universal post-preset invariant.)", _Symbol);
+      return;
+   }
+
+   // Real volume exists. Ensure the tuning is instrument-correct even on a path
+   // that never resolved it (FPM/MA inherit MinRatio = 1.0 from the seed).
+   ST_VPRRInstrument inst = GetVPRR_InstrumentTuning(true);
+   if(cfg.VPRR_MinRatio <= 0.0)
+      cfg.VPRR_MinRatio = GetVPRR_ResolvedMinRatio(inst);
+
+   PrintFormat("📊 [VPRR GUARD] %s: real volume confirmed | class=%s | MinRatio=%.2f | "
+               "MEASUREMENT-ONLY (casts no vote)", _Symbol, inst.class_name, cfg.VPRR_MinRatio);
 }
 
 //+------------------------------------------------------------------+
@@ -2195,78 +2284,72 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.AllowLayer2_Entries         = Inp_RRM_ORG_AllowLayerM;   // M = EMA2/3
       cfg.AllowLayer1_Entries         = Inp_RRM_ORG_AllowLayerW;   // W = EMA1/2
 
-      // VPRR: Volume Pullback-Recovery Ratio (institutional participation confirmation)
-      // AutoEnable=true: probe instrument + volume at preset-apply time; per-instrument settings applied.
-      // AutoEnable=false: respect Inp_RRM_ORG_VPRR_Enabled / VolumeType / MinRatio manually.
+      // VPRR: Volume Pullback-Recovery Ratio — MEASUREMENT-ONLY since 2026-07-27.
+      // It records a ratio and cannot block a trade (see SEA_SignalEngine.mqh,
+      // VPRR-DEVOTE). Enabling it therefore costs nothing but a panel line and a
+      // log row; the volume guards below remain because a MEANINGLESS measurement
+      // is still worth refusing to record.
+      // AutoEnable=true : probe instrument + volume at preset-apply time.
+      // AutoEnable=false: respect Inp_RRM_ORG_VPRR_Enabled / VolumeType manually.
       if(Inp_RRM_ORG_VPRR_AutoEnable)
       {
-         ST_VPRRAutoMode vprr_auto = GetVPRRRecommendedMode(
-            Inp_VPRR_MinRatio_Gold,      Inp_VPRR_MinRatio_Silver,
-            Inp_VPRR_MinRatio_IndicesUS, Inp_VPRR_MinRatio_IndicesEU,
-            Inp_VPRR_MinRatio_Oil,       Inp_VPRR_MinRatio_Crypto,
-            Inp_VPRR_MinRatio_Equities,  Inp_VPRR_MinRatio_FX,
-            Inp_VPRR_MinRatio_NonFXTick,
-            Inp_VPRR_RecBars_Gold,       Inp_VPRR_RecBars_Silver,
-            Inp_VPRR_RecBars_IndicesUS,  Inp_VPRR_RecBars_IndicesEU,
-            Inp_VPRR_RecBars_Oil,        Inp_VPRR_RecBars_Crypto,
-            Inp_VPRR_RecBars_Equities,   Inp_VPRR_RecBars_FX,
-            Inp_VPRR_TF_Mult_M5,         Inp_VPRR_TF_Mult_M15,
-            Inp_VPRR_TF_Mult_H1,         Inp_VPRR_TF_Mult_H4Plus,
-            Inp_VPRR_TF_ReduceRecBars,   Inp_RRM_ORG_VPRR_RecoveryBars
-         );
-         cfg.VPRR_Enabled     = vprr_auto.enabled;
-         cfg.VPRR_VolumeType  = vprr_auto.volume_type;
-         cfg.VPRR_MinRatio    = vprr_auto.min_ratio;
+         ST_VPRRAutoMode vprr_auto = GetVPRRRecommendedMode(Inp_RRM_ORG_VPRR_RecoveryBars);
+         cfg.VPRR_Enabled         = vprr_auto.enabled;
+         cfg.VPRR_VolumeType      = vprr_auto.volume_type;
+         cfg.VPRR_MinRatio        = vprr_auto.min_ratio;
          cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, vprr_auto.recovery_bars));
       }
       else
       {
          cfg.VPRR_Enabled         = Inp_RRM_ORG_VPRR_Enabled;
          cfg.VPRR_VolumeType      = (int)Inp_RRM_ORG_VPRR_VolumeType;
-         cfg.VPRR_MinRatio        = MathMax(0.1, Inp_VPRR_MinRatio_FX);
+         // DEFECT V2 — FIXED. Was: MathMax(0.1, Inp_VPRR_MinRatio_FX), i.e. the FX
+         // threshold applied to every instrument, on the branch that ships as the
+         // default (Inp_RRM_ORG_VPRR_AutoEnable = false). Gold ran at the FX value
+         // and Inp_VPRR_MinRatio_Gold was never read. Both branches now resolve the
+         // threshold through the same instrument-aware path.
+         ST_VPRRInstrument vprr_inst = GetVPRR_InstrumentTuning(VPRR_ProbeRealVolume(_Symbol));
+         cfg.VPRR_MinRatio        = GetVPRR_ResolvedMinRatio(vprr_inst);
          cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, Inp_RRM_ORG_VPRR_RecoveryBars));
-         // 2026-07-24: apply the same volume-availability guard the AutoEnable
-         // branch applies. Without it the manual toggle enabled VPRR on FX/tick
-         // volume, contradicting README.md and this file's own AUTO-branch rule.
          if(cfg.VPRR_Enabled && !VPRR_RealVolumeAvailable(Inp_VPRR_ExternalSymbol))
          {
             cfg.VPRR_Enabled = false;
             PrintFormat("📊 [VPRR RRM_ORG] Manual enable REFUSED on %s: no real exchange volume "
                         "(and no working proxy in Inp_VPRR_ExternalSymbol). Tick volume is broker "
-                        "noise, not order flow — VPRR stays DISABLED. This matches the AutoEnable "
-                        "rule and README.md.", _Symbol);
+                        "noise, not order flow — VPRR stays DISABLED.", _Symbol);
          }
+         else if(cfg.VPRR_Enabled)
+            PrintFormat("📊 [VPRR RRM_ORG] Manual enable on %s | class=%s | MinRatio=%.2f (base %.2f)",
+                        _Symbol, vprr_inst.class_name, cfg.VPRR_MinRatio, vprr_inst.base_min_ratio);
       }
       // MinRecoveryBars: bars of recovery volume needed before the ratio is VALID.
-      // 2026-07-24: was unconditionally derived as RecoveryBars-1, with no input —
-      // so the operator could not see or set it, and RecoveryBars was silently doing
-      // two jobs ("how many bars to measure" AND "how many before the ratio counts").
-      // Inp_VPRR_MinRecoveryBars = -1 keeps the legacy derivation exactly; 1-10 sets
-      // it explicitly. Clamped to RecoveryBars: requiring more validity bars than are
-      // ever measured would make the ratio uncomputable and VPRR fail every bar.
+      // Inp_VPRR_MinRecoveryBars = -1 keeps the legacy derivation (RecoveryBars-1);
+      // 1-10 sets it explicitly. Clamped to RecoveryBars: requiring more validity
+      // bars than are ever measured would make the ratio uncomputable.
       if(Inp_VPRR_MinRecoveryBars > 0)
          cfg.VPRR_MinRecoveryBars = MathMin(MathMax(1, MathMin(10, Inp_VPRR_MinRecoveryBars)),
                                             cfg.VPRR_RecoveryBars);
       else
          cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
-      // ── EXTERNAL SYMBOL: override VolumeType if proxy symbol is set ──
-      // When Inp_VPRR_ExternalSymbol is non-empty, it takes priority over
-      // auto-detection. This allows trading XAUUSD CFD on any broker while
-      // reading real COMEX volume from e.g. "GC" or "MGC" futures.
+
+      // ── EXTERNAL SYMBOL: select the proxy as the volume SOURCE ──────────
+      // Lets a metals CFD read real COMEX volume from e.g. "GC" / "MGC".
       cfg.VPRR_ExternalSymbol = Inp_VPRR_ExternalSymbol;
       if(StringLen(Inp_VPRR_ExternalSymbol) > 0)
       {
-         // 2026-07-24: force-ON is now conditional on the proxy actually supplying
-         // real volume. Previously an unconfigured/dead/not-in-MarketWatch proxy
-         // still set Enabled=true, and GetCurrentBarVolume's EXTERNAL branch then
-         // fell back to CopyTickVolume on the primary symbol — re-creating the
-         // tick-volume VPRR the guard above exists to prevent, by a second route.
          if(VPRR_RealVolumeAvailable(Inp_VPRR_ExternalSymbol))
          {
             cfg.VPRR_VolumeType = (int)VPRR_VOL_EXTERNAL;
-            cfg.VPRR_Enabled    = true;   // proxy verified — user's explicit configuration honoured
-            PrintFormat("📊 [VPRR RRM_ORG] External symbol override: VolumeType → EXTERNAL, proxy=\"%s\"",
-                        Inp_VPRR_ExternalSymbol);
+            // DEFECT V4 — FIXED. Was an unconditional `cfg.VPRR_Enabled = true`
+            // commented "user's explicit configuration honoured" — but it ran AFTER
+            // the manual branch and so OVERRODE an explicit Inp_*_VPRR_Enabled=false.
+            // Configuring a proxy symbol silently switched on something the operator
+            // had deliberately switched off. Naming a volume SOURCE is not a request
+            // to ENABLE: the proxy now only selects where volume is read from, and
+            // the enable decision is left exactly as the operator set it.
+            PrintFormat("📊 [VPRR RRM_ORG] External symbol: VolumeType → EXTERNAL, proxy=\"%s\" "
+                        "(source only — enable state unchanged: %s)",
+                        Inp_VPRR_ExternalSymbol, cfg.VPRR_Enabled ? "ENABLED" : "disabled");
          }
          else
          {
@@ -2790,23 +2873,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.ReEntryLotScalePct        = MathMax(0, MathMin(100, Inp_TI_ReEntryLotScalePct));   // 0=full size; 50=half-size re-entry
       cfg.MinBarsAfterClose         = MathMax(0, Inp_TI_MinBarsAfterClose);
 
-      // ── VPRR: Volume Pullback-Recovery Ratio ──────────────────────────
+      // ── VPRR: Volume Pullback-Recovery Ratio (MEASUREMENT-ONLY) ───────
       if(Inp_TI_VPRR_AutoEnable)
       {
-         ST_VPRRAutoMode vprr_auto = GetVPRRRecommendedMode(
-            Inp_VPRR_MinRatio_Gold,      Inp_VPRR_MinRatio_Silver,
-            Inp_VPRR_MinRatio_IndicesUS, Inp_VPRR_MinRatio_IndicesEU,
-            Inp_VPRR_MinRatio_Oil,       Inp_VPRR_MinRatio_Crypto,
-            Inp_VPRR_MinRatio_Equities,  Inp_VPRR_MinRatio_FX,
-            Inp_VPRR_MinRatio_NonFXTick,
-            Inp_VPRR_RecBars_Gold,       Inp_VPRR_RecBars_Silver,
-            Inp_VPRR_RecBars_IndicesUS,  Inp_VPRR_RecBars_IndicesEU,
-            Inp_VPRR_RecBars_Oil,        Inp_VPRR_RecBars_Crypto,
-            Inp_VPRR_RecBars_Equities,   Inp_VPRR_RecBars_FX,
-            Inp_VPRR_TF_Mult_M5,         Inp_VPRR_TF_Mult_M15,
-            Inp_VPRR_TF_Mult_H1,         Inp_VPRR_TF_Mult_H4Plus,
-            Inp_VPRR_TF_ReduceRecBars,   Inp_TI_VPRR_RecoveryBars
-         );
+         ST_VPRRAutoMode vprr_auto = GetVPRRRecommendedMode(Inp_TI_VPRR_RecoveryBars);
          cfg.VPRR_Enabled         = vprr_auto.enabled;
          cfg.VPRR_VolumeType      = vprr_auto.volume_type;
          cfg.VPRR_MinRatio        = vprr_auto.min_ratio;
@@ -2816,26 +2886,51 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       {
          cfg.VPRR_Enabled         = Inp_TI_VPRR_Enabled;
          cfg.VPRR_VolumeType      = (int)Inp_TI_VPRR_VolumeType;
-         cfg.VPRR_MinRatio        = MathMax(0.1, Inp_VPRR_MinRatio_FX);
+         // DEFECT V2 — FIXED (identical defect, sibling code path to RRM_ORG above).
+         ST_VPRRInstrument vprr_inst = GetVPRR_InstrumentTuning(VPRR_ProbeRealVolume(_Symbol));
+         cfg.VPRR_MinRatio        = GetVPRR_ResolvedMinRatio(vprr_inst);
          cfg.VPRR_RecoveryBars    = MathMax(1, MathMin(10, Inp_TI_VPRR_RecoveryBars));
-         // 2026-07-24: identical guard to the RRM_ORG manual branch — same defect,
-         // same sibling code path. (TI ships AutoEnable=true, so this branch is
-         // reachable only if the operator deliberately turns auto off.)
          if(cfg.VPRR_Enabled && !VPRR_RealVolumeAvailable(Inp_VPRR_ExternalSymbol))
          {
             cfg.VPRR_Enabled = false;
             PrintFormat("📊 [VPRR TOPINVESTOR] Manual enable REFUSED on %s: no real exchange volume "
                         "(and no working proxy). VPRR stays DISABLED.", _Symbol);
          }
+         else if(cfg.VPRR_Enabled)
+            PrintFormat("📊 [VPRR TOPINVESTOR] Manual enable on %s | class=%s | MinRatio=%.2f (base %.2f)",
+                        _Symbol, vprr_inst.class_name, cfg.VPRR_MinRatio, vprr_inst.base_min_ratio);
       }
-      // Same resolution as the RRM_ORG block above (2026-07-24): -1 = legacy
-      // derivation, 1-10 = explicit, clamped to RecoveryBars so the ratio stays
-      // computable. Kept identical so the two presets cannot drift apart.
+      // Kept identical to the RRM_ORG block so the two presets cannot drift apart.
       if(Inp_VPRR_MinRecoveryBars > 0)
          cfg.VPRR_MinRecoveryBars = MathMin(MathMax(1, MathMin(10, Inp_VPRR_MinRecoveryBars)),
                                             cfg.VPRR_RecoveryBars);
       else
          cfg.VPRR_MinRecoveryBars = MathMax(1, cfg.VPRR_RecoveryBars - 1);
+      // DEFECT V4b (audit 2026-07-27) — FIXED. This block previously omitted the
+      // external-symbol handling entirely, so cfg.VPRR_ExternalSymbol was NEVER
+      // assigned under TOPINVESTOR and kept the "" seed from InitializeConfig. If the
+      // operator selected VolumeType=EXTERNAL here, GetCurrentBarVolume found an empty
+      // proxy and fell through to tick volume on the traded symbol — the exact silent
+      // tick degradation the 2026-07-24 guards were written to abolish, reachable by a
+      // path those guards never covered. Mirrored from RRM_ORG for parity.
+      cfg.VPRR_ExternalSymbol = Inp_VPRR_ExternalSymbol;
+      if(StringLen(Inp_VPRR_ExternalSymbol) > 0)
+      {
+         if(VPRR_RealVolumeAvailable(Inp_VPRR_ExternalSymbol))
+         {
+            cfg.VPRR_VolumeType = (int)VPRR_VOL_EXTERNAL;
+            PrintFormat("📊 [VPRR TOPINVESTOR] External symbol: VolumeType → EXTERNAL, proxy=\"%s\" "
+                        "(source only — enable state unchanged: %s)",
+                        Inp_VPRR_ExternalSymbol, cfg.VPRR_Enabled ? "ENABLED" : "disabled");
+         }
+         else
+         {
+            cfg.VPRR_Enabled = false;
+            PrintFormat("📊 [VPRR TOPINVESTOR] External symbol \"%s\" returned NO real volume "
+                        "→ VPRR DISABLED rather than silently degraded to tick volume.",
+                        Inp_VPRR_ExternalSymbol);
+         }
+      }
       PrintVPRRSummary(cfg, "TOPINVESTOR");
 
       cfg.MaxSpreadRetryBars        = 3;               // LOCKED: retry blocked entries for up to 3 bars; longer retry risks entering on a stale signal

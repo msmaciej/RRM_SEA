@@ -867,6 +867,11 @@ struct ST_Settings
     double   VPRR_MinRatio_M;             // LayerM threshold override (0 = use VPRR_MinRatio)
     double   VPRR_MinRatio_S;             // LayerS threshold override (0 = use VPRR_MinRatio)
     string   VPRR_ExternalSymbol;         // Proxy symbol for VPRR_VOL_EXTERNAL (e.g. "GC", "MGC"); empty = block all entries
+    // VPRR measurement layer (2026-07-27) - none of these can enable a veto.
+    bool     VPRR_Validated;              // 2nd key of the two-key gate; ships false
+    int      VPRR_RVOL_Sessions;          // trailing sessions for the minute-of-day baseline (0=off)
+    int      VPRR_RVOL_MinSamples;        // min valid samples before RVOL is computable
+    bool     VPRR_LogPerSignal;           // append raw components to the measurement CSV
 
     // Diagnostics: statistics configuration
     bool Stats_FullEvaluation;            // Evaluate ALL indicators per bar (no early exit)
@@ -1130,7 +1135,10 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
    if(cfg.Ind_Dpi_Enabled)        count++;
    if(cfg.Ind_Fib_Enabled)        count++;
    if(cfg.Ind_MTF_Enabled)        count++;
-   if(cfg.VPRR_Enabled)           count++;
+   // VPRR-DEVOTE 2026-07-27: VPRR deliberately NOT counted. This function counts
+   // enabled *voting* indicators (it feeds the I[x/y] denominator). VPRR is now
+   // measurement-only, so counting it would inflate y above the number of voters
+   // that can actually be cast — the exact mismatch this counter exists to prevent.
    return count;
 }
 
@@ -1139,19 +1147,23 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
 //+------------------------------------------------------------------+
 string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 {
+   // VPRR-DEVOTE 2026-07-27: "VPRR" removed from all three arrays and the loop bound
+   // dropped 19 -> 18. This list names enabled VOTERS; VPRR is measurement-only and
+   // casts none. NOTE: the bound is a hand-maintained literal that must equal the
+   // array length — if a voter is ever added or removed here, update it in the same
+   // edit (an over-long bound reads past the arrays).
    string names[]  = {"ADX", "ATR", "BB", "CandleBody", "Choppiness Index", "CCI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC", "DPI", "MTF", "Fib", "VPRR"};
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC", "DPI", "MTF", "Fib"};
    string shorts[] = {"ADX", "ATR", "BB", "CBody", "CI", "CCI", "MACD",
-                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConv", "Stoch", "VRC", "DPI", "MTF", "Fib", "VPRR"};
+                      "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConv", "Stoch", "VRC", "DPI", "MTF", "Fib"};
    bool enabled[]  = {cfg.Ind_Adx_Enabled, cfg.Ind_Atr_Enabled, cfg.Ind_Bb_Enabled,
                       cfg.Ind_CandleBody_Enabled, cfg.Ind_CI_Enabled, cfg.Ind_Cci_Enabled,
                       cfg.Ind_Macd_Enabled, cfg.Ind_Mfi_Enabled,
                       cfg.Ind_P123_Enabled, cfg.Ind_Psar_Enabled, cfg.Ind_Ross_Enabled,
                       cfg.Ind_Rsi_Enabled, cfg.Ind_SmaConverge_Enabled,
-                      cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled, cfg.Ind_Dpi_Enabled, cfg.Ind_MTF_Enabled, cfg.Ind_Fib_Enabled,
-                      cfg.VPRR_Enabled};
+                      cfg.Ind_Sto_Enabled, cfg.Ind_VRC_Enabled, cfg.Ind_Dpi_Enabled, cfg.Ind_MTF_Enabled, cfg.Ind_Fib_Enabled};
    string list = "";
-   for(int i = 0; i < 19; i++)
+   for(int i = 0; i < 18; i++)
    {
       if(!enabled[i]) continue;
       if(list != "") list += compact ? ", " : "\n  + ";

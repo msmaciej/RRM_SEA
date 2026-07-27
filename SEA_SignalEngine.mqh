@@ -92,6 +92,99 @@ struct SRibbonSnapshot {
 };
 
 // UI Telemetry State
+
+//+------------------------------------------------------------------+
+//| ST_VPRRLeg — measurement accumulator for ONE leg of a cycle       |
+//|                                                                    |
+//| Added 2026-07-27 with the VPRR measurement layer. One instance per |
+//| layer per leg (pullback / recovery). Everything here is RECORDED,  |
+//| never voted on — see the VPRR-DEVOTE note in EvaluateIndicatorX.   |
+//|                                                                    |
+//| WHY THESE THREE QUANTITIES. The audit found the original ratio was |
+//| structurally unable to express the thing it was named for:         |
+//|                                                                    |
+//|  1. RVOL (relative volume). Raw volume on intraday metals is       |
+//|     dominated by the session clock — COMEX gold participation      |
+//|     between the Asian hours and the 08:20 ET open differs by a      |
+//|     large multiple. A raw pullback-vs-recovery ratio therefore      |
+//|     substantially measures WHAT TIME IT IS: the same geometry       |
+//|     passes across the opening bell and fails at 02:00. Normalising  |
+//|     each bar against its own minute-of-day baseline removes the     |
+//|     clock and leaves participation.                                |
+//|                                                                    |
+//|  2. Volume per unit range (effort vs result). Volume alone is       |
+//|     direction-blind — every contract has a buyer and a seller, so   |
+//|     CopyRealVolume is UNSIGNED and cannot say who was the aggressor.|
+//|     Paired with range it becomes informative: high volume with a    |
+//|     LARGE range is initiation; high volume with a SMALL range is    |
+//|     absorption, one side supplying into the other — often the       |
+//|     opposite conclusion from the same volume reading.               |
+//|                                                                    |
+//|  3. Volume slope within the leg. The original code averaged the leg,|
+//|     and averaging DESTROYS the classical signal: volume fading      |
+//|     through a pullback (healthy) and volume building through it     |
+//|     (distribution — the pullback is the real move) can produce the  |
+//|     identical mean, hence the identical ratio, hence the identical  |
+//|     verdict. Slope is captured as an incremental least-squares fit  |
+//|     of volume against bar index — O(1) per bar, no buffers.         |
+//|                                                                    |
+//| NONE of these have validated thresholds. They exist to be LOGGED so |
+//| the question can later be settled with data instead of argument.    |
+//+------------------------------------------------------------------+
+struct ST_VPRRLeg
+{
+   int    n;            // bars accumulated in this leg
+   double sum_x;        // bar index within the leg
+   double sum_y;        // volume
+   double sum_xy;
+   double sum_xx;
+   double sum_rvol;     // running total of per-bar RVOL (mean = sum_rvol / n)
+   double sum_vpr;      // running total of per-bar volume/range
+};
+
+void VPRRLeg_Reset(ST_VPRRLeg &leg)
+{
+   leg.n = 0; leg.sum_x = 0.0; leg.sum_y = 0.0;
+   leg.sum_xy = 0.0; leg.sum_xx = 0.0;
+   leg.sum_rvol = 0.0; leg.sum_vpr = 0.0;
+}
+
+// Accumulate one bar. vol MUST already be validated (> 0) by the caller —
+// the A22 skip-on-invalid rule applies here exactly as it does to the ratio.
+void VPRRLeg_Add(ST_VPRRLeg &leg, const double vol, const double rvol, const double vpr)
+{
+   double x = (double)leg.n;          // 0-based index within the leg
+   leg.n++;
+   leg.sum_x  += x;
+   leg.sum_y  += vol;
+   leg.sum_xy += x * vol;
+   leg.sum_xx += x * x;
+   if(rvol > 0.0) leg.sum_rvol += rvol;
+   if(vpr  > 0.0) leg.sum_vpr  += vpr;
+}
+
+// Least-squares slope of volume vs bar index. Positive = volume BUILDING
+// through the leg, negative = FADING. Returns 0.0 when undetermined (<2 bars
+// or a degenerate fit), which is reported as "unknown", never as "flat".
+double VPRRLeg_Slope(const ST_VPRRLeg &leg)
+{
+   if(leg.n < 2) return 0.0;
+   double n     = (double)leg.n;
+   double denom = (n * leg.sum_xx) - (leg.sum_x * leg.sum_x);
+   if(MathAbs(denom) < 1e-12) return 0.0;
+   return ((n * leg.sum_xy) - (leg.sum_x * leg.sum_y)) / denom;
+}
+
+double VPRRLeg_MeanRVOL(const ST_VPRRLeg &leg)
+{
+   return (leg.n > 0) ? (leg.sum_rvol / (double)leg.n) : 0.0;
+}
+
+double VPRRLeg_MeanVPR(const ST_VPRRLeg &leg)
+{
+   return (leg.n > 0) ? (leg.sum_vpr / (double)leg.n) : 0.0;
+}
+
 struct ST_SignalTelemetry {
    int    bias;
    int    phase;
@@ -324,6 +417,15 @@ private:
     int      m_layer_w_vol_rec_bars, m_layer_m_vol_rec_bars, m_layer_s_vol_rec_bars; // Bars counted in IN-TREND
     double   m_layer_w_vprr, m_layer_m_vprr, m_layer_s_vprr;                       // Final ratios
     bool     m_vprr_last_real;   // True if the last volume read used VOLUME_REAL (for UI source label)
+    // VPRR measurement layer (2026-07-27). Per-layer, per-leg accumulators for the
+    // quantities the original ratio could not express: RVOL (clock-normalised
+    // participation), volume-per-range (effort vs result) and the volume SLOPE within
+    // each leg (which averaging destroys). Recorded only - never voted on.
+    ST_VPRRLeg m_leg_pb_w,  m_leg_pb_m,  m_leg_pb_s;    // pullback leg, per layer
+    ST_VPRRLeg m_leg_rec_w, m_leg_rec_m, m_leg_rec_s;   // recovery leg, per layer
+    datetime m_rvol_cache_time;   // per-bar RVOL cache (3 layers would otherwise
+    int      m_rvol_cache_shift;  //  each repeat the full session lookback)
+    double   m_rvol_cache_value;
     // A21 2026-07: bars spent in DETECTED state per layer (for MinPullbackBars gate)
     int      m_layer_w_bars_det, m_layer_m_bars_det, m_layer_s_bars_det;
     // Path 2 2026-07: bars spent in IN-TREND state per layer (for the recovery
@@ -2070,17 +2172,38 @@ private:
    //+------------------------------------------------------------------+
 
    //+------------------------------------------------------------------+
-   //| GetCurrentBarVolume — VPRR volume reader (real-first, tick-back) |
+   //| GetCurrentBarVolume — VPRR volume reader (REAL ONLY, fail-closed) |
+   //|                                                                    |
+   //| Reads the volume of the closed bar at 'shift'. Honors VolumeType:  |
+   //|   EXTERNAL: CopyRealVolume from the configured proxy symbol.       |
+   //|   REAL:     CopyRealVolume on m_symbol.                            |
+   //|   AUTO:     CopyRealVolume on m_symbol.                            |
+   //|   TICK:     returns 0 — see below.                                 |
+   //|                                                                    |
+   //| DEFECT V9 (audit 2026-07-27) — FIXED. Every failure path in this   |
+   //| function used to fall back to CopyTickVolume on the primary symbol |
+   //| and RETURN IT. It set m_vprr_last_real=false, but nothing read that|
+   //| flag to suppress anything — it only labelled the UI. So while the  |
+   //| init-time guards (VPRR_RealVolumeAvailable, the preset blocks,     |
+   //| ValidateVPRRExternalSymbol) correctly refused to enable VPRR       |
+   //| without real volume, THIS runtime path quietly re-admitted tick    |
+   //| volume the moment a validated source dropped out mid-session — a   |
+   //| proxy removed from MarketWatch, a gap in the feed, a weekend. The  |
+   //| ratio then kept computing, from broker tick counts, with no        |
+   //| indication in the reading itself. Identical defect class to the    |
+   //| one the 2026-07-24 work closed at init, surviving at runtime.      |
+   //|                                                                    |
+   //| Contract now: this function returns REAL volume or 0. Never tick.  |
+   //| A 0 is handled correctly downstream — the A22 guard in             |
+   //| UpdateSingleLayerPullback SKIPS non-positive reads in both the     |
+   //| pullback and recovery accumulators, so a dead source leaves        |
+   //| vol_pb_bars = 0, the ratio is never computed, and VPRR reads 0.00. |
+   //| A measurement that cannot be taken must read as absent, not as a   |
+   //| number derived from a different quantity.                          |
    //+------------------------------------------------------------------+
-   // Reads the volume of the closed bar at 'shift'. Honors VPRR_VolumeType:
-   //   AUTO/REAL:  try CopyRealVolume on m_symbol; tick fallback for AUTO.
-   //   EXTERNAL:   CopyRealVolume from proxy symbol (e.g. "GC" futures).
-   //               Falls back to tick on m_symbol if proxy returns 0.
-   //   TICK:       CopyTickVolume on m_symbol always.
-   // Records which source was used in m_vprr_last_real for the UI label.
    long GetCurrentBarVolume(int shift)
    {
-      // ── EXTERNAL: read real volume from proxy symbol ─────────────────
+      // ── EXTERNAL: read real volume from the proxy symbol ─────────────
       if(m_settings.VPRR_VolumeType == VPRR_VOL_EXTERNAL)
       {
          if(StringLen(m_settings.VPRR_ExternalSymbol) > 0)
@@ -2092,51 +2215,52 @@ private:
                return ext_vol[0];
             }
          }
-         // Proxy unavailable or symbol not configured — fall back to tick on primary symbol
+         // V9: was "fall back to tick on the primary symbol". Now fail-closed.
          m_vprr_last_real = false;
-         long tick_fb[];
-         if(CopyTickVolume(m_symbol, PERIOD_CURRENT, shift, 1, tick_fb) == 1)
-            return tick_fb[0];
+         if(!m_vprr_real_warned)
+         {
+            PrintFormat("[VPRR] WARN: proxy '%s' returned no real volume at shift=%d. VPRR reads 0.00 "
+                        "(no tick fallback — tick volume is not a valid VPRR source).",
+                        m_settings.VPRR_ExternalSymbol, shift);
+            m_vprr_real_warned = true;
+         }
          return 0;
       }
 
-      // ── REAL / AUTO: try real volume on primary symbol ───────────────
-      if(m_settings.VPRR_VolumeType == VPRR_VOL_REAL ||
-         m_settings.VPRR_VolumeType == VPRR_VOL_AUTO)
-      {
-         long real_vol[];
-         if(CopyRealVolume(m_symbol, PERIOD_CURRENT, shift, 1, real_vol) == 1 && real_vol[0] > 0)
-         {
-            m_vprr_last_real = true;
-            return real_vol[0];
-         }
-         // REAL forced but unavailable → nothing usable; AUTO continues to tick.
-         if(m_settings.VPRR_VolumeType == VPRR_VOL_REAL)
-         {
-            // One-shot user warning. Without this, the user would see VPRR
-            // always failing and have no clue why — the cockpit just shows
-            // "ratio 0.00 < min" with no hint that the broker simply isn't
-            // supplying real volume on this symbol. The warning is logged
-            // unconditionally (not gated by DebugFlow) because it changes
-            // user behaviour (switch to AUTO or TICK).
-            if(!m_vprr_real_warned)
-            {
-               PrintFormat("[VPRR] WARN: VPRR_VolumeType=REAL but %s returned no real volume on %s. "
-                           "VPRR will fail every bar until the source is changed. Use AUTO for "
-                           "automatic fallback to TICK volume, or TICK explicitly.",
-                           "CopyRealVolume", m_symbol);
-               m_vprr_real_warned = true;
-            }
-            m_vprr_last_real = false;
-            return 0;
-         }
-      }
-      long tick_vol[];
-      if(CopyTickVolume(m_symbol, PERIOD_CURRENT, shift, 1, tick_vol) == 1)
+      // ── TICK: explicitly selected, but not a valid VPRR source ───────
+      // Retained as an enum value for back-compat with existing .set files;
+      // it now measures nothing rather than measuring the wrong thing.
+      if(m_settings.VPRR_VolumeType == VPRR_VOL_TICK)
       {
          m_vprr_last_real = false;
-         return tick_vol[0];
+         if(!m_vprr_real_warned)
+         {
+            PrintFormat("[VPRR] WARN: VolumeType=TICK on %s. Tick volume is a broker-specific tick "
+                        "COUNT, not traded volume — a VPRR ratio built from it measures nothing. "
+                        "VPRR reads 0.00. Use REAL, or EXTERNAL with a futures proxy.", m_symbol);
+            m_vprr_real_warned = true;
+         }
+         return 0;
       }
+
+      // ── REAL / AUTO: real volume on the primary symbol ───────────────
+      long real_vol[];
+      if(CopyRealVolume(m_symbol, PERIOD_CURRENT, shift, 1, real_vol) == 1 && real_vol[0] > 0)
+      {
+         m_vprr_last_real = true;
+         return real_vol[0];
+      }
+
+      // V9: AUTO no longer "continues to tick" — AUTO now means "real volume,
+      // auto-detected", not "real volume, else something else".
+      if(!m_vprr_real_warned)
+      {
+         PrintFormat("[VPRR] WARN: no real volume from CopyRealVolume on %s. VPRR reads 0.00 until a "
+                     "real-volume source is available. Set Inp_VPRR_ExternalSymbol to a futures proxy "
+                     "(e.g. \"GC\" / \"MGC\") if the traded symbol supplies none.", m_symbol);
+         m_vprr_real_warned = true;
+      }
+      m_vprr_last_real = false;
       return 0;
    }
 
@@ -2159,6 +2283,7 @@ private:
                                   double &vprr, int &bars_det, int &bars_rec,
                                   int &g1_recov, bool &g1_counted,
                                   bool &fire_armed,
+                                  ST_VPRRLeg &leg_pb, ST_VPRRLeg &leg_rec,
                                   int bias_dir = 0,
                                   int slow_ema_handle = INVALID_HANDLE,
                                   int min_pb_bars = 0,
@@ -2223,6 +2348,11 @@ private:
                vol_pb_avg  = 0.0; vol_pb_bars  = 0;
                vol_rec_avg = 0.0; vol_rec_bars = 0;
                vprr        = 0.0;
+               // 2026-07-27: the measurement legs are part of that invariant. A cross
+               // invalidates the setup, so carrying RVOL/slope sums across it would
+               // describe a cycle that no longer exists.
+               VPRRLeg_Reset(leg_pb);
+               VPRRLeg_Reset(leg_rec);
                return;   // invalidated layer — no pullback/recovery this bar
             }
          }
@@ -2425,9 +2555,15 @@ private:
 
       // ── VPRR: volume tracking per (post-transition) state ──────────────
       // Runs once per bar (caller guards via m_layer_pb_last_update).
+      // MEASUREMENT-ONLY since 2026-07-27 — nothing here can block a trade.
       if(m_settings.VPRR_Enabled)
       {
          long vol_current = GetCurrentBarVolume(v_shift);
+         // Measurement-layer companions (2026-07-27). Both return 0.0 when not
+         // computable, and 0.0 is skipped downstream — an unknown is never recorded
+         // as a value. RVOL is per-bar cached, so calling it per layer is cheap.
+         double rvol_current = GetBarRVOL(v_shift);
+         double vpr_current  = GetBarVolPerRange(v_shift, vol_current);
 
          if(state == LAYER_PB_DETECTED)
          {
@@ -2438,30 +2574,31 @@ private:
                vol_rec_avg = 0.0;
                vol_rec_bars = 0;
                vprr = 0.0;
+               VPRRLeg_Reset(leg_rec);
+               VPRRLeg_Reset(leg_pb);   // a new pullback is a new leg
             }
             // Accumulate running average of pullback volume.
             // A22: skip bars whose volume read failed / returned 0. Averaging a spurious
             // 0 into the PULLBACK volume lowers vol_pb_avg and INFLATES the ratio
             // (vprr = rec/pb) -> spurious PASS. A genuine 0-volume bar is meaningless for
             // the ratio too, so skipping <=0 is correct either way. Persistent no-volume
-            // then leaves vol_pb_bars=0 -> ratio never computed -> VPRR fails every bar
-            // (fail-closed), matching the documented REAL-mode warning.
+            // then leaves vol_pb_bars=0 -> ratio never computed -> VPRR reads 0.00.
             if(vol_current > 0)
             {
                vol_pb_avg = ((vol_pb_avg * vol_pb_bars) + (double)vol_current) / (vol_pb_bars + 1);
                vol_pb_bars++;
+               VPRRLeg_Add(leg_pb, (double)vol_current, rvol_current, vpr_current);
             }
          }
          else if(state == LAYER_PB_INTREND)
          {
             // Measure recovery volume over the first N bars only.
-            // A22: same skip-on-invalid guard as the pullback branch (a 0 read here
-            // lowers rec_avg -> deflates the ratio, the safe direction, but skipping
-            // keeps the average built only from real volume bars for both sides).
+            // A22: same skip-on-invalid guard as the pullback branch.
             if(vol_current > 0 && vol_rec_bars < m_settings.VPRR_RecoveryBars)
             {
                vol_rec_avg = ((vol_rec_avg * vol_rec_bars) + (double)vol_current) / (vol_rec_bars + 1);
                vol_rec_bars++;
+               VPRRLeg_Add(leg_rec, (double)vol_current, rvol_current, vpr_current);
             }
             // Compute ratio once enough recovery bars are collected.
             if(vol_rec_bars >= m_settings.VPRR_MinRecoveryBars && vol_pb_avg > 0.0)
@@ -2472,6 +2609,8 @@ private:
             vol_pb_avg = 0.0; vol_pb_bars = 0;
             vol_rec_avg = 0.0; vol_rec_bars = 0;
             vprr = 0.0;
+            VPRRLeg_Reset(leg_pb);
+            VPRRLeg_Reset(leg_rec);
          }
       }
    }
@@ -2581,6 +2720,10 @@ private:
             m_layer_s_vol_pb_avg  = 0.0; m_layer_s_vol_pb_bars  = 0;
             m_layer_s_vol_rec_avg = 0.0; m_layer_s_vol_rec_bars = 0;
             m_layer_s_vprr        = 0.0;
+            // 2026-07-27 measurement layer: legs + RVOL cache share this invariant.
+            VPRRLeg_Reset(m_leg_pb_w); VPRRLeg_Reset(m_leg_pb_m); VPRRLeg_Reset(m_leg_pb_s);
+            VPRRLeg_Reset(m_leg_rec_w); VPRRLeg_Reset(m_leg_rec_m); VPRRLeg_Reset(m_leg_rec_s);
+            m_rvol_cache_time = 0; m_rvol_cache_shift = -1; m_rvol_cache_value = 0.0;
             m_layer_s_baseline    = 0.0;
             m_layer_s_bars_det    = 0;   // A21 2026-07
          }
@@ -2708,21 +2851,21 @@ private:
                                 m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
                                 m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars, m_layer_w_vprr,
                                 m_layer_w_bars_det, m_layer_w_bars_rec,
-                                m_layer_w_g1_recov, m_layer_w_g1_counted, m_layer_w_fire_armed, bias_dir,
+                                m_layer_w_g1_recov, m_layer_w_g1_counted, m_layer_w_fire_armed, m_leg_pb_w, m_leg_rec_w, bias_dir,
                                 h_ema2, GetLayerMinPBBars(1), GetLayerWindow(1));
       UpdateSingleLayerPullback(h_ema2, v_shift, GetLayerLookback(2),
                                 m_layer_m_pb_state, m_layer_m_baseline, "LayerM",
                                 m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                 m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars, m_layer_m_vprr,
                                 m_layer_m_bars_det, m_layer_m_bars_rec,
-                                m_layer_m_g1_recov, m_layer_m_g1_counted, m_layer_m_fire_armed, bias_dir,
+                                m_layer_m_g1_recov, m_layer_m_g1_counted, m_layer_m_fire_armed, m_leg_pb_m, m_leg_rec_m, bias_dir,
                                 h_ema3, GetLayerMinPBBars(2), GetLayerWindow(2));
       UpdateSingleLayerPullback(h_ema3, v_shift, GetLayerLookback(3),
                                 m_layer_s_pb_state, m_layer_s_baseline, "LayerS",
                                 m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                 m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars, m_layer_s_vprr,
                                 m_layer_s_bars_det, m_layer_s_bars_rec,
-                                m_layer_s_g1_recov, m_layer_s_g1_counted, m_layer_s_fire_armed, bias_dir,
+                                m_layer_s_g1_recov, m_layer_s_g1_counted, m_layer_s_fire_armed, m_leg_pb_s, m_leg_rec_s, bias_dir,
                                 h_ema4, GetLayerMinPBBars(3), GetLayerWindow(3));
 
       UpdateCBOverExtCarry(v_shift);
@@ -2745,18 +2888,156 @@ private:
    }
 
    //+------------------------------------------------------------------+
-   //| Check_VPRR — voter: recovery volume must back the recovery       |
+   //| GetBarRVOL — relative volume vs this bar's minute-of-day baseline |
+   //|                                                                    |
+   //| Added 2026-07-27 (VPRR measurement layer). Returns volume(shift)   |
+   //| divided by the MEDIAN volume of the same minute-of-day over the    |
+   //| trailing VPRR_RVOL_Sessions sessions. 1.0 = typical for this time  |
+   //| of day; 3.0 = three times typical.                                 |
+   //|                                                                    |
+   //| Median, not mean: a single news spike in the window would drag a    |
+   //| mean upward and permanently depress every subsequent RVOL reading.  |
+   //|                                                                    |
+   //| Returns 0.0 = NOT COMPUTABLE (insufficient history, no real volume,|
+   //| RVOL disabled). 0.0 is never a valid RVOL, so callers can treat it  |
+   //| as "unknown" without a sentinel. It is deliberately NOT clamped to  |
+   //| 1.0 on failure: an unknown must not masquerade as a normal reading. |
+   //|                                                                    |
+   //| Session-boundary note: the lookback steps back in whole 24h blocks  |
+   //| and uses iBarShift, so weekends and holidays simply yield no bar    |
+   //| (or a stale one) and contribute nothing. That undercounts samples   |
+   //| rather than corrupting them, which is the safe direction.           |
    //+------------------------------------------------------------------+
-   bool Check_VPRR(int v_shift)
+   double GetBarRVOL(int shift)
    {
-      double active_vprr = GetActiveLayerVPRR();
+      if(m_settings.VPRR_RVOL_Sessions <= 0) return 0.0;
 
-      // Theme3 2026-06: resolve per-layer threshold; 0 = "use VPRR_MinRatio global".
-      // Rationale: L1 (fastest, EMA1/EMA2) recovers in 1-3 bars on M1 metals — rarely
-      // enough volume to differentiate, so a higher per-L1 threshold filters noise.
-      // L3 (slowest, EMA3/EMA4) has multi-bar recoveries with more reliable signal;
-      // a lower per-L3 threshold accepts more entries. Defaults of 0 preserve legacy
-      // behavior (single VPRR_MinRatio for all layers).
+      datetime t0 = iTime(m_symbol, PERIOD_CURRENT, shift);
+      if(t0 <= 0) return 0.0;
+
+      // Per-bar cache. Without it this runs once per LAYER per bar (3x), each doing
+      // up to VPRR_RVOL_Sessions iBarShift + CopyRealVolume lookups.
+      if(m_rvol_cache_time == t0 && m_rvol_cache_shift == shift)
+         return m_rvol_cache_value;
+
+      long cur = GetCurrentBarVolume(shift);
+      if(cur <= 0) { m_rvol_cache_time = t0; m_rvol_cache_shift = shift; m_rvol_cache_value = 0.0; return 0.0; }
+
+      // GetCurrentBarVolume writes m_vprr_last_real (the UI source label). Sampling
+      // HISTORY below must not repaint that flag with a historical bar's outcome, so
+      // snapshot it here and restore before returning.
+      bool src_flag = m_vprr_last_real;
+
+      double samples[];
+      ArrayResize(samples, m_settings.VPRR_RVOL_Sessions);
+      int got = 0;
+
+      for(int k = 1; k <= m_settings.VPRR_RVOL_Sessions; k++)
+      {
+         datetime tk = t0 - (datetime)(k * 86400);
+         int sk = iBarShift(m_symbol, PERIOD_CURRENT, tk, true);
+         if(sk < 0) continue;                   // exact=true -> no bar at that time
+         // Guard against iBarShift snapping to a far-away bar across a market gap.
+         datetime tk_actual = iTime(m_symbol, PERIOD_CURRENT, sk);
+         if(tk_actual != tk) continue;
+
+         long v = GetCurrentBarVolume(sk);
+         if(v <= 0) continue;                   // A22 rule: invalid reads never averaged
+         samples[got++] = (double)v;
+      }
+
+      m_vprr_last_real = src_flag;              // restore: reflects the CURRENT bar
+
+      double result = 0.0;
+      if(got >= m_settings.VPRR_RVOL_MinSamples)
+      {
+         ArrayResize(samples, got);
+         ArraySort(samples);
+         double med = (got % 2 == 1)
+                      ? samples[got / 2]
+                      : 0.5 * (samples[(got / 2) - 1] + samples[got / 2]);
+         if(med > 0.0) result = (double)cur / med;
+      }
+
+      m_rvol_cache_time  = t0;
+      m_rvol_cache_shift = shift;
+      m_rvol_cache_value = result;
+      return result;
+   }
+
+   //+------------------------------------------------------------------+
+   //| DESIGN NOTE — volume x open interest (the reading we cannot take) |
+   //|                                                                    |
+   //| Volume alone is one column of three. The standard futures reading  |
+   //| pairs it with price AND open interest:                             |
+   //|                                                                    |
+   //|   price UP   + volume UP + OI UP    -> new longs, strong continuation
+   //|   price UP   + volume UP + OI DOWN  -> short covering, often ending
+   //|   price DOWN + volume UP + OI UP    -> new shorts, strong downtrend
+   //|   price DOWN + volume UP + OI DOWN  -> long liquidation, often exhaustion
+   //|   any        + volume DOWN          -> low participation, unsponsored
+   //|                                                                    |
+   //| NOT IMPLEMENTABLE in standard MQL5: MqlRates carries tick_volume    |
+   //| and real_volume only, and there is no CopyOpenInterest. OI needs an |
+   //| external source (CFTC COT, or a broker-specific feed).              |
+   //|                                                                    |
+   //| Recorded here so the model is not re-derived later: it states what  |
+   //| a volume reading MEANS once OI exists. Note that without OI, the    |
+   //| two rows that end a move (short covering, long liquidation) are     |
+   //| INDISTINGUISHABLE from the two that continue it — which is the      |
+   //| deepest reason a volume-magnitude ratio cannot carry direction.     |
+   //+------------------------------------------------------------------+
+
+   //+------------------------------------------------------------------+
+   //| GetBarVolPerRange — effort vs result for one bar                  |
+   //|                                                                    |
+   //| volume / (high-low), in points. High value = lots of volume moved  |
+   //| price very little => ABSORPTION. Low value = price travelled on    |
+   //| little volume => thin, unreliable. Returns 0.0 when not computable.|
+   //|                                                                    |
+   //| This is the term that lets a future VPRR distinguish an initiation |
+   //| spike from an exhaustion spike, which the original magnitude-only  |
+   //| ratio could not do: it was monotonic in volume, so a blow-off read |
+   //| as MAXIMUM confirmation - directly contradicting the Climax Guard  |
+   //| vetoing the very same bar on range.                                |
+   //+------------------------------------------------------------------+
+   double GetBarVolPerRange(int shift, const long vol)
+   {
+      if(vol <= 0) return 0.0;
+      double hi = iHigh(m_symbol, PERIOD_CURRENT, shift);
+      double lo = iLow (m_symbol, PERIOD_CURRENT, shift);
+      if(hi <= 0.0 || lo <= 0.0 || hi <= lo) return 0.0;
+      double pt = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+      if(pt <= 0.0) return 0.0;
+      double range_pts = (hi - lo) / pt;
+      if(range_pts <= 0.0) return 0.0;
+      return (double)vol / range_pts;
+   }
+
+
+   //+------------------------------------------------------------------+
+   //| GetVPRR_EffectiveThreshold — the ONE place a VPRR threshold is    |
+   //| resolved (per-layer override, else the instrument global).        |
+   //|                                                                    |
+   //| DEFECT V7 (audit 2026-07-27) — FIXED BY EXISTING.                 |
+   //| The per-layer resolution used to be inline inside Check_VPRR, so   |
+   //| every OTHER consumer re-derived the verdict against the GLOBAL     |
+   //| m_settings.VPRR_MinRatio and silently ignored VPRR_MinRatio_W/M/S: |
+   //|   - the telemetry fill recomputed vprr_pass with the global; and   |
+   //|   - the cockpit voter row printed "(ratio X < global)".            |
+   //| With, say, VPRR_MinRatio_W = 0.8, global = 1.0 and ratio = 0.9 the |
+   //| evaluator returned PASS while the cockpit displayed FAIL — and the |
+   //| reverse was equally possible. The panel could state the exact      |
+   //| opposite of the verdict. One resolver, one answer, no drift.       |
+   //|                                                                    |
+   //| Per-layer rationale (Theme3 2026-06): L1 (EMA1/EMA2) recovers in   |
+   //| 1-3 bars on M1 metals — rarely enough volume to differentiate, so  |
+   //| a higher L1 threshold filters noise. L3 (EMA3/EMA4) has multi-bar  |
+   //| recoveries with a steadier reading, so a lower threshold is apt.   |
+   //| A value of 0 means "use the global", preserving legacy behaviour.  |
+   //+------------------------------------------------------------------+
+   double GetVPRR_EffectiveThreshold() const
+   {
       double layer_threshold = m_settings.VPRR_MinRatio;
       switch(m_last_layer)
       {
@@ -2764,7 +3045,37 @@ private:
          case 2: if(m_settings.VPRR_MinRatio_M > 0.0) layer_threshold = m_settings.VPRR_MinRatio_M; break;
          case 3: if(m_settings.VPRR_MinRatio_S > 0.0) layer_threshold = m_settings.VPRR_MinRatio_S; break;
       }
-      bool pass = (active_vprr >= layer_threshold);
+      return layer_threshold;
+   }
+
+   //+------------------------------------------------------------------+
+   //| Check_VPRR — MEASUREMENT evaluator (NOT a voter since 2026-07-27) |
+   //|                                                                    |
+   //| Returns whether the active layer's recorded ratio meets its        |
+   //| threshold. Used for DISPLAY and LOGGING only — no caller may let   |
+   //| this decide a trade. See the VPRR-DEVOTE note in EvaluateIndicatorX.|
+   //|                                                                    |
+   //| DEFECT V8 (audit 2026-07-27) — FIXED. The signature used to be     |
+   //| Check_VPRR(int v_shift) and the body NEVER READ v_shift. The value |
+   //| returned is live per-layer accumulator state — whatever the layer  |
+   //| state machine last advanced to — so the parameter promised a       |
+   //| shift-correctness the function did not have. That mattered for     |
+   //| random-access callers (Scanner_InspectBar on an arbitrary          |
+   //| historical bar), which would have received a reading belonging to  |
+   //| a different bar entirely while appearing to have asked for theirs. |
+   //| The parameter is REMOVED rather than documented: a caller can no   |
+   //| longer express a request this function cannot honour. If a genuine |
+   //| historical VPRR reading is ever needed, it requires replaying the  |
+   //| accumulators to that bar — not passing a shift here.               |
+   //|                                                                    |
+   //| THRESHOLDS ARE PROVISIONAL. No value here has been validated       |
+   //| against outcome data; see README.md "VPRR — measurement-only".     |
+   //+------------------------------------------------------------------+
+   bool Check_VPRR()
+   {
+      double active_vprr     = GetActiveLayerVPRR();
+      double layer_threshold = GetVPRR_EffectiveThreshold();
+      bool   pass            = (active_vprr >= layer_threshold);
 
       if(m_settings.DebugFlow)
       {
@@ -2776,14 +3087,12 @@ private:
             case 2: pb_avg=m_layer_m_vol_pb_avg; pb_bars=m_layer_m_vol_pb_bars; rec_avg=m_layer_m_vol_rec_avg; rec_bars=m_layer_m_vol_rec_bars; break;
             case 3: pb_avg=m_layer_s_vol_pb_avg; pb_bars=m_layer_s_vol_pb_bars; rec_avg=m_layer_s_vol_rec_avg; rec_bars=m_layer_s_vol_rec_bars; break;
          }
-         // Theme3 2026-06: log shows the EFFECTIVE threshold (per-layer or global) so the
-         // operator can see immediately which threshold is in force on this bar.
          string thr_source = (layer_threshold == m_settings.VPRR_MinRatio) ? "global" : "L-override";
-         DebugLog(StringFormat("[IND_VPRR] L%d | Ratio=%.2f (Min=%.2f %s) | PB_vol=%.0f (%d bars) | REC_vol=%.0f (%d bars) | Src=%s | %s",
+         DebugLog(StringFormat("[IND_VPRR] L%d | Ratio=%.2f (Min=%.2f %s) | PB_vol=%.0f (%d bars) | REC_vol=%.0f (%d bars) | Src=%s | %s (MEASUREMENT-ONLY)",
                                m_last_layer, active_vprr, layer_threshold, thr_source,
                                pb_avg, pb_bars, rec_avg, rec_bars,
                                m_vprr_last_real ? "REAL" : "TICK",
-                               pass ? "PASS" : "FAIL"));
+                               pass ? "meets" : "below"));
       }
       return pass;
    }
@@ -4920,6 +5229,10 @@ private:
       m_layer_s_vol_pb_avg  = 0.0; m_layer_s_vol_pb_bars  = 0;
       m_layer_s_vol_rec_avg = 0.0; m_layer_s_vol_rec_bars = 0;
       m_layer_s_vprr        = 0.0;
+      // 2026-07-27 measurement layer: legs + RVOL cache share this invariant.
+      VPRRLeg_Reset(m_leg_pb_w); VPRRLeg_Reset(m_leg_pb_m); VPRRLeg_Reset(m_leg_pb_s);
+      VPRRLeg_Reset(m_leg_rec_w); VPRRLeg_Reset(m_leg_rec_m); VPRRLeg_Reset(m_leg_rec_s);
+      m_rvol_cache_time = 0; m_rvol_cache_shift = -1; m_rvol_cache_value = 0.0;
       // DPI CCI reset-recovery cycle (trend colour reference becomes stale)
       m_dpi_reset_state         = 0;
       m_dpi_reset_recovery_bars = 0;
@@ -5373,7 +5686,9 @@ public:
    }
    int GetLastLayer() const { return m_last_layer; }
    bool   Scanner_Check_CCI(int bias, int shift) { return Check_CCI(bias, shift); }
-   bool   Scanner_Check_VPRR(int shift)          { return Check_VPRR(shift); }
+   // VPRR-DEVOTE 2026-07-27 (defect V8): Scanner_Check_VPRR removed. It was DEAD —
+   // no caller anywhere in the repo — and it forwarded a shift that Check_VPRR
+   // discarded, so it could only ever have returned a verdict for the wrong bar.
    bool   Scanner_Check_CI(int bias, int shift)  { return Check_CI(bias, shift); }
    bool   Scanner_Check_MACD(int bias, int shift){ return Check_MACD(bias, shift); }
    bool   Scanner_Check_MFI(int bias, int shift) { return Check_MFI(bias, shift); }
@@ -5503,11 +5818,15 @@ public:
       m_telemetry.layer_detection_enabled = (m_settings.EnableLayerDetection && m_settings.BiasMode == BIAS_4EMA);
       if(!m_settings.Ind_MTF_Enabled)
          m_telemetry.mtf_status = "N/A";
-      // VPRR telemetry for the cockpit panel
+      // VPRR telemetry for the cockpit panel (MEASUREMENT-ONLY — casts no vote).
+      // DEFECT V7 — FIXED. These two lines used to re-derive the verdict against the
+      // GLOBAL m_settings.VPRR_MinRatio, ignoring the per-layer VPRR_MinRatio_W/M/S
+      // that the evaluator applies — so the panel could display the exact opposite of
+      // the evaluated result. Both now go through the single resolver.
       m_telemetry.vprr_enabled    = m_settings.VPRR_Enabled;
       m_telemetry.vprr_ratio      = GetActiveLayerVPRR();
-      m_telemetry.vprr_min_ratio  = m_settings.VPRR_MinRatio;
-      m_telemetry.vprr_pass       = (m_telemetry.vprr_ratio >= m_settings.VPRR_MinRatio);
+      m_telemetry.vprr_min_ratio  = GetVPRR_EffectiveThreshold();
+      m_telemetry.vprr_pass       = Check_VPRR();
       m_telemetry.vprr_vol_source = m_vprr_last_real ? "REAL" : "TICK";
       // A14/A20 2026-07: i_suppressed = true when L failed structurally (no layer aligned),
       // meaning I was never evaluated. Detected by L_NONE_ALIGNED reason string.
@@ -6178,7 +6497,10 @@ public:
       PrintIndicatorStat("DPI",          m_settings.Ind_Dpi_Enabled, m_stats.passed_dpi,          m_stats.rejected_dpi);
       PrintIndicatorStat("Fib",          m_settings.Ind_Fib_Enabled, m_stats.passed_fib,          m_stats.rejected_fib);
       PrintIndicatorStat("MTF",          m_settings.Ind_MTF_Enabled, m_stats.passed_mtf,          m_stats.rejected_mtf);
-      PrintIndicatorStat("VPRR",         m_settings.VPRR_Enabled,    m_stats.passed_vprr,         m_stats.rejected_vprr);
+      // VPRR-DEVOTE 2026-07-27: VPRR line removed. This block reports VOTER pass/reject
+      // tallies; VPRR casts no vote, so its counters stay at 0/0 and printing them
+      // would show a working indicator as a 0%-pass voter. m_stats.passed_vprr /
+      // rejected_vprr are retained but unused (struct layout unchanged).
       Print("----------------------------------------------------------------");
       PrintFormat("Indicators: %d enabled (ALL must pass)", GetEnabledIndicatorCount(m_settings));
       Print("");
@@ -6622,21 +6944,13 @@ public:
          count++;
       }
 
-      // VPRR (volume pullback-recovery ratio – non-directional)
-      // COCKPIT COMPLETENESS: a dedicated VPRR: detail row exists below the
-      // voter line, but VPRR was missing from the voter row itself so the
-      // voter total could read fewer than the EvaluateIndicatorX denominator.
-      // Adding here too keeps the voter row's count equal to the eval's.
-      // Added 2026-06.
-      if(m_settings.VPRR_Enabled)
-      {
-         bool pass = Check_VPRR(v_shift);
-         out[count].name    = "VPRR";
-         out[count].enabled = true;
-         if(pass) { out[count].state = (current_bias == 1 ? "BUY" : (current_bias == -1 ? "SELL" : "FLAT")); out[count].reason = StringFormat("(ratio %.2f >= %.2f)", GetActiveLayerVPRR(), m_settings.VPRR_MinRatio); }
-         else     { out[count].state = "FLAT"; out[count].reason = StringFormat("(ratio %.2f < %.2f)", GetActiveLayerVPRR(), m_settings.VPRR_MinRatio); }
-         count++;
-      }
+      // VPRR-DEVOTE 2026-07-27: the VPRR voter row was REMOVED from this list.
+      // The 2026-06 note that used to sit here ("keeps the voter row's count equal
+      // to the eval's") is now satisfied by VPRR's ABSENCE from both: it no longer
+      // casts a vote in EvaluateIndicatorX, so listing it here would re-introduce
+      // exactly the count mismatch that note was written to close — in the other
+      // direction. VPRR's reading is still displayed, on its own dedicated
+      // "VPRR:" telemetry line in SEA_UI.mqh, where a measurement belongs.
       ArrayResize(out, count);
    }
 
@@ -6708,6 +7022,10 @@ public:
       m_layer_m_vol_rec_avg = 0.0; m_layer_m_vol_rec_bars = 0; m_layer_m_vprr = 0.0;
       m_layer_s_vol_pb_avg = 0.0; m_layer_s_vol_pb_bars = 0;
       m_layer_s_vol_rec_avg = 0.0; m_layer_s_vol_rec_bars = 0; m_layer_s_vprr = 0.0;
+      // 2026-07-27 measurement layer: legs + RVOL cache share this invariant.
+      VPRRLeg_Reset(m_leg_pb_w); VPRRLeg_Reset(m_leg_pb_m); VPRRLeg_Reset(m_leg_pb_s);
+      VPRRLeg_Reset(m_leg_rec_w); VPRRLeg_Reset(m_leg_rec_m); VPRRLeg_Reset(m_leg_rec_s);
+      m_rvol_cache_time = 0; m_rvol_cache_shift = -1; m_rvol_cache_value = 0.0;
 
       // Track the bias direction that owned the previous bar's state. We
       // use the same 999 sentinel as UpdateLayerPullbackStates so the very
@@ -6804,21 +7122,21 @@ public:
                                    m_layer_w_vol_pb_avg, m_layer_w_vol_pb_bars,
                                    m_layer_w_vol_rec_avg, m_layer_w_vol_rec_bars,
                                    m_layer_w_vprr, m_layer_w_bars_det, m_layer_w_bars_rec,
-                                   m_layer_w_g1_recov, m_layer_w_g1_counted, m_layer_w_fire_armed, b_wu,
+                                   m_layer_w_g1_recov, m_layer_w_g1_counted, m_layer_w_fire_armed, m_leg_pb_w, m_leg_rec_w, b_wu,
                                    h_ema2, GetLayerMinPBBars(1), GetLayerWindow(1));
          UpdateSingleLayerPullback(h_ema2, shift, lb_m,
                                    m_layer_m_pb_state, m_layer_m_baseline, "LayerM_WU",
                                    m_layer_m_vol_pb_avg, m_layer_m_vol_pb_bars,
                                    m_layer_m_vol_rec_avg, m_layer_m_vol_rec_bars,
                                    m_layer_m_vprr, m_layer_m_bars_det, m_layer_m_bars_rec,
-                                   m_layer_m_g1_recov, m_layer_m_g1_counted, m_layer_m_fire_armed, b_wu,
+                                   m_layer_m_g1_recov, m_layer_m_g1_counted, m_layer_m_fire_armed, m_leg_pb_m, m_leg_rec_m, b_wu,
                                    h_ema3, GetLayerMinPBBars(2), GetLayerWindow(2));
          UpdateSingleLayerPullback(h_ema3, shift, lb_s,
                                    m_layer_s_pb_state, m_layer_s_baseline, "LayerS_WU",
                                    m_layer_s_vol_pb_avg, m_layer_s_vol_pb_bars,
                                    m_layer_s_vol_rec_avg, m_layer_s_vol_rec_bars,
                                    m_layer_s_vprr, m_layer_s_bars_det, m_layer_s_bars_rec,
-                                   m_layer_s_g1_recov, m_layer_s_g1_counted, m_layer_s_fire_armed, b_wu,
+                                   m_layer_s_g1_recov, m_layer_s_g1_counted, m_layer_s_fire_armed, m_leg_pb_s, m_leg_rec_s, b_wu,
                                    h_ema4, GetLayerMinPBBars(3), GetLayerWindow(3));
 
          UpdateCBOverExtCarry(shift);
@@ -6924,6 +7242,10 @@ public:
       m_layer_w_vol_rec_avg = 0.0; m_layer_m_vol_rec_avg = 0.0; m_layer_s_vol_rec_avg = 0.0;
       m_layer_w_vol_rec_bars = 0;  m_layer_m_vol_rec_bars = 0;  m_layer_s_vol_rec_bars = 0;
       m_layer_w_vprr = 0.0; m_layer_m_vprr = 0.0; m_layer_s_vprr = 0.0;
+      // 2026-07-27 measurement layer: legs + RVOL cache share this invariant.
+      VPRRLeg_Reset(m_leg_pb_w); VPRRLeg_Reset(m_leg_pb_m); VPRRLeg_Reset(m_leg_pb_s);
+      VPRRLeg_Reset(m_leg_rec_w); VPRRLeg_Reset(m_leg_rec_m); VPRRLeg_Reset(m_leg_rec_s);
+      m_rvol_cache_time = 0; m_rvol_cache_shift = -1; m_rvol_cache_value = 0.0;
       m_vprr_last_real = false;
       m_vprr_real_warned = false;        // Re-arm one-shot REAL-volume warning on (re)init
       m_diag_last_bias = 0;
@@ -6970,7 +7292,10 @@ public:
       m_telemetry.mtf_status = "N/A";
       m_telemetry.vprr_enabled    = m_settings.VPRR_Enabled;
       m_telemetry.vprr_ratio      = 0.0;
-      m_telemetry.vprr_min_ratio  = m_settings.VPRR_MinRatio;
+      // V7: resolver, not the raw global — kept identical to the live fill so the two
+      // sites cannot drift. (Ratio is 0.0 here, so the displayed verdict is false
+      // either way; consistency is the point, not a behaviour change.)
+      m_telemetry.vprr_min_ratio  = GetVPRR_EffectiveThreshold();
       m_telemetry.vprr_pass       = false;
       m_telemetry.vprr_vol_source = "—";
       m_telemetry.i_suppressed    = false;   // A14/A20 2026-07
@@ -7232,6 +7557,100 @@ public:
    //| Re-probing here would corrupt the preset's decision if called    |
    //| during a weekend or before history loads (CopyRealVolume = 0).  |
    //+------------------------------------------------------------------+
+   //+------------------------------------------------------------------+
+   //| VPRR MEASUREMENT ACCESSORS — PUBLIC.                              |
+   //|                                                                    |
+   //| Moved here 2026-07-27 after a compile error: they were originally   |
+   //| placed next to the private computation helpers (GetBarRVOL etc.),   |
+   //| but SimpleEA_v1-05.mq5 calls them from OnTick to write the          |
+   //| measurement CSV, so they must be part of the public surface.        |
+   //| The COMPUTATION stays private; only the read-only views are public. |
+   //+------------------------------------------------------------------+
+   //+------------------------------------------------------------------+
+   //| ST_VPRRSnapshot / GetVPRRSnapshot — the active layer's reading    |
+   //|                                                                    |
+   //| One read-only view of everything VPRR measured for the layer that  |
+   //| won (m_last_layer), for the cockpit and the measurement CSV. This  |
+   //| is the ONLY sanctioned way out of the measurement layer: it hands  |
+   //| back numbers, never a verdict, so a future caller cannot casually  |
+   //| turn a reading into a gate without going through the two-key gate. |
+   //|                                                                    |
+   //| Any field may legitimately be 0.0 = NOT COMPUTABLE (no real volume,|
+   //| too little history for RVOL, fewer than 2 bars for a slope). Zero  |
+   //| is never a valid reading for any of these, so consumers can treat  |
+   //| it as "unknown" — and MUST, rather than logging it as a value.     |
+   //+------------------------------------------------------------------+
+   void GetVPRRSnapshot(double &ratio, double &threshold,
+                        double &pb_rvol,  double &rec_rvol,
+                        double &pb_vpr,   double &rec_vpr,
+                        double &pb_slope, double &rec_slope,
+                        int &pb_bars, int &rec_bars, bool &src_real)
+   {
+      ratio     = GetActiveLayerVPRR();
+      threshold = GetVPRR_EffectiveThreshold();
+      src_real  = m_vprr_last_real;
+
+      switch(m_last_layer)
+      {
+         case 1:
+            pb_rvol=VPRRLeg_MeanRVOL(m_leg_pb_w);  rec_rvol=VPRRLeg_MeanRVOL(m_leg_rec_w);
+            pb_vpr =VPRRLeg_MeanVPR (m_leg_pb_w);  rec_vpr =VPRRLeg_MeanVPR (m_leg_rec_w);
+            pb_slope=VPRRLeg_Slope  (m_leg_pb_w);  rec_slope=VPRRLeg_Slope  (m_leg_rec_w);
+            pb_bars=m_leg_pb_w.n;                  rec_bars=m_leg_rec_w.n;
+            break;
+         case 2:
+            pb_rvol=VPRRLeg_MeanRVOL(m_leg_pb_m);  rec_rvol=VPRRLeg_MeanRVOL(m_leg_rec_m);
+            pb_vpr =VPRRLeg_MeanVPR (m_leg_pb_m);  rec_vpr =VPRRLeg_MeanVPR (m_leg_rec_m);
+            pb_slope=VPRRLeg_Slope  (m_leg_pb_m);  rec_slope=VPRRLeg_Slope  (m_leg_rec_m);
+            pb_bars=m_leg_pb_m.n;                  rec_bars=m_leg_rec_m.n;
+            break;
+         case 3:
+            pb_rvol=VPRRLeg_MeanRVOL(m_leg_pb_s);  rec_rvol=VPRRLeg_MeanRVOL(m_leg_rec_s);
+            pb_vpr =VPRRLeg_MeanVPR (m_leg_pb_s);  rec_vpr =VPRRLeg_MeanVPR (m_leg_rec_s);
+            pb_slope=VPRRLeg_Slope  (m_leg_pb_s);  rec_slope=VPRRLeg_Slope  (m_leg_rec_s);
+            pb_bars=m_leg_pb_s.n;                  rec_bars=m_leg_rec_s.n;
+            break;
+         default:
+            pb_rvol=0.0; rec_rvol=0.0; pb_vpr=0.0; rec_vpr=0.0;
+            pb_slope=0.0; rec_slope=0.0; pb_bars=0; rec_bars=0;
+            break;
+      }
+   }
+
+   int  GetVPRRActiveLayer() const { return m_last_layer; }
+   bool GetVPRRLogEnabled()  const { return (m_settings.VPRR_Enabled && m_settings.VPRR_LogPerSignal); }
+
+   //+------------------------------------------------------------------+
+   //| VPRR_MayInfluenceDecisions — the TWO-KEY gate                     |
+   //|                                                                    |
+   //| Returns true ONLY when both keys are turned:                       |
+   //|   (a) VPRR is enabled on a confirmed real-volume source, AND        |
+   //|   (b) VPRR_Validated is explicitly set by an operator who has       |
+   //|       reviewed logged data.                                        |
+   //|                                                                    |
+   //| NOTHING in the codebase currently consults this as permission to    |
+   //| vote - VPRR casts no vote at all (VPRR-DEVOTE 2026-07-27). It is    |
+   //| here so that re-arming VPRR later is a DELIBERATE act with a named  |
+   //| precondition, rather than something that happens as a side effect   |
+   //| of configuring a proxy symbol. That side effect was defect V4.      |
+   //+------------------------------------------------------------------+
+   bool VPRR_MayInfluenceDecisions() const
+   {
+      return (m_settings.VPRR_Enabled && m_settings.VPRR_Validated);
+   }
+
+   //+------------------------------------------------------------------+
+   //| VPRR_IsEnabled — the engine's OWN post-validation VPRR state      |
+   //|                                                                    |
+   //| Defect V5 (audit 2026-07-27). ValidateVPRRExternalSymbol below can |
+   //| set m_settings.VPRR_Enabled = false, but m_settings is a BY-VALUE  |
+   //| copy taken in Init(), so that verdict was invisible to the caller  |
+   //| and to SEA_WriteConfigSnapshot. OrchestrateInit reads this back    |
+   //| into the global Settings so the scanner snapshot matches the       |
+   //| engine that actually runs.                                         |
+   //+------------------------------------------------------------------+
+   bool VPRR_IsEnabled() const { return m_settings.VPRR_Enabled; }
+
    bool ValidateVPRRExternalSymbol(const bool print_details = true)
    {
       if(!m_settings.VPRR_Enabled)
@@ -8029,7 +8448,25 @@ public:
       CAST_VOTE_STAT(m_settings.Ind_Dpi_Enabled,         Check_DPI(bias, v_shift),         m_stats.rejected_dpi,          m_stats.passed_dpi)
       CAST_VOTE_STAT(m_settings.Ind_Fib_Enabled,         Check_Fib(bias, v_shift),         m_stats.rejected_fib,          m_stats.passed_fib)
       CAST_VOTE_STAT(m_settings.Ind_MTF_Enabled,         Check_MTF(bias, v_shift),                  m_stats.rejected_mtf,          m_stats.passed_mtf)
-      CAST_VOTE_STAT(m_settings.VPRR_Enabled,            Check_VPRR(v_shift),              m_stats.rejected_vprr,         m_stats.passed_vprr)
+      // VPRR-DEVOTE 2026-07-27: the VPRR vote cast was REMOVED here. VPRR is now a
+      // MEASUREMENT-ONLY indicator and takes no part in the I factor.
+      //
+      // WHY (audit 2026-07-27, HEAD 56c0ee2). VPRR sat in a UNANIMOUS AND, so it could
+      // only ever SUBTRACT trades — it could never improve one it let through. That is
+      // worth paying for only if its precision beats the base rate of the four Oracle
+      // voters it would overrule, and the ratio is an estimate built from two means of
+      // ~2-5 observations each: on M1 that estimator is too noisy to clear that bar.
+      // A noisy veto is worse than no veto.
+      //
+      // It also made three defects dangerous rather than merely wrong: the unguarded
+      // FPM/MA enable path (V3), the proxy force-ON that overrode an explicit manual
+      // disable (V4), and the fact that VPRR never named itself in the failing-voter
+      // list (V6) — so a VPRR-only block produced a silent TS=0 with no reason shown.
+      // With no vote, a wrong VPRR number is a wrong number on a panel, not a lost trade.
+      //
+      // The ratio, its accumulators and its telemetry are all DELIBERATELY RETAINED —
+      // see Check_VPRR(). Re-adding a vote here requires the two-key gate documented
+      // in README.md ("VPRR — measurement-only"), never a bare CAST_VOTE_STAT line.
       #undef CAST_VOTE_STAT
 
       // Telemetry derives DIRECTLY from the CAST_VOTE_STAT counters above (Step19-perf

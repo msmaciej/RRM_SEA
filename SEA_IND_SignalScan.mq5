@@ -182,7 +182,11 @@ input bool TS_LayerReset_OnRealign = false; // [L] Reset layer pullback states o
 input int  TS_LayerReset_PhaseConfirm = 2;  // [L]   ^ bars new phase must hold first (1=catch 1-bar phases)
 input bool TS_RSI                = false;  // [I] RSI level
 input bool TS_Stochastic         = false;  // [I] Stochastic level
-input bool TS_VPRR               = false;  // [I] VPRR volume (metals/stocks; FX=unreliable)
+// VPRR-DEVOTE 2026-07-27: retagged [I] -> [M]. VPRR no longer votes anywhere in the
+// shared engine, so this toggle now only drives VPRR's volume BOOKKEEPING (the ratio
+// the scanner records). It cannot change a scanner verdict. The input is KEPT rather
+// than deleted so existing .set files continue to load without a remapping step.
+input bool TS_VPRR               = false;  // [M] VPRR volume measurement (metals/stocks; needs REAL volume)
 input bool TS_P123               = false;  // [I] Mark Crisp 1-2-3 fractal breakout
 input bool TS_Ross               = false;  // [I] Ross Hook (trend-momentum; builds on 1-2-3)
 
@@ -567,7 +571,8 @@ int OnInit()
    if(TS_BollingerBands)  active += "BB ";
    if(TS_MFI)        active += "MFI ";
    if(TS_ATR)        active += "ATR ";
-   if(TS_VPRR)       active += "VPRR ";
+   // VPRR-DEVOTE 2026-07-27: VPRR omitted — this string lists components that can
+   // change the verdict, and VPRR no longer can.
    if(TS_CI)         active += "CI ";
    if(TS_P123)       active += "P123 ";
    if(TS_Ross)       active += "Ross ";
@@ -1303,17 +1308,21 @@ void DrawInfoPanel()
    ADD("TS Components:",                                     clrSilver)
 
    // Only ON components shown — keeps panel compact
+   // VPRR-DEVOTE 2026-07-27: "VPRR"/TS_VPRR removed from both arrays and the bound
+   // dropped 18 -> 17. This panel lists verdict-affecting components; VPRR is now
+   // measurement-only. The bound is a hand-maintained literal — keep it equal to the
+   // array length on any future edit.
    string cnames[]  = {"PB: Layer S (EMA3->EMA4)","PB: Layer M (EMA2->EMA3)","PB: Layer W (EMA1->EMA2)",
                         "DPI","PSAR","PSAR Flip","MTF",
                         "CandleBody","ADX","RSI","CCI","MACD",
-                        "Stochastic","Bollinger Bands","MFI","ATR","VPRR","CI"};
+                        "Stochastic","Bollinger Bands","MFI","ATR","CI"};
    bool   cstates[] = {TS_LayerS,TS_LayerM,TS_LayerW,
                         TS_DPI,TS_PSAR,TS_PSAR_Flip,TS_MTF,
                         TS_CandleBody,TS_ADX,TS_RSI,TS_CCI,TS_MACD,
-                        TS_Stochastic,TS_BollingerBands,TS_MFI,TS_ATR,TS_VPRR,TS_CI};
+                        TS_Stochastic,TS_BollingerBands,TS_MFI,TS_ATR,TS_CI};
 
    bool any_on = false;
-   for(int i = 0; i < 18; i++)
+   for(int i = 0; i < 17; i++)
    {
       if(!cstates[i]) continue;
       ADD("  + " + cnames[i],                                clrYellow)

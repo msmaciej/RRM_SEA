@@ -468,6 +468,13 @@ int OrchestrateInit()
    FlowLog("Step B: ApplyPreset() (preset overrides -> Settings)");
    ApplyPreset(Inp_Global_Preset, Settings);
 
+   // VPRR universal invariant (defect V3, audit 2026-07-27). Must run for EVERY
+   // preset, so it cannot live inside ApplyPreset — that function returns early per
+   // preset branch. PRESET_FPM and PRESET_MA never assign cfg.VPRR_Enabled at all,
+   // so without this they kept the Inp_Global_VPRR_Enabled seed with no volume test
+   // whatsoever: a fifth enable path the "every enable path" guards never covered.
+   VPRR_EnforceInvariant(Settings);
+
    // Safety synchronization: BIAS_4EMA requires phase detection.
    // Prevents silent BIAS=0 behavior if a preset/input regression disables phase.
    if(Settings.BiasMode == BIAS_4EMA && !Settings.PhaseDetectionEnabled)
@@ -601,7 +608,10 @@ int OrchestrateInit()
       if(Settings.Ind_Ross_Enabled)       { Print("  + Ross");       enabled_count++; }
       // BUGFIX A11 2026-06: 9 voters were missing from this tally (ATR, CandleBody,
       // CI, VRC, SmaConverge, DPI, Fib, MTF, VPRR). Operator saw "Total: 3" when
-      // PSAR+CBody+DPI were all active. Must match the 19-indicator CAST_VOTE_STAT list.
+      // PSAR+CBody+DPI were all active. Must match the CAST_VOTE_STAT list.
+      // VPRR-DEVOTE 2026-07-27: VPRR left this tally with its vote — the list is now
+      // 18 voters, not 19. It is reported below the total instead, so the operator can
+      // still see it is active without it inflating a count of things that can block.
       if(Settings.Ind_Atr_Enabled)        { Print("  + ATR");        enabled_count++; }
       if(Settings.Ind_CandleBody_Enabled) { Print("  + CandleBody"); enabled_count++; }
       if(Settings.Ind_CI_Enabled)         { Print("  + CI");         enabled_count++; }
@@ -610,8 +620,13 @@ int OrchestrateInit()
       if(Settings.Ind_Dpi_Enabled)        { Print("  + DPI");        enabled_count++; }
       if(Settings.Ind_Fib_Enabled)        { Print("  + Fib");        enabled_count++; }
       if(Settings.Ind_MTF_Enabled)        { Print("  + MTF");        enabled_count++; }
-      if(Settings.VPRR_Enabled)           { Print("  + VPRR");       enabled_count++; }
       Print("  Total: ", enabled_count, " indicators (ALL must pass)");
+      // VPRR-DEVOTE 2026-07-27: printed AFTER the total and deliberately NOT counted.
+      // VPRR is measurement-only — it is recorded and displayed, and it cannot block
+      // a trade. The wording is explicit so a future reader cannot mistake an active
+      // VPRR for a voter that might be suppressing entries.
+      if(Settings.VPRR_Enabled)
+         Print("  (VPRR active: MEASUREMENT-ONLY — records the ratio, casts no vote)");
       Print("════════════════════════════════════════════");
    }
 
@@ -637,7 +652,20 @@ int OrchestrateInit()
    // Probes what the broker actually provides, locks VolumeType to REAL/TICK/EXTERNAL,
    // and prints a clear journal entry so the operator sees the result on attach.
    if(Settings.VPRR_Enabled)
+   {
       Signal.ValidateVPRRExternalSymbol();
+      // DEFECT V5 (audit 2026-07-27) — FIXED. ValidateVPRRExternalSymbol can DISABLE
+      // VPRR (empty proxy, or a proxy returning no real volume). It does so on the
+      // engine's OWN copy of the settings — CSignalEngine holds `ST_Settings
+      // m_settings` BY VALUE, populated by Signal.Init(Settings, ...) above. The
+      // global `Settings` was left untouched, and SEA_WriteConfigSnapshot(Settings)
+      // further down then serialised VPRR_Enabled=true for the scanner while the live
+      // engine had it off. The scanner mirrored a configuration the EA was not
+      // running, contradicting that call's own comment ("what we serialize is what
+      // the engine will use"). Copy the engine's post-validation verdict back so the
+      // snapshot reflects reality.
+      Settings.VPRR_Enabled = Signal.VPRR_IsEnabled();
+   }
 
    if(Inp_UI_ManageChartIndicators)
       SEA_UI_ManageChartIndicators(Signal);
@@ -988,6 +1016,40 @@ void OrchestrateTick()
       snap_votes  = Signal.LastVotes();
       snap_reason = Signal.LastReason();
       snap_phase  = Signal.GetLastDetectedPhase();
+
+      // ── VPRR MEASUREMENT CORPUS (2026-07-27) ────────────────────────
+      // One row per evaluated signal bar, recording the RAW volume
+      // components. VPRR casts no vote (VPRR-DEVOTE), so this observes
+      // without influencing anything: the ts_fired column lets the eventual
+      // analysis ask whether any component separates winners from losers
+      // BEFORE VPRR is ever allowed to gate a trade.
+      //
+      // Logged for every bar with a bias and a resolved layer, whether or
+      // not TS fired — logging only fired bars would condition the sample on
+      // the outcome and make the comparison meaningless.
+      //
+      // Best-effort: a failed write is ignored on purpose. A diagnostic
+      // logger must never interrupt trading.
+      if(Signal.GetVPRRLogEnabled() && snap_bias != 0 && Signal.GetVPRRActiveLayer() > 0)
+      {
+         double v_ratio, v_thr, v_pbrv, v_recrv, v_pbvpr, v_recvpr, v_pbsl, v_recsl;
+         int    v_pbn, v_recn;
+         bool   v_real;
+         Signal.GetVPRRSnapshot(v_ratio, v_thr, v_pbrv, v_recrv,
+                                v_pbvpr, v_recvpr, v_pbsl, v_recsl,
+                                v_pbn, v_recn, v_real);
+         SEA_VPRRLog_Append(_Symbol,
+                            iTime(_Symbol, PERIOD_CURRENT, 1),
+                            snap_bias,
+                            Signal.GetVPRRActiveLayer(),
+                            v_ratio, v_thr,
+                            v_pbrv, v_recrv,
+                            v_pbvpr, v_recvpr,
+                            v_pbsl, v_recsl,
+                            v_pbn, v_recn,
+                            v_real,
+                            (ts != 0));
+      }
 
       if(ts != 0)
       {
@@ -1419,11 +1481,12 @@ void PrintSignalEfficiency()
    PrintFormat("  └─ Indicators (denominator = %s):", denom_label);
 
    // Build a list of enabled indicators with their pass counts.
-   // Array size = all supported voter slots (19): MACD, PSAR, CCI, RSI, ADX,
-   // MFI, Sto, BB, P123, Ross, CandleBody, CI, VRC, ATR, SmaConverge, DPI,
-   // Fib, MTF, VPRR. (Previously this list omitted DPI/MTF/VPRR/Sma/Fib, so
-   // enabled voters such as DPI and VPRR were silently absent from the report
-   // even though they were gating signals.)
+   // Supported voter slots (18): MACD, PSAR, CCI, RSI, ADX, MFI, Sto, BB, P123,
+   // Ross, CandleBody, CI, VRC, ATR, SmaConverge, DPI, Fib, MTF. (An earlier fix
+   // added DPI/MTF/Sma/Fib, which had been silently absent while gating signals.)
+   // VPRR-DEVOTE 2026-07-27: VPRR is no longer among them — see below. The array is
+   // left at 19 slots deliberately: over-allocation is harmless, and shrinking it
+   // buys nothing while risking an off-by-one if a voter is re-added later.
    struct SIndEntry { string name; int passed; };
    SIndEntry inds[19];
    int ind_count = 0;
@@ -1464,8 +1527,11 @@ void PrintSignalEfficiency()
       { inds[ind_count].name = "Fib";        inds[ind_count++].passed = st.passed_fib; }
    if(Settings.Ind_MTF_Enabled)
       { inds[ind_count].name = "MTF";        inds[ind_count++].passed = st.passed_mtf; }
-   if(Settings.VPRR_Enabled)
-      { inds[ind_count].name = "VPRR";       inds[ind_count++].passed = st.passed_vprr; }
+   // VPRR-DEVOTE 2026-07-27: VPRR removed from this pass-rate report. This block
+   // reports VOTER pass rates from the CAST_VOTE_STAT counters; VPRR no longer casts
+   // a vote, so st.passed_vprr / st.rejected_vprr are never incremented and printing
+   // them would report a permanent 0% pass rate for an indicator that is working
+   // correctly. The counters are retained (unused) so the struct layout is unchanged.
 
    if(ind_count == 0)
       Print("      └─ (no indicators enabled)");

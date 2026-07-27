@@ -376,6 +376,22 @@ input bool        Inp_VPRR_TF_ReduceRecBars        = true;           // VPRR TF:
 input int         Inp_VPRR_MinRecoveryBars         = -1;             // VPRR: bars of recovery volume required before the ratio is VALID. -1 = auto (RecoveryBars-1, the legacy derivation); 1-10 = explicit. Separates "how many bars to MEASURE" (RecoveryBars) from "how many before the ratio COUNTS" (this). Added 2026-07-24: previously derived at two sites with no input, so its value was invisible to the operator.
 input string      Inp_VPRR_ExternalSymbol          = "";             // VPRR EXTERNAL: proxy symbol for real volume ("GC" gold futures, "MGC" micro gold). Only used when VolumeType=VPRR_VOL_EXTERNAL. Symbol must be in Market Watch.
 
+// ── VPRR MEASUREMENT LAYER (2026-07-27) ────────────────────────────────────
+// VPRR is MEASUREMENT-ONLY: it records a reading and cannot block a trade.
+// These inputs configure what is measured. None of them can enable a veto.
+//
+// TWO-KEY GATE. Inp_VPRR_Validated is the second key. VPRR may influence a
+// trading decision ONLY when (a) a real-volume source is confirmed AND (b)
+// this flag is deliberately set true by an operator who has reviewed logged
+// data. It ships false and must never be flipped as a side effect of
+// configuring a proxy symbol - that was defect V4. Nothing in the codebase
+// reads it as permission to vote today; it exists so that re-arming VPRR is
+// an explicit act rather than an accident.
+input bool        Inp_VPRR_Validated               = false;          // VPRR: thresholds validated against outcome data? (2nd key; ships false - see README "VPRR - measurement-only")
+input int         Inp_VPRR_RVOL_Sessions           = 20;             // VPRR RVOL: trailing sessions used for the same-minute-of-day volume baseline (0=disable RVOL)
+input int         Inp_VPRR_RVOL_MinSamples         = 5;              // VPRR RVOL: minimum valid samples before RVOL is considered computable
+input bool        Inp_VPRR_LogPerSignal            = true;           // VPRR: append a CSV row of raw components on every signal bar (measurement corpus)
+
 input double      Inp_VPRR_MinRatio_Gold           = 1.0;            // VPRR GOLD (XAU): MinRatio base (M15:1.0; TF mult auto-scales)
 input int         Inp_VPRR_RecBars_Gold            = 3;              // VPRR Gold: RecoveryBars base
 
@@ -399,7 +415,7 @@ input int         Inp_VPRR_RecBars_Equities        = 2;              // VPRR Equ
 
 input double      Inp_VPRR_MinRatio_FX             = 0.7;            // VPRR FX: MinRatio base (0.6-0.7; tick vol approximation)
 input int         Inp_VPRR_RecBars_FX              = 3;              // VPRR FX: RecoveryBars base
-input double      Inp_VPRR_MinRatio_NonFXTick      = 0.8;            // VPRR non-FX tick fallback: MinRatio
+input double      Inp_VPRR_MinRatio_NonFXTick      = 0.8;            // DEPRECATED (V10 2026-07-27): DEAD — no reader. Was a tick-volume fallback threshold; VPRR is real-volume-only, so it can never apply. Kept so existing .set files still load; delete once no live .set references it.
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 VPRR TF Auto-Multiplier";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1721,6 +1737,12 @@ void InitializeConfig()
     Settings.VPRR_MinRatio_M      = MathMax(0.0, Inp_Global_VPRR_MinRatio_M);
     Settings.VPRR_MinRatio_S      = MathMax(0.0, Inp_Global_VPRR_MinRatio_S);
     Settings.VPRR_ExternalSymbol  = "";
+    // VPRR measurement layer (2026-07-27). Seeded here for EVERY preset, including
+    // ones that never mention VPRR - the FPM/MA fall-through that caused defect V3.
+    Settings.VPRR_Validated       = Inp_VPRR_Validated;
+    Settings.VPRR_RVOL_Sessions   = MathMax(0, Inp_VPRR_RVOL_Sessions);
+    Settings.VPRR_RVOL_MinSamples = MathMax(1, Inp_VPRR_RVOL_MinSamples);
+    Settings.VPRR_LogPerSignal    = Inp_VPRR_LogPerSignal;
 
     // BarClose (bcX) settings
     Settings.BarClose_Enabled    = true;

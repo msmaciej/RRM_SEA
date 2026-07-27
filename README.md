@@ -125,7 +125,9 @@ All enabled technical voters evaluated at bar close (shift=1). All must pass (VO
 
 In RRM_ORG the active voters are: **DPI + PSAR + CandleBody + MTF** = 4 voters. The cockpit shows `VOTE: 4/4` when all pass.
 
-Disabled indicators contribute 1 (neutral — they do not block). VPRR is enabled only when real exchange volume is available (metals on futures-linked brokers). VPRR is never enabled for FX pairs or any instrument where only tick volume is available — tick volume is broker-specific noise, not order flow.
+Disabled indicators contribute 1 (neutral — they do not block).
+
+> **VPRR is not among them.** Since 2026-07-27 VPRR casts **no vote at all** and cannot block a trade under any preset or setting — it is a measurement-only indicator. See the VPRR section below.
 
 ---
 
@@ -265,21 +267,81 @@ The fallback uses MT5's own EMA semantics (`MovingAverages.mqh :: ExponentialMAO
 
 ---
 
-## VPRR — Volume Pullback-Recovery Ratio
+## VPRR — Volume Pullback-Recovery Ratio (MEASUREMENT-ONLY)
 
-VPRR measures whether recovery volume exceeds pullback volume for metals instruments. It is only meaningful with real exchange volume (CME/COMEX feed via a futures-linked broker or proxy symbol).
+**VPRR does not vote.** Since 2026-07-27 it casts no vote in the `I` factor and cannot block a trade under any preset, symbol or setting. It records a reading; that is all.
 
-**VPRR requires a real-volume source, and this is now enforced on every enable path (2026-07-24).** VPRR ends up enabled only when either (a) the traded symbol itself returns real exchange volume, or (b) `Inp_VPRR_ExternalSymbol` names a proxy that returns real volume. Tick volume is a broker-specific tick count, not traded volume, and produces meaningless ratios — so on FX, and on any instrument where only tick volume is available, VPRR is switched **off**, never silently degraded to tick.
+### Why it was de-voted
 
-> **What changed and why.** The rule above was previously enforced *only* on the `AutoEnable` path (`GetVPRRRecommendedMode`). Three other paths reached `VPRR_Enabled = true` without any volume test: the RRM_ORG manual toggle, the TOPINVESTOR manual toggle, and the external-proxy force-ON — and both proxy-failure branches in `ValidateVPRRExternalSymbol` "fell back to TICK" while **leaving the voter enabled**. Because `Inp_RRM_ORG_VPRR_AutoEnable` ships `false`, the manual path was the *only* reachable enable path on the default preset, so the guard was effectively absent where it mattered most. All four paths now apply the same `VPRR_RealVolumeAvailable()` test (`SEA_Presets.mqh`), and both proxy-failure branches now **disable the voter** rather than degrade it. A voter that cannot be measured does not vote.
+VPRR sat in a **unanimous AND**, so it could only ever *subtract* trades — it could never improve one it let through. A voter in that position pays for itself only if its precision beats the base rate of the four Oracle voters it overrules. The ratio is an estimate built from two means of ~2–5 observations each; on M1 that estimator is far too noisy to clear that bar. **A noisy veto is worse than no veto.**
 
-**VPRR is not an Oracle voter.** The RRM Trade Checklist card lists six confirmation items — market phase, trade setup, MACD/DPI, PSAR side, higher-timeframe agreement, and candle body. Every RRM_ORG voter maps to one of them; **VPRR maps to none**. It is an admin-added confirmation for real-volume instruments, not part of the Russ Horn method, and it should not be treated as a required voter on instruments the method itself covers.
+Removing the vote also defused three audited defects that were dangerous only because a wrong value could block a trade (V3 unguarded FPM/MA enable path, V4 proxy force-ON overriding an explicit disable, V6 VPRR omitting itself from the failing-voter list so a VPRR-only block produced a silent `TS=0`).
 
-**Measurement latency (by design, not a defect).** `VPRR_MinRecoveryBars` is how many IN-TREND bars of recovery volume must accumulate before the ratio is treated as **valid**. Until then the ratio reads `0.0` and the voter **fails closed**. It is set by `Inp_VPRR_MinRecoveryBars` (added 2026-07-24): **`-1` = auto**, which reproduces the legacy derivation `max(1, VPRR_RecoveryBars − 1)` exactly, and **`1..10`** sets it explicitly (clamped to `VPRR_RecoveryBars`, since requiring more validity bars than are ever measured would make the ratio uncomputable). Before this input existed the value was derived at two sites with no way to see or set it, and `VPRR_RecoveryBars` was silently doing two jobs — *how many bars to measure* and *how many before the ratio counts*. Those are now separate. The startup journal prints which mode is in force.
+### What volume can and cannot tell you
 
-With the RRM_ORG manual default (`RecoveryBars = 5` → `MinRecoveryBars = 4`) the earliest bar on which VPRR can pass is the **4th** IN-TREND bar of a pullback-recovery cycle; the per-instrument auto values (2–3) make this 1–2 bars. Under the **armed-latch** model this delays an entry, it does not cancel one — the layer stays fire-eligible for the whole IN-TREND run until a TS=1 consumes it, so a cycle that runs long enough can still fire. A cycle that relapses before the threshold is reached loses that entry. **Exposing the input does not validate any particular value** — the right number for a given instrument and timeframe is an empirical question, not one derivable from the code or the Oracle.
+`CopyRealVolume` is **unsigned**. It reports contracts transacted, and every contract has a buyer and a seller — so it measures **participation intensity, not directional conviction**. Volume alone never gives direction. Combined with context it shifts the probability of a directional read, which is the actual claim and a defensible one.
 
-Use `SEA_ServerTime_Check.mq5` to verify whether your broker provides real volume for a proxy symbol before enabling VPRR.
+Why metals and not FX: COMEX gold trades on a single central order book with a complete tape, in a real economic unit (100 troy oz), anchored by physical deliverability, with open interest published alongside. FX is OTC and fragmented with no consolidated tape — its "volume" is a broker-specific *tick count*, not a quantity. That is the whole difference, and it is why VPRR is real-volume-only on every path.
+
+### Volume × open interest — the standard futures reading
+
+Volume alone occupies one column of three. The classical discriminator pairs it with price and open interest:
+
+| Price | Volume | Open Interest | Standard reading |
+|---|---|---|---|
+| Up | Up | **Up** | New longs — strongest continuation |
+| Up | Up | **Down** | Short covering — weaker, often ends the move |
+| Down | Up | **Up** | New shorts — strong downtrend |
+| Down | Up | **Down** | Long liquidation — often exhaustion |
+| Either | Down | Either | Low participation — the move lacks sponsorship |
+
+**Not implementable today, and not for want of effort.** Standard MQL5 exposes no open-interest series: `MqlRates` carries `tick_volume` and `real_volume` only, and there is no `CopyOpenInterest`. OI would require an external source (CFTC COT, or a broker-specific feed). The table is recorded here as the design target for when such a feed exists — it states what a volume reading *means* once OI is available, so the eventual work starts from the right model rather than re-deriving it.
+
+### What is measured now
+
+| Quantity | What it captures | Why the original ratio needed it |
+|---|---|---|
+| **RVOL** | Volume ÷ median volume at the same minute-of-day, trailing N sessions | Intraday metals volume is dominated by the session clock — Asian hours vs the 08:20 ET COMEX open differ by a large multiple. A raw ratio substantially measures **what time it is**: identical geometry passes across the opening bell and fails at 02:00 |
+| **Volume per unit range** | Effort vs result | Separates initiation (high volume, large range) from **absorption** (high volume, *small* range) — often the opposite conclusion from the same volume number |
+| **Volume slope within each leg** | Building vs fading | Averaging destroys this: volume fading through a pullback (healthy) and building through it (distribution — the pullback is the real move) can give the identical mean, ratio and verdict |
+
+`0.0` in any of these means **not computable**, never "zero" — no real volume, insufficient history, or fewer than 2 bars for a slope. Nothing is clamped to a plausible default: an unknown must not masquerade as a normal reading.
+
+### Known conceptual gaps (unfixed, deliberately)
+
+- **Unsigned.** No directional term. Recovery volume could be sellers absorbing the bounce.
+- **Monotonic ratio.** More recovery volume always raises the ratio, so a volume *climax* reads as maximum confirmation — while the Climax Guard vetoes that same bar on range. Two components reading one event in opposite directions. The volume-per-range term is what would let this be resolved; it is measured but not yet acted on.
+- **No absolute floor.** A dead-quiet pullback and a dead-quiet recovery give ratio ≈ 1. Low participation is indistinguishable from healthy participation.
+- **Small-sample estimator.** Two means of a handful of bars each.
+
+These are **not defects against the contract** — VPRR does what it says. They are reasons the contract itself is under-specified, and they are why the thresholds are unvalidated.
+
+### The two-key gate
+
+VPRR may influence a trading decision only when **both** keys are turned:
+
+1. a real-volume source is confirmed (`VPRR_RealVolumeAvailable`), and
+2. `Inp_VPRR_Validated` is explicitly set by an operator who has reviewed logged data.
+
+`Inp_VPRR_Validated` ships `false` and **has no caller today, by design**. It exists so that re-arming VPRR is a deliberate act with a named precondition — never a side effect of configuring a proxy symbol, which is exactly what defect V4 was.
+
+### Thresholds are PROVISIONAL
+
+No VPRR threshold in this repo has been validated against outcome data. The per-instrument values are reasoned starting points, not findings. **Exposing an input does not validate its value.**
+
+### How to settle it
+
+1. Enable VPRR on a real-volume metals feed. It votes on nothing, so this is risk-free.
+2. Collect a few hundred signal bars in `SEA_VPRR_<symbol>_<tf>.csv` (see `Inp_VPRR_LogPerSignal`).
+3. Check whether any column separates winners from losers. Exclude `0.0` rows per column — those are absent readings, not observations.
+4. Only if separation appears: A/B a threshold, then consider re-arming via the two-key gate.
+5. If nothing separates: delete the subsystem. That is a legitimate and cheap outcome.
+
+**Without a real-volume feed every reading is `0.00` and `src=NONE`.** That is correct behaviour, not a defect — it is what "no COMEX access" looks like from inside the EA.
+
+### Audit trail
+
+The 2026-07-27 audit found eleven traced defects (V1–V11), fixed in commit 2/5. The most consequential: `PERIOD_CURRENT` used as the chart timeframe (it is the sentinel `0`, so the M5 branch always won and the TF-adaptive block was inert); both manual enable paths applying the **FX** threshold to every instrument on the branch that ships as default; and a fifth, entirely unguarded enable path under `PRESET_FPM` / `PRESET_MA`, where `cfg.VPRR_Enabled` is never assigned and the `Inp_Global_VPRR_Enabled` seed survived with no volume test — despite this README previously claiming enforcement on "every enable path".
 
 ---
 
