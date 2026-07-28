@@ -340,3 +340,64 @@ The middle-left cell is the dangerous one — "same defect class, sibling code p
 - Findings outside the current problem's scope are **logged, not fixed.** State them plainly at the end ("noted, out of scope — worth a session of its own"), and let the operator decide.
 - Never bundle an unrelated fix into the current commit, however small or tempting.
 
+
+---
+
+## Part J — Enforcement rules (what makes a gate *bind*, not just advise)
+
+These exist because prose rules **bias** the model, they do not **bind** it: a rule the model grades itself on, in the same pass that produces the answer, can be rationalised as passed. The four rules below are ordered so the ones that lean on **external artifacts** (a run, a log) carry the weight, and the ones that are pure prose are backed by them. This part complements Gates 1–6 in the chat starter; it does not replace them.
+
+### J1 — "Solved" is gated on an external run, never on reasoning
+
+- You **may** deliver: a diagnosis, and a proposed change (one line / minimal diff).
+- You **may not** write "solved", "fixed", "resolved", "this fixes it" — or any equivalent — until a **compile + Strategy Tester run (or a journal / log)** shows the changed behaviour.
+- Until that evidence exists, the status word is **"candidate fix — UNCONFIRMED"**, and you state the exact run or log line that would confirm it.
+- *Why it binds:* a run is external; the reasoning cannot talk its way past it. (Reference failure: two separate "recompile fixes it" claims delivered with no run behind either — both wrong, both would have been caught here.)
+
+### J2 — Cheapest external check first; an operator pointer is the starting line, not a lead to re-derive
+
+- **Trigger:** the symptom is *categorical* and *reproducible-on-toggle* ("X on ⇒ zero trades / zero signals").
+- **First action:** inspect the **init / handle-loading path** and **request the journal** — before any threshold, formula, or market-behaviour theory.
+- If the operator names a cause or a state ("the binary is stale — confirm the recompile", a screenshot, a log), **start there**: confirm or refute that first. Do not theorise around a pointer you were handed.
+- **Forbidden:** opening with an elimination narrative when a one-line log request would settle it.
+
+### J3 — Every proposed change carries a one-word commitment tag
+
+- **`TRACED`** — you can cite the exact line / path that contradicts the README, the Oracle, or a stated contract → may be phrased as a fix.
+- **`GUESS`** — you cannot → may **only** be phrased as *"the test that would confirm this"*. Never as a fix, never with a confident "this will".
+- If you cannot decide, it is **`GUESS`**.
+- *Why it helps:* it forces the admission to sit next to the claim, which is the in-prompt interrupt for the "confident, tidy answer" pull. It **biases**, it does not **bind** (see the honest limit below).
+
+### J4 — No elimination theatre before a fix is on the table
+
+- **Default output shape:** (1) the single most-likely cause, (2) the one test that settles it, (3) the candidate change. Then stop.
+- Produce the **full** elimination table (Gate 1) **only** after the first test fails, or when the operator asks for it.
+- Accept the trade deliberately: **brevity-then-expand-on-miss** beats **exhaustiveness-every-time**. A step you withheld and had to add later is cheaper than a wall of text that buries the one line that mattered.
+
+### Honest limit — do not delete this note
+
+J1 and J2 lean on **external artifacts** (a run, a log) and are the rules that actually hold. J3 and J4 are **prose**: they shift behaviour hard, but on a bad generation they can still be rationalised past. The residual gap is **not closable by more prompt text.** Closing it needs machinery **outside** the model:
+
+- a **harness** that runs the candidate fix and refuses to accept "solved" until a test passes;
+- a **verifier** that rejects any fix-claim carrying no cited line;
+- a **second reviewer** (human or a separate instance) that must sign off before the answer ships.
+
+All three sit outside the reasoning and can **halt** the output — which is what makes them gates rather than suggestions. They are an Anthropic-side / local-tooling task, not a prompt edit. When the model fails this way *structurally*, the effective channel is **thumbs-down with the transcript**, which reaches the people who can build those external gates.
+
+---
+
+## Part K — Operator checklist (your side of the loop)
+
+Part J governs the model's behaviour; **Part K is for the operator.** These are the habits that stop the model's failure modes from ever getting a turn. They work because they add *specific conditioning* and *external verdicts* — the two things a prompt alone cannot supply.
+
+1. **Evidence first.** Open with the log / journal / config / screenshot, not the theory. Thin input → you get the population's most-probable guess (often wrong for *your* case); specific input → the answer is conditioned onto your actual case. The journal is what solved this session — send it in message 1, not message 5.
+
+2. **Commit before explain.** Require, up front: *one* most-likely cause, tagged `TRACED` (a cited line) or `GUESS` (no cited line), plus the single test that settles it — before any reasoning. This blocks the wall of text and forces the admission next to the claim.
+
+3. **No "solved" without a run.** Treat "fixed / solved / resolved" as **candidate — UNCONFIRMED** until a compile + tester run or a journal shows the changed behaviour. Reflex response to any fix-claim: *"show me the run."* This is the one guard the model cannot talk its way past.
+
+4. **Aim skepticism; don't spray it.** Doubt hardest when the answer is **confident + general + no cited artifact** ("this usually…", "typically…", "recompile fixes it"). Relax when it is **specific + traced + checkable** (a quoted code path, math shown, a one-glance verification). Blanket doubt exhausts you and stops working; aimed doubt catches the real misses.
+
+5. **Escalate structural failures.** When the model repeatedly ships confident guesses as fixes or buries the answer in text, that is a *structural* fault a prompt cannot close. Send **thumbs-down with the transcript** — it reaches the people who can build the external gate (a harness, a verifier, a second reviewer) that the prompt cannot.
+
+**One-line version:** *evidence first, commit before explain, no "solved" without a run, aim your skepticism, escalate the structural stuff.*
