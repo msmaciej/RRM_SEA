@@ -2973,7 +2973,15 @@ private:
       // GetCurrentBarVolume writes m_vprr_last_real (the UI source label). Sampling
       // HISTORY below must not repaint that flag with a historical bar's outcome, so
       // snapshot it here and restore before returning.
-      bool src_flag = m_vprr_last_real;
+      // BOTH provenance markers must be snapshotted, not just the bool. The history
+      // loop below calls GetCurrentBarVolume repeatedly, and that function WRITES both
+      // m_vprr_last_real AND m_vprr_last_src. Restoring only the bool (as this code did
+      // when first written, 2026-07-27 fix 7) left m_vprr_last_src describing the LAST
+      // SAMPLED HISTORICAL BAR rather than the current one — corrupting the provenance
+      // column in the measurement CSV and feeding a stale value to the
+      // VPRR_MayInfluenceDecisions() source check. Both are restored below.
+      bool src_flag     = m_vprr_last_real;
+      int  src_code_snap = m_vprr_last_src;
 
       double samples[];
       ArrayResize(samples, m_settings.VPRR_RVOL_Sessions);
@@ -2994,6 +3002,7 @@ private:
       }
 
       m_vprr_last_real = src_flag;              // restore: reflects the CURRENT bar
+      m_vprr_last_src  = src_code_snap;         // restore: provenance is the CURRENT bar's
 
       double result = 0.0;
       if(got >= m_settings.VPRR_RVOL_MinSamples)
