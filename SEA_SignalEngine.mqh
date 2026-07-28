@@ -7370,7 +7370,9 @@ public:
       bool need_atr = m_settings.Ind_Atr_Enabled;
       h_atr = (need_atr ? iATR(m_symbol, PERIOD_CURRENT, m_settings.P_Atr) : INVALID_HANDLE);
       
-      h_ci  = (m_settings.Ind_CI_Enabled ? iCustom(m_symbol, PERIOD_CURRENT, "ChoppinessIndex", m_settings.CI_Period) : INVALID_HANDLE);
+      // OLD WRONG h_ci CODE, there is no chopiness indicator to load
+      //    h_ci  = (m_settings.Ind_CI_Enabled ? iCustom(m_symbol, PERIOD_CURRENT, "ChoppinessIndex", m_settings.CI_Period) : INVALID_HANDLE);
+      h_ci = INVALID_HANDLE;   // CI vote uses inline CalculateCI(); no external ChoppinessIndex.ex5
       h_vrc = (m_settings.Ind_VRC_Enabled ? iCustom(m_symbol, PERIOD_CURRENT, "VRC_Indicator") : INVALID_HANDLE);
       // ------------------------------------------------------
 
