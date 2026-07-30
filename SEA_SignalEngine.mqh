@@ -3600,13 +3600,22 @@ private:
    //+------------------------------------------------------------------+
    // ComputePSARManual — self-contained Wilder Parabolic SAR (fallback)
    //+------------------------------------------------------------------+
-   // Runs ONLY when the iSAR handle read is not-ready (would return 0.0) at a
-   // bar boundary. Computed from OHLC — which is populated before indicator
-   // buffers — so it never yields the spurious 0.0 that used to make (cl>p)
-   // pass every LONG and fail every SHORT. Uses the SAME Step/Max as the iSAR
-   // handle. PSAR is self-correcting: after the first flip inside the warm-up
-   // window the seed error washes out, so the value at `shift` tracks iSAR
-   // closely. iSAR stays PRIMARY (exact chart parity); this is last-resort.
+   // Runs ONLY when the iSAR handle read is not-ready at a bar boundary.
+   // Mirrors the MEMA (EMA) fallback philosophy: compute the CORRECT math over
+   // the FULL available history — no arbitrary warm-up window. PSAR is
+   // self-correcting: once the SAR flips, the initial seed is fully forgotten,
+   // so the value at `shift` is bit-identical to iSAR regardless of the seed.
+   // If the SAR never flips across the whole run (seed cannot wash out — too
+   // little data or a pathological no-reversal stretch) we FAIL CLOSED, so the
+   // caller never trusts a seed-dependent, wrong-side value. iSAR stays PRIMARY
+   // (exact chart parity); this is last-resort.
+   //
+   // 2026-07-30 fix: the previous version clamped the SAR to the CURRENT bar low
+   // (if(sar>lo) sar=lo) BEFORE the flip test (if(lo<sar)), which made the flip
+   // unreachable — the SAR was frozen in its seed direction and returned a
+   // wrong-side dot ~50% of the time. That false "opposite dot" satisfied the
+   // PSAR flip-window scan and passed PSAR on stale (out-of-window) flips.
+   // Correct Wilder rule: clamp to the two PRIOR extremes only, never current.
    double ComputePSARManual(int shift, bool &out_valid)
    {
       out_valid = false;
@@ -3614,48 +3623,66 @@ private:
       double maxaf = m_settings.P_PsarMax;
       if(step <= 0.0 || maxaf <= 0.0 || shift < 0) return 0.0;
 
-      const int WARM = 300;                          // warm-up depth (PSAR self-corrects within it)
+      // Full history: seed from the OLDEST available bar and run forward to `shift`.
       int total = Bars(m_symbol, PERIOD_CURRENT);
-      int start = shift + WARM;
-      if(start > total - 2) start = total - 2;       // need bar start+1 to exist
-      if(start <= shift) return 0.0;                 // insufficient history
+      int start = total - 2;                         // oldest usable seed bar (needs start+1)
+      if(total < 4 || start <= shift) return 0.0;    // not enough history -> fail closed
 
-      double h_s  = iHigh(m_symbol, PERIOD_CURRENT, start);
-      double l_s  = iLow (m_symbol, PERIOD_CURRENT, start);
-      double h_s1 = iHigh(m_symbol, PERIOD_CURRENT, start + 1);
-      double l_s1 = iLow (m_symbol, PERIOD_CURRENT, start + 1);
-      if(h_s <= 0.0 || l_s <= 0.0 || h_s1 <= 0.0 || l_s1 <= 0.0) return 0.0;
+      double h_s = iHigh(m_symbol, PERIOD_CURRENT, start);
+      double l_s = iLow (m_symbol, PERIOD_CURRENT, start);
+      if(h_s <= 0.0 || l_s <= 0.0) return 0.0;
 
-      bool   is_long = (h_s >= h_s1);                // initial trend guess (washes out)
+      bool   is_long = (h_s >= iHigh(m_symbol, PERIOD_CURRENT, start + 1));
       double af      = step;
-      double ep      = is_long ? h_s  : l_s;         // extreme point
-      double sar     = is_long ? l_s1 : h_s1;        // seed from prior-bar extreme
+      double ep      = is_long ? h_s : l_s;
+      double sar     = is_long ? l_s : h_s;          // seed washes out after the first flip
+      bool   flipped = false;
 
       for(int i = start - 1; i >= shift; i--)
       {
          double hi  = iHigh(m_symbol, PERIOD_CURRENT, i);
          double lo  = iLow (m_symbol, PERIOD_CURRENT, i);
-         double hi1 = iHigh(m_symbol, PERIOD_CURRENT, i + 1);
          double lo1 = iLow (m_symbol, PERIOD_CURRENT, i + 1);
-         if(hi <= 0.0 || lo <= 0.0 || hi1 <= 0.0 || lo1 <= 0.0) return 0.0;
+         double lo2 = iLow (m_symbol, PERIOD_CURRENT, i + 2);
+         double hi1 = iHigh(m_symbol, PERIOD_CURRENT, i + 1);
+         double hi2 = iHigh(m_symbol, PERIOD_CURRENT, i + 2);
+         if(hi <= 0.0 || lo <= 0.0 || lo1 <= 0.0 || lo2 <= 0.0 || hi1 <= 0.0 || hi2 <= 0.0)
+            return 0.0;
 
          sar = sar + af * (ep - sar);
 
          if(is_long)
          {
-            if(sar > lo1) sar = lo1;                 // SAR may not pierce prior/current low
-            if(sar > lo)  sar = lo;
-            if(hi > ep) { ep = hi; af = MathMin(af + step, maxaf); }
-            if(lo < sar) { is_long = false; sar = ep; ep = lo; af = step; }   // flip to short
+            // Clamp to the two PRIOR lows only — NEVER the current bar (that was the
+            // bug: it made the flip test below unreachable).
+            if(sar > lo1) sar = lo1;
+            if(sar > lo2) sar = lo2;
+            if(lo < sar)                              // price pierced SAR -> flip to short
+            {
+               is_long = false; sar = ep; ep = lo; af = step; flipped = true;
+            }
+            else if(hi > ep) { ep = hi; af = MathMin(af + step, maxaf); }
          }
          else
          {
-            if(sar < hi1) sar = hi1;                 // SAR may not pierce prior/current high
-            if(sar < hi)  sar = hi;
-            if(lo < ep) { ep = lo; af = MathMin(af + step, maxaf); }
-            if(hi > sar) { is_long = true; sar = ep; ep = hi; af = step; }    // flip to long
+            if(sar < hi1) sar = hi1;
+            if(sar < hi2) sar = hi2;
+            if(hi > sar)                              // price pierced SAR -> flip to long
+            {
+               is_long = true; sar = ep; ep = hi; af = step; flipped = true;
+            }
+            else if(lo < ep) { ep = lo; af = MathMin(af + step, maxaf); }
          }
       }
+
+      if(!flipped)                                    // seed never washed out -> not trustworthy
+      {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[PSAR_MANUAL] shift=%d: no flip over %d bars -> FAIL CLOSED",
+                                  shift, start - shift));
+         return 0.0;
+      }
+
       out_valid = true;
       return sar;
    }

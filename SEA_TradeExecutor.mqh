@@ -17,6 +17,7 @@ enum { __SEA_BUILD_TOKEN_MISSING_TRADEEXEC_105001 = SEA_BUILD_TOKEN_105001 };
 
 #include <RRMS\SEA_Inputs.mqh>
 #include <Trade\Trade.mqh>
+#include <RRMS\SEA_MetaGate.mqh>   // ML meta-gate (optional; inert unless Inp_META_Enabled)
 
 class CTradeExecutor {
 private:
@@ -3310,9 +3311,25 @@ public:
 
       int result = 0;
       if(te_reject_reason == "") {
-         ExecuteTrade(direction, te_lots);
-         result = (m_last_te_result == "ENTERED") ? 1 : 0;
-         if(result == 0) te_reject_reason = m_last_te_reason;
+         // ===== META-GATE (added; see RRMS\SEA_MetaGate.mqh) ==============
+         // COLLECT: log this about-to-execute TS event (features + SL/TP refs).
+         // GATE:    an optional ML "second opinion" that can only veto/size,
+         //          never create a trade. Inert unless Inp_META_Enabled.
+         double _meta_ref = iClose(m_symbol, PERIOD_CURRENT, 1);
+         if(Inp_META_LogFeatures)
+            LogTSEvent(direction, _meta_ref, m_cached_sl);
+         double _meta_mult = 1.0;
+         if(!EvaluateMetaGate(_meta_mult)) {
+            m_last_te_result = "BLOCKED";
+            m_last_te_reason = "VETO_META";
+            te_reject_reason = "VETO_META";
+         } else {
+            te_lots *= _meta_mult;
+            ExecuteTrade(direction, te_lots);
+            result = (m_last_te_result == "ENTERED") ? 1 : 0;
+            if(result == 0) te_reject_reason = m_last_te_reason;
+         }
+         // ===== END META-GATE ============================================
       }
 
       m_te_veto_reason = (te_reject_reason == "") ? "OK" : te_reject_reason;
