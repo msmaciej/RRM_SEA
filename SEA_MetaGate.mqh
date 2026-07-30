@@ -20,17 +20,21 @@
 #property strict
 
 //==================== META INPUTS ==================================
-input bool   Inp_META_Enabled     = false;     // false = EA behaves exactly as today
-input bool   Inp_META_LogFeatures = false;     // true ONLY during the collection run
-input double Inp_META_Threshold   = 0.50;      // fallback if model file lacks one
-input bool   Inp_META_SizeByScore = false;     // scale lots by confidence
-input string Inp_META_PresetName  = "RRM_ORG"; // drives the CSV file names
-input double Inp_META_LabelRR     = 1.5;        // label TP = RR * SL distance (labels only)
-input int    Inp_META_LabelBars   = 24;         // label time-barrier in bars
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    🤖 META-GATE (ML SIGNAL FILTER)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input bool   Inp_META_Enabled     = false;     // Inp_META_Enabled: false = behaves as today; true = gate active
+input bool   Inp_META_LogFeatures = false;    // Inp_META_LogFeatures: TRUE only for the COLLECT run
+input double Inp_META_Threshold   = 0.50;      // Inp_META_Threshold: fallback if model file lacks one
+input bool   Inp_META_SizeByScore = false;     // Inp_META_SizeByScore: scale lots by confidence
+input string Inp_META_PresetName  = "RRM_ORG"; // Inp_META_PresetName: drives the CSV file names
+input double Inp_META_LabelRR     = 1.5;        // Inp_META_LabelRR: label TP = RR x SL (labels only)
+input int    Inp_META_LabelBars   = 24;         // Inp_META_LabelBars: label time-barrier in bars
 
 //==================== FILE NAMES (derived from preset) =============
-string MetaEventsFile() { return "TS_events_"  + Inp_META_PresetName + ".csv"; }
-string MetaModelFile()  { return "MetaModel_"  + Inp_META_PresetName + ".csv"; }
+string MetaDir()        { return ""; }  // relative -> tester writes to its own MQL5\Files
+string MetaEventsFile() { return MetaDir() + "TS_events_"  + Inp_META_PresetName + ".csv"; }
+string MetaModelFile()  { return MetaDir() + "MetaModel_"  + Inp_META_PresetName + ".csv"; }
 
 //====================================================================
 // >>> PARAMETER SOURCE <<<
@@ -172,8 +176,8 @@ void LogTSEvent(int direction, double ref_price, double sl_price)
    int    tbar    = Inp_META_LabelBars;
 
    string fname   = MetaEventsFile();
-   bool   existed = FileIsExist(fname, FILE_COMMON);
-   int h = FileOpen(fname, FILE_COMMON|FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI, ',');
+   bool   existed = FileIsExist(fname);
+   int h = FileOpen(fname, FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI, ',');
    if(h==INVALID_HANDLE) { Print("META: cannot open ", fname); return; }
    FileSeek(h, 0, SEEK_END);
 
@@ -202,7 +206,7 @@ bool MetaLoadModel()
 {
    g_mtried = true; g_mcount = 0; g_mloaded = false;
    string fname = MetaModelFile();
-   int h = FileOpen(fname, FILE_COMMON|FILE_READ|FILE_CSV|FILE_ANSI, ',');
+   int h = FileOpen(fname, FILE_READ|FILE_CSV|FILE_ANSI, ',');
    if(h==INVALID_HANDLE) { Print("META: no model ", fname, " — gate inert"); return false; }
    while(!FileIsEnding(h))
    {
