@@ -1,0 +1,159 @@
+# META-GATE — README (plain-language)
+
+An optional machine-learning **filter** for the RRM EA. It does not change your
+trading rules. It watches your signals, learns which market *contexts* your
+system loses in (e.g. ranging markets for a trend system), and skips trades in
+those contexts. That is all it does.
+
+**There is no LLM / ChatGPT here.** "Learn" = a small statistics script (logistic
+regression) finds a pattern in a spreadsheet. Think "Excel with a formula," not AI.
+
+---
+
+## 1. The idea in three sentences
+
+1. Your EA plays history and, for every signal it fires, writes down the market
+   conditions at that moment (a spreadsheet).
+2. A Python script reads that spreadsheet, checks from price data whether each
+   signal won or lost, and learns "signals in *these* conditions usually lose."
+3. Back in the EA, when a new signal fires, it checks what Python learned and
+   **skips the ones that usually lose** — nothing else changes.
+
+The EA and Python **never run at the same time** and are **not connected live**.
+They only pass CSV files back and forth.
+
+---
+
+## 2. What it does NOT do (important)
+
+- It does **not** optimize or change your TS / TE / SL / TP rules or their values.
+- It does **not** send settings back to the EA. The only thing Python writes is a
+  short list of numbers (weights).
+- It can **only remove or shrink** a trade your rules already approved. It can
+  never create a trade your rules rejected, move an SL, or edit an input.
+- The "optimize my parameters" job is a *different* tool — the MT5 Strategy Tester
+  optimizer. This is a filter that sits on top of already-tuned rules.
+
+---
+
+## 3. The files
+
+| File | Where it lives | Role |
+| --- | --- | --- |
+| `SEA_MetaGate.mqh` | `MQL5\Include\RRMS\` | The whole feature+gate module. Self-contained. |
+| `SEA_TradeExecutor.mqh` | `MQL5\Include\RRMS\` | Your file, with 2 small edits (include + gate around `ExecuteTrade`). |
+| `rrm_meta.py` | your repo `scripts/` | The trainer. Runs on your Mac, not inside MT5. |
+| `rrm_meta.config` | next to `rrm_meta.py` | Stores the `Common\Files` path + defaults so you set them once. |
+
+**One-time setup:** copy `SEA_MetaGate.mqh` into `MQL5\Include\RRMS\`, replace
+`SEA_TradeExecutor.mqh` with the patched one, compile. Nothing changes yet —
+everything is OFF by default.
+
+---
+
+## 4. The CSV files (read vs write)
+
+All three live in MT5's shared **`Common\Files`** folder
+(MT5 → File → Open Data Folder → up into `Common\Files`).
+
+| File | Made by | Read by | Naming |
+| --- | --- | --- | --- |
+| `PAIR_TF_FROM_TO.csv` (price bars) | you already have it | Python | e.g. `USDJPY_M15_240101_241231.csv` |
+| `TS_events_<PRESET>.csv` (signal log) | **EA** (collect run) | Python | e.g. `TS_events_RRM_ORG.csv` |
+| `MetaModel_<PRESET>.csv` (the model) | **Python** | **EA** (gated run) | e.g. `MetaModel_RRM_ORG.csv` |
+
+---
+
+## 5. How to run — 3 steps
+
+**STEP 1 — Collect (EA writes the signal log).**
+EA inputs: `Inp_META_LogFeatures = true`, `Inp_META_Enabled = false`,
+`Inp_META_PresetName = RRM_ORG`. Run your normal `PRESET_RRM_ORG` backtest.
+→ behaves exactly as today, and drops `TS_events_RRM_ORG.csv`.
+
+**STEP 2 — Train (Python learns).**
+Edit `rrm_meta.config` once (put your real `Common\Files` path + pair/TF/dates).
+Then: `python3 scripts/rrm_meta.py` and press Enter through the prompts.
+→ reads the price CSV + the events CSV, prints results, writes
+`MetaModel_RRM_ORG.csv`.
+
+**STEP 3 — Gate (EA uses the model).**
+EA inputs: `Inp_META_LogFeatures = false`, `Inp_META_Enabled = true`.
+Re-run the backtest and compare to Step 1.
+→ To undo completely: delete the model file, or set `Inp_META_Enabled = false`.
+
+**Install Python deps once:** `pip install pandas numpy scikit-learn`
+
+---
+
+## 6. How to read the results
+
+Python prints an out-of-sample block, e.g.:
+
+```
+threshold             : 0.560
+trades  all -> gated  : 420 -> 250
+R-Sharpe all -> gated : 0.31 -> 0.58
+```
+
+- **trades all -> gated**: how many trades survive the filter (fewer = pickier).
+- **R-Sharpe all -> gated**: risk-adjusted return before vs after the filter, on
+  data the model did NOT train on. If gated > all, the filter helped honestly.
+- **Ship the model only if gated beat all here.** If not, delete the model file;
+  the EA reverts to its exact current behaviour.
+
+Reminder printed by the script: every threshold / feature set you try is a
+"trial." The more you try, the more a good number can be luck (the deflated-Sharpe
+idea). Do not keep re-rolling until you like the number.
+
+---
+
+## 7. What it looks at (the features)
+
+Computed at the closed signal bar. Two groups:
+
+- **Signal-side** (mirrors your preset, read from live inputs): EMA fan 5/13/34/89,
+  MACD 8/13 + CCI 13 (a proxy for DPI momentum), PSAR side/distance, candle body.
+- **Ranging / context gauges** (always measured, even though `RRM_ORG` disables
+  ADX/BB for voting): ADX, +DI/−DI spread, Bollinger width, ATR, 20-bar volatility,
+  RSI, Stochastic, MFI, bar range, spread, hour, day-of-week.
+
+The ranging gauges are the point: they let the model learn "trend signal fired in
+a flat/ranging market → skip," **without** enabling those indicators in your rules.
+
+---
+
+## 8. When to re-train (rule of thumb)
+
+A model is a snapshot of ONE configuration. Re-collect (Step 1) + re-train
+(Step 2) whenever you change anything that alters which trades fire or how they
+turn out:
+
+- change a preset value (EMA period, PSAR, SL/TP logic) → re-train,
+- enable/disable an indicator in the preset → re-train (and if you want the new
+  indicator as a *feature*, add one line in `MetaBuildFeatures`),
+- switch pair, timeframe, or date range → re-train,
+- different preset → train a separate model (different `Inp_META_PresetName`).
+
+---
+
+## 9. Honest limits
+
+- The DPI feature is a MACD+CCI **proxy**, not your exact DPI indicator. Fine for a
+  context feature; if you ever want the exact DPI value, expose the engine buffer.
+- The model can only learn from features in the list. If your true "bad market"
+  tell isn't in there, add it and re-train.
+- The label ("was this a good trade?") uses a clean fixed barrier — `Inp_META_LabelRR`
+  (TP = RR × SL) and `Inp_META_LabelBars` — NOT your live trailing exits, so it
+  scores signal quality rather than exit management. Tune those two to match how
+  you define a good trade.
+- Handles are created lazily, so the first few bars of a backtest may log neutral
+  zeros while indicators warm up — negligible over a full run.
+
+---
+
+## 10. One-line mental model
+
+**Your rules decide the trades; the meta-gate watches extra market gauges your
+rules ignore, learns from history which conditions kill those trades, and skips
+them — the rules themselves never change.**
