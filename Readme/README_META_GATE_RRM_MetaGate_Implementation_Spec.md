@@ -51,8 +51,16 @@ stds + an intercept + a threshold.
 | `meta/train_meta.py` | Fit logistic regression, purged CV, deflated Sharpe. |
 | `meta/export_mql5.py` | Write `MetaModel_<PRESET>.csv` into `MQL5\Files\`. |
 
-**The two CSVs** live in the Tester/terminal `MQL5\Files\` folder (that is where MQL5
-`FileOpen` reads/writes by default).
+**Where the CSVs land (updated 2026-07-31 — superseding "both in `MQL5\Files\` by
+default").** Under macOS+Wine the Strategy Tester gives each run a throwaway
+`MQL5\Files\` sandbox, so the default (non-common) location does **not** persist across
+sequential runs. Therefore: the **events log**
+(`TS_events_<PRESET>_<SYMBOL>_<TF>.csv`) is written by the EA to the shared
+**`Common\Files`** via `FILE_COMMON`, which survives; the **model**
+(`MetaModel_<PRESET>_<SYMBOL>_<TF>.csv`) is written by Python into the terminal
+`MQL5\Files\` and read by the EA **non-common** (the tester seeds each agent sandbox
+from that folder at run start). `rrm_meta.py` searches both. See `README_META_GATE.md`
+§4 and the `SEA_MetaGate.mqh` header note for the full rationale.
 
 ---
 

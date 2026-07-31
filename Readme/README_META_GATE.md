@@ -53,14 +53,23 @@ everything is OFF by default.
 
 ## 4. The CSV files (read vs write)
 
-All three live in MT5's shared **`Common\Files`** folder
-(MT5 → File → Open Data Folder → up into `Common\Files`).
+They do **not** all live in one folder — and under macOS+Wine that matters, because
+the Strategy Tester gives each run its own throwaway `MQL5\Files\` sandbox.
 
-| File | Made by | Read by | Naming |
-| --- | --- | --- | --- |
-| `PAIR_TF_FROM_TO.csv` (price bars) | you already have it | Python | e.g. `USDJPY_M15_240101_241231.csv` |
-| `TS_events_<PRESET>.csv` (signal log) | **EA** (collect run) | Python | e.g. `TS_events_RRM_ORG.csv` |
-| `MetaModel_<PRESET>.csv` (the model) | **Python** | **EA** (gated run) | e.g. `MetaModel_RRM_ORG.csv` |
+| File | Made by | Read by | Lives in | Naming |
+| --- | --- | --- | --- | --- |
+| `PAIR_TF_FROM_TO.csv` (price bars) | you already have it | Python | `MQL5\Files\` (or your `rrm_meta.config` path) | e.g. `USDJPY_M15_240101_241231.csv` |
+| `TS_events_<PRESET>_<SYMBOL>_<TF>.csv` (signal log) | **EA** (collect run) | Python | shared **`Common\Files`** (durable, `FILE_COMMON`) | e.g. `TS_events_RRM_ORG_EURUSD_M1.csv` |
+| `MetaModel_<PRESET>_<SYMBOL>_<TF>.csv` (the model) | **Python** | **EA** (gated run) | terminal `MQL5\Files\` (EA reads non-common) | e.g. `MetaModel_RRM_ORG_EURUSD_M1.csv` |
+
+The signal log goes to **`Common\Files`** on purpose: a non-common write lands in the
+per-run `…\Tester\Agent-*\MQL5\Files\` sandbox, which the tester wipes each run — so a
+sequence of pair+TF collects would keep only the last. `Common\Files` is shared and
+survives, so they accumulate (restored to `FILE_COMMON` 2026-07-31; the 2026-07-30
+non-common detour is what caused the "only the last file" symptom). The model is read
+non-common because the tester seeds each agent from the terminal `MQL5\Files\` (where
+Python writes it) at run start. `rrm_meta.py` auto-discovers all three — it searches
+`Common\Files` **and** every `MQL5\Files`.
 
 ---
 

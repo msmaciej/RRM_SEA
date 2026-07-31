@@ -13,14 +13,22 @@
 //| only reason to edit this file — add one line in MetaBuildFeatures. |
 //|                                                                    |
 //| Place at:  MQL5\Include\RRMS\SEA_MetaGate.mqh                      |
-//| CSVs use the terminal/agent local MQL5\Files folder (NON-common) — |
-//| identical to SEA_ConfigSync's SEA_LiveConfig write. FILE_COMMON    |
-//| was dropped 2026-07-30: under macOS+Wine the Strategy Tester's     |
-//| FILE_COMMON FileOpen returns INVALID_HANDLE, so the events file    |
-//| was silently never written; the non-common path is proven to work  |
-//| in the same tester run (SEA_LiveConfig lands in Agent-*\MQL5\Files).|
-//| In the tester the file is at  Tester\Agent-*\MQL5\Files\ ; live it  |
-//| is at  MQL5\Files\ . rrm_meta.py auto-locates both.                |
+//| EVENTS CSV durability (2026-07-31): the collect log is written to  |
+//| the SHARED Common\Files via FILE_COMMON, which is OUTSIDE the per- |
+//| run tester agent sandbox and therefore SURVIVES sequential runs —  |
+//| so many pair+TF collects accumulate instead of leaving only the    |
+//| last. (0bbe5ad had switched to NON-common Agent-*\MQL5\Files, which |
+//| the tester re-creates every run; that wiped all but the final       |
+//| collect — confirmed on disk.) The earlier FILE_COMMON INVALID_HANDLE|
+//| under Wine was the shared folder not existing yet in the prefix:    |
+//| LogTSEvent now FolderCreate+retries, and if FILE_COMMON is still    |
+//| unavailable it FALLS BACK to the sandbox (run not lost) and prints  |
+//| a loud non-durable warning. A run-scoped dup-guard skips already-   |
+//| logged bars so re-collecting an overlapping range adds no repeats.  |
+//| MODEL read stays NON-common on purpose: rrm_meta.py writes the model|
+//| into the terminal MQL5\Files, which the tester SEEDS into the agent |
+//| sandbox at run start, so the EA reads it there. rrm_meta.py's       |
+//| discovery already searches Common\Files + every MQL5\Files.         |
 //+------------------------------------------------------------------+
 #ifndef SEA_METAGATE_MQH
 #define SEA_METAGATE_MQH
@@ -182,25 +190,103 @@ void LogTSEvent(int direction, double ref_price, double sl_price)
    double tp_dist = sl_dist * Inp_META_LabelRR;
    int    tbar    = Inp_META_LabelBars;
 
-   string fname   = MetaEventsFile();
-   // NON-common (agent/terminal MQL5\Files) — matches SEA_ConfigSync, which works
-   // in this Wine tester where FILE_COMMON does not. See header note.
-   bool   existed = FileIsExist(fname);
-   int h = FileOpen(fname, FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI, ',');
-   if(h==INVALID_HANDLE) {
-      PrintFormat("[META] CANNOT OPEN %s (err=%d) — data path=%s",
-                  fname, GetLastError(), TerminalInfoString(TERMINAL_DATA_PATH));
+   string   fname    = MetaEventsFile();
+   datetime bar_time = iTime(_Symbol, PERIOD_CURRENT, 1);   // the signal bar — also the dedup key
+
+   // -------------------------------------------------------------------------
+   // DURABILITY (2026-07-31): write to the SHARED Common\Files via FILE_COMMON.
+   // That folder lives OUTSIDE the per-run tester agent sandbox, so the file
+   // SURVIVES sequential tester runs and many pair+TF collects accumulate.
+   // (0bbe5ad had moved this to NON-common Agent-*\MQL5\Files, which the tester
+   //  re-creates every run — that is what left only the last collect.)
+   // Self-heal: a first-run INVALID_HANDLE under Wine is almost always the shared
+   // folder not existing yet, so we FolderCreate + retry once. If FILE_COMMON is
+   // still unavailable we FALL BACK to the sandbox so the run is not lost, and
+   // print a loud warning that cross-run durability is OFF.
+   // -------------------------------------------------------------------------
+   uint common_flags = FILE_COMMON|FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI;
+   uint local_flags  =             FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI;
+   bool use_common   = true;
+   bool existed      = FileIsExist(fname, FILE_COMMON);
+   int  h            = FileOpen(fname, common_flags, ',');
+   if(h == INVALID_HANDLE)
+   {
+      FolderCreate("_ensure", FILE_COMMON);                 // force Common\Files to exist, then retry
+      existed = FileIsExist(fname, FILE_COMMON);
+      h       = FileOpen(fname, common_flags, ',');
+   }
+   if(h == INVALID_HANDLE)
+   {
+      use_common = false;
+      PrintFormat("[META] FILE_COMMON unavailable (err=%d, common=%s) — FALLING BACK to the "
+                  "per-run sandbox; files will NOT survive the next run.",
+                  GetLastError(), TerminalInfoString(TERMINAL_COMMONDATA_PATH));
+      existed = FileIsExist(fname);
+      h       = FileOpen(fname, local_flags, ',');
+      if(h == INVALID_HANDLE)
+      {
+         PrintFormat("[META] CANNOT OPEN %s at all (err=%d) — data path=%s",
+                     fname, GetLastError(), TerminalInfoString(TERMINAL_DATA_PATH));
+         return;
+      }
+   }
+
+   // ---- duplicate guard (run-scoped): the file now persists AND has no date range
+   //      in its name, so re-collecting an overlapping range would append repeats.
+   //      Load every existing signal-bar time ONCE, then skip any bar already logged.
+   static bool     _dd_ready = false;
+   static string   _dd_file  = "";
+   static datetime _dd_keys[];
+   static int      _dd_n     = 0;
+   static int      _dd_skip  = 0;
+   if(!_dd_ready || _dd_file != fname)
+   {
+      _dd_ready = true; _dd_file = fname; _dd_n = 0; _dd_skip = 0; ArrayResize(_dd_keys, 0);
+      if(existed)
+      {
+         FileSeek(h, 0, SEEK_SET);
+         bool first = true;
+         while(!FileIsEnding(h))
+         {
+            string c0 = FileReadString(h);                        // column 0 = event_time (or header)
+            while(!FileIsLineEnding(h) && !FileIsEnding(h)) FileReadString(h);  // skip rest of line
+            if(first) { first = false; if(c0 == "event_time") continue; }
+            datetime t = StringToTime(c0);
+            if(t > 0) { ArrayResize(_dd_keys, _dd_n + 1); _dd_keys[_dd_n++] = t; }
+         }
+         if(_dd_n > 1) ArraySort(_dd_keys);
+         PrintFormat("[META] dup-guard: %d existing rows in %s (%s) — re-collect is safe.",
+                     _dd_n, fname, use_common ? "Common\\Files" : "sandbox");
+      }
+   }
+
+   // membership test (binary search over the sorted datetimes)
+   bool dup = false;
+   int  lo = 0, hi = _dd_n - 1;
+   while(lo <= hi)
+   {
+      int mid = (lo + hi) >> 1;
+      if(_dd_keys[mid] == bar_time) { dup = true; break; }
+      if(_dd_keys[mid] <  bar_time) lo = mid + 1; else hi = mid - 1;
+   }
+   if(dup)
+   {
+      FileClose(h);
+      if(++_dd_skip == 1)
+         PrintFormat("[META] dup-guard: skipping already-logged bar %s in %s (re-collect).",
+                     TimeToString(bar_time, TIME_DATE|TIME_MINUTES), fname);
       return;
    }
-   FileSeek(h, 0, SEEK_END);
 
+   // ---- append ----
+   FileSeek(h, 0, SEEK_END);
    if(!existed)
    {
       string hdr = "event_time,symbol,preset,direction,sl_dist,tp_dist,time_barrier_bars";
       for(int i=0;i<n;i++) hdr += "," + names[i];
       FileWrite(h, hdr);
    }
-   string row = TimeToString(iTime(_Symbol,PERIOD_CURRENT,1), TIME_DATE|TIME_MINUTES) + "," +
+   string row = TimeToString(bar_time, TIME_DATE|TIME_MINUTES) + "," +
                 _Symbol + "," + Inp_META_PresetName + "," + IntegerToString(direction) + "," +
                 DoubleToString(sl_dist,_Digits) + "," + DoubleToString(tp_dist,_Digits) + "," +
                 IntegerToString(tbar);
@@ -208,10 +294,16 @@ void LogTSEvent(int direction, double ref_price, double sl_price)
    FileWrite(h, row);
    FileClose(h);
 
+   // keep the in-memory key set current so re-fires within THIS run also dedup
+   ArrayResize(_dd_keys, _dd_n + 1); _dd_keys[_dd_n++] = bar_time;
+   if(_dd_n > 1 && _dd_keys[_dd_n-1] < _dd_keys[_dd_n-2]) ArraySort(_dd_keys);
+
    static int _meta_rows = 0;
    if(++_meta_rows == 1)
-      PrintFormat("[META] logging events -> %s\\MQL5\\Files\\%s",
-                  TerminalInfoString(TERMINAL_DATA_PATH), fname);
+      PrintFormat("[META] logging events -> %s\\%s  (durable=%s)",
+                  use_common ? TerminalInfoString(TERMINAL_COMMONDATA_PATH)
+                             : TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL5\\Files",
+                  fname, use_common ? "YES (survives runs)" : "NO (sandbox only)");
 }
 
 //==================== MODEL (lazy load) =============================
