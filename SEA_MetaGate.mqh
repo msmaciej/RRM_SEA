@@ -181,14 +181,13 @@ int MetaBuildFeatures(string &names[], double &vals[])
 }
 
 //==================== LOGGING (COLLECT mode) ========================
-// Events dup-guard state at FILE SCOPE (per Spec §7b "globals — no static locals";
-// also avoids a static-local dynamic array, which some MQL5 builds reject at compile).
-// Reset per tester run because globals reinitialise on each EA (re)load.
-bool     _dd_ready = false;
+// Dedup state at FILE SCOPE (Spec §7b: globals, no static locals). Minimal:
+// a single monotonic "newest event_time already in the file" — no arrays, no
+// ArraySort, no binary search (keeps the compile surface tiny). Reset per run.
+datetime _dd_last  = 0;
 string   _dd_file  = "";
-datetime _dd_keys[];
-int      _dd_n     = 0;
-int      _dd_skip  = 0;
+bool     _dd_ready = false;
+
 void LogTSEvent(int direction, double ref_price, double sl_price)
 {
    string names[]; double vals[];
@@ -199,19 +198,12 @@ void LogTSEvent(int direction, double ref_price, double sl_price)
    int    tbar    = Inp_META_LabelBars;
 
    string   fname    = MetaEventsFile();
-   datetime bar_time = iTime(_Symbol, PERIOD_CURRENT, 1);   // the signal bar — also the dedup key
+   datetime bar_time = iTime(_Symbol, PERIOD_CURRENT, 1);
 
-   // -------------------------------------------------------------------------
-   // DURABILITY (2026-07-31): write to the SHARED Common\Files via FILE_COMMON.
-   // That folder lives OUTSIDE the per-run tester agent sandbox, so the file
-   // SURVIVES sequential tester runs and many pair+TF collects accumulate.
-   // (0bbe5ad had moved this to NON-common Agent-*\MQL5\Files, which the tester
-   //  re-creates every run — that is what left only the last collect.)
-   // Self-heal: a first-run INVALID_HANDLE under Wine is almost always the shared
-   // folder not existing yet, so we FolderCreate + retry once. If FILE_COMMON is
-   // still unavailable we FALL BACK to the sandbox so the run is not lost, and
-   // print a loud warning that cross-run durability is OFF.
-   // -------------------------------------------------------------------------
+   // DURABILITY: write to the shared Common\Files via FILE_COMMON (outside the
+   // per-run tester sandbox, so it survives across runs). If the shared folder
+   // isn't there yet under Wine, FolderCreate + retry; if FILE_COMMON is still
+   // unavailable, fall back to the sandbox so the run is not lost, and warn.
    int  common_flags = FILE_COMMON|FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI;
    int  local_flags  =             FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI;
    bool use_common   = true;
@@ -219,70 +211,51 @@ void LogTSEvent(int direction, double ref_price, double sl_price)
    int  h            = FileOpen(fname, common_flags, ',');
    if(h == INVALID_HANDLE)
    {
-      FolderCreate("_ensure", FILE_COMMON);                 // force Common\Files to exist, then retry
+      FolderCreate("_ensure", FILE_COMMON);
       existed = FileIsExist(fname, FILE_COMMON);
       h       = FileOpen(fname, common_flags, ',');
    }
    if(h == INVALID_HANDLE)
    {
       use_common = false;
-      PrintFormat("[META] FILE_COMMON unavailable (err=%d, common=%s) — FALLING BACK to the "
-                  "per-run sandbox; files will NOT survive the next run.",
-                  GetLastError(), TerminalInfoString(TERMINAL_COMMONDATA_PATH));
+      PrintFormat("[META] FILE_COMMON unavailable (err=%d) - FALLING BACK to sandbox; will NOT survive next run.",
+                  GetLastError());
       existed = FileIsExist(fname);
       h       = FileOpen(fname, local_flags, ',');
       if(h == INVALID_HANDLE)
       {
-         PrintFormat("[META] CANNOT OPEN %s at all (err=%d) — data path=%s",
-                     fname, GetLastError(), TerminalInfoString(TERMINAL_DATA_PATH));
+         PrintFormat("[META] CANNOT OPEN %s at all (err=%d)", fname, GetLastError());
          return;
       }
    }
 
-   // ---- duplicate guard (run-scoped): the file now persists AND has no date range
-   //      in its name, so re-collecting an overlapping range would append repeats.
-   //      Load every existing signal-bar time ONCE, then skip any bar already logged.
-   //      (State is file-scope global — declared above the function.)
+   // one-time dedup seed: remember the newest event_time already in the file
    if(!_dd_ready || _dd_file != fname)
    {
-      _dd_ready = true; _dd_file = fname; _dd_n = 0; _dd_skip = 0; ArrayResize(_dd_keys, 0);
+      _dd_ready = true; _dd_file = fname; _dd_last = 0;
       if(existed)
       {
          FileSeek(h, 0, SEEK_SET);
          bool first = true;
          while(!FileIsEnding(h))
          {
-            string c0 = FileReadString(h);                        // column 0 = event_time (or header)
-            while(!FileIsLineEnding(h) && !FileIsEnding(h)) FileReadString(h);  // skip rest of line
-            if(first) { first = false; if(c0 == "event_time") continue; }
+            string c0 = FileReadString(h);
+            while(!FileIsLineEnding(h) && !FileIsEnding(h)) FileReadString(h);
+            if(first) { first = false; continue; }   // skip header row
             datetime t = StringToTime(c0);
-            if(t > 0) { ArrayResize(_dd_keys, _dd_n + 1); _dd_keys[_dd_n++] = t; }
+            if(t > _dd_last) _dd_last = t;
          }
-         if(_dd_n > 1) ArraySort(_dd_keys);
-         PrintFormat("[META] dup-guard: %d existing rows in %s (%s) — re-collect is safe.",
-                     _dd_n, fname, use_common ? "Common\\Files" : "sandbox");
       }
    }
 
-   // membership test (binary search over the sorted datetimes)
-   bool dup = false;
-   int  lo = 0, hi = _dd_n - 1;
-   while(lo <= hi)
-   {
-      int mid = (lo + hi) >> 1;
-      if(_dd_keys[mid] == bar_time) { dup = true; break; }
-      if(_dd_keys[mid] <  bar_time) lo = mid + 1; else hi = mid - 1;
-   }
-   if(dup)
+   // skip a bar already logged (re-collect of an overlapping range appends nothing)
+   if(existed && bar_time <= _dd_last)
    {
       FileClose(h);
-      if(++_dd_skip == 1)
-         PrintFormat("[META] dup-guard: skipping already-logged bar %s in %s (re-collect).",
-                     TimeToString(bar_time, TIME_DATE|TIME_MINUTES), fname);
       return;
    }
 
-   // ---- append ----
+   // append
    FileSeek(h, 0, SEEK_END);
    if(!existed)
    {
@@ -297,17 +270,14 @@ void LogTSEvent(int direction, double ref_price, double sl_price)
    for(int i=0;i<n;i++) row += "," + DoubleToString(vals[i], 8);
    FileWrite(h, row);
    FileClose(h);
-
-   // keep the in-memory key set current so re-fires within THIS run also dedup
-   ArrayResize(_dd_keys, _dd_n + 1); _dd_keys[_dd_n++] = bar_time;
-   if(_dd_n > 1 && _dd_keys[_dd_n-1] < _dd_keys[_dd_n-2]) ArraySort(_dd_keys);
+   if(bar_time > _dd_last) _dd_last = bar_time;
 
    static int _meta_rows = 0;
    if(++_meta_rows == 1)
-      PrintFormat("[META] logging events -> %s\\%s  (durable=%s)",
+      PrintFormat("[META] logging events -> %s\\%s (durable=%s)",
                   use_common ? TerminalInfoString(TERMINAL_COMMONDATA_PATH)
                              : TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL5\\Files",
-                  fname, use_common ? "YES (survives runs)" : "NO (sandbox only)");
+                  fname, use_common ? "YES" : "NO");
 }
 
 //==================== MODEL (lazy load) =============================
