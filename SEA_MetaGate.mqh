@@ -181,6 +181,14 @@ int MetaBuildFeatures(string &names[], double &vals[])
 }
 
 //==================== LOGGING (COLLECT mode) ========================
+// Events dup-guard state at FILE SCOPE (per Spec §7b "globals — no static locals";
+// also avoids a static-local dynamic array, which some MQL5 builds reject at compile).
+// Reset per tester run because globals reinitialise on each EA (re)load.
+bool     _dd_ready = false;
+string   _dd_file  = "";
+datetime _dd_keys[];
+int      _dd_n     = 0;
+int      _dd_skip  = 0;
 void LogTSEvent(int direction, double ref_price, double sl_price)
 {
    string names[]; double vals[];
@@ -204,8 +212,8 @@ void LogTSEvent(int direction, double ref_price, double sl_price)
    // still unavailable we FALL BACK to the sandbox so the run is not lost, and
    // print a loud warning that cross-run durability is OFF.
    // -------------------------------------------------------------------------
-   uint common_flags = FILE_COMMON|FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI;
-   uint local_flags  =             FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI;
+   int  common_flags = FILE_COMMON|FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI;
+   int  local_flags  =             FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI;
    bool use_common   = true;
    bool existed      = FileIsExist(fname, FILE_COMMON);
    int  h            = FileOpen(fname, common_flags, ',');
@@ -234,11 +242,7 @@ void LogTSEvent(int direction, double ref_price, double sl_price)
    // ---- duplicate guard (run-scoped): the file now persists AND has no date range
    //      in its name, so re-collecting an overlapping range would append repeats.
    //      Load every existing signal-bar time ONCE, then skip any bar already logged.
-   static bool     _dd_ready = false;
-   static string   _dd_file  = "";
-   static datetime _dd_keys[];
-   static int      _dd_n     = 0;
-   static int      _dd_skip  = 0;
+   //      (State is file-scope global — declared above the function.)
    if(!_dd_ready || _dd_file != fname)
    {
       _dd_ready = true; _dd_file = fname; _dd_n = 0; _dd_skip = 0; ArrayResize(_dd_keys, 0);
