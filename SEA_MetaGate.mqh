@@ -13,18 +13,22 @@
 //| only reason to edit this file — add one line in MetaBuildFeatures. |
 //|                                                                    |
 //| Place at:  MQL5\Include\RRMS\SEA_MetaGate.mqh                      |
-//| CSVs use the terminal COMMON\Files folder.                        |
+//| CSVs use the terminal/agent local MQL5\Files folder (NON-common) — |
+//| identical to SEA_ConfigSync's SEA_LiveConfig write. FILE_COMMON    |
+//| was dropped 2026-07-30: under macOS+Wine the Strategy Tester's     |
+//| FILE_COMMON FileOpen returns INVALID_HANDLE, so the events file    |
+//| was silently never written; the non-common path is proven to work  |
+//| in the same tester run (SEA_LiveConfig lands in Agent-*\MQL5\Files).|
+//| In the tester the file is at  Tester\Agent-*\MQL5\Files\ ; live it  |
+//| is at  MQL5\Files\ . rrm_meta.py auto-locates both.                |
 //+------------------------------------------------------------------+
 #ifndef SEA_METAGATE_MQH
 #define SEA_METAGATE_MQH
 #property strict
 
 //==================== META INPUTS ==================================
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    🤖 META-GATE (ML SIGNAL FILTER)";
-input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input bool   Inp_META_Enabled     = false;     // Inp_META_Enabled: false = behaves as today; true = gate active
-input bool   Inp_META_LogFeatures = false;    // Inp_META_LogFeatures: TRUE only for the COLLECT run
+input bool   Inp_META_LogFeatures = false;     // Inp_META_LogFeatures: TRUE only for the COLLECT run
 input double Inp_META_Threshold   = 0.50;      // Inp_META_Threshold: fallback if model file lacks one
 input bool   Inp_META_SizeByScore = false;     // Inp_META_SizeByScore: scale lots by confidence
 input string Inp_META_PresetName  = "RRM_ORG"; // Inp_META_PresetName: drives the CSV file names
@@ -32,9 +36,12 @@ input double Inp_META_LabelRR     = 1.5;        // Inp_META_LabelRR: label TP = 
 input int    Inp_META_LabelBars   = 24;         // Inp_META_LabelBars: label time-barrier in bars
 
 //==================== FILE NAMES (derived from preset) =============
-string MetaDir()        { return ""; }  // relative -> tester writes to its own MQL5\Files
-string MetaEventsFile() { return MetaDir() + "TS_events_"  + Inp_META_PresetName + ".csv"; }
-string MetaModelFile()  { return MetaDir() + "MetaModel_"  + Inp_META_PresetName + ".csv"; }
+// Key files by preset + chart symbol + chart timeframe, e.g. RRM_ORG_EURUSD_M1.
+// EnumToString(PERIOD_M1)="PERIOD_M1" -> substr(7) -> "M1"; works for every TF.
+string MetaTFStr()      { return StringSubstr(EnumToString((ENUM_TIMEFRAMES)_Period), 7); }
+string MetaKey()        { return Inp_META_PresetName + "_" + _Symbol + "_" + MetaTFStr(); }
+string MetaEventsFile() { return "TS_events_"  + MetaKey() + ".csv"; }
+string MetaModelFile()  { return "MetaModel_"  + MetaKey() + ".csv"; }
 
 //====================================================================
 // >>> PARAMETER SOURCE <<<
@@ -176,9 +183,15 @@ void LogTSEvent(int direction, double ref_price, double sl_price)
    int    tbar    = Inp_META_LabelBars;
 
    string fname   = MetaEventsFile();
+   // NON-common (agent/terminal MQL5\Files) — matches SEA_ConfigSync, which works
+   // in this Wine tester where FILE_COMMON does not. See header note.
    bool   existed = FileIsExist(fname);
    int h = FileOpen(fname, FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI, ',');
-   if(h==INVALID_HANDLE) { Print("META: cannot open ", fname); return; }
+   if(h==INVALID_HANDLE) {
+      PrintFormat("[META] CANNOT OPEN %s (err=%d) — data path=%s",
+                  fname, GetLastError(), TerminalInfoString(TERMINAL_DATA_PATH));
+      return;
+   }
    FileSeek(h, 0, SEEK_END);
 
    if(!existed)
@@ -194,6 +207,11 @@ void LogTSEvent(int direction, double ref_price, double sl_price)
    for(int i=0;i<n;i++) row += "," + DoubleToString(vals[i], 8);
    FileWrite(h, row);
    FileClose(h);
+
+   static int _meta_rows = 0;
+   if(++_meta_rows == 1)
+      PrintFormat("[META] logging events -> %s\\MQL5\\Files\\%s",
+                  TerminalInfoString(TERMINAL_DATA_PATH), fname);
 }
 
 //==================== MODEL (lazy load) =============================
@@ -206,6 +224,7 @@ bool MetaLoadModel()
 {
    g_mtried = true; g_mcount = 0; g_mloaded = false;
    string fname = MetaModelFile();
+   // NON-common — the trainer writes MetaModel next to the events file (MQL5\Files).
    int h = FileOpen(fname, FILE_READ|FILE_CSV|FILE_ANSI, ',');
    if(h==INVALID_HANDLE) { Print("META: no model ", fname, " — gate inert"); return false; }
    while(!FileIsEnding(h))
