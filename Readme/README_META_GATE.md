@@ -72,6 +72,31 @@ non-common because the tester seeds each agent from the terminal `MQL5\Files\` (
 Python writes it) at run start. `rrm_meta.py` auto-discovers all three — it searches
 `Common\Files` **and** every `MQL5\Files`.
 
+### 4a. Where files live & the re-collect rule — authoritative version (read this)
+
+Current reality of the code (it has changed across versions; this is the source of
+truth — trust it over any older notes):
+
+- **Events + outcomes → `…\MetaQuotes\Terminal\Common\Files\`**, every run, via
+  `FILE_COMMON`. One fixed folder. On macOS/Wine:
+  `~/Library/Application Support/net.metaquotes.wine.metatrader5/drive_c/users/<user>/AppData/Roaming/MetaQuotes/Terminal/Common/Files/`.
+- **Config / report files (`SEA_LiveConfig_*`) → the tester `MQL5\Files`** sandbox — a
+  *different* folder. Looking there for the events CSV is the usual "it's missing"
+  confusion; it isn't missing, it's in `Common\Files`.
+- **No `--archive` step and no `Files_SEA\events\` anymore.** Those were a workaround for
+  the old sandbox-wipe, removed once the write moved to `FILE_COMMON`. If your notes
+  mention them, the notes are stale. You copy nothing by hand.
+- **The trainer finds files itself** (`Common\Files` searched first, path hardcoded); you
+  never pass a path or run `find` in normal use.
+- **Re-collect rule (important):** the events writer **appends and de-dups by
+  `event_time`**, so re-running a range already in the file **adds nothing** (by design).
+  To re-collect *fresh/corrected* data (after an EA change like the `macd_hist` fix, or
+  changed trade management), **delete that pair+TF's `TS_events_*` and `TS_outcomes_*`
+  from `Common\Files` first**, then run COLLECT — otherwise you keep the old rows.
+- **Every collect prints a summary** (`OnDeinit`):
+  `[META] COLLECT SUMMARY: N new events, M new outcomes … (K skipped as already-logged)`
+  plus the exact folder. `0 new / K skipped` means "already collected — delete to redo."
+
 ---
 
 ## 5. How to run — 3 steps

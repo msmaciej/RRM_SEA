@@ -52,6 +52,29 @@ string MetaEventsFile() { return "TS_events_"  + MetaKey() + ".csv"; }
 string MetaOutcomesFile(){ return "TS_outcomes_"+ MetaKey() + ".csv"; } // B: realized exit per TS event
 string MetaModelFile()  { return "MetaModel_"  + MetaKey() + ".csv"; }
 
+// ── COLLECT run counters (so every run tells you, in the Journal, what it did) ──
+int  g_meta_ev_written  = 0;   // NEW event rows appended this run
+int  g_meta_ev_skipped  = 0;   // events skipped because already in the file (dedup)
+int  g_meta_oc_written  = 0;   // outcome rows appended this run
+bool g_meta_used_common = true; // false if any write fell back to the sandbox
+
+// Called from OnDeinit. One clear line so you never have to `find` or guess again.
+void MetaLogSummary()
+{
+   if(!Inp_META_LogFeatures) return;
+   string base = g_meta_used_common
+                 ? (TerminalInfoString(TERMINAL_COMMONDATA_PATH) + "\\Files\\")
+                 : (TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL5\\Files\\");
+   PrintFormat("[META] COLLECT SUMMARY: %d new events, %d new outcomes this run (%d events skipped as already-logged). durable=%s",
+               g_meta_ev_written, g_meta_oc_written, g_meta_ev_skipped,
+               g_meta_used_common ? "YES" : "NO");
+   PrintFormat("[META]   files -> %s%s  and  %s%s", base, MetaEventsFile(), base, MetaOutcomesFile());
+   if(g_meta_ev_written == 0 && g_meta_ev_skipped > 0)
+      Print("[META]   NOTE: 0 NEW events -> this date range is ALREADY in the file. To re-collect fresh data (e.g. after an EA change), DELETE the events + outcomes CSVs in the folder above, then run COLLECT again.");
+   if(g_meta_ev_written == 0 && g_meta_ev_skipped == 0)
+      Print("[META]   NOTE: 0 events logged at all -> no trades passed the gate this run.");
+}
+
 //====================================================================
 // >>> PARAMETER SOURCE <<<
 // Signal-side indicators read the LIVE preset inputs from SEA_Inputs.mqh.
@@ -266,6 +289,7 @@ void LogTSEvent(int direction, double ref_price, double sl_price)
    // skip a bar already logged (re-collect of an overlapping range appends nothing)
    if(existed && bar_time <= _dd_last)
    {
+      g_meta_ev_skipped++;
       FileClose(h);
       return;
    }
@@ -286,6 +310,8 @@ void LogTSEvent(int direction, double ref_price, double sl_price)
    FileWrite(h, row);
    FileClose(h);
    if(bar_time > _dd_last) _dd_last = bar_time;
+   g_meta_ev_written++;
+   if(!use_common) g_meta_used_common = false;
 
    static int _meta_rows = 0;
    if(++_meta_rows == 1)
@@ -346,6 +372,7 @@ void LogTSOutcome(datetime ev_time, double entry, double init_sl, double exit_px
       IntegerToString(be)               + "," +
       reason);
    FileClose(h);
+   g_meta_oc_written++;
 }
 
 //==================== MODEL (lazy load) =============================

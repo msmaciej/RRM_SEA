@@ -140,7 +140,7 @@ void OnTick()
 //+------------------------------------------------------------------+
 //| ONDEINIT
 //+------------------------------------------------------------------+
-void OnDeinit(const int reason) { OrchestrateDeinit(reason); }
+void OnDeinit(const int reason) { MetaLogSummary(); OrchestrateDeinit(reason); }
 
 // ✅ ADD THIS NEW HANDLER HERE (after OnDeinit, before helpers section)
 string MetaDealReasonStr(long r)
