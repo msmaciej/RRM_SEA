@@ -396,6 +396,15 @@ def train_one(ev_path, pair, tf, preset, files_dir):
 
 
 # ----------------------------------------------------------------------------- main
+def _count_rows(path):
+    """Data rows in a CSV (lines minus header). 0 on any error."""
+    try:
+        with open(path, "r", errors="ignore") as f:
+            return max(0, sum(1 for _ in f) - 1)
+    except Exception:
+        return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pair"); ap.add_argument("--tf")
@@ -404,6 +413,8 @@ def main():
                     help="prompt for values (old behaviour); off by default")
     ap.add_argument("--force", action="store_true",
                     help="retrain everything, even pairs whose model is already up to date")
+    ap.add_argument("--check", action="store_true",
+                    help="dry-run: report which pairs have events+outcomes and what would happen; writes nothing")
     args = ap.parse_args()
 
     files_dir, cfg_pair, cfg_tf, preset = resolve(load_config(), args)
@@ -423,6 +434,35 @@ def main():
     print(f"found {len(ev_paths)} events file(s) for preset {preset}:")
     for p in ev_paths:
         print(f"  {os.path.basename(p)}")
+
+    if args.check:
+        base = os.path.dirname(ev_paths[0])
+        print(f"\n===== CHECK (dry-run) — preset {preset} — nothing will be written =====")
+        print(f"folder: {base}\n")
+        n_ready = 0
+        for ev_path in ev_paths:
+            pair, tf = parse_pair_tf(ev_path, preset)
+            if pair is None:
+                pair, tf = cfg_pair, cfg_tf
+            tag  = f"{pair}_{tf}"
+            n_ev = _count_rows(ev_path)
+            oc   = find_outcomes(files_dir, preset, pair, tf)
+            model = os.path.join(os.path.dirname(ev_path),
+                                 f"MetaModel_{preset}_{pair}_{tf}.csv" if pair else f"MetaModel_{preset}.csv")
+            up_to_date = (os.path.exists(model)
+                          and os.path.getmtime(model) >= os.path.getmtime(ev_path)
+                          and not (oc and os.path.getmtime(oc) > os.path.getmtime(model)))
+            if up_to_date:
+                plan = "model up to date -> SKIP (use --force to retrain)"
+            elif oc:
+                plan = "READY -> trains with REAL outcome label (B)"; n_ready += 1
+            else:
+                plan = "NO outcomes file -> would FALL BACK to old label; delete events + re-COLLECT with the patched EA"
+            oc_str = str(_count_rows(oc)) if oc else "MISSING"
+            print(f"  {tag:<14} events={n_ev:<6} outcomes={oc_str:<8} {plan}")
+        print(f"\n{len(ev_paths)} pair(s) found, {n_ready} ready to train with B.")
+        print("Run `python3 rrm_meta.py` (no --check) to train the READY ones.")
+        return
 
     results = []
     for ev_path in ev_paths:
