@@ -1039,6 +1039,15 @@ void OrchestrateTick()
       snap_reason = Signal.LastReason();
       snap_phase  = Signal.GetLastDetectedPhase();
 
+      // META: feed the model the REAL RRM grades for THIS signal bar (aligned here,
+      // where the signal is born; read later by LogTSEvent/gate). v02 g_dpi_hist pattern.
+      {
+         ST_SignalTelemetry _mt = Signal.GetTelemetry();
+         double _vf = (_mt.votes_total > 0) ? (double)_mt.votes_for / (double)_mt.votes_total : 0.0;
+         MetaSetTelemetry((double)snap_phase, (double)_mt.diag_layer_w, (double)_mt.diag_layer_m,
+                          (double)_mt.diag_layer_s, _vf, _mt.vprr_ratio);
+      }
+
       // ── VPRR MEASUREMENT CORPUS (2026-07-27) ────────────────────────
       // One row per evaluated signal bar, recording the RAW volume
       // components. VPRR casts no vote (VPRR-DEVOTE), so this observes
