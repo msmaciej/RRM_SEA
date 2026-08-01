@@ -624,6 +624,7 @@ private:
       double dpi_diag_hist;       // last DPI histogram value (inspector diagnostic)
       int    dpi_diag_sub;        // last DPI fail sub-reason: 0=none 1=DIR(colour) 3=GREEN 4=RESET
       bool   dpi_diag_yellow;     // last DPI ribbon colour: true=YELLOW (long), false=RED (short)
+      bool   dpi_diag_green;      // last DPI GREEN histogram present (Blue & hist same side of 0)
       int    psar_diag_sub;       // last PSAR fail sub-reason: 0=none/dot 1=NoFlip 3=Valid(pass) 4=Expired
                                   // NOTE: 2 is intentionally unused, mirroring dpi_diag_sub's value scheme.
                                   // Readers map: 1→NoF, 4→EXP, else→DOT. Was previously documented as 0/1/2
@@ -742,6 +743,7 @@ private:
       m_ind_cache.dpi_diag_hist = 0.0;
       m_ind_cache.dpi_diag_sub  = 0;
       m_ind_cache.dpi_diag_yellow = false;
+      m_ind_cache.dpi_diag_green  = false;
       m_ind_cache.psar_diag_sub = 0;
    }
 
@@ -4577,6 +4579,7 @@ private:
       m_ind_cache.dpi_diag_hist = hist_cur;
       m_ind_cache.dpi_diag_sub  = (!base_ok ? 1 : (!green_ok ? 3 : (!reset_ok ? 4 : (!div_ok ? 5 : 0))));
       m_ind_cache.dpi_diag_yellow = dpi_wants_yellow;
+      m_ind_cache.dpi_diag_green  = dpi_green;
 
       if(m_settings.DebugFlow)
       {
@@ -6142,6 +6145,20 @@ public:
    int    GetDPIHistBufferSize()   const { return m_dpi_hist_buffer_size; }
    int    GetDPIResetState()       const { return m_dpi_reset_state; }
    int    GetDPIResetRecoveryBars()const { return m_dpi_reset_recovery_bars; }
+
+   //+------------------------------------------------------------------+
+   //| REAL indicator-vote getters (m_ind_cache) — for the meta-gate.   |
+   //| These are the ACTUAL values the engine voted on at the signal    |
+   //| bar (not proxies): DPI is the CCI/MACD-core vote, PSAR incl. the  |
+   //| DOT/EXP flip state, CandleBody the real over-extension vote.      |
+   //+------------------------------------------------------------------+
+   double GetRealDpiHist()   const { return m_ind_cache.dpi_diag_hist; }             // real DPI histogram value (signed: >0 above / <0 below 0-level)
+   int    GetRealDpiDir()    const { return m_ind_cache.dpi_diag_yellow ? 1 : -1; }  // real DPI dir: +1 yellow/long, -1 red/short
+   int    GetRealDpiGreen()  const { return m_ind_cache.dpi_diag_green ? 1 : 0; }     // real DPI GREEN histogram present (1/0)
+   int    GetRealDpiSub()    const { return m_ind_cache.dpi_diag_sub; }              // DPI sub-reason: 0=ok 1=colour 3=green 4=reset 5=divergence
+   int    GetRealPsarSub()   const { return m_ind_cache.psar_diag_sub; }             // 0=dot 1=noflip 3=valid(pass) 4=expired
+   int    GetRealPsarResult()const { return m_ind_cache.psar_result; }               // 1=pass 0=fail -1=not evaluated
+   int    GetRealCBody()     const { return m_ind_cache.candlebody_result; }         // 1=pass 0=fail -1=not evaluated
 
    // Called after a trade is taken to reset the cycle back to IDLE
    void   ResetDPIResetState()

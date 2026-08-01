@@ -175,6 +175,15 @@ void MetaSetTelemetry(double phase, double lw, double lm, double ls, double vote
    g_mtel_votes=votes_frac; g_mtel_vprr=vprr_ratio;
 }
 
+// REAL indicator votes from the engine's m_ind_cache (NOT proxies): the actual DPI
+// histogram/direction, PSAR vote + DOT/EXP state, and CandleBody vote at the signal bar.
+double g_mreal_dpi_hist=0, g_mreal_dpi_dir=0, g_mreal_dpi_green=0, g_mreal_dpi_sub=0, g_mreal_psar_sub=0, g_mreal_psar_res=0, g_mreal_cbody=0;
+void MetaSetIndicators(double dpi_hist, double dpi_dir, double dpi_green, double dpi_sub, double psar_sub, double psar_res, double cbody)
+{
+   g_mreal_dpi_hist=dpi_hist; g_mreal_dpi_dir=dpi_dir; g_mreal_dpi_green=dpi_green; g_mreal_dpi_sub=dpi_sub;
+   g_mreal_psar_sub=psar_sub; g_mreal_psar_res=psar_res; g_mreal_cbody=cbody;
+}
+
 int MetaBuildFeatures(string &names[], double &vals[])
 {
    MetaEnsureInit();
@@ -198,13 +207,19 @@ int MetaBuildFeatures(string &names[], double &vals[])
    names[n]="ema3_slope_atr";      vals[n]=(e3-MBuf(h_e3,0,2))/atr;              n++;
 
    // --- momentum (DPI core = MACD + CCI, from live inputs) ---
-   names[n]="macd_hist";           vals[n]=MBuf(h_macd,0,1)-MBuf(h_macd,1,1);   n++;
+   names[n]="dpi_hist";            vals[n]=g_mreal_dpi_hist;                    n++; // REAL engine DPI histogram (was iMACD proxy)
+   names[n]="dpi_dir";             vals[n]=g_mreal_dpi_dir;                     n++; // REAL DPI direction: +1 yellow/long, -1 red/short
+   names[n]="dpi_green";           vals[n]=g_mreal_dpi_green;                   n++; // REAL DPI GREEN histogram present (1/0)
+   names[n]="dpi_sub";             vals[n]=g_mreal_dpi_sub;                     n++; // REAL DPI sub-reason: 0=ok 1=colour 3=green 4=reset 5=div
    names[n]="cci";                 vals[n]=MBuf(h_cci,0,1);                      n++;
 
    // --- PSAR (from live inputs) ---
    double sar = MBuf(h_psar,0,1);
    names[n]="psar_side";           vals[n]=(c1>sar)?1.0:-1.0;                    n++;
    names[n]="psar_dist_atr";       vals[n]=MathAbs(c1-sar)/atr;                  n++;
+   names[n]="psar_state";          vals[n]=g_mreal_psar_sub;                    n++; // REAL PSAR vote state: 0=dot 1=noflip 3=valid 4=expired
+   names[n]="psar_vote";           vals[n]=g_mreal_psar_res;                    n++; // REAL PSAR vote: 1=pass 0=fail -1=n/a
+   names[n]="cbody_vote";          vals[n]=g_mreal_cbody;                       n++; // REAL CandleBody vote: 1=pass 0=fail -1=n/a
 
    // --- candle body ---
    names[n]="body_ratio";          vals[n]=MathAbs(c1-o1)/rng;                   n++;

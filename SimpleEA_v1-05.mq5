@@ -1046,6 +1046,11 @@ void OrchestrateTick()
          double _vf = (_mt.votes_total > 0) ? (double)_mt.votes_for / (double)_mt.votes_total : 0.0;
          MetaSetTelemetry((double)snap_phase, (double)_mt.diag_layer_w, (double)_mt.diag_layer_m,
                           (double)_mt.diag_layer_s, _vf, _mt.vprr_ratio);
+         // REAL indicator votes (not proxies): actual DPI/PSAR/CandleBody the engine voted on.
+         MetaSetIndicators(Signal.GetRealDpiHist(), (double)Signal.GetRealDpiDir(),
+                           (double)Signal.GetRealDpiGreen(), (double)Signal.GetRealDpiSub(),
+                           (double)Signal.GetRealPsarSub(), (double)Signal.GetRealPsarResult(),
+                           (double)Signal.GetRealCBody());
       }
 
       // ── VPRR MEASUREMENT CORPUS (2026-07-27) ────────────────────────

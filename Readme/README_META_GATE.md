@@ -162,8 +162,9 @@ a flat/ranging market → skip," **without** enabling those indicators in your r
   none / −1 contra), `votes_frac` (votes_for ÷ votes_total = signal conviction), and
   `vprr_ratio` (volume recovery/pullback). These are fed straight from `CSignalEngine`'s
   telemetry, so the model learns from RRM's **own** signal grade — the single most
-  informative context there is. (The DPI feature is still a MACD+CCI proxy; feeding the
-  real DPI histogram is the next enrichment.)
+  informative context there is. (2026-08: DPI/PSAR/CandleBody are now the engine's REAL cached vote values
+  (`dpi_hist`/`dpi_dir`, `psar_vote`/`psar_state`, `cbody_vote`) via `MetaSetIndicators`,
+  not proxies — read from `m_ind_cache`, the same values the strategy voted on.)
 
 ---
 
