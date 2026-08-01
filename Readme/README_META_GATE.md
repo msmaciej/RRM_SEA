@@ -156,6 +156,15 @@ Computed at the closed signal bar. Two groups:
 The ranging gauges are the point: they let the model learn "trend signal fired in
 a flat/ranging market → skip," **without** enabling those indicators in your rules.
 
+- **RRM-native grades** (2026-08, real engine values via `MetaSetTelemetry`, not
+  proxies): `phase` (UNORDERED/EMERGING/TRENDING), `layer_w` / `layer_m` / `layer_s`
+  (the Weak/Medium/Strong setup grade from the Oracle Trade-Setups card: +1 pass / 0
+  none / −1 contra), `votes_frac` (votes_for ÷ votes_total = signal conviction), and
+  `vprr_ratio` (volume recovery/pullback). These are fed straight from `CSignalEngine`'s
+  telemetry, so the model learns from RRM's **own** signal grade — the single most
+  informative context there is. (The DPI feature is still a MACD+CCI proxy; feeding the
+  real DPI histogram is the next enrichment.)
+
 ---
 
 ## 8. When to re-train (rule of thumb)

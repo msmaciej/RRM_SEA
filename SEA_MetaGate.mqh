@@ -163,6 +163,18 @@ double MetaRetVol(int nbars)
 // skip" even though PRESET_RRM_ORG leaves ADX/BB disabled for voting.
 // To add your own ranging indicator: add one line, then re-train.
 //====================================================================
+// ── REAL RRM engine telemetry, fed from the EA (the v02 `g_dpi_hist` pattern) ──
+// So the meta model learns from the strategy's OWN signal grade — layer Weak/Medium/
+// Strong, market phase, vote strength, VPRR — not just generic proxies. Set in OnTick
+// right after EvaluateTS (aligned to the signal bar); read in MetaBuildFeatures. Parity
+// holds: the same globals feed both COLLECT logging and GATE scoring.
+double g_mtel_phase=0, g_mtel_lw=0, g_mtel_lm=0, g_mtel_ls=0, g_mtel_votes=0, g_mtel_vprr=0;
+void MetaSetTelemetry(double phase, double lw, double lm, double ls, double votes_frac, double vprr_ratio)
+{
+   g_mtel_phase=phase; g_mtel_lw=lw; g_mtel_lm=lm; g_mtel_ls=ls;
+   g_mtel_votes=votes_frac; g_mtel_vprr=vprr_ratio;
+}
+
 int MetaBuildFeatures(string &names[], double &vals[])
 {
    MetaEnsureInit();
@@ -212,6 +224,14 @@ int MetaBuildFeatures(string &names[], double &vals[])
    MqlDateTime dt; TimeToStruct(iTime(_Symbol,PERIOD_CURRENT,1), dt);
    names[n]="hour";                vals[n]=(double)dt.hour;                      n++;
    names[n]="dow";                 vals[n]=(double)dt.day_of_week;               n++;
+
+   // ── RRM-native grades (REAL engine values via MetaSetTelemetry, not proxies) ──
+   names[n]="phase";      vals[n]=g_mtel_phase;   n++;   // market phase (UNORDERED/EMERGING/TRENDING)
+   names[n]="layer_w";    vals[n]=g_mtel_lw;      n++;   // Weak-market setup grade  : +1 pass / 0 none / -1 contra
+   names[n]="layer_m";    vals[n]=g_mtel_lm;      n++;   // Medium-market setup grade
+   names[n]="layer_s";    vals[n]=g_mtel_ls;      n++;   // Strong-market setup grade
+   names[n]="votes_frac"; vals[n]=g_mtel_votes;   n++;   // votes_for / votes_total (signal conviction)
+   names[n]="vprr_ratio"; vals[n]=g_mtel_vprr;    n++;   // volume recovery/pullback ratio
 
    ArrayResize(names, n);
    ArrayResize(vals,  n);
