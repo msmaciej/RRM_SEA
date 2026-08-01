@@ -40,8 +40,8 @@ input bool   Inp_META_LogFeatures = false;     // Inp_META_LogFeatures: TRUE onl
 input double Inp_META_Threshold   = 0.50;      // Inp_META_Threshold: fallback if model file lacks one
 input bool   Inp_META_SizeByScore = false;     // Inp_META_SizeByScore: scale lots by confidence
 input string Inp_META_PresetName  = "RRM_ORG"; // Inp_META_PresetName: drives the CSV file names
-input double Inp_META_LabelRR     = 1.5;        // Inp_META_LabelRR: label TP = RR x SL (labels only)
-input int    Inp_META_LabelBars   = 24;         // Inp_META_LabelBars: label time-barrier in bars
+input double Inp_META_LabelRR     = 1.5;        // Inp_META_LabelRR: LEGACY fallback only (fixed RR x SL label when no TS_outcomes file); B labels on realized BE-or-profit
+input int    Inp_META_LabelBars   = 24;         // Inp_META_LabelBars: LEGACY fallback only (fixed time-barrier when no TS_outcomes file)
 
 //==================== FILE NAMES (derived from preset) =============
 // Key files by preset + chart symbol + chart timeframe, e.g. RRM_ORG_EURUSD_M1.
@@ -49,6 +49,7 @@ input int    Inp_META_LabelBars   = 24;         // Inp_META_LabelBars: label tim
 string MetaTFStr()      { return StringSubstr(EnumToString((ENUM_TIMEFRAMES)_Period), 7); }
 string MetaKey()        { return Inp_META_PresetName + "_" + _Symbol + "_" + MetaTFStr(); }
 string MetaEventsFile() { return "TS_events_"  + MetaKey() + ".csv"; }
+string MetaOutcomesFile(){ return "TS_outcomes_"+ MetaKey() + ".csv"; } // B: realized exit per TS event
 string MetaModelFile()  { return "MetaModel_"  + MetaKey() + ".csv"; }
 
 //====================================================================
@@ -64,6 +65,20 @@ int    MetaEma4Period() { return Inp_RRM_ORG_Ema4Period;   }   // e.g. 89
 int    MetaMacdFast()   { return Inp_RRM_ORG_DPI_MacdFast;  }   // DPI core fast (e.g. 8)
 int    MetaMacdSlow()   { return Inp_RRM_ORG_DPI_MacdSlow;  }   // DPI core slow (e.g. 13)
 int    MetaCciPeriod()  { return Inp_RRM_ORG_DPI_CCI_Period;}   // DPI CCI reset (e.g. 13)
+// DPI Red/signal EMA period — the counterpart the histogram subtracts. Was hard-coded 1
+// in the iMACD handle, which made SIGNAL==MAIN (EMA period 1 is identity) so macd_hist was
+// identically 0 on every bar (dead feature). Mirror the live DPI Red line instead.
+int    MetaRedPeriod()
+{
+   switch(Inp_RRM_ORG_DPI_RedSignalType)
+   {
+      case 1:  return Inp_RRM_ORG_DPI_RedEMA_A;
+      case 2:  return Inp_RRM_ORG_DPI_RedEMA_B;
+      case 4:  return Inp_RRM_ORG_DPI_RedEMA_D;
+      case 5:  return Inp_RRM_ORG_DPI_RedEMA_C; // Double: use C as the histogram proxy
+      default: return Inp_RRM_ORG_DPI_RedEMA_C; // type 3 (RRM_ORG default) = EMA(13) of Blue
+   }
+}
 double MetaPsarStep()   { return Inp_RRM_ORG_PsarStep;      }   // e.g. 0.05
 double MetaPsarMax()    { return Inp_RRM_ORG_PsarMax;       }   // e.g. 0.5
 
@@ -82,7 +97,7 @@ bool MetaEnsureInit()
    h_e2  = iMA(_Symbol, PERIOD_CURRENT, MetaEma2Period(), 0, MODE_EMA, PRICE_CLOSE);
    h_e3  = iMA(_Symbol, PERIOD_CURRENT, MetaEma3Period(), 0, MODE_EMA, PRICE_CLOSE);
    h_e4  = iMA(_Symbol, PERIOD_CURRENT, MetaEma4Period(), 0, MODE_EMA, PRICE_CLOSE);
-   h_macd= iMACD(_Symbol, PERIOD_CURRENT, MetaMacdFast(), MetaMacdSlow(), 1, PRICE_CLOSE);
+   h_macd= iMACD(_Symbol, PERIOD_CURRENT, MetaMacdFast(), MetaMacdSlow(), MetaRedPeriod(), PRICE_CLOSE);
    h_cci = iCCI(_Symbol, PERIOD_CURRENT, MetaCciPeriod(), PRICE_TYPICAL);
    h_psar= iSAR(_Symbol, PERIOD_CURRENT, MetaPsarStep(), MetaPsarMax());
    // context / ranging gauges: ALWAYS measured (independent of preset toggles)
@@ -278,6 +293,59 @@ void LogTSEvent(int direction, double ref_price, double sl_price)
                   use_common ? TerminalInfoString(TERMINAL_COMMONDATA_PATH)
                              : TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL5\\Files",
                   fname, use_common ? "YES" : "NO");
+}
+
+//==================== OUTCOME LOGGING (COLLECT mode, B) =============
+// One row per CLOSED trade, keyed by the SAME event_time LogTSEvent wrote, so the
+// trainer joins events<->outcomes and labels on the REAL exit (BE-or-profit) instead
+// of a synthetic RR x SL barrier the strategy never trades to. realized_r is price-
+// based and lot-independent: dir*(exit-entry)/|entry-initial_sl|. be_or_better is the
+// NET result (profit+swap+commission >= 0), which is the operator's definition of a
+// good RRM trade. Called from CTradeExecutor at DEAL_ENTRY_OUT.
+void LogTSOutcome(datetime ev_time, double entry, double init_sl, double exit_px,
+                  int direction, double net_pl, string reason)
+{
+   double risk       = MathAbs(entry - init_sl);
+   double realized_r = (risk > 0.0) ? (direction * (exit_px - entry) / risk) : 0.0;
+   int    be         = (net_pl >= 0.0) ? 1 : 0;
+
+   string fname   = MetaOutcomesFile();
+   int  common_flags = FILE_COMMON|FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI;
+   int  local_flags  =             FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI;
+   bool use_common   = true;
+   bool existed      = FileIsExist(fname, FILE_COMMON);
+   int  h            = FileOpen(fname, common_flags, ',');
+   if(h == INVALID_HANDLE)
+   {
+      FolderCreate("_ensure", FILE_COMMON);
+      existed = FileIsExist(fname, FILE_COMMON);
+      h       = FileOpen(fname, common_flags, ',');
+   }
+   if(h == INVALID_HANDLE)
+   {
+      use_common = false;
+      existed    = FileIsExist(fname);
+      h          = FileOpen(fname, local_flags, ',');
+      if(h == INVALID_HANDLE)
+      {
+         PrintFormat("[META] CANNOT OPEN outcomes %s (err=%d)", fname, GetLastError());
+         return;
+      }
+   }
+   FileSeek(h, 0, SEEK_END);
+   if(!existed)
+      FileWrite(h, "event_time,entry_price,initial_sl,exit_price,direction,realized_r,net_pl,be_or_better,exit_reason");
+   FileWrite(h,
+      TimeToString(ev_time, TIME_DATE|TIME_MINUTES) + "," +
+      DoubleToString(entry,   _Digits) + "," +
+      DoubleToString(init_sl, _Digits) + "," +
+      DoubleToString(exit_px, _Digits) + "," +
+      IntegerToString(direction)       + "," +
+      DoubleToString(realized_r, 6)     + "," +
+      DoubleToString(net_pl, 2)         + "," +
+      IntegerToString(be)               + "," +
+      reason);
+   FileClose(h);
 }
 
 //==================== MODEL (lazy load) =============================

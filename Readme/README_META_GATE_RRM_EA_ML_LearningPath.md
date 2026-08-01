@@ -31,6 +31,13 @@ gate, `VOTE_MODE_ALL`) → `TE` (entry at shift=0) → `TM` (exits) → `RC/RM` 
 
 ## Phase 0 — Validation *(off-Coursera, do this FIRST)*
 
+> **2026-07-31 update (label = B):** the meta-gate label is now the trade's **realized
+> BE-or-profit outcome** (logged to `TS_outcomes_*`), not the fixed `RR × SL` triple
+> barrier. So Phase-0 validation (`rrm_validate.py`) grades the **realized recipe**: the
+> label is the stored `be_or_better` column joined on `event_time` (no per-fold barrier
+> re-simulation), and each fold re-fits the logistic model on `features → be_or_better`.
+> The purged-CV / deflated-Sharpe rigour below is unchanged; only the label source moved.
+
 - **Learn:** de Prado Ch. 7 (purged/embargoed CV) and Ch. 14 + the deflated Sharpe
   material; the GARP paper *"The 10 Reasons Most Machine Learning Funds Fail"* as
   the fast free intro; Ernest Chan's *Algorithmic Trading* as the accessible

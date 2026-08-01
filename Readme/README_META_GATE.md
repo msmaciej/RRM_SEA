@@ -60,6 +60,7 @@ the Strategy Tester gives each run its own throwaway `MQL5\Files\` sandbox.
 | --- | --- | --- | --- | --- |
 | `PAIR_TF_FROM_TO.csv` (price bars) | you already have it | Python | `MQL5\Files\` (or your `rrm_meta.config` path) | e.g. `USDJPY_M15_240101_241231.csv` |
 | `TS_events_<PRESET>_<SYMBOL>_<TF>.csv` (signal log) | **EA** (collect run) | Python | shared **`Common\Files`** (durable, `FILE_COMMON`) | e.g. `TS_events_RRM_ORG_EURUSD_M1.csv` |
+| `TS_outcomes_<PRESET>_<SYMBOL>_<TF>.csv` (realized exits) | **EA** (collect run, on each trade close) | Python | shared **`Common\Files`** (durable, `FILE_COMMON`) | joined to the events log on `event_time`; provides the **B** realized label |
 | `MetaModel_<PRESET>_<SYMBOL>_<TF>.csv` (the model) | **Python** | **EA** (gated run) | terminal `MQL5\Files\` (EA reads non-common) | e.g. `MetaModel_RRM_ORG_EURUSD_M1.csv` |
 
 The signal log goes to **`Common\Files`** on purpose: a non-common write lands in the
@@ -150,12 +151,23 @@ turn out:
 
 - The DPI feature is a MACD+CCI **proxy**, not your exact DPI indicator. Fine for a
   context feature; if you ever want the exact DPI value, expose the engine buffer.
+  (2026-07-31 fix: the `macd_hist` proxy previously used a hard-coded signal period
+  of 1 in the `iMACD` handle, which made the signal line identical to the main line
+  so the histogram was **identically 0 on every bar** — a dead feature. It now uses
+  the live DPI Red period, so `macd_hist` = Blue − Red as intended. Re-collect.)
 - The model can only learn from features in the list. If your true "bad market"
   tell isn't in there, add it and re-train.
-- The label ("was this a good trade?") uses a clean fixed barrier — `Inp_META_LabelRR`
-  (TP = RR × SL) and `Inp_META_LabelBars` — NOT your live trailing exits, so it
-  scores signal quality rather than exit management. Tune those two to match how
-  you define a good trade.
+- The label ("was this a good trade?") is the **realized outcome of the trade RRM
+  actually took** (2026-07-31, "B"): the EA logs each closed trade's real entry,
+  real placed SL, exit and net P&L to `TS_outcomes_<PRESET>_<SYMBOL>_<TF>.csv`, and
+  the trainer labels **`1` = closed break-even-or-in-profit (net P&L ≥ 0)**, else `0`.
+  This is the operator's definition of a good RRM trade and matches de Prado
+  meta-labelling (label the primary model's real bet). The old fixed `RR × SL`
+  barrier (`Inp_META_LabelRR` / `Inp_META_LabelBars`) mislabelled BE/small-profit
+  trades — the strategy's actual edge — as losers, because RRM exits on BE / the
+  loss-side ratchet / PSAR and reaches a fixed 2.5R target only ~5% of the time; it
+  is retained **only as a legacy fallback** when no `TS_outcomes` file is present
+  (e.g. data collected before this change). Re-collect to get realized labels.
 - Handles are created lazily, so the first few bars of a backtest may log neutral
   zeros while indicators warm up — negligible over a full run.
 

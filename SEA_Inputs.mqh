@@ -1228,7 +1228,7 @@ input group "╚═════════════════════�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛡 (TE) COOLDOWN BARS Post-Trade Protection";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_Global_MinBarsAfterClose      = 2;             // Custom: TE: Min bars cooldown (0=off)
+input int         Inp_Global_MinBarsAfterClose      = 0;             // Custom: TE: Min bars cooldown (0=off)
 input int         Inp_Global_MinBarsAfterWeekendGap = 2;             // Custom: TS: Bars skip weekend gap (0=off, recommended 1-2)
 
 //+------------------------------------------------------------------+

@@ -15,7 +15,7 @@ RRM_SEA (MQL5)                         RRM_EAv0.1_PY (Python)
 ─────────────                          ──────────────────────
  TS=1 fires ──► log feature row ─────►  TS_events_<PRESET>.csv
                                           │
-                                          ├─ label each row (triple-barrier)
+                                          ├─ label each row (realized outcome "B"; triple-barrier = fallback)
                                           ├─ train logistic regression
                                           ├─ validate (purged CV + deflated Sharpe)
                                           └─ export ──► MetaModel_<PRESET>.csv
@@ -47,7 +47,7 @@ stds + an intercept + a threshold.
 **RRM_EAv0.1_PY (Python) — new files under `meta/`**
 | File | Purpose |
 | --- | --- |
-| `meta/label_triple_barrier.py` | Turn logged events + price data into 0/1 labels. |
+| *(label)* — **implemented in `rrm_meta.py`** | **B:** join `TS_outcomes_*` on `event_time`, label `be_or_better`. Triple-barrier (events + price → 0/1) kept only as the no-outcomes fallback. |
 | `meta/train_meta.py` | Fit logistic regression, purged CV, deflated Sharpe. |
 | `meta/export_mql5.py` | Write `MetaModel_<PRESET>.csv` into `MQL5\Files\`. |
 
@@ -120,13 +120,62 @@ atr,spread_pts,hour,dow,dist_close_emaFast_atr,ema_fast_slope_atr,
 ema_slow_slope_atr,adx,bar_range_atr,ret_vol_20
 ```
 
+### 4b. `TS_outcomes_<PRESET>_<SYMBOL>_<TF>.csv` schema (written by the EA at each trade close, "B")
+
+One row per **closed** trade, written by `LogTSOutcome` from `OnTradeTransaction`
+(`DEAL_ENTRY_OUT`) in COLLECT mode. Joined to the events file **on `event_time`**
+(the origin signal bar, stashed at open). This is the label source for B and for
+Ladder-1 validation — reuse it verbatim; do not re-derive.
+
+```
+event_time,entry_price,initial_sl,exit_price,direction,realized_r,net_pl,be_or_better,exit_reason
+```
+
+- `event_time` — join key; equals the events row's `event_time` (origin signal bar).
+- `entry_price` — real fill; `initial_sl` — the **placed** SL (`CalcEntrySL(entry)`), pre-trail.
+- `exit_price` — close price; `direction` — +1 long / −1 short.
+- `realized_r` = `dir·(exit−entry)/|entry−initial_sl|` (price-based, lot-independent).
+- `net_pl` — profit + swap + commission (money, net of costs).
+- `be_or_better` — **the B label**: `1` if `net_pl ≥ 0`, else `0`.
+- `exit_reason` — `SL` / `TP` / `SO` / `EXPERT` (trail/opposite/time) / `CLIENT` / `OTHER`.
+
+Events with no matching outcome row (blocked at TE, or open at test end) are dropped
+by the join — de Prado meta-labelling only labels trades that actually happened.
+
 ---
 
-## 5. Label = triple-barrier (Python, `label_triple_barrier.py`)
+## 5. Label = realized outcome ("B", 2026-07-31)  ·  triple-barrier = legacy fallback
 
-For each logged event, define a **clean, fixed** outcome — NOT the EA's
-trailing-managed result (managed exits make the label unstable). Use the price
-series (your `MT5_DATA-*.csv`) to look forward from the entry bar:
+**Primary (B).** The label is the **realized outcome of the trade the EA actually
+took**. The EA logs each closed trade's real entry, real *placed* SL, exit price and
+**net** P&L to `TS_outcomes_<PRESET>_<SYMBOL>_<TF>.csv` (via `LogTSOutcome`, called
+from `OnTradeTransaction` on `DEAL_ENTRY_OUT`). `rrm_meta.py` inner-joins events →
+outcomes on `event_time` and sets **`label = 1` iff net P&L ≥ 0** (break-even-or-
+profit), else `0`. `realized_r = dir·(exit−entry)/|entry−initial_sl|` is logged too and
+drives the R-Sharpe evaluation (replacing the old synthetic `+RR / −1` return). Events
+that never became a closed trade (blocked at TE, or open at test end) have no outcome
+row and are dropped — exactly what de Prado meta-labelling intends.
+
+*Why B replaced the fixed barrier:* the old `RR × SL` target scored a fictional trade.
+RRM exits on BE / the loss-side ratchet / PSAR and hits a fixed 2.5R target only ~5% of
+the time, so the fixed barrier labelled the strategy's BE/small-profit edge as losses
+(measured: EURUSD H1 label win 7–12% vs. real ~50%). `sl_dist` was also built from
+`iClose[1]` and `m_cached_sl` (a pre-check anchor), not the placed geometry.
+
+*What B changes conceptually (intentional):* the old fixed barrier deliberately
+**ignored your live exits** to score "signal quality" in isolation. B **includes** them —
+the label is now "did this signal, **managed by your actual exits**, close BE-or-profit?"
+That conflation is correct **for a go/no-go filter** (you want to skip trades that lose
+*as you actually trade them*), and it is de Prado's true meta-labelling (label the
+primary's realized bet). Consequence for Ladder-1: validation now grades signal + exit
+jointly, and if you materially change the exit logic you must **re-collect** (the label
+is exit-dependent). This supersedes the earlier "label ignores exits by design" note.
+
+**Legacy fallback (triple-barrier).** Retained only when **no** `TS_outcomes` file is
+present (old data). Kept as written but now **guarded against events outside the price
+coverage** (previously such events were silently labelled against unrelated bars). For
+each logged event, define a clean fixed outcome from the price series, looking forward
+from the entry bar:
 
 - **Entry** = open of the bar *after* `event_time` (matches your TE at shift=0).
 - **Upper barrier** = entry ± `tp_points` (direction-aware).
@@ -307,7 +356,7 @@ plus the label-helper columns from section 4.
 
 1. **Compile** with the new module. Leave `Inp_META_Enabled=false`.
 2. **COLLECT:** set `Inp_META_LogFeatures=true`; run the preset across your history/pairs in Strategy Tester → `TS_events_RRM.csv`.
-3. **LABEL + TRAIN (Python):** run `label_triple_barrier.py` then `train_meta.py`; inspect deflated Sharpe of gated vs ungated under purged CV.
+3. **LABEL + TRAIN (Python):** run `rrm_meta.py` — it joins `TS_outcomes_*` on `event_time` and labels `be_or_better` (B), fits the logistic model, and exports per pair+TF. (Purged CV + deflated Sharpe is **Ladder-1 / Phase 0** — the separate `rrm_validate.py`, not this trainer; see the LearningPath README.)
 4. **EXPORT:** `export_mql5.py` writes `MetaModel_RRM.csv` into `MQL5\Files\`.
 5. **GATE:** set `Inp_META_Enabled=true`, `Inp_META_LogFeatures=false`; re-run Tester.
 6. **DECIDE:** ship only if out-of-sample **deflated Sharpe** (not win rate, not gross Sharpe) improves. Otherwise keep the model file out and the EA is unchanged.

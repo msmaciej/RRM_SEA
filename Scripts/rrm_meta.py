@@ -43,7 +43,8 @@ COST_PRICE     = 0.0
 TEST_FRACTION  = 0.30
 PURGE_BARS     = 50
 NON_FEATURES   = {"event_time", "symbol", "preset", "direction",
-                  "sl_dist", "tp_dist", "time_barrier_bars"}
+                  "sl_dist", "tp_dist", "time_barrier_bars",
+                  "be_or_better", "realized_r"}
 
 # Roots we scan when auto-locating CSVs (macOS + Wine layouts). ~ is expanded.
 WINE_ROOTS = [
@@ -235,9 +236,13 @@ def build_price_series(price_paths):
 def label_triple_barrier(events, px):
     t = px["time"].values; hi = px["high"].values
     lo = px["low"].values; op = px["open"].values
+    t0, t1 = t[0], t[-1]
     out = []
     for _, e in events.iterrows():
-        idx = int(np.searchsorted(t, np.datetime64(e["event_time"]), side="right"))
+        et = np.datetime64(e["event_time"])
+        if et < t0 or et >= t1:                 # GUARD: event outside price coverage -> unlabelable
+            out.append(np.nan); continue
+        idx = int(np.searchsorted(t, et, side="right"))
         if idx >= len(px) - 1:
             out.append(np.nan); continue
         entry = op[idx]; d = float(e["direction"])
@@ -257,6 +262,37 @@ def label_triple_barrier(events, px):
     return events
 
 
+# ----------------------------------------------------------------------------- B: realized-outcome label
+def find_outcomes(files_dir, preset, pair, tf):
+    pat = (f"TS_outcomes_{preset}_{pair}_{tf}.csv" if pair else f"TS_outcomes_{preset}.csv")
+    hits = []
+    for d in _candidate_dirs(files_dir):
+        hits += glob.glob(os.path.join(d, "**", pat), recursive=True)
+    return _newest(sorted(set(os.path.normpath(h) for h in hits))) if hits else None
+
+
+def read_outcomes(path):
+    oc = pd.read_csv(path, sep=_sniff_sep(path))
+    oc["event_time"] = pd.to_datetime(oc["event_time"], format=EVENT_TIME_FMT, errors="coerce")
+    if oc["event_time"].isna().any():
+        oc["event_time"] = pd.to_datetime(oc["event_time"], errors="coerce")
+    oc = (oc.dropna(subset=["event_time"])
+            .drop_duplicates(subset="event_time", keep="last")
+            .reset_index(drop=True))
+    return oc
+
+
+def label_from_outcomes(events, outcomes):
+    """B-binary meta-label: inner-join events->outcomes on event_time; label = be_or_better.
+    Only events that became a CLOSED trade are labelled; the rest (blocked at TE, or still
+    open at test end) are dropped, exactly as de Prado meta-labelling intends."""
+    cols = [c for c in ("event_time", "be_or_better", "realized_r") if c in outcomes.columns]
+    m = events.merge(outcomes[cols], on="event_time", how="inner")
+    m["label"] = m["be_or_better"].astype(int)
+    return m.reset_index(drop=True)
+
+
+
 # ----------------------------------------------------------------------------- stats core (unchanged)
 def normal_cdf(x): return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
 
@@ -269,6 +305,10 @@ def psr(returns, bench=0.0):
     return sr, normal_cdf((sr - bench) * math.sqrt(n-1) / denom)
 
 def r_returns(sub):
+    # B (realized): use the EA's logged realized R per trade, not a synthetic +RR/-1 step.
+    if "realized_r" in sub.columns:
+        return np.nan_to_num(sub["realized_r"].astype(float).values, nan=0.0)
+    # legacy fallback (fixed-barrier data with no outcomes file)
     r = np.where(sub["label"] == 1,
                  sub["tp_dist"] / sub["sl_dist"].replace(0, np.nan), -1.0)
     return np.nan_to_num(r, nan=0.0)
@@ -297,9 +337,19 @@ def train_one(ev_path, pair, tf, preset, files_dir):
               f"{lo.date()}..{hi.date()} and will be dropped — add the missing "
               f"{pair}_{tf} price file(s) for full coverage.")
 
-    ev = label_triple_barrier(ev, px)
+    oc_path = find_outcomes(files_dir, preset, pair, tf)
+    if oc_path:
+        oc = read_outcomes(oc_path)
+        n_before = len(ev)
+        ev = label_from_outcomes(ev, oc)
+        print(f"labeled {len(ev)}/{n_before} events from REALIZED outcomes "
+              f"({os.path.basename(oc_path)}) — win rate {ev['label'].mean():.1%}  [B: BE-or-profit]")
+    else:
+        print("  (no TS_outcomes_* file — legacy fixed-barrier label; re-collect with the patched EA "
+              "for realized BE-or-profit labels)")
+        ev = label_triple_barrier(ev, px)
     if len(ev) == 0:
-        print(f"  SKIP {tag}: 0 events fell inside the price series (check dates)."); return (tag, "0 in-range")
+        print(f"  SKIP {tag}: 0 events labelled (no price/outcome coverage)."); return (tag, "0 labelled")
     print(f"labeled {len(ev)} events — win rate {ev['label'].mean():.1%}")
 
     feats = [c for c in ev.columns if c not in NON_FEATURES | {"label"}]
@@ -384,8 +434,12 @@ def main():
             model = os.path.join(os.path.dirname(ev_path),
                                  f"MetaModel_{preset}_{pair}_{tf}.csv" if pair else f"MetaModel_{preset}.csv")
             if os.path.exists(model) and os.path.getmtime(model) >= os.path.getmtime(ev_path):
-                results.append((f"{pair}_{tf}", "up to date — skipped (use --force to retrain)"))
-                continue
+                # B: the label also depends on the outcomes file — retrain if it is newer than the model.
+                oc = find_outcomes(files_dir, preset, pair, tf)
+                oc_newer = bool(oc) and os.path.getmtime(oc) > os.path.getmtime(model)
+                if not oc_newer:
+                    results.append((f"{pair}_{tf}", "up to date — skipped (use --force to retrain)"))
+                    continue
         try:
             results.append(train_one(ev_path, pair, tf, preset, files_dir))
         except Exception as e:

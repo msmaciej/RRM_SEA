@@ -119,6 +119,35 @@ private:
 
     SPositionState m_position_states[];
 
+    // ── META-GATE origin store (B) ─────────────────────────────────────────
+    // Per-position record of the values the LABEL needs, captured at OPEN and
+    // consumed at CLOSE. Kept SEPARATE from m_position_states so the trailing/BE
+    // cleanup can never wipe it before the outcome is logged. Keyed by position id.
+    struct SMetaOrigin { ulong pos_id; datetime ev_time; double entry; double init_sl; int dir; };
+    SMetaOrigin m_meta_origin[];
+
+    int MetaOriginFind(ulong pos_id) {
+       for(int i = 0; i < ArraySize(m_meta_origin); i++)
+          if(m_meta_origin[i].pos_id == pos_id) return i;
+       return -1;
+    }
+    void MetaOriginAdd(ulong pos_id, datetime ev_time, double entry, double init_sl, int dir) {
+       if(pos_id == 0) return;
+       int idx = MetaOriginFind(pos_id);
+       if(idx < 0) { idx = ArraySize(m_meta_origin); ArrayResize(m_meta_origin, idx + 1); }
+       m_meta_origin[idx].pos_id  = pos_id;
+       m_meta_origin[idx].ev_time = ev_time;
+       m_meta_origin[idx].entry   = entry;
+       m_meta_origin[idx].init_sl = init_sl;
+       m_meta_origin[idx].dir     = dir;
+    }
+    void MetaOriginRemove(int idx) {
+       int size = ArraySize(m_meta_origin);
+       if(idx < 0 || idx >= size) return;
+       for(int i = idx; i < size - 1; i++) m_meta_origin[i] = m_meta_origin[i + 1];
+       ArrayResize(m_meta_origin, size - 1);
+    }
+
     int FindPositionStateIndex(ulong ticket) {
        for(int i = 0; i < ArraySize(m_position_states); i++) {
           if(m_position_states[i].ticket == ticket) return i;
@@ -2177,6 +2206,19 @@ public:
    string   LastVetoReason() const { return m_te_veto_reason; }
    int      SpreadBlockBars() const { return m_spread_block_bars; }
 
+   // META (B): called from OnTradeTransaction on a position CLOSE. Looks up the
+   // origin stashed at open and writes the realized-outcome row the trainer labels on.
+   // No-op outside COLLECT mode or for positions we did not stash.
+   void MetaOnPositionClosed(ulong pos_id, double exit_price, double net_pl, string reason) {
+      if(!Inp_META_LogFeatures) return;
+      int idx = MetaOriginFind(pos_id);
+      if(idx < 0) return;
+      LogTSOutcome(m_meta_origin[idx].ev_time, m_meta_origin[idx].entry,
+                   m_meta_origin[idx].init_sl, exit_price, m_meta_origin[idx].dir,
+                   net_pl, reason);
+      MetaOriginRemove(idx);
+   }
+
    //+------------------------------------------------------------------+
    //| Classify whether a TE veto is temporary (retriable) or permanent |
    //| Temporary vetoes may resolve within the same bar; permanent ones  |
@@ -3016,6 +3058,15 @@ public:
          m_initial_sl_price = sl;
          if(m_settings.ExitProfile == EXIT_PROFILE_RRM) {
             m_rrm_initial_sl = sl; m_rrm_be_reached = false; m_rrm_trail_frozen = false; m_rrm_last_ticket = 0;
+         }
+         // META (B): stash what the realized-outcome label needs, keyed by position id.
+         // event_time here == iTime(shift=1) == the event_time LogTSEvent wrote this same tick.
+         if(Inp_META_LogFeatures) {
+            ulong pos_id = m_trade.ResultOrder();               // hedging: order ticket == position id
+            ulong deal   = m_trade.ResultDeal();
+            if(deal > 0 && HistoryDealSelect(deal))
+               pos_id = (ulong)HistoryDealGetInteger(deal, DEAL_POSITION_ID);
+            MetaOriginAdd(pos_id, iTime(m_symbol, PERIOD_CURRENT, 1), entry_price, sl, direction);
          }
       } else {
          m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "BLOCKED";

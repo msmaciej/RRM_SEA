@@ -143,6 +143,19 @@ void OnTick()
 void OnDeinit(const int reason) { OrchestrateDeinit(reason); }
 
 // ✅ ADD THIS NEW HANDLER HERE (after OnDeinit, before helpers section)
+string MetaDealReasonStr(long r)
+{
+   switch((int)r)
+   {
+      case DEAL_REASON_SL:     return "SL";
+      case DEAL_REASON_TP:     return "TP";
+      case DEAL_REASON_SO:     return "SO";       // stop-out / margin call
+      case DEAL_REASON_EXPERT: return "EXPERT";   // EA close (trail/opposite/time)
+      case DEAL_REASON_CLIENT: return "CLIENT";
+      default:                 return "OTHER";
+   }
+}
+
 void OnTradeTransaction(const MqlTradeTransaction& trans,
                         const MqlTradeRequest& request,
                         const MqlTradeResult& result)
@@ -170,7 +183,16 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
       double swap = HistoryDealGetDouble(deal_ticket, DEAL_SWAP);
       double commission = HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
       double total_pl = profit + swap + commission;
-      
+
+      // META (B): log the realized exit for the meta-label trainer (COLLECT mode only).
+      if(Inp_META_LogFeatures)
+      {
+         ulong  pos_id  = (ulong)HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID);
+         double exit_px = HistoryDealGetDouble(deal_ticket, DEAL_PRICE);
+         string reason  = MetaDealReasonStr(HistoryDealGetInteger(deal_ticket, DEAL_REASON));
+         Executor.MetaOnPositionClosed(pos_id, exit_px, total_pl, reason);
+      }
+
       bool was_profitable = (total_pl > 0);
 
       // Store return as % of starting balance for Sharpe Ratio calculation
