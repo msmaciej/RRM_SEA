@@ -134,14 +134,6 @@ input double      Inp_Global_VETO_TE_BC_TolerancePips    = 3.0;         // Veto 
 input int         Inp_Global_VETO_TE_OpenDelaySeconds    = 0;           // Veto TE: open delay seconds (0=off)
 input int         Inp_Global_VETO_TE_SpreadMedianTicks   = 0;           // Veto TE: spread median filter ticks (0=off)
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 MTF / HTF — GLOBAL geometry (ENABLE is per-preset)";
-input group "╚════════════════════════════════════════════════════════╝";
-input ENUM_TIMEFRAMES Inp_Global_MTF_TF1                 = PERIOD_H2;   // MTF: TF1 (primary)
-input ENUM_TIMEFRAMES Inp_Global_MTF_TF2                 = PERIOD_H4;   // MTF: TF2 (PERIOD_CURRENT = single TF)
-input int         Inp_Global_MTF_EMA_Fast                = 20;          // MTF: fast EMA period
-input int         Inp_Global_MTF_EMA_Slow                = 50;          // MTF: slow EMA period
-input bool        Inp_Global_MTF_RequirePhase            = true;        // MTF: require trending HTF (both EMAs slope with position)
-input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: Climax";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_Global_ClimaxGuard_Lookback         = 13;         // Climax: window (bars) scanned for an impulse
@@ -643,7 +635,6 @@ input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: QUALITY Gates";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_MTF_Enabled          = true;           // RRM ORG: MTF/HTF voter enable
 input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM ORG QA: EMA1 period
 input int         Inp_RRM_ORG_Ema2Period           = 13;             // RRM ORG QA: EMA2 period
 input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG QA: EMA3 period
@@ -700,6 +691,7 @@ input bool        Inp_RRM_ORG_Use_Cci              = false;          // RRM ORG 
 input bool        Inp_RRM_ORG_Use_CI               = false;          // RRM ORG Ind: CI vote
 input bool        Inp_RRM_ORG_Use_Macd             = false;          // RRM ORG Ind: MACD vote
 input bool        Inp_RRM_ORG_Use_Mfi              = false;          // RRM ORG Ind: MFI vote
+input bool        Inp_RRM_ORG_Use_MTF              = true;           // RRM ORG Ind: MTF/HTF vote
 input bool        Inp_RRM_ORG_Use_P123             = false;          // RRM ORG Ind: P123
 input bool        Inp_RRM_ORG_Use_Psar             = true;           // RRM ORG Ind: PSAR vote
 input bool        Inp_RRM_ORG_Use_Ross             = false;          // RRM ORG Ind: Ross vote
@@ -770,6 +762,14 @@ input group "╚═════════════════════�
 input int         Inp_RRM_ORG_Mfi_Period           = 14;             // RRM ORG MFI: MFI Period
 input double      Inp_RRM_ORG_Mfi_OB               = 80.0;           // RRM ORG MFI: MFI Overbought
 input double      Inp_RRM_ORG_Mfi_OS               = 20.0;           // RRM ORG MFI: MFI Oversold
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   📐 RRM_ORG: MTF Settings";
+input group "╚════════════════════════════════════════════════════════╝";
+input ENUM_TIMEFRAMES Inp_RRM_ORG_MTF_TF1               = PERIOD_H2;   // RRM ORG MTF: TF1 (primary)
+input ENUM_TIMEFRAMES Inp_RRM_ORG_MTF_TF2               = PERIOD_H4;   // RRM ORG MTF: TF2 (PERIOD_CURRENT = single TF)
+input int         Inp_RRM_ORG_MTF_EMA_Fast               = 20;          // RRM ORG MTF: fast EMA period
+input int         Inp_RRM_ORG_MTF_EMA_Slow               = 50;          // RRM ORG MTF: slow EMA period
+input bool        Inp_RRM_ORG_MTF_RequirePhase           = true;        // RRM ORG MTF: require trending HTF
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: PSAR Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -852,6 +852,7 @@ input bool        Inp_TI_TrailStartsAfterBE        = false;          // TI Exit:
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 TOPINVESTOR: STANDARD — EMA Fan Filter";
 input group "╚════════════════════════════════════════════════════════╝";
+// F-AUDIT 2026-06: Inp_TI_EmaFanFilterEnabled removed — toggle globalized to Inp_Global_F_EmaFanFilterEnabled
 input double      Inp_TI_EmaFanBase_M1M5           = 50.0;           // TI Fan: max pips M1–M5
 input double      Inp_TI_EmaFanBase_M6M30          = 80.0;           // TI Fan: max pips M6–M30
 input double      Inp_TI_EmaFanBase_H1             = 120.0;          // TI Fan: max pips H1
@@ -923,12 +924,18 @@ input group "╔═════════════════════�
 input group "║   🔧 STEP 1: BIAS (Major Trend Direction)";
 input group "╚════════════════════════════════════════════════════════╝";
 input EManualSide Inp_Global_ManualSide                  = SIDE_BOTH;   // Global: Override Bias Side
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   🔧 STEP 2: MA | EMA";
+//input group "╚════════════════════════════════════════════════════════╝";
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   🔧 STEP 3: ENTRY Signal (Timing Strategy)";
+//input group "╚════════════════════════════════════════════════════════╝";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP 3b: PHASE / LAYER / VPRR (4-EMA Architecture)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_Global_LayerPullbackEnabled        = false;    // Global_LayerPullbackEnabled
 input bool        Inp_Global_LayerS_Require_DirAlign     = true;     // Global_LayerS_Require_DirAlign
-input bool        Inp_Global_Guard1_SkipFirstPostFlipPR  = true;     // Global_Guard1_SkipFirstPostFlipPR
+input bool        Inp_Global_Guard1_SkipFirstPostFlipPR  = true;    // Global_Guard1_SkipFirstPostFlipPR
 input bool        Inp_Global_LayerReset_OnRealign        = false;    // Global_LayerReset_OnRealign: Reset layer pullback states on confirmed market-phase change
 input int         Inp_Global_LayerReset_PhaseConfirm     = 1;        // Global_LayerReset_PhaseConfirm: ^ bars new phase must hold first (1=catch 1-bar phases)
 input group " ";
@@ -936,11 +943,37 @@ input bool        Inp_Global_VPRR_Enabled                = false;    // Global_V
 input double      Inp_Global_VPRR_MinRatio_W             = 0.0;      // Global_VPRR_MinRatio_W: (EMA1/EMA2) min ratio (0=use VPRR_MinRatio)
 input double      Inp_Global_VPRR_MinRatio_M             = 0.0;      // Global_VPRR_MinRatio_M: (EMA2/EMA3) min ratio (0=use VPRR_MinRatio)
 input double      Inp_Global_VPRR_MinRatio_S             = 0.0;      // Global_VPRR_MinRatio_S: (EMA3/EMA4) min ratio (0=use VPRR_MinRatio)
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   🔧 STEP 4: Candle Close & Candle Body";
+//input group "╚════════════════════════════════════════════════════════╝";
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   🔧 STEP 5: Pullback Gate";
+//input group "╚════════════════════════════════════════════════════════╝";
+// Pullback gate uses pure distance comparison: the current EMA gap must exceed the prior EMA gap (no pip threshold).
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 STEP X: Trail EMA (engine seed defaults)"; 
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_Global_TrailEMA_Period             = 34;       // Global_TrailEMA_Period: for TRAIL_EMA mode
 input int         Inp_Global_TrailEMA_Shift              = 1;        // Global_TrailEMA_Shift: 1=current bar, 2=one bar cushion
+
+// ── PRESET ISOLATION 2026-06: dedicated CUSTOM TM inputs ─────────────
+// Previously CUSTOM block read Inp_RRM_ORG_* for these fields, which
+// violated preset isolation (CUSTOM should not depend on RRM_ORG inputs).
+// Defaults match the previously-leaked Inp_RRM_ORG_* defaults so behavior
+// is unchanged for existing .set files that did not override them.
+
+// ── PRESET ISOLATION 2026-06 (PART 2): non-TM CUSTOM inputs ──────────
+// Previously CUSTOM block read 33 Inp_RRM_ORG_* inputs across HTF, MTF,
+// EMA-fan, Phase, DPI, VPRR, JPY-gate, layer-recovery and drawdown
+// protection. CUSTOM should be a standalone preset, not a RRM_ORG mirror.
+// Each new Inp_CUSTOM_* default matches the previously-leaked Inp_RRM_ORG_*
+// default — behavior is unchanged for existing .set files that did not
+// override these inputs.
+// F-AUDIT 2026-06: Inp_CUSTOM_EmaFanFilter removed — toggle globalized to Inp_Global_F_EmaFanFilterEnabled
+// PRESET ISOLATION 2026-06 (Carry-over 2 / VRC): dedicated CUSTOM VRC inputs.
+// Previously the CUSTOM block did not assign cfg.VRC_* at all — fields silently
+// inherited from struct default or prior preset's leftover state. Defaults
+// match the hardcoded values used by FPM/MA/TI/TEST for consistency.
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -950,11 +983,23 @@ input group "╔═════════════════════�
 input group "║   📊 ADX (Average Directional Index - Strength of Market Trend)";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_Global_Ind_Adx_PercentileRefreshSec = 14400;   // Global Ind [ADX]: DYNAMIC_PERCENTILE refresh interval (sec). M1: try 900 (15min); H1+: 14400 (4h)
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   📊 ATR (Average True Range - Market Volatility - Non-directional)";
+//input group "╚════════════════════════════════════════════════════════╝";
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   📊 BB (Bollinger Bands - Market Volatility and Over bought/sold Levels)";
+//input group "╚════════════════════════════════════════════════════════╝";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 CBody (Candle Body - Votes Against Overextended Candles (news/spikes))";
 input group "╚════════════════════════════════════════════════════════╝";
 input double      Inp_Global_Ind_CandleBody_MinCloseRatio   = 0.0;   // Global Ind [CBody]: Min close ratio (0=off, 0.75=TopInvestor)
 input bool        Inp_Global_Ind_CandleBody_CarryOnOverext  = true;  // Global Ind [CBody]: carry CB=0 over-ext until next layer pullback-recovery
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   📊 CCI (Commodity Channel Index - Momentum Oscilator)";
+//input group "╚════════════════════════════════════════════════════════╝";
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   📊 CI (Choppiness Index - Block Trades in Ranging Market)";
+//input group "╚════════════════════════════════════════════════════════╝";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 Fib (Fibonacci Retracement Voter)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -962,14 +1007,46 @@ input bool        Inp_Global_Ind_Fib_Enabled             = false;    // Global I
 input double      Inp_Global_Ind_Fib_MinRetracement      = 0.38;     // Global Ind [Fib]: Min pullback depth
 input double      Inp_Global_Ind_Fib_MaxRetracement      = 0.618;    // Global Ind [Fib]: Max pullback depth
 input int         Inp_Global_Ind_Fib_SwingLookback       = 50;       // Global Ind [Fib]: Swing search bars
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   📊 MACD (Moving Average Convergence Divergence - Trend-Following Momentum)";
+//input group "╚════════════════════════════════════════════════════════╝";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 MFI (Money Flow Index - Oscillator Buying Selling Pressure)";
 input group "╚════════════════════════════════════════════════════════╝";
 input double      Inp_Global_Ind_Mfi_Level               = 50.0;     // Global Ind: TI Full: [MFI] Threshold/level
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   📊 P123 (Mark Crisp 1-2-3 fractal breakout pattern (see Ross Hook))";
+//input group "╚════════════════════════════════════════════════════════╝";
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   📊 PSAR (Parabolic Stop and Reverse - Trend-Following Indicator)";
+//input group "╚════════════════════════════════════════════════════════╝";
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   📊 Ross Hook (Trend Momentum (see to P123))";
+//input group "╚════════════════════════════════════════════════════════╝";
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   📊 RSI (Relative Strength Index - Monentum Oscilator)";
+//input group "╚════════════════════════════════════════════════════════╝";
+//input group "╔════════════════════════════=═══════════════════════════╗";
+//input group "║   📊 STO (Stochastic Oscillator - Momentum Potential Market Reversals)";
+//input group "╚════════════════════════════════════════════════════════╝";
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   📊 VRC (Volatility Regime Classifier - Reject Trades in Low Volatility (quiet/choppy markets))";
+//input group "╚════════════════════════════════════════════════════════╝";
+
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🎯 ENGINE SEED DEFAULTS — EXITS (TP / SL / TS / BE)"; // STEP9 2026-06: was "PRESET_CUSTOM — EXITS"; CUSTOM preset retired in Step 4
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   🎯 (TP) TAKE PROFIT (engine seed defaults)"; // STEP9 2026-06: was "(CUSTOM only)"; CUSTOM preset retired
+//input group "╚════════════════════════════════════════════════════════╝";
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   🎯 EXIT PROFILES";
+//input group "╚════════════════════════════════════════════════════════╝";
+// STEP2 2026-06: was "Active for: PRESET_TEST & PRESET_CUSTOM" — TEST removed; only CUSTOM uses direct exit-input control now.
+// input string   Inp_Exit_Zone_Info1              = "Active for: PRESET_CUSTOM (direct input control)";
+// input string   Inp_Exit_Zone_Info2              = "Other presets override exits with strategy-optimized values";
+// input string   Inp_CUSTOM_ExitProfile_Info      = "RRM: Swing-based SL, PSAR trail, no ATR multipliers";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛑 (SL) STOP LOSS (engine seed defaults)"; // STEP9 2026-06: was "(CUSTOM only)"; CUSTOM preset retired
 input group "╚════════════════════════════════════════════════════════╝";
@@ -978,6 +1055,35 @@ input double      Inp_Global_SL_FixedPips          = 20.0;           // Global_S
 input double      Inp_Global_SL_MinPips            = 3.0;            // Global_SL_MinPips: Min. SL pips (0 = no user floor, broker minimum still applies)
 input int         Inp_Global_SL_AtrPeriod          = 14;             // Global_SL_AtrPeriod: ATR period (SL_MODE_ATR only)
 input double      Inp_Global_SL_AtrMult            = 1.0;            // Global_SL_AtrMult: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical)
+// input string   Inp_SL_Help1                     = "FIXED_PIPS: Simple pip distance";
+// input string   Inp_SL_Help2                     = "MODE_SWING: Recent structure high/low";
+// input string   Inp_SL_Help3                     = "PSAR_DOT: PSAR level  |  PERCENT: % of price  |  FRACTAL: Bill Williams";
+// input string   Inp_SL_TFCushion_Note            = "PSAR/Swing cushions auto-set by timeframe (M15=5, H1=10, H4=20 pips)";
+// input group "--- SL Configuration Examples ---";
+// input string   Inp_Ex1_Header                   = "Example 1 - Simple Fixed SL: Inp_CUSTOM_SLMode=SL_MODE_FIXED_PIPS, Inp_Global_SL_FixedPips=20";
+// input string   Inp_Ex2_Header                   = "Example 2 - Swing Structure: Inp_CUSTOM_SLMode=SL_MODE_SWING, Inp_CUSTOM_SwingLookback=20";
+// input string   Inp_Ex3_Header                   = "Example 3 - Fractal SL:      Inp_CUSTOM_SLMode=SL_MODE_FRACTAL, Inp_CUSTOM_FractalPeriod=5, Inp_CUSTOM_TPFractalOffset=1";
+
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   🛑 (SL) STOP LOSS FRACTAL: used with SL_FRACTAL & SL_PSAR_DOT";
+//input group "╚════════════════════════════════════════════════════════╝";
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   📈 (TS) TRAILING STOP (engine seed defaults)"; // STEP9 2026-06: was "(CUSTOM only)"; CUSTOM preset retired
+//input group "╚════════════════════════════════════════════════════════╝";
+// PSAR trail cushion (used by CUSTOM preset when TrailMode=TRAIL_PSAR):
+// PRESET ISOLATION 2026-06: Mult/Pct defaults updated from 0.5/0.04 → 1.0/25.0
+// to match the previously-hardcoded values in the CUSTOM block (CUSTOM block now
+// reads its own inputs; without this default change CUSTOM users would see a
+// behavior shift when leaving the inputs at default). The previous 0.5/0.04
+// defaults were dead — never reached the cfg struct.
+// Trail trigger: % of RISK (R-multiple based)
+// Examples: 50 = 0.5R, 100 = 1.0R, 150 = 1.5R
+//input group "╔════════════════════════════════════════════════════════╗";
+//input group "║   ⚖️ (BE) BREAK-EVEN (engine seed defaults)"; // STEP9 2026-06: was "(CUSTOM only)"; CUSTOM preset retired
+//input group "╚════════════════════════════════════════════════════════╝";
+// input string   Inp_RRM_Info1                    = "RRM uses % of TP distance for BE — not absolute pips";
+// input string   Inp_RRM_Info2                    = "Only active when ExitProfile = EXIT_PROFILE_RRM";
+// input string   Inp_RRM_Info3                    = "Example: SL=10 pips, TP=30 pips (3:1 RR), BE@33% → triggers at +10 pips profit";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛡 (TE) COOLDOWN BARS Post-Trade Protection";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -1173,11 +1279,11 @@ void InitializeConfig()
                   Settings.Session_Win2   ? StringFormat("✓ %02d-%02d", Settings.Session_Win2_Start,   Settings.Session_Win2_End)   : "off");
    }
    Settings.Ind_MTF_Enabled      = false;   // base default; preset sets its own in ApplyPreset
-   Settings.MTF_TF1              = Inp_Global_MTF_TF1;
-   Settings.MTF_TF2              = Inp_Global_MTF_TF2;
-   Settings.MTF_EMA_Fast         = MathMax(1, Inp_Global_MTF_EMA_Fast);
-   Settings.MTF_EMA_Slow         = MathMax(1, Inp_Global_MTF_EMA_Slow);
-   Settings.MTF_RequirePhase     = Inp_Global_MTF_RequirePhase;
+   Settings.MTF_TF1              = PERIOD_H2;   // base defaults; each preset sets its own MTF params in ApplyPreset
+   Settings.MTF_TF2              = PERIOD_H4;
+   Settings.MTF_EMA_Fast         = 20;
+   Settings.MTF_EMA_Slow         = 50;
+   Settings.MTF_RequirePhase     = true;
    // F-AUDIT 2026-07: Settings.MTF_StrictAlignment is a PROVEN DEAD SINK — SEA_SignalEngine.mqh
    // documents it directly: "MTF_StrictAlignment is retained for compatibility but the gate is
    // strict-by-construction; the flag no longer relaxes it." Inp_Global_MTF_StrictAlignment (which

@@ -2505,17 +2505,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
 
       // ── MTF / HTF CONFIRMATION ──────────────────────────────────────────
-      // Inp_RRM_ORG_MTF_Enabled = per-preset MTF/HTF voter enable (the ONE knob).
-      // Geometry (TFs, EMAs, RequirePhase) inherits the Inp_Global_MTF_* defaults.
-      // TF count is chosen by Inp_Global_MTF_TF2: PERIOD_CURRENT → single-TF;
-      // a real TF → two-TF. Fast/Slow EMA crossover per TF
-      // (Fast != Slow; equal periods would switch GetMTFBias to slope mode).
-      cfg.Ind_MTF_Enabled           = Inp_RRM_ORG_MTF_Enabled;
-      cfg.MTF_TF1                   = GetSafeMTF_TF1(Inp_Global_MTF_TF1);
-      cfg.MTF_TF2                   = GetSafeMTF_TF2(Inp_Global_MTF_TF2);
-      cfg.MTF_EMA_Fast              = Inp_Global_MTF_EMA_Fast;
-      cfg.MTF_EMA_Slow              = Inp_Global_MTF_EMA_Slow;
-      cfg.MTF_RequirePhase          = Inp_Global_MTF_RequirePhase;      // geometry default (single global source); was Inp_RRM_ORG_MTF_RequirePhase — folded (same value, true)
+      // Inp_RRM_ORG_Use_MTF = MTF/HTF voter enable. Params in "RRM_ORG: MTF Settings".
+      // TF count: Inp_RRM_ORG_MTF_TF2 = PERIOD_CURRENT → single-TF; a real TF → two-TF.
+      // (Fast != Slow; equal periods would switch GetMTFBias to slope mode.)
+      cfg.Ind_MTF_Enabled           = Inp_RRM_ORG_Use_MTF;
+      cfg.MTF_TF1                   = GetSafeMTF_TF1(Inp_RRM_ORG_MTF_TF1);
+      cfg.MTF_TF2                   = GetSafeMTF_TF2(Inp_RRM_ORG_MTF_TF2);
+      cfg.MTF_EMA_Fast              = Inp_RRM_ORG_MTF_EMA_Fast;
+      cfg.MTF_EMA_Slow              = Inp_RRM_ORG_MTF_EMA_Slow;
+      cfg.MTF_RequirePhase          = Inp_RRM_ORG_MTF_RequirePhase;
 
       // F-AUDIT 2026-06: ClimaxGuard_Enabled wiring removed — globalized to Inp_Global_F_ClimaxGuard_Enabled
 
