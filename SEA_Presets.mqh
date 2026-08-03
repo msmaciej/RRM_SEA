@@ -1458,7 +1458,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Sto_Enabled        = false;
       cfg.Ind_SmaConverge_Enabled = false;  // Removed: contradicts trending Bias; BC_BIAS_FAST covers Condition 4
       cfg.Ind_Dpi_Enabled        = false;   // DPI not used in FPM methodology
-      cfg.Ind_MTF_Enabled        = false;   // MTF not part of FPM methodology
+      cfg.Ind_MTF_Enabled        = false;   // LOCKED OFF (methodology): MTF is not part of FPM — no user toggle by design
 
       // ── PSAR SETTINGS ─────────────────────────────────────────────────
       // Condition 1: PSAR crossed below price (for buy) = PSAR dot below price
@@ -1692,7 +1692,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Sto_Enabled        = false;
       cfg.Ind_SmaConverge_Enabled = false;
       cfg.Ind_Dpi_Enabled        = false;
-      cfg.Ind_MTF_Enabled        = false;   // MTF disabled: benchmark mode has all voting off
+      cfg.Ind_MTF_Enabled        = false;   // LOCKED OFF (methodology): MA benchmark runs all voting off — no user toggle by design
       
       // ================================================================
       // INDICATOR PERIODS & THRESHOLDS (Alphabetical)
@@ -2505,16 +2505,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.EmergencyMarginLevel      = op_EmergencyMarginLevel;
 
       // ── MTF / HTF CONFIRMATION ──────────────────────────────────────────
-      // Inp_RRM_ORG_HtfFilter = master on/off for the HTF trend filter.
+      // Inp_RRM_ORG_MTF_Enabled = per-preset MTF/HTF voter enable (the ONE knob).
+      // Geometry (TFs, EMAs, RequirePhase) inherits the Inp_Global_MTF_* defaults.
       // TF count is chosen by Inp_Global_MTF_TF2: PERIOD_CURRENT → single-TF;
-      // a real TF (default M15) → two-TF. Fast/Slow EMA crossover per TF
+      // a real TF → two-TF. Fast/Slow EMA crossover per TF
       // (Fast != Slow; equal periods would switch GetMTFBias to slope mode).
-      cfg.Ind_MTF_Enabled           = Inp_RRM_ORG_HtfFilter;
+      cfg.Ind_MTF_Enabled           = Inp_RRM_ORG_MTF_Enabled;
       cfg.MTF_TF1                   = GetSafeMTF_TF1(Inp_Global_MTF_TF1);
       cfg.MTF_TF2                   = GetSafeMTF_TF2(Inp_Global_MTF_TF2);
       cfg.MTF_EMA_Fast              = Inp_Global_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow              = Inp_Global_MTF_EMA_Slow;
-      cfg.MTF_RequirePhase          = Inp_RRM_ORG_MTF_RequirePhase;     // Theme1 2026-06: was hardcoded false; now per-preset toggle (default off, user can enable for stricter HTF gating)
+      cfg.MTF_RequirePhase          = Inp_Global_MTF_RequirePhase;      // geometry default (single global source); was Inp_RRM_ORG_MTF_RequirePhase — folded (same value, true)
 
       // F-AUDIT 2026-06: ClimaxGuard_Enabled wiring removed — globalized to Inp_Global_F_ClimaxGuard_Enabled
 
@@ -2648,7 +2649,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── HIGHER TF CONFIRMATION: EMA 50/200 (institutional) ────────
       // TopInvestor: "the secret to success is 2 timeframes higher"
       // One HTF voter: auto-computed 2 steps above chart TF
-      cfg.Ind_MTF_Enabled        = true;               // LOCKED: HTF confirmation is mandatory in TI methodology
+      cfg.Ind_MTF_Enabled        = Inp_TI_MTF_Enabled;  // methodology default ON (Inp_TI_MTF_Enabled=true); user may A/B. Geometry below stays TI-locked.
       cfg.MTF_TF1                = GetAutoHTF_TF2();   // LOCKED: auto "2 TFs higher" rule (M15→H4, H1→D1); hardcoding a fixed TF would break multi-symbol/multi-TF usage
       cfg.MTF_TF2                = PERIOD_CURRENT;     // LOCKED: single-TF HTF mode; second slot disabled (PERIOD_CURRENT = off)
       cfg.MTF_EMA_Fast           = Inp_TI_MTF_EMA_Fast;   // default 50 — institutional standard
