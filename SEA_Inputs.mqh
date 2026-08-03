@@ -16,13 +16,12 @@ input group "    🎯 PRESET SELECTOR (GLOBAL)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input ulong     Inp_Global_MagicNum                = 12345;       // Magic number (trade identifier)
 input EStrategyPreset Inp_Global_Preset            = PRESET_RRM_ORG;    // Strategy preset
-
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    💰 TRADE MANAGEMENT / RISK (GLOBAL)";
+input group "    💰 (GLOBAL) TRADE / RISK MANAGEMENT (TM)/(RM)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   💰 (RM) RISK MANAGEMENT (GLOBAL)";
+input group "║   💰 (GLOBAL) RISK MANAGEMENT (RM)";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_RM_MaxOpenTrades             = 3;              // RM: Max concurrent trades (0 = unlimited)
 input double      Inp_RM_RiskPercentDefault        = 2.0;            // RM: Default risk % per trade
@@ -34,7 +33,7 @@ input double      Inp_RM_EmergencyMarginLevel      = 0.0;           // RM: Emerg
 // input string   Inp_Step9_Ref1                   = "Risk per trade applies to all presets unless overridden by Admin Override";
 // input string   Inp_Step9_Ref2                   = "To adjust exits under a preset: edit individual Inp_<preset>_* inputs"; // STEP9 2026-06: was "use PRESET_CUSTOM mode"; CUSTOM preset retired
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 (RM) ADAPTIVE RISK & MARGIN (GLOBAL)";
+input group "║   📐 (GLOBAL) ADAPTIVE RISK & MARGIN (ARM)";
 input group "╚════════════════════════════════════════════════════════╝";
 // ── TF-Based Adaptive Risk Scaling ────────────────────────────────
 input bool        Inp_RM_UseAdaptiveRisk           = true;           // RM Adaptive: Enable TF-based risk scaling
@@ -105,88 +104,65 @@ input double      Inp_Global_VETO_MaxSpread                 = 3.0;      // Veto 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: TIME";
 input group "╚════════════════════════════════════════════════════════╝";
-// ═══════════════════════════════════════════════════════════════════════
-// TRADING HOURS FILTER
-// EA only enters trades when the current broker-time hour falls inside at
-// least one enabled session or custom window (OR logic across all active).
-// Broker time is typically EET (UTC+2 winter / UTC+3 summer). Check your
-// broker's server clock. All hours below are in that broker time.
-//
-// Named session defaults (EET):  London 09-17 · NY 14-22 · Asia 01-09
-// Margin extends a session symmetrically: London + 2h margin → 07-19.
-// Custom windows let you define any two arbitrary ranges, e.g. 08-12 + 16-21.
-// ═══════════════════════════════════════════════════════════════════════
-input bool   Inp_Session_Enabled          = true;     // Trading hours filter: true=only trade in enabled sessions | false=trade 24h
-input bool   Inp_Session_London           = true;     // LON session active (09:00–17:00 EET by default)
-input int    Inp_Session_London_Margin    = 0;        // Extend London ±N hours: 0=exact 09-17 · 1→08-18 · 2→07-19
-input bool   Inp_Session_NY               = true;     // NY session active (14:00–22:00 EET by default)
-input int    Inp_Session_NY_Margin        = 0;        // Extend NY ±N hours: 0=exact 14-22 · 1→13-23 · 2→12-24
-input bool   Inp_Session_Asia             = false;     // TKY session active (01:00–09:00 EET by default)
-input int    Inp_Session_Asia_Margin      = 0;        // Extend Asia ±N hours: 0=exact 01-09 · 1→00-10
-// Custom windows — for non-standard hours, additive with named sessions above (OR logic)
-input bool   Inp_Session_Win1             = false;    // Custom window 1 active (e.g. morning only: 08-12)
-input int    Inp_Session_Win1_Start       = 8;        // Window 1 start hour (broker time, 0-23)
-input int    Inp_Session_Win1_End         = 12;       // Window 1 end hour
-input bool   Inp_Session_Win2             = false;    // Custom window 2 active (e.g. afternoon: 16-21)
-input int    Inp_Session_Win2_Start       = 16;       // Window 2 start hour (broker time, 0-23)
-input int    Inp_Session_Win2_End         = 21;       // Window 2 end hour
+input bool        Inp_Session_Enabled          = true;     // Session_Enabled: true=only trade in enabled sessions | false=trade 24h
+input bool        Inp_Session_London           = true;     // Session_London: (09:00–17:00 EET by default)
+input int         Inp_Session_London_Margin    = 0;        // Session_London_Margin: ±N hours: 0=exact 09-17 · 1→08-18 · 2→07-19
+input bool        Inp_Session_NY               = true;     // Session_NY: (14:00–22:00 EET by default)
+input int         Inp_Session_NY_Margin        = 0;        // Session_NY_Margin: ±N hours: 0=exact 14-22 · 1→13-23 · 2→12-24
+input bool        Inp_Session_Asia             = false;    // Session_TKY: (01:00–09:00 EET by default)
+input int         Inp_Session_Asia_Margin      = 0;        // Session_TKY_Margin: ±N hours: 0=exact 01-09 · 1→00-10
+input group " ";
+input bool        Inp_Session_Win1             = false;    // Session_Window1: (e.g. morning only: 08-12)
+input int         Inp_Session_Win1_Start       = 8;        // Session_Window1_Start: (broker time, 0-23)
+input int         Inp_Session_Win1_End         = 12;       // Session_Window1_End
+input bool        Inp_Session_Win2             = false;    // Session_Window2: (e.g. afternoon: 16-21)
+input int         Inp_Session_Win2_Start       = 16;       // Session_Window2_Start: (broker time, 0-23)
+input int         Inp_Session_Win2_End         = 21;       // Session_Window2_End
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: NEWS";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Global_VETO_UseNews                = false;          // Veto News: enable
+input bool        Inp_Global_VETO_UseNews                = false;       // Veto News: enable
 input ENewsImpactLevel Inp_Global_VETO_NewsImpactFilter  = NEWS_IMPACT_MED_PLUS; // F-AUDIT 2026-06: which impact levels block (default MED+ = legacy hardcode)
 input string      Inp_Global_VETO_NewsFile               = "calendar_statement.csv"; // Veto News: CSV filename
-input int         Inp_Global_VETO_NewsPreMinutes         = 60;             // Veto News: block minutes before
-input int         Inp_Global_VETO_NewsPostMinutes        = 60;             // Veto News: block minutes after
+input int         Inp_Global_VETO_NewsPreMinutes         = 60;          // Veto News: block minutes before
+input int         Inp_Global_VETO_NewsPostMinutes        = 60;          // Veto News: block minutes after
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: TE QUALITY GATES (ADVANCED)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Global_VETO_TE_RecheckBarClose     = false;          // Veto TE: re-check price drift vs Close[1]
-input double      Inp_Global_VETO_TE_BC_TolerancePips    = 3.0;            // Veto TE: drift tolerance pips
-input int         Inp_Global_VETO_TE_OpenDelaySeconds    = 0;              // Veto TE: open delay seconds (0=off)
-input int         Inp_Global_VETO_TE_SpreadMedianTicks   = 0;              // Veto TE: spread median filter ticks (0=off)
+input bool        Inp_Global_VETO_TE_RecheckBarClose     = false;       // Veto TE: re-check price drift vs Close[1]
+input double      Inp_Global_VETO_TE_BC_TolerancePips    = 3.0;         // Veto TE: drift tolerance pips
+input int         Inp_Global_VETO_TE_OpenDelaySeconds    = 0;           // Veto TE: open delay seconds (0=off)
+input int         Inp_Global_VETO_TE_SpreadMedianTicks   = 0;           // Veto TE: spread median filter ticks (0=off)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: MTF (Multi-Timeframe Confirmation)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Ind_MTF_Enabled                    = true;          // Veto MTF: enable
-input ENUM_TIMEFRAMES Inp_Global_MTF_TF1                 = PERIOD_H2;      // Veto MTF: TF1 (primary)
-input ENUM_TIMEFRAMES Inp_Global_MTF_TF2                 = PERIOD_H4;     // Veto MTF: TF2 (PERIOD_CURRENT = single TF)
-input int         Inp_Global_MTF_EMA_Fast                = 20;             // Veto MTF: fast EMA period
-input int         Inp_Global_MTF_EMA_Slow                = 50;             // Veto MTF: slow EMA period
-input bool        Inp_Global_MTF_RequirePhase            = true;           // Veto MTF: require trending phase
-// F-AUDIT 2026-07: Inp_Global_MTF_StrictAlignment REMOVED. Dev comment at SEA_SignalEngine.mqh
-// (near GetMTFBias) confirms: "MTF_StrictAlignment is retained for compatibility but the gate is
-// strict-by-construction; the flag no longer relaxes it." See
-// Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
+input bool        Inp_Ind_MTF_Enabled                    = true;        // Veto MTF: enable
+input ENUM_TIMEFRAMES Inp_Global_MTF_TF1                 = PERIOD_H2;   // Veto MTF: TF1 (primary)
+input ENUM_TIMEFRAMES Inp_Global_MTF_TF2                 = PERIOD_H4;   // Veto MTF: TF2 (PERIOD_CURRENT = single TF)
+input int         Inp_Global_MTF_EMA_Fast                = 20;          // Veto MTF: fast EMA period
+input int         Inp_Global_MTF_EMA_Slow                = 50;          // Veto MTF: slow EMA period
+input bool        Inp_Global_MTF_RequirePhase            = true;        // Veto MTF: require trending phase
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: Climax";
 input group "╚════════════════════════════════════════════════════════╝";
-// ── CLIMAX / EXHAUSTION GUARD (global; blocks late entries into over-extended impulses) ──
-input int         Inp_Global_ClimaxGuard_Lookback         = 13;            // Climax: window (bars) scanned for an impulse
-input int         Inp_Global_ClimaxGuard_ATRPeriod        = 14;            // Climax: ATR baseline period (measured pre-impulse)
-input double      Inp_Global_ClimaxGuard_BarATRMult       = 2.0;           // Climax: single-bar range threshold (x ATR)
-input double      Inp_Global_ClimaxGuard_MoveATRMult      = 3.0;           // Climax: cumulative move threshold (x ATR)
-// F-AUDIT 2026-07: Inp_Global_ClimaxGuard_ResetPullback REMOVED (mechanism deleted SEA-wide).
-// On a climax block it wiped ALL THREE layer P-R state machines to NONE -- the same destructive
-// class as the post-TS=1 consumption reset deleted earlier in 2026-07, but strictly broader:
-// all layers, on a bar the engine had just REJECTED. It also contradicted this engine's own
-// stale-only invariant (MaybeResetLayersOnPhaseChange): an unconditional NONE erases an
-// in-progress DETECTED at the pullback->recovery boundary, and NONE is exitable only by a
-// FRESH pullback, so the layer is stranded through the whole recovery it had earned.
-// The climax BLOCK is unchanged, still governed by Inp_Global_F_ClimaxGuard_Enabled below.
-
+input int         Inp_Global_ClimaxGuard_Lookback         = 13;         // Climax: window (bars) scanned for an impulse
+input int         Inp_Global_ClimaxGuard_ATRPeriod        = 14;         // Climax: ATR baseline period (measured pre-impulse)
+input double      Inp_Global_ClimaxGuard_BarATRMult       = 2.0;        // Climax: single-bar range threshold (x ATR)
+input double      Inp_Global_ClimaxGuard_MoveATRMult      = 3.0;        // Climax: cumulative move threshold (x ATR)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 F-FILTERS (GLOBAL MASTERS — preset-agnostic)";
 input group "╚════════════════════════════════════════════════════════╝";
-// F-AUDIT 2026-06: master enable switches for the F-factor sub-filters. Globalized so any
+//
+// master enable switches for the F-factor sub-filters. Globalized so any
 // preset can opt in/out independently of strategy choice. Tuning sub-params (EmaFan*Pips,
 // PriceExt*, ClimaxGuard_*) remain where they are (preset-tuned or already global).
-input bool        Inp_Global_F_EmaFanFilterEnabled        = false;          // F-Filter: EMA-fan over-extension master toggle
-input bool        Inp_Global_F_PriceExtFilterEnabled      = false;          // F-Filter: price-vs-EMA over-extension master toggle
-input bool        Inp_Global_F_DpiDecelFilterEnabled      = false;          // F-Filter: DPI GREEN deceleration master toggle (stateless)
-input bool        Inp_Global_F_DPI_HistTrackingEnabled    = true;          // F-Filter: DPI histogram tracking master (prereq for hist-decel block)
-input bool        Inp_Global_F_DPI_BlockOnDeceleration    = true;          // F-Filter: Block on DPI histogram decel (requires hist-tracking on)
-input bool        Inp_Global_F_ClimaxGuard_Enabled        = false;          // F-Filter: Climax / exhaustion-guard master toggle
+//
+input bool        Inp_Global_F_EmaFanFilterEnabled        = false;      // F-Filter: EMA-fan over-extension master toggle
+input bool        Inp_Global_F_PriceExtFilterEnabled      = false;      // F-Filter: price-vs-EMA over-extension master toggle
+input bool        Inp_Global_F_DpiDecelFilterEnabled      = false;      // F-Filter: DPI GREEN deceleration master toggle (stateless)
+input bool        Inp_Global_F_DPI_HistTrackingEnabled    = true;       // F-Filter: DPI histogram tracking master (prereq for hist-decel block)
+input bool        Inp_Global_F_DPI_BlockOnDeceleration    = true;       // F-Filter: Block on DPI histogram decel (requires hist-tracking on)
+input bool        Inp_Global_F_ClimaxGuard_Enabled        = false;      // F-Filter: Climax / exhaustion-guard master toggle
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -268,9 +244,6 @@ input bool        Inp_Debug_PrintEffectiveConfig   = true;           // Debug: P
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔍 DEBUG: DIAGNOSTICS: STATISTICS";
 input group "╚════════════════════════════════════════════════════════╝";
-// F-AUDIT 2026-07: Inp_Debug_Stats_TrackRejections / Inp_Debug_Stats_TrackPasses REMOVED — both
-// fed proven-dead Settings fields; only Inp_Debug_Stats_FullEvaluation actually gates stats
-// tracking. See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
 input bool        Inp_Debug_Stats_FullEvaluation   = true;           // Stats: Evaluate ALL indicators per bar
 //input string    Inp_Stats_Info1                  = "FullEvaluation=false: waterfall (stop at first fail)";
 //input string    Inp_Stats_Info2                  = "FullEvaluation=true: evaluate all, identify true bottlenecks";
@@ -297,7 +270,7 @@ input group "║   🛑 MT5 Moving Average Benchmark (PRESET_MA)";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_MA_Period                    = 12;             // MA period
 input int         Inp_MA_Shift                     = 6;              // MA shift
-// F-AUDIT 2026-07: Inp_MA_MaximumRiskPct / Inp_MA_DecreaseFactor REMOVED — Settings.MA_MaximumRiskPct
+// Inp_MA_MaximumRiskPct / Inp_MA_DecreaseFactor REMOVED — Settings.MA_MaximumRiskPct
 // and Settings.MA_DecreaseFactor (the fields SEA_TradeExecutor.mqh actually uses for MA-benchmark lot
 // sizing) are hardcoded in InitializeConfig() and never touched by ApplyPreset() for any preset; these
 // inputs were never read. Their defaults (0.02 / 3.0) coincidentally matched the hardcoded values,
@@ -317,12 +290,6 @@ input double      Inp_FPM_RRRatio                  = 1.5;            // FPM TP: 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 FPM: (SL) Stop Loss Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-// F-AUDIT 2026-07: Inp_FPM_SLMode REMOVED — never read since the STEP4 2026-06 fix
-// (cfg.SLMode is hardcoded SL_MODE_SWING for FPM; see SEA_Presets.mqh, "SL: Hardcode
-// SL_MODE_SWING — swing is the FPM methodology"). Re-wiring it would undo that fix.
-// F-AUDIT 2026-07: Inp_FPM_SwingLookback REMOVED — never read since the same fix;
-// GetFPMSwingLookback() (TF-aware helper) supplies SwingLookback instead.
-// See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit" section.
 input double      Inp_FPM_SLFixedPips              = 15.0;           // FPM SL: fixed distance in pips (SL_MODE_FIXED_PIPS only — unreachable under FPM's current SWING lock; retained for TradeExecutor's general SL_MODE_FIXED_PIPS path)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 FPM: (TS) Trailing Stop";
@@ -340,10 +307,6 @@ input group "║   📐 FPM: PSAR Settings";
 input group "╚════════════════════════════════════════════════════════╝";
 input double      Inp_FPM_PsarStep                 = 0.02;           // FPM PSAR: step
 input double      Inp_FPM_PsarMax                  = 0.2;            // FPM PSAR: max
-// F-AUDIT 2026-07: Inp_FPM_Ind_SmaConverge_Enabled REMOVED — never read anywhere.
-// Ind_SmaConverge_Enabled is hardcoded false in every preset block (SEA_Presets.mqh,
-// see the FPM Condition 4 removal note there). A dead sweep target for FPM optimizers.
-// See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit" section.
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 FPM: MFI Volume Confirmation";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -351,9 +314,6 @@ input bool        Inp_FPM_Ind_Mfi_Enabled          = true;           // FPM MFI:
 input int         Inp_FPM_Mfi_Period               = 14;             // FPM MFI: period (default 14)
 #endif // SEA_PRESET_FPM
 
-// STEP3 2026-06: #ifdef SEA_PRESET_RRM_FAMILY guard removed.
-// The "family" concept existed solely to share Inp_RRM_* between PRESET_RRM
-// and PRESET_RRM_ORG. With PRESET_RRM gone, the family is just RRM_ORG.
 //
 // VPRR shared inputs (Inp_VPRR_*) and Inp_RRM_ORG_VPRR_* — used by CUSTOM,
 // RRM_ORG, and TOPINVESTOR — are now UNCONDITIONAL (no #ifdef wrapping).
@@ -363,6 +323,7 @@ input int         Inp_FPM_Mfi_Period               = 14;             // FPM MFI:
 //
 // Inp_RRM_VPRR_* (4 RRM-only inputs) and the rest of PRESET_RRM inputs
 // (~25 inputs across TP/SL/TS/BE/DP/Layer/Indicators sections) — all removed.
+//
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📊 VPRR — SHARED (all remaining presets: FPM / MA / RRM_ORG / TI)"; // STEP3 2026-06: removed PRESET_RRM mention | STEP9 2026-06: CUSTOM preset retired; relabeled to "all presets"
@@ -438,37 +399,17 @@ input double      Inp_VPRR_MinRatio_NonFXTick      = 0.8;            // DEPRECAT
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 VPRR TF Auto-Multiplier";
 input group "╚════════════════════════════════════════════════════════╝";
-// TF auto-multiplier: M5x0.85  M15x1.00  H1x0.95  H4+x0.90 (see chart comment for effective value)
 input double      Inp_VPRR_TF_Mult_M5              = 0.85;           // VPRR TF: M5 multiplier (noisier, loosen 15%%)
 input double      Inp_VPRR_TF_Mult_M15             = 1.00;           // VPRR TF: M15 multiplier (baseline)
 input double      Inp_VPRR_TF_Mult_H1              = 0.95;           // VPRR TF: H1 multiplier (fewer bars, loosen slightly)
 input double      Inp_VPRR_TF_Mult_H4Plus          = 0.90;           // VPRR TF: H4+ multiplier (very few cycles, loosen)
-// STEP3 2026-06: Inp_RRM_VPRR_* (4 inputs) removed — RRM-only, no longer needed.
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 VPRR RRM_ORG - Volume Confirmation";
 input group "╚════════════════════════════════════════════════════════╝";
 input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType  = VPRR_VOL_AUTO;  // RRM ORG VPRR: AUTO, EXTERNAL, REAL, TICK (Auto=real then tick fallback)
-input bool        Inp_RRM_ORG_VPRR_AutoEnable      = false;           // RRM ORG VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual Enabled toggle below)
+input bool        Inp_RRM_ORG_VPRR_AutoEnable      = false;          // RRM ORG VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual Enabled toggle below)
 input bool        Inp_RRM_ORG_VPRR_Enabled         = false;          // RRM ORG VPRR: Manual enable (only used when AutoEnable=OFF)
 input int         Inp_RRM_ORG_VPRR_RecoveryBars    = 5;              // RRM ORG VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
-
-// STEP3 2026-06 FIX: 3 Inp_RRM_ORG_Allow* inputs were originally placed inside the
-// "PRESET_RRM — LAYER WMS Filter" sub-group of the RRM_FAMILY block (HEAD lines 427-429)
-// — visually grouped with RRM inputs but functionally RRM_ORG-specific. The Step 3 bulk
-// deletion of the family block accidentally removed them too. Restored here.
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 RRM_ORG: LAYER WMS Filter";
-input group "╚════════════════════════════════════════════════════════╝";
-// F-AUDIT 2026-07: Inp_RRM_ORG_AllowWeak / AllowMedium / AllowStrong REMOVED — each fed only
-// proven-dead Settings fields (Emerging_/Trending_Allow*Trades — see SEA_Presets.mqh). The real,
-// live layer on/off controls are Inp_RRM_ORG_AllowLayerW/M/S just below (-> AllowLayer1/2/3_Entries,
-// actually read by SEA_SignalEngine.mqh). These three looked like duplicates of that real control
-// and were a live optimizer-sweep trap. See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
-
-// STEP3 2026-06: PRESET_RRM block (~25 inputs across TP/SL/TS/BE/DP/Layer/Indicators) removed.
-// All inputs were RRM-only with no cross-preset reads (prior PRESET ISOLATION 2026-06 work
-// already cleaned cross-preset leaks; this is the final physical removal).
-
 
 #ifdef SEA_PRESET_RRM_ORG
 input group " ";
@@ -489,26 +430,22 @@ input int         Inp_RRM_ORG_DPI_RedEMA_D               = 21;       // RRM ORG 
 input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst      = 5;        // RRM ORG DPI: Double-smooth first EMA
 input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond     = 8;        // RRM ORG DPI: Double-smooth second EMA
 input int         Inp_RRM_ORG_DPI_CCI_Period             = 13;       // RRM ORG DPI: CCI period
-
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Vote (I factor — ribbon direction)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // RRM ORG DPI: Enable DPI vote in TS equation
-input bool        Inp_RRM_ORG_DPI_UseCCIReset            = false;     // RRM ORG DPI: CCI can reset ribbon color (trend filter)
+input bool        Inp_RRM_ORG_DPI_UseCCIReset            = false;    // RRM ORG DPI: CCI can reset ribbon color (trend filter)
 input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
-input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;     // RRM ORG DPI: Also require GREEN overlay for vote pass
-// Theme5a 2026-06: DPI divergence sub-filter (mirrors Inp_RRM_ORG_MacdDiv pattern, off by default)
-input bool        Inp_RRM_ORG_DpiDiv                     = false;     // RRM ORG DPI: Require price-vs-DPI-histogram divergence (off by default)
-input int         Inp_RRM_ORG_DpiDivLookback             = 10;        // RRM ORG DPI: Divergence detection window in bars (two non-overlapping windows)
+input bool        Inp_RRM_ORG_DPI_UseGreenHist           = false;    // RRM ORG DPI: Also require GREEN overlay for vote pass
+input bool        Inp_RRM_ORG_DpiDiv                     = false;    // RRM ORG DPI: Require price-vs-DPI-histogram divergence (off by default)
+input int         Inp_RRM_ORG_DpiDivLookback             = 10;       // RRM ORG DPI: Divergence detection window in bars (two non-overlapping windows)
+//
 // Yellow ribbon = BUY vote, Red ribbon = SELL vote.
 // CCI can reset ribbon color: hist>0 but CCI<0 → Red override (weakening).
 //
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Pre-filter — GREEN Deceleration";
 input group "╚════════════════════════════════════════════════════════╝";
-// F-AUDIT 2026-06: 3 inputs removed (Inp_RRM_ORG_DPI_Decel_Filter, _DPI_BlockOnDeceleration,
-// _DPI_HistTrackingEnabled). Toggles globalized to Inp_Global_F_DpiDecelFilterEnabled / Inp_Global_F_DPI_BlockOnDeceleration
-// / Inp_Global_F_DPI_HistTrackingEnabled. Tuning params for DPI (CCI period, EMA periods, thresholds) stay here.
 input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // RRM ORG DPI: CCI deceleration lookback bars (needs tracking ON)
 //
 // Inp_RRM_ORG_DPI_Decel_Filter - Blocks entry when GREEN momentum is fading or has just disappeared.
@@ -566,7 +503,6 @@ input bool        Inp_RRM_ORG_DPI_ResetRequireGreen      = false;    // RRM ORG 
 //   When true, recovery also requires GREEN to reappear (Blue+hist aligned again).
 //   Stricter: not just CCI agreeing, but full momentum alignment restored.
 //
-
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET_RRM_ORG  ★ ACTIVE";
@@ -595,11 +531,6 @@ input double      Inp_RRM_ORG_RRRatio              = 2.5;             // RRM ORG
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (SL) INITIAL STOP LOSS PLACEMENT";
 input group "╚════════════════════════════════════════════════════════╝";
-// 2026-07: changed from SL_MODE_PSAR_DOT to SL_MODE_SWING.
-// PSAR on M1/M5 sits 2-8 pips from price during consolidation → SL hit by spread + 1 tick of noise.
-// XAUUSD was the ONLY profitable pair because its PSAR naturally lands 100-200 pips away.
-// SWING SL places the stop under the most recent definable swing low (Oracle Stop Loss card).
-// With lookback=13, M5 swing SL ≈ 12-25 pips FX / 150-300 pts XAU — above noise floor.
 input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;    // RRM ORG SL: SL_MODE_=*: *ATR, *FIXED_PIPS, *FRACTAL, *PERCENT, *PSAR_DOT, *SWING
 input int         Inp_RRM_ORG_SwingLookback        = 55;              // RRM ORG SL: SWING lookback bars — search window for the most recent swing high/low. Larger window = more likely to find a structurally meaningful level. 34 bars: M1=34min · M5=170min · H1=34h. If swing is 15 bars ago and window=13, it's missed; window=34 finds it.
 input int         Inp_RRM_ORG_SL_AtrPeriod         = 14;             // RRM ORG SL: ATR period (SL_MODE_ATR only)
@@ -623,10 +554,6 @@ input int         Inp_RRM_ORG_ReEntryLotScalePct   = 50;             // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (TSL) HOW TO TRAIL STOP LOSS";
 input group "╚════════════════════════════════════════════════════════╝";
-// 2026-07: changed from TRAIL_EMA to TRAIL_PSAR with TrailStartsAfterBE=true.
-// TRAIL_EMA on M1/M5 trails too tightly — EMA hugs price and closes winners at ~0.5R before TP.
-// TRAIL_PSAR after BE: PSAR only activates once BE is reached, letting the trade breathe to TP.
-// Oracle trailing: "move stop loss as each new PSAR dot progresses past break-even level."
 input ETrailingMode Inp_RRM_ORG_TrailMode             = TRAIL_PSAR;   // RRM ORG TS: *BREAKEVEN, *EMA, *FIXED_PIPS, *FRACTAL, *NONE, *PROFIT_PERCENT, *PSAR, *PSAR_FLIP_EXIT
 input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // RRM ORG TS: PSAR cushion mode (PIPS / ATR / PERCENT)
 input int         Inp_RRM_ORG_TrailCushionAtrPeriod   = 14;          // RRM ORG TS: ATR period (ATR mode)
@@ -664,8 +591,6 @@ input bool        Inp_RRM_ORG_TrailStartsAfterBE      = true;       // RRM ORG T
 input bool        Inp_RRM_ORG_TrailLockProfit         = true;        // RRM ORG TS: never move SL backwards (lock profit)
 input bool        Inp_RRM_ORG_TrailAllowLossSide      = true;        // RRM ORG TS: let the trail tighten the SL while it is STILL AT A LOSS (Oracle Stop Loss card: "Move Stop Loss Towards Entry"). false = SL frozen at its initial level until BE fires (pre-2026-07)
 input double      Inp_RRM_ORG_TrailStepPips           = 5.0;         // RRM ORG TS: step size for fixed-step trail modes
-// PRESET ISOLATION 2026-06: dedicated RRM_ORG freeze-on-flip input
-// (previously RRM_ORG block read Inp_RRM_FreezeTrailOnFlip — an RRM-preset input).
 input bool        Inp_RRM_ORG_FreezeTrailOnFlip       = true;        // RRM ORG TS: FREEZE trail on PSAR flip (pause SL moves until corrected)
 input int         Inp_RRM_ORG_MaxSpreadRetryBars      = 0;           // RRM ORG: SPREAD bars retry (if TE block)
 input bool        Inp_RRM_ORG_AllowReEntryAfterBE     = true;        // RRM ORG: ALLOW re-entry after BE
@@ -682,10 +607,11 @@ input bool        Inp_RRM_ORG_AllowReEntryAfterBE     = true;        // RRM ORG:
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (BE) BREAKEVEN";
 input group "╚════════════════════════════════════════════════════════╝";
-input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_R_MULTIPLE;  // RRM ORG BE: Breakeven trigger mode
-input double      Inp_RRM_ORG_BE_RMultiple            = 0.70;         // RRM ORG BE: BE trigger as R multiple
-input double      Inp_RRM_ORG_BE_ProgressPct          = 25.0;        // RRM ORG BE: BE trigger as TP progress %
+input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_R_MULTIPLE;   // RRM ORG BE: Breakeven trigger mode
+input double      Inp_RRM_ORG_BE_RMultiple            = 0.70;                 // RRM ORG BE: BE trigger as R multiple
+input double      Inp_RRM_ORG_BE_ProgressPct          = 25.0;                 // RRM ORG BE: BE trigger as TP progress %
 input EBeTriggerSource Inp_RRM_ORG_BE_TriggerSource   = BE_SRC_BAR_CLOSE;  
+//
 // RRM ORG BE: which price sample fires BE - 
 //    *TICK (Oracle: intrabar touch), 
 //    *BAR_EXTREME (closed bar high/low, 1 bar late), 
@@ -715,78 +641,47 @@ input bool        Inp_RRM_ORG_ForceDDProtection    = false;          // RRM ORG 
 input int         Inp_RRM_ORG_DDMaxConsecLosses    = 3;              // RRM ORG DD: Override max consecutive losses (0=use Inp_RRM_*)
 input int         Inp_RRM_ORG_DDMaxTradesPerDay    = 15;             // RRM ORG DD: Override max trades per day (0=use Inp_RRM_*)
 input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM ORG DD: Override max daily DD % (0=use Inp_RRM_*)
-
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: QUALITY Gates";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_HtfFilter            = false;          // RRM ORG QA: HTF Trend Filter
+input bool        Inp_RRM_ORG_HtfFilter            = true;           // RRM ORG QA: HTF Trend Filter
 input bool        Inp_RRM_ORG_MTF_RequirePhase     = true;           // RRM ORG QA: HTF slope-confirm (both EMAs must slope with position; blocks 'drifting' HTFs)
-// F-AUDIT 2026-06: Inp_RRM_ORG_ClimaxGuard_Enabled removed — toggle globalized to Inp_Global_F_ClimaxGuard_Enabled
 input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM ORG QA: EMA1 period
 input int         Inp_RRM_ORG_Ema2Period           = 13;             // RRM ORG QA: EMA2 period
 input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG QA: EMA3 period
 input int         Inp_RRM_ORG_Ema4Period           = 89;             // RRM ORG QA: EMA4 period
-input int         Inp_RRM_ORG_MinBarsAfterUNOExit  = 0;             // RRM ORG QA: Min bars after UNO exit before any layer DETECTED→IN-TREND transition is allowed (0=disabled; try 2-3 for M1)
+input int         Inp_RRM_ORG_MinBarsAfterUNOExit  = 0;              // RRM ORG QA: Min bars after UNO exit before any layer DETECTED→IN-TREND transition is allowed (0=disabled; try 2-3 for M1)
 input int         Inp_RRM_ORG_UNO_ToleranceBars    = 0;              // RRM ORG PB: consecutive UNO bars tolerated before layer states are wiped. A transient UNO flicker that resolves back to the SAME direction within this many bars PRESERVES DETECTED/IN-TREND (0=strict: reset on the first UNO bar)
-input bool        Inp_RRM_ORG_LayerS_TMOnly        = true;
-// RRM ORG QA: Restrict LayerS (EMA3/EMA4) entries to TRENDING phase only (per canonical RRM); 
-//    false=legacy (LayerS allowed in EM+TM)
+input bool        Inp_RRM_ORG_LayerS_TMOnly        = true;           // RRM ORG QA: Restrict LayerS (EMA3/EMA4) entries to TRENDING phase only (per canonical RRM); 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: LAYER WMS Pullback & Recovery";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_LayerPBEnabled       = true;           // RRM ORG PB: Enable pullback-recovery state machine (P2?)
-input int         Inp_RRM_ORG_LayerPBLookback      = 0;              // RRM ORG PB: Global baseline lookback (fallback; per-layer below)
-input int         Inp_RRM_ORG_LayerPBLookback_W    = 21;             // RRM ORG PB: LayerW baseline lookback (fast/responsive) // NOTE 2026-07: original value. Longer lookback = cleaner baseline (less contaminated by in-progress pullback bars) = lower effective ratio = easier pullback detection. Shorter lookbacks counter-intuitively harm detection.
-input int         Inp_RRM_ORG_LayerPBLookback_M    = 34;             // RRM ORG PB: LayerM baseline lookback (medium) // NOTE 2026-07: original value restored.
-input int         Inp_RRM_ORG_LayerPBLookback_S    = 55;             // RRM ORG PB: LayerS baseline lookback (slow/stable) // NOTE 2026-07: original value restored. At LB_S=34, a 40%-deep pullback lasting 12 bars still produces ratio=0.507 vs 0.65 threshold = DETECTED. At LB_S=21, same pullback produces ratio=0.609 = DETECTED. At LB_S=8, ratio=N/A (window exhausted by pullback alone).
-// F-AUDIT 2026-07 (round 2): Inp_RRM_ORG_LayerPBPullbackRatio REMOVED -- fed LayerPullbackRatio_Legacy,
-// a proven dead sink (already documented in README_SEA_SIGNAL_REFERENCE.md / README_SEA_TRADE_LOGIC.md /
-// README_SEA_PRESETS.md as inert under the Path-2 slope model). This input had an extensive tuning
-// history in its old comment (0.50->0.65 "for sensitivity") that was already meaningless by the time
-// it was written -- the exact optimizer-sweep trap this audit exists to catch. See
-// Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
-// F-AUDIT 2026-07 (round 2): Inp_RRM_ORG_LayerPBRecoveryRatio REMOVED -- fed LayerRecoveryRatio,
-// a proven dead sink. Traced: GetLayerRecovery() -> UpdateSingleLayerPullback()'s recovery_ratio
-// parameter, which the function's own comment says is "no longer consulted" -- only reaches a
-// debug log string. See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
-// F-AUDIT 2026-07: Inp_RRM_ORG_LayerPB_RecoveryOnSlope REMOVED — fed Settings.LayerRecoveryOnSlope,
-// a proven dead sink (never read). See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
-input double      Inp_RRM_ORG_LayerPBFlatRatio     = 0.1;      // RRM ORG PB: Flat threshold (|ratio|<this = flat)
-input bool        Inp_RRM_ORG_LayerPBAllowReversal = true;  // RRM ORG PB: Count slope reversal as pullback // NOTE 2026-07: already true (correct). This is the ONLY mechanism that detects shallow pullbacks (EMA decelerating to 60-80% of baseline pace) because their magnitude ratio stays above 0.65 regardless of threshold. When EMA direction reverses even briefly (current_bullish != baseline_bullish), is_pullback fires regardless of ratio. Critical for M5/M15 trending pullbacks where EMA5 barely decelerates before recovering.
-// S2 2026-07: price-zone DETECTED gate. zone = EMA_slow + (1-PullbackRatio)*(EMA_fast-EMA_slow).
-// Path 2 (2026-07): the layer model is pure position+slope. Price-touch mixes a
-// PRICE test into pullback detection and is DISABLED by default. The input is
-// retained for back-compat only; leaving it true has no effect (the S2 gate code
-// was removed from UpdateSingleLayerPullback).
-// A21: minimum bars in DETECTED before IN-TREND is allowed. Path 2: a pullback
-// cannot complete in one bar, so the floor is 2 on every layer/timeframe.
-input int         Inp_RRM_ORG_MinPBBars_W          = 1;            // RRM ORG PB: A21 - LayerW min bars in DETECTED before IN-TREND (2/2/2 default)
-input int         Inp_RRM_ORG_MinPBBars_M          = 1;            // RRM ORG PB: A21 - LayerM min bars in DETECTED before IN-TREND (2/2/2 default)
-input int         Inp_RRM_ORG_MinPBBars_S          = 1;            // RRM ORG PB: A21 - LayerS min bars in DETECTED before IN-TREND (2/2/2 default)
-// F-AUDIT 2026-07 (round 2): Inp_RRM_ORG_RecoveryRatio_W/M/S REMOVED -- same proven-dead sink
-// as Inp_RRM_ORG_LayerPBRecoveryRatio above (LayerRecoveryRatio_W/M/S, unused-in-decision-logic
-// trace). See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
-// Path 2 (2026-07): pullback OBSERVATION WINDOW (distinct from the baseline slope
-// lookback 13/21/34). Bounds how long a IN-TREND layer stays entry-eligible before
-// it is treated as stale (the "not-too-late" cap). Per-layer; 0 = use the global.
-input int         Inp_RRM_ORG_LayerPullbackWindow_W = 21;         // RRM ORG PB: LayerW observation window (bars; 0=use global)
-input int         Inp_RRM_ORG_LayerPullbackWindow_M = 34;         // RRM ORG PB: LayerM observation window (bars; 0=use global)
-input int         Inp_RRM_ORG_LayerPullbackWindow_S = 55;         // RRM ORG PB: LayerS observation window (bars; 0=use global)
-input int         Inp_RRM_ORG_LayerPullbackWindow   = 0;          // RRM ORG PB: GLOBAL observation-window override (bars; 0=disabled, use per-layer)
-input bool        Inp_RRM_ORG_AllowLayerS          = true;                          // RRM ORG PB: allow Layer S (EMA3/4) entries
-input bool        Inp_RRM_ORG_AllowLayerM          = true;                          // RRM ORG PB: allow Layer M (EMA2/3) entries
-input bool        Inp_RRM_ORG_AllowLayerW          = true;                          // RRM ORG PB: allow Layer W (EMA1/2) entries
+input bool        Inp_RRM_ORG_LayerPBEnabled          = true;        // RRM ORG PB: Enable pullback-recovery state machine (P2?)
+input int         Inp_RRM_ORG_LayerPBLookback         = 34;          // RRM ORG PB: Global baseline lookback (fallback; per-layer below)
+input int         Inp_RRM_ORG_LayerPBLookback_W       = 21;          // RRM ORG PB: LayerW baseline lookback (fast/responsive) // NOTE 2026-07: original value. Longer lookback = cleaner baseline (less contaminated by in-progress pullback bars) = lower effective ratio = easier pullback detection. Shorter lookbacks counter-intuitively harm detection.
+input int         Inp_RRM_ORG_LayerPBLookback_M       = 34;          // RRM ORG PB: LayerM baseline lookback (medium) // NOTE 2026-07: original value restored.
+input int         Inp_RRM_ORG_LayerPBLookback_S       = 55;          // RRM ORG PB: LayerS baseline lookback (slow/stable) // NOTE 2026-07: original value restored. At LB_S=34, a 40%-deep pullback lasting 12 bars still produces ratio=0.507 vs 0.65 threshold = DETECTED. At LB_S=21, same pullback produces ratio=0.609 = DETECTED. At LB_S=8, ratio=N/A (window exhausted by pullback alone).
+input double      Inp_RRM_ORG_LayerPBFlatRatio        = 0.1;         // RRM ORG PB: Flat threshold (|ratio|<this = flat)
+input bool        Inp_RRM_ORG_LayerPBAllowReversal    = true;        // RRM ORG PB: Count slope reversal as pullback // NOTE 2026-07: already true (correct). This is the ONLY mechanism that detects shallow pullbacks (EMA decelerating to 60-80% of baseline pace) because their magnitude ratio stays above 0.65 regardless of threshold. When EMA direction reverses even briefly (current_bullish != baseline_bullish), is_pullback fires regardless of ratio. Critical for M5/M15 trending pullbacks where EMA5 barely decelerates before recovering.
+input int         Inp_RRM_ORG_MinPBBars_W             = 1;           // RRM ORG PB: A21 - LayerW min bars in DETECTED before IN-TREND (2/2/2 default)
+input int         Inp_RRM_ORG_MinPBBars_M             = 1;           // RRM ORG PB: A21 - LayerM min bars in DETECTED before IN-TREND (2/2/2 default)
+input int         Inp_RRM_ORG_MinPBBars_S             = 1;           // RRM ORG PB: A21 - LayerS min bars in DETECTED before IN-TREND (2/2/2 default)
+input int         Inp_RRM_ORG_LayerPullbackWindow_W   = 21;          // RRM ORG PB: LayerW observation window (bars; 0=use global)
+input int         Inp_RRM_ORG_LayerPullbackWindow_M   = 34;          // RRM ORG PB: LayerM observation window (bars; 0=use global)
+input int         Inp_RRM_ORG_LayerPullbackWindow_S   = 55;          // RRM ORG PB: LayerS observation window (bars; 0=use global)
+input int         Inp_RRM_ORG_LayerPullbackWindow     = 0;           // RRM ORG PB: GLOBAL observation-window override (bars; 0=disabled, use per-layer)
+input bool        Inp_RRM_ORG_AllowLayerS             = true;        // RRM ORG PB: allow Layer S (EMA3/4) entries
+input bool        Inp_RRM_ORG_AllowLayerM             = true;        // RRM ORG PB: allow Layer M (EMA2/3) entries
+input bool        Inp_RRM_ORG_AllowLayerW             = true;        // RRM ORG PB: allow Layer W (EMA1/2) entries
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: EMA Fan Filter (pips)";
 input group "╚════════════════════════════════════════════════════════╝";
-// F-AUDIT 2026-06: Inp_RRM_ORG_EmaFanFilter removed — toggle globalized to Inp_Global_F_EmaFanFilterEnabled
 input double      Inp_RRM_ORG_EmaFan_M5Pips        = 25.0;           // RRM ORG Fan: pips <M5
 input double      Inp_RRM_ORG_EmaFan_M30Pips       = 40.0;           // RRM ORG Fan: pips <M30
 input double      Inp_RRM_ORG_EmaFan_H1Pips        = 60.0;           // RRM ORG Fan: pips H1
 input double      Inp_RRM_ORG_EmaFan_H4Pips        = 100.0;          // RRM ORG Fan: pips H4
 input double      Inp_RRM_ORG_EmaFan_DailyPips     = 180.0;          // RRM ORG Fan: pips D1+
 input double      Inp_RRM_ORG_EmaFan_MaxPct        = 0.0;            // RRM ORG Fan: max gap % of price (>0 overrides pips; universal for all instruments)
-// F-AUDIT 2026-06: Inp_RRM_ORG_PriceExtFilter removed — toggle globalized to Inp_Global_F_PriceExtFilterEnabled
 input int         Inp_RRM_ORG_PriceExtRefEma       = 3;              // RRM ORG OverExt: ref EMA 1..4 (1=5 2=13 3=34 4=89)
 input double      Inp_RRM_ORG_PriceExtMaxATR       = 2.5;            // RRM ORG OverExt: block if |close-refEMA| > this x ATR
 input int         Inp_RRM_ORG_PriceExtAtrPeriod    = 14;             // RRM ORG OverExt: ATR period for distance
@@ -843,7 +738,7 @@ input group "╚═════════════════════�
 input bool        Inp_RRM_ORG_CandleBody_RequireDir   = true;        // RRM ORG CBody: CBody Require direction
 input int         Inp_RRM_ORG_CandleBody_AvgPeriod    = 14;          // RRM ORG CBody: CBody Average period       [SYNC 2026-06-04: 5→14 to match SignalScan CB_AvgPeriod]
 input double      Inp_RRM_ORG_CandleBody_MaxMult      = 3.0;         // RRM ORG CBody: CBody Max multiplier       [SYNC 2026-06-04: 4.0→3.0 to match SignalScan CB_MaxMult]
-input double      Inp_RRM_ORG_CandleBody_MinCloseRatio = 0.75;        // RRM ORG CBody: Min close ratio (0=off, 0.75=TopInvestor — rejects doji-like signal bars)
+input double      Inp_RRM_ORG_CandleBody_MinCloseRatio = 0.75;       // RRM ORG CBody: Min close ratio (0=off, 0.75=TopInvestor — rejects doji-like signal bars)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: CC Candle Close Settings";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -863,11 +758,6 @@ input double      Inp_RRM_ORG_CiRangingThreshold   = 61.8;           // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: MACD Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-// F-AUDIT 2026-07: Inp_RRM_ORG_MacdMode REMOVED — never referenced anywhere outside its
-// own declaration. Settings.MacdVoteMode (the field SEA_SignalEngine.mqh actually
-// switches on) is hardcoded MACD_HISTOGRAM per-preset in SEA_Presets.mqh; this input's
-// default happened to match, masking the disconnect. See Readme/README_SEA_PARAMETER_MAPPING.md
-// "Input Surface Audit" section.
 input bool        Inp_RRM_ORG_MacdSlope            = false;          // RRM ORG MACD: MACD require SLO
 input bool        Inp_RRM_ORG_MacdDiv              = false;          // RRM ORG MACD: BLOCK entry on MACD trend-exhaustion divergence (price HH but MACD LH for LONG; mirror for SHORT)
 input int         Inp_RRM_ORG_MacdDivLookback      = 10;             // RRM ORG MACD: Divergence detection window in bars (two non-overlapping windows of this size)
@@ -879,8 +769,6 @@ input double      Inp_RRM_ORG_MacdSlopeMin         = 0.00001;        // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: MFI Settings";
 input group "╚════════════════════════════════════════════════════════╝";
-// F-AUDIT 2026-07: Inp_RRM_ORG_Mfi_Mode REMOVED — fed Settings.MfiMode, a proven dead sink;
-// Check_MFI() never branches on it. See Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
 input int         Inp_RRM_ORG_Mfi_Period           = 14;             // RRM ORG MFI: MFI Period
 input double      Inp_RRM_ORG_Mfi_OB               = 80.0;           // RRM ORG MFI: MFI Overbought
 input double      Inp_RRM_ORG_Mfi_OS               = 20.0;           // RRM ORG MFI: MFI Oversold
@@ -893,7 +781,6 @@ input int         Inp_RRM_ORG_TrailPsarDotShift    = 1;              // RRM ORG 
 input int         Inp_RRM_ORG_PsarFlipDelay_W      = 3;              // RRM ORG PSAR: PSAR Flip delay LayerW override (-99=use global, 0=flip bar, 1-10=window) // LayerW (EMA1/2) override. -99 = use the global Vote_PsarFlipDelay; any other value overrides it for this layer only, same mode meanings. Resolved by GetEffectivePsarFlipDelay (SEA_SignalEngine.mqh), which takes the override whenever it is > -99. Rationale for windowing this layer more tightly than the others: W is the fastest pair and the most exposed to whipsaw immediately after a trend re-entry. Runtime ground truth is the [PSAR_RESOLVED] startup line and the cockpit PSAR row, which read live Settings - not this source default, which the MT5 dialog can override.
 input int         Inp_RRM_ORG_PsarFlipDelay_M      = 3;              // RRM ORG PSAR: PSAR Flip delay LayerM override (-99=use global, 0=flip bar, 1-10=window) // LayerM (EMA2/3) override. -99 = use the global Vote_PsarFlipDelay; any other value overrides it for this layer only, same mode meanings. Rationale for leaving this layer persistent: M entries are already confirmed by EMA13/34 structural alignment, so a recency test adds little. Rationale for windowing it: uniformity with W and S. Both are defensible; neither is derived. Runtime ground truth is the [PSAR_RESOLVED] startup line and the cockpit PSAR row, which read live Settings - not this source default, which the MT5 dialog can override.
 input int         Inp_RRM_ORG_PsarFlipDelay_S      = 3;              // RRM ORG PSAR: PSAR Flip delay LayerS override (-99=use global, 0=flip bar, 1-10=window) // LayerS (EMA3/4) override. -99 = use the global Vote_PsarFlipDelay; any other value overrides it for this layer only, same mode meanings. Rationale for leaving this layer persistent: S is the slowest, highest-conviction pair and a time-indexed gate adds little structural filtering. Rationale for windowing it: uniformity with W and M. Both are defensible; neither is derived. Runtime ground truth is the [PSAR_RESOLVED] startup line and the cockpit PSAR row, which read live Settings - not this source default, which the MT5 dialog can override.
-// REMOVED 2026-07-19 — Inp_RRM_ORG_PSAR_FlipGraceBars: the "grace window" passed a WRONG-side PSAR dot for N bars after an adverse flip, inverting the rule and producing wrong-side-dot TS=1 false positives (contradicted RRM checklist item 4). PSAR is now strict dot-side; RRM_ORG grace is hard-locked to 0 in SEA_Presets.mqh. Input deleted so it cannot be re-enabled.
 input double      Inp_RRM_ORG_PsarStep             = 0.05;           // RRM ORG PSAR: PSAR Step
 input double      Inp_RRM_ORG_PsarMax              = 0.5;            // RRM ORG PSAR: PSAR Max
 input group "╔════════════════════════════════════════════════════════╗";
@@ -918,9 +805,6 @@ input group "╚═════════════════════�
 input int         Inp_RRM_ORG_VRC_Lookback         = 100;            // RRM ORG VRC: lookback bars for regime classification
 input double      Inp_RRM_ORG_VRC_LowThreshold     = 33.0;           // RRM ORG VRC: low-volatility percentile threshold
 input int         Inp_RRM_ORG_VRC_RefreshSec       = 14400;          // RRM ORG VRC: percentile refresh interval (sec). M1: try 900; H1+: 14400 (4h)
-// F-AUDIT 2026-07: Inp_RRM_ORG_VRC_ATR_Period REMOVED — fed Settings.VRC_ATR_Period, a proven
-// dead sink; VRC's shared ATR handle actually uses Settings.P_Atr. See
-// Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit".
 #endif // SEA_PRESET_RRM_ORG
 
 #ifdef SEA_PRESET_TOPINVESTOR
@@ -928,17 +812,13 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET_TOPINVESTOR";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-// ════════════════════════════════════════════════════════════════
-// TOPINVESTOR: STANDARD — methodology defaults.
-// Change only when testing or adapting to different instruments.
-// ════════════════════════════════════════════════════════════════
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 TOPINVESTOR: STANDARD — EMA Ribbon";
+input group "║   📐 TOPINVESTOR: STANDARD — EMA Ribbon defaults";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_TI_Ema1                      = 9;              // TI EMA: EMA1 period (trailing exit ref)
-input int         Inp_TI_Ema2                      = 50;             // TI EMA: EMA2 period (primary bounce)
-input int         Inp_TI_Ema3                      = 89;             // TI EMA: EMA3 period (intermediate structure)
-input int         Inp_TI_Ema4                      = 200;            // TI EMA: EMA4 period (major trend anchor)
+input int         Inp_TI_Ema1                      = 9;              // TI EMA1:   9 (trailing exit ref)
+input int         Inp_TI_Ema2                      = 50;             // TI EMA2:  50 (primary bounce)
+input int         Inp_TI_Ema3                      = 89;             // TI EMA3:  89 (intermediate structure)
+input int         Inp_TI_Ema4                      = 200;            // TI EMA4: 200 (major trend anchor)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 TOPINVESTOR: STANDARD — Signal Architecture";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -969,10 +849,6 @@ input ETPMode     Inp_TI_TPMode                    = TP_MODE_RR;     // TI Exit:
 input double      Inp_TI_RRRatio                   = 2.0;            // TI Exit: R:R ratio
 input EBeMode     Inp_TI_BE_Mode                   = BE_MODE_R_MULTIPLE; // TI Exit: BE mode
 input double      Inp_TI_BE_RMultiple              = 1.0;            // TI Exit: BE trigger (N×R)
-// PRESET ISOLATION 2026-06: dedicated TI trail-start input
-// (previously TI block did not set RRM_TrailStartsAfterBE at all — it inherited
-// the runtime-default value of false from SEA_Inputs.mqh:1626).
-// Default preserved as false to match the inherited behavior.
 input bool        Inp_TI_TrailStartsAfterBE        = false;          // TI Exit: Safety override: trail after BE
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 TOPINVESTOR: STANDARD — EMA Fan Filter";
@@ -998,22 +874,15 @@ input bool        Inp_TI_VPRR_AutoEnable           = true;           // TI VPRR:
 input bool        Inp_TI_VPRR_Enabled              = false;          // TI VPRR: Manual enable (only used when AutoEnable=OFF)
 input int         Inp_TI_VPRR_RecoveryBars         = 5;              // TI VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
 input bool        Inp_TI_PhaseAllowEM              = true;           // TI: allow Emerging phase
-
-// ════════════════════════════════════════════════════════════════
-// TOPINVESTOR: Quick Profile + core toggles
-// ════════════════════════════════════════════════════════════════
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET_TOPINVESTOR — PROFILES";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input ETIProfile  Inp_TI_Profile                   = TI_MODERATE;    // TI: profile select
 input int         Inp_TI_MinBarsAfterClose         = 3;              // TI: cooldown bars after close (0=off)
-input int         Inp_TI_ReEntryLotScalePct        = 50;             // TI Re-entry: lot size % for re-entry after BE (0=full size; 50=half)
-// ════════════════════════════════════════════════════════════════
-// TOPINVESTOR: Conservative voters — always active
-// ════════════════════════════════════════════════════════════════
+input int         Inp_TI_ReEntryLotScalePct        = 50;             // TI: Re-entry: lot size % for re-entry after BE (0=full size; 50=half)
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 TOPINVESTOR: CONSERVATIVE (always active)";
+input group "║   📐 TOPINVESTOR: Profile: CONSERVATIVE (always active)";
 input group "╚════════════════════════════════════════════════════════╝";
 input double      Inp_TI_Psar_Step                 = 0.02;           // TI Con: PSAR step
 input double      Inp_TI_Psar_Max                  = 0.2;            // TI Con: PSAR max
@@ -1026,11 +895,8 @@ input double      Inp_TI_ADX_Threshold_Trend       = 25.0;           // TI Con: 
 input double      Inp_TI_ADX_Threshold_Dist        = 18.0;           // TI Con: ADX threshold Distribution
 input int         Inp_TI_CandleBody_AvgPeriod      = 10;             // TI Con: CBody avg period
 input double      Inp_TI_CandleBody_MaxMult        = 2.5;            // TI Con: CBody max spike mult
-// ════════════════════════════════════════════════════════════════
-// TOPINVESTOR: Moderate additions — active when Profile >= Moderate
-// ════════════════════════════════════════════════════════════════
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 TOPINVESTOR: MODERATE +=Conservative";
+input group "║   📐 TOPINVESTOR: Profile: MODERATE +=Conservative";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_TI_MACD_Fast                 = 12;             // TI Mod: MACD fast
 input int         Inp_TI_MACD_Slow                 = 26;             // TI Mod: MACD slow
@@ -1040,11 +906,8 @@ input double      Inp_TI_MACD_SlopeMin             = 0.00001;        // TI Mod: 
 input int         Inp_TI_CCI_Period                = 14;             // TI Mod: CCI period
 input int         Inp_TI_BB_Period                 = 20;             // TI Mod: BB period
 input double      Inp_TI_BB_Deviation              = 2.0;            // TI Mod: BB deviation
-// ════════════════════════════════════════════════════════════════
-// TOPINVESTOR: Full additions — active when Profile >= Full
-// ════════════════════════════════════════════════════════════════
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   📐 TOPINVESTOR: FULL +=Moderate";
+input group "║   📐 TOPINVESTOR: Profile: FULL +=Moderate";
 input group "╚════════════════════════════════════════════════════════╝";
 input double      Inp_TI_Fib_MinRetracement        = 0.38;           // TI Full: Fib min retracement
 input double      Inp_TI_Fib_MaxRetracement        = 0.618;          // TI Full: Fib max retracement
@@ -1089,7 +952,7 @@ input double      Inp_Global_VPRR_MinRatio_S             = 0.0;      // Global_V
 //input group "╚════════════════════════════════════════════════════════╝";
 // Pullback gate uses pure distance comparison: the current EMA gap must exceed the prior EMA gap (no pip threshold).
 input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🔧 STEP X: Trail EMA (engine seed defaults)"; // STEP9 2026-06: was "(PRESET_CUSTOM)"; CUSTOM preset retired in Step 4
+input group "║   🔧 STEP X: Trail EMA (engine seed defaults)"; 
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_Global_TrailEMA_Period             = 34;       // Global_TrailEMA_Period: for TRAIL_EMA mode
 input int         Inp_Global_TrailEMA_Shift              = 1;        // Global_TrailEMA_Shift: 1=current bar, 2=one bar cushion
