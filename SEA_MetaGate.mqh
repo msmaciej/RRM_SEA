@@ -35,11 +35,14 @@
 #property strict
 
 //==================== META INPUTS ==================================
-input bool   Inp_META_Enabled     = false;     // Inp_META_Enabled: false = behaves as today; true = gate active
-input bool   Inp_META_LogFeatures = false;     // Inp_META_LogFeatures: TRUE only for the COLLECT run
-input double Inp_META_Threshold   = 0.50;      // Inp_META_Threshold: fallback if model file lacks one
-input bool   Inp_META_SizeByScore = false;     // Inp_META_SizeByScore: scale lots by confidence
-input string Inp_META_PresetName  = "RRM_ORG"; // Inp_META_PresetName: drives the CSV file names
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🛡 (META) Inputs";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool   Inp_META_Enabled     = false;      // Inp_META_Enabled: false = behaves as today; true = gate active
+input bool   Inp_META_LogFeatures = false;      // Inp_META_LogFeatures: TRUE only for the COLLECT run
+input double Inp_META_Threshold   = 0.50;       // Inp_META_Threshold: fallback if model file lacks one
+input bool   Inp_META_SizeByScore = false;      // Inp_META_SizeByScore: scale lots by confidence
+input string Inp_META_PresetName  = "RRM_ORG";  // Inp_META_PresetName: drives the CSV file names
 input double Inp_META_LabelRR     = 1.5;        // Inp_META_LabelRR: LEGACY fallback only (fixed RR x SL label when no TS_outcomes file); B labels on realized BE-or-profit
 input int    Inp_META_LabelBars   = 24;         // Inp_META_LabelBars: LEGACY fallback only (fixed time-barrier when no TS_outcomes file)
 
@@ -421,7 +424,9 @@ bool MetaLoadModel()
    g_mtried = true; g_mcount = 0; g_mloaded = false;
    string fname = MetaModelFile();
    // NON-common — the trainer writes MetaModel next to the events file (MQL5\Files).
-   int h = FileOpen(fname, FILE_READ|FILE_CSV|FILE_ANSI, ',');
+   int h = FileOpen(fname, FILE_COMMON|FILE_READ|FILE_CSV|FILE_ANSI, ',');
+   if(h==INVALID_HANDLE)
+      h = FileOpen(fname, FILE_READ|FILE_CSV|FILE_ANSI, ',');
    if(h==INVALID_HANDLE) { Print("META: no model ", fname, " — gate inert"); return false; }
    while(!FileIsEnding(h))
    {

@@ -2,8 +2,26 @@
 # =============================================================================
 # rrm_meta.py  —  RRM EA meta-model trainer (Option 1: logistic regression)
 # =============================================================================
-# WHAT CHANGED vs the previous version (I/O layer only; the stats core — triple
-# barrier, PSR/deflated-Sharpe sweep, purged split, export — is unchanged):
+# WHAT THIS IS: Ladder 2 (the MODEL). It labels, fits a logistic regression, tunes
+# the decision threshold, and exports MetaModel_*.csv for the EA. It runs a SINGLE
+# purged HOLDOUT + PSR as a quick sanity read — it does NOT do purged K-fold / CPCV
+# / Deflated Sharpe / PBO. That honest validation is Ladder 1 (rrm_validate.py); run
+# it FIRST and only train the pairs it marks SHIP. (Earlier headers called this a
+# "deflated-Sharpe sweep" — it was never that; corrected 2026-08-03.)
+#
+# 2026-08-03 CORRECTIONS (this file):
+#   * DEAD-FEATURE GUARD. Before fitting, every feature is checked for zero variance
+#     (constant / all-zero / all-NaN). Dead columns are DROPPED from the model and
+#     loudly reported. This is the exact failure that can make a gate underperform:
+#     a feature logged as 0.0 every bar (the old macd_hist proxy, or a telemetry
+#     value collected before the engine wired it) teaches the model nothing and
+#     dilutes the rest. If you see DEAD columns here, DELETE the pair's TS_events_*
+#     and TS_outcomes_* and RE-COLLECT with the current EA before trusting anything.
+#   * HONEST OUTPUT. The run prints "purged HOLDOUT + PSR", the number of thresholds
+#     swept (a trial count), and a SHIP / DO-NOT-SHIP line — and points to Ladder 1.
+#
+# WHAT CHANGED earlier (I/O layer only; the stats core — triple barrier, PSR
+# threshold sweep, single purged holdout, export — is unchanged):
 #   * AUTO-LOCATES both CSVs anywhere under the MT5/Wine tree. The EA writes the
 #     events file with FILE_COMMON => it lands in  <terminal>\Common\Files , NOT
 #     the Tester agent sandbox. We search Common\Files, every Tester Agent-*\
@@ -314,6 +332,23 @@ def r_returns(sub):
     return np.nan_to_num(r, nan=0.0)
 
 
+# ----------------------------------------------------------------------------- feature health (dead-column guard)
+def feature_health(df, feats):
+    """One row per feature: %-present, %-zero, unique count, std, and a DEAD flag for
+    constant / all-zero / all-NaN columns. A DEAD feature carries no signal and is the
+    classic silent cause of 'the gate made things worse'. Same check as rrm_validate.py."""
+    rows = []
+    for f in feats:
+        x = pd.to_numeric(df[f], errors="coerce")
+        present = int(x.notna().sum()); nun = int(x.nunique(dropna=True))
+        std = float(x.std(ddof=1)) if present > 1 else 0.0
+        pz  = float((x == 0).mean()) if present else 1.0
+        dead = (present == 0) or (nun <= 1) or (std == 0.0)
+        rows.append(dict(feature=f, present_pct=100*present/max(1, len(x)),
+                         zero_pct=100*pz, nunique=nun, std=std, DEAD=bool(dead)))
+    return pd.DataFrame(rows).sort_values(["DEAD", "std"], ascending=[False, True]).reset_index(drop=True)
+
+
 # ----------------------------------------------------------------------------- train one pair+TF
 def train_one(ev_path, pair, tf, preset, files_dir):
     """Label + train + export for a single events file. Returns a one-line summary."""
@@ -353,6 +388,18 @@ def train_one(ev_path, pair, tf, preset, files_dir):
     print(f"labeled {len(ev)} events — win rate {ev['label'].mean():.1%}")
 
     feats = [c for c in ev.columns if c not in NON_FEATURES | {"label"}]
+
+    # --- DEAD-FEATURE GUARD (2026-08-03): never fit on a constant / all-zero column ---
+    health = feature_health(ev, feats)
+    dead = health[health["DEAD"]]["feature"].tolist()
+    if dead:
+        print(f"  ** DEAD features (constant/all-zero) DROPPED — they carry no signal and are a "
+              f"sign of stale/pre-fix data. Delete + re-COLLECT if unexpected: {dead}")
+    feats = [f for f in feats if f not in dead]
+    if not feats:
+        print(f"  SKIP {tag}: every feature is dead — delete TS_events_*/TS_outcomes_* and re-COLLECT.")
+        return (tag, "all features dead")
+
     n = len(ev); cut = int(n * (1 - TEST_FRACTION))
     train = ev.iloc[:max(0, cut - PURGE_BARS)].reset_index(drop=True)
     test  = ev.iloc[cut:].reset_index(drop=True)
@@ -369,8 +416,9 @@ def train_one(ev_path, pair, tf, preset, files_dir):
     clf.fit(sc.transform(train[feats].values), train["label"].values)
 
     ptr = clf.predict_proba(sc.transform(train[feats].values))[:, 1]
+    thr_grid = np.linspace(0.30, 0.80, 51)         # each threshold is a TRIAL (Ladder 1 deflates for these)
     best_thr, best_sr = 0.5, -1e9
-    for thr in np.linspace(0.30, 0.80, 51):
+    for thr in thr_grid:
         taken = train[ptr >= thr]
         if len(taken) < 20: continue
         sr, _ = psr(r_returns(taken))
@@ -379,8 +427,18 @@ def train_one(ev_path, pair, tf, preset, files_dir):
     pte = clf.predict_proba(sc.transform(test[feats].values))[:, 1]
     sr_all, _  = psr(r_returns(test))
     sr_gate, _ = psr(r_returns(test[pte >= best_thr]))
-    print(f"OUT-OF-SAMPLE  thr={best_thr:.3f}  trades {len(test)}->{int((pte>=best_thr).sum())}  "
-          f"R-Sharpe {sr_all:.3f}->{sr_gate:.3f}")
+    def _pf(rr):
+        rr = np.asarray(rr, float); g = rr[rr > 0].sum(); l = -rr[rr < 0].sum()
+        return (g / l) if l > 0 else float("inf")
+    r_te = r_returns(test); r_gt = r_returns(test[pte >= best_thr])
+    ship = (not math.isnan(sr_gate)) and (not math.isnan(sr_all)) and (sr_gate > sr_all)
+    print(f"PURGED HOLDOUT + PSR  (NOT deflated — run rrm_validate.py for CPCV / DSR / PBO)")
+    print(f"OUT-OF-SAMPLE  thr={best_thr:.3f}  ({len(thr_grid)} thresholds tried)  "
+          f"trades {len(test)}->{int((pte>=best_thr).sum())}  R-Sharpe {sr_all:.3f}->{sr_gate:.3f}")
+    print(f"PROFITABILITY (realized R)  ungated: {r_te.sum():+.1f}R total, PF {_pf(r_te):.2f}"
+          f"   gated: {r_gt.sum():+.1f}R total, PF {_pf(r_gt):.2f}   <- 'are we making money?'")
+    print(f"  {'SHIP-candidate' if ship else 'DO NOT SHIP'}: gated {'>' if ship else '<='} ungated on this "
+          f"one holdout. Confirm with Ladder 1 (DSR>0.95 & PBO<0.5) before trusting it.")
 
     key = f"{preset}_{pair}_{tf}" if pair else preset
     model_name = f"MetaModel_{key}.csv"
@@ -417,6 +475,8 @@ def main():
                     help="dry-run: report which pairs have events+outcomes and what would happen; writes nothing")
     args = ap.parse_args()
 
+    print("=== rrm_meta.py — Ladder 2 (TRAIN): purged holdout + PSR sanity, then export ===")
+    print("    Ladder 1 (rrm_validate.py) is the honest check — run it FIRST.\n")
     files_dir, cfg_pair, cfg_tf, preset = resolve(load_config(), args)
 
     ev_paths = find_all_events(files_dir, preset)
@@ -488,7 +548,9 @@ def main():
     print("\n===================== SUMMARY =====================")
     for tag, msg in results:
         print(f"  {tag:<18} {msg}")
-    print("Ship a model only if its gated R-Sharpe beat ungated (out-of-sample).")
+    print("\nThis is a purged-HOLDOUT + PSR sanity read, NOT honest validation.")
+    print("Before shipping ANY model: run  python3 rrm_validate.py  (Ladder 1) and")
+    print("ship a pair only if it passes there (Deflated Sharpe > 0.95 and PBO < 0.5).")
 
 
 if __name__ == "__main__":
