@@ -320,6 +320,7 @@ private:
    double   m_mema_b4[];
    datetime m_mema_anchor[4];   // iTime(_,_,1) each buffer is aligned to
    int      m_mema_period[4];   // period each buffer was built with
+   datetime m_mema_oldest[4];   // oldest observed bar time at build (D1: backfill re-seed)
 
    int h_macd, h_rsi, h_cci, h_sto;      // Oscillators
    int h_atr, h_bb, h_psar, h_fractals;  // Volatility & Trend
@@ -894,6 +895,7 @@ private:
 
       m_mema_anchor[s0] = iTime(m_symbol, PERIOD_CURRENT, 1);
       m_mema_period[s0] = period;
+      m_mema_oldest[s0] = iTime(m_symbol, PERIOD_CURRENT, avail - 1);  // D1: seed depth iMA observes
       return true;
    }
 
@@ -927,6 +929,18 @@ private:
 
       if(m_mema_period[s0] != period || ArraySize(buf) == 0)
          return MEMA_Build(s0, period, buf);
+
+      // D1 (2026-08): re-seed on history backfill. iMA re-derives when older
+      // bars load (its seed moves earlier); the manual series must too, or a
+      // slot first built on shallow history stays shallow-seeded (only extended
+      // forward). Seed error grows with period, so EMA34/EMA89 read pips off
+      // while EMA5/EMA13 look fine -> a false ribbon order. Detect deeper history
+      // by the oldest available bar moving earlier than at build.
+      const int      avail_now  = Bars(m_symbol, PERIOD_CURRENT);
+      const datetime oldest_now = (avail_now > 0)
+                                  ? iTime(m_symbol, PERIOD_CURRENT, avail_now - 1) : 0;
+      if(oldest_now != 0 && m_mema_oldest[s0] != 0 && oldest_now < m_mema_oldest[s0])
+         return MEMA_Build(s0, period, buf);            // backfilled deeper -> re-seed
 
       if(m_mema_anchor[s0] == t1) return true;          // already current
 
@@ -1250,6 +1264,24 @@ private:
       }
       // Non-ribbon handle — direct read with validity
       return GetMAVal(handle, shift, 0, out_valid);
+   }
+
+   //+------------------------------------------------------------------+
+   //| LayerRead — validity-latching ribbon read for the layer machine  |
+   //+------------------------------------------------------------------+
+   // D2 (2026-08): the pullback/recovery state machine previously read the
+   // ribbon via raw GetMAVal(handle) — iMA-only (no manual fallback) and
+   // with validity DISCARDED (silent 0.0 on failure), violating the L493
+   // "no direct GetMAVal(h_ema*)" invariant and splitting the ribbon across
+   // two read paths. This routes those reads through the SAME safe chain as
+   // phase/bias (snapshot -> iMA -> manual) and latches `acc` false if any
+   // read is unproducible, so the caller can fail closed.
+   double LayerRead(const int handle, const int shift, bool &acc)
+   {
+      bool o = false;
+      double v = GetMAValSafe(handle, shift, o);
+      if(!o) acc = false;
+      return v;
    }
 
 
@@ -2338,11 +2370,17 @@ private:
                                   int min_pb_bars = 0,
                                   int window = 0)
    {
+      // D2 (2026-08): route ribbon reads through the shared safe path (snapshot
+      // -> iMA -> manual), same source phase/bias use — not raw GetMAVal
+      // (iMA-only, validity discarded). reads_ok latches false if any fast-core
+      // slope input is unproducible (ERR); guarded before it can transition state.
+      bool reads_ok = true;
+
       // -- Baseline DIRECTION (refined, kept): sign of the EMA slope on the bar
       //    JUST BEFORE the lookback window, so an in-progress pullback cannot
       //    contaminate the trend direction we measure against.
-      double ema_baseline_old = GetMAVal(fast_ema_handle, v_shift + lookback + 1);
-      double ema_baseline_new = GetMAVal(fast_ema_handle, v_shift + lookback);
+      double ema_baseline_old = LayerRead(fast_ema_handle, v_shift + lookback + 1, reads_ok);
+      double ema_baseline_new = LayerRead(fast_ema_handle, v_shift + lookback, reads_ok);
       double baseline_slope   = ema_baseline_new - ema_baseline_old;   // sign = pre-pullback dir
       baseline = baseline_slope;
       bool baseline_bullish   = (baseline_slope > 0.0);
@@ -2351,8 +2389,8 @@ private:
       //    lookback window ending just before the current bar. Averaging (vs a
       //    single-bar value) is the fix that stops slow EMAs (34/89) reading as
       //    falsely "weakened" -- the bug that originally got magnitude removed.
-      double ema_pace_old = GetMAVal(fast_ema_handle, v_shift + lookback + 1);
-      double ema_pace_new = GetMAVal(fast_ema_handle, v_shift + 1);
+      double ema_pace_old = LayerRead(fast_ema_handle, v_shift + lookback + 1, reads_ok);
+      double ema_pace_new = LayerRead(fast_ema_handle, v_shift + 1, reads_ok);
       double baseline_pace = (lookback > 0) ? (ema_pace_new - ema_pace_old) / (double)lookback : 0.0;
 
       // -- Current PACE (ratio numerator): k-bar recent slope, NOT one bar.
@@ -2360,8 +2398,8 @@ private:
       //    smoothed more than the fast W layer. This + the averaged denominator
       //    is the slow-EMA root-cause fix.
       int    k        = (int)MathMax(2.0, (double)lookback / 4.0);
-      double ema_now  = GetMAVal(fast_ema_handle, v_shift);
-      double ema_kago = GetMAVal(fast_ema_handle, v_shift + k);
+      double ema_now  = LayerRead(fast_ema_handle, v_shift, reads_ok);
+      double ema_kago = LayerRead(fast_ema_handle, v_shift + k, reads_ok);
       double current_pace    = (ema_now - ema_kago) / (double)k;
       bool   current_bullish = (current_pace > 0.0);
 
@@ -2369,6 +2407,17 @@ private:
       double ratio = 0.0;
       if(MathAbs(baseline_pace) >= SEA_LAYER_SLOPE_EPSILON)
          ratio = MathAbs(current_pace) / MathAbs(baseline_pace);
+
+      // D2 (2026-08): fail-closed if a fast-EMA slope input could not be produced
+      // (iMA AND manual both failed -> ERR). A mixed valid/0.0 read would forge a
+      // phantom pullback or relapse; skip this bar and preserve prior state. The
+      // position and recovery blocks below already self-guard on non-positive reads.
+      if(!reads_ok)
+      {
+         if(m_settings.DebugFlow)
+            DebugLog(StringFormat("[%s_PB] skip: ribbon read ERR -> state preserved", label));
+         return;
+      }
 
       // -- Path 2 (2026-07): POSITION (cross) invalidation. If the fast EMA has
       //    crossed to the WRONG side of the slow EMA, the ribbon is no longer
@@ -2380,8 +2429,8 @@ private:
       //    bias is known and a slow handle was supplied.
       if(bias_dir != 0 && slow_ema_handle != INVALID_HANDLE)
       {
-         double pos_fast = GetMAVal(fast_ema_handle, v_shift);
-         double pos_slow = GetMAVal(slow_ema_handle, v_shift);
+         double pos_fast = LayerRead(fast_ema_handle, v_shift, reads_ok);
+         double pos_slow = LayerRead(slow_ema_handle, v_shift, reads_ok);
          if(pos_fast > 0.0 && pos_slow > 0.0)
          {
             bool position_ok = (bias_dir > 0) ? (pos_fast > pos_slow) : (pos_fast < pos_slow);
@@ -2460,8 +2509,8 @@ private:
             bool slow_in_bias = true;   // defensive default if no slow handle
             if(slow_ema_handle != INVALID_HANDLE)
             {
-               double slow_now  = GetMAVal(slow_ema_handle, v_shift);
-               double slow_kago = GetMAVal(slow_ema_handle, v_shift + k);
+               double slow_now  = LayerRead(slow_ema_handle, v_shift, reads_ok);
+               double slow_kago = LayerRead(slow_ema_handle, v_shift + k, reads_ok);
                double slow_pace = (slow_now - slow_kago) / (double)k;
                slow_in_bias = (slow_pace != 0.0) &&
                               ((bias_dir > 0) == (slow_pace > 0.0));
@@ -2472,8 +2521,8 @@ private:
          {
             // Back-compat fallback when no bias is supplied (bias_dir == 0):
             // 1-bar slope-sign test against the historical baseline direction.
-            double ema_rec_now  = GetMAVal(fast_ema_handle, v_shift);
-            double ema_rec_prev = GetMAVal(fast_ema_handle, v_shift + 1);
+            double ema_rec_now  = LayerRead(fast_ema_handle, v_shift, reads_ok);
+            double ema_rec_prev = LayerRead(fast_ema_handle, v_shift + 1, reads_ok);
             double rec_slope    = ema_rec_now - ema_rec_prev;
             is_recovery = (rec_slope != 0.0) && (baseline_bullish == (rec_slope > 0.0));
          }
@@ -6007,6 +6056,7 @@ public:
       {
          m_mema_anchor[mi] = 0;
          m_mema_period[mi] = 0;
+         m_mema_oldest[mi] = 0;
       }
       ArrayFree(m_mema_b1);
       ArrayFree(m_mema_b2);
