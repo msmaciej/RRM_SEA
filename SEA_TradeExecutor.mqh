@@ -3532,6 +3532,12 @@ public:
          return;
       }
 
+      // Universal exit for non-RRM profiles (SIMPLE/NONE): break-even + let-profit-run ladder.
+      // No-op unless configured (TryMoveToBreakEven returns on BE_MODE_OFF; ladder returns on !LPR_LadderEnabled),
+      // so FPM/MA are unaffected; XEMA gets BE-at-R and the R-ladder here.
+      TryMoveToBreakEven(ticket);
+      TryTrailRLadder(ticket);
+
       if(m_settings.TrailMode == TRAIL_NONE) return;
 
       ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);

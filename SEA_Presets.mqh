@@ -3004,6 +3004,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BlockEmergingPhase    = false;
       cfg.P_Ema1 = Inp_XEMA_EmaFast;
       cfg.P_Ema2 = Inp_XEMA_EmaSlow;
+      cfg.BiasFastID = (int)ROLE_EMA1;   // cross FAST = ribbon slot 1 = P_Ema1 (Inp_XEMA_EmaFast)
+      cfg.BiasSlowID = (int)ROLE_EMA2;   // cross SLOW = ribbon slot 2 = P_Ema2 (Inp_XEMA_EmaSlow)
       cfg.Ind_MTF_Enabled = Inp_XEMA_MTF_Enabled;
       cfg.MTF_TF1 = Inp_XEMA_MTF_TF1;
       cfg.MTF_TF2 = Inp_XEMA_MTF_TF2;
