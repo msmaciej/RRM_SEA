@@ -1661,7 +1661,7 @@ This project uses a strict, file-owned, multi-agent workflow coordinated by **SE
 **Important:**
 - Legacy documentation is archived in `Legacy/` and must not be used unless explicitly requested.
 - Preset behavior is intentionally anti-confusion:
-  - `PRESET_CUSTOM` → inputs control the strategy
+  - (Retired 2026-06) `PRESET_CUSTOM` once let inputs control the strategy; every preset now defines its own strategy-critical settings, with policy inputs always user-editable.
   - any other preset → preset fully defines strategy-critical settings and overrides strategy inputs
 
 
@@ -1673,7 +1673,7 @@ This project uses a strict, file-owned, multi-agent workflow coordinated by **SE
 |------|--------|---------|
 | 🎯 ZONE 1 | `══ ZONE 1: PRESET SELECTION ══` | Magic number and strategy preset selection |
 | ✅ ZONE 2 | `══ ZONE 2: USER CONTROLS (Policy A — always editable) ══` | Operator gates and UI/diagnostic settings — always respected regardless of preset |
-| ℹ️ ZONE 3A | `══ ZONE 3A: PRESET INFO (presets override these when active) ══` | Reference defaults — effective in `PRESET_CUSTOM`; preset overrides these when any other preset is active |
+| ℹ️ ZONE 3A | `══ ZONE 3A: PRESET INFO (presets override these when active) ══` | Reference/seed defaults — presets override these when active (the `PRESET_CUSTOM` that once made them directly effective was retired 2026-06) |
 
 ### Zone 2 — User Controls (Policy A gates)
 

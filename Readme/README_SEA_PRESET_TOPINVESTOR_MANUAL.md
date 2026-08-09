@@ -378,13 +378,11 @@ Add to the `EStrategyPreset` enum:
 ```mql5
 enum EStrategyPreset
 {
-   PRESET_CUSTOM,
-   PRESET_FPM,
    PRESET_MA,
-   PRESET_RRM,
+   PRESET_TOPINVESTOR,
+   PRESET_FPM,
    PRESET_RRM_ORG,
-   PRESET_TEST,
-   PRESET_TOPINVESTOR    // NEW: TopInvestor / OXO methodology
+   PRESET_XEMA
 };
 ```
 

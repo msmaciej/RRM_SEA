@@ -15,7 +15,10 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "    🎯 PRESET SELECTOR (GLOBAL)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input ulong     Inp_Global_MagicNum                = 12345;          // Magic number (trade identifier)
-input EStrategyPreset Inp_Global_Preset            = PRESET_RRM_ORG; // Strategy preset
+// Pick ONE of the 5 presets below (type PRESET_ to autocomplete). A preset only works if its
+// matching compile switch #define SEA_BUILD_<NAME> is uncommented in SEA_Config.mqh.
+// Valid values: PRESET_MA | PRESET_FPM | PRESET_RRM_ORG | PRESET_TOPINVESTOR | PRESET_XEMA
+input EStrategyPreset Inp_Global_Preset            = PRESET_XEMA; // Strategy preset (see note above)
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    💰 (GLOBAL) TRADE / RISK MANAGEMENT (TM)/(RM)";
@@ -38,6 +41,20 @@ input bool        Inp_RM_UseMarginAdjustment       = true;           // RM Adapt
 input double      Inp_RM_AdaptiveRisk_M1           = 1.0;            // RM Adaptive: risk % on M1
 input double      Inp_RM_AdaptiveRisk_M5           = 1.5;            // RM Adaptive: risk % on M5
 input double      Inp_RM_AdaptiveRisk_M15Plus      = 2.0;            // RM Adaptive: risk % on M15+
+
+// === Universal: Let Profit Run (R-ladder) - all presets except MA ===
+input string      Inp_Global_LPR_Hdr     = "=== Let Profit Run (R-ladder) ===";  // ---
+input bool        Inp_Global_LPR_Enabled = false;   // LPR: enable R-ladder profit lock (OFF preserves existing preset exits)
+input double      Inp_Global_LPR_Trig1   = 3.0;     // LPR: at 3R ...
+input double      Inp_Global_LPR_Lock1   = 2.0;     // LPR: ... lock 2R
+input double      Inp_Global_LPR_Trig2   = 4.0;     // LPR: at 4R ...
+input double      Inp_Global_LPR_Lock2   = 3.0;     // LPR: ... lock 3R
+input double      Inp_Global_LPR_Trig3   = 0.0;     // LPR: step 3 trigger (0 = off)
+input double      Inp_Global_LPR_Lock3   = 0.0;     // LPR: step 3 lock
+// === Universal: daily profit target - all presets except MA ===
+input string      Inp_Global_DT_Hdr      = "=== Daily profit target ===";  // ---
+input bool        Inp_Global_DailyTarget_Enabled = false; // Daily: stop new entries when day's realized P&L hits target
+input double      Inp_Global_DailyTarget_Pct     = 10.0;  // Daily: target % of day-start balance
 input group " ";
 input double      Inp_RM_Override_SL_Cushion       = 0.0;            // RM Override: SL cushion pips (0=auto)
 input double      Inp_RM_Override_Trail_Cushion    = 0.0;            // RM Override: Trail cushion pips (0=auto)
@@ -235,7 +252,7 @@ input group "╚═════════════════════�
 input bool        Inp_Debug_ExportCSV              = false;          // Report: Export CSV reporting
 input bool        Inp_Debug_ExportUseCommonFiles   = false;          // Report: Use terminal Common Files folder
 
-#ifdef SEA_PRESET_MA
+#ifdef SEA_BUILD_MA
 //
 // Inp_MA_MaximumRiskPct / Inp_MA_DecreaseFactor REMOVED — Settings.MA_MaximumRiskPct
 // and Settings.MA_DecreaseFactor (the fields SEA_TradeExecutor.mqh actually uses for MA-benchmark lot
@@ -252,9 +269,9 @@ input group "║   🛑 MT5 Moving Average Benchmark (PRESET_MA)";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_MA_Period                    = 12;             // MA period
 input int         Inp_MA_Shift                     = 6;              // MA shift
-#endif // SEA_PRESET_MA
+#endif // SEA_BUILD_MA
 
-#ifdef SEA_PRESET_FPM
+#ifdef SEA_BUILD_FPM
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET_FPM";
@@ -289,7 +306,7 @@ input group "║   📊 FPM: MFI Volume Confirmation";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_FPM_Ind_Mfi_Enabled          = true;           // FPM MFI: Enable MFI volume gate (MFI>50 for longs, <50 for shorts)
 input int         Inp_FPM_Mfi_Period               = 14;             // FPM MFI: period (default 14)
-#endif // SEA_PRESET_FPM
+#endif // SEA_BUILD_FPM
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -382,7 +399,7 @@ input bool        Inp_RRM_ORG_VPRR_AutoEnable      = false;          // RRM ORG 
 input bool        Inp_RRM_ORG_VPRR_Enabled         = false;          // RRM ORG VPRR: Manual enable (only used when AutoEnable=OFF)
 input int         Inp_RRM_ORG_VPRR_RecoveryBars    = 5;              // RRM ORG VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
 
-#ifdef SEA_PRESET_RRM_ORG
+#ifdef SEA_BUILD_RRM_ORG
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET_RRM_ORG — DPI";
@@ -785,9 +802,9 @@ input group "╚═════════════════════�
 input int         Inp_RRM_ORG_VRC_Lookback         = 100;            // RRM ORG VRC: lookback bars for regime classification
 input double      Inp_RRM_ORG_VRC_LowThreshold     = 33.0;           // RRM ORG VRC: low-volatility percentile threshold
 input int         Inp_RRM_ORG_VRC_RefreshSec       = 14400;          // RRM ORG VRC: percentile refresh interval (sec). M1: try 900; H1+: 14400 (4h)
-#endif // SEA_PRESET_RRM_ORG
+#endif // SEA_BUILD_RRM_ORG
 
-#ifdef SEA_PRESET_TOPINVESTOR
+#ifdef SEA_BUILD_TOPINVESTOR
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET_TOPINVESTOR";
@@ -893,7 +910,51 @@ input double      Inp_TI_Fib_MinRetracement        = 0.38;           // TI Full:
 input double      Inp_TI_Fib_MaxRetracement        = 0.618;          // TI Full: Fib max retracement
 input int         Inp_TI_Fib_SwingLookback         = 50;             // TI Full: Fib swing lookback
 input double      Inp_TI_CandleBody_FullRatio      = 0.75;           // TI Full: min close ratio for body quality gate
-#endif // SEA_PRESET_TOPINVESTOR
+#endif // SEA_BUILD_TOPINVESTOR
+
+#ifdef SEA_BUILD_XEMA
+// ===================== PRESET_XEMA INPUTS =====================
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    📐 PRESET_XEMA";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group " ";
+input string  Inp_XEMA_H1  = "=== XEMA: Entry cross ===";        // ---
+input int     Inp_XEMA_EmaFast         = 20;   // XEMA: fast EMA (entry cross)
+input int     Inp_XEMA_EmaSlow         = 50;   // XEMA: slow EMA (entry cross)
+input group " ";
+input string  Inp_XEMA_H2  = "=== XEMA: HTF confirmation ===";   // ---
+input bool    Inp_XEMA_MTF_Enabled     = true; // XEMA: HTF filter (KEEP ON - condition 1)
+input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF1 = PERIOD_M15; // XEMA: HTF #1
+input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF2 = PERIOD_H1;  // XEMA: HTF #2 (PERIOD_CURRENT = single-HTF)
+input int     Inp_XEMA_MTF_EMA_Fast    = 20;   // XEMA: HTF fast EMA (== slow => single-EMA slope)
+input int     Inp_XEMA_MTF_EMA_Slow    = 50;   // XEMA: HTF slow EMA (shared across both HTFs)
+input group " ";
+input string  Inp_XEMA_H3  = "=== XEMA: Anti-range voters ===";  // ---
+input bool    Inp_XEMA_Use_Adx         = true; // XEMA: ADX trend-strength gate (recommended)
+input int     Inp_XEMA_ADX_Period      = 14;   // XEMA: ADX period
+input double  Inp_XEMA_ADX_Percentile  = 50.0; // XEMA: ADX dynamic percentile
+input int     Inp_XEMA_ADX_Lookback    = 100;  // XEMA: ADX percentile lookback
+input group " ";
+input bool    Inp_XEMA_Use_Bb          = false;// XEMA: BB-widening gate
+input int     Inp_XEMA_BB_Period       = 20;   // XEMA: BB period
+input double  Inp_XEMA_BB_Deviation    = 2.0;  // XEMA: BB deviation
+input group " ";
+input bool    Inp_XEMA_Use_CI          = false;// XEMA: Choppiness gate (native inline calc; no external file)
+input int     Inp_XEMA_CI_Period       = 14;   // XEMA: CI period
+input double  Inp_XEMA_CI_RangingThresh = 61.8; // XEMA: CI ranging threshold
+input group " ";
+input string  Inp_XEMA_H4  = "=== XEMA: Stop loss ===";          // ---
+input ESLMode Inp_XEMA_SLMode          = SL_MODE_SWING; // XEMA: SL mode
+input int     Inp_XEMA_SwingLookback   = 20;   // XEMA: swing lookback
+input int     Inp_XEMA_SL_AtrPeriod    = 14;   // XEMA: ATR period (SL_MODE_ATR)
+input double  Inp_XEMA_SL_AtrMult      = 1.0;  // XEMA: ATR mult (SL_MODE_ATR)
+input group " ";
+input string  Inp_XEMA_H5  = "=== XEMA: Exit ===";               // ---
+input EBeMode Inp_XEMA_BE_Mode         = BE_MODE_R_MULTIPLE; // XEMA: BE mode
+input double  Inp_XEMA_BE_RMultiple    = 2.0;  // XEMA: move SL to BE at N*R
+input ETrailingMode Inp_XEMA_TrailMode = TRAIL_NONE; // XEMA: post-BE trail (NONE = rely on LPR ladder / reverse cross)
+#endif // SEA_BUILD_XEMA
 
 
 input group " ";
@@ -1387,6 +1448,20 @@ void InitializeConfig()
    Settings.AdaptiveRisk_M1         = MathMax(0.0, Inp_RM_AdaptiveRisk_M1);
    Settings.AdaptiveRisk_M5         = MathMax(0.0, Inp_RM_AdaptiveRisk_M5);
    Settings.AdaptiveRisk_M15Plus    = MathMax(0.0, Inp_RM_AdaptiveRisk_M15Plus);
+   // Universal LPR ladder (pack non-zero ascending pairs)
+   Settings.LPR_LadderEnabled = Inp_Global_LPR_Enabled;
+   {
+      int lc = 0;
+      double lt[3] = {Inp_Global_LPR_Trig1, Inp_Global_LPR_Trig2, Inp_Global_LPR_Trig3};
+      double ll[3] = {Inp_Global_LPR_Lock1, Inp_Global_LPR_Lock2, Inp_Global_LPR_Lock3};
+      for(int i = 0; i < 3; i++)
+         if(lt[i] > 0.0 && ll[i] > 0.0 && ll[i] < lt[i])
+         { Settings.LPR_LadderTriggerR[lc] = lt[i]; Settings.LPR_LadderLockR[lc] = ll[i]; lc++; }
+      Settings.LPR_LadderCount = lc;
+   }
+   // Universal daily target
+   Settings.DailyTarget_Enabled = Inp_Global_DailyTarget_Enabled;
+   Settings.DailyTarget_Pct     = MathMax(0.0, Inp_Global_DailyTarget_Pct);
    Settings.Override_SL_Cushion     = MathMax(0.0, Inp_RM_Override_SL_Cushion);
    Settings.Override_Trail_Cushion  = MathMax(0.0, Inp_RM_Override_Trail_Cushion);
    Settings.Override_BE_Cushion     = MathMax(0.0, Inp_RM_Override_BE_Cushion);

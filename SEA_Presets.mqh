@@ -704,6 +704,7 @@ string PresetToString(EStrategyPreset p)
       case PRESET_RRM_ORG:      return "RRM_ORG";
       // STEP2 2026-06: PRESET_TEST case removed
       case PRESET_TOPINVESTOR:  return "TOPINVESTOR";
+      case PRESET_XEMA:         return "XEMA";
       default:                  return "UNKNOWN";
    }
 }
@@ -725,6 +726,8 @@ string GetPresetContractWording(EStrategyPreset preset)
       // STEP2 2026-06: PRESET_TEST wording removed
       case PRESET_TOPINVESTOR:
          return "PRESET_TOPINVESTOR"; //: TopInvestor/OXO methodology (EMA50/200 confluence); 3 profiles via Inp_TI_* toggles: Conservative(5), Moderate(8), Full(11 voters).";
+      case PRESET_XEMA:
+         return "PRESET_XEMA"; //: EMA-cross entry/exit (flexible periods); HTF confirmation + optional ADX/BB/CI anti-range; swing/ATR SL; per-TF risk; let-profit-run ladder + reverse-cross TP.";
       default:
          return "PRESET_ACTIVE"; //: Preset active; strategy-critical settings fixed by preset.";
    }
@@ -1163,6 +1166,12 @@ void ValidateTI_ExitConfig(ST_Settings &cfg)
 // ═══════════════════════════════════════════════════════════════════════
 // EXIT CONFIGURATION VALIDATION (PRESET_RRM_ORG)
 // ═══════════════════════════════════════════════════════════════════════
+void ValidateXEMA_ExitConfig(ST_Settings &cfg)
+{
+   if(cfg.TPMode != TP_MODE_NONE)  { Print("XEMA: TPMode forced NONE (reverse-cross exit)."); cfg.TPMode = TP_MODE_NONE; }
+   if(!cfg.CloseOnReverse)         { Print("XEMA: CloseOnReverse forced true."); cfg.CloseOnReverse = true; }
+}
+
 void ValidateRRM_ORG_ExitConfig(ST_Settings &cfg)
 {
    string warnings = "";
@@ -1374,7 +1383,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    // in SEA_Inputs.mqh as seed defaults for InitializeConfig (~310 reads).
 
 
-#ifdef SEA_PRESET_FPM
+#ifdef SEA_BUILD_FPM
    if(preset == PRESET_FPM)
    {
       // ================================================================
@@ -1643,10 +1652,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       ValidateFPM_ExitConfig(cfg);
       return;
    }
-   #endif // SEA_PRESET_FPM
+   #endif // SEA_BUILD_FPM
    
    
-   #ifdef SEA_PRESET_MA
+   #ifdef SEA_BUILD_MA
    if(preset == PRESET_MA)
    {
       // ================================================================
@@ -1672,6 +1681,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RequirePriceCross      = true;
       cfg.MABenchmarkStrict      = true;
       cfg.UseMACompatSizer       = true;
+      cfg.LPR_LadderEnabled   = false;   // benchmark purity: no let-profit-run
+      cfg.DailyTarget_Enabled = false;   // benchmark runs continuously
    
       // ================================================================
       // INDICATOR VOTING CONFIGURATION (Alphabetical)
@@ -1923,17 +1934,17 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       ValidateMA_ExitConfig(cfg);
       return;
    }
-   #endif // SEA_PRESET_MA
+   #endif // SEA_BUILD_MA
    
    
-   // STEP3 2026-06: PRESET_RRM preset block removed (~315 lines under #ifdef SEA_PRESET_RRM_FAMILY).
+   // STEP3 2026-06: PRESET_RRM preset block removed (~315 lines under #ifdef SEA_BUILD_RRM_FAMILY).
    // Was a variant of RRM_ORG (Phase-Based Trend Pullback methodology) that wasn't
    // actively traded. The RRM_FAMILY guard concept retired — RRM_ORG owns its
    // own inputs (Inp_RRM_ORG_*) directly. ValidateRRM_ExitConfig also removed.
 
    
    
-   #ifdef SEA_PRESET_RRM_ORG
+   #ifdef SEA_BUILD_RRM_ORG
    if(preset == PRESET_RRM_ORG)
    {
 
@@ -2572,10 +2583,10 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       ValidateRRM_ORG_ExitConfig(cfg);
       return;
    }
-   #endif // SEA_PRESET_RRM_ORG
+   #endif // SEA_BUILD_RRM_ORG
    
    
-   #ifdef SEA_PRESET_TOPINVESTOR
+   #ifdef SEA_BUILD_TOPINVESTOR
    if(preset == PRESET_TOPINVESTOR)
    {
       // ================================================================
@@ -2687,9 +2698,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_MinCloseRatio   = (Inp_TI_Profile >= TI_FULL) ? Inp_TI_CandleBody_FullRatio : 0.0;
 
       // Choppiness Index — ranging market blocker
-      // NOTE: Requires ChoppinessIndex.ex5 custom indicator installed in MQL5/Indicators/
-      // Set to false by default; enable only if the indicator is available.
-      cfg.Ind_CI_Enabled         = false;              // LOCKED off: external dependency (ChoppinessIndex.ex5 must be installed); enabling by default would crash on clean installs
+      // Vote uses the engine's inline CalculateCI() (Dreiss/TradingView formula; A7 fix 2026-06).
+      // No external indicator required and cannot crash. OFF here is a TI profile choice, not a dependency.
+      cfg.Ind_CI_Enabled         = false;              // off by default in TI (profile choice); safe to enable - inline calc, no external file
       cfg.CI_Period              = 14;                 // standard CI period — only relevant if Ind_CI_Enabled is manually set true
       cfg.CI_RangingThreshold    = 61.8;               // standard ranging threshold (Fibonacci level) — only relevant if CI enabled
 
@@ -2747,8 +2758,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // RSI, MFI, Stochastic, ATR, VRC, P123, Ross are all disabled.
       // TI uses PSAR+ADX+CandleBody (Conservative), MACD+CCI+BB (Moderate),
       // DPI+SmaConv+Fib (Full). These oscillators overlap in function and
-      // would introduce redundant or conflicting votes. Enable via PRESET_CUSTOM
-      // if you want to test them in isolation.
+      // would introduce redundant or conflicting votes. To test one in isolation,
+      // enable it via its global toggle in a preset that exposes it (PRESET_CUSTOM was retired 2026-06).
       cfg.Ind_Rsi_Enabled        = false;
       cfg.Ind_Mfi_Enabled        = false;
       cfg.Ind_Sto_Enabled        = false;
@@ -2760,8 +2771,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       // ── OTHER INDICATOR DEFAULTS (safe) ────────────────────────────
       // These indicators are all DISABLED above (RSI, MFI, Sto, ATR, VRC).
       // The values below are safe structural defaults that prevent uninitialized
-      // fields from causing unexpected behavior if an indicator is enabled via
-      // PRESET_CUSTOM or a future profile. They are NOT active in TI.
+      // fields from causing unexpected behavior if an indicator is enabled via a global
+      // toggle or a future profile. They are NOT active in TI. (PRESET_CUSTOM retired 2026-06.)
       cfg.P_Atr                  = 14;
       cfg.ATR_VoteMinPips        = 5.0;
       cfg.ATR_VoteMaxPips        = 50.0;
@@ -2967,12 +2978,74 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       ValidateTI_ExitConfig(cfg);
       return;
    }
-   #endif // SEA_PRESET_TOPINVESTOR
+   #endif // SEA_BUILD_TOPINVESTOR
    
    
-   // STEP2 2026-06: PRESET_TEST block removed (~383 lines under #ifdef SEA_PRESET_TEST).
+   // STEP2 2026-06: PRESET_TEST block removed (~383 lines under #ifdef SEA_BUILD_TEST).
    // Was a dev/debug scaffold preset; never compiled in (the define was off).
    // Removed as part of the SimpleEA simplification roadmap.
+
+#ifdef SEA_BUILD_XEMA
+   if(preset == PRESET_XEMA)
+   {
+      cfg.BiasMode              = BIAS_2EMA;
+      cfg.AutoStrat             = STRAT_2EMA_CROSS_EMA;
+      cfg.BiasEnabled           = true;
+      cfg.MaType                = METHOD_EMA;
+      cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;   // NOT _RRM => pure cross-only entries
+      cfg.RequirePriceCross     = false;
+      cfg.MABenchmarkStrict     = false;
+      cfg.UseMACompatSizer      = false;
+      cfg.CloseOnReverse        = true;
+      cfg.PhaseDetectionEnabled = false;
+      cfg.EnableLayerDetection  = false;
+      cfg.LayerPullbackEnabled  = false;
+      cfg.BlockUnorderedPhase   = false;
+      cfg.BlockEmergingPhase    = false;
+      cfg.P_Ema1 = Inp_XEMA_EmaFast;
+      cfg.P_Ema2 = Inp_XEMA_EmaSlow;
+      cfg.Ind_MTF_Enabled = Inp_XEMA_MTF_Enabled;
+      cfg.MTF_TF1 = Inp_XEMA_MTF_TF1;
+      cfg.MTF_TF2 = Inp_XEMA_MTF_TF2;
+      cfg.MTF_EMA_Fast = Inp_XEMA_MTF_EMA_Fast;
+      cfg.MTF_EMA_Slow = Inp_XEMA_MTF_EMA_Slow;
+      cfg.MTF_RequirePhase = true;
+      cfg.Ind_Adx_Enabled = Inp_XEMA_Use_Adx;
+      cfg.ADX_Mode = ADX_MODE_DYNAMIC_PERCENTILE;
+      cfg.P_Adx = Inp_XEMA_ADX_Period;
+      cfg.ADX_Percentile = Inp_XEMA_ADX_Percentile;
+      cfg.ADX_Lookback = Inp_XEMA_ADX_Lookback;
+      cfg.Ind_Bb_Enabled = Inp_XEMA_Use_Bb;
+      cfg.BbMode = BB_WIDENING;
+      cfg.P_Bb = Inp_XEMA_BB_Period;
+      cfg.P_BbDev = Inp_XEMA_BB_Deviation;
+      cfg.Ind_CI_Enabled = Inp_XEMA_Use_CI;   // native inline CI, no external file
+      cfg.CI_Period = Inp_XEMA_CI_Period;
+      cfg.CI_RangingThreshold = Inp_XEMA_CI_RangingThresh;
+      cfg.Ind_Psar_Enabled=false; cfg.Ind_Macd_Enabled=false; cfg.Ind_Cci_Enabled=false;
+      cfg.Ind_CandleBody_Enabled=false; cfg.Ind_Dpi_Enabled=false; cfg.Ind_SmaConverge_Enabled=false;
+      cfg.Ind_Fib_Enabled=false; cfg.Ind_Rsi_Enabled=false; cfg.Ind_Mfi_Enabled=false;
+      cfg.Ind_Sto_Enabled=false; cfg.Ind_Atr_Enabled=false; cfg.Ind_VRC_Enabled=false;
+      cfg.Ind_P123_Enabled=false; cfg.Ind_Ross_Enabled=false;
+      cfg.SLMode = Inp_XEMA_SLMode;
+      cfg.SwingLookback = Inp_XEMA_SwingLookback;
+      cfg.SL_AtrPeriod = Inp_XEMA_SL_AtrPeriod;
+      cfg.SL_AtrMult = Inp_XEMA_SL_AtrMult;
+      cfg.TPMode = TP_MODE_NONE;
+      cfg.BE_Mode = Inp_XEMA_BE_Mode;
+      cfg.RRM_BE_RMultiple = Inp_XEMA_BE_RMultiple;
+      cfg.RRM_BE_BufferPips = GetTFBasedCushion(_Period);
+      cfg.TrailMode = Inp_XEMA_TrailMode;
+      cfg.TrailLockProfit = true;
+      cfg.RRM_TrailStartsAfterBE = false;
+      cfg.TrailAllowLossSide = false;
+      cfg.LPR_LadderEnabled = true;   // XEMA enables the universal ladder (uses Inp_Global_LPR_* steps)
+      cfg.RiskPercent = GetEffectiveRiskPercent();   // per-TF risk, no new logic
+      cfg.MaxSpread = op_MaxSpread;
+      ValidateXEMA_ExitConfig(cfg);
+      return;
+   }
+#endif
 
 }
 

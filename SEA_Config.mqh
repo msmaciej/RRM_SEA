@@ -11,14 +11,15 @@
 // will be compiled, keeping total input count under MT5's 1024 limit.
 // After changing: recompile SimpleEA_v1-05.mq5 in MetaEditor.
 //
-//#define SEA_PRESET_MA
-//#define SEA_PRESET_FPM
-// STEP3 2026-06: SEA_PRESET_RRM removed (preset retired). SEA_PRESET_RRM_FAMILY
+//#define SEA_BUILD_MA
+//#define SEA_BUILD_FPM
+// STEP3 2026-06: SEA_BUILD_RRM removed (preset retired). SEA_BUILD_RRM_FAMILY
 // concept also retired — it existed solely to share Inp_RRM_* between RRM and
 // RRM_ORG; with RRM gone, RRM_ORG owns its own inputs (Inp_RRM_ORG_*) directly.
-#define SEA_PRESET_RRM_ORG
-//#define SEA_PRESET_TOPINVESTOR
-// STEP2 2026-06: SEA_PRESET_TEST removed (dev scaffold preset; never enabled)
+#define SEA_BUILD_RRM_ORG
+#define SEA_BUILD_XEMA
+//#define SEA_BUILD_TOPINVESTOR
+// STEP2 2026-06: SEA_BUILD_TEST removed (dev scaffold preset; never enabled)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // NOTE: default values are now inlined as literals directly at each input
@@ -68,7 +69,8 @@ enum EStrategyPreset
    // STEP2 2026-06: PRESET_TEST removed (dev scaffold, never enabled; preset block was #ifdef-gated off)
    PRESET_TOPINVESTOR,     // PRESET_TOPINVESTOR: Dr Świerk TopInvestor / OXO methodology (EMA50/200 confluence)
    PRESET_FPM,             // PRESET_FPM: Five-Point Method (PSAR+MACD+BB+SMA10/20)
-   PRESET_RRM_ORG          // PRESET_RRM_ORG: Russ Horn Original RRM with inline DPI momentum voter
+   PRESET_RRM_ORG,         // PRESET_RRM_ORG: Russ Horn Original RRM with inline DPI momentum voter
+   PRESET_XEMA             // PRESET_XEMA: EMA-cross trend follower (flexible periods + HTF confirmation)
 };
 enum ETIProfile
 {
@@ -676,6 +678,14 @@ struct ST_Settings
    double   SL_AtrMult;          // ATR multiplier for SL_MODE_ATR: cushion = ATR × this (default 1.0; 0.5–1.5 range)
    double   RRRatio;             // Risk:Reward ratio (TP_MODE_RR, e.g. 2.0 = 1:2)
    int      SwingLookback;       // Bars to look back for swing high/low (SL_MODE_SWING)
+   // --- Universal exit: 'Let Profit Run' laddered R profit-lock ---
+   bool     LPR_LadderEnabled;     // enable the R-ladder profit lock
+   int      LPR_LadderCount;       // active steps (0..5)
+   double   LPR_LadderTriggerR[5]; // trigger at N*R (ascending)
+   double   LPR_LadderLockR[5];    // lock N*R into profit when trigger met
+   // --- Universal: daily profit target ---
+   bool     DailyTarget_Enabled;   // stop opening NEW trades once day's realized P&L hits target
+   double   DailyTarget_Pct;       // target as % of day-start balance
 
    // === Fractal Settings (NEW: Phase 2.2) ===
    int      FractalPeriod;       // Fractal indicator period (default: 5)

@@ -21,7 +21,7 @@ They overwrite strategy-critical fields **on top of** already-hydrated `Settings
 
 ## ~~PRESET_CUSTOM~~ [REMOVED 2026-06]
 
-> Historical content preserved below for reference. `PRESET_CUSTOM` no longer exists. The user-control surface it provided has been split: cross-preset globals are now `Inp_Global_*`, and per-preset overrides live in dedicated blocks (`Inp_RRM_ORG_*`, `Inp_FPM_*`, `Inp_TI_*`, `Inp_MA_*`).
+> Historical content preserved below for reference. `PRESET_CUSTOM` no longer exists. The user-control surface it provided has been split: cross-preset globals are now `Inp_Global_*`, and per-preset overrides live in dedicated blocks (`Inp_RRM_ORG_*`, `Inp_FPM_*`, `Inp_TI_*`, `Inp_MA_*`, `Inp_XEMA_*`).
 
 No overrides. Every input is respected exactly as entered by the user.
 The signal pipeline runs in full with whatever indicators, bias mode, and exits are configured.

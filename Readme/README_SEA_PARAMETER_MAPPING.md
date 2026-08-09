@@ -390,9 +390,9 @@ classification and makes no further change to it — it is the one case in the i
   `Stats_TrackRejections/Passes`, `MTF_StrictAlignment`, `LayerRecoveryOnSlope` fields, which remain
   declared in the struct but unread) was not undertaken here — this audit's scope was the `Inp_*`
   input surface only. Worth a session of its own.
-- The `#ifdef SEA_PRESET_MA` blocks in `SEA_Reporting.mqh` / `SimpleEA_v1-05.mq5` are dead code in
-  the current build (`SEA_PRESET_MA` is not the active preset — `SEA_Config.mqh` currently has only
-  `SEA_PRESET_RRM_ORG` uncommented; this repo compiles one preset at a time). Fixed in place while
+- The `#ifdef SEA_BUILD_MA` blocks in `SEA_Reporting.mqh` / `SimpleEA_v1-05.mq5` are dead code in
+  the current build (`SEA_BUILD_MA` is not the active preset — `SEA_Config.mqh` currently has only
+  `SEA_BUILD_RRM_ORG` uncommented; this repo compiles one preset at a time). Fixed in place while
   touching them for this audit (see Round 1 note below on a real bug this caused), but the broader
   question of whether that preprocessor flag should exist at all is out of scope.
 

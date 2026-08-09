@@ -310,14 +310,14 @@ void PrintEffectiveConfig()
          " h_shift=", Settings.ma_h_shift,
          " v_shift=", Settings.ma_v_shift);
 
-#ifdef SEA_PRESET_MA
+#ifdef SEA_BUILD_MA
    // F-AUDIT 2026-07: was Inp_MA_MaximumRiskPct/Inp_MA_DecreaseFactor (removed — never read;
    // see Readme/README_SEA_PARAMETER_MAPPING.md "Input Surface Audit"). Print the fields
    // TradeExecutor actually uses (hardcoded in InitializeConfig) instead of the dead inputs.
    if(Settings.MABenchmarkStrict)
       Print("MA Benchmark Effective: MaxRisk=", Settings.MA_MaximumRiskPct, "% Dec=", Settings.MA_DecreaseFactor,
             " Period=", Inp_MA_Period, " Shift=", Inp_MA_Shift);
-#endif // SEA_PRESET_MA
+#endif // SEA_BUILD_MA
 
    Print("Effective EMA periods: ", Settings.P_Ema1, ",", Settings.P_Ema2, ",", Settings.P_Ema3, ",", Settings.P_Ema4);
    Print("Effective MACD periods: ", Settings.P_MacdFast, ",", Settings.P_MacdSlow, ",", Settings.P_MacdSig);

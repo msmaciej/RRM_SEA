@@ -1857,6 +1857,49 @@ private:
    //| Idempotent: the lock is latched per ticket in m_position_states, |
    //| so a tick-rate call followed by the per-bar call is a no-op.     |
    //+------------------------------------------------------------------+
+   // Universal "Let Profit Run" laddered R profit-lock (runs for any preset with LPR_LadderEnabled).
+   void TryTrailRLadder(ulong ticket)
+   {
+      if(!m_settings.LPR_LadderEnabled || m_settings.LPR_LadderCount <= 0) return;
+      if(!PositionSelectByTicket(ticket)) return;
+      bool   isBuy = ((ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY);
+      double entry = PositionGetDouble(POSITION_PRICE_OPEN);
+      double cur_sl= PositionGetDouble(POSITION_SL);
+      double cur_tp= PositionGetDouble(POSITION_TP);
+      double price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_BID) : SymbolInfoDouble(m_symbol, SYMBOL_ASK);
+      int    digits= (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
+      if(entry <= 0.0 || price <= 0.0) return;
+      double init_sl = (m_rrm_initial_sl > 0.0) ? m_rrm_initial_sl : (m_initial_sl_price > 0.0) ? m_initial_sl_price : cur_sl;
+      double R = (init_sl > 0.0) ? MathAbs(entry - init_sl) : 0.0;
+      if(R <= 0.0) return;
+      double cur_r = (isBuy ? (price - entry) : (entry - price)) / R;
+      double lock_r = 0.0;
+      for(int i = 0; i < m_settings.LPR_LadderCount; i++)
+         if(cur_r >= m_settings.LPR_LadderTriggerR[i]) lock_r = m_settings.LPR_LadderLockR[i];
+      if(lock_r <= 0.0) return;
+      double new_sl = isBuy ? NormalizeDouble(entry + lock_r * R, digits) : NormalizeDouble(entry - lock_r * R, digits);
+      bool improves = isBuy ? (cur_sl == 0.0 || new_sl > cur_sl) : (cur_sl == 0.0 || new_sl < cur_sl);
+      if(!improves) return;
+      if(IsModifyAllowed() && m_trade.PositionModify(ticket, new_sl, cur_tp))
+         if(m_settings.DebugFlow)
+            PrintFormat("[LPR] #%I64u %.2fR -> lock %.1fR at %.5f", ticket, cur_r, lock_r, new_sl);
+   }
+
+   // Universal daily profit target: true => stop opening NEW trades for the rest of the day.
+   // Balance delta since day-start = realized P&L; open trades keep running (let profit run).
+   bool DailyTarget_Reached()
+   {
+      if(!m_settings.DailyTarget_Enabled) return false;
+      static datetime s_day = 0;
+      static double   s_bal = 0.0;
+      datetime now = TimeCurrent();
+      datetime day = now - (now % 86400);
+      if(day != s_day) { s_day = day; s_bal = AccountInfoDouble(ACCOUNT_BALANCE); }
+      if(s_bal <= 0.0) return false;
+      double gain = (AccountInfoDouble(ACCOUNT_BALANCE) - s_bal) / s_bal * 100.0;
+      return (gain >= m_settings.DailyTarget_Pct);
+   }
+
    void TryMoveToBreakEven(ulong ticket) {
       if(m_settings.BE_Mode == BE_MODE_OFF) return;
       if(!PositionSelectByTicket(ticket)) return;
@@ -1973,6 +2016,7 @@ private:
       // rule also runs at tick rate via EvaluateBE_Tick when BE_TriggerSource is
       // BE_SRC_TICK. Latched per ticket, so this per-bar call is a no-op once fired.
       TryMoveToBreakEven(ticket);
+      TryTrailRLadder(ticket);                 // universal let-profit-run R-ladder
       m_rrm_be_reached = GetPositionBETriggered(ticket);
       cur_sl = PositionGetDouble(POSITION_SL);   // re-read: BE may have just moved it
 
@@ -2758,6 +2802,12 @@ public:
    //| Hardcoded safeguards remain always active for capital protection.|
    //+------------------------------------------------------------------+
    bool EvaluateRC(int direction, double lots) {
+      // Universal daily profit target: block NEW entries once the day's goal is reached.
+      if(m_settings.DailyTarget_Enabled && DailyTarget_Reached()) {
+         PrintFormat("[RC] daily profit target reached - no new entries today");
+         m_rc_veto_reason = "VETO_RC_DAILY_TARGET";
+         return false;
+      }
       m_rc_veto_reason = "";
       bool isBuy = (direction > 0);
       double live_price = isBuy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);

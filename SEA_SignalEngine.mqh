@@ -1096,6 +1096,23 @@ private:
          }
       }
 
+      // 2026-08 (Option 1, fail-closed fallback contract): the manual path
+      // computes the raw EMA but does NOT reproduce iMA's horizontal ma_shift
+      // displacement. When ma_h_shift != 0 (e.g. PRESET_MA=6, FPM=1) the manual
+      // value is aligned to a different effective bar than the primary iMA read,
+      // so it is NOT a faithful substitute. Refuse rather than return a mismatched
+      // third value: fall through to ERR so the ribbon suppresses (UNORDERED)
+      // instead of classifying on a displaced value. The primary (Tier 1/1b) iMA
+      // path — which DOES apply the displacement — is unaffected and still serves
+      // when healthy. No effect when ma_h_shift == 0 (PRESET_RRM_ORG, and the
+      // trail-EMA handle): the manual path stays fully active there.
+      if(m_settings.ma_h_shift != 0)
+      {
+         out_valid = false;
+         out_src   = "ERR";
+         return 0.0;
+      }
+
       // Tier 2: manual computation from raw closes
       v = ManualEMA(slot1based, period, shift, ok);
       if(ok) { out_valid = true; out_src = "MAN"; return v; }
