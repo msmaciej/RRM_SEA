@@ -18,10 +18,10 @@ input ulong     Inp_Global_MagicNum                = 12345;          // Magic nu
 // Pick ONE of the 5 presets below (type PRESET_ to autocomplete). A preset only works if its
 // matching compile switch #define SEA_BUILD_<NAME> is uncommented in SEA_Config.mqh.
 // Valid values: PRESET_MA | PRESET_FPM | PRESET_RRM_ORG | PRESET_TOPINVESTOR | PRESET_XEMA
-input EStrategyPreset Inp_Global_Preset            = PRESET_XEMA; // Strategy preset (see note above)
+input EStrategyPreset Inp_Global_Preset            = PRESET_RRM_ORG; // Strategy preset (see note above)
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    💰 (GLOBAL) TRADE / RISK MANAGEMENT (TM)/(RM)";
+input group "    💰 (GLOBAL) TRADE / RISK MANAGEMENT  (TM) / (RM)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   💰 (GLOBAL) RISK MANAGEMENT (RM)";
@@ -43,18 +43,19 @@ input double      Inp_RM_AdaptiveRisk_M5           = 1.5;            // RM Adapt
 input double      Inp_RM_AdaptiveRisk_M15Plus      = 2.0;            // RM Adaptive: risk % on M15+
 
 // === Universal: Let Profit Run (R-ladder) - all presets except MA ===
-input string      Inp_Global_LPR_Hdr     = "=== Let Profit Run (R-ladder) ===";  // ---
-input bool        Inp_Global_LPR_Enabled = false;   // LPR: enable R-ladder profit lock (OFF preserves existing preset exits)
-input double      Inp_Global_LPR_Trig1   = 3.0;     // LPR: at 3R ...
-input double      Inp_Global_LPR_Lock1   = 2.0;     // LPR: ... lock 2R
-input double      Inp_Global_LPR_Trig2   = 4.0;     // LPR: at 4R ...
-input double      Inp_Global_LPR_Lock2   = 3.0;     // LPR: ... lock 3R
-input double      Inp_Global_LPR_Trig3   = 0.0;     // LPR: step 3 trigger (0 = off)
-input double      Inp_Global_LPR_Lock3   = 0.0;     // LPR: step 3 lock
+input string      Inp_Global_LPR_Hdr               = "=== Let Profit Run (R-ladder) - all except MA ===";  // ---
+input bool        Inp_Global_LPR_Enabled           = false;   // LPR: enable R-ladder profit lock (OFF preserves existing preset exits)
+input double      Inp_Global_LPR_Trig1             = 3.0;     // LPR: at 3R ...
+input double      Inp_Global_LPR_Lock1             = 2.0;     // LPR: ... lock 2R
+input double      Inp_Global_LPR_Trig2             = 4.0;     // LPR: at 4R ...
+input double      Inp_Global_LPR_Lock2             = 3.0;     // LPR: ... lock 3R
+input double      Inp_Global_LPR_Trig3             = 0.0;     // LPR: step 3 trigger (0 = off)
+input double      Inp_Global_LPR_Lock3             = 0.0;     // LPR: step 3 lock
+
 // === Universal: daily profit target - all presets except MA ===
-input string      Inp_Global_DT_Hdr      = "=== Daily profit target ===";  // ---
-input bool        Inp_Global_DailyTarget_Enabled = false; // Daily: stop new entries when day's realized P&L hits target
-input double      Inp_Global_DailyTarget_Pct     = 10.0;  // Daily: target % of day-start balance
+input string      Inp_Global_DT_Hdr                = "=== Daily profit target - all except MA ===";  // ---
+input bool        Inp_Global_DailyTarget_Enabled   = false; // Daily: stop new entries when day's realized P&L hits target
+input double      Inp_Global_DailyTarget_Pct       = 10.0;  // Daily: target % of day-start balance
 input group " ";
 input double      Inp_RM_Override_SL_Cushion       = 0.0;            // RM Override: SL cushion pips (0=auto)
 input double      Inp_RM_Override_Trail_Cushion    = 0.0;            // RM Override: Trail cushion pips (0=auto)
@@ -72,17 +73,17 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 Pair Type Detection";
 input group "╚════════════════════════════════════════════════════════╝";
-input EPairType   Inp_Adaptive_PairType            = PAIR_TYPE_AUTO; // Pair: Pair type (PAIR_TAPY_AUTO)
+input EPairType   Inp_Adaptive_PairType                     = PAIR_TYPE_AUTO; // Pair: Pair type (PAIR_TAPY_AUTO)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🔧 Max Spread by Pair Type (pips)";
 input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_Adaptive_Spread_Major        = 3.0;            // Pair: Max spread major (pips)
-input double      Inp_Adaptive_Spread_Minor        = 5.0;            // Pair: Max spread minor (pips)
-input double      Inp_Adaptive_Spread_Exotic       = 11.0;           // Pair: Max spread exotic (pips)
-input double      Inp_Adaptive_Spread_Gold         = 20.0;           // Pair: Max spread gold/XAU (pips) // BUGFIX D1 2026-07: changed 6.0→20.0. XAUUSD spread on MetaQuotes demo (and IC Markets raw) is 12-18 pips at London+NY overlap. The 6.0-pip cap was activating the TE SPREAD VETO on every bar, blocking all XAUUSD TE execution regardless of TS signal quality. 20.0 allows entry up to typical peak-session spread; tighten to 15.0 on IC Markets raw once live spread data is available.
-input double      Inp_Adaptive_Spread_Silver       = 150.0;          // Pair: Max spread silver/XAG (native XAG pips, pip=0.001) // ADD 2026-07: XAG/USD has digits=3, pip=$0.001; IC Markets spread ~$0.03-0.08 = 30-80 native pips. 150 is a permissive ceiling; tighten to 80 once average session spread is observed.
-input double      Inp_Adaptive_Spread_Indices      = 20.0;           // Pair: Max spread indices (native index-points) // ADD 2026-07: DAX ~1-3 pts, NAS100 ~2-5 pts, US30 ~1-3 pts, SPX500 ~0.5-1 pt. 20 is a generous ceiling covering all major indices at peak spread; tighten per-instrument via the Inp_Adaptive_PairType override on each chart.
-input double      Inp_Adaptive_Spread_Crypto       = 50.0;           // Pair: Max spread crypto (pips)
+input double      Inp_Adaptive_Spread_Major                 = 3.0;      // Pair: Max spread major (pips)
+input double      Inp_Adaptive_Spread_Minor                 = 5.0;      // Pair: Max spread minor (pips)
+input double      Inp_Adaptive_Spread_Exotic                = 11.0;     // Pair: Max spread exotic (pips)
+input double      Inp_Adaptive_Spread_Gold                  = 20.0;     // Pair: Max spread gold/XAU (pips) // BUGFIX D1 2026-07: changed 6.0→20.0. XAUUSD spread on MetaQuotes demo (and IC Markets raw) is 12-18 pips at London+NY overlap. The 6.0-pip cap was activating the TE SPREAD VETO on every bar, blocking all XAUUSD TE execution regardless of TS signal quality. 20.0 allows entry up to typical peak-session spread; tighten to 15.0 on IC Markets raw once live spread data is available.
+input double      Inp_Adaptive_Spread_Silver                = 150.0;    // Pair: Max spread silver/XAG (native XAG pips, pip=0.001) // ADD 2026-07: XAG/USD has digits=3, pip=$0.001; IC Markets spread ~$0.03-0.08 = 30-80 native pips. 150 is a permissive ceiling; tighten to 80 once average session spread is observed.
+input double      Inp_Adaptive_Spread_Indices               = 20.0;     // Pair: Max spread indices (native index-points) // ADD 2026-07: DAX ~1-3 pts, NAS100 ~2-5 pts, US30 ~1-3 pts, SPX500 ~0.5-1 pt. 20 is a generous ceiling covering all major indices at peak spread; tighten per-instrument via the Inp_Adaptive_PairType override on each chart.
+input double      Inp_Adaptive_Spread_Crypto                = 50.0;     // Pair: Max spread crypto (pips)
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -110,51 +111,51 @@ input double      Inp_Global_VETO_MaxSpread                 = 3.0;      // Veto 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: TIME";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Session_Enabled          = true;     // Session_Enabled: true=only trade in enabled sessions | false=trade 24h
-input bool        Inp_Session_London           = true;     // Session_London: (09:00–17:00 EET by default)
-input int         Inp_Session_London_Margin    = 0;        // Session_London_Margin: ±N hours: 0=exact 09-17 · 1→08-18 · 2→07-19
-input bool        Inp_Session_NY               = true;     // Session_NY: (14:00–22:00 EET by default)
-input int         Inp_Session_NY_Margin        = 0;        // Session_NY_Margin: ±N hours: 0=exact 14-22 · 1→13-23 · 2→12-24
-input bool        Inp_Session_Asia             = false;    // Session_TKY: (01:00–09:00 EET by default)
-input int         Inp_Session_Asia_Margin      = 0;        // Session_TKY_Margin: ±N hours: 0=exact 01-09 · 1→00-10
+input bool        Inp_Session_Enabled                       = true;     // Session_Enabled: true=only trade in enabled sessions | false=trade 24h
+input bool        Inp_Session_London                        = true;     // Session_London: (09:00–17:00 EET by default)
+input int         Inp_Session_London_Margin                 = 0;        // Session_London_Margin: ±N hours: 0=exact 09-17 · 1→08-18 · 2→07-19
+input bool        Inp_Session_NY                            = true;     // Session_NY: (14:00–22:00 EET by default)
+input int         Inp_Session_NY_Margin                     = 0;        // Session_NY_Margin: ±N hours: 0=exact 14-22 · 1→13-23 · 2→12-24
+input bool        Inp_Session_Asia                          = false;    // Session_TKY: (01:00–09:00 EET by default)
+input int         Inp_Session_Asia_Margin                   = 0;        // Session_TKY_Margin: ±N hours: 0=exact 01-09 · 1→00-10
 input group " ";
-input bool        Inp_Session_Win1             = false;    // Session_Window1: (e.g. morning only: 08-12)
-input int         Inp_Session_Win1_Start       = 8;        // Session_Window1_Start: (broker time, 0-23)
-input int         Inp_Session_Win1_End         = 12;       // Session_Window1_End
-input bool        Inp_Session_Win2             = false;    // Session_Window2: (e.g. afternoon: 16-21)
-input int         Inp_Session_Win2_Start       = 16;       // Session_Window2_Start: (broker time, 0-23)
-input int         Inp_Session_Win2_End         = 21;       // Session_Window2_End
+input bool        Inp_Session_Win1                          = false;    // Session_Window1: (e.g. morning only: 08-12)
+input int         Inp_Session_Win1_Start                    = 8;        // Session_Window1_Start: (broker time, 0-23)
+input int         Inp_Session_Win1_End                      = 12;       // Session_Window1_End
+input bool        Inp_Session_Win2                          = false;    // Session_Window2: (e.g. afternoon: 16-21)
+input int         Inp_Session_Win2_Start                    = 16;       // Session_Window2_Start: (broker time, 0-23)
+input int         Inp_Session_Win2_End                      = 21;       // Session_Window2_End
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: NEWS";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Global_VETO_UseNews                = false;       // Veto News: enable
-input ENewsImpactLevel Inp_Global_VETO_NewsImpactFilter  = NEWS_IMPACT_MED_PLUS; // Veto News: impact
-input string      Inp_Global_VETO_NewsFile               = "calendar_statement.csv"; // Veto News: CSV filename
-input int         Inp_Global_VETO_NewsPreMinutes         = 60;          // Veto News: block minutes before
-input int         Inp_Global_VETO_NewsPostMinutes        = 60;          // Veto News: block minutes after
+input bool        Inp_Global_VETO_UseNews                   = false;    // Veto News: enable
+input ENewsImpactLevel Inp_Global_VETO_NewsImpactFilter     = NEWS_IMPACT_MED_PLUS; // Veto News: impact
+input string      Inp_Global_VETO_NewsFile                  = "calendar_statement.csv"; // Veto News: CSV filename
+input int         Inp_Global_VETO_NewsPreMinutes            = 60;       // Veto News: block minutes before
+input int         Inp_Global_VETO_NewsPostMinutes           = 60;       // Veto News: block minutes after
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: TE QUALITY GATES (ADVANCED)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Global_VETO_TE_RecheckBarClose     = false;       // Veto TE: re-check price drift vs Close[1]
-input double      Inp_Global_VETO_TE_BC_TolerancePips    = 3.0;         // Veto TE: drift tolerance pips
-input int         Inp_Global_VETO_TE_OpenDelaySeconds    = 0;           // Veto TE: open delay seconds (0=off)
-input int         Inp_Global_VETO_TE_SpreadMedianTicks   = 0;           // Veto TE: spread median filter ticks (0=off)
+input bool        Inp_Global_VETO_TE_RecheckBarClose        = false;    // Veto TE: re-check price drift vs Close[1]
+input double      Inp_Global_VETO_TE_BC_TolerancePips       = 3.0;      // Veto TE: drift tolerance pips
+input int         Inp_Global_VETO_TE_OpenDelaySeconds       = 0;        // Veto TE: open delay seconds (0=off)
+input int         Inp_Global_VETO_TE_SpreadMedianTicks      = 0;        // Veto TE: spread median filter ticks (0=off)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 VETO: Climax";
 input group "╚════════════════════════════════════════════════════════╝";
-input int         Inp_Global_ClimaxGuard_Lookback         = 13;         // Climax: window (bars) scanned for an impulse
-input int         Inp_Global_ClimaxGuard_ATRPeriod        = 14;         // Climax: ATR baseline period (measured pre-impulse)
-input double      Inp_Global_ClimaxGuard_BarATRMult       = 2.0;        // Climax: single-bar range threshold (x ATR)
-input double      Inp_Global_ClimaxGuard_MoveATRMult      = 3.0;        // Climax: cumulative move threshold (x ATR)
+input int         Inp_Global_ClimaxGuard_Lookback           = 13;       // Climax: window (bars) scanned for an impulse
+input int         Inp_Global_ClimaxGuard_ATRPeriod          = 14;       // Climax: ATR baseline period (measured pre-impulse)
+input double      Inp_Global_ClimaxGuard_BarATRMult         = 2.0;      // Climax: single-bar range threshold (x ATR)
+input double      Inp_Global_ClimaxGuard_MoveATRMult        = 3.0;      // Climax: cumulative move threshold (x ATR)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🚫 F-FILTERS (MASTERS — preset-agnostic)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Global_F_EmaFanFilterEnabled        = false;      // F-Filter: EMA-fan over-extension master toggle
-input bool        Inp_Global_F_PriceExtFilterEnabled      = false;      // F-Filter: price-vs-EMA over-extension master toggle
-input bool        Inp_Global_F_DpiDecelFilterEnabled      = true;      // F-Filter: DPI GREEN deceleration master toggle (stateless)
-input bool        Inp_Global_F_DPI_HistTrackingEnabled    = true;       // F-Filter: DPI histogram tracking master (prereq for hist-decel block)
-input bool        Inp_Global_F_DPI_BlockOnDeceleration    = true;       // F-Filter: Block on DPI histogram decel (requires hist-tracking on)
-input bool        Inp_Global_F_ClimaxGuard_Enabled        = false;      // F-Filter: Climax / exhaustion-guard master toggle
+input bool        Inp_Global_F_EmaFanFilterEnabled          = false;    // F-Filter: EMA-fan over-extension master toggle
+input bool        Inp_Global_F_PriceExtFilterEnabled        = false;    // F-Filter: price-vs-EMA over-extension master toggle
+//input bool        Inp_Global_F_DpiDecelFilterEnabled        = true;     // F-Filter: DPI GREEN deceleration master toggle (stateless)
+//input bool        Inp_Global_F_DPI_HistTrackingEnabled      = true;     // F-Filter: DPI histogram tracking master (prereq for hist-decel block)
+//input bool        Inp_Global_F_DPI_BlockOnDeceleration      = true;     // F-Filter: Block on DPI histogram decel (requires hist-tracking on)
+input bool        Inp_Global_F_ClimaxGuard_Enabled          = false;    // F-Filter: Climax / exhaustion-guard master toggle
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -164,15 +165,15 @@ input group "╔═════════════════════�
 input group "║   🎨 UI: ALL PANELS — SHARED SETTINGS";
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_UI_PanelFontSize             = 10;             // UI: Font size (all panels)
-input int         Inp_UI_PanelLineSpacingPx        = 28;             // UI: Line spacing px (all panels)
+input int         Inp_UI_PanelLineSpacingPx        = 15;             // UI: Line spacing px (all panels)
 input string      Inp_UI_PanelFont                 = "Arial";        // UI: Font name (all panels)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: COCKPIT PANEL";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_UI_ShowCockpitPanel          = true;           // UI CP: COCKPIT PANEL
 input ENUM_BASE_CORNER  Inp_UI_CockpitCorner       = CORNER_LEFT_UPPER; // UI CP: corner
-input int         Inp_UI_CockpitX                  = 30;             // UI CP: Cockpit panel X (px)
-input int         Inp_UI_CockpitY                  = 30;             // UI CP: Cockpit panel Y (px)
+input int         Inp_UI_CockpitX                  = 10;             // UI CP: Cockpit panel X (px)
+input int         Inp_UI_CockpitY                  = 10;             // UI CP: Cockpit panel Y (px)
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🎨 UI: COCKPIT PANEL COLORS";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -418,6 +419,14 @@ input int         Inp_RRM_ORG_DPI_RedEMA_D               = 21;       // RRM ORG 
 input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst      = 5;        // RRM ORG DPI: Double-smooth first EMA
 input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond     = 8;        // RRM ORG DPI: Double-smooth second EMA
 input int         Inp_RRM_ORG_DPI_CCI_Period             = 13;       // RRM ORG DPI: CCI period
+
+input group "╔════════════════════════════════════════════════════════╗";
+input group "║   🚫 DPI F-FILTERS (MASTERS — preset-agnostic)";
+input group "╚════════════════════════════════════════════════════════╝";
+input bool        Inp_Global_F_DpiDecelFilterEnabled     = true;     // F-Filter: DPI GREEN deceleration master toggle (stateless)
+input bool        Inp_Global_F_DPI_HistTrackingEnabled   = true;     // F-Filter: DPI histogram tracking master (prereq for hist-decel block)
+input bool        Inp_Global_F_DPI_BlockOnDeceleration   = true;     // F-Filter: Block on DPI histogram decel (requires hist-tracking on)
+
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Vote (I factor — ribbon direction)";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -428,9 +437,10 @@ input group "╚═════════════════════�
 input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // RRM ORG DPI: Enable DPI vote in TS equation
 input bool        Inp_RRM_ORG_DPI_UseCCIReset            = false;    // RRM ORG DPI: CCI can reset ribbon color (trend filter)
 input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
-input bool        Inp_RRM_ORG_DPI_UseGreenHist           = true;    // RRM ORG DPI: Also require GREEN overlay for vote pass
+input bool        Inp_RRM_ORG_DPI_UseGreenHist           = true;     // RRM ORG DPI: Also require GREEN overlay for vote pass
 input bool        Inp_RRM_ORG_DpiDiv                     = false;    // RRM ORG DPI: Require price-vs-DPI-histogram divergence (off by default)
 input int         Inp_RRM_ORG_DpiDivLookback             = 55;       // RRM ORG DPI: Divergence detection window in bars (two non-overlapping windows)
+
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: DPI Pre-filter — GREEN Deceleration";
 input group "╚════════════════════════════════════════════════════════╝";
@@ -499,7 +509,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: (TP) TAKE PROFIT TARGET";
 input group "╚════════════════════════════════════════════════════════╝";
 input ETPMode     Inp_RRM_ORG_TPMode               = TP_MODE_RR;     // RRM ORG TP: TP_MODE=*: *FIXED_PIPS, *FRACTAL, *NONE, *PSAR_FLIP, *RR
-input double      Inp_RRM_ORG_RRRatio              = 1.5;            // RRM ORG TP: RR ratio — 2.5 = TP at 2.5× SL distance. Oracle: winners should outpace losers. Was 1.25 (negative expected value at 52% win rate).
+input double      Inp_RRM_ORG_RRRatio              = 2.5;            // RRM ORG TP: RR ratio — 2.5 = TP at 2.5× SL distance. Oracle: winners should outpace losers. Was 1.25 (negative expected value at 52% win rate).
 //
 // Inp_RRM_ORG_TPMode - Take profit mode:
 // TP_MODE_FIXED_PIPS: TP at fixed pip distance
@@ -542,8 +552,8 @@ input int         Inp_RRM_ORG_ReEntryLotScalePct   = 50;             // RRM ORG 
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: (TSL) HOW TO TRAIL STOP LOSS";
 input group "╚════════════════════════════════════════════════════════╝";
-input ETrailingMode Inp_RRM_ORG_TrailMode             = TRAIL_PSAR;   // RRM ORG TS: *BREAKEVEN, *EMA, *FIXED_PIPS, *FRACTAL, *NONE, *PROFIT_PERCENT, *PSAR, *PSAR_FLIP_EXIT
-input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_PIPS; // RRM ORG TS: PSAR cushion mode (PIPS / ATR / PERCENT)
+input ETrailingMode Inp_RRM_ORG_TrailMode             = TRAIL_BREAKEVEN;   // RRM ORG TS: *BREAKEVEN, *EMA, *FIXED_PIPS, *FRACTAL, *NONE, *PROFIT_PERCENT, *PSAR, *PSAR_FLIP_EXIT
+input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // RRM ORG TS: PSAR cushion mode (PIPS / ATR / PERCENT)
 input int         Inp_RRM_ORG_TrailCushionAtrPeriod   = 14;          // RRM ORG TS: ATR period (ATR mode)
 input double      Inp_RRM_ORG_TrailCushionAtrMult     = 2.0;         // RRM ORG TS: cushion ATR multiplier (cushion = ATR × this)
 input double      Inp_RRM_ORG_TrailCushionPct         = 25.0;        // RRM ORG TS: cushion % of price (PERCENT mode + safety floor)
@@ -575,7 +585,7 @@ input double      Inp_RRM_ORG_TrailEMA_CushionPips    = 0.0;         // RRM ORG 
 input double      Inp_RRM_ORG_TrailEMA_CushionAtrMult = 1.0;         // RRM ORG TS: EMA cushion = ATR×this (0=disabled; 0.1=recommended)
 input int         Inp_RRM_ORG_TrailEMA_CushionAtrPeriod = 14;        // RRM ORG TS: ATR period for EMA cushion
 input ETrailTrigger Inp_RRM_ORG_TrailTrigger          = TRIGGER_BREAKEVEN; // RRM ORG TS: *BREAKEVEN, *IMMEDIATE, *PROFIT_PERCENT, *PROFIT_PIPS, *PSAR_ALIGN
-input bool        Inp_RRM_ORG_TrailStartsAfterBE      = true;        // RRM ORG TS: hold the PSAR trail back until BE fires. Oracle (manual SS IV.B) says trailing starts as soon as the trade moves in your favour, so false is the Oracle-conformant value. true = pre-2026-07 behaviour
+input bool        Inp_RRM_ORG_TrailStartsAfterBE      = false;        // RRM ORG TS: hold the PSAR trail back until BE fires. Oracle (manual SS IV.B) says trailing starts as soon as the trade moves in your favour, so false is the Oracle-conformant value. true = pre-2026-07 behaviour
 input bool        Inp_RRM_ORG_TrailLockProfit         = true;        // RRM ORG TS: never move SL backwards (lock profit)
 input bool        Inp_RRM_ORG_TrailAllowLossSide      = true;        // RRM ORG TS: let the trail tighten the SL while it is STILL AT A LOSS (Oracle Stop Loss card: "Move Stop Loss Towards Entry"). false = SL frozen at its initial level until BE fires (pre-2026-07)
 input double      Inp_RRM_ORG_TrailStepPips           = 5.0;         // RRM ORG TS: step size for fixed-step trail modes
@@ -596,7 +606,7 @@ input group "╔═════════════════════�
 input group "║   📐 RRM_ORG: (BE) BREAKEVEN";
 input group "╚════════════════════════════════════════════════════════╝";
 input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_R_MULTIPLE;   // RRM ORG BE: Breakeven trigger mode
-input double      Inp_RRM_ORG_BE_RMultiple            = 0.70;                 // RRM ORG BE: BE trigger as R multiple
+input double      Inp_RRM_ORG_BE_RMultiple            = 0.25;                 // RRM ORG BE: BE trigger as R multiple
 input double      Inp_RRM_ORG_BE_ProgressPct          = 25.0;                 // RRM ORG BE: BE trigger as TP progress %
 input EBeTriggerSource Inp_RRM_ORG_BE_TriggerSource   = BE_SRC_BAR_CLOSE;  
 //
@@ -654,9 +664,9 @@ input int         Inp_RRM_ORG_LayerPullbackWindow     = 0;           // RRM ORG 
 input int         Inp_RRM_ORG_LayerPullbackWindow_W   = 21;          // RRM ORG PB: LayerW observation window (bars; 0=use global)
 input int         Inp_RRM_ORG_LayerPullbackWindow_M   = 34;          // RRM ORG PB: LayerM observation window (bars; 0=use global)
 input int         Inp_RRM_ORG_LayerPullbackWindow_S   = 55;          // RRM ORG PB: LayerS observation window (bars; 0=use global)
-input int         Inp_RRM_ORG_MinPBBars_W             = 1;           // RRM ORG PB: A21 - LayerW min bars in DETECTED before IN-TREND (2/2/2 default)
-input int         Inp_RRM_ORG_MinPBBars_M             = 1;           // RRM ORG PB: A21 - LayerM min bars in DETECTED before IN-TREND (2/2/2 default)
-input int         Inp_RRM_ORG_MinPBBars_S             = 1;           // RRM ORG PB: A21 - LayerS min bars in DETECTED before IN-TREND (2/2/2 default)
+input int         Inp_RRM_ORG_MinPBBars_W             = 3;           // RRM ORG PB: A21 - LayerW min bars in DETECTED before IN-TREND (2/2/2 default)
+input int         Inp_RRM_ORG_MinPBBars_M             = 3;           // RRM ORG PB: A21 - LayerM min bars in DETECTED before IN-TREND (2/2/2 default)
+input int         Inp_RRM_ORG_MinPBBars_S             = 3;           // RRM ORG PB: A21 - LayerS min bars in DETECTED before IN-TREND (2/2/2 default)
 input group " ";
 input bool        Inp_RRM_ORG_AllowLayerS             = true;        // RRM ORG PB: allow Layer S (EMA3/4) entries
 input bool        Inp_RRM_ORG_AllowLayerM             = true;        // RRM ORG PB: allow Layer M (EMA2/3) entries
@@ -682,12 +692,12 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📐 RRM_ORG: Indicators — Use";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_RRM_ORG_Use_Adx              = true;          // RRM ORG Ind: ADX vote
-input bool        Inp_RRM_ORG_Use_Atr              = true;          // RRM ORG Ind: ATR vote
+input bool        Inp_RRM_ORG_Use_Adx              = true;           // RRM ORG Ind: ADX vote
+input bool        Inp_RRM_ORG_Use_Atr              = false;          // RRM ORG Ind: ATR vote
 input bool        Inp_RRM_ORG_Use_Bb               = false;          // RRM ORG Ind: BB vote
 input bool        Inp_RRM_ORG_Use_CandleBody       = true;           // RRM ORG Ind: CBody vote
 input bool        Inp_RRM_ORG_Use_Cci              = false;          // RRM ORG Ind: CCI vote
-input bool        Inp_RRM_ORG_Use_CI               = true;          // RRM ORG Ind: CI vote
+input bool        Inp_RRM_ORG_Use_CI               = false;          // RRM ORG Ind: CI vote
 input bool        Inp_RRM_ORG_Use_Macd             = false;          // RRM ORG Ind: MACD vote
 input bool        Inp_RRM_ORG_Use_Mfi              = false;          // RRM ORG Ind: MFI vote
 input bool        Inp_RRM_ORG_Use_MTF              = true;           // RRM ORG Ind: MTF/HTF vote
@@ -977,9 +987,9 @@ input group "║   🔧 STEP 3b: PHASE / LAYER / VPRR (4-EMA Architecture)";
 input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_Global_LayerPullbackEnabled        = true;     // Global_LayerPullbackEnabled
 input bool        Inp_Global_LayerS_Require_DirAlign     = true;     // Global_LayerS_Require_DirAlign
-input bool        Inp_Global_Guard1_SkipFirstPostFlipPR  = false;    // Global_Guard1_SkipFirstPostFlipPR
-input bool        Inp_Global_LayerReset_OnRealign        = false;    // Global_LayerReset_OnRealign: Reset layer pullback states on confirmed market-phase change
-input int         Inp_Global_LayerReset_PhaseConfirm     = 2;        // Global_LayerReset_PhaseConfirm: ^ bars new phase must hold first (1=catch 1-bar phases)
+input bool        Inp_Global_Guard1_SkipFirstPostFlipPR  = true;     // Global_Guard1_SkipFirstPostFlipPR
+input bool        Inp_Global_LayerReset_OnRealign        = true;     // Global_LayerReset_OnRealign: Reset layer pullback states on confirmed market-phase change
+input int         Inp_Global_LayerReset_PhaseConfirm     = 5;        // Global_LayerReset_PhaseConfirm: ^ bars new phase must hold first (1=catch 1-bar phases)
 input group " ";
 input bool        Inp_Global_VPRR_Enabled                = false;    // Global_VPRR_Enabled: Volume Pullback-Recovery Ratio voter
 input double      Inp_Global_VPRR_MinRatio_W             = 0.0;      // Global_VPRR_MinRatio_W: (EMA1/EMA2) min ratio (0=use VPRR_MinRatio)
@@ -996,7 +1006,7 @@ input group "╔═════════════════════�
 input group "║   🔧 STEP X: Trail EMA (engine seed defaults)"; 
 input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_Global_TrailEMA_Period             = 34;       // Global_TrailEMA_Period: for TRAIL_EMA mode
-input int         Inp_Global_TrailEMA_Shift              = 1;        // Global_TrailEMA_Shift: 1=current bar, 2=one bar cushion
+input int         Inp_Global_TrailEMA_Shift              = 2;        // Global_TrailEMA_Shift: 1=current bar, 2=one bar cushion
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1009,7 +1019,7 @@ input int         Inp_Global_Ind_Adx_PercentileRefreshSec = 14400;   // Global I
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 CBody (Candle Body - Votes Against Overextended Candles (news/spikes))";
 input group "╚════════════════════════════════════════════════════════╝";
-input double      Inp_Global_Ind_CandleBody_MinCloseRatio   = 0.0;   // Global Ind [CBody]: Min close ratio (0=off, 0.75=TopInvestor)
+input double      Inp_Global_Ind_CandleBody_MinCloseRatio   = 0.75;   // Global Ind [CBody]: Min close ratio (0=off, 0.75=TopInvestor)
 input bool        Inp_Global_Ind_CandleBody_CarryOnOverext  = true;  // Global Ind [CBody]: carry CB=0 over-ext until next layer pullback-recovery
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   📊 Fib (Fibonacci Retracement Voter)";
@@ -1030,7 +1040,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "╔════════════════════════════════════════════════════════╗";
 input group "║   🛑 (SL) STOP LOSS (engine seed defaults)";
 input group "╚════════════════════════════════════════════════════════╝";
-input bool        Inp_Global_SL_WidenToMinimum           = false;    // Global_SL_WidenToMinimum: If true: widen to min.; if false: block TE
+input bool        Inp_Global_SL_WidenToMinimum           = true;    // Global_SL_WidenToMinimum: If true: widen to min.; if false: block TE
 input double      Inp_Global_SL_FixedPips                = 20.0;     // Global_SL_FixedPips: SL distance (pips SL_MODE_FIXED_PIPS)
 input double      Inp_Global_SL_MinPips                  = 3.0;      // Global_SL_MinPips: Min. SL pips (0 = no user floor, broker minimum still applies)
 input int         Inp_Global_SL_AtrPeriod                = 14;       // Global_SL_AtrPeriod: ATR period (SL_MODE_ATR only)

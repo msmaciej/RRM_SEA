@@ -11,14 +11,14 @@
 // will be compiled, keeping total input count under MT5's 1024 limit.
 // After changing: recompile SimpleEA_v1-05.mq5 in MetaEditor.
 //
-//#define SEA_BUILD_MA
-//#define SEA_BUILD_FPM
+#define SEA_BUILD_MA
+#define SEA_BUILD_FPM
 // STEP3 2026-06: SEA_BUILD_RRM removed (preset retired). SEA_BUILD_RRM_FAMILY
 // concept also retired — it existed solely to share Inp_RRM_* between RRM and
 // RRM_ORG; with RRM gone, RRM_ORG owns its own inputs (Inp_RRM_ORG_*) directly.
 #define SEA_BUILD_RRM_ORG
 #define SEA_BUILD_XEMA
-//#define SEA_BUILD_TOPINVESTOR
+#define SEA_BUILD_TOPINVESTOR
 // STEP2 2026-06: SEA_BUILD_TEST removed (dev scaffold preset; never enabled)
 // ─────────────────────────────────────────────────────────────────────────────
 
