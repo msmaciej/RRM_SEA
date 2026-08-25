@@ -229,6 +229,8 @@ When there is no bias the panel collapses to `TS=0 blocked by B (no bias)` and t
 | `PRESET_TOPINVESTOR` | Dr Świerk TopInvestor / OXO methodology (EMA50/200 confluence). See `Readme/README_SEA_PRESET_TOPINVESTOR_MANUAL.md`. |
 | `PRESET_MA` | Simple-moving-average benchmark (replicates MT5 `Moving Average.mq5` sample) |
 | `PRESET_XEMA` | EMA-cross trend follower (flexible periods) with HTF confirmation + optional ADX/BB/CI anti-range; swing/ATR SL; per-TF risk; universal let-profit-run ladder + reverse-cross exit. See `Readme/README_SEA_PRESET_XEMA.md`. |
+| `PRESET_TURTLE` | Donchian N-bar breakout entry, opposite M-bar channel exit, 2×ATR(N) stop; **no trend filter** (pure Turtle S1/S2). Single-unit (pyramiding not yet wired). See `Readme/README_SEA_PRESET_TURTLE_TREND.md`. |
+| `PRESET_TREND` | Same Donchian breakout **gated by an EMA(20/50/200) stack + HTF(50/200) confirmation** — the "Turtle + 3 EMAs" system. 2×ATR stop, channel exit. See `Readme/README_SEA_PRESET_TURTLE_TREND.md`. |
 
 A preset locks strategy-critical inputs (bias mode, voting, layer setup, exit profile shape). Policy-A gates — spread, time, news, risk — remain user-controlled under every preset. The EA prints the effective settings at init and displays them in the cockpit.
 
