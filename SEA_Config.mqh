@@ -6,28 +6,19 @@
 
 #define SEA_STATUS_EVALUATING "Evaluating..."
 
+
 // ── ACTIVE PRESET SELECTOR ──────────────────────────────────────────────────
 // Uncomment EXACTLY ONE line before compiling. Only that preset's inputs
 // will be compiled, keeping total input count under MT5's 1024 limit.
 // After changing: recompile SimpleEA_v1-05.mq5 in MetaEditor.
-//
-//#define SEA_BUILD_MA
-//#define SEA_BUILD_FPM
-// STEP3 2026-06: SEA_BUILD_RRM removed (preset retired). SEA_BUILD_RRM_FAMILY
-// concept also retired — it existed solely to share Inp_RRM_* between RRM and
-// RRM_ORG; with RRM gone, RRM_ORG owns its own inputs (Inp_RRM_ORG_*) directly.
+
+#define SEA_BUILD_MA
+#define SEA_BUILD_FPM
 #define SEA_BUILD_RRM_ORG
 #define SEA_BUILD_XEMA
-//#define SEA_BUILD_TOPINVESTOR
-// STEP2 2026-06: SEA_BUILD_TEST removed (dev scaffold preset; never enabled)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// NOTE: default values are now inlined as literals directly at each input
-// declaration (SEA_Inputs.mqh for the EA, SEA_IND_SignalScan.mq5 for the scanner,
-// SEA_Presets.mqh for preset seeding). The former SEA_DEF_* constants were removed
-// to avoid keeping the same value in two places. When changing a default, set it at
-// the declaration in those files.
-
+#define SEA_BUILD_TOPINVESTOR
+#define SEA_BUILD_TURTLE
+#define SEA_BUILD_TREND
 
 
 // TFToString: returns clean TF label (e.g. "M5", "H1") — EnumToString gives "PERIOD_M5".
@@ -44,7 +35,6 @@ string TFToString(ENUM_TIMEFRAMES tf = PERIOD_CURRENT) {
 void SEA_UI_StoreVPRRContent(const string &lines[], const color &clrs[]);
 
 
-
 //+------------------------------------------------------------------+
 //| ENUMS
 //+------------------------------------------------------------------+
@@ -56,21 +46,21 @@ enum EDebugLevel
    DEBUG_FULL,             // DEBUG_FULL: Everything: all internal steps + diagnostics (50+ lines)
    DEBUG_SIGNALS_ONLY      // DEBUG_SIGNALS_ONLY: FULL debug ONLY for confirmed signals (TS≠0)
 };
+enum EAddMode
+{
+   ADD_OFF,                // ADD_OFF: single unit, never add to a winner
+   ADD_BE_REENTRY,         // ADD_BE_REENTRY: add after first unit at breakeven (existing safe re-entry, scaled lot)
+   ADD_TURTLE_UNITS        // ADD_TURTLE_UNITS: authentic Turtle pyramiding (+0.5N, up to N units, full size, shared stop)
+};
 enum EStrategyPreset
 {
-   // STEP4 2026-06: PRESET_CUSTOM removed (Pass 1). The "CUSTOM preset" was
-   // architecturally a misnomer — its inputs Inp_CUSTOM_* serve as the SEED
-   // for all preset blocks (310 reads in InitializeConfig). The enum value,
-   // ApplyPreset block, and ValidateCUSTOM_ExitConfig are gone; Inp_CUSTOM_*
-   // declarations stay as seed defaults (rename to Inp_Global_* deferred to
-   // a later step).
    PRESET_MA,              // PRESET_MA: benchmark: MT5 MA EA compatibility
-   // STEP3 2026-06: PRESET_RRM removed (variant of RRM_ORG that wasn't traded; full removal)
-   // STEP2 2026-06: PRESET_TEST removed (dev scaffold, never enabled; preset block was #ifdef-gated off)
    PRESET_TOPINVESTOR,     // PRESET_TOPINVESTOR: Dr Świerk TopInvestor / OXO methodology (EMA50/200 confluence)
    PRESET_FPM,             // PRESET_FPM: Five-Point Method (PSAR+MACD+BB+SMA10/20)
    PRESET_RRM_ORG,         // PRESET_RRM_ORG: Russ Horn Original RRM with inline DPI momentum voter
-   PRESET_XEMA             // PRESET_XEMA: EMA-cross trend follower (flexible periods + HTF confirmation)
+   PRESET_XEMA,            // PRESET_XEMA: EMA-cross trend follower (flexible periods + HTF confirmation)
+   PRESET_TURTLE,          // PRESET_TURTLE: Donchian breakout, no trend filter (pure Turtle S1/S2)
+   PRESET_TREND            // PRESET_TREND: Donchian breakout + EMA(20/50/200) + HTF filter (Turtle + 3 EMAs)
 };
 enum ETIProfile
 {
@@ -166,7 +156,8 @@ enum EAutoStrategy
    STRAT_2EMA_CROSS_EMA,   // STRAT_2EMA_CROSS_EMA ... ONLY for BIAS_2EMA: two EMAs crossover (one-bar signal)
    STRAT_2EMA_CROSS_PRICE, // STRAT_2EMA_CROSS_PRICE ... ONLY for BIAS_2EMA: price crosses EMA (one-bar signal at cross point)
    STRAT_2EMA_POSITION,    // STRAT_2EMA_POS ... ONLY for BIAS_2EMA: EMA position + slope confirmation (persistent bias)
-   STRAT_4EMA_LAYER        // STRAT_4EMA_LAYER ... ONLY for BIAS_4EMA: four EMAs with LayerW/M/S pullback detection
+   STRAT_4EMA_LAYER,       // STRAT_4EMA_LAYER ... ONLY for BIAS_4EMA: four EMAs with LayerW/M/S pullback detection
+   STRAT_DONCHIAN_BREAKOUT // STRAT_DONCHIAN_BREAKOUT ... for BIAS_MANUAL: N-bar high/low channel breakout (Turtle)
 };
 enum EEmaRole
 {
@@ -382,11 +373,10 @@ struct ST_Settings
    color clr_Fail;         // Logic FAIL Color
    color clr_Disabled;     // Logic DISABLED Color
    color clr_Waiting;      // Logic WAITING Color (structurally aligned, not firing)
-   
-   
+
    // --- UI ---
-   bool DrawEntryLines;
-   
+   bool DrawEntryLines;    // UI Draw Entry lines
+
    // Logic
    bool CloseOnReverse;
 
@@ -429,8 +419,6 @@ struct ST_Settings
    bool   RequirePriceCross;
    bool   MABenchmarkStrict;
    
-   // RRM (Trend Pullback)
-
    // Bias
    bool          BiasEnabled;
    EBiasMode     BiasMode;
@@ -444,12 +432,15 @@ struct ST_Settings
    int       ma_h_shift;
    int       ma_v_shift;
    
+   //+------------------------------------------------------------------+
    // Filters
-   // ── TRADING HOURS FILTER ──────────────────────────────────────────────
-   // Gate passes when current hour falls in ANY enabled session (OR logic).
+   //+------------------------------------------------------------------+
+
+   // TRADING HOURS FILTER
    // Named sessions and custom windows can be combined freely.
    bool   TradingHoursEnabled;        // Master on/off for all session checks below
-   // Named sessions (computed from inputs + margin at init)
+
+   // TRADING HOURS - NAMED SESSIONS (computed from inputs + margin at init)
    bool   Session_London;             // London: default 09-17 EET ± margin
    int    Session_London_Start;       // computed
    int    Session_London_End;         // computed
@@ -459,17 +450,22 @@ struct ST_Settings
    bool   Session_Asia;               // Asian/Tokyo: default 01-09 EET ± margin
    int    Session_Asia_Start;         // computed
    int    Session_Asia_End;           // computed
-   // Custom time windows (for non-standard hours, e.g. 08-12 + 16-21)
+   
+   // TRADING HOURS - CUSTOM (for non-standard hours, e.g. 08-12 + 16-21)
    bool   Session_Win1;               // Custom window 1
    int    Session_Win1_Start;
    int    Session_Win1_End;
    bool   Session_Win2;               // Custom window 2
    int    Session_Win2_Start;
    int    Session_Win2_End;
+   
+   // NEWS
    bool            UseNews;
    int             NewsPre;
    int             NewsPost;
-   ENewsImpactLevel NewsImpactFilter;   // F-AUDIT 2026-06: which news-impact levels block (was hardcoded MED+)
+   ENewsImpactLevel NewsImpactFilter;   // which news-impact levels block (was hardcoded MED+)
+
+   // MTF
    bool            Ind_MTF_Enabled;    // MTF vote enabled
    ENUM_TIMEFRAMES MTF_TF1;            // MTF confirmation timeframe 1
    ENUM_TIMEFRAMES MTF_TF2;            // MTF confirmation timeframe 2 (PERIOD_CURRENT = single TF mode)
@@ -491,19 +487,14 @@ struct ST_Settings
    double TrailEMA_CushionAtrMult;     // EMA trail cushion as ATR multiple (0=disabled; recommended 0.05-0.15 for H1)
    int    TrailEMA_CushionAtrPeriod;   // ATR period for EMA cushion (default 14)
 
-   // Voting
-
-   // Per-indicator weights (1 = standard; only used in VOTE_MODE_THRESHOLD for weighted sum)
-   // In VOTE_MODE_ALL, weights are ignored — all enabled indicators must simply agree.
-
-
    // Choppiness Index
    int    CI_Period;
    double CI_RangingThreshold;
 
-   // VRC (Volatility Regime Classifier)
-   bool   Ind_VRC_Enabled;
+   
    bool   Ind_SmaConverge_Enabled;     // SMA Convergence vote (gap narrowing = pullback signal)
+
+   // DPI
    bool   Ind_Dpi_Enabled;             // DPI vote (inline v31 MACD-core momentum indicator)
    int    DPI_MACD_Fast;               // MACD fast EMA period (default 8)
    int    DPI_MACD_Slow;               // MACD slow EMA period (default 13)
@@ -562,6 +553,10 @@ struct ST_Settings
                                        // effect when DPI_RequireResetRecovery=false.
    int    DPI_ResetRecoveryBars;       // Bars of recovery after CCI flip-back (0=immediate, 1+=confirmed)
    bool   DPI_ResetRequireGreen;       // Also require GREEN to reappear during recovery
+
+
+   // VRC (Volatility Regime Classifier)
+   bool   Ind_VRC_Enabled;
    int    VRC_Lookback;
    double VRC_LowThreshold;            // Below this percentile = LOW regime (reject trade)
    int    VRC_RefreshSec;              // Volatility-percentile recalculation cadence in seconds (default 14400 = 4h).
@@ -635,6 +630,7 @@ struct ST_Settings
    int           MacdFreshBars;         // For _N modes: fresh signal validity
    double        MacdSlopeMin;          // Min slope threshold (0=disabled)
    bool          MacdHistDecelEnabled;  // Filter D: block when MACD histogram shrinking bar-over-bar (momentum decelerating)
+
    ERsiMode   RsiMode;
    ECciMode   CciMode;
    EStochMode StoMode;
@@ -654,10 +650,7 @@ struct ST_Settings
    bool Ind_Atr_Enabled;
    bool Ind_CandleBody_Enabled;
    bool Ind_CI_Enabled;
-   
-   // MFI mode
 
-   // RRM gate structures (SGateConfig defined above)
 
    // Fixed lot sizing (0 = use risk-based sizing)
    double FixedLotSize;             // Fixed lot size (0 = risk-based; >0 = fixed)
@@ -678,11 +671,26 @@ struct ST_Settings
    double   SL_AtrMult;          // ATR multiplier for SL_MODE_ATR: cushion = ATR × this (default 1.0; 0.5–1.5 range)
    double   RRRatio;             // Risk:Reward ratio (TP_MODE_RR, e.g. 2.0 = 1:2)
    int      SwingLookback;       // Bars to look back for swing high/low (SL_MODE_SWING)
+
+   // --- Donchian breakout (PRESET_TURTLE / PRESET_TREND) ---
+   int      Donchian_EntryPeriod;    // entry channel N (breakout high/low)
+   int      Donchian_ExitPeriod;     // exit channel M (opposite-channel exit)
+   bool     Donchian_UseChannelExit; // exit on opposite M-bar channel break
+   bool     Donchian_RequireEmaStack;// TREND: require EMA1>EMA2>EMA3 (20/50/200) alignment
+
+   // --- Add-to-winner (pyramiding) mode ---
+   EAddMode AddMode;                 // OFF / BE re-entry / authentic Turtle units
+   int      Turtle_MaxUnits;         // ADD_TURTLE_UNITS: max stacked units (incl. first), e.g. 4
+   double   Turtle_AddStepATR;       // ADD_TURTLE_UNITS: add every this * N in favour (0.5)
+   double   Turtle_MaxAggregateRisk; // ADD_TURTLE_UNITS: account-wide open-risk cap %% (0 = off)
+   bool     Turtle_SharedStop;       // ADD_TURTLE_UNITS: move shared stop to 2N below newest unit
+
    // --- Universal exit: 'Let Profit Run' laddered R profit-lock ---
    bool     LPR_LadderEnabled;     // enable the R-ladder profit lock
    int      LPR_LadderCount;       // active steps (0..5)
    double   LPR_LadderTriggerR[5]; // trigger at N*R (ascending)
    double   LPR_LadderLockR[5];    // lock N*R into profit when trigger met
+
    // --- Universal: daily profit target ---
    bool     DailyTarget_Enabled;   // stop opening NEW trades once day's realized P&L hits target
    double   DailyTarget_Pct;       // target as % of day-start balance
@@ -779,6 +787,12 @@ struct ST_Settings
    bool     Safety_DelayTrailUntilR;       // If true, trailing only activates after price reaches Safety_TrailActivateR multiples of risk. Default false.
    double   Safety_TrailActivateR;         // R-multiple of open profit required before trailing engages. 0 = off.
    bool     Safety_RequirePriorAtBEToAdd;  // If true, a new position may only open when ALL existing same-symbol positions have SL at break-even or better. Enforces the staged-risk model. Default false.
+   // --- Portfolio risk layer (account-wide; universal; default OFF) ---
+   bool     Portfolio_Enabled;         // master switch for the account-wide governor
+   double   Portfolio_MaxAccountRisk;  // hard cap on summed open risk across ALL my positions, %% equity
+   double   Portfolio_MaxCurrencyRisk; // cap on net open risk sharing one currency (correlation cap), %%
+   int      Portfolio_TargetSlots;     // intended basket size — vol-parity target = MaxAccountRisk/slots
+   bool     Portfolio_VolParity;       // scale new lot toward equal-risk-per-slot target
    
    // Phase detection settings
    bool     PhaseDetectionEnabled;        // Master switch for phase system
@@ -838,6 +852,7 @@ struct ST_Settings
     // Magnitude (ratio) thresholds for pullback-recovery detection
     double   LayerFlatRatio;              // |slope ratio| below this = flat
     bool     LayerAllowReversalPullback;  // Count slope sign reversal as pullback
+
     // S2 2026-07: price-zone DETECTED gate (wick enters lower portion of EMA band)
     // Additive OR with slope detection. Zone = EMA_slow + (1-PullbackRatio)*(EMA_fast-EMA_slow).
     // Oracle Trade Setups card: "price pulls back to touch the EMA2" — flexibly.
@@ -858,6 +873,7 @@ struct ST_Settings
     // SEA-wide (destructive P-R reset; see SEA_Inputs.mqh and README.md). The guard's BLOCK
     // behaviour is unaffected and remains governed by ClimaxGuard_Enabled above.
 
+
     // VPRR: Volume Pullback-Recovery Ratio (institutional participation confirmation)
     // Measures avg volume during recovery vs avg volume during pullback.
     // Ratio >= MinRatio => institutions backing the recovery (PASS).
@@ -866,6 +882,8 @@ struct ST_Settings
     int      VPRR_RecoveryBars;           // Recovery bars to measure (clamped 1-10, default 3)
     int      VPRR_MinRecoveryBars;        // Min recovery bars before ratio is valid (default RecoveryBars-1)
     double   VPRR_MinRatio;               // Min recovery/pullback ratio to PASS (default 1.0)
+
+
     // Theme3 2026-06: per-layer VPRR threshold overrides.
     // 0 = "use VPRR_MinRatio above" (backward-compatible default; no change in behavior).
     // > 0 = layer-specific threshold (e.g. L1=1.2 stricter, L3=0.8 looser).
@@ -1102,24 +1120,24 @@ void InitializeIndicatorRegistry(const ST_Settings &cfg)
    g_indicator_registry[i].is_enabled = cfg.Ind_VRC_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
    i++;
 
-   g_indicator_registry[i].name             = "SmaConverge";
-   g_indicator_registry[i].short_name       = "SmaConv";
-   g_indicator_registry[i].is_enabled       = cfg.Ind_SmaConverge_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
+   g_indicator_registry[i].name       = "SmaConverge";
+   g_indicator_registry[i].short_name = "SmaConv";
+   g_indicator_registry[i].is_enabled = cfg.Ind_SmaConverge_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
    i++;
 
-   g_indicator_registry[i].name             = "DPI";
-   g_indicator_registry[i].short_name       = "DPI";
-   g_indicator_registry[i].is_enabled       = cfg.Ind_Dpi_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
+   g_indicator_registry[i].name       = "DPI";
+   g_indicator_registry[i].short_name = "DPI";
+   g_indicator_registry[i].is_enabled = cfg.Ind_Dpi_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
    i++;
 
-   g_indicator_registry[i].name             = "MTF";
-   g_indicator_registry[i].short_name       = "MTF";
-   g_indicator_registry[i].is_enabled       = cfg.Ind_MTF_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
+   g_indicator_registry[i].name       = "MTF";
+   g_indicator_registry[i].short_name = "MTF";
+   g_indicator_registry[i].is_enabled = cfg.Ind_MTF_Enabled;   g_indicator_registry[i].prefers_subwindow = false;
    i++;
 
-   g_indicator_registry[i].name             = "VPRR";
-   g_indicator_registry[i].short_name       = "VPRR";
-   g_indicator_registry[i].is_enabled       = cfg.VPRR_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
+   g_indicator_registry[i].name       = "VPRR";
+   g_indicator_registry[i].short_name = "VPRR";
+   g_indicator_registry[i].is_enabled = cfg.VPRR_Enabled;   g_indicator_registry[i].prefers_subwindow = true;
 }
 
 //+------------------------------------------------------------------+
@@ -1146,10 +1164,6 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
    if(cfg.Ind_Dpi_Enabled)        count++;
    if(cfg.Ind_Fib_Enabled)        count++;
    if(cfg.Ind_MTF_Enabled)        count++;
-   // VPRR-DEVOTE 2026-07-27: VPRR deliberately NOT counted. This function counts
-   // enabled *voting* indicators (it feeds the I[x/y] denominator). VPRR is now
-   // measurement-only, so counting it would inflate y above the number of voters
-   // that can actually be cast — the exact mismatch this counter exists to prevent.
    return count;
 }
 
@@ -1158,11 +1172,6 @@ int GetEnabledIndicatorCount(const ST_Settings &cfg)
 //+------------------------------------------------------------------+
 string GetEnabledIndicatorList(const ST_Settings &cfg, bool compact = true)
 {
-   // VPRR-DEVOTE 2026-07-27: "VPRR" removed from all three arrays and the loop bound
-   // dropped 19 -> 18. This list names enabled VOTERS; VPRR is measurement-only and
-   // casts none. NOTE: the bound is a hand-maintained literal that must equal the
-   // array length — if a voter is ever added or removed here, update it in the same
-   // edit (an over-long bound reads past the arrays).
    string names[]  = {"ADX", "ATR", "BB", "CandleBody", "Choppiness Index", "CCI", "MACD",
                       "MFI", "P123", "PSAR", "Ross", "RSI", "SmaConverge", "Stochastic", "VRC", "DPI", "MTF", "Fib"};
    string shorts[] = {"ADX", "ATR", "BB", "CBody", "CI", "CCI", "MACD",

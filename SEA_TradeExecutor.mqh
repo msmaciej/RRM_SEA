@@ -53,6 +53,11 @@ private:
    bool        m_rrm_be_reached;
    double      m_rrm_initial_sl;
    datetime    m_last_tm_bar;      // last bar on which EvaluateTM ran (gate)
+   // ── Turtle pyramiding state (ADD_TURTLE_UNITS) ──
+   int         m_turtle_units;     // units currently in the stack (0 = flat)
+   double      m_turtle_last_fill; // price of the most recent unit fill
+   double      m_turtle_N;         // N (ATR) captured at first unit — spacing unit
+   int         m_turtle_dir;       // +1 long / -1 short
    double      m_initial_sl_price; // SL price captured at trade entry (never changes)
    datetime    m_rrm_freeze_time;
    datetime    m_trail_ema_last_bar;   // TRAIL_EMA: last bar time checked (shift=1 evaluation only)
@@ -2218,6 +2223,7 @@ public:
                        m_rrm_last_ticket(0), m_rrm_trail_frozen(false),
                        m_rrm_be_reached(false), m_rrm_initial_sl(0.0),
                        m_last_tm_bar(0), m_initial_sl_price(0.0), m_rrm_freeze_time(0), m_last_marker_update(0),
+                       m_turtle_units(0), m_turtle_last_fill(0.0), m_turtle_N(0.0), m_turtle_dir(0),
                        m_last_te_time(0), m_last_te_result(""), m_last_te_reason(""),
                        m_cached_sl(0.0), m_cached_lots(0.0), m_cached_risk(0.0),
                        m_spread_block_bars(0), m_first_lot_calc_logged(false), m_rc_veto_reason(""),
@@ -3102,10 +3108,33 @@ public:
          }
       }
 
+      // ── Portfolio risk governor (account-wide; no-op unless enabled) ──
+      if(m_settings.Portfolio_Enabled) {
+         double gov_lots = ApplyPortfolioGovernor(direction, entry_price, sl, lots);
+         if(gov_lots <= 0.0) {
+            m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0);
+            m_last_te_result = "BLOCKED"; m_last_te_reason = "PORTFOLIO_RISK";
+            return;
+         }
+         if(gov_lots < lots) {
+            lots = gov_lots;
+            m_cached_lots = lots;
+            m_cached_risk = ComputeRiskPercent(lots, MathAbs(entry_price - sl));
+         }
+      }
+
       if(m_trade.PositionOpen(m_symbol, type, lots, entry_price, sl, tp, comment)) {
          m_last_te_time = iTime(m_symbol, PERIOD_CURRENT, 0); m_last_te_result = "ENTERED";
          m_last_trade_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
          m_initial_sl_price = sl;
+         // Seed Turtle pyramiding state on the first unit of a fresh sequence.
+         if(m_settings.AddMode == ADD_TURTLE_UNITS && m_turtle_units == 0) {
+            m_turtle_units     = 1;
+            m_turtle_last_fill = entry_price;
+            double n0 = GetSLAtr();
+            m_turtle_N   = (n0 > 0.0) ? n0 : MathAbs(entry_price - sl) / MathMax(0.0001, m_settings.SL_AtrMult);
+            m_turtle_dir = direction;
+         }
          if(m_settings.ExitProfile == EXIT_PROFILE_RRM) {
             m_rrm_initial_sl = sl; m_rrm_be_reached = false; m_rrm_trail_frozen = false; m_rrm_last_ticket = 0;
          }
@@ -3476,6 +3505,146 @@ public:
       TryMoveToBreakEven(ticket);
    }
 
+   // ═══════════════════════════════════════════════════════════════════
+   // PORTFOLIO RISK LAYER (account-wide governor) — institutional-style.
+   // A GATE on top of the hardened per-chart sizer: it only ever SCALES A
+   // LOT DOWN or BLOCKS. Never increases size. Off by default; when off,
+   // ApplyPortfolioGovernor returns lots_in unchanged so every existing
+   // preset and backtest is byte-identical.
+   //
+   // NOTE (cross-instance): MT5 runs one EA per chart. PositionsTotal() is
+   // account-wide, so we DO see positions opened by other charts with our
+   // magic — that is what makes the account budget and correlation cap real.
+   // ═══════════════════════════════════════════════════════════════════
+
+   // Extract base/quote currency from a symbol name (best-effort, 6-char FX).
+   void SplitCcy(string sym, string &base, string &quote) {
+      base=""; quote="";
+      string s2 = sym;
+      StringToUpper(s2);
+      if(StringLen(s2) >= 6) { base = StringSubstr(s2,0,3); quote = StringSubstr(s2,3,3); }
+   }
+
+   // Net open risk (%% equity) that shares a given currency, signed by direction:
+   // a LONG EURUSD is +EUR and -USD; a LONG GBPUSD is +GBP and -USD. We sum the
+   // ABSOLUTE risk attributed to each currency leg so 'long EURUSD + long GBPUSD'
+   // both count toward USD exposure (the correlation we want to cap).
+   double CurrencyOpenRiskPct(string ccy, int new_dir, string new_sym, double new_risk) {
+      double total = 0.0;
+      for(int i = PositionsTotal() - 1; i >= 0; i--) {
+         ulong tk = PositionGetTicket(i);
+         if(tk == 0 || !PositionSelectByTicket(tk)) continue;
+         if((ulong)PositionGetInteger(POSITION_MAGIC) != m_magic) continue;
+         double sl = PositionGetDouble(POSITION_SL); if(sl <= 0.0) continue;
+         double open = PositionGetDouble(POSITION_PRICE_OPEN);
+         double vol  = PositionGetDouble(POSITION_VOLUME);
+         long   typ  = PositionGetInteger(POSITION_TYPE);
+         double dist = (typ==POSITION_TYPE_BUY) ? (open-sl) : (sl-open);
+         if(dist <= 0.0) continue;
+         string b,q; SplitCcy(PositionGetString(POSITION_SYMBOL), b, q);
+         if(b == ccy || q == ccy) total += ComputeRiskPercent(vol, dist);
+      }
+      // Include the prospective new trade's contribution to this currency.
+      string nb,nq; SplitCcy(new_sym, nb, nq);
+      if(nb == ccy || nq == ccy) total += new_risk;
+      return total;
+   }
+
+   // The governor. Returns adjusted lots (<= lots_in), or 0.0 to block.
+   double ApplyPortfolioGovernor(int direction, double entry, double sl, double lots_in) {
+      if(!m_settings.Portfolio_Enabled || lots_in <= 0.0) return lots_in;
+      double stop_dist = MathAbs(entry - sl);
+      if(stop_dist <= 0.0) return lots_in;
+      double lots = lots_in;
+      double vol_min = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN);
+
+      // (1) VOLATILITY-PARITY: target equal risk per basket slot. Because SL is
+      // ATR-based, equal-%% risk already normalises per-trade volatility; here we
+      // cap each NEW trade to its fair share of the account budget so one slot
+      // cannot hog the book.
+      if(m_settings.Portfolio_VolParity && m_settings.Portfolio_MaxAccountRisk > 0.0) {
+         double target_pct = m_settings.Portfolio_MaxAccountRisk / (double)m_settings.Portfolio_TargetSlots;
+         double this_pct   = ComputeRiskPercent(lots, stop_dist);
+         if(this_pct > target_pct && this_pct > 0.0) {
+            lots *= (target_pct / this_pct);
+         }
+      }
+
+      // (2) ACCOUNT BUDGET: summed open risk + this trade must not exceed cap.
+      if(m_settings.Portfolio_MaxAccountRisk > 0.0) {
+         double open_pct = AggregateOpenRiskPct();
+         double headroom = m_settings.Portfolio_MaxAccountRisk - open_pct;
+         if(headroom <= 0.0) {
+            if(m_settings.DebugFlow) PrintFormat("[PORTFOLIO] block: account risk %.2f%% >= cap %.2f%%", open_pct, m_settings.Portfolio_MaxAccountRisk);
+            return 0.0;
+         }
+         double this_pct = ComputeRiskPercent(lots, stop_dist);
+         if(this_pct > headroom && this_pct > 0.0) lots *= (headroom / this_pct);
+      }
+
+      // (3) CORRELATION CAP: neither currency leg of the new trade may push that
+      // currency's net open risk past MaxCurrencyRisk.
+      if(m_settings.Portfolio_MaxCurrencyRisk > 0.0) {
+         string nb,nq; SplitCcy(m_symbol, nb, nq);
+         double this_pct = ComputeRiskPercent(lots, stop_dist);
+         string legs[2]; legs[0]=nb; legs[1]=nq;
+         for(int L=0; L<2; L++) {
+            if(legs[L] == "") continue;
+            // existing exposure on this currency (excluding the new trade)
+            double existing = CurrencyOpenRiskPct(legs[L], direction, "", 0.0);
+            double head = m_settings.Portfolio_MaxCurrencyRisk - existing;
+            if(head <= 0.0) {
+               if(m_settings.DebugFlow) PrintFormat("[PORTFOLIO] block: %s exposure %.2f%% >= cap %.2f%%", legs[L], existing, m_settings.Portfolio_MaxCurrencyRisk);
+               return 0.0;
+            }
+            if(this_pct > head && this_pct > 0.0) { lots *= (head / this_pct); this_pct = ComputeRiskPercent(lots, stop_dist); }
+         }
+      }
+
+      // Normalise to broker volume step; block if it falls below the minimum.
+      double vol_step = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_STEP);
+      if(vol_step > 0.0) lots = MathFloor(lots / vol_step) * vol_step;
+      if(lots < vol_min) {
+         if(m_settings.DebugFlow) PrintFormat("[PORTFOLIO] block: governed lot %.4f < min %.4f", lots, vol_min);
+         return 0.0;
+      }
+      if(lots < lots_in && m_settings.DebugFlow)
+         PrintFormat("[PORTFOLIO] scaled lot %.4f -> %.4f (account-wide governor)", lots_in, lots);
+      return lots;
+   }
+
+   // Sum of open risk across ALL of my positions (every symbol, my magic), as %% of equity.
+   // A position whose SL is at/through breakeven contributes ~0 (clamped).
+   double AggregateOpenRiskPct() {
+      double total = 0.0;
+      for(int i = PositionsTotal() - 1; i >= 0; i--) {
+         ulong tk = PositionGetTicket(i);
+         if(tk == 0 || !PositionSelectByTicket(tk)) continue;
+         if((ulong)PositionGetInteger(POSITION_MAGIC) != m_magic) continue;
+         double sl = PositionGetDouble(POSITION_SL);
+         if(sl <= 0.0) continue;  // no stop set — cannot bound risk here
+         double open = PositionGetDouble(POSITION_PRICE_OPEN);
+         double vol  = PositionGetDouble(POSITION_VOLUME);
+         long   typ  = PositionGetInteger(POSITION_TYPE);
+         double dist = (typ == POSITION_TYPE_BUY) ? (open - sl) : (sl - open);
+         if(dist <= 0.0) continue;  // SL locked at/through BE -> ~0 risk
+         total += ComputeRiskPercent(vol, dist);
+      }
+      return total;
+   }
+
+   // Move the stop of every one of my positions (this symbol) to the newest shared level.
+   void TurtleMoveSharedStop(double new_sl) {
+      for(int i = PositionsTotal() - 1; i >= 0; i--) {
+         ulong tk = PositionGetTicket(i);
+         if(tk == 0 || !PositionSelectByTicket(tk)) continue;
+         if(PositionGetString(POSITION_SYMBOL) != m_symbol) continue;
+         if((ulong)PositionGetInteger(POSITION_MAGIC) != m_magic) continue;
+         double cur_tp = PositionGetDouble(POSITION_TP);
+         if(IsModifyAllowed()) m_trade.PositionModify(tk, new_sl, cur_tp);
+      }
+   }
+
    void EvaluateTM() {
       CleanupClosedPositionStates();
       if(m_settings.EmergencyMarginLevel > 0.0) {
@@ -3495,6 +3664,7 @@ public:
       if(ticket == 0 || !PositionSelectByTicket(ticket)) {
          // Reset initial SL when no position
          m_initial_sl_price = 0.0;
+         m_turtle_units = 0; m_turtle_last_fill = 0.0; m_turtle_N = 0.0; m_turtle_dir = 0;
          // Detect close: if we had a position last call but now we don't, record the close bar
          if(m_last_tracked_ticket > 0) {
             m_last_close_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
@@ -3511,6 +3681,68 @@ public:
       datetime current_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
       if(current_bar == m_last_tm_bar) return;
       m_last_tm_bar = current_bar;
+
+      // ── Donchian channel exit (PRESET_TURTLE / PRESET_TREND) ───────────
+      // Close on a break of the opposite M-bar channel (prior M bars, excl. current).
+      if(m_settings.Donchian_UseChannelExit)
+      {
+         int m_exit = m_settings.Donchian_ExitPeriod;
+         ENUM_POSITION_TYPE ptype = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+         double c_last = iClose(m_symbol, PERIOD_CURRENT, 1);
+         bool ch_exit = false;
+         if(ptype == POSITION_TYPE_BUY) {
+            int lo = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, m_exit, 2);
+            if(lo >= 0 && c_last < iLow(m_symbol, PERIOD_CURRENT, lo)) ch_exit = true;
+         } else {
+            int hi = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, m_exit, 2);
+            if(hi >= 0 && c_last > iHigh(m_symbol, PERIOD_CURRENT, hi)) ch_exit = true;
+         }
+         if(ch_exit) {
+            m_trade.PositionClose(ticket);
+            m_last_close_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
+            m_last_tracked_ticket = 0;
+            return;
+         }
+      }
+
+      // ── Authentic Turtle add-unit (ADD_TURTLE_UNITS), once per bar ──────
+      if(m_settings.AddMode == ADD_TURTLE_UNITS && m_turtle_units > 0
+         && m_turtle_units < m_settings.Turtle_MaxUnits && m_turtle_N > 0.0) {
+         double px   = (m_turtle_dir == 1) ? SymbolInfoDouble(m_symbol, SYMBOL_ASK)
+                                           : SymbolInfoDouble(m_symbol, SYMBOL_BID);
+         double favor = (m_turtle_dir == 1) ? (px - m_turtle_last_fill)
+                                            : (m_turtle_last_fill - px);
+         if(favor >= m_settings.Turtle_AddStepATR * m_turtle_N) {
+            // New unit stop is 2N from the new fill; size by risk on that distance.
+            double stop_dist = m_settings.SL_AtrMult * m_turtle_N;
+            double new_sl = (m_turtle_dir == 1) ? px - stop_dist : px + stop_dist;
+            double add_lots = CalcLotByRisk(px, new_sl);
+            // Account-wide aggregate open-risk gate.
+            bool risk_ok = true;
+            if(m_settings.Turtle_MaxAggregateRisk > 0.0) {
+               double proj = AggregateOpenRiskPct() + ComputeRiskPercent(add_lots, stop_dist);
+               if(proj > m_settings.Turtle_MaxAggregateRisk) {
+                  risk_ok = false;
+                  if(m_settings.DebugFlow)
+                     PrintFormat("[TURTLE] add blocked: projected agg risk %.2f%% > cap %.2f%%",
+                                 proj, m_settings.Turtle_MaxAggregateRisk);
+               }
+            }
+            if(risk_ok && add_lots > 0.0) {
+               add_lots = AdjustLotForMargin((m_turtle_dir==1)?ORDER_TYPE_BUY:ORDER_TYPE_SELL, add_lots, px);
+               ENUM_ORDER_TYPE otype = (m_turtle_dir==1)?ORDER_TYPE_BUY:ORDER_TYPE_SELL;
+               if(m_trade.PositionOpen(m_symbol, otype, add_lots, px, new_sl, 0.0, "TURTLE_ADD")) {
+                  m_turtle_units++;
+                  m_turtle_last_fill = px;
+                  if(m_settings.Turtle_SharedStop) TurtleMoveSharedStop(new_sl);
+                  if(m_settings.DebugFlow)
+                     PrintFormat("[TURTLE] added unit %d/%d @ %.5f, shared SL=%.5f",
+                                 m_turtle_units, m_settings.Turtle_MaxUnits, px, new_sl);
+                  return;  // one action per bar
+               }
+            }
+         }
+      }
 
       // Capture initial SL once at first bar of new position
       if(m_initial_sl_price <= 0.0) {

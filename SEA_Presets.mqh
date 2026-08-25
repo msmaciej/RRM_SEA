@@ -697,14 +697,13 @@ string PresetToString(EStrategyPreset p)
 {
    switch(p)
    {
-      // STEP4 2026-06: PRESET_CUSTOM case removed (Pass 1)
       case PRESET_FPM:          return "FPM";
       case PRESET_MA:           return "MA";
-      // STEP3 2026-06: PRESET_RRM case removed
       case PRESET_RRM_ORG:      return "RRM_ORG";
-      // STEP2 2026-06: PRESET_TEST case removed
       case PRESET_TOPINVESTOR:  return "TOPINVESTOR";
       case PRESET_XEMA:         return "XEMA";
+      case PRESET_TURTLE:       return "TURTLE";
+      case PRESET_TREND:        return "TREND";
       default:                  return "UNKNOWN";
    }
 }
@@ -715,21 +714,22 @@ string GetPresetContractWording(EStrategyPreset preset)
 {
    switch(preset)
    {
-      // STEP4 2026-06: PRESET_CUSTOM wording removed (Pass 1)
       case PRESET_FPM:
-         return "PRESET_FPM"; //: Five-Point Method locked (PSAR+MACD+BB_WIDENING+SMA10/20+BarClose); SL mode/TP mode/Trail user-controlled via Zone 3C.";
+         return "PRESET_FPM";       //: Five-Point Method locked (PSAR+MACD+BB_WIDENING+SMA10/20+BarClose); SL mode/TP mode/Trail user-controlled via Zone 3C.";
       case PRESET_MA:
-         return "PRESET_MA"; //: benchmark mode: replicates MT5 Moving Average EA; all voting disabled.";
-      // STEP3 2026-06: PRESET_RRM wording removed
+         return "PRESET_MA";        //: benchmark mode: replicates MT5 Moving Average EA; all voting disabled.";
       case PRESET_RRM_ORG:
-         return "PRESET_RRM_ORG"; //: Original Russ Horn RRM with DPI momentum voter locked (TSI R/S/U inline); phase/layer/recovery/PSAR/CandleBody fixed; exits user-controlled.";
-      // STEP2 2026-06: PRESET_TEST wording removed
+         return "PRESET_RRM_ORG";   //: Original Russ Horn RRM with DPI momentum voter locked (TSI R/S/U inline); phase/layer/recovery/PSAR/CandleBody fixed; exits user-controlled.";
       case PRESET_TOPINVESTOR:
          return "PRESET_TOPINVESTOR"; //: TopInvestor/OXO methodology (EMA50/200 confluence); 3 profiles via Inp_TI_* toggles: Conservative(5), Moderate(8), Full(11 voters).";
       case PRESET_XEMA:
-         return "PRESET_XEMA"; //: EMA-cross entry/exit (flexible periods); HTF confirmation + optional ADX/BB/CI anti-range; swing/ATR SL; per-TF risk; let-profit-run ladder + reverse-cross TP.";
+         return "PRESET_XEMA";      //: EMA-cross entry/exit (flexible periods); HTF confirmation + optional ADX/BB/CI anti-range; swing/ATR SL; per-TF risk; let-profit-run ladder + reverse-cross TP.";
+      case PRESET_TURTLE:
+         return "PRESET_TURTLE";    //: Donchian N-bar breakout entry, opposite M-bar channel exit, 2*ATR(N) stop; no trend filter (pure Turtle S1/S2).";
+      case PRESET_TREND:
+         return "PRESET_TREND";     //: Donchian breakout gated by EMA(20/50/200) stack + HTF(50/200) confirmation; 2*ATR stop, channel exit (Turtle + 3 EMAs).";
       default:
-         return "PRESET_ACTIVE"; //: Preset active; strategy-critical settings fixed by preset.";
+         return "PRESET_ACTIVE";    //: Preset active; strategy-critical settings fixed by preset.";
    }
 }
 
@@ -1159,10 +1159,6 @@ void ValidateTI_ExitConfig(ST_Settings &cfg)
    }
 }
 
-// ───────────────────────────────────────────────────────────────────────
-// STEP2 2026-06: ValidateTEST_ExitConfig removed (PRESET_TEST removed)
-// ───────────────────────────────────────────────────────────────────────
-
 // ═══════════════════════════════════════════════════════════════════════
 // EXIT CONFIGURATION VALIDATION (PRESET_RRM_ORG)
 // ═══════════════════════════════════════════════════════════════════════
@@ -1375,15 +1371,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
 
 
-   // STEP4 2026-06: PRESET_CUSTOM preset block removed (~210 lines).
-   // The CUSTOM block was an unconditional "if(preset == PRESET_CUSTOM)" branch
-   // (not behind #ifdef). It mirrored RRM_ORG by reading Inp_RRM_ORG_* tuning
-   // inputs directly. With PRESET_CUSTOM enum value gone, this branch is
-   // unreachable; physical removal here. The Inp_CUSTOM_* declarations remain
-   // in SEA_Inputs.mqh as seed defaults for InitializeConfig (~310 reads).
-
-
-#ifdef SEA_BUILD_FPM
+   #ifdef SEA_BUILD_FPM
    if(preset == PRESET_FPM)
    {
       // ================================================================
@@ -1937,13 +1925,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    #endif // SEA_BUILD_MA
    
    
-   // STEP3 2026-06: PRESET_RRM preset block removed (~315 lines under #ifdef SEA_BUILD_RRM_FAMILY).
-   // Was a variant of RRM_ORG (Phase-Based Trend Pullback methodology) that wasn't
-   // actively traded. The RRM_FAMILY guard concept retired — RRM_ORG owns its
-   // own inputs (Inp_RRM_ORG_*) directly. ValidateRRM_ExitConfig also removed.
 
-   
-   
    #ifdef SEA_BUILD_RRM_ORG
    if(preset == PRESET_RRM_ORG)
    {
@@ -2981,11 +2963,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    #endif // SEA_BUILD_TOPINVESTOR
    
    
-   // STEP2 2026-06: PRESET_TEST block removed (~383 lines under #ifdef SEA_BUILD_TEST).
-   // Was a dev/debug scaffold preset; never compiled in (the define was off).
-   // Removed as part of the SimpleEA simplification roadmap.
-
-#ifdef SEA_BUILD_XEMA
+   #ifdef SEA_BUILD_XEMA
    if(preset == PRESET_XEMA)
    {
       cfg.BiasMode              = BIAS_2EMA;
@@ -3047,7 +3025,126 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       ValidateXEMA_ExitConfig(cfg);
       return;
    }
-#endif
+   #endif // SEA_BUILD_XEMA
+
+   #ifdef SEA_BUILD_TURTLE
+   if(preset == PRESET_TURTLE)
+   {
+      cfg.BiasMode              = BIAS_MANUAL;               // breakout supplies direction
+      cfg.AutoStrat             = STRAT_DONCHIAN_BREAKOUT;
+      cfg.BiasEnabled           = true;
+      cfg.MaType                = METHOD_EMA;
+      cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
+      cfg.PhaseDetectionEnabled = false;
+      cfg.EnableLayerDetection  = false;
+      cfg.LayerPullbackEnabled  = false;
+      cfg.BlockUnorderedPhase   = false;
+      cfg.BlockEmergingPhase    = false;
+      cfg.Donchian_EntryPeriod    = Inp_TURTLE_EntryChannel;
+      cfg.Donchian_ExitPeriod     = Inp_TURTLE_ExitChannel;
+      cfg.Donchian_UseChannelExit = true;
+      cfg.Donchian_RequireEmaStack= false;                  // pure Turtle: no EMA filter
+      cfg.AddMode                 = Inp_TURTLE_AddMode;
+      cfg.Turtle_MaxUnits         = Inp_TURTLE_MaxUnits;
+      cfg.Turtle_AddStepATR       = Inp_TURTLE_AddStepATR;
+      cfg.Turtle_MaxAggregateRisk = Inp_TURTLE_MaxAggRisk;
+      cfg.Turtle_SharedStop       = Inp_TURTLE_SharedStop;
+      cfg.AllowReEntryAfterBE     = (Inp_TURTLE_AddMode == ADD_BE_REENTRY);
+      cfg.ReEntryLotScalePct      = Inp_TURTLE_ReEntryScale;
+      // All voters OFF — the breakout is the trend.
+      cfg.Ind_MTF_Enabled=false; cfg.Ind_Adx_Enabled=false; cfg.Ind_Bb_Enabled=false;
+      cfg.Ind_Psar_Enabled=false; cfg.Ind_Macd_Enabled=false;
+      cfg.Ind_Cci_Enabled=false; cfg.Ind_CandleBody_Enabled=false; cfg.Ind_Dpi_Enabled=false;
+      // Optional anti-range filters (user toggles; default OFF = pure Turtle).
+      cfg.Ind_Adx_Enabled = Inp_TURTLE_Use_Adx;
+      cfg.ADX_Mode = ADX_MODE_DYNAMIC_PERCENTILE;
+      cfg.P_Adx = Inp_TURTLE_ADX_Period;
+      cfg.ADX_Percentile = Inp_TURTLE_ADX_Percentile;
+      cfg.ADX_Lookback = Inp_TURTLE_ADX_Lookback;
+      cfg.Ind_CI_Enabled = Inp_TURTLE_Use_CI;
+      cfg.CI_Period = Inp_TURTLE_CI_Period;
+      cfg.CI_RangingThreshold = Inp_TURTLE_CI_RangingThresh;
+      cfg.Ind_Bb_Enabled = Inp_TURTLE_Use_Bb;
+      cfg.BbMode = BB_WIDENING;
+      cfg.P_Bb = Inp_TURTLE_BB_Period;
+      cfg.P_BbDev = Inp_TURTLE_BB_Deviation;
+      // Optional breakout-confirmation voters (default OFF).
+      cfg.Ind_P123_Enabled = Inp_TURTLE_Use_P123;  // Mark Crisp 1-2-3 fractal breakout
+      cfg.Ind_Ross_Enabled = Inp_TURTLE_Use_Ross;  // Ross Hook (P123 + momentum)
+      cfg.SLMode      = SL_MODE_ATR;
+      cfg.SL_AtrPeriod= Inp_TURTLE_SL_AtrPeriod;
+      cfg.SL_AtrMult  = Inp_TURTLE_SL_AtrMult;              // 2 * N
+      cfg.TPMode      = TP_MODE_NONE;                       // let profits run
+      cfg.CloseOnReverse = false;                          // exit is the channel
+      cfg.RiskPercent = GetEffectiveRiskPercent();
+      cfg.MaxSpread   = op_MaxSpread;
+      return;
+   } 
+   #endif // SEA_BUILD_TURTLE
+
+   #ifdef SEA_BUILD_TREND
+   if(preset == PRESET_TREND)
+   {
+      cfg.BiasMode              = BIAS_MANUAL;
+      cfg.AutoStrat             = STRAT_DONCHIAN_BREAKOUT;
+      cfg.BiasEnabled           = true;
+      cfg.MaType                = METHOD_EMA;
+      cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
+      cfg.PhaseDetectionEnabled = false;
+      cfg.EnableLayerDetection  = false;
+      cfg.LayerPullbackEnabled  = false;
+      cfg.BlockUnorderedPhase   = false;
+      cfg.BlockEmergingPhase    = false;
+      cfg.Donchian_EntryPeriod    = Inp_TREND_EntryChannel;
+      cfg.Donchian_ExitPeriod     = Inp_TREND_ExitChannel;
+      cfg.Donchian_UseChannelExit = true;
+      cfg.Donchian_RequireEmaStack= true;                   // gate by EMA(20/50/200) stack
+      cfg.AddMode                 = Inp_TREND_AddMode;
+      cfg.Turtle_MaxUnits         = Inp_TREND_MaxUnits;
+      cfg.Turtle_AddStepATR       = Inp_TREND_AddStepATR;
+      cfg.Turtle_MaxAggregateRisk = Inp_TREND_MaxAggRisk;
+      cfg.Turtle_SharedStop       = Inp_TREND_SharedStop;
+      cfg.AllowReEntryAfterBE     = (Inp_TREND_AddMode == ADD_BE_REENTRY);
+      cfg.ReEntryLotScalePct      = Inp_TREND_ReEntryScale;
+      // Entry-TF EMA stack (mapped onto ribbon slots 1/2/3).
+      cfg.P_Ema1 = Inp_TREND_Ema_Fast;   // 20
+      cfg.P_Ema2 = Inp_TREND_Ema_Mid;    // 50
+      cfg.P_Ema3 = Inp_TREND_Ema_Slow;   // 200
+      // HTF confirmation as an I-voter (the H1 filter from the doc).
+      cfg.Ind_MTF_Enabled = Inp_TREND_MTF_Enabled;
+      cfg.MTF_TF1 = Inp_TREND_MTF_TF1;
+      cfg.MTF_TF2 = Inp_TREND_MTF_TF2;
+      cfg.MTF_EMA_Fast = Inp_TREND_MTF_EMA_Fast;  // 50
+      cfg.MTF_EMA_Slow = Inp_TREND_MTF_EMA_Slow;  // 200
+      cfg.MTF_RequirePhase = true;
+      // Other voters off; ADX available as optional anti-range if desired.
+      cfg.Ind_Psar_Enabled=false; cfg.Ind_Dpi_Enabled=false; cfg.Ind_CandleBody_Enabled=false;
+      // Optional anti-range filters (user toggles; default OFF = Turtle+EMAs only).
+      cfg.Ind_Adx_Enabled = Inp_TREND_Use_Adx;
+      cfg.ADX_Mode = ADX_MODE_DYNAMIC_PERCENTILE;
+      cfg.P_Adx = Inp_TREND_ADX_Period;
+      cfg.ADX_Percentile = Inp_TREND_ADX_Percentile;
+      cfg.ADX_Lookback = Inp_TREND_ADX_Lookback;
+      cfg.Ind_CI_Enabled = Inp_TREND_Use_CI;
+      cfg.CI_Period = Inp_TREND_CI_Period;
+      cfg.CI_RangingThreshold = Inp_TREND_CI_RangingThresh;
+      cfg.Ind_Bb_Enabled = Inp_TREND_Use_Bb;
+      cfg.BbMode = BB_WIDENING;
+      cfg.P_Bb = Inp_TREND_BB_Period;
+      cfg.P_BbDev = Inp_TREND_BB_Deviation;
+      // Optional breakout-confirmation voters (default OFF).
+      cfg.Ind_P123_Enabled = Inp_TREND_Use_P123;   // Mark Crisp 1-2-3 fractal breakout
+      cfg.Ind_Ross_Enabled = Inp_TREND_Use_Ross;   // Ross Hook (P123 + momentum)
+      cfg.SLMode      = SL_MODE_ATR;
+      cfg.SL_AtrPeriod= Inp_TREND_SL_AtrPeriod;
+      cfg.SL_AtrMult  = Inp_TREND_SL_AtrMult;
+      cfg.TPMode      = TP_MODE_NONE;
+      cfg.CloseOnReverse = false;
+      cfg.RiskPercent = GetEffectiveRiskPercent();
+      cfg.MaxSpread   = op_MaxSpread;
+      return;
+   } 
+   #endif // SEA_BUILD_TREND
 
 }
 
