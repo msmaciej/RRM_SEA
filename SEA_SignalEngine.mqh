@@ -8462,6 +8462,41 @@ public:
                                      TimeToString(bar_time), entry_signal));
             }
          }
+         else if(m_settings.AutoStrat == STRAT_DONCHIAN_BREAKOUT) {
+            // Donchian breakout: channel EXCLUDES the current bar (anchor v_shift+1),
+            // so a close beyond the prior N-bar extreme is a genuine breakout.
+            int n_ch = m_settings.Donchian_EntryPeriod;
+            int hi_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, n_ch, v_shift + 1);
+            int lo_idx = iLowest (m_symbol, PERIOD_CURRENT, MODE_LOW,  n_ch, v_shift + 1);
+            if(hi_idx < 0 || lo_idx < 0) {
+               entry_signal = 0;
+            } else {
+               double up_lvl = iHigh (m_symbol, PERIOD_CURRENT, hi_idx);
+               double dn_lvl = iLow  (m_symbol, PERIOD_CURRENT, lo_idx);
+               double c_brk  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+               if(c_brk > up_lvl)      entry_signal =  1;
+               else if(c_brk < dn_lvl) entry_signal = -1;
+               else                    entry_signal =  0;
+            }
+            // TREND: gate direction by EMA(20/50/200) stack from the ribbon snapshot.
+            if(entry_signal != 0 && m_settings.Donchian_RequireEmaStack) {
+               if(m_ribbon.valid[0] && m_ribbon.valid[1] && m_ribbon.valid[2]) {
+                  double e1 = m_ribbon.ema[0], e2 = m_ribbon.ema[1], e3 = m_ribbon.ema[2];
+                  bool up_stack = (e1 > e2 && e2 > e3);
+                  bool dn_stack = (e1 < e2 && e2 < e3);
+                  if(entry_signal == 1  && !up_stack) entry_signal = 0;
+                  if(entry_signal == -1 && !dn_stack) entry_signal = 0;
+               } else {
+                  entry_signal = 0;  // stack unreadable -> no trade
+               }
+            }
+            if(m_settings.DebugFlow) {
+               datetime bar_time = iTime(m_symbol, PERIOD_CURRENT, v_shift);
+               DebugLog(StringFormat("STEP 2 ENTRY[%s]: STRAT_DONCHIAN_BREAKOUT N=%d stack=%s -> signal=%d",
+                                     TimeToString(bar_time), n_ch,
+                                     (m_settings.Donchian_RequireEmaStack?"on":"off"), entry_signal));
+            }
+         }
          else {  // STRAT_2EMA_CROSS_EMA
             bool ok_fcc, ok_fpc, ok_scc, ok_spc;
             double f_curr_cross = GetMAValSafe(hf, v_shift,     ok_fcc);
