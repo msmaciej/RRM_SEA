@@ -1005,10 +1005,11 @@ input int     Inp_XEMA_EmaSlow         = 50;                      // XEMA: slow 
 input group " ";
 input string  Inp_XEMA_H2  = "=== XEMA: HTF: confirmation ===";   // ---
 input bool    Inp_XEMA_MTF_Enabled     = true;                    // XEMA: HTF filter (KEEP ON - condition 1)
-input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF1 = PERIOD_M15;              // XEMA: HTF #1
-input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF2 = PERIOD_H1;               // XEMA: HTF #2 (PERIOD_CURRENT = single-HTF)
-input int     Inp_XEMA_MTF_EMA_Fast    = 20;                      // XEMA: HTF fast EMA (== slow => single-EMA slope)
-input int     Inp_XEMA_MTF_EMA_Slow    = 50;                      // XEMA: HTF slow EMA (shared across both HTFs)
+input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF1 = PERIOD_M15;              // XEMA: primary HTF #1 (>= chart TF)
+input bool    Inp_XEMA_MTF_Use_SecondHTF = true;                  // XEMA: use a 2nd HTF? true = require BOTH TF1 and TF2 (XEMA default); false = single-HTF (TF1 only)
+input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF2 = PERIOD_H1;               // XEMA: 2nd HTF #2 — used ONLY when Use_SecondHTF=true; set HIGHER than TF1
+input int     Inp_XEMA_MTF_EMA_Fast    = 20;                      // XEMA: HTF fast EMA (shared by TF1 and TF2)
+input int     Inp_XEMA_MTF_EMA_Slow    = 50;                      // XEMA: HTF slow EMA (shared by TF1 and TF2)
 input group " ";
 input string  Inp_XEMA_H3  = "=== XEMA: Anti-range voters: ADX, BB, CI ===";   // ---
 input bool    Inp_XEMA_Use_Adx         = true;                    // XEMA: ADX trend-strength gate (recommended)
@@ -1435,6 +1436,7 @@ void InitializeConfig()
    Settings.MTF_TF2              = PERIOD_H4;
    Settings.MTF_EMA_Fast         = 20;
    Settings.MTF_EMA_Slow         = 50;
+   Settings.MTF_UseSecondHTF     = true;   // base default: honour the TF2 sentinel (backward-compat). TURTLE/TREND override to opt-in.
    Settings.MTF_RequirePhase     = true;
    // F-AUDIT 2026-07: Settings.MTF_StrictAlignment is a PROVEN DEAD SINK — SEA_SignalEngine.mqh
    // documents it directly: "MTF_StrictAlignment is retained for compatibility but the gate is

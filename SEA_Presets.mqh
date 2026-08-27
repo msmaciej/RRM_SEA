@@ -2989,6 +2989,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_TF2 = Inp_XEMA_MTF_TF2;
       cfg.MTF_EMA_Fast = Inp_XEMA_MTF_EMA_Fast;
       cfg.MTF_EMA_Slow = Inp_XEMA_MTF_EMA_Slow;
+      cfg.MTF_UseSecondHTF = Inp_XEMA_MTF_Use_SecondHTF;
       cfg.MTF_RequirePhase = true;
       cfg.Ind_Adx_Enabled = Inp_XEMA_Use_Adx;
       cfg.ADX_Mode = ADX_MODE_DYNAMIC_PERCENTILE;

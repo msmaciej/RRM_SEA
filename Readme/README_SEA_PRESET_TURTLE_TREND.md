@@ -314,3 +314,27 @@ chart TF.
 | H4  | **must raise to D1** (default H1 is LOWER than chart = wrong) | off — or on + W1 |
 
 The RRM/TI guidance of "confirm ~2 timeframes higher" is a good rule of thumb for TF1.
+
+---
+
+## 13. 2026-08-27 MTF regression fix + cross-preset consistency
+
+**Regression (introduced with the §12 toggle, now fixed).** `MTF_UseSecondHTF` was seeded
+only by TURTLE/TREND; `ST_Settings` is zero-initialized, so it defaulted `false` for every
+other preset. Because the two-HTF gate now reads `!MTF_UseSecondHTF`, presets that use a real
+second HTF by default — notably **XEMA** (TF2=H1) — were silently forced to single-HTF.
+**Fix:** a global base default `Settings.MTF_UseSecondHTF = true` restores the original TF2-
+sentinel logic for any preset that does not opt in; TURTLE/TREND still override it to `false`.
+
+**XEMA made consistent.** XEMA now exposes the same explicit `Inp_XEMA_MTF_Use_SecondHTF`
+switch (default `true`, preserving its dual-HTF M15+H1 design). All three presets now share
+one clear on/off pattern instead of relying on the `PERIOD_CURRENT` sentinel.
+
+**Note on two apparent inconsistencies you may notice:**
+- `PERIOD_CURRENT` cannot be renamed to `OFF`/`PERIOD_OFF` — it is a built-in MT5
+  `ENUM_TIMEFRAMES` value. The `Use_SecondHTF` boolean is the explicit off-switch; the TF2
+  dropdown still shows platform timeframe names.
+- XEMA does NOT use separate EMAs per HTF: `MTF_EMA_Fast`/`MTF_EMA_Slow` are a SHARED pair
+  applied to both TF1 and TF2 — the same structure as TURTLE/TREND. Only the default values
+  differ (XEMA 20/50 on M15/H1 vs TURTLE/TREND 50/200 on H1), which is intended per-preset
+  tuning, not a structural inconsistency.
