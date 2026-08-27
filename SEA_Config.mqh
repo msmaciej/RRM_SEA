@@ -679,6 +679,7 @@ struct ST_Settings
    bool     Donchian_RequireEmaStack;// TREND: require EMA1>EMA2>EMA3 (20/50/200) alignment
    bool     Donchian_RequirePriceVsEma2;// TREND (opt): also require price beyond EMA2(50) in bias dir (doc Stage 2)
    bool     Donchian_RequireEma3Slope;  // TREND (opt): also require EMA3(200) sloping in bias dir (doc Stage 1 "rising")
+   bool     Donchian_EntryEnabled;      // TURTLE/TREND: master ON/OFF for the breakout ENTRY (false = no entry source)
 
    // --- Add-to-winner (pyramiding) mode ---
    EAddMode AddMode;                 // OFF / BE re-entry / authentic Turtle units

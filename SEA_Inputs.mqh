@@ -1043,44 +1043,45 @@ input group "    📐 PRESET_TURTLE";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group " ";
 
-input string Inp_TURTLE_H1 = "=== TURTLE: Donchain Channels Breakout ===";   // ---
-input int    Inp_TURTLE_EntryChannel = 40;                        // TURTLE: entry breakout period (S1=20, S2=55, H4-FX=40)
-input int    Inp_TURTLE_ExitChannel  = 20;                        // TURTLE: exit channel period (S1=10, S2=20)
+input group "TURTLE — INDICATORS: ON / OFF";
+input bool   Inp_TURTLE_Use_Donchian    = true;   // [CORE] Donchian breakout ENTRY (false = no entry source -> EA idles + warns)
+input bool   Inp_TURTLE_Use_ChannelExit = true;   // [CORE] opposite M-bar channel EXIT (false = SL-only)
+input bool   Inp_TURTLE_Use_Mtf         = false;  // [opt] HTF/MTF confirmation voter
+input bool   Inp_TURTLE_Use_Adx         = false;  // [opt] ADX trend-strength gate
+input bool   Inp_TURTLE_Use_CI          = false;  // [opt] Choppiness Index range gate
+input bool   Inp_TURTLE_Use_Bb          = false;  // [opt] BB-widening gate
+input bool   Inp_TURTLE_Use_P123        = false;  // [opt] P123 fractal-breakout confirm
+input bool   Inp_TURTLE_Use_Ross        = false;  // [opt] Ross Hook confirm
+input bool   Inp_TURTLE_Use_Psar        = false;  // [opt] Parabolic SAR voter
+input bool   Inp_TURTLE_Use_Dpi         = false;  // [opt] DPI voter
+input bool   Inp_TURTLE_Use_CandleBody  = false;  // [opt] CandleBody voter
 
-input string Inp_TURTLE_H2 = "=== TURTLE: SL ===";                // ---
-input int    Inp_TURTLE_SL_AtrPeriod = 20;                        // TURTLE: ATR(N) period
-input double Inp_TURTLE_SL_AtrMult   = 2.0;                       // TURTLE: initial stop = 2 * N
+input group "TURTLE — Donchian / SL periods";
+input int    Inp_TURTLE_EntryChannel = 40;   // entry breakout period N (S1=20, S2=55, H4-FX=40)
+input int    Inp_TURTLE_ExitChannel  = 20;   // exit channel period M (S1=10, S2=20)
+input int    Inp_TURTLE_SL_AtrPeriod = 20;   // ATR(N) period
+input double Inp_TURTLE_SL_AtrMult   = 2.0;  // initial stop = 2 * N
 
-input string Inp_TURTLE_H3 = "=== TURTLE: ADD to WIN ===";        // ---
-input EAddMode Inp_TURTLE_AddMode    = ADD_OFF;                   // TURTLE: OFF / BE re-entry / authentic Turtle units
-input int    Inp_TURTLE_MaxUnits     = 4;                         // TURTLE: max stacked units (ADD_TURTLE_UNITS)
-input double Inp_TURTLE_AddStepATR   = 0.5;                       // TURTLE: add every this * N in favour
-input double Inp_TURTLE_MaxAggRisk   = 6.0;                       // TURTLE: account-wide open-risk cap %% (0 = off)
-input bool   Inp_TURTLE_SharedStop   = true;                      // TURTLE: shared stop 2N below newest unit
-input int    Inp_TURTLE_ReEntryScale = 50;                        // TURTLE: BE re-entry lot %% (ADD_BE_REENTRY; 0=full,50=half)
+input group "TURTLE — Indicator parameters (used only when its switch above is ON)";
+input int    Inp_TURTLE_ADX_Period       = 14;
+input double Inp_TURTLE_ADX_Percentile   = 50.0;
+input int    Inp_TURTLE_ADX_Lookback     = 100;
+input int    Inp_TURTLE_CI_Period        = 14;
+input double Inp_TURTLE_CI_RangingThresh = 61.8;
+input int    Inp_TURTLE_BB_Period        = 20;
+input double Inp_TURTLE_BB_Deviation     = 2.0;
+input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF1 = PERIOD_H1;
+input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF2 = PERIOD_CURRENT;
+input int    Inp_TURTLE_MTF_EMA_Fast     = 50;
+input int    Inp_TURTLE_MTF_EMA_Slow     = 200;
 
-input string Inp_TURTLE_H4 = "=== TURTLE: Anti-range filters (all OFF = pure Turtle) ==="; // ---
-input bool   Inp_TURTLE_Use_Adx      = false;                     // TURTLE: ADX trend-strength gate (blocks weak/ranging)
-input int    Inp_TURTLE_ADX_Period   = 14;                        // TURTLE: ADX period
-input double Inp_TURTLE_ADX_Percentile = 50.0;                    // TURTLE: ADX dynamic percentile
-input int    Inp_TURTLE_ADX_Lookback = 100;                       // TURTLE: ADX percentile lookback
-input bool   Inp_TURTLE_Use_CI       = false;                     // TURTLE: Choppiness Index gate (direct range detector)
-input int    Inp_TURTLE_CI_Period    = 14;                        // TURTLE: CI period
-input double Inp_TURTLE_CI_RangingThresh = 61.8;                  // TURTLE: CI ranging threshold (above = choppy = block)
-input bool   Inp_TURTLE_Use_Bb       = false;                     // TURTLE: BB-widening gate (requires volatility expansion)
-input int    Inp_TURTLE_BB_Period    = 20;                        // TURTLE: BB period
-input double Inp_TURTLE_BB_Deviation = 2.0;                       // TURTLE: BB deviation
-input bool   Inp_TURTLE_Use_P123     = false;                     // TURTLE: P123 (Mark Crisp 1-2-3 fractal breakout) confirm
-input bool   Inp_TURTLE_Use_Ross     = false;                     // TURTLE: Ross Hook (P123 + momentum interlock) confirm
-input bool   Inp_TURTLE_UseChannelExit = true;                    // TURTLE: exit on opposite M-bar channel (core; false = SL-only)
-input bool   Inp_TURTLE_Use_Mtf        = false;                   // TURTLE: add HTF/MTF confirmation voter
-input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF1 = PERIOD_H1;             // TURTLE: MTF HTF #1 (used when Use_Mtf=true)
-input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF2 = PERIOD_CURRENT;        // TURTLE: MTF HTF #2 (CURRENT = single HTF)
-input int    Inp_TURTLE_MTF_EMA_Fast   = 50;                      // TURTLE: MTF fast EMA
-input int    Inp_TURTLE_MTF_EMA_Slow   = 200;                     // TURTLE: MTF slow EMA
-input bool   Inp_TURTLE_Use_Psar       = false;                   // TURTLE: add Parabolic SAR voter
-input bool   Inp_TURTLE_Use_Dpi        = false;                   // TURTLE: add DPI voter
-input bool   Inp_TURTLE_Use_CandleBody = false;                   // TURTLE: add CandleBody voter
+input group "TURTLE — Add to winner (pyramiding)";
+input EAddMode Inp_TURTLE_AddMode    = ADD_OFF;
+input int    Inp_TURTLE_MaxUnits     = 4;
+input double Inp_TURTLE_AddStepATR   = 0.5;
+input double Inp_TURTLE_MaxAggRisk   = 6.0;
+input bool   Inp_TURTLE_SharedStop   = true;
+input int    Inp_TURTLE_ReEntryScale = 50;
 #endif // SEA_BUILD_TURTLE
 
 #ifdef SEA_BUILD_TREND
@@ -1091,52 +1092,51 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group " ";
 
 //=== TREND (Turtle breakout + 3 EMAs + HTF) ===
-input string Inp_TREND_H1 = "=== TREND: Breakout channels ===";   // ---
-input int    Inp_TREND_EntryChannel = 20;                         // TREND: entry breakout period
-input int    Inp_TREND_ExitChannel  = 10;                         // TREND: exit channel period
+input group "TREND — INDICATORS: ON / OFF";
+input bool   Inp_TREND_Use_Donchian    = true;   // [CORE] Donchian breakout ENTRY (false = no entry source -> EA idles + warns)
+input bool   Inp_TREND_Use_EmaStack    = true;   // [CORE] require EMA(20/50/200) stack (false = pure Donchian channels)
+input bool   Inp_TREND_Use_ChannelExit = true;   // [CORE] opposite channel EXIT (false = SL-only)
+input bool   Inp_TREND_Use_Mtf         = true;   // [CORE] HTF/MTF confirmation (keep ON)
+input bool   Inp_TREND_Use_PriceVsEma2 = false;  // [opt] also require price beyond EMA2(50) in bias dir (doc Stage 2)
+input bool   Inp_TREND_Use_Ema3Slope   = false;  // [opt] also require EMA3(200) sloping in bias dir (doc Stage 1)
+input bool   Inp_TREND_Use_Adx         = false;  // [opt] ADX trend-strength gate
+input bool   Inp_TREND_Use_CI          = false;  // [opt] Choppiness Index range gate
+input bool   Inp_TREND_Use_Bb          = false;  // [opt] BB-widening gate
+input bool   Inp_TREND_Use_P123        = false;  // [opt] P123 fractal-breakout confirm
+input bool   Inp_TREND_Use_Ross        = false;  // [opt] Ross Hook confirm
+input bool   Inp_TREND_Use_Psar        = false;  // [opt] Parabolic SAR voter
+input bool   Inp_TREND_Use_Dpi         = false;  // [opt] DPI voter
+input bool   Inp_TREND_Use_CandleBody  = false;  // [opt] CandleBody voter
 
-input string Inp_TREND_H2 = "=== TREND: EMA trend filter (entry TF) ==="; // ---
-input int    Inp_TREND_Ema_Fast = 20;                             // TREND: fast EMA
-input int    Inp_TREND_Ema_Mid  = 50;                             // TREND: mid EMA
-input int    Inp_TREND_Ema_Slow = 200;                            // TREND: slow EMA (20>50>200 = long-only)
+input group "TREND — Channels / EMA / SL periods";
+input int    Inp_TREND_EntryChannel = 20;   // entry breakout period
+input int    Inp_TREND_ExitChannel  = 10;   // exit channel period
+input int    Inp_TREND_Ema_Fast = 20;       // fast EMA
+input int    Inp_TREND_Ema_Mid  = 50;       // mid EMA
+input int    Inp_TREND_Ema_Slow = 200;      // slow EMA (20>50>200 = long-only)
+input int    Inp_TREND_SL_AtrPeriod = 20;   // ATR period
+input double Inp_TREND_SL_AtrMult   = 2.0;  // initial stop = 2 * ATR
 
-input string Inp_TREND_H3 = "=== TREND: HTF confirmation ===";    // ---
-input bool   Inp_TREND_MTF_Enabled = true;                        // TREND: HTF filter (keep ON)
-input ENUM_TIMEFRAMES Inp_TREND_MTF_TF1 = PERIOD_H1;              // TREND: HTF #1
-input ENUM_TIMEFRAMES Inp_TREND_MTF_TF2 = PERIOD_CURRENT;         // TREND: HTF #2 (CURRENT = single HTF)
-input int    Inp_TREND_MTF_EMA_Fast = 50;                         // TREND: HTF fast EMA
-input int    Inp_TREND_MTF_EMA_Slow = 200;                        // TREND: HTF slow EMA
+input group "TREND — Indicator parameters (used only when its switch above is ON)";
+input ENUM_TIMEFRAMES Inp_TREND_MTF_TF1 = PERIOD_H1;
+input ENUM_TIMEFRAMES Inp_TREND_MTF_TF2 = PERIOD_CURRENT;
+input int    Inp_TREND_MTF_EMA_Fast = 50;
+input int    Inp_TREND_MTF_EMA_Slow = 200;
+input int    Inp_TREND_ADX_Period    = 14;
+input double Inp_TREND_ADX_Percentile = 50.0;
+input int    Inp_TREND_ADX_Lookback  = 100;
+input int    Inp_TREND_CI_Period     = 14;
+input double Inp_TREND_CI_RangingThresh = 61.8;
+input int    Inp_TREND_BB_Period     = 20;
+input double Inp_TREND_BB_Deviation  = 2.0;
 
-input string Inp_TREND_H4 = "=== TREND: Stop ===";                // ---
-input int    Inp_TREND_SL_AtrPeriod = 20;                         // TREND: ATR period
-input double Inp_TREND_SL_AtrMult   = 2.0;                        // TREND: initial stop = 2 * ATR
-
-input string Inp_TREND_H5 = "=== TREND: Add to winner ===";       // ---
-input EAddMode Inp_TREND_AddMode     = ADD_OFF;                   // TREND: OFF / BE re-entry / authentic Turtle units
-input int    Inp_TREND_MaxUnits      = 4;                         // TREND: max stacked units (ADD_TURTLE_UNITS)
-input double Inp_TREND_AddStepATR    = 0.5;                       // TREND: add every this * ATR in favour
-input double Inp_TREND_MaxAggRisk    = 6.0;                       // TREND: account-wide open-risk cap %% (0 = off)
-input bool   Inp_TREND_SharedStop    = true;                      // TREND: shared stop 2*ATR below newest unit
-input int    Inp_TREND_ReEntryScale  = 50;                        // TREND: BE re-entry lot %% (ADD_BE_REENTRY)
-
-input string Inp_TREND_H6 = "=== TREND: Anti-range filters (OFF = Turtle+EMAs only) ==="; // ---
-input bool   Inp_TREND_Use_Adx       = false;                     // TREND: ADX trend-strength gate
-input int    Inp_TREND_ADX_Period    = 14;                        // TREND: ADX period
-input double Inp_TREND_ADX_Percentile = 50.0;                     // TREND: ADX dynamic percentile
-input int    Inp_TREND_ADX_Lookback  = 100;                       // TREND: ADX percentile lookback
-input bool   Inp_TREND_Use_CI        = false;                     // TREND: Choppiness Index gate
-input int    Inp_TREND_CI_Period     = 14;                        // TREND: CI period
-input double Inp_TREND_CI_RangingThresh = 61.8;                   // TREND: CI ranging threshold
-input bool   Inp_TREND_Use_Bb        = false;                     // TREND: BB-widening gate
-input int    Inp_TREND_BB_Period     = 20;                        // TREND: BB period
-input double Inp_TREND_BB_Deviation  = 2.0;                       // TREND: BB deviation
-input bool   Inp_TREND_Use_P123      = false;                     // TREND: P123 (Mark Crisp 1-2-3 fractal breakout) confirm
-input bool   Inp_TREND_Use_Ross      = false;                     // TREND: Ross Hook (P123 + momentum interlock) confirm
-input bool   Inp_TREND_Use_EmaStack    = true;                    // TREND: require EMA(20/50/200) stack (core; false = pure Donchian channels)
-input bool   Inp_TREND_UseChannelExit  = true;                    // TREND: exit on opposite channel (core; false = SL-only)
-input bool   Inp_TREND_Use_Psar        = false;                   // TREND: add Parabolic SAR voter
-input bool   Inp_TREND_Use_Dpi         = false;                   // TREND: add DPI voter
-input bool   Inp_TREND_Use_CandleBody  = false;                   // TREND: add CandleBody voter
+input group "TREND — Add to winner (pyramiding)";
+input EAddMode Inp_TREND_AddMode     = ADD_OFF;
+input int    Inp_TREND_MaxUnits      = 4;
+input double Inp_TREND_AddStepATR    = 0.5;
+input double Inp_TREND_MaxAggRisk    = 6.0;
+input bool   Inp_TREND_SharedStop    = true;
+input int    Inp_TREND_ReEntryScale  = 50;
 #endif // SEA_BUILD_TREND
 
 input group " ";

@@ -8265,6 +8265,7 @@ public:
    // ─────────────────────────────────────────────────────────────────────────
    int DonchianEntrySignal(int v_shift)
    {
+      if(!m_settings.Donchian_EntryEnabled) return 0;   // master ON/OFF (Inp_*_Use_Donchian)
       int n_ch = m_settings.Donchian_EntryPeriod;
       int hi_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, n_ch, v_shift + 1);
       int lo_idx = iLowest (m_symbol, PERIOD_CURRENT, MODE_LOW,  n_ch, v_shift + 1);
@@ -8286,6 +8287,22 @@ public:
          } else {
             entry_signal = 0;  // stack unreadable -> no trade
          }
+      }
+      // TREND (opt): also require price beyond EMA2(50) in the bias direction.
+      if(entry_signal != 0 && m_settings.Donchian_RequirePriceVsEma2) {
+         if(m_ribbon.valid[1]) {
+            double px = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+            if(entry_signal == 1  && !(px > m_ribbon.ema[1])) entry_signal = 0;
+            if(entry_signal == -1 && !(px < m_ribbon.ema[1])) entry_signal = 0;
+         } else entry_signal = 0;
+      }
+      // TREND (opt): also require EMA3(200) sloping in the bias direction.
+      if(entry_signal != 0 && m_settings.Donchian_RequireEma3Slope) {
+         if(m_ribbon.valid[2] && m_ribbon.valid_prev[2]) {
+            double e3 = m_ribbon.ema[2], e3p = m_ribbon.ema_prev[2];
+            if(entry_signal == 1  && !(e3 > e3p)) entry_signal = 0;
+            if(entry_signal == -1 && !(e3 < e3p)) entry_signal = 0;
+         } else entry_signal = 0;
       }
       return entry_signal;
    }

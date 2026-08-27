@@ -3042,8 +3042,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BlockEmergingPhase    = false;
       cfg.Donchian_EntryPeriod    = Inp_TURTLE_EntryChannel;
       cfg.Donchian_ExitPeriod     = Inp_TURTLE_ExitChannel;
-      cfg.Donchian_UseChannelExit = Inp_TURTLE_UseChannelExit;
+      cfg.Donchian_EntryEnabled   = Inp_TURTLE_Use_Donchian;
+      cfg.Donchian_UseChannelExit = Inp_TURTLE_Use_ChannelExit;
       cfg.Donchian_RequireEmaStack= false;                  // pure Turtle: no EMA filter
+      cfg.Donchian_RequirePriceVsEma2 = false;              // TREND-only refinement; off for pure Turtle
+      cfg.Donchian_RequireEma3Slope   = false;
+      if(!Inp_TURTLE_Use_Donchian) Print("[PRESET_TURTLE] Donchian entry DISABLED -> no entry source; EA will not open trades.");
       cfg.AddMode                 = Inp_TURTLE_AddMode;
       cfg.Turtle_MaxUnits         = Inp_TURTLE_MaxUnits;
       cfg.Turtle_AddStepATR       = Inp_TURTLE_AddStepATR;
@@ -3107,8 +3111,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BlockEmergingPhase    = false;
       cfg.Donchian_EntryPeriod    = Inp_TREND_EntryChannel;
       cfg.Donchian_ExitPeriod     = Inp_TREND_ExitChannel;
-      cfg.Donchian_UseChannelExit = Inp_TREND_UseChannelExit;
+      cfg.Donchian_EntryEnabled   = Inp_TREND_Use_Donchian;
+      cfg.Donchian_UseChannelExit = Inp_TREND_Use_ChannelExit;
       cfg.Donchian_RequireEmaStack= Inp_TREND_Use_EmaStack;                   // gate by EMA(20/50/200) stack
+      cfg.Donchian_RequirePriceVsEma2 = Inp_TREND_Use_PriceVsEma2;            // opt: price beyond EMA2(50) in bias dir
+      cfg.Donchian_RequireEma3Slope   = Inp_TREND_Use_Ema3Slope;             // opt: EMA3(200) sloping in bias dir
+      if(!Inp_TREND_Use_Donchian) Print("[PRESET_TREND] Donchian entry DISABLED -> no entry source; EA will not open trades.");
       cfg.AddMode                 = Inp_TREND_AddMode;
       cfg.Turtle_MaxUnits         = Inp_TREND_MaxUnits;
       cfg.Turtle_AddStepATR       = Inp_TREND_AddStepATR;
@@ -3121,7 +3129,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Ema2 = Inp_TREND_Ema_Mid;    // 50
       cfg.P_Ema3 = Inp_TREND_Ema_Slow;   // 200
       // HTF confirmation as an I-voter (the H1 filter from the doc).
-      cfg.Ind_MTF_Enabled = Inp_TREND_MTF_Enabled;
+      cfg.Ind_MTF_Enabled = Inp_TREND_Use_Mtf;
       cfg.MTF_TF1 = Inp_TREND_MTF_TF1;
       cfg.MTF_TF2 = Inp_TREND_MTF_TF2;
       cfg.MTF_EMA_Fast = Inp_TREND_MTF_EMA_Fast;  // 50

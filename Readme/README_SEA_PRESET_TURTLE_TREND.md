@@ -231,3 +231,37 @@ Tester run shows `STRAT_DONCHIAN_BREAKOUT ... signal=+/-1` and trades on channel
 All are unanimous I-voters and take effect only after the routing fix (before it, the
 pipeline never reaches `EvaluateI`). The four `Donchian_*` fields are now serialized in
 `SEA_ConfigSync.mqh` so the SignalScan inspector reconstructs TURTLE/TREND correctly.
+
+---
+
+## 10. 2026-08-27 input consolidation (grouped ON/OFF panel)
+
+Every preset indicator now has a uniform `Inp_<PRESET>_Use_<Indicator>` switch,
+gathered into a single native `input group` panel at the top of each preset's inputs,
+separated from the period/parameter groups.
+
+**TURTLE — INDICATORS: ON/OFF:** `Use_Donchian` (CORE), `Use_ChannelExit` (CORE),
+`Use_Mtf`, `Use_Adx`, `Use_CI`, `Use_Bb`, `Use_P123`, `Use_Ross`, `Use_Psar`, `Use_Dpi`,
+`Use_CandleBody`.
+
+**TREND — INDICATORS: ON/OFF:** `Use_Donchian` (CORE), `Use_EmaStack` (CORE),
+`Use_ChannelExit` (CORE), `Use_Mtf` (CORE), `Use_PriceVsEma2`, `Use_Ema3Slope`,
+`Use_Adx`, `Use_CI`, `Use_Bb`, `Use_P123`, `Use_Ross`, `Use_Psar`, `Use_Dpi`, `Use_CandleBody`.
+
+**Renames (defaults unchanged, so default users see no behaviour change):**
+`Inp_TREND_MTF_Enabled` -> `Inp_TREND_Use_Mtf`; `Inp_*_UseChannelExit` ->
+`Inp_*_Use_ChannelExit`. Only a `.set` file that had explicitly overridden one of these
+needs the value re-entered under the new name.
+
+**`Use_Donchian` (new, guarded).** Master ON/OFF for the breakout ENTRY, default `true`.
+Gated in `DonchianEntrySignal` (`Donchian_EntryEnabled`). If set `false` the preset has no
+entry source; `ApplyPreset` prints `[PRESET_x] Donchian entry DISABLED -> ... EA will not
+open trades.` so the silent-zero-trades failure cannot recur unseen.
+
+**`Use_PriceVsEma2` / `Use_Ema3Slope` (now wired).** These were declared in `ST_Settings`
+but consumed nowhere. They are now seeded from the inputs and applied in the entry gate,
+default `false`. Reconstruction note (EURUSD M15 2025): with `Use_EmaStack` ON they are
+**redundant** (a fresh-high breakout inside a 20/50/200 stack already implies price>EMA50
+and a rising EMA200), so they change nothing; with the stack OFF they filter (818 -> 797
+price-vs-EMA50, 818 -> 635 EMA200-slope). All four `Donchian_*` bools now round-trip
+through `SEA_ConfigSync.mqh` for scanner parity.
