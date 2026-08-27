@@ -3040,14 +3040,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.LayerPullbackEnabled  = false;
       cfg.BlockUnorderedPhase   = false;
       cfg.BlockEmergingPhase    = false;
-      cfg.Donchian_EntryPeriod    = Inp_TURTLE_EntryChannel;
-      cfg.Donchian_ExitPeriod     = Inp_TURTLE_ExitChannel;
-      cfg.Donchian_EntryEnabled   = Inp_TURTLE_Use_Donchian;
-      cfg.Donchian_UseChannelExit = Inp_TURTLE_Use_ChannelExit;
+      cfg.Donchian_EntryPeriod    = Inp_TURTLE_DonchianEntry_Period;
+      cfg.Donchian_ExitPeriod     = Inp_TURTLE_DonchianExit_Period;
+      cfg.Donchian_EntryEnabled   = Inp_TURTLE_Use_DonchianEntry;
+      cfg.Donchian_UseChannelExit = Inp_TURTLE_Use_DonchianExit;
       cfg.Donchian_RequireEmaStack= false;                  // pure Turtle: no EMA filter
       cfg.Donchian_RequirePriceVsEma2 = false;              // TREND-only refinement; off for pure Turtle
       cfg.Donchian_RequireEma3Slope   = false;
-      if(!Inp_TURTLE_Use_Donchian) Print("[PRESET_TURTLE] Donchian entry DISABLED -> no entry source; EA will not open trades.");
+      if(!Inp_TURTLE_Use_DonchianEntry) Print("[PRESET_TURTLE] Donchian entry DISABLED -> no entry source; EA will not open trades.");
       cfg.AddMode                 = Inp_TURTLE_AddMode;
       cfg.Turtle_MaxUnits         = Inp_TURTLE_MaxUnits;
       cfg.Turtle_AddStepATR       = Inp_TURTLE_AddStepATR;
@@ -3061,6 +3061,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Psar_Enabled       = Inp_TURTLE_Use_Psar;
       cfg.Ind_Dpi_Enabled        = Inp_TURTLE_Use_Dpi;
       cfg.Ind_CandleBody_Enabled = Inp_TURTLE_Use_CandleBody;
+      cfg.P_PsarStep = Inp_TURTLE_Psar_Step; cfg.P_PsarMax = Inp_TURTLE_Psar_Max;
+      cfg.CandleBody_AvgPeriod        = Inp_TURTLE_CandleBody_AvgPeriod;
+      cfg.CandleBody_MaxMult          = Inp_TURTLE_CandleBody_MaxMult;
+      cfg.CandleBody_MinCloseRatio    = Inp_TURTLE_CandleBody_MinCloseRatio;
+      cfg.CandleBody_RequireDirection = Inp_TURTLE_CandleBody_RequireDir;
       cfg.Ind_Macd_Enabled       = false;
       cfg.Ind_Cci_Enabled        = false;
       cfg.Ind_Adx_Enabled        = false;   // set from Inp_TURTLE_Use_Adx below
@@ -3109,14 +3114,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.LayerPullbackEnabled  = false;
       cfg.BlockUnorderedPhase   = false;
       cfg.BlockEmergingPhase    = false;
-      cfg.Donchian_EntryPeriod    = Inp_TREND_EntryChannel;
-      cfg.Donchian_ExitPeriod     = Inp_TREND_ExitChannel;
-      cfg.Donchian_EntryEnabled   = Inp_TREND_Use_Donchian;
-      cfg.Donchian_UseChannelExit = Inp_TREND_Use_ChannelExit;
+      cfg.Donchian_EntryPeriod    = Inp_TREND_DonchianEntry_Period;
+      cfg.Donchian_ExitPeriod     = Inp_TREND_DonchianExit_Period;
+      cfg.Donchian_EntryEnabled   = Inp_TREND_Use_DonchianEntry;
+      cfg.Donchian_UseChannelExit = Inp_TREND_Use_DonchianExit;
       cfg.Donchian_RequireEmaStack= Inp_TREND_Use_EmaStack;                   // gate by EMA(20/50/200) stack
       cfg.Donchian_RequirePriceVsEma2 = Inp_TREND_Use_PriceVsEma2;            // opt: price beyond EMA2(50) in bias dir
       cfg.Donchian_RequireEma3Slope   = Inp_TREND_Use_Ema3Slope;             // opt: EMA3(200) sloping in bias dir
-      if(!Inp_TREND_Use_Donchian) Print("[PRESET_TREND] Donchian entry DISABLED -> no entry source; EA will not open trades.");
+      if(!Inp_TREND_Use_DonchianEntry) Print("[PRESET_TREND] Donchian entry DISABLED -> no entry source; EA will not open trades.");
       cfg.AddMode                 = Inp_TREND_AddMode;
       cfg.Turtle_MaxUnits         = Inp_TREND_MaxUnits;
       cfg.Turtle_AddStepATR       = Inp_TREND_AddStepATR;
@@ -3139,6 +3144,11 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_Psar_Enabled       = Inp_TREND_Use_Psar;
       cfg.Ind_Dpi_Enabled        = Inp_TREND_Use_Dpi;
       cfg.Ind_CandleBody_Enabled = Inp_TREND_Use_CandleBody;
+      cfg.P_PsarStep = Inp_TREND_Psar_Step; cfg.P_PsarMax = Inp_TREND_Psar_Max;
+      cfg.CandleBody_AvgPeriod        = Inp_TREND_CandleBody_AvgPeriod;
+      cfg.CandleBody_MaxMult          = Inp_TREND_CandleBody_MaxMult;
+      cfg.CandleBody_MinCloseRatio    = Inp_TREND_CandleBody_MinCloseRatio;
+      cfg.CandleBody_RequireDirection = Inp_TREND_CandleBody_RequireDir;
       // Optional anti-range filters (user toggles; default OFF = Turtle+EMAs only).
       cfg.Ind_Adx_Enabled = Inp_TREND_Use_Adx;
       cfg.ADX_Mode = ADX_MODE_DYNAMIC_PERCENTILE;

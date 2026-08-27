@@ -265,3 +265,26 @@ default `false`. Reconstruction note (EURUSD M15 2025): with `Use_EmaStack` ON t
 and a rising EMA200), so they change nothing; with the stack OFF they filter (818 -> 797
 price-vs-EMA50, 818 -> 635 EMA200-slope). All four `Donchian_*` bools now round-trip
 through `SEA_ConfigSync.mqh` for scanner parity.
+
+---
+
+## 11. 2026-08-27 naming clarity + voter parameters
+
+**Self-documenting Donchian names** (defaults unchanged):
+`Use_Donchian` -> `Use_DonchianEntry`, `Use_ChannelExit` -> `Use_DonchianExit`,
+`EntryChannel` -> `DonchianEntry_Period`, `ExitChannel` -> `DonchianExit_Period`.
+
+**Exit vs stop — clarified.** The 2xATR initial stop is placed at entry on EVERY trade and
+is ALWAYS active. `Use_DonchianExit` only controls the *additional* opposite-channel exit:
+ON = the position closes on whichever comes first (channel break OR the 2xATR stop); OFF =
+the 2xATR stop is the sole exit. The stop is never conditional on this toggle.
+
+**Per-preset voter parameters added** (`PSAR — Step/Max`; `CandleBody — AvgPeriod / MaxMult
+/ MinCloseRatio / RequireDir`), seeded in `ApplyPreset`, default = current values (behaviour-
+neutral). **P123 and Ross are parameterless** (pure fractal-breakout tests — enable only).
+**DPI stays global** (enable-only per preset, its MACD/CCI parameters remain the global inputs).
+
+**MTF timeframes clarified.** `MTF_TF1` is the primary higher timeframe (must be >= the chart
+TF); the trade direction must agree with its EMA(fast/slow) trend. `MTF_TF2` is an OPTIONAL
+second HTF — `PERIOD_CURRENT` is the sentinel for "disabled / single-HTF mode", NOT the chart
+timeframe. To require two HTFs to agree (e.g. on M15), set TF1=H1 and TF2=H4.

@@ -1044,8 +1044,8 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group " ";
 
 input group "TURTLE — INDICATORS: ON / OFF";
-input bool   Inp_TURTLE_Use_Donchian    = true;   // [CORE] Donchian breakout ENTRY (false = no entry source -> EA idles + warns)
-input bool   Inp_TURTLE_Use_ChannelExit = true;   // [CORE] opposite M-bar channel EXIT (false = SL-only)
+input bool   Inp_TURTLE_Use_DonchianEntry = true;   // [CORE] Donchian breakout ENTRY on/off (false = no entry source -> EA idles + warns)
+input bool   Inp_TURTLE_Use_DonchianExit  = true;   // [CORE] Donchian channel EXIT on/off. ON = exit on channel-break OR 2xATR stop (first hit); OFF = 2xATR stop is the ONLY exit
 input bool   Inp_TURTLE_Use_Mtf         = false;  // [opt] HTF/MTF confirmation voter
 input bool   Inp_TURTLE_Use_Adx         = false;  // [opt] ADX trend-strength gate
 input bool   Inp_TURTLE_Use_CI          = false;  // [opt] Choppiness Index range gate
@@ -1057,10 +1057,10 @@ input bool   Inp_TURTLE_Use_Dpi         = false;  // [opt] DPI voter
 input bool   Inp_TURTLE_Use_CandleBody  = false;  // [opt] CandleBody voter
 
 input group "TURTLE — Donchian / SL periods";
-input int    Inp_TURTLE_EntryChannel = 40;   // entry breakout period N (S1=20, S2=55, H4-FX=40)
-input int    Inp_TURTLE_ExitChannel  = 20;   // exit channel period M (S1=10, S2=20)
-input int    Inp_TURTLE_SL_AtrPeriod = 20;   // ATR(N) period
-input double Inp_TURTLE_SL_AtrMult   = 2.0;  // initial stop = 2 * N
+input int    Inp_TURTLE_DonchianEntry_Period = 40;  // Donchian ENTRY breakout lookback N (S1=20, S2=55, H4-FX=40)
+input int    Inp_TURTLE_DonchianExit_Period  = 20;  // Donchian EXIT channel lookback M (S1=10, S2=20)
+input int    Inp_TURTLE_SL_AtrPeriod = 20;   // ATR period for the initial stop
+input double Inp_TURTLE_SL_AtrMult   = 2.0;  // initial stop = mult x ATR — ALWAYS placed at entry, independent of Use_DonchianExit
 
 input group "TURTLE — Indicator parameters (used only when its switch above is ON)";
 input int    Inp_TURTLE_ADX_Period       = 14;
@@ -1070,10 +1070,17 @@ input int    Inp_TURTLE_CI_Period        = 14;
 input double Inp_TURTLE_CI_RangingThresh = 61.8;
 input int    Inp_TURTLE_BB_Period        = 20;
 input double Inp_TURTLE_BB_Deviation     = 2.0;
-input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF1 = PERIOD_H1;
-input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF2 = PERIOD_CURRENT;
+input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF1 = PERIOD_H1;        // primary HTF (>= chart TF): trade dir must agree with this HTF trend
+input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF2 = PERIOD_CURRENT;   // optional 2nd HTF; PERIOD_CURRENT = disabled (single-HTF). Set e.g. H4 to require TWO HTFs
 input int    Inp_TURTLE_MTF_EMA_Fast     = 50;
 input int    Inp_TURTLE_MTF_EMA_Slow     = 200;
+input group "TURTLE — PSAR / CandleBody parameters (used when ON; DPI uses GLOBAL settings)";
+input double Inp_TURTLE_Psar_Step             = 0.02;   // PSAR acceleration step
+input double Inp_TURTLE_Psar_Max              = 0.2;    // PSAR acceleration max
+input int    Inp_TURTLE_CandleBody_AvgPeriod     = 14;    // CandleBody: ATR baseline period
+input double Inp_TURTLE_CandleBody_MaxMult       = 3.0;   // CandleBody: block if range > mult x ATR (spike guard)
+input double Inp_TURTLE_CandleBody_MinCloseRatio = 0.0;   // CandleBody: min close-to-range ratio (0=off, 0.75=reject doji)
+input bool   Inp_TURTLE_CandleBody_RequireDir    = true;  // CandleBody: require signal bar to close in trade direction
 
 input group "TURTLE — Add to winner (pyramiding)";
 input EAddMode Inp_TURTLE_AddMode    = ADD_OFF;
@@ -1093,9 +1100,9 @@ input group " ";
 
 //=== TREND (Turtle breakout + 3 EMAs + HTF) ===
 input group "TREND — INDICATORS: ON / OFF";
-input bool   Inp_TREND_Use_Donchian    = true;   // [CORE] Donchian breakout ENTRY (false = no entry source -> EA idles + warns)
+input bool   Inp_TREND_Use_DonchianEntry = true;   // [CORE] Donchian breakout ENTRY on/off (false = no entry source -> EA idles + warns)
 input bool   Inp_TREND_Use_EmaStack    = true;   // [CORE] require EMA(20/50/200) stack (false = pure Donchian channels)
-input bool   Inp_TREND_Use_ChannelExit = true;   // [CORE] opposite channel EXIT (false = SL-only)
+input bool   Inp_TREND_Use_DonchianExit  = true;   // [CORE] Donchian channel EXIT on/off. ON = exit on channel-break OR 2xATR stop (first hit); OFF = 2xATR stop is the ONLY exit
 input bool   Inp_TREND_Use_Mtf         = true;   // [CORE] HTF/MTF confirmation (keep ON)
 input bool   Inp_TREND_Use_PriceVsEma2 = false;  // [opt] also require price beyond EMA2(50) in bias dir (doc Stage 2)
 input bool   Inp_TREND_Use_Ema3Slope   = false;  // [opt] also require EMA3(200) sloping in bias dir (doc Stage 1)
@@ -1109,19 +1116,26 @@ input bool   Inp_TREND_Use_Dpi         = false;  // [opt] DPI voter
 input bool   Inp_TREND_Use_CandleBody  = false;  // [opt] CandleBody voter
 
 input group "TREND — Channels / EMA / SL periods";
-input int    Inp_TREND_EntryChannel = 20;   // entry breakout period
-input int    Inp_TREND_ExitChannel  = 10;   // exit channel period
+input int    Inp_TREND_DonchianEntry_Period = 20;  // Donchian ENTRY breakout lookback N
+input int    Inp_TREND_DonchianExit_Period  = 10;  // Donchian EXIT channel lookback M
 input int    Inp_TREND_Ema_Fast = 20;       // fast EMA
 input int    Inp_TREND_Ema_Mid  = 50;       // mid EMA
 input int    Inp_TREND_Ema_Slow = 200;      // slow EMA (20>50>200 = long-only)
-input int    Inp_TREND_SL_AtrPeriod = 20;   // ATR period
-input double Inp_TREND_SL_AtrMult   = 2.0;  // initial stop = 2 * ATR
+input int    Inp_TREND_SL_AtrPeriod = 20;   // ATR period for the initial stop
+input double Inp_TREND_SL_AtrMult   = 2.0;  // initial stop = mult x ATR — ALWAYS placed at entry, independent of Use_DonchianExit
 
 input group "TREND — Indicator parameters (used only when its switch above is ON)";
-input ENUM_TIMEFRAMES Inp_TREND_MTF_TF1 = PERIOD_H1;
-input ENUM_TIMEFRAMES Inp_TREND_MTF_TF2 = PERIOD_CURRENT;
+input ENUM_TIMEFRAMES Inp_TREND_MTF_TF1 = PERIOD_H1;        // primary HTF (>= chart TF): trade dir must agree with this HTF trend
+input ENUM_TIMEFRAMES Inp_TREND_MTF_TF2 = PERIOD_CURRENT;   // optional 2nd HTF; PERIOD_CURRENT = disabled (single-HTF). Set e.g. H4 to require TWO HTFs
 input int    Inp_TREND_MTF_EMA_Fast = 50;
 input int    Inp_TREND_MTF_EMA_Slow = 200;
+input group "TREND — PSAR / CandleBody parameters (used when ON; DPI uses GLOBAL settings)";
+input double Inp_TREND_Psar_Step             = 0.02;   // PSAR acceleration step
+input double Inp_TREND_Psar_Max              = 0.2;    // PSAR acceleration max
+input int    Inp_TREND_CandleBody_AvgPeriod     = 14;    // CandleBody: ATR baseline period
+input double Inp_TREND_CandleBody_MaxMult       = 3.0;   // CandleBody: block if range > mult x ATR (spike guard)
+input double Inp_TREND_CandleBody_MinCloseRatio = 0.0;   // CandleBody: min close-to-range ratio (0=off, 0.75=reject doji)
+input bool   Inp_TREND_CandleBody_RequireDir    = true;  // CandleBody: require signal bar to close in trade direction
 input int    Inp_TREND_ADX_Period    = 14;
 input double Inp_TREND_ADX_Percentile = 50.0;
 input int    Inp_TREND_ADX_Lookback  = 100;
