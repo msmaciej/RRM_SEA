@@ -3042,7 +3042,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BlockEmergingPhase    = false;
       cfg.Donchian_EntryPeriod    = Inp_TURTLE_EntryChannel;
       cfg.Donchian_ExitPeriod     = Inp_TURTLE_ExitChannel;
-      cfg.Donchian_UseChannelExit = true;
+      cfg.Donchian_UseChannelExit = Inp_TURTLE_UseChannelExit;
       cfg.Donchian_RequireEmaStack= false;                  // pure Turtle: no EMA filter
       cfg.AddMode                 = Inp_TURTLE_AddMode;
       cfg.Turtle_MaxUnits         = Inp_TURTLE_MaxUnits;
@@ -3051,10 +3051,20 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Turtle_SharedStop       = Inp_TURTLE_SharedStop;
       cfg.AllowReEntryAfterBE     = (Inp_TURTLE_AddMode == ADD_BE_REENTRY);
       cfg.ReEntryLotScalePct      = Inp_TURTLE_ReEntryScale;
-      // All voters OFF — the breakout is the trend.
-      cfg.Ind_MTF_Enabled=false; cfg.Ind_Adx_Enabled=false; cfg.Ind_Bb_Enabled=false;
-      cfg.Ind_Psar_Enabled=false; cfg.Ind_Macd_Enabled=false;
-      cfg.Ind_Cci_Enabled=false; cfg.Ind_CandleBody_Enabled=false; cfg.Ind_Dpi_Enabled=false;
+      // Core voters default OFF (breakout is the trend). Now user-toggleable so
+      // extra confirmations can be added per backtest (2026-08 toggle audit).
+      cfg.Ind_MTF_Enabled        = Inp_TURTLE_Use_Mtf;
+      cfg.Ind_Psar_Enabled       = Inp_TURTLE_Use_Psar;
+      cfg.Ind_Dpi_Enabled        = Inp_TURTLE_Use_Dpi;
+      cfg.Ind_CandleBody_Enabled = Inp_TURTLE_Use_CandleBody;
+      cfg.Ind_Macd_Enabled       = false;
+      cfg.Ind_Cci_Enabled        = false;
+      cfg.Ind_Adx_Enabled        = false;   // set from Inp_TURTLE_Use_Adx below
+      cfg.Ind_Bb_Enabled         = false;   // set from Inp_TURTLE_Use_Bb below
+      // MTF params (consulted only when Inp_TURTLE_Use_Mtf = true)
+      cfg.MTF_TF1 = Inp_TURTLE_MTF_TF1; cfg.MTF_TF2 = Inp_TURTLE_MTF_TF2;
+      cfg.MTF_EMA_Fast = Inp_TURTLE_MTF_EMA_Fast; cfg.MTF_EMA_Slow = Inp_TURTLE_MTF_EMA_Slow;
+      cfg.MTF_RequirePhase = true;
       // Optional anti-range filters (user toggles; default OFF = pure Turtle).
       cfg.Ind_Adx_Enabled = Inp_TURTLE_Use_Adx;
       cfg.ADX_Mode = ADX_MODE_DYNAMIC_PERCENTILE;
@@ -3097,8 +3107,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BlockEmergingPhase    = false;
       cfg.Donchian_EntryPeriod    = Inp_TREND_EntryChannel;
       cfg.Donchian_ExitPeriod     = Inp_TREND_ExitChannel;
-      cfg.Donchian_UseChannelExit = true;
-      cfg.Donchian_RequireEmaStack= true;                   // gate by EMA(20/50/200) stack
+      cfg.Donchian_UseChannelExit = Inp_TREND_UseChannelExit;
+      cfg.Donchian_RequireEmaStack= Inp_TREND_Use_EmaStack;                   // gate by EMA(20/50/200) stack
       cfg.AddMode                 = Inp_TREND_AddMode;
       cfg.Turtle_MaxUnits         = Inp_TREND_MaxUnits;
       cfg.Turtle_AddStepATR       = Inp_TREND_AddStepATR;
@@ -3118,7 +3128,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Slow = Inp_TREND_MTF_EMA_Slow;  // 200
       cfg.MTF_RequirePhase = true;
       // Other voters off; ADX available as optional anti-range if desired.
-      cfg.Ind_Psar_Enabled=false; cfg.Ind_Dpi_Enabled=false; cfg.Ind_CandleBody_Enabled=false;
+      cfg.Ind_Psar_Enabled       = Inp_TREND_Use_Psar;
+      cfg.Ind_Dpi_Enabled        = Inp_TREND_Use_Dpi;
+      cfg.Ind_CandleBody_Enabled = Inp_TREND_Use_CandleBody;
       // Optional anti-range filters (user toggles; default OFF = Turtle+EMAs only).
       cfg.Ind_Adx_Enabled = Inp_TREND_Use_Adx;
       cfg.ADX_Mode = ADX_MODE_DYNAMIC_PERCENTILE;

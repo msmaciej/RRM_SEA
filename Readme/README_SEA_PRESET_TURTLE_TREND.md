@@ -198,3 +198,36 @@ source docs stress diversification across a basket.
 **Compilation:** these edits follow the repo's exact patterns and pass symbol/structure checks,
 but were not compiled in MetaEditor in the authoring environment. Compile `SimpleEA_v1-05.mq5`
 in MetaEditor to confirm a clean build before backtesting.
+
+---
+
+## 9. 2026-08 routing fix + toggle audit (CANDIDATE — pending Strategy Tester)
+
+**Defect (traced).** Both presets ship `BiasMode = BIAS_MANUAL` + `AutoStrat =
+STRAT_DONCHIAN_BREAKOUT`. In `EvaluateBias`, the `BIAS_MANUAL` branch derived `bias`
+from `ManSide` only; the `STRAT_DONCHIAN_BREAKOUT` dispatch lived in the *non-manual*
+`else` branch and was therefore unreachable under manual bias (`ValidateBiasStratCombo`
+even comments "Manual mode doesn't use AutoStrat"). With the default
+`Inp_Global_ManualSide = SIDE_BOTH`, `bias = 0` on every bar -> `EvaluateTS_Breakdown`
+returns 0 immediately -> **zero trades**. A Python reconstruction on EURUSD M15 2025
+reproduced 0 trades pre-fix, and the documented signal-shape post-fix (TURTLE 40/20:
+~25% win, avg win approx 2.4x avg loss).
+
+**Fix.** `EvaluateBias` now, under `BIAS_MANUAL`, calls a shared `DonchianEntrySignal()`
+helper when `AutoStrat == STRAT_DONCHIAN_BREAKOUT`, so the breakout supplies B as the
+README always specified. Status: **candidate — UNCONFIRMED** until an MT5 Strategy
+Tester run shows `STRAT_DONCHIAN_BREAKOUT ... signal=+/-1` and trades on channel breaks.
+
+**New enable toggles (default preserves prior behaviour).**
+
+| Input | Preset | Default | Effect |
+|-------|--------|---------|--------|
+| `Inp_TREND_Use_EmaStack` | TREND | true | require EMA(20/50/200) stack; false = pure Donchian channels |
+| `Inp_TURTLE_UseChannelExit` / `Inp_TREND_UseChannelExit` | both | true | opposite-channel exit; false = SL-only |
+| `Inp_TURTLE_Use_Mtf` (+ `_MTF_TF1/_TF2/_EMA_Fast/_EMA_Slow`) | TURTLE | false | add HTF/MTF confirmation voter |
+| `Inp_TURTLE_Use_Psar` / `_Use_Dpi` / `_Use_CandleBody` | TURTLE | false | add the named voter |
+| `Inp_TREND_Use_Psar` / `_Use_Dpi` / `_Use_CandleBody` | TREND | false | add the named voter |
+
+All are unanimous I-voters and take effect only after the routing fix (before it, the
+pipeline never reaches `EvaluateI`). The four `Donchian_*` fields are now serialized in
+`SEA_ConfigSync.mqh` so the SignalScan inspector reconstructs TURTLE/TREND correctly.

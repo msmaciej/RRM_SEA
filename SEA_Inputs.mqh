@@ -1072,6 +1072,15 @@ input int    Inp_TURTLE_BB_Period    = 20;                        // TURTLE: BB 
 input double Inp_TURTLE_BB_Deviation = 2.0;                       // TURTLE: BB deviation
 input bool   Inp_TURTLE_Use_P123     = false;                     // TURTLE: P123 (Mark Crisp 1-2-3 fractal breakout) confirm
 input bool   Inp_TURTLE_Use_Ross     = false;                     // TURTLE: Ross Hook (P123 + momentum interlock) confirm
+input bool   Inp_TURTLE_UseChannelExit = true;                    // TURTLE: exit on opposite M-bar channel (core; false = SL-only)
+input bool   Inp_TURTLE_Use_Mtf        = false;                   // TURTLE: add HTF/MTF confirmation voter
+input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF1 = PERIOD_H1;             // TURTLE: MTF HTF #1 (used when Use_Mtf=true)
+input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF2 = PERIOD_CURRENT;        // TURTLE: MTF HTF #2 (CURRENT = single HTF)
+input int    Inp_TURTLE_MTF_EMA_Fast   = 50;                      // TURTLE: MTF fast EMA
+input int    Inp_TURTLE_MTF_EMA_Slow   = 200;                     // TURTLE: MTF slow EMA
+input bool   Inp_TURTLE_Use_Psar       = false;                   // TURTLE: add Parabolic SAR voter
+input bool   Inp_TURTLE_Use_Dpi        = false;                   // TURTLE: add DPI voter
+input bool   Inp_TURTLE_Use_CandleBody = false;                   // TURTLE: add CandleBody voter
 #endif // SEA_BUILD_TURTLE
 
 #ifdef SEA_BUILD_TREND
@@ -1123,6 +1132,11 @@ input int    Inp_TREND_BB_Period     = 20;                        // TREND: BB p
 input double Inp_TREND_BB_Deviation  = 2.0;                       // TREND: BB deviation
 input bool   Inp_TREND_Use_P123      = false;                     // TREND: P123 (Mark Crisp 1-2-3 fractal breakout) confirm
 input bool   Inp_TREND_Use_Ross      = false;                     // TREND: Ross Hook (P123 + momentum interlock) confirm
+input bool   Inp_TREND_Use_EmaStack    = true;                    // TREND: require EMA(20/50/200) stack (core; false = pure Donchian channels)
+input bool   Inp_TREND_UseChannelExit  = true;                    // TREND: exit on opposite channel (core; false = SL-only)
+input bool   Inp_TREND_Use_Psar        = false;                   // TREND: add Parabolic SAR voter
+input bool   Inp_TREND_Use_Dpi         = false;                   // TREND: add DPI voter
+input bool   Inp_TREND_Use_CandleBody  = false;                   // TREND: add CandleBody voter
 #endif // SEA_BUILD_TREND
 
 input group " ";

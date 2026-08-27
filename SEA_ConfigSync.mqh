@@ -178,6 +178,11 @@ bool SEA_WriteConfigSnapshot(const ST_Settings &cfg)
    FileWriteString(h, "Ind_Ross_Enabled=" + (cfg.Ind_Ross_Enabled ? "true" : "false") + "\n");
    FileWriteString(h, "Ind_Rsi_Enabled=" + (cfg.Ind_Rsi_Enabled ? "true" : "false") + "\n");
    FileWriteString(h, "Ind_SmaConverge_Enabled=" + (cfg.Ind_SmaConverge_Enabled ? "true" : "false") + "\n");
+   FileWriteString(h, "# -- 08 Donchian (TURTLE/TREND) --\n");
+   FileWriteString(h, "Donchian_EntryPeriod=" + IntegerToString(cfg.Donchian_EntryPeriod) + "\n");
+   FileWriteString(h, "Donchian_ExitPeriod=" + IntegerToString(cfg.Donchian_ExitPeriod) + "\n");
+   FileWriteString(h, "Donchian_UseChannelExit=" + (cfg.Donchian_UseChannelExit ? "true" : "false") + "\n");
+   FileWriteString(h, "Donchian_RequireEmaStack=" + (cfg.Donchian_RequireEmaStack ? "true" : "false") + "\n");
    FileWriteString(h, "Ind_Sto_Enabled=" + (cfg.Ind_Sto_Enabled ? "true" : "false") + "\n");
    FileWriteString(h, "Ind_VRC_Enabled=" + (cfg.Ind_VRC_Enabled ? "true" : "false") + "\n");
    FileWriteString(h, "# -- 08 ADX --\n");
@@ -417,6 +422,10 @@ bool SEA_CS_ApplyKey(ST_Settings &s, const string key, const string val)
    if(key == "Fib_MinRetracement") { s.Fib_MinRetracement = StringToDouble(val); return true; }
    if(key == "Fib_SwingLookback") { s.Fib_SwingLookback = (int)StringToInteger(val); return true; }
    if(key == "Ind_Adx_Enabled") { s.Ind_Adx_Enabled = SEA_CS_ParseBool(val); return true; }
+   if(key == "Donchian_EntryPeriod") { s.Donchian_EntryPeriod = (int)StringToInteger(val); return true; }
+   if(key == "Donchian_ExitPeriod") { s.Donchian_ExitPeriod = (int)StringToInteger(val); return true; }
+   if(key == "Donchian_UseChannelExit") { s.Donchian_UseChannelExit = SEA_CS_ParseBool(val); return true; }
+   if(key == "Donchian_RequireEmaStack") { s.Donchian_RequireEmaStack = SEA_CS_ParseBool(val); return true; }
    if(key == "Ind_Atr_Enabled") { s.Ind_Atr_Enabled = SEA_CS_ParseBool(val); return true; }
    if(key == "Ind_Bb_Enabled") { s.Ind_Bb_Enabled = SEA_CS_ParseBool(val); return true; }
    if(key == "Ind_CI_Enabled") { s.Ind_CI_Enabled = SEA_CS_ParseBool(val); return true; }

@@ -8255,6 +8255,42 @@ public:
 
 
    // ─────────────────────────────────────────────────────────────────────────
+   // DonchianEntrySignal — STRAT_DONCHIAN_BREAKOUT direction. Single source of
+   // truth for the BIAS_MANUAL path (below) AND the legacy non-manual AutoStrat
+   // else-branch. Returns +1 (break of prior N-bar high), -1 (break of prior
+   // N-bar low), 0 (no break). Channel EXCLUDES the current bar (anchor
+   // v_shift+1). For TREND (Donchian_RequireEmaStack) the direction is gated by
+   // the ribbon EMA(fast/mid/slow) stack, read from the snapshot refreshed at the
+   // top of every EvaluateTS pass. (2026-08 routing fix.)
+   // ─────────────────────────────────────────────────────────────────────────
+   int DonchianEntrySignal(int v_shift)
+   {
+      int n_ch = m_settings.Donchian_EntryPeriod;
+      int hi_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, n_ch, v_shift + 1);
+      int lo_idx = iLowest (m_symbol, PERIOD_CURRENT, MODE_LOW,  n_ch, v_shift + 1);
+      if(hi_idx < 0 || lo_idx < 0) return 0;
+      double up_lvl = iHigh (m_symbol, PERIOD_CURRENT, hi_idx);
+      double dn_lvl = iLow  (m_symbol, PERIOD_CURRENT, lo_idx);
+      double c_brk  = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+      int entry_signal = 0;
+      if(c_brk > up_lvl)      entry_signal =  1;
+      else if(c_brk < dn_lvl) entry_signal = -1;
+      // TREND: gate direction by EMA(fast/mid/slow) stack from the ribbon snapshot.
+      if(entry_signal != 0 && m_settings.Donchian_RequireEmaStack) {
+         if(m_ribbon.valid[0] && m_ribbon.valid[1] && m_ribbon.valid[2]) {
+            double e1 = m_ribbon.ema[0], e2 = m_ribbon.ema[1], e3 = m_ribbon.ema[2];
+            bool up_stack = (e1 > e2 && e2 > e3);
+            bool dn_stack = (e1 < e2 && e2 < e3);
+            if(entry_signal == 1  && !up_stack) entry_signal = 0;
+            if(entry_signal == -1 && !dn_stack) entry_signal = 0;
+         } else {
+            entry_signal = 0;  // stack unreadable -> no trade
+         }
+      }
+      return entry_signal;
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
    // EvaluateBias — Directional market condition (all BiasMode variants)
    // Returns +1 (LONG), -1 (SHORT), or 0 (no directional bias / reject).
    // Includes: BiasEnabled gate, phase filtering, bias computation, AutoStrat,
@@ -8290,7 +8326,15 @@ public:
       // EvaluateB and phase-gate in EvaluateP). Removed to prevent accidental
       // resurrection of the old behavior.
       if(m_settings.BiasMode == BIAS_MANUAL) {
-         if(m_settings.ManSide == SIDE_LONG) bias = 1;
+         // 2026-08 routing fix: an AutoStrat paired with BIAS_MANUAL now supplies
+         // the direction. STRAT_DONCHIAN_BREAKOUT (PRESET_TURTLE / PRESET_TREND)
+         // drives bias from the channel breakout (README: "B supplied by the
+         // breakout"). Previously this dispatch lived only in the non-manual
+         // else-branch, so under BIAS_MANUAL the breakout never ran and bias fell
+         // back to ManSide (default SIDE_BOTH -> 0 -> zero trades).
+         if(m_settings.AutoStrat == STRAT_DONCHIAN_BREAKOUT)
+            bias = DonchianEntrySignal(v_shift);
+         else if(m_settings.ManSide == SIDE_LONG) bias = 1;
          else if(m_settings.ManSide == SIDE_SHORT) bias = -1;
          else bias = 0;
 

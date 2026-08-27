@@ -677,6 +677,8 @@ struct ST_Settings
    int      Donchian_ExitPeriod;     // exit channel M (opposite-channel exit)
    bool     Donchian_UseChannelExit; // exit on opposite M-bar channel break
    bool     Donchian_RequireEmaStack;// TREND: require EMA1>EMA2>EMA3 (20/50/200) alignment
+   bool     Donchian_RequirePriceVsEma2;// TREND (opt): also require price beyond EMA2(50) in bias dir (doc Stage 2)
+   bool     Donchian_RequireEma3Slope;  // TREND (opt): also require EMA3(200) sloping in bias dir (doc Stage 1 "rising")
 
    // --- Add-to-winner (pyramiding) mode ---
    EAddMode AddMode;                 // OFF / BE re-entry / authentic Turtle units
