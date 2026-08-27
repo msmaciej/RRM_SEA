@@ -1070,8 +1070,9 @@ input int    Inp_TURTLE_CI_Period        = 14;
 input double Inp_TURTLE_CI_RangingThresh = 61.8;
 input int    Inp_TURTLE_BB_Period        = 20;
 input double Inp_TURTLE_BB_Deviation     = 2.0;
-input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF1 = PERIOD_H1;        // primary HTF (>= chart TF): trade dir must agree with this HTF trend
-input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF2 = PERIOD_CURRENT;   // optional 2nd HTF; PERIOD_CURRENT = disabled (single-HTF). Set e.g. H4 to require TWO HTFs
+input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF1 = PERIOD_H1;        // primary HTF — set HIGHER than the chart TF (H1 for M5/M15). Trade dir must agree with its EMA trend
+input bool   Inp_TURTLE_MTF_Use_SecondHTF = false;          // use a 2nd HTF? false = single-HTF (TF1 only). true = require BOTH TF1 and TF2 to agree
+input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF2 = PERIOD_H4;        // 2nd HTF — used ONLY when Use_SecondHTF=true; set HIGHER than TF1
 input int    Inp_TURTLE_MTF_EMA_Fast     = 50;
 input int    Inp_TURTLE_MTF_EMA_Slow     = 200;
 input group "TURTLE — PSAR / CandleBody parameters (used when ON; DPI uses GLOBAL settings)";
@@ -1125,8 +1126,9 @@ input int    Inp_TREND_SL_AtrPeriod = 20;   // ATR period for the initial stop
 input double Inp_TREND_SL_AtrMult   = 2.0;  // initial stop = mult x ATR — ALWAYS placed at entry, independent of Use_DonchianExit
 
 input group "TREND — Indicator parameters (used only when its switch above is ON)";
-input ENUM_TIMEFRAMES Inp_TREND_MTF_TF1 = PERIOD_H1;        // primary HTF (>= chart TF): trade dir must agree with this HTF trend
-input ENUM_TIMEFRAMES Inp_TREND_MTF_TF2 = PERIOD_CURRENT;   // optional 2nd HTF; PERIOD_CURRENT = disabled (single-HTF). Set e.g. H4 to require TWO HTFs
+input ENUM_TIMEFRAMES Inp_TREND_MTF_TF1 = PERIOD_H1;        // primary HTF — set HIGHER than the chart TF (H1 for M5/M15). Trade dir must agree with its EMA trend
+input bool   Inp_TREND_MTF_Use_SecondHTF = false;          // use a 2nd HTF? false = single-HTF (TF1 only). true = require BOTH TF1 and TF2 to agree
+input ENUM_TIMEFRAMES Inp_TREND_MTF_TF2 = PERIOD_H4;        // 2nd HTF — used ONLY when Use_SecondHTF=true; set HIGHER than TF1
 input int    Inp_TREND_MTF_EMA_Fast = 50;
 input int    Inp_TREND_MTF_EMA_Slow = 200;
 input group "TREND — PSAR / CandleBody parameters (used when ON; DPI uses GLOBAL settings)";

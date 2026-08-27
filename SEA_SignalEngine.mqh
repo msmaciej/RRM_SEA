@@ -1401,7 +1401,8 @@ private:
       int mtf_tf1 = GetMTFBias(h_mtf_tf1_fast, h_mtf_tf1_slow, m_settings.MTF_TF1, m15_shift);
       string tf1_label = EnumToString(m_settings.MTF_TF1);
 
-      bool single_tf_mode = (h_mtf_tf2_fast == INVALID_HANDLE ||
+      bool single_tf_mode = (!m_settings.MTF_UseSecondHTF ||
+                             h_mtf_tf2_fast == INVALID_HANDLE ||
                              m_settings.MTF_TF2 == PERIOD_CURRENT ||
                              m_settings.MTF_TF2 == m_settings.MTF_TF1);
 
@@ -5874,7 +5875,8 @@ public:
       int tf1_bias  = GetMTFBias(h_mtf_tf1_fast, h_mtf_tf1_slow, m_settings.MTF_TF1, 1);
       int tf2_bias  = 0;
 
-      bool single_tf_mode = (h_mtf_tf2_fast == INVALID_HANDLE ||
+      bool single_tf_mode = (!m_settings.MTF_UseSecondHTF ||
+                             h_mtf_tf2_fast == INVALID_HANDLE ||
                              m_settings.MTF_TF2 == PERIOD_CURRENT ||
                              m_settings.MTF_TF2 == m_settings.MTF_TF1);
 
@@ -7512,11 +7514,20 @@ public:
          h_mtf_tf1_fast = iMA(m_symbol, m_settings.MTF_TF1, m_settings.MTF_EMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
          h_mtf_tf1_slow = iMA(m_symbol, m_settings.MTF_TF1, m_settings.MTF_EMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
 
-         if(m_settings.MTF_TF2 != PERIOD_CURRENT && m_settings.MTF_TF2 != m_settings.MTF_TF1)
+         if(m_settings.MTF_UseSecondHTF && m_settings.MTF_TF2 != PERIOD_CURRENT && m_settings.MTF_TF2 != m_settings.MTF_TF1)
          {
             h_mtf_tf2_fast = iMA(m_symbol, m_settings.MTF_TF2, m_settings.MTF_EMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
             h_mtf_tf2_slow = iMA(m_symbol, m_settings.MTF_TF2, m_settings.MTF_EMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
          }
+         // Mis-config guard: an HTF not strictly higher than the chart TF gives no
+         // confirmation (equal = same TF; lower = a LOWER TF). Warn, do not block.
+         if(PeriodSeconds(m_settings.MTF_TF1) <= PeriodSeconds(PERIOD_CURRENT))
+            PrintFormat("[MTF] WARNING: MTF_TF1=%s is NOT higher than the chart TF - HTF confirmation is meaningless; raise MTF_TF1.",
+                        EnumToString(m_settings.MTF_TF1));
+         if(m_settings.MTF_UseSecondHTF && m_settings.MTF_TF2 != PERIOD_CURRENT &&
+            PeriodSeconds(m_settings.MTF_TF2) <= PeriodSeconds(PERIOD_CURRENT))
+            PrintFormat("[MTF] WARNING: MTF_TF2=%s is NOT higher than the chart TF.",
+                        EnumToString(m_settings.MTF_TF2));
       }
       
       // C. Validation Checkpoints
@@ -7556,7 +7567,7 @@ public:
          Print("CRITICAL ERROR: Failed to create MTF TF1 EMA handles.");
          return false;
       }
-      if(m_settings.Ind_MTF_Enabled && m_settings.MTF_TF2 != PERIOD_CURRENT && m_settings.MTF_TF2 != m_settings.MTF_TF1 &&
+      if(m_settings.Ind_MTF_Enabled && m_settings.MTF_UseSecondHTF && m_settings.MTF_TF2 != PERIOD_CURRENT && m_settings.MTF_TF2 != m_settings.MTF_TF1 &&
          (h_mtf_tf2_fast == INVALID_HANDLE || h_mtf_tf2_slow == INVALID_HANDLE)) {
          Print("CRITICAL ERROR: Failed to create MTF TF2 EMA handles.");
          return false;

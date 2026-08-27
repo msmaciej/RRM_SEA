@@ -472,6 +472,7 @@ struct ST_Settings
    int             MTF_EMA_Fast;       // MTF fast EMA period
    int             MTF_EMA_Slow;       // MTF slow EMA period
    bool            MTF_RequirePhase;   // Veto MTF: require trending phase
+   bool            MTF_UseSecondHTF;   // MTF: use optional 2nd HTF (TF2). false = single-HTF (TF1 only)
 
    // Fibonacci Retracement voter
    bool   Ind_Fib_Enabled;             // Fibonacci retracement depth voter

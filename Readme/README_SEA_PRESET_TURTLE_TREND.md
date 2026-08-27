@@ -288,3 +288,29 @@ neutral). **P123 and Ross are parameterless** (pure fractal-breakout tests — e
 TF); the trade direction must agree with its EMA(fast/slow) trend. `MTF_TF2` is an OPTIONAL
 second HTF — `PERIOD_CURRENT` is the sentinel for "disabled / single-HTF mode", NOT the chart
 timeframe. To require two HTFs to agree (e.g. on M15), set TF1=H1 and TF2=H4.
+
+---
+
+## 12. 2026-08-27 MTF timeframes — how to set them
+
+**MTF timeframes are ABSOLUTE, not relative.** You pick real timeframes (H1, H4, ...); they
+do NOT auto-derive from the chart. TF1 must be set HIGHER than the chart TF, or the HTF
+confirmation is meaningless. Both TF1 and TF2 use the same `MTF_EMA_Fast`/`MTF_EMA_Slow`
+(50/200) pair.
+
+**New explicit switch.** `Inp_*_MTF_Use_SecondHTF` (default `false`) replaces the confusing
+`PERIOD_CURRENT`-as-disabled convention. false = single-HTF (TF1 only); true = require BOTH
+TF1 and TF2 to agree. `TF2` now defaults to `H4` as a ready example (ignored until the switch
+is on). A startup warning fires if TF1 (or an enabled TF2) is not strictly higher than the
+chart TF.
+
+**How to set it, by chart timeframe (TF1 always used; TF2 only if Use_SecondHTF=true):**
+
+| You trade | TF1 (primary HTF) | Use_SecondHTF / TF2 |
+|---|---|---|
+| M5  | H1 (default) — or M30 for a closer HTF | off — or on + H4 |
+| M15 | H1 (default) — or M30 | off — or on + H4 |
+| H1  | **must raise to H4** (default H1 = same as chart = no value) | off — or on + D1 |
+| H4  | **must raise to D1** (default H1 is LOWER than chart = wrong) | off — or on + W1 |
+
+The RRM/TI guidance of "confirm ~2 timeframes higher" is a good rule of thumb for TF1.

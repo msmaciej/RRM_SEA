@@ -286,6 +286,7 @@ bool SEA_WriteConfigSnapshot(const ST_Settings &cfg)
    FileWriteString(h, "MTF_RequirePhase=" + (cfg.MTF_RequirePhase ? "true" : "false") + "\n");
    FileWriteString(h, "MTF_TF1=" + IntegerToString((int)cfg.MTF_TF1) + "\n");
    FileWriteString(h, "MTF_TF2=" + IntegerToString((int)cfg.MTF_TF2) + "\n");
+   FileWriteString(h, "MTF_UseSecondHTF=" + (cfg.MTF_UseSecondHTF ? "true" : "false") + "\n");
    FileWriteString(h, "# -- 22 Fibonacci --\n");
    FileWriteString(h, "Fib_MaxRetracement=" + DoubleToString(cfg.Fib_MaxRetracement, 8) + "\n");
    FileWriteString(h, "Fib_MinRetracement=" + DoubleToString(cfg.Fib_MinRetracement, 8) + "\n");
@@ -466,6 +467,7 @@ bool SEA_CS_ApplyKey(ST_Settings &s, const string key, const string val)
    if(key == "MTF_RequirePhase") { s.MTF_RequirePhase = SEA_CS_ParseBool(val); return true; }
    if(key == "MTF_TF1") { s.MTF_TF1 = (ENUM_TIMEFRAMES)(int)StringToInteger(val); return true; }
    if(key == "MTF_TF2") { s.MTF_TF2 = (ENUM_TIMEFRAMES)(int)StringToInteger(val); return true; }
+   if(key == "MTF_UseSecondHTF") { s.MTF_UseSecondHTF = SEA_CS_ParseBool(val); return true; }
    if(key == "MaType") { s.MaType = (EMaMethod)(int)StringToInteger(val); return true; }
    if(key == "MacdBlockOnDivergence") { s.MacdBlockOnDivergence = SEA_CS_ParseBool(val); return true; }
    if(key == "MacdDivLookback") { s.MacdDivLookback = (int)StringToInteger(val); return true; }

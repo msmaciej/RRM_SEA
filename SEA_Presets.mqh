@@ -3074,6 +3074,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_TF1 = Inp_TURTLE_MTF_TF1; cfg.MTF_TF2 = Inp_TURTLE_MTF_TF2;
       cfg.MTF_EMA_Fast = Inp_TURTLE_MTF_EMA_Fast; cfg.MTF_EMA_Slow = Inp_TURTLE_MTF_EMA_Slow;
       cfg.MTF_RequirePhase = true;
+      cfg.MTF_UseSecondHTF = Inp_TURTLE_MTF_Use_SecondHTF;
       // Optional anti-range filters (user toggles; default OFF = pure Turtle).
       cfg.Ind_Adx_Enabled = Inp_TURTLE_Use_Adx;
       cfg.ADX_Mode = ADX_MODE_DYNAMIC_PERCENTILE;
@@ -3140,6 +3141,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Fast = Inp_TREND_MTF_EMA_Fast;  // 50
       cfg.MTF_EMA_Slow = Inp_TREND_MTF_EMA_Slow;  // 200
       cfg.MTF_RequirePhase = true;
+      cfg.MTF_UseSecondHTF = Inp_TREND_MTF_Use_SecondHTF;
       // Other voters off; ADX available as optional anti-range if desired.
       cfg.Ind_Psar_Enabled       = Inp_TREND_Use_Psar;
       cfg.Ind_Dpi_Enabled        = Inp_TREND_Use_Dpi;
