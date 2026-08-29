@@ -338,3 +338,40 @@ one clear on/off pattern instead of relying on the `PERIOD_CURRENT` sentinel.
   applied to both TF1 and TF2 — the same structure as TURTLE/TREND. Only the default values
   differ (XEMA 20/50 on M15/H1 vs TURTLE/TREND 50/200 on H1), which is intended per-preset
   tuning, not a structural inconsistency.
+
+---
+
+## 14. 2026-08-27 XEMA + FPM enable-toggle audit
+
+Extended the uniform `Inp_<PRESET>_Use_<Indicator>` pattern to XEMA and FPM (default-
+preserving — the toggles map to existing `Ind_*_Enabled` fields, no new config field).
+
+**FPM** — its five locked conditions are now user-toggleable (default `true`, so default
+behaviour = real FPM): `Use_Psar` (Cond 1), `Use_Macd` (Cond 2), `Use_Bb` (Cond 3),
+`Use_BarClose` (Cond 5). MFI already had `Ind_Mfi_Enabled`. Note: FPM is a methodology-
+locked preset — turning a condition off means you are no longer running true FPM; the
+switches exist for A/B testing, not as a recommendation to drop conditions.
+
+**XEMA** — already had `Use_Mtf/Adx/Bb/CI`; added the optional voters `Use_Psar`, `Use_Dpi`,
+`Use_CandleBody` (default `false`, addable), matching TURTLE/TREND. DPI params stay global.
+
+**input string vs input group:** `input group "…"` is the native MT5 (build 2000+) collapsible
+section header — not an editable variable, purpose-built for grouping. `input string Inp_*_H =
+"…"` is the legacy way (a real string input used as a label); it wastes a variable slot and can
+be edited by accident. New/uniform blocks use `input group`; XEMA still mixes both and could be
+migrated fully if desired.
+
+---
+
+## 15. 2026-08-27 FPM full toggle surface + XEMA input group
+
+**FPM — every indicator now toggleable** (TURTLE/TREND pattern): core conditions default
+`true` (`Use_Psar/Macd/Bb/BarClose`, MFI already toggled), optional voters default `false`
+and addable (`Use_Adx/CI/CandleBody/Dpi/P123/Ross/Mtf`). All map to existing `Ind_*_Enabled`
+fields — default-preserving, no new config field. Optional-voter params fall back to the
+global baseline when enabled; MTF is exposed despite FPM methodology excluding it (default
+false). The MA-benchmark preset was left untouched.
+
+**XEMA — separators converted** from `input string Inp_XEMA_H*` (which consumed real variable
+names and were editable) to native `input group` headers. Verified repo-wide: XEMA was the
+only preset using `input string` separators; all others already use `input group`.

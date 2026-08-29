@@ -417,6 +417,19 @@ input double      Inp_FPM_TrailDistancePips        = 15.0;           // FPM TS: 
 //input group "╔════════════════════════════════════════════════════════╗";
 //input group "║   📐 FPM: MACD Settings";
 //input group "╚════════════════════════════════════════════════════════╝";
+input group "FPM — 5-POINT CONDITIONS: ON / OFF (core; default true)";
+input bool        Inp_FPM_Use_Psar                 = true;           // Condition 1: PSAR position
+input bool        Inp_FPM_Use_Macd                 = true;           // Condition 2: MACD vs signal
+input bool        Inp_FPM_Use_Bb                   = true;           // Condition 3: BB widening
+input bool        Inp_FPM_Use_BarClose             = true;           // Condition 4: bar-close confirmation
+input group "FPM — OPTIONAL voters: ON / OFF (default false; add to test)";
+input bool        Inp_FPM_Use_Adx                  = false;          // FPM: add ADX trend-strength gate
+input bool        Inp_FPM_Use_CI                   = false;          // FPM: add Choppiness Index gate
+input bool        Inp_FPM_Use_CandleBody           = false;          // FPM: add CandleBody voter
+input bool        Inp_FPM_Use_Dpi                  = false;          // FPM: add DPI voter (params global)
+input bool        Inp_FPM_Use_P123                 = false;          // FPM: add P123 fractal-breakout confirm
+input bool        Inp_FPM_Use_Ross                 = false;          // FPM: add Ross Hook confirm
+input bool        Inp_FPM_Use_Mtf                  = false;          // FPM: add HTF/MTF confirmation (methodology excludes it; params global)
 input group "=== MACD PSAR MFI ===";
 input int         Inp_FPM_MacdFast                 = 12;             // FPM MACD: fast EMA period
 input int         Inp_FPM_MacdSlow                 = 26;             // FPM MACD: slow EMA period
@@ -999,11 +1012,11 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "    📐 PRESET_XEMA";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group " ";
-input string  Inp_XEMA_H1  = "=== XEMA: Entry cross ===";         // ---
+input group "XEMA — Entry cross";
 input int     Inp_XEMA_EmaFast         = 20;                      // XEMA: fast EMA (entry cross)
 input int     Inp_XEMA_EmaSlow         = 50;                      // XEMA: slow EMA (entry cross)
 input group " ";
-input string  Inp_XEMA_H2  = "=== XEMA: HTF: confirmation ===";   // ---
+input group "XEMA — HTF confirmation";
 input bool    Inp_XEMA_MTF_Enabled     = true;                    // XEMA: HTF filter (KEEP ON - condition 1)
 input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF1 = PERIOD_M15;              // XEMA: primary HTF #1 (>= chart TF)
 input bool    Inp_XEMA_MTF_Use_SecondHTF = true;                  // XEMA: use a 2nd HTF? true = require BOTH TF1 and TF2 (XEMA default); false = single-HTF (TF1 only)
@@ -1011,7 +1024,7 @@ input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF2 = PERIOD_H1;               // XEMA: 2nd H
 input int     Inp_XEMA_MTF_EMA_Fast    = 20;                      // XEMA: HTF fast EMA (shared by TF1 and TF2)
 input int     Inp_XEMA_MTF_EMA_Slow    = 50;                      // XEMA: HTF slow EMA (shared by TF1 and TF2)
 input group " ";
-input string  Inp_XEMA_H3  = "=== XEMA: Anti-range voters: ADX, BB, CI ===";   // ---
+input group "XEMA — Anti-range + optional voters";
 input bool    Inp_XEMA_Use_Adx         = true;                    // XEMA: ADX trend-strength gate (recommended)
 input int     Inp_XEMA_ADX_Period      = 14;                      // XEMA: ADX period
 input double  Inp_XEMA_ADX_Percentile  = 50.0;                    // XEMA: ADX dynamic percentile
@@ -1025,13 +1038,17 @@ input bool    Inp_XEMA_Use_CI          = false;                   // XEMA: CI Ch
 input int     Inp_XEMA_CI_Period       = 14;                      // XEMA: CI period
 input double  Inp_XEMA_CI_RangingThresh = 61.8;                   // XEMA: CI ranging threshold
 input group " ";
-input string  Inp_XEMA_H4  = "=== XEMA: SL: Stop loss ===";       // ---
+input group " ";
+input bool    Inp_XEMA_Use_Psar        = false;                  // XEMA: add Parabolic SAR voter
+input bool    Inp_XEMA_Use_Dpi         = false;                  // XEMA: add DPI voter (DPI params are global)
+input bool    Inp_XEMA_Use_CandleBody  = false;                  // XEMA: add CandleBody voter
+input group "XEMA — Stop loss";
 input ESLMode Inp_XEMA_SLMode          = SL_MODE_SWING;           // XEMA: SL mode
 input int     Inp_XEMA_SwingLookback   = 20;                      // XEMA: swing lookback
 input int     Inp_XEMA_SL_AtrPeriod    = 14;                      // XEMA: ATR period (SL_MODE_ATR)
 input double  Inp_XEMA_SL_AtrMult      = 1.0;                     // XEMA: ATR mult (SL_MODE_ATR)
 input group " ";
-input string  Inp_XEMA_H5  = "=== XEMA: BE Exit ===";             // ---
+input group "XEMA — BE / Exit";
 input EBeMode Inp_XEMA_BE_Mode         = BE_MODE_R_MULTIPLE;      // XEMA: BE mode
 input double  Inp_XEMA_BE_RMultiple    = 2.0;                     // XEMA: move SL to BE at N*R
 input ETrailingMode Inp_XEMA_TrailMode = TRAIL_NONE;              // XEMA: post-BE trail (NONE = rely on LPR ladder / reverse cross)

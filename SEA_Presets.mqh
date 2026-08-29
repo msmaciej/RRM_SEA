@@ -1435,27 +1435,28 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.P_Ema4                 = 89;    // Unused but must be ascending
 
       // ── INDICATOR TOGGLES: locked ─────────────────────────────────────
-      cfg.Ind_Psar_Enabled       = true;   // Condition 1: PSAR position
-      cfg.Ind_Macd_Enabled       = true;   // Condition 2: MACD vs signal
-      cfg.Ind_Bb_Enabled         = true;   // Condition 3: BB widening
+      cfg.Ind_Psar_Enabled       = Inp_FPM_Use_Psar;      // Condition 1: PSAR position
+      cfg.Ind_Macd_Enabled       = Inp_FPM_Use_Macd;      // Condition 2: MACD vs signal
+      cfg.Ind_Bb_Enabled         = Inp_FPM_Use_Bb;        // Condition 3: BB widening
       // All other indicators OFF (not part of FPM methodology):
-      cfg.Ind_Adx_Enabled        = false;
+      // Optional voters — default OFF, user-toggleable to ADD confirmations (2026-08 audit):
+      cfg.Ind_Adx_Enabled        = Inp_FPM_Use_Adx;
       cfg.Ind_Atr_Enabled        = false;
-      cfg.Ind_CandleBody_Enabled = false;
-      cfg.Ind_CI_Enabled         = false;
+      cfg.Ind_CandleBody_Enabled = Inp_FPM_Use_CandleBody;
+      cfg.Ind_CI_Enabled         = Inp_FPM_Use_CI;
       cfg.Ind_VRC_Enabled        = false;
       cfg.Ind_Cci_Enabled        = false;
       cfg.Ind_Mfi_Enabled        = Inp_FPM_Ind_Mfi_Enabled;  // Volume gate: MFI>50 longs, <50 shorts (industry breakout standard)
       cfg.P_Mfi                  = Inp_FPM_Mfi_Period;
       cfg.T_MfiOB                = 80.0;
       cfg.T_MfiOS                = 20.0;
-      cfg.Ind_P123_Enabled       = false;
-      cfg.Ind_Ross_Enabled       = false;
+      cfg.Ind_P123_Enabled       = Inp_FPM_Use_P123;
+      cfg.Ind_Ross_Enabled       = Inp_FPM_Use_Ross;
       cfg.Ind_Rsi_Enabled        = false;
       cfg.Ind_Sto_Enabled        = false;
       cfg.Ind_SmaConverge_Enabled = false;  // Removed: contradicts trending Bias; BC_BIAS_FAST covers Condition 4
-      cfg.Ind_Dpi_Enabled        = false;   // DPI not used in FPM methodology
-      cfg.Ind_MTF_Enabled        = false;   // LOCKED OFF (methodology): MTF is not part of FPM — no user toggle by design
+      cfg.Ind_Dpi_Enabled        = Inp_FPM_Use_Dpi;
+      cfg.Ind_MTF_Enabled        = Inp_FPM_Use_Mtf;   // exposed (default false); FPM methodology excludes MTF — MTF params fall back to global
 
       // ── PSAR SETTINGS ─────────────────────────────────────────────────
       // Condition 1: PSAR crossed below price (for buy) = PSAR dot below price
@@ -1488,7 +1489,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       // ── BAR CLOSE (bcX): Condition 5 ──────────────────────────────────
       // Candle closed above 10 SMA (fast SMA) → above both SMAs in bullish bias
-      cfg.BarClose_Enabled       = true;
+      cfg.BarClose_Enabled       = Inp_FPM_Use_BarClose;
       cfg.BarClose_Mode          = BC_BIAS_FAST;   // Close vs SMA10 (fast)
       cfg.BarClose_DefaultEMA    = ROLE_EMA1;
 
@@ -3003,8 +3004,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Ind_CI_Enabled = Inp_XEMA_Use_CI;   // native inline CI, no external file
       cfg.CI_Period = Inp_XEMA_CI_Period;
       cfg.CI_RangingThreshold = Inp_XEMA_CI_RangingThresh;
-      cfg.Ind_Psar_Enabled=false; cfg.Ind_Macd_Enabled=false; cfg.Ind_Cci_Enabled=false;
-      cfg.Ind_CandleBody_Enabled=false; cfg.Ind_Dpi_Enabled=false; cfg.Ind_SmaConverge_Enabled=false;
+      cfg.Ind_Psar_Enabled=Inp_XEMA_Use_Psar; cfg.Ind_Macd_Enabled=false; cfg.Ind_Cci_Enabled=false;
+      cfg.Ind_CandleBody_Enabled=Inp_XEMA_Use_CandleBody; cfg.Ind_Dpi_Enabled=Inp_XEMA_Use_Dpi; cfg.Ind_SmaConverge_Enabled=false;
       cfg.Ind_Fib_Enabled=false; cfg.Ind_Rsi_Enabled=false; cfg.Ind_Mfi_Enabled=false;
       cfg.Ind_Sto_Enabled=false; cfg.Ind_Atr_Enabled=false; cfg.Ind_VRC_Enabled=false;
       cfg.Ind_P123_Enabled=false; cfg.Ind_Ross_Enabled=false;
