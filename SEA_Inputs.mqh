@@ -891,36 +891,25 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET_TOPINVESTOR";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 TOPINVESTOR: STANDARD — EMA Ribbon defaults";
-//input group "╚════════════════════════════════════════════════════════╝";
-input group "=== TI EMA ===";
+input group " ";
+input group "=== TI STD - EMA ===";
 input int         Inp_TI_Ema1                      = 9;              // TI EMA1:   9 (trailing exit ref)
 input int         Inp_TI_Ema2                      = 50;             // TI EMA2:  50 (primary bounce)
 input int         Inp_TI_Ema3                      = 89;             // TI EMA3:  89 (intermediate structure)
 input int         Inp_TI_Ema4                      = 200;            // TI EMA4: 200 (major trend anchor)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 TOPINVESTOR: STANDARD — Signal Architecture";
-//input group "╚════════════════════════════════════════════════════════╝";
-input group "=== TI STANDARD ===";
+//input group " ";
+input group "=== TI STD - STANDARD ===";
 input bool        Inp_TI_BlockUnorderedPhase       = true;           // TI Arch: block unordered phase
 input bool        Inp_TI_PhaseAllowEM              = true;           // TI Arch: allow Emerging phase
 input bool        Inp_TI_Emerging_AllowStrong      = false;          // TI Arch: allow strong trades in EM phase
 input bool        Inp_TI_CloseOnReverse            = false;          // TI Arch: close on bias reversal
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 TOPINVESTOR: STANDARD — LAYER (Pullback Detection)";
-//input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_TI_LayerBaselineLookback     = 34;             // TI Layer: baseline lookback
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 TOPINVESTOR: STANDARD — HTF Confirmation";
-//input group "╚════════════════════════════════════════════════════════╝";
+//input group " ";
 input bool        Inp_TI_MTF_Enabled               = true;           // TI HTF: MTF voter enable
 input int         Inp_TI_MTF_EMA_Fast              = 50;             // TI HTF: fast EMA period
 input int         Inp_TI_MTF_EMA_Slow              = 200;            // TI HTF: slow EMA period
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 TOPINVESTOR: STANDARD — EXIT Strategy";
-//input group "╚════════════════════════════════════════════════════════╝";
-input group "=== TI SL TP ===";
+//input group " ";
+input group "=== TI STD - SL TP EXIT ===";
 input ETrailingMode   Inp_TI_TrailMode             = TRAIL_EMA;      // TI Exit: trail mode
 input int         Inp_TI_TrailEMA_Shift            = 1;              // TI Exit: trail EMA shift (1=tight, 2=cushion)
 input ETrailTrigger   Inp_TI_TrailTrigger          = TRIGGER_BREAKEVEN; // TI Exit: trail trigger
@@ -934,43 +923,31 @@ input double      Inp_TI_RRRatio                   = 2.0;            // TI Exit:
 input EBeMode     Inp_TI_BE_Mode                   = BE_MODE_R_MULTIPLE; // TI Exit: BE mode
 input double      Inp_TI_BE_RMultiple              = 1.0;            // TI Exit: BE trigger (N×R)
 input bool        Inp_TI_TrailStartsAfterBE        = false;          // TI Exit: Safety override: trail after BE
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 TOPINVESTOR: STANDARD — EMA Fan Filter";
-//input group "╚════════════════════════════════════════════════════════╝";
-input group "=== TI EMA FAN ===";
+input group "=== TI STD - EMA FAN ===";
 input double      Inp_TI_EmaFanBase_M1M5           = 50.0;           // TI Fan: max pips M1–M5
 input double      Inp_TI_EmaFanBase_M6M30          = 80.0;           // TI Fan: max pips M6–M30
 input double      Inp_TI_EmaFanBase_H1             = 120.0;          // TI Fan: max pips H1
 input double      Inp_TI_EmaFanBase_H2H4           = 200.0;          // TI Fan: max pips H2–H4
 input double      Inp_TI_EmaFanBase_H4Plus         = 350.0;          // TI Fan: max pips H4+
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 TOPINVESTOR: STANDARD — Drawdown Protection       ║";
-//input group "╚════════════════════════════════════════════════════════╝";
-input group "=== TI DD ===";
-input bool        Inp_TI_EnableDDProtection        = false;           // TI DD: enable
+input group "=== TI STD - DD ===";
+input bool        Inp_TI_EnableDDProtection        = false;          // TI DD: enable
 input int         Inp_TI_MaxConsecutiveLosses      = 4;              // TI DD: max consecutive losses
 input int         Inp_TI_MaxTradesPerDay           = 0;              // TI DD: max trades/day (0=unlimited)
 input double      Inp_TI_MaxDailyDrawdownPct       = 2.0;            // TI DD: max daily DD %
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📊 TOPINVESTOR: VPRR Volume Confirmation";
-//input group "╚════════════════════════════════════════════════════════╝";
-input group "=== TI VPRR ===";
+input group "=== TI STD - VPRR ===";
 input bool        Inp_TI_VPRR_AutoEnable           = false;          // TI VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual toggle below)
 input EVPRRVolumeType Inp_TI_VPRR_VolumeType       = VPRR_VOL_AUTO;  // TI VPRR: Volume source (Auto=real then tick fallback)
 input bool        Inp_TI_VPRR_Enabled              = false;          // TI VPRR: Manual enable (only used when AutoEnable=OFF)
 input int         Inp_TI_VPRR_RecoveryBars         = 5;              // TI VPRR: Default recovery bars (1-10); per-instrument overrides in shared block below
 input group " ";
-//input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "╔════════════════════════════════════════════════════════╗";
 input group "    📐 PRESET_TOPINVESTOR — PROFILES";
 input group "╚════════════════════════════════════════════════════════╝";
-//input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group " ";
 input ETIProfile  Inp_TI_Profile                   = TI_MODERATE;    // TI: profile select
 input int         Inp_TI_MinBarsAfterClose         = 3;              // TI: cooldown bars after close (0=off)
 input int         Inp_TI_ReEntryLotScalePct        = 50;             // TI: Re-entry: lot size % for re-entry after BE (0=full size; 50=half)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 TOPINVESTOR: Profile: CONSERVATIVE (always active)";
-//input group "╚════════════════════════════════════════════════════════╝";
+input group " ";
 input group "=== TI PROFILE CONSERVATIVE=C (always active) ===";
 input double      Inp_TI_Psar_Step                 = 0.02;           // TI Con: PSAR step
 input double      Inp_TI_Psar_Max                  = 0.2;            // TI Con: PSAR max
@@ -983,9 +960,7 @@ input double      Inp_TI_ADX_Threshold_Trend       = 25.0;           // TI Con: 
 input double      Inp_TI_ADX_Threshold_Dist        = 18.0;           // TI Con: ADX threshold Distribution
 input int         Inp_TI_CandleBody_AvgPeriod      = 10;             // TI Con: CBody avg period
 input double      Inp_TI_CandleBody_MaxMult        = 2.5;            // TI Con: CBody max spike mult
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 TOPINVESTOR: Profile: MODERATE +=Conservative";
-//input group "╚════════════════════════════════════════════════════════╝";
+input group " ";
 input group "=== TI PROFILE: MODERATE=M (+C) ===";
 input int         Inp_TI_MACD_Fast                 = 12;             // TI Mod: MACD fast
 input int         Inp_TI_MACD_Slow                 = 26;             // TI Mod: MACD slow
@@ -995,9 +970,7 @@ input double      Inp_TI_MACD_SlopeMin             = 0.00001;        // TI Mod: 
 input int         Inp_TI_CCI_Period                = 14;             // TI Mod: CCI period
 input int         Inp_TI_BB_Period                 = 20;             // TI Mod: BB period
 input double      Inp_TI_BB_Deviation              = 2.0;            // TI Mod: BB deviation
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 TOPINVESTOR: Profile: FULL +=Moderate";
-//input group "╚════════════════════════════════════════════════════════╝";
+input group " ";
 input group "=== TI PROFILE: FULL=F (+M) ===";
 input double      Inp_TI_Fib_MinRetracement        = 0.38;           // TI Full: Fib min retracement
 input double      Inp_TI_Fib_MaxRetracement        = 0.618;          // TI Full: Fib max retracement
@@ -1006,7 +979,6 @@ input double      Inp_TI_CandleBody_FullRatio      = 0.75;           // TI Full:
 #endif // SEA_BUILD_TOPINVESTOR
 
 #ifdef SEA_BUILD_XEMA
-// ===================== PRESET_XEMA INPUTS =====================
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET_XEMA";
@@ -1017,14 +989,14 @@ input int     Inp_XEMA_EmaFast         = 20;                      // XEMA: fast 
 input int     Inp_XEMA_EmaSlow         = 50;                      // XEMA: slow EMA (entry cross)
 input group " ";
 input group "XEMA — HTF confirmation";
-input bool    Inp_XEMA_MTF_Enabled     = true;                    // XEMA: HTF filter (KEEP ON - condition 1)
+input bool    Inp_XEMA_MTF_Enabled        = true;                 // XEMA: HTF filter (KEEP ON - condition 1)
+input bool    Inp_XEMA_MTF_Use_SecondHTF  = true;                 // XEMA: use a 2nd HTF? true = require BOTH TF1 and TF2 (XEMA default); false = single-HTF (TF1 only)
 input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF1 = PERIOD_M15;              // XEMA: primary HTF #1 (>= chart TF)
-input bool    Inp_XEMA_MTF_Use_SecondHTF = true;                  // XEMA: use a 2nd HTF? true = require BOTH TF1 and TF2 (XEMA default); false = single-HTF (TF1 only)
 input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF2 = PERIOD_H1;               // XEMA: 2nd HTF #2 — used ONLY when Use_SecondHTF=true; set HIGHER than TF1
 input int     Inp_XEMA_MTF_EMA_Fast    = 20;                      // XEMA: HTF fast EMA (shared by TF1 and TF2)
 input int     Inp_XEMA_MTF_EMA_Slow    = 50;                      // XEMA: HTF slow EMA (shared by TF1 and TF2)
 input group " ";
-input group "XEMA — Anti-range + optional voters";
+input group "XEMA — Anti-range";
 input bool    Inp_XEMA_Use_Adx         = true;                    // XEMA: ADX trend-strength gate (recommended)
 input int     Inp_XEMA_ADX_Period      = 14;                      // XEMA: ADX period
 input double  Inp_XEMA_ADX_Percentile  = 50.0;                    // XEMA: ADX dynamic percentile
@@ -1038,10 +1010,17 @@ input bool    Inp_XEMA_Use_CI          = false;                   // XEMA: CI Ch
 input int     Inp_XEMA_CI_Period       = 14;                      // XEMA: CI period
 input double  Inp_XEMA_CI_RangingThresh = 61.8;                   // XEMA: CI ranging threshold
 input group " ";
+input group "XEMA — optional voters";
+input bool    Inp_XEMA_Use_Psar        = false;                   // XEMA: add Parabolic SAR voter
+input double  Inp_XEMA_Psar_Step       = 0.02;                    // XEMA: PSAR step 0.02
+input double  Inp_XEMA_Psar_Max        = 0.2;                     // XEMA: PSAR max 0.2
+input bool    Inp_XEMA_Use_CandleBody  = false;                   // XEMA: add CandleBody voter
+input bool    Inp_XEMA_CandleBody_RequireDir    = true;           // XEMA: CB RequireDir
+input int     Inp_XEMA_CandleBody_AvgPeriod     = 14;             // XEMA: CB AvGPEriod 14
+input double  Inp_XEMA_CandleBody_MaxMult       = 3.0;            // XEMA: CB MaxMult 3.0
+input double  Inp_XEMA_CandleBody_MinCloseRatio = 0.75;           // XEMA: CB MinCloseRatio 0.75
+input bool    Inp_XEMA_Use_Dpi         = false;                   // XEMA: add DPI voter (DPI params are global)
 input group " ";
-input bool    Inp_XEMA_Use_Psar        = false;                  // XEMA: add Parabolic SAR voter
-input bool    Inp_XEMA_Use_Dpi         = false;                  // XEMA: add DPI voter (DPI params are global)
-input bool    Inp_XEMA_Use_CandleBody  = false;                  // XEMA: add CandleBody voter
 input group "XEMA — Stop loss";
 input ESLMode Inp_XEMA_SLMode          = SL_MODE_SWING;           // XEMA: SL mode
 input int     Inp_XEMA_SwingLookback   = 20;                      // XEMA: swing lookback
@@ -1057,140 +1036,139 @@ input ETrailingMode Inp_XEMA_TrailMode = TRAIL_NONE;              // XEMA: post-
 #ifdef SEA_BUILD_TURTLE
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📐 PRESET_TURTLE";
+input group "    📐 PRESET_TURTLE (TUR)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group " ";
-
-input group "TURTLE — INDICATORS: ON / OFF";
-input bool   Inp_TURTLE_Use_DonchianEntry = true;   // [CORE] Donchian breakout ENTRY on/off (false = no entry source -> EA idles + warns)
-input bool   Inp_TURTLE_Use_DonchianExit  = true;   // [CORE] Donchian channel EXIT on/off. ON = exit on channel-break OR 2xATR stop (first hit); OFF = 2xATR stop is the ONLY exit
-input bool   Inp_TURTLE_Use_Mtf         = false;  // [opt] HTF/MTF confirmation voter
-input bool   Inp_TURTLE_Use_Adx         = false;  // [opt] ADX trend-strength gate
-input bool   Inp_TURTLE_Use_CI          = false;  // [opt] Choppiness Index range gate
-input bool   Inp_TURTLE_Use_Bb          = false;  // [opt] BB-widening gate
-input bool   Inp_TURTLE_Use_P123        = false;  // [opt] P123 fractal-breakout confirm
-input bool   Inp_TURTLE_Use_Ross        = false;  // [opt] Ross Hook confirm
-input bool   Inp_TURTLE_Use_Psar        = false;  // [opt] Parabolic SAR voter
-input bool   Inp_TURTLE_Use_Dpi         = false;  // [opt] DPI voter
-input bool   Inp_TURTLE_Use_CandleBody  = false;  // [opt] CandleBody voter
-
 input group "TURTLE — Donchian / SL periods";
-input int    Inp_TURTLE_DonchianEntry_Period = 40;  // Donchian ENTRY breakout lookback N (S1=20, S2=55, H4-FX=40)
-input int    Inp_TURTLE_DonchianExit_Period  = 20;  // Donchian EXIT channel lookback M (S1=10, S2=20)
-input int    Inp_TURTLE_SL_AtrPeriod = 20;   // ATR period for the initial stop
-input double Inp_TURTLE_SL_AtrMult   = 2.0;  // initial stop = mult x ATR — ALWAYS placed at entry, independent of Use_DonchianExit
-
-input group "TURTLE — Indicator parameters (used only when its switch above is ON)";
-input int    Inp_TURTLE_ADX_Period       = 14;
-input double Inp_TURTLE_ADX_Percentile   = 50.0;
-input int    Inp_TURTLE_ADX_Lookback     = 100;
-input int    Inp_TURTLE_CI_Period        = 14;
-input double Inp_TURTLE_CI_RangingThresh = 61.8;
-input int    Inp_TURTLE_BB_Period        = 20;
-input double Inp_TURTLE_BB_Deviation     = 2.0;
-input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF1 = PERIOD_H1;        // primary HTF — set HIGHER than the chart TF (H1 for M5/M15). Trade dir must agree with its EMA trend
-input bool   Inp_TURTLE_MTF_Use_SecondHTF = false;          // use a 2nd HTF? false = single-HTF (TF1 only). true = require BOTH TF1 and TF2 to agree
-input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF2 = PERIOD_H4;        // 2nd HTF — used ONLY when Use_SecondHTF=true; set HIGHER than TF1
-input int    Inp_TURTLE_MTF_EMA_Fast     = 50;
-input int    Inp_TURTLE_MTF_EMA_Slow     = 200;
-input group "TURTLE — PSAR / CandleBody parameters (used when ON; DPI uses GLOBAL settings)";
-input double Inp_TURTLE_Psar_Step             = 0.02;   // PSAR acceleration step
-input double Inp_TURTLE_Psar_Max              = 0.2;    // PSAR acceleration max
-input int    Inp_TURTLE_CandleBody_AvgPeriod     = 14;    // CandleBody: ATR baseline period
-input double Inp_TURTLE_CandleBody_MaxMult       = 3.0;   // CandleBody: block if range > mult x ATR (spike guard)
-input double Inp_TURTLE_CandleBody_MinCloseRatio = 0.0;   // CandleBody: min close-to-range ratio (0=off, 0.75=reject doji)
-input bool   Inp_TURTLE_CandleBody_RequireDir    = true;  // CandleBody: require signal bar to close in trade direction
-
+input bool   Inp_TURTLE_Use_DonchianEntry = true;        // [TUR CORE] Donchian breakout ENTRY on/off (false = no entry source -> EA idles + warns)
+input bool   Inp_TURTLE_Use_DonchianExit  = true;        // [TUR CORE] Donchian channel EXIT on/off. ON = exit on channel-break OR 2xATR stop (first hit); OFF = 2xATR stop is the ONLY exit
+input int    Inp_TURTLE_DonchianEntry_Period = 40;       // [TUR CORE] Donchian ENTRY breakout lookback N (S1=20, S2=55, H4-FX=40)
+input int    Inp_TURTLE_DonchianExit_Period  = 20;       // [TUR CORE] Donchian EXIT channel lookback M (S1=10, S2=20)
+input int    Inp_TURTLE_SL_AtrPeriod      = 20;          // [TUR CORE] SL ATR period for the initial stop
+input double Inp_TURTLE_SL_AtrMult        = 2.0;         // [TUR CORE] SL = mult x ATR — ALWAYS placed at entry, independent of Use_DonchianExit
+input group " ";
+input group "TURTLE — INDICATORS: ON / OFF";
+input group " ";
+input bool   Inp_TURTLE_Use_Mtf           = false;       // [TUR] HTF/MTF confirmation voter
+input bool   Inp_TURTLE_MTF_Use_SecondHTF = false;       // [TUR] HTF2? false = single-HTF (TF1 only). true = require BOTH TF1 and TF2 to agree
+input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF1  = PERIOD_H1;   // [TUR] HTF1 — set HIGHER than the chart TF (H1 for M5/M15). Trade dir must agree with its EMA trend
+input ENUM_TIMEFRAMES Inp_TURTLE_MTF_TF2  = PERIOD_H4;   // [TUR] HTF2 — used ONLY when Use_SecondHTF=true; set HIGHER than TF1
+input int    Inp_TURTLE_MTF_EMA_Fast      = 50;          // [TUR] HTF EMA Fast
+input int    Inp_TURTLE_MTF_EMA_Slow      = 200;         // [TUR] HTF EMA Slow
+input group " ";
+input bool   Inp_TURTLE_Use_Adx           = false;       // [TUR] ADX trend-strength gate
+input int    Inp_TURTLE_ADX_Period        = 14;          // [TUR] ADX Period
+input double Inp_TURTLE_ADX_Percentile    = 50.0;        // [TUR] ADX Percentile
+input int    Inp_TURTLE_ADX_Lookback      = 100;         // [TUR] ADX Lookback
+input group " ";
+input bool   Inp_TURTLE_Use_Bb            = false;       // [TUR] BB-widening gate
+input int    Inp_TURTLE_BB_Period         = 20;          // [TUR] BB Period
+input double Inp_TURTLE_BB_Deviation      = 2.0;         // [TUR] BB Deviation
+input group " ";
+input bool   Inp_TURTLE_Use_CandleBody    = false;       // [TUR] CB CandleBody voter
+input bool   Inp_TURTLE_CandleBody_RequireDir    = true; // [TUR] CB CandleBody: require signal bar to close in trade direction
+input int    Inp_TURTLE_CandleBody_AvgPeriod     = 14;   // [TUR] CB CandleBody: ATR baseline period
+input double Inp_TURTLE_CandleBody_MaxMult       = 3.0;  // [TUR] CB CandleBody: block if range > mult x ATR (spike guard)
+input double Inp_TURTLE_CandleBody_MinCloseRatio = 0.0;  // [TUR] CB CandleBody: min close-to-range ratio (0=off, 0.75=reject doji)
+input group " ";
+input bool   Inp_TURTLE_Use_CI            = false;       // [TUR] CI Choppiness Index range gate
+input int    Inp_TURTLE_CI_Period         = 14;          // [TUR] CI Period
+input double Inp_TURTLE_CI_RangingThresh  = 61.8;        // [TUR] CI Threshold
+input group " ";
+input bool   Inp_TURTLE_Use_Psar          = false;       // [TUR] PSAR voter
+input double Inp_TURTLE_Psar_Step         = 0.02;        // [TUR] PSAR acceleration step
+input double Inp_TURTLE_Psar_Max          = 0.2;         // [TUR] PSAR acceleration max
+input group " ";
+input group "TURTLE — INDICATORS using global settings ";
+input bool   Inp_TURTLE_Use_P123          = false;       // [TUR] P123 fractal-breakout confirm
+input bool   Inp_TURTLE_Use_Ross          = false;       // [TUR] Ross Hook confirm
+input bool   Inp_TURTLE_Use_Dpi           = false;       // [TUR] DPI voter
+input group " ";
 input group "TURTLE — Add to winner (pyramiding)";
-input EAddMode Inp_TURTLE_AddMode    = ADD_OFF;
-input int    Inp_TURTLE_MaxUnits     = 4;
-input double Inp_TURTLE_AddStepATR   = 0.5;
-input double Inp_TURTLE_MaxAggRisk   = 6.0;
-input bool   Inp_TURTLE_SharedStop   = true;
-input int    Inp_TURTLE_ReEntryScale = 50;
+input EAddMode Inp_TURTLE_AddMode         = ADD_OFF;     // [TUR] ADD mode
+input bool   Inp_TURTLE_SharedStop        = true;        // [TUR] SharedStop
+input int    Inp_TURTLE_MaxUnits          = 4;           // [TUR] MaxUnits
+input double Inp_TURTLE_AddStepATR        = 0.5;         // [TUR] AddStepATR
+input double Inp_TURTLE_MaxAggRisk        = 6.0;         // [TUR] MaxAggRisk
+input int    Inp_TURTLE_ReEntryScale      = 50;          // [TUR] ReEntryScale
 #endif // SEA_BUILD_TURTLE
 
 #ifdef SEA_BUILD_TREND
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    📐 PRESET_TREND";
+input group "    📐 PRESET_TREND (TRE)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+//=== TREND = TURTLE breakout + 3 EMAs + HTF ===
 input group " ";
-
-//=== TREND (Turtle breakout + 3 EMAs + HTF) ===
+input group "TREND — Donchian / SL periods";
+input bool   Inp_TREND_Use_DonchianEntry     = true;        // [TRE CORE] Donchian breakout ENTRY on/off (false = no entry source -> EA idles + warns)
+input bool   Inp_TREND_Use_DonchianExit      = true;        // [TRE CORE] Donchian channel EXIT on/off. ON = exit on channel-break OR 2xATR stop (first hit); OFF = 2xATR stop is the ONLY exit
+input int    Inp_TREND_DonchianEntry_Period  = 20;          // [TRE CORE] Donchian ENTRY breakout lookback N
+input int    Inp_TREND_DonchianExit_Period   = 10;          // [TRE CORE] Donchian EXIT channel lookback M
+input int    Inp_TREND_SL_AtrPeriod          = 20;          // [TRE CORE] SL ATR period for the initial stop
+input double Inp_TREND_SL_AtrMult            = 2.0;         // [TRE CORE] SL = mult x ATR — ALWAYS placed at entry, independent of Use_DonchianExit
+input group " ";
+input group "TREND — EMA";
+input bool   Inp_TREND_Use_EmaStack          = true;        // [TRE CORE] EMA require EMA(20/50/200) stack (false = pure Donchian channels)
+input int    Inp_TREND_Ema_Fast              = 20;          // [TRE CORE] EMA fast
+input int    Inp_TREND_Ema_Mid               = 50;          // [TRE CORE] EMA mid
+input int    Inp_TREND_Ema_Slow              = 200;         // [TRE CORE] EMA slow (20>50>200 = long-only)
+input bool   Inp_TREND_Use_PriceVsEma2       = false;       // [TRE opt] also require price beyond EMA2(50) in bias dir (doc Stage 2)
+input bool   Inp_TREND_Use_Ema3Slope         = false;       // [TRE opt] also require EMA3(200) sloping in bias dir (doc Stage 1)
+input group " ";
+input group "TREND — MTF";
+input bool   Inp_TREND_Use_Mtf               = true;        // [TRE CORE] HTF/MTF confirmation (keep ON)
+input bool   Inp_TREND_MTF_Use_SecondHTF     = false;       // [TRE opt] HTF2? false = single-HTF (TF1 only). true = require BOTH TF1 and TF2 to agree
+input ENUM_TIMEFRAMES Inp_TREND_MTF_TF1      = PERIOD_H1;   // [TRE CORE] HTF1 — set HIGHER than the chart TF (H1 for M5/M15). Trade dir must agree with its EMA trend
+input ENUM_TIMEFRAMES Inp_TREND_MTF_TF2      = PERIOD_H4;   // [TRE opt] HTF2 — used ONLY when Use_SecondHTF=true; set HIGHER than TF1
+input int    Inp_TREND_MTF_EMA_Fast          = 50;          // [TRE CORE] HTF EMA Fast
+input int    Inp_TREND_MTF_EMA_Slow          = 200;         // [TRE CORE] HTF EMA Slow
+input group " ";
 input group "TREND — INDICATORS: ON / OFF";
-input bool   Inp_TREND_Use_DonchianEntry = true;   // [CORE] Donchian breakout ENTRY on/off (false = no entry source -> EA idles + warns)
-input bool   Inp_TREND_Use_EmaStack    = true;   // [CORE] require EMA(20/50/200) stack (false = pure Donchian channels)
-input bool   Inp_TREND_Use_DonchianExit  = true;   // [CORE] Donchian channel EXIT on/off. ON = exit on channel-break OR 2xATR stop (first hit); OFF = 2xATR stop is the ONLY exit
-input bool   Inp_TREND_Use_Mtf         = true;   // [CORE] HTF/MTF confirmation (keep ON)
-input bool   Inp_TREND_Use_PriceVsEma2 = false;  // [opt] also require price beyond EMA2(50) in bias dir (doc Stage 2)
-input bool   Inp_TREND_Use_Ema3Slope   = false;  // [opt] also require EMA3(200) sloping in bias dir (doc Stage 1)
-input bool   Inp_TREND_Use_Adx         = false;  // [opt] ADX trend-strength gate
-input bool   Inp_TREND_Use_CI          = false;  // [opt] Choppiness Index range gate
-input bool   Inp_TREND_Use_Bb          = false;  // [opt] BB-widening gate
-input bool   Inp_TREND_Use_P123        = false;  // [opt] P123 fractal-breakout confirm
-input bool   Inp_TREND_Use_Ross        = false;  // [opt] Ross Hook confirm
-input bool   Inp_TREND_Use_Psar        = false;  // [opt] Parabolic SAR voter
-input bool   Inp_TREND_Use_Dpi         = false;  // [opt] DPI voter
-input bool   Inp_TREND_Use_CandleBody  = false;  // [opt] CandleBody voter
-
-input group "TREND — Channels / EMA / SL periods";
-input int    Inp_TREND_DonchianEntry_Period = 20;  // Donchian ENTRY breakout lookback N
-input int    Inp_TREND_DonchianExit_Period  = 10;  // Donchian EXIT channel lookback M
-input int    Inp_TREND_Ema_Fast = 20;       // fast EMA
-input int    Inp_TREND_Ema_Mid  = 50;       // mid EMA
-input int    Inp_TREND_Ema_Slow = 200;      // slow EMA (20>50>200 = long-only)
-input int    Inp_TREND_SL_AtrPeriod = 20;   // ATR period for the initial stop
-input double Inp_TREND_SL_AtrMult   = 2.0;  // initial stop = mult x ATR — ALWAYS placed at entry, independent of Use_DonchianExit
-
-input group "TREND — Indicator parameters (used only when its switch above is ON)";
-input ENUM_TIMEFRAMES Inp_TREND_MTF_TF1 = PERIOD_H1;        // primary HTF — set HIGHER than the chart TF (H1 for M5/M15). Trade dir must agree with its EMA trend
-input bool   Inp_TREND_MTF_Use_SecondHTF = false;          // use a 2nd HTF? false = single-HTF (TF1 only). true = require BOTH TF1 and TF2 to agree
-input ENUM_TIMEFRAMES Inp_TREND_MTF_TF2 = PERIOD_H4;        // 2nd HTF — used ONLY when Use_SecondHTF=true; set HIGHER than TF1
-input int    Inp_TREND_MTF_EMA_Fast = 50;
-input int    Inp_TREND_MTF_EMA_Slow = 200;
-input group "TREND — PSAR / CandleBody parameters (used when ON; DPI uses GLOBAL settings)";
-input double Inp_TREND_Psar_Step             = 0.02;   // PSAR acceleration step
-input double Inp_TREND_Psar_Max              = 0.2;    // PSAR acceleration max
-input int    Inp_TREND_CandleBody_AvgPeriod     = 14;    // CandleBody: ATR baseline period
-input double Inp_TREND_CandleBody_MaxMult       = 3.0;   // CandleBody: block if range > mult x ATR (spike guard)
-input double Inp_TREND_CandleBody_MinCloseRatio = 0.0;   // CandleBody: min close-to-range ratio (0=off, 0.75=reject doji)
-input bool   Inp_TREND_CandleBody_RequireDir    = true;  // CandleBody: require signal bar to close in trade direction
-input int    Inp_TREND_ADX_Period    = 14;
-input double Inp_TREND_ADX_Percentile = 50.0;
-input int    Inp_TREND_ADX_Lookback  = 100;
-input int    Inp_TREND_CI_Period     = 14;
-input double Inp_TREND_CI_RangingThresh = 61.8;
-input int    Inp_TREND_BB_Period     = 20;
-input double Inp_TREND_BB_Deviation  = 2.0;
-
+input group " ";
+input bool   Inp_TREND_Use_Adx               = false;       // [TRE] ADX trend-strength gate
+input int    Inp_TREND_ADX_Period            = 14;          // [TRE] ADX Period
+input double Inp_TREND_ADX_Percentile        = 50.0;        // [TRE] ADX Percentile
+input int    Inp_TREND_ADX_Lookback          = 100;         // [TRE] ADX Lookback
+input group " ";
+input bool   Inp_TREND_Use_Bb                = false;       // [TRE] BB widening gate
+input int    Inp_TREND_BB_Period             = 20;          // [TRE] BB Period
+input double Inp_TREND_BB_Deviation          = 2.0;         // [TRE] BB Deviation
+input group " ";
+input bool   Inp_TREND_Use_CandleBody        = false;       // [TRE] CB CandleBody voter
+input bool   Inp_TREND_CandleBody_RequireDir    = true;     // [TRE] CB RequireDir signal bar to close in trade direction
+input int    Inp_TREND_CandleBody_AvgPeriod     = 14;       // [TRE] CB AVGPeriod ATR baseline period
+input double Inp_TREND_CandleBody_MaxMult       = 3.0;      // [TRE] CB MaxMult block if range > mult x ATR (spike guard)
+input double Inp_TREND_CandleBody_MinCloseRatio = 0.0;      // [TRE] CB MinClose-to-Range Ratio (0=off, 0.75=reject doji)
+input group " ";
+input bool   Inp_TREND_Use_CI                = false;       // [TRE] CI Choppiness Index range gate
+input int    Inp_TREND_CI_Period             = 14;          // [TRE] CI Period
+input double Inp_TREND_CI_RangingThresh      = 61.8;        // [TRE] CI Ranging Thresh.
+input group " ";
+input bool   Inp_TREND_Use_Psar              = false;       // [TRE] PSAR voter
+input double Inp_TREND_Psar_Step             = 0.02;        // [TRE] PSAR acceleration step
+input double Inp_TREND_Psar_Max              = 0.2;         // [TRE] PSAR acceleration max
+input group " ";
+input group "TREND — INDICATORS using global settings ";
+input bool   Inp_TREND_Use_P123              = false;       // [TRE] P123 fractal-breakout confirm
+input bool   Inp_TREND_Use_Ross              = false;       // [TRE] Ross Hook confirm
+input bool   Inp_TREND_Use_Dpi               = false;       // [TRE] DPI voter
+input group " ";
 input group "TREND — Add to winner (pyramiding)";
-input EAddMode Inp_TREND_AddMode     = ADD_OFF;
-input int    Inp_TREND_MaxUnits      = 4;
-input double Inp_TREND_AddStepATR    = 0.5;
-input double Inp_TREND_MaxAggRisk    = 6.0;
-input bool   Inp_TREND_SharedStop    = true;
-input int    Inp_TREND_ReEntryScale  = 50;
+input EAddMode Inp_TREND_AddMode             = ADD_OFF;     // [TRE] ADD mode
+input bool   Inp_TREND_SharedStop            = true;        // [TRE] SharedStop
+input int    Inp_TREND_MaxUnits              = 4;           // [TRE] MaxUnits
+input double Inp_TREND_AddStepATR            = 0.5;         // [TRE] AddStepATR
+input double Inp_TREND_MaxAggRisk            = 6.0;         // [TRE] MaxAggRisk
+input int    Inp_TREND_ReEntryScale          = 50;          // [TRE] ReEntryScale
 #endif // SEA_BUILD_TREND
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-input group "    ⚠️  SEA ENGINE DEFAULTS — (used by all presets unless overridden)";
+input group "    ⚠️  SEA ENGINE DEFAULTS — TS voters (B·P·F·L·I) used by all presets unless overridden";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "    ▸ TS voters (B·P·F·L·I) — these are engine seed defaults; presets override most via SEA_Presets.mqh";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🔧 STEP 1: BIAS (Major Trend Direction)";
-//input group "╚════════════════════════════════════════════════════════╝";
+input group " ";
 input EManualSide Inp_Global_ManualSide                  = SIDE_BOTH;   // Global: Override Bias Side
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🔧 STEP 2: MA | EMA";
-//input group "╚════════════════════════════════════════════════════════╝";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🔧 STEP 3: (TS) Trade Signal";
-//input group "╚════════════════════════════════════════════════════════╝";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🔧 STEP 3b: PHASE / LAYER / VPRR (4-EMA Architecture)";
-//input group "╚════════════════════════════════════════════════════════╝";
 input group " ";
 input bool        Inp_Global_LayerPullbackEnabled        = true;     // Global_LayerPullbackEnabled
 input bool        Inp_Global_LayerS_Require_DirAlign     = true;     // Global_LayerS_Require_DirAlign
@@ -1202,16 +1180,6 @@ input bool        Inp_Global_VPRR_Enabled                = false;    // Global_V
 input double      Inp_Global_VPRR_MinRatio_W             = 0.0;      // Global_VPRR_MinRatio_W: (EMA1/EMA2) min ratio (0=use VPRR_MinRatio)
 input double      Inp_Global_VPRR_MinRatio_M             = 0.0;      // Global_VPRR_MinRatio_M: (EMA2/EMA3) min ratio (0=use VPRR_MinRatio)
 input double      Inp_Global_VPRR_MinRatio_S             = 0.0;      // Global_VPRR_MinRatio_S: (EMA3/EMA4) min ratio (0=use VPRR_MinRatio)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🔧 STEP 4: Candle Close & Candle Body";
-//input group "╚════════════════════════════════════════════════════════╝";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🔧 STEP 5: Pullback Gate";
-//input group "╚════════════════════════════════════════════════════════╝";
-// Pullback gate uses pure distance comparison: the current EMA gap must exceed the prior EMA gap (no pip threshold).
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🔧 STEP X: Trail EMA (engine seed defaults)"; 
-//input group "╚════════════════════════════════════════════════════════╝";
 input group " ";
 input int         Inp_Global_TrailEMA_Period             = 34;       // Global_TrailEMA_Period: for TRAIL_EMA mode
 input int         Inp_Global_TrailEMA_Shift              = 2;        // Global_TrailEMA_Shift: 1=current bar, 2=one bar cushion
@@ -1220,46 +1188,34 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️  (GLOBAL) DEFAULTS — INDICATORS / SL / COOLDOWN"; 
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📊 ADX (Average Directional Index - Strength of Market Trend)";
-//input group "╚════════════════════════════════════════════════════════╝";
+input group " ";
+//input group "ADX - Average Directional Index - Strength of Market Trend";
 input int         Inp_Global_Ind_Adx_PercentileRefreshSec = 14400;   // ADX: Global: DYNAMIC_PERCENTILE refresh interval (sec). M1: try 900 (15min); H1+: 14400 (4h)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📊 CBody (Candle Body - Votes Against Overextended Candles (news/spikes))";
-//input group "╚════════════════════════════════════════════════════════╝";
+input group " ";
+//input group "CB - Candle Body - Votes Against Overextended Candles (news/spikes)";
 input double      Inp_Global_Ind_CandleBody_MinCloseRatio   = 0.75;  // CB Global: Min close ratio (0=off, 0.75=TopInvestor)
 input bool        Inp_Global_Ind_CandleBody_CarryOnOverext  = true;  // CB Global: carry CB=0 over-ext until next layer pullback-recovery
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📊 Fib (Fibonacci Retracement Voter)";
-//input group "╚════════════════════════════════════════════════════════╝";
+input group " ";
+//input group "Fib - Fibonacci Retracement Voter";
 input bool        Inp_Global_Ind_Fib_Enabled             = false;    // FIB Global: Enable
 input double      Inp_Global_Ind_Fib_MinRetracement      = 0.38;     // FIB Global: Min pullback depth
 input double      Inp_Global_Ind_Fib_MaxRetracement      = 0.618;    // FIB Global: Max pullback depth
 input int         Inp_Global_Ind_Fib_SwingLookback       = 50;       // FIB Global: Swing search bars
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📊 MFI (Money Flow Index - Oscillator Buying Selling Pressure)";
-//input group "╚════════════════════════════════════════════════════════╝";
+input group " ";
+//input group "MFI - Money Flow Index - Oscillator Buying Selling Pressure";
 input double      Inp_Global_Ind_Mfi_Level               = 50.0;     // MFI Global: Threshold/level
+input group " ";
+//input group "(SL) STOP LOSS (engine seed defaults)";
+input bool        Inp_Global_SL_WidenToMinimum           = true;     // SL Global_WidenToMinimum: If true: widen to min.; if false: block TE
+input double      Inp_Global_SL_FixedPips                = 20.0;     // SL Global_FixedPips: SL distance (pips SL_MODE_FIXED_PIPS)
+input double      Inp_Global_SL_MinPips                  = 3.0;      // SL Global_MinPips: Min. SL pips (0 = no user floor, broker minimum still applies)
+input int         Inp_Global_SL_AtrPeriod                = 14;       // SL Global_AtrPeriod: ATR period (SL_MODE_ATR only)
+input double      Inp_Global_SL_AtrMult                  = 1.0;      // SL Global_AtrMult: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical)
+input group " ";
+//input group "(TE) COOLDOWN BARS Post-Trade Protection";
+input int         Inp_Global_MinBarsAfterClose           = 0;        // COOLDOWN Global_MinBarsAfterClose: TE: Min bars cooldown (0=off)
+input int         Inp_Global_MinBarsAfterWeekendGap      = 2;        // COOLDOWN Global_MinBarsAfterWeekendGap: TS: Bars skip weekend gap (0=off, recommended 1-2)
 
-//input group " ";
-//input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "    🎯 (GLOBAL) DEFAULTS — EXITS (TP/ SL/ TS/ BE)";
-//input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🛑 (SL) STOP LOSS (engine seed defaults)";
-//input group "╚════════════════════════════════════════════════════════╝";
-input group " ";
-input bool        Inp_Global_SL_WidenToMinimum           = true;    // Global_SL_WidenToMinimum: If true: widen to min.; if false: block TE
-input double      Inp_Global_SL_FixedPips                = 20.0;     // Global_SL_FixedPips: SL distance (pips SL_MODE_FIXED_PIPS)
-input double      Inp_Global_SL_MinPips                  = 3.0;      // Global_SL_MinPips: Min. SL pips (0 = no user floor, broker minimum still applies)
-input int         Inp_Global_SL_AtrPeriod                = 14;       // Global_SL_AtrPeriod: ATR period (SL_MODE_ATR only)
-input double      Inp_Global_SL_AtrMult                  = 1.0;      // Global_SL_AtrMult: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🛡 (TE) COOLDOWN BARS Post-Trade Protection";
-//input group "╚════════════════════════════════════════════════════════╝";
-input group " ";
-input int         Inp_Global_MinBarsAfterClose           = 0;        // Global_MinBarsAfterClose: TE: Min bars cooldown (0=off)
-input int         Inp_Global_MinBarsAfterWeekendGap      = 2;        // Global_MinBarsAfterWeekendGap: TS: Bars skip weekend gap (0=off, recommended 1-2)
 
 //+------------------------------------------------------------------+
 //| ADAPTIVE UTILITY FUNCTIONS                                       |

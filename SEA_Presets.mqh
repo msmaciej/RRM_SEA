@@ -2992,20 +2992,36 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.MTF_EMA_Slow = Inp_XEMA_MTF_EMA_Slow;
       cfg.MTF_UseSecondHTF = Inp_XEMA_MTF_Use_SecondHTF;
       cfg.MTF_RequirePhase = true;
+
       cfg.Ind_Adx_Enabled = Inp_XEMA_Use_Adx;
       cfg.ADX_Mode = ADX_MODE_DYNAMIC_PERCENTILE;
       cfg.P_Adx = Inp_XEMA_ADX_Period;
       cfg.ADX_Percentile = Inp_XEMA_ADX_Percentile;
       cfg.ADX_Lookback = Inp_XEMA_ADX_Lookback;
+
       cfg.Ind_Bb_Enabled = Inp_XEMA_Use_Bb;
       cfg.BbMode = BB_WIDENING;
       cfg.P_Bb = Inp_XEMA_BB_Period;
       cfg.P_BbDev = Inp_XEMA_BB_Deviation;
+      
       cfg.Ind_CI_Enabled = Inp_XEMA_Use_CI;   // native inline CI, no external file
       cfg.CI_Period = Inp_XEMA_CI_Period;
       cfg.CI_RangingThreshold = Inp_XEMA_CI_RangingThresh;
-      cfg.Ind_Psar_Enabled=Inp_XEMA_Use_Psar; cfg.Ind_Macd_Enabled=false; cfg.Ind_Cci_Enabled=false;
-      cfg.Ind_CandleBody_Enabled=Inp_XEMA_Use_CandleBody; cfg.Ind_Dpi_Enabled=Inp_XEMA_Use_Dpi; cfg.Ind_SmaConverge_Enabled=false;
+      
+      cfg.Ind_Psar_Enabled=Inp_XEMA_Use_Psar; 
+      cfg.P_PsarStep = Inp_XEMA_Psar_Step;   // new input, default 0.02
+      cfg.P_PsarMax  = Inp_XEMA_Psar_Max;    // new input, default 0.2
+
+      cfg.Ind_Macd_Enabled=false;
+      cfg.Ind_Cci_Enabled=false;
+
+      cfg.Ind_CandleBody_Enabled=Inp_XEMA_Use_CandleBody;
+      cfg.CandleBody_AvgPeriod        = Inp_TURTLE_CandleBody_AvgPeriod;
+      cfg.CandleBody_MaxMult          = Inp_TURTLE_CandleBody_MaxMult;
+      cfg.CandleBody_MinCloseRatio    = Inp_TURTLE_CandleBody_MinCloseRatio;
+      cfg.CandleBody_RequireDirection = Inp_TURTLE_CandleBody_RequireDir;
+      
+      cfg.Ind_Dpi_Enabled=Inp_XEMA_Use_Dpi; cfg.Ind_SmaConverge_Enabled=false;
       cfg.Ind_Fib_Enabled=false; cfg.Ind_Rsi_Enabled=false; cfg.Ind_Mfi_Enabled=false;
       cfg.Ind_Sto_Enabled=false; cfg.Ind_Atr_Enabled=false; cfg.Ind_VRC_Enabled=false;
       cfg.Ind_P123_Enabled=false; cfg.Ind_Ross_Enabled=false;
