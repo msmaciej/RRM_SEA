@@ -61,8 +61,8 @@ separate tools with separate code.
 
 | file | what it is |
 |---|---|
-| `README.md` | this file — what the folder is, context, META distinction, inventory |
-| `HOW_TO_RUN_XEMA.md` | step-by-step ops: verify -> report -> read; what each knob tests; adding a pair |
+| `README_XEMA_ANALYSIS.md` | this file — what the folder is, context, META distinction, inventory |
+| `README_XEMA_HOW_TO_RUN.md` | step-by-step ops: verify -> report -> read; what each knob tests; adding a pair |
 | `XEMA_PROMPT_FRAMEWORK_v03.md` | paste into a new chat to run a sweep conversationally (Pair/TF/Span/Spread) |
 | `XEMA_CONFORMANCE_REPORT.md` | the proof the engine is faithful (20/21) and its honest limits |
 | `xema_engine_260903-01.py` | THE ENGINE — the verified XEMA reimplementation; `run(df,cfg)` + `CFG` |
@@ -77,7 +77,7 @@ everything. Reports read from there.
 
 ---
 
-## 4. How to use it (summary — full detail in `HOW_TO_RUN_XEMA.md`)
+## 4. How to use it (summary — full detail in `README_XEMA_HOW_TO_RUN.md`)
 
 1. **Verify** the engine still matches the EA (once per code HEAD):
    ```
@@ -120,4 +120,4 @@ everything. Reports read from there.
   SEA source HEAD `b0244b7` and the MT5 log in `fixtures/`.
 - Conformance: EURUSD H1 = 20/21 trades, SL + exit-reason exact. Other pairs/TFs use
   the same indicator math (trustworthy for ranking) but are not separately log-verified
-  yet; see `HOW_TO_RUN_XEMA.md` section "add a new pair" to extend the proof.
+  yet; see `README_XEMA_HOW_TO_RUN.md` section "add a new pair" to extend the proof.

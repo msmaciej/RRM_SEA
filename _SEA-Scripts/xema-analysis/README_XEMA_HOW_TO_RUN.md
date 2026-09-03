@@ -41,7 +41,7 @@ This is the ONLY test that uses the `fixtures/` folder. It's the calibration che
 Two ways. Both produce the same kind of report.
 
 ### Way A — conversational (easiest)
-New chat → paste `PROMPT_FRAMEWORK_v03.md` → fill the bottom line, e.g.
+New chat → paste `XEMA_PROMPT_FRAMEWORK_v03.md` → fill the bottom line, e.g.
 `Pair: USDJPY  Timeframe: H1  Span: 2015-2025  Spread: 0.8p` → get the report.
 
 ### Way B — one command
@@ -145,3 +145,29 @@ python3 xema_report2.py --early ../../Files/XAUUSD_H1_201501020900_201912302300.
   --label "XAUUSD H1" --out report_XAUUSD_H1.md
 ```
 (exact filenames: check `ls Files/` — the date suffixes may differ slightly.)
+
+---
+
+## Changing the BASE config for analysis (no code edit needed)
+
+The engine's settings are NOT hardcoded into the logic. `CFG` at the top of
+`xema_engine_260903-01.py` is only the DEFAULT (the as-run XEMA). Every setting is
+read as `cfg['...']`, so you change any of them by passing a different `cfg` — the
+`.py` file never needs editing.
+
+Three ways to change the base:
+1. **Conversational:** the framework asks "confirm or edit the starting config" at
+   intake — just state your edits (e.g. "base with ADX off, EMA 8/21").
+2. **Command line** (`xema_sweep.py`): `--set adx_percentile=60 --set ema_fast=8`.
+3. **In a script:** `cfg = copy.deepcopy(eng.CFG); cfg.update({...}); eng.run(df, cfg)`.
+
+All 22 XEMA knobs are already parameterised (EMA, HTF, ADX, BB, CI, PSAR, swing,
+label_rr/TP, session, cushion, the silent F-filters). You'd only edit the `.py`
+if you needed a BRAND-NEW knob that doesn't exist yet.
+
+**Important — verification caveat:** the 20/21 conformance proof is against the
+DEFAULT config (the one the MT5 log used). If you set a different base, you are
+still running the same verified ENGINE, but "matches the EA exactly" only strictly
+holds for the default. Treat a custom base as trustworthy-for-ranking (same as any
+non-default sweep row), and if you want it EA-exact, produce an MT5 log for that
+config and re-verify against it.
