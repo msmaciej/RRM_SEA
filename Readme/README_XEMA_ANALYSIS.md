@@ -1,7 +1,7 @@
 # xema-analysis — offline parameter optimizer for the SEA "XEMA" preset
 
 **Repo location:** `_SEA-Scripts/xema-analysis/`
-**Last audited:** 2026-09-03 · engine `xema_engine_260903-01.py` · last verified vs EA @ source HEAD `b0244b7`
+**Last audited:** 2026-09-03 · engine `xema_engine.py` · last verified vs EA @ source HEAD `b0244b7`
 (the repo HEAD moves over time — this is the commit the 20/21 proof was run against; **always re-run `--verify` at the current HEAD** before trusting reports, per §4.)
 
 ---
@@ -66,7 +66,7 @@ separate tools with separate code.
 | `Readme/README_XEMA_HOW_TO_RUN.md` | step-by-step ops: verify -> report -> read; what each knob tests; adding a pair |
 | `README_XEMA_PROMPT_FRAMEWORK.md` | paste into a new chat to run a sweep conversationally (Pair/TF/Span/Spread) |
 | `README_XEMA_CONFORMANCE.md` | the proof the engine is faithful (20/21) and its honest limits |
-| `xema_engine_260903-01.py` | THE ENGINE — the verified XEMA reimplementation; `run(df,cfg)` + `CFG` |
+| `xema_engine.py` | THE ENGINE — the verified XEMA reimplementation; `run(df,cfg)` + `CFG` |
 | `xema_report.py` | main report: two-halves (2015-19 vs 2020-25) per-knob sweep table |
 | `xema_sweep.py` | lighter helper: single config or one-knob, with `--from/--to` year filter |
 | `fixtures/conformance_EURUSD_H1_260101-260831.csv` | 21 real EA trades (the answer key for `--verify`) |
@@ -82,7 +82,7 @@ everything. Reports read from there.
 
 1. **Verify** the engine still matches the EA (once per code HEAD):
    ```
-   python3 xema_engine_260903-01.py --data ../../Files/EURUSD_H1_202512290000_202608282300.csv \
+   python3 xema_engine.py --data ../../Files/EURUSD_H1_202512290000_202608282300.csv \
        --verify --conf fixtures/conformance_EURUSD_H1_260101-260831.csv \
        --oracle fixtures/oracle_EURUSD_H1_260101-260831_rejects.csv
    ```
@@ -117,7 +117,7 @@ everything. Reports read from there.
 ---
 
 ## 6. Provenance
-- Engine: `xema_engine_260903-01.py`, built to `SEA_ENGINE_SPEC.md`, verified against
+- Engine: `xema_engine.py`, built to `SEA_ENGINE_SPEC.md`, verified against
   SEA source HEAD `b0244b7` and the MT5 log in `fixtures/`.
 - Conformance: EURUSD H1 = 20/21 trades, SL + exit-reason exact. Other pairs/TFs use
   the same indicator math (trustworthy for ranking) but are not separately log-verified
@@ -133,7 +133,7 @@ the META docs are maintained). Results:
 - **20/21 conformance** — verified: the engine prints `matched 20/21 | SL exact 20/21
   | exit reason 20/21` at the fixture. ✓
 - **Voter on/off toggles** (`use_adx/bb/ci/psar/htf`) — real in code
-  (`xema_engine_260903-01.py`, `cfg.get('use_*', True)`), default ON. ✓
+  (`xema_engine.py`, `cfg.get('use_*', True)`), default ON. ✓
 - **Report sweeps EMA/ADX/PSAR/BB/CI/HTF/swing/RR/session** — confirmed in
   `xema_report.py`. ✓
 - **Knob count** — corrected 2026-09-03: `CFG` has 25 keys = **19 tunable settings +

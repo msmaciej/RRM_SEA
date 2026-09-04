@@ -23,7 +23,7 @@ Run this once after putting the folder in the repo, and again any time the EA
 source changes:
 
 ```
-python3 xema_engine_260903-01.py \
+python3 xema_engine.py \
     --data ../../Files/EURUSD_H1_202512290000_202608282300.csv \
     --verify --conf fixtures/conformance_EURUSD_H1_260101-260831.csv \
     --oracle fixtures/oracle_EURUSD_H1_260101-260831_rejects.csv
@@ -153,7 +153,7 @@ python3 xema_report.py --early ../../Files/XAUUSD_H1_201501020900_201912302300.c
 ## Changing the BASE config for analysis (no code edit needed)
 
 The engine's settings are NOT hardcoded into the logic. `CFG` at the top of
-`xema_engine_260903-01.py` is only the DEFAULT (the as-run XEMA). Every setting is
+`xema_engine.py` is only the DEFAULT (the as-run XEMA). Every setting is
 read as `cfg['...']`, so you change any of them by passing a different `cfg` — the
 `.py` file never needs editing.
 

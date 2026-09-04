@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # =============================================================================
-# xema_engine_260903-01.py  —  faithful PRESET_XEMA engine (built to SEA_ENGINE_SPEC.md)
+# xema_engine.py  —  faithful PRESET_XEMA engine (built to SEA_ENGINE_SPEC.md)
 # Verified against SEA source @ HEAD b0244b7 and the real MT5 test log.
 #
 # CONFORMANCE RESULT (vs the 21 real EA trades, EURUSD H1, Jan–Aug 2026):
@@ -29,7 +29,7 @@
 #   buffer with a cached/refreshed (4h) threshold.
 #
 # USAGE:
-#   python3 xema_engine_260903-01.py --data <MT5_H1.csv> \
+#   python3 xema_engine.py --data <MT5_H1.csv> \
 #       --verify --conf <conformance.csv> --oracle <oracle_rejects.csv>
 #   (omit --verify to just print trade/eval counts; import run(df,cfg) for sweeps.)
 # =============================================================================

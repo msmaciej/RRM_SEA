@@ -6,7 +6,7 @@ Produces the two-halves sweep you've seen before:
   - every knob swept, each row a full backtest
   - EARLY half and RECENT half side by side (out-of-sample check)
   - DECADE total + a robustness verdict (consistent vs lopsided)
-  - powered by xema_engine_260903-01.py, which matches the real EA 20/21
+  - powered by xema_engine.py, which matches the real EA 20/21
 
 USAGE (give the two history halves for one pair/TF):
   python3 xema_report.py \
@@ -17,7 +17,7 @@ USAGE (give the two history halves for one pair/TF):
 import argparse, copy, sys, importlib.util, datetime
 import numpy as np, pandas as pd
 
-_spec = importlib.util.spec_from_file_location("eng", "xema_engine_260903-01.py")
+_spec = importlib.util.spec_from_file_location("eng", "xema_engine.py")
 eng = importlib.util.module_from_spec(_spec); sys.modules["eng"] = eng; _spec.loader.exec_module(eng)
 
 

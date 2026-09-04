@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-xema_sweep.py — the ANALYSIS layer on top of xema_engine_260903-01.py
+xema_sweep.py — the ANALYSIS layer on top of xema_engine.py
 
 Answers the two questions you actually want:
   1. Is PRESET_XEMA profitable on a given PAIR / TF / PERIOD / SPREAD?
   2. How does changing each SETTING move the result? (find the optimum)
 
-The engine (xema_engine_260903-01.py) is the faithful part — verified 20/21 vs the
+The engine (xema_engine.py) is the faithful part — verified 20/21 vs the
 real EA. This wrapper just runs it and summarises. It reports net-R (profit in
 risk-multiples), win%, and a per-year breakdown, then sweeps each knob.
 
@@ -25,7 +25,7 @@ import numpy as np, pandas as pd
 
 # import the verified engine
 import importlib.util
-_spec = importlib.util.spec_from_file_location("eng", "xema_engine_260903-01.py")
+_spec = importlib.util.spec_from_file_location("eng", "xema_engine.py")
 eng = importlib.util.module_from_spec(_spec); sys.modules["eng"] = eng; _spec.loader.exec_module(eng)
 
 
