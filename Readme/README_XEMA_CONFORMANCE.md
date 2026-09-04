@@ -1,6 +1,6 @@
 # PRESET_XEMA engine — conformance report
 
-**Deliverable:** `xema_engine_260903-01.py` — a standalone Python reimplementation of the
+**Deliverable:** `xema_engine.py` — a standalone Python reimplementation of the
 MT5 EA preset **PRESET_XEMA**, built to `SEA_ENGINE_SPEC.md` and checked against SEA source
 (HEAD `b0244b7`), the real MT5 test log, and the 21-trade conformance CSV.
 
@@ -57,7 +57,7 @@ configs by trade structure and rank.
 ## Run it
 
 ```
-python3 xema_engine_260903-01.py --data <MT5_H1.csv> \
+python3 xema_engine.py --data <MT5_H1.csv> \
     --verify --conf <conformance.csv> --oracle <oracle_rejects.csv>
 ```
 Import `run(df, cfg)` for sweeps; `CFG` holds every knob (e.g. `adx_percentile`: the value that

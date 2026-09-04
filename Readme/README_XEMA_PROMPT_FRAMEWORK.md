@@ -8,11 +8,11 @@ per-knob evidence tables. It is pure Python backtesting on the repo CSVs — it 
 runs the EA.
 
 **KEY CHANGE FROM v02:** do NOT reconstruct XEMA from memory or from source this
-session. A **verified engine already exists** — `xema_engine_260903-01.py`
+session. A **verified engine already exists** — `xema_engine.py`
 (conformance-checked against the real MT5 log: 20/21 real trades reproduced,
 stop-loss + exit-reason exact). USE IT. Rebuilding from scratch is what caused every
 prior chat to drift. Attach these files (or pull from repo) and build ON them:
-- `xema_engine_260903-01.py`  — the verified engine (has `run(df, cfg)` and `CFG`)
+- `xema_engine.py`  — the verified engine (has `run(df, cfg)` and `CFG`)
 - `xema_report.py`           — two-halves per-knob report generator (uses the engine)
 - `README_XEMA_CONFORMANCE.md` — what "verified" means and its limits
 - fixtures/ (conformance CSV + oracle + mt5 log) — to re-prove the engine if HEAD moved
