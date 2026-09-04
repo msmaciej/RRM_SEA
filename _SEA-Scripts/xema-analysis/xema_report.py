@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-xema_report2.py — the report format you already know, on the VERIFIED engine.
+xema_report.py — the report format you already know, on the VERIFIED engine.
 
 Produces the two-halves sweep you've seen before:
   - every knob swept, each row a full backtest
@@ -9,7 +9,7 @@ Produces the two-halves sweep you've seen before:
   - powered by xema_engine_260903-01.py, which matches the real EA 20/21
 
 USAGE (give the two history halves for one pair/TF):
-  python3 xema_report2.py \
+  python3 xema_report.py \
      --early  EURUSD_H1_2015-2019.csv \
      --recent EURUSD_H1_2020-2025.csv \
      --pip 0.0001 --spread 0.4 --out report_EURUSD_H1.md

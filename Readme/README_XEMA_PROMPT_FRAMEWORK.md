@@ -13,8 +13,8 @@ session. A **verified engine already exists** — `xema_engine_260903-01.py`
 stop-loss + exit-reason exact). USE IT. Rebuilding from scratch is what caused every
 prior chat to drift. Attach these files (or pull from repo) and build ON them:
 - `xema_engine_260903-01.py`  — the verified engine (has `run(df, cfg)` and `CFG`)
-- `xema_report2.py`           — two-halves per-knob report generator (uses the engine)
-- `XEMA_CONFORMANCE_REPORT.md` — what "verified" means and its limits
+- `xema_report.py`           — two-halves per-knob report generator (uses the engine)
+- `README_XEMA_CONFORMANCE.md` — what "verified" means and its limits
 - fixtures/ (conformance CSV + oracle + mt5 log) — to re-prove the engine if HEAD moved
 
 ## MINIMAL SETUP (do this first)
@@ -54,7 +54,7 @@ Only after all five confirmed: begin the sweep.
 ## THE SWEEP (for the confirmed pair × TF × span)
 Sweep EACH knob on a grid, others held at current best; THEN confirm the COMBINED
 winner (per-knob winners don't always stack). Report NET-R after cost, PER YEAR,
-with trade count n, for every config. Use `xema_report2.py` for the standard
+with trade count n, for every config. Use `xema_report.py` for the standard
 two-halves per-knob tables, then extend the grids below as needed via `--set`/`run()`:
 
 - EMA entry: 8/21, 13/34, 21/55, 13/55, 8/34   (`ema_fast`,`ema_slow`)

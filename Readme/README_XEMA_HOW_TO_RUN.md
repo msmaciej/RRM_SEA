@@ -1,5 +1,7 @@
 # HOW TO RUN — XEMA analysis operations guide
 
+> **Run all commands below from the code folder** `_SEA-Scripts/xema-analysis/` (these docs live in `Readme/`, the code lives there). The `../../Files/` paths are relative to the code folder.
+
 Plain, ordered steps: what to run, what each thing tests, and how to add a new pair.
 Everything runs on the CSVs already in the repo's `Files/` folder.
 
@@ -41,14 +43,14 @@ This is the ONLY test that uses the `fixtures/` folder. It's the calibration che
 Two ways. Both produce the same kind of report.
 
 ### Way A — conversational (easiest)
-New chat → paste `XEMA_PROMPT_FRAMEWORK_v03.md` → fill the bottom line, e.g.
+New chat → paste `README_XEMA_PROMPT_FRAMEWORK.md` → fill the bottom line, e.g.
 `Pair: USDJPY  Timeframe: H1  Span: 2015-2025  Spread: 0.8p` → get the report.
 
 ### Way B — one command
 From this folder, point `--early` / `--recent` at the two CSVs for the pair/TF:
 
 ```
-python3 xema_report2.py \
+python3 xema_report.py \
     --early  ../../Files/USDJPY_H1_201501020900_201912312300.csv \
     --recent ../../Files/USDJPY_H1_202001020600_202512312300.csv \
     --pip 0.01 --spread 0.8 --label "USDJPY H1" \
@@ -128,19 +130,19 @@ beyond EURUSD H1.
 
 ```
 # EURUSD
-python3 xema_report2.py --early ../../Files/EURUSD_H1_201501020900_201912312200.csv \
+python3 xema_report.py --early ../../Files/EURUSD_H1_201501020900_201912312200.csv \
   --recent ../../Files/EURUSD_H1_202001020600_202512312300.csv --pip 0.0001 --spread 0.8 \
   --label "EURUSD H1" --out report_EURUSD_H1.md
 # GBPUSD
-python3 xema_report2.py --early ../../Files/GBPUSD_H1_201501020900_201912312300.csv \
+python3 xema_report.py --early ../../Files/GBPUSD_H1_201501020900_201912312300.csv \
   --recent ../../Files/GBPUSD_H1_202001020600_202512312300.csv --pip 0.0001 --spread 0.8 \
   --label "GBPUSD H1" --out report_GBPUSD_H1.md
 # USDJPY
-python3 xema_report2.py --early ../../Files/USDJPY_H1_201501020900_201912312300.csv \
+python3 xema_report.py --early ../../Files/USDJPY_H1_201501020900_201912312300.csv \
   --recent ../../Files/USDJPY_H1_202001020600_202512312300.csv --pip 0.01 --spread 0.8 \
   --label "USDJPY H1" --out report_USDJPY_H1.md
 # XAUUSD (gold)
-python3 xema_report2.py --early ../../Files/XAUUSD_H1_201501020900_201912302300.csv \
+python3 xema_report.py --early ../../Files/XAUUSD_H1_201501020900_201912302300.csv \
   --recent ../../Files/XAUUSD_H1_202001020600_202512312300.csv --pip 0.1 --spread 3 \
   --label "XAUUSD H1" --out report_XAUUSD_H1.md
 ```
@@ -161,9 +163,16 @@ Three ways to change the base:
 2. **Command line** (`xema_sweep.py`): `--set adx_percentile=60 --set ema_fast=8`.
 3. **In a script:** `cfg = copy.deepcopy(eng.CFG); cfg.update({...}); eng.run(df, cfg)`.
 
-All 22 XEMA knobs are already parameterised (EMA, HTF, ADX, BB, CI, PSAR, swing,
-label_rr/TP, session, cushion, the silent F-filters). You'd only edit the `.py`
-if you needed a BRAND-NEW knob that doesn't exist yet.
+Every XEMA setting is already parameterised (verified against the code
+2026-09-03): **19 tunable settings** live in `CFG` — `ema_fast/slow`,
+`htf_ema_fast/slow`, `htf_require_phase`, `adx_period/percentile/lookback`,
+`bb_period/dev`, `ci_period/ranging`, `psar_step/max`, `swing_lookback/strength`,
+`sl_cushion_pips`, `label_rr`, `session_allowed` — **plus 5 on/off toggles** you
+pass as overrides (`use_adx`, `use_bb`, `use_ci`, `use_psar`, `use_htf`; each
+defaults to ON). `CFG` also holds 6 internal constants that are not tuning knobs
+(`pip`, `t_adx`, `adx_refresh_sec`, `emafan_max_pips`, `priceext_atr`,
+`priceext_max_atr`). You'd only edit the `.py` if you needed a BRAND-NEW knob that
+doesn't exist yet.
 
 **Important — verification caveat:** the 20/21 conformance proof is against the
 DEFAULT config (the one the MT5 log used). If you set a different base, you are

@@ -1,7 +1,8 @@
 # xema-analysis — offline parameter optimizer for the SEA "XEMA" preset
 
 **Repo location:** `_SEA-Scripts/xema-analysis/`
-**Last audited:** 2026-09-03 · engine `xema_engine_260903-01.py` · verified vs EA @ source HEAD `b0244b7`
+**Last audited:** 2026-09-03 · engine `xema_engine_260903-01.py` · last verified vs EA @ source HEAD `b0244b7`
+(the repo HEAD moves over time — this is the commit the 20/21 proof was run against; **always re-run `--verify` at the current HEAD** before trusting reports, per §4.)
 
 ---
 
@@ -61,12 +62,12 @@ separate tools with separate code.
 
 | file | what it is |
 |---|---|
-| `README_XEMA_ANALYSIS.md` | this file — what the folder is, context, META distinction, inventory |
-| `README_XEMA_HOW_TO_RUN.md` | step-by-step ops: verify -> report -> read; what each knob tests; adding a pair |
-| `XEMA_PROMPT_FRAMEWORK_v03.md` | paste into a new chat to run a sweep conversationally (Pair/TF/Span/Spread) |
-| `XEMA_CONFORMANCE_REPORT.md` | the proof the engine is faithful (20/21) and its honest limits |
+| `Readme/README_XEMA_ANALYSIS.md` | this file — what the folder is, context, META distinction, inventory |
+| `Readme/README_XEMA_HOW_TO_RUN.md` | step-by-step ops: verify -> report -> read; what each knob tests; adding a pair |
+| `README_XEMA_PROMPT_FRAMEWORK.md` | paste into a new chat to run a sweep conversationally (Pair/TF/Span/Spread) |
+| `README_XEMA_CONFORMANCE.md` | the proof the engine is faithful (20/21) and its honest limits |
 | `xema_engine_260903-01.py` | THE ENGINE — the verified XEMA reimplementation; `run(df,cfg)` + `CFG` |
-| `xema_report2.py` | main report: two-halves (2015-19 vs 2020-25) per-knob sweep table |
+| `xema_report.py` | main report: two-halves (2015-19 vs 2020-25) per-knob sweep table |
 | `xema_sweep.py` | lighter helper: single config or one-knob, with `--from/--to` year filter |
 | `fixtures/conformance_EURUSD_H1_260101-260831.csv` | 21 real EA trades (the answer key for `--verify`) |
 | `fixtures/oracle_EURUSD_H1_260101-260831_rejects.csv` | per-bar EA accept/reject decisions (debug aid) |
@@ -77,7 +78,7 @@ everything. Reports read from there.
 
 ---
 
-## 4. How to use it (summary — full detail in `README_XEMA_HOW_TO_RUN.md`)
+## 4. How to use it (summary — full detail in `Readme/README_XEMA_HOW_TO_RUN.md`)
 
 1. **Verify** the engine still matches the EA (once per code HEAD):
    ```
@@ -88,9 +89,9 @@ everything. Reports read from there.
    Expect `20/21`. If it fails, the EA changed and the engine must be re-checked
    before any report is trusted.
 
-2. **Report** a pair/TF/span (conversationally via `XEMA_PROMPT_FRAMEWORK_v03.md`, or):
+2. **Report** a pair/TF/span (conversationally via `README_XEMA_PROMPT_FRAMEWORK.md`, or):
    ```
-   python3 xema_report2.py --early ../../Files/<PAIR>_H1_2015-19.csv \
+   python3 xema_report.py --early ../../Files/<PAIR>_H1_2015-19.csv \
        --recent ../../Files/<PAIR>_H1_2020-25.csv --pip <0.0001|0.01|0.1> \
        --spread <pips> --label "<PAIR> H1" --out report_<PAIR>_H1.md
    ```
@@ -120,4 +121,29 @@ everything. Reports read from there.
   SEA source HEAD `b0244b7` and the MT5 log in `fixtures/`.
 - Conformance: EURUSD H1 = 20/21 trades, SL + exit-reason exact. Other pairs/TFs use
   the same indicator math (trustworthy for ranking) but are not separately log-verified
-  yet; see `README_XEMA_HOW_TO_RUN.md` section "add a new pair" to extend the proof.
+  yet; see `Readme/README_XEMA_HOW_TO_RUN.md` section "add a new pair" to extend the proof.
+
+---
+
+## 7. Docs-vs-code audit (2026-09-03)
+
+Every factual claim in these docs was checked against the engine code (the same way
+the META docs are maintained). Results:
+
+- **20/21 conformance** — verified: the engine prints `matched 20/21 | SL exact 20/21
+  | exit reason 20/21` at the fixture. ✓
+- **Voter on/off toggles** (`use_adx/bb/ci/psar/htf`) — real in code
+  (`xema_engine_260903-01.py`, `cfg.get('use_*', True)`), default ON. ✓
+- **Report sweeps EMA/ADX/PSAR/BB/CI/HTF/swing/RR/session** — confirmed in
+  `xema_report.py`. ✓
+- **Knob count** — corrected 2026-09-03: `CFG` has 25 keys = **19 tunable settings +
+  6 internal constants**, plus **5 on/off toggles** passed as overrides. (An earlier
+  draft said "22 knobs" — that was wrong; fixed in `Readme/README_XEMA_HOW_TO_RUN.md`.)
+- **File inventory** — 10 files listed = 10 on disk. ✓
+- **Verified-HEAD** — `b0244b7` is the commit the proof was run against; it remains in
+  repo history, but the live HEAD moves, so the docs instruct re-verifying at the
+  current HEAD (§4 / HOW_TO). ✓
+
+Known honest limits (unchanged): net-R ranks configs, it is not cent-exact EA P/L
+(MT5 iADX not bit-reproducible; H1 candles hide intrabar tick fills); conformance is
+proven on EURUSD H1 only.
