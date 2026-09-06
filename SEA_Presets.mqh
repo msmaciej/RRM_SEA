@@ -3021,7 +3021,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CandleBody_MinCloseRatio    = Inp_TURTLE_CandleBody_MinCloseRatio;
       cfg.CandleBody_RequireDirection = Inp_TURTLE_CandleBody_RequireDir;
       
-      cfg.Ind_Dpi_Enabled=Inp_XEMA_Use_Dpi; cfg.Ind_SmaConverge_Enabled=false;
+      cfg.Ind_Dpi_Enabled=Inp_XEMA_Use_Dpi;
+      
+      cfg.Ind_SmaConverge_Enabled=false;
       cfg.Ind_Fib_Enabled=false; cfg.Ind_Rsi_Enabled=false; cfg.Ind_Mfi_Enabled=false;
       cfg.Ind_Sto_Enabled=false; cfg.Ind_Atr_Enabled=false; cfg.Ind_VRC_Enabled=false;
       cfg.Ind_P123_Enabled=false; cfg.Ind_Ross_Enabled=false;

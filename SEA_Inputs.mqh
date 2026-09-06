@@ -14,6 +14,7 @@
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🎯 PRESET SELECTOR (GLOBAL)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+
 input ulong     Inp_Global_MagicNum                = 12345;          // Magic number (trade identifier)
 // Pick ONE of the 5 presets below (type PRESET_ to autocomplete). A preset only works if its
 // matching compile switch #define SEA_BUILD_<NAME> is uncommented in SEA_Config.mqh.
@@ -25,9 +26,7 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    💰 (GLOBAL) TRADE / RISK MANAGEMENT  (TM) / (RM)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   💰 (GLOBAL) RISK MANAGEMENT (RM)";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== GLOBAL RM ===";
 input int         Inp_RM_MaxOpenTrades             = 3;              // RM: Max concurrent trades (0 = unlimited)
 input double      Inp_RM_RiskPercentDefault        = 2.0;            // RM: Default risk % per trade
@@ -36,9 +35,7 @@ input double      Inp_RM_RiskCapMultiple           = 1.5;            // RM: Hard
 input double      Inp_RM_MarginUsageLimit          = 0.0;            // RM: Max % of free margin per trade (0 = use 100%)
 input double      Inp_RM_MinMarginLevel            = 200.0;          // RM: Min margin level (%) required to allow new entries (0 = disabled)
 input double      Inp_RM_EmergencyMarginLevel      = 0.0;            // RM: Emergency margin level (%) to force-close worst position (0 = disabled)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 (GLOBAL) ADAPTIVE RISK & MARGIN";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== GLOBAL RM ADAPTIVE ===";
 input bool        Inp_RM_UseAdaptiveRisk           = true;           // RM Adaptive: Enable TF-based risk scaling
 input bool        Inp_RM_UseMarginAdjustment       = true;           // RM Adaptive: Enable instrument-aware margin adjustment
@@ -46,7 +43,8 @@ input double      Inp_RM_AdaptiveRisk_M1           = 1.0;            // RM Adapt
 input double      Inp_RM_AdaptiveRisk_M5           = 1.5;            // RM Adaptive: risk % on M5
 input double      Inp_RM_AdaptiveRisk_M15Plus      = 2.0;            // RM Adaptive: risk % on M15+
 
-input string      Inp_Global_LPR_Hdr               = "=== Let Profit Run (R-ladder) - all except MA ===";  // ---
+//input string      Inp_Global_LPR_Hdr               = "=== Let Profit Run (R-ladder) - all except MA ===";  // ---
+input group "=== Let Profit Run (R-ladder) - all except MA ===";
 input bool        Inp_Global_LPR_Enabled           = false;          // LPR: enable R-ladder profit lock (OFF preserves existing preset exits)
 input double      Inp_Global_LPR_Trig1             = 3.0;            // LPR: at 3R ...
 input double      Inp_Global_LPR_Lock1             = 2.0;            // LPR: ... lock 2R
@@ -55,7 +53,8 @@ input double      Inp_Global_LPR_Lock2             = 3.0;            // LPR: ...
 input double      Inp_Global_LPR_Trig3             = 0.0;            // LPR: step 3 trigger (0 = off)
 input double      Inp_Global_LPR_Lock3             = 0.0;            // LPR: step 3 lock
 
-input string      Inp_Global_DT_Hdr                = "=== Daily profit target - all except MA ===";  // ---
+//input string      Inp_Global_DT_Hdr                = "=== Daily profit target - all except MA ===";  // ---
+input group "=== Daily profit target - all except MA ===";
 input bool        Inp_Global_DailyTarget_Enabled   = false;          // DPT: stop new entries when day's realized P&L hits target
 input double      Inp_Global_DailyTarget_Pct       = 10.0;           // DPT: target % of day-start balance
 input group " ";
@@ -73,13 +72,9 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🌐 (GLOBAL) PAIR / SPREAD";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🔧 Pair Type Detection";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input EPairType   Inp_Adaptive_PairType                     = PAIR_TYPE_AUTO; // Pair: Pair type (PAIR_TAPY_AUTO)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🔧 Max Spread by Pair Type (pips)";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== GLOBAL SPREAD ===";
 input double      Inp_Adaptive_Spread_Major                 = 3.0;      // Pair: Max spread major (pips)
 input double      Inp_Adaptive_Spread_Minor                 = 5.0;      // Pair: Max spread minor (pips)
@@ -94,6 +89,7 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🛡️ (GLOBAL) SAFETY GUARDS — off by default";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+
 input bool        Inp_Global_Safety_CountBEInAggregateRisk  = false;    // SAFETY: Count BE positions toward MaxTotalRisk (closes pyramiding gap)
 input int         Inp_Global_Safety_MaxPositionsPerDir      = 2;        // SAFETY: Max concurrent positions per direction (0=off)
 input bool        Inp_Global_Safety_DelayTrailUntilR        = false;    // SAFETY: Delay trailing until open profit reaches R-multiple
@@ -103,7 +99,8 @@ input double      Inp_Global_Safety_MaxEquityDrawdownPct    = 0.0;      // SAFET
 input double      Inp_Global_Safety_MinEquityFloor          = 0.0;      // SAFETY: Pause new entries if equity ≤ absolute value (0=off)
 input double      Inp_Global_Safety_MinRewardRiskRatio      = 0.0;      // SAFETY: Reject entries with TP:SL ratio below this (0=off)
 
-input string      Inp_Global_Portfolio_Hdr  = "=== Portfolio risk layer (account-wide; all presets; default OFF) ==="; // ---
+//input string      Inp_Global_Portfolio_Hdr  = "=== Portfolio risk layer (account-wide; all presets; default OFF) ==="; // ---
+input group "=== Portfolio risk layer (account-wide; all presets; default OFF) ===";
 input bool        Inp_Global_Portfolio_Enabled              = false; // PORTFOLIO: master switch (OFF = per-chart sizing, unchanged)
 input bool        Inp_Global_Portfolio_VolParity            = false; // PORTFOLIO: scale new lot toward equal-risk-per-slot
 input double      Inp_Global_Portfolio_MaxAccountRisk       = 6.0;   // PORTFOLIO: cap on total open risk across ALL charts, %% equity
@@ -115,16 +112,12 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🚫✅ (GLOBAL) VETO F Filters";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🚫 VETO: SPREAD";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== VETO SPREAD ===";
 input bool        Inp_Global_VETO_UseSpread                 = false;    // VSpread: enable
 input int         Inp_Global_VETO_MaxSpreadRetryBars        = 3;        // VSpread: retry bars (0=unlimited)
 input double      Inp_Global_VETO_MaxSpread                 = 3.0;      // VSpread: max pips
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🚫 VETO: TIME";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== VETO TIME ===";
 input bool        Inp_Session_Enabled                       = true;     // VSession_Enabled: true=only trade in enabled sessions | false=trade 24h
 input bool        Inp_Session_London                        = true;     // VSession_LDN: (09:00–17:00 EET by default)
@@ -140,35 +133,27 @@ input int         Inp_Session_Win1_End                      = 12;       // VSess
 input bool        Inp_Session_Win2                          = false;    // VSession_Win2: (e.g. afternoon: 16-21)
 input int         Inp_Session_Win2_Start                    = 16;       // VSession_Win2_Start: (broker time, 0-23)
 input int         Inp_Session_Win2_End                      = 21;       // VSession_Win2_End
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🚫 VETO: NEWS";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== VETO NEWS ===";
 input bool        Inp_Global_VETO_UseNews                   = false;    // VNews: enable
 input ENewsImpactLevel Inp_Global_VETO_NewsImpactFilter     = NEWS_IMPACT_MED_PLUS; // VNews: impact
 input string      Inp_Global_VETO_NewsFile                  = "calendar_statement.csv"; // VNews: CSV filename
 input int         Inp_Global_VETO_NewsPreMinutes            = 60;       // VNews: block minutes before
 input int         Inp_Global_VETO_NewsPostMinutes           = 60;       // VNews: block minutes after
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🚫 VETO: TE QUALITY GATES (ADVANCED)";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== VETO TE ===";
 input bool        Inp_Global_VETO_TE_RecheckBarClose        = false;    // Veto TE: re-check price drift vs Close[1]
 input double      Inp_Global_VETO_TE_BC_TolerancePips       = 3.0;      // Veto TE: drift tolerance pips
 input int         Inp_Global_VETO_TE_OpenDelaySeconds       = 0;        // Veto TE: open delay seconds (0=off)
 input int         Inp_Global_VETO_TE_SpreadMedianTicks      = 0;        // Veto TE: spread median filter ticks (0=off)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🚫 VETO: Climax";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== VETO CLIMAX ===";
 input bool        Inp_Global_F_ClimaxGuard_Enabled          = false;    // F-Filter: Climax / exhaustion-guard master toggle
 input int         Inp_Global_ClimaxGuard_Lookback           = 13;       // Climax: window (bars) scanned for an impulse
 input int         Inp_Global_ClimaxGuard_ATRPeriod          = 14;       // Climax: ATR baseline period (measured pre-impulse)
 input double      Inp_Global_ClimaxGuard_BarATRMult         = 2.0;      // Climax: single-bar range threshold (x ATR)
 input double      Inp_Global_ClimaxGuard_MoveATRMult        = 3.0;      // Climax: cumulative move threshold (x ATR)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🚫 F-FILTERS (MASTERS — preset-agnostic)";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== VETO F-FILTERS ===";
 input bool        Inp_Global_F_EmaFanFilterEnabled          = false;    // F-Filter: EMA-fan over-extension master toggle
 input bool        Inp_Global_F_PriceExtFilterEnabled        = false;    // F-Filter: price-vs-EMA over-extension master toggle
@@ -181,63 +166,50 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ✅✅ (GLOBAL) UI";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🎨 UI: ALL PANELS — SHARED SETTINGS";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== UI ALL PANELS ===";
 input int         Inp_UI_PanelFontSize             = 10;             // UI: Font size (all panels)
 input int         Inp_UI_PanelLineSpacingPx        = 15;             // UI: Line spacing px (all panels)
 input string      Inp_UI_PanelFont                 = "Arial";        // UI: Font name (all panels)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🎨 UI: COCKPIT PANEL";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== UI PANEL COCKPIT ===";
 input bool        Inp_UI_ShowCockpitPanel          = true;           // UI CP: COCKPIT PANEL
 input ENUM_BASE_CORNER  Inp_UI_CockpitCorner       = CORNER_LEFT_UPPER; // UI CP: corner
 input int         Inp_UI_CockpitX                  = 10;             // UI CP: Cockpit panel X (px)
 input int         Inp_UI_CockpitY                  = 10;             // UI CP: Cockpit panel Y (px)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🎨 UI: COCKPIT PANEL COLORS";
-//input group "╚════════════════════════════════════════════════════════╝";
+input group " ";
 input color       Inp_UI_clr_Header                = clrGold;        // UI CP: Header Text Color
 input color       Inp_UI_clr_Value                 = clrWhite;       // UI CP: Market Data Color
 input color       Inp_UI_clr_Pass                  = clrLimeGreen;   // UI CP: Logic PASS Color
 input color       Inp_UI_clr_Fail                  = clrOrangeRed;   // UI CP: Logic FAIL Color
 input color       Inp_UI_clr_Disabled              = clrGray;        // UI CP: Logic DISABLED Color
 input color       Inp_UI_clr_Waiting               = clrYellow;      // UI CP: Logic WAITING Color (aligned, not firing)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🎨 UI: STATUS PANEL";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== UI PANEL STATUS ===";
 input bool        Inp_UI_ShowStatusPanel           = false;          // UI SP: STATUS PANEL
 input ENUM_BASE_CORNER Inp_UI_PanelCorner          = CORNER_RIGHT_UPPER; // UI SP: Status panel corner
 input bool        Inp_UI_ManageChartIndicators     = false;          // UI SP: Auto-add/remove chart indicators
-input int         Inp_UI_PanelX                    = 30;             // UI SP: Status panel X (px)
-input int         Inp_UI_PanelY                    = 30;             // UI SP: Status panel Y (px)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🎨 UI: VPRR PANEL";
-//input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_UI_PanelX                    = 10;             // UI SP: Status panel X (px)
+input int         Inp_UI_PanelY                    = 10;             // UI SP: Status panel Y (px)
+
 input group "=== UI PANEL VPRR ===";
 input bool        Inp_UI_ShowVPRRPanel             = false;                // UI VPRR panel
 input ENUM_BASE_CORNER Inp_UI_VPRRCorner           = CORNER_RIGHT_LOWER;   // UI VPRR panel corner
-input int         Inp_UI_VPRR_X                    = 30;                   // UI VPRR panel X (px)
-input int         Inp_UI_VPRR_Y                    = 30;                   // UI VPRR panel Y (px)
+input int         Inp_UI_VPRR_X                    = 10;                   // UI VPRR panel X (px)
+input int         Inp_UI_VPRR_Y                    = 10;                   // UI VPRR panel Y (px)
+input group " ";
 input bool        Inp_UI_ShowVPRRInitPanel         = true;                 // UI VPRR Init Check panel (startup validation; set false after verified)
 input ENUM_BASE_CORNER Inp_UI_VPRRInitCorner       = CORNER_RIGHT_LOWER;   // UI VPRR Init Check panel corner
-input int         Inp_UI_VPRRInit_X                = 30;                   // UI VPRR Init Check panel X (px)
-input int         Inp_UI_VPRRInit_Y                = 30;                   // UI VPRR Init Check panel Y (px)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🎨 UI: SIGNAL MARKERS & COLORS";
-//input group "╚════════════════════════════════════════════════════════╝";
+input int         Inp_UI_VPRRInit_X                = 10;                   // UI VPRR Init Check panel X (px)
+input int         Inp_UI_VPRRInit_Y                = 10;                   // UI VPRR Init Check panel Y (px)
+
 input group "=== UI SIGNALS ===";
 input EUIFrameMode Inp_UI_FrameMode                = UI_FRAME_NONE;  // UI SM: Panel frame mode
 input bool        Inp_UI_DrawEntryLines            = true;           // UI SM: Draw entry marker lines
 input bool        Inp_UI_UseCustomColors           = true;           // UI SM: Use custom panel colors
 input color       Inp_UI_FontColor                 = clrYellow;      // UI SM: font color
 input int         Inp_UI_FramePadPx                = 6;              // UI SM: Panel padding (px)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🎨 (UI) VISUALISATION (Swing & Fractals)";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== UI VISUALS ===";
 input bool        Inp_UI_ShowSwingMarkers          = false;          // UI Vis: Show Swing
 input bool        Inp_UI_ShowFractalMarkers        = true;           // UI Vis: Show Fractal
@@ -255,29 +227,19 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ✅✅ (GLOBAL) DEBUG";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🔍 DEBUG: DIAGNOSTICS";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input EDebugLevel Inp_Debug_Level                  = DEBUG_SILENT;   // Debug: Level
 input bool        Inp_Debug_Flow                   = true;           // Debug: Print OnInit/OnTick/OnDeinit flow ... have to be true with DEBUG_SIGNALS_ONLY
 input bool        Inp_Debug_PrintEffectiveConfig   = true;           // Debug: Print effective config on init
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🔍 DEBUG: DIAGNOSTICS: STATISTICS";
-//input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_Debug_Stats_FullEvaluation   = true;           // Stats: Evaluate ALL indicators per bar
 //input string    Inp_Stats_Info1                  = "FullEvaluation=false: waterfall (stop at first fail)";
 //input string    Inp_Stats_Info2                  = "FullEvaluation=true: evaluate all, identify true bottlenecks";
-
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🔬 DEBUG: TARGETED BAR EVALUATION";
-//input group "╚════════════════════════════════════════════════════════╝";
+input group " ";
 input EDebugLevel Inp_Debug_EvalMode               = DEBUG_SUMMARY;  // Debug Eval: level to apply
 input datetime    Inp_Debug_EvalFrom               = 0;              // Debug Eval: from datetime (0=off)
 input datetime    Inp_Debug_EvalTo                 = 0;              // Debug Eval: to datetime (0=off)
 input datetime    Inp_Debug_EvalAt                 = 0;              // Debug Eval: pinpoint bar time (0=off)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🔍 DEBUG: REPORTING";
-//input group "╚════════════════════════════════════════════════════════╝";
+input group " ";
 input bool        Inp_Debug_ExportCSV              = false;          // Report: Export CSV reporting
 input bool        Inp_Debug_ExportUseCommonFiles   = false;          // Report: Use terminal Common Files folder
 
@@ -286,9 +248,6 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📊 VPRR — SHARED (all presets: FPM / MA / RRM_ORG / TI)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "    📊 VPRR (used by FPM / MA / RRM_ORG / TI presets)";
-//input group "╚════════════════════════════════════════════════════════╝";
 //
 // Effective MinRatio = base x TF multiplier (auto-applied at EA start).
 // Restart EA after instrument or TF change to auto-update settings.
@@ -358,17 +317,13 @@ input int         Inp_VPRR_RecBars_Equities        = 2;              // VPRR Equ
 input double      Inp_VPRR_MinRatio_FX             = 0.7;            // VPRR FX: MinRatio base (0.6-0.7; tick vol approximation)
 input int         Inp_VPRR_RecBars_FX              = 3;              // VPRR FX: RecoveryBars base
 input double      Inp_VPRR_MinRatio_NonFXTick      = 0.8;            // DEPRECATED (V10 2026-07-27): DEAD — no reader. Was a tick-volume fallback threshold; VPRR is real-volume-only, so it can never apply. Kept so existing .set files still load; delete once no live .set references it.
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group " 📊 VPRR TF Auto-Multiplier ===";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== VPRR TF ===";
 input double      Inp_VPRR_TF_Mult_M5              = 0.85;           // VPRR TF: M5 multiplier (noisier, loosen 15%%)
 input double      Inp_VPRR_TF_Mult_M15             = 1.00;           // VPRR TF: M15 multiplier (baseline)
 input double      Inp_VPRR_TF_Mult_H1              = 0.95;           // VPRR TF: H1 multiplier (fewer bars, loosen slightly)
 input double      Inp_VPRR_TF_Mult_H4Plus          = 0.90;           // VPRR TF: H4+ multiplier (very few cycles, loosen)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group " 📊 VPRR RRM_ORG - Volume Confirmation ===";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== VPRR VOL ===";
 input EVPRRVolumeType Inp_RRM_ORG_VPRR_VolumeType  = VPRR_VOL_AUTO;  // RRM ORG VPRR: AUTO, EXTERNAL, REAL, TICK (Auto=real then tick fallback)
 input bool        Inp_RRM_ORG_VPRR_AutoEnable      = false;          // RRM ORG VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual Enabled toggle below)
@@ -388,9 +343,6 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET_MA  (MT5 Moving Average Benchmark)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🛑 MT5 Moving Average Benchmark (PRESET_MA)";
-//input group "╚════════════════════════════════════════════════════════╝";
 input int         Inp_MA_Period                    = 12;             // MA period
 input int         Inp_MA_Shift                     = 6;              // MA shift
 #endif // SEA_BUILD_MA
@@ -400,29 +352,20 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET_FPM";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 FPM: (TP) Take Profit Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input ETPMode     Inp_FPM_TPMode                   = TP_MODE_RR;     // FPM TP: TP mode — RR=derive from SL distance (recommended); FIXED_PIPS=TF cheat sheet pips
 input double      Inp_FPM_RRRatio                  = 1.5;            // FPM TP: R:R ratio (used with TP_MODE_RR, e.g. 1.5, 2.0, 3.0)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 FPM: (SL) Stop Loss Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
 input double      Inp_FPM_SLFixedPips              = 15.0;           // FPM SL: fixed distance in pips (SL_MODE_FIXED_PIPS only — unreachable under FPM's current SWING lock; retained for TradeExecutor's general SL_MODE_FIXED_PIPS path)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 FPM: (TS) Trailing Stop";
-//input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_FPM_UseTrailing              = true;           // FPM TS: Enable optional trailing stop
 input double      Inp_FPM_TrailDistancePips        = 15.0;           // FPM TS: Trailing distance in pips (15 = cheat sheet default)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 FPM: MACD Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
-input group "FPM — 5-POINT CONDITIONS: ON / OFF (core; default true)";
+
+input group "FPM — CORE: ON / OFF (core; default true)";
 input bool        Inp_FPM_Use_Psar                 = true;           // Condition 1: PSAR position
 input bool        Inp_FPM_Use_Macd                 = true;           // Condition 2: MACD vs signal
 input bool        Inp_FPM_Use_Bb                   = true;           // Condition 3: BB widening
 input bool        Inp_FPM_Use_BarClose             = true;           // Condition 4: bar-close confirmation
-input group "FPM — OPTIONAL voters: ON / OFF (default false; add to test)";
+
+input group "FPM — OPTIONAL: ON / OFF (default false)";
 input bool        Inp_FPM_Use_Adx                  = false;          // FPM: add ADX trend-strength gate
 input bool        Inp_FPM_Use_CI                   = false;          // FPM: add Choppiness Index gate
 input bool        Inp_FPM_Use_CandleBody           = false;          // FPM: add CandleBody voter
@@ -430,30 +373,24 @@ input bool        Inp_FPM_Use_Dpi                  = false;          // FPM: add
 input bool        Inp_FPM_Use_P123                 = false;          // FPM: add P123 fractal-breakout confirm
 input bool        Inp_FPM_Use_Ross                 = false;          // FPM: add Ross Hook confirm
 input bool        Inp_FPM_Use_Mtf                  = false;          // FPM: add HTF/MTF confirmation (methodology excludes it; params global)
-input group "=== MACD PSAR MFI ===";
+
+input group "FPM - Indicator Settings";
 input int         Inp_FPM_MacdFast                 = 12;             // FPM MACD: fast EMA period
 input int         Inp_FPM_MacdSlow                 = 26;             // FPM MACD: slow EMA period
 input int         Inp_FPM_MacdSig                  = 9;              // FPM MACD: signal period
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 FPM: PSAR Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
 input double      Inp_FPM_PsarStep                 = 0.02;           // FPM PSAR: step
 input double      Inp_FPM_PsarMax                  = 0.2;            // FPM PSAR: max
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📊 FPM: MFI Volume Confirmation";
-//input group "╚════════════════════════════════════════════════════════╝";
 input bool        Inp_FPM_Ind_Mfi_Enabled          = true;           // FPM MFI: Enable MFI volume gate (MFI>50 for longs, <50 for shorts)
 input int         Inp_FPM_Mfi_Period               = 14;             // FPM MFI: period (default 14)
 #endif // SEA_BUILD_FPM
+
 
 #ifdef SEA_BUILD_RRM_ORG
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET_RRM_ORG — DPI";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: DPI v31 — Core Math (shared by all)";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== DPI MAIN ===";
 input ENUM_APPLIED_PRICE Inp_RRM_ORG_DPI_CCI_Price       = PRICE_TYPICAL;  // RRM ORG DPI: CCI applied price
 input int         Inp_RRM_ORG_DPI_MacdFast               = 8;        // RRM ORG DPI: MACD fast EMA period
@@ -467,17 +404,11 @@ input int         Inp_RRM_ORG_DPI_DoubleSmoothFirst      = 5;        // RRM ORG 
 input int         Inp_RRM_ORG_DPI_DoubleSmoothSecond     = 8;        // RRM ORG DPI: Double-smooth second EMA
 input int         Inp_RRM_ORG_DPI_CCI_Period             = 13;       // RRM ORG DPI: CCI period
 
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   🚫 DPI F-FILTERS (MASTERS — preset-agnostic)";
-//input group "╚════════════════════════════════════════════════════════╝";
 input group "=== DPI F-FILTERS ===";
 input bool        Inp_Global_F_DpiDecelFilterEnabled     = true;     // F-Filter: DPI GREEN deceleration master toggle (stateless)
 input bool        Inp_Global_F_DPI_HistTrackingEnabled   = true;     // F-Filter: DPI histogram tracking master (prereq for hist-decel block)
 input bool        Inp_Global_F_DPI_BlockOnDeceleration   = true;     // F-Filter: Block on DPI histogram decel (requires hist-tracking on)
 
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: DPI Vote (I factor — ribbon direction)";
-//input group "╚════════════════════════════════════════════════════════╝";
 //
 // Yellow ribbon = BUY vote, Red ribbon = SELL vote.
 // CCI can reset ribbon color: hist>0 but CCI<0 → Red override (weakening).
@@ -490,9 +421,6 @@ input bool        Inp_RRM_ORG_DPI_UseGreenHist           = true;     // RRM ORG 
 input bool        Inp_RRM_ORG_DpiDiv                     = false;    // RRM ORG DPI: Require price-vs-DPI-histogram divergence (off by default)
 input int         Inp_RRM_ORG_DpiDivLookback             = 55;       // RRM ORG DPI: Divergence detection window in bars (two non-overlapping windows)
 
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: DPI Pre-filter — GREEN Deceleration";
-//input group "╚════════════════════════════════════════════════════════╝";
 //
 // Inp_RRM_ORG_DPI_Decel_Filter - Blocks entry when GREEN momentum is fading or has just disappeared.
 // GREEN = Blue & hist both same side of zero (momentum confirmation).
@@ -500,9 +428,6 @@ input int         Inp_RRM_ORG_DpiDivLookback             = 55;       // RRM ORG 
 // No GREEN on either bar = pass (ribbon-only setup, no momentum to decelerate).
 //
 input int         Inp_RRM_ORG_DPI_HistDecelLookback      = 3;        // RRM ORG DPI: CCI deceleration lookback bars (needs tracking ON)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: DPI System B — CCI Histogram Tracking";
-//input group "╚════════════════════════════════════════════════════════╝";
 //
 // Inp_RRM_ORG_DPI_HistTrackingEnabled - 
 // Separate deceleration system using CCI values (not ribbon/GREEN).
@@ -519,9 +444,6 @@ input bool        Inp_RRM_ORG_DPI_Histogram_Growth_Boost = false;    // RRM ORG 
 input double      Inp_RRM_ORG_DPI_HistMomentumThreshold  = 0.0001;   // RRM ORG DPI: Ignore CCI-delta below this (needs tracking ON)
 input bool        Inp_RRM_ORG_DPI_ExitOnHistDisappear    = false;    // RRM ORG DPI: Close trades when CCI trend flips (needs tracking ON)
 input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // RRM ORG DPI: Exit when |CCI| below threshold, 0=disable (needs tracking ON)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: DPI System C — CCI Reset-Recovery Gate";
-//input group "╚════════════════════════════════════════════════════════╝";
 //
 // Inp_RRM_ORG_DPI_RequireResetRecovery — CCI RESET-RECOVERY ENTRY GATE
 // Requires HistTrackingEnabled = true and DPI_UseCCIReset = true.
@@ -554,9 +476,7 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET_RRM_ORG  ★ ACTIVE";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: (TP) TAKE PROFIT TARGET";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG TP ===";
 input ETPMode     Inp_RRM_ORG_TPMode               = TP_MODE_RR;     // RRM ORG TP: TP_MODE=*: *FIXED_PIPS, *FRACTAL, *NONE, *PSAR_FLIP, *RR
 input double      Inp_RRM_ORG_RRRatio              = 2.5;            // RRM ORG TP: RR ratio — 2.5 = TP at 2.5× SL distance. Oracle: winners should outpace losers. Was 1.25 (negative expected value at 52% win rate).
@@ -576,12 +496,10 @@ input double      Inp_RRM_ORG_RRRatio              = 2.5;            // RRM ORG 
 // TPMode != TP_MODE_NONE → TP stays fixed, trailing runs underneath.
 // TPMode == TP_MODE_NONE → no TP cap, trailing manages full exit.
 //
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: (SL) INITIAL STOP LOSS PLACEMENT";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG SL INITIAL===";
-input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;    // RRM ORG SL: SL_MODE_=*: *ATR, *FIXED_PIPS, *FRACTAL, *PERCENT, *PSAR_DOT, *SWING
-input int         Inp_RRM_ORG_SwingLookback        = 55;              // RRM ORG SL: SWING lookback bars — search window for the most recent swing high/low. Larger window = more likely to find a structurally meaningful level. 34 bars: M1=34min · M5=170min · H1=34h. If swing is 15 bars ago and window=13, it's missed; window=34 finds it.
+input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;  // RRM ORG SL: SL_MODE_=*: *ATR, *FIXED_PIPS, *FRACTAL, *PERCENT, *PSAR_DOT, *SWING
+input int         Inp_RRM_ORG_SwingLookback        = 55;             // RRM ORG SL: SWING lookback bars — search window for the most recent swing high/low. Larger window = more likely to find a structurally meaningful level. 34 bars: M1=34min · M5=170min · H1=34h. If swing is 15 bars ago and window=13, it's missed; window=34 finds it.
 input int         Inp_RRM_ORG_SL_AtrPeriod         = 14;             // RRM ORG SL: ATR period (SL_MODE_ATR only)
 input double      Inp_RRM_ORG_SL_AtrMult           = 1.0;            // RRM ORG SL: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical; Gold M15 use 1.0–1.5)
 input int         Inp_RRM_ORG_MinBarsAfterClose    = 3;              // RRM ORG SL: post-trade cooldown bars (0=off)
@@ -600,9 +518,7 @@ input int         Inp_RRM_ORG_ReEntryLotScalePct   = 50;             // RRM ORG 
 // Typical guide: M5 21-34, M15 34-55, H1 55-89, H4 89-144.
 // Only used when SLMode = SL_MODE_SWING.
 //
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: (TSL) HOW TO TRAIL STOP LOSS";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG SL TRAIL ===";
 input ETrailingMode Inp_RRM_ORG_TrailMode             = TRAIL_BREAKEVEN;   // RRM ORG TS: *BREAKEVEN, *EMA, *FIXED_PIPS, *FRACTAL, *NONE, *PROFIT_PERCENT, *PSAR, *PSAR_FLIP_EXIT
 input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // RRM ORG TS: PSAR cushion mode (PIPS / ATR / PERCENT)
@@ -627,9 +543,7 @@ input double      Inp_RRM_ORG_TrailProfitPercentLPR   = 25.0;        // RRM ORG 
 // Example: peak=80 pips, value=25 → SL target at +60 pips.
 // Only used when TrailMode = TRAIL_PROFIT_PERCENT.
 //
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: (TSL) ROLE_EMA* & TRIGGER";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG SL TRIGGER ===";
 input EEmaRole    Inp_RRM_ORG_TrailEMA_RibbonRole     = ROLE_EMA3;   // RRM ORG TS: which ribbon EMA to trail (EMA1=5,EMA2=13,EMA3=34,EMA4=89) when Period=0
 input int         Inp_RRM_ORG_TrailEMA_Period         = 0;           // RRM ORG TS: EMA period (0=use ribbon role selector below)
@@ -637,6 +551,8 @@ input int         Inp_RRM_ORG_TrailEMA_Shift          = 3;           // RRM ORG 
 input double      Inp_RRM_ORG_TrailEMA_CushionPips    = 0.0;         // RRM ORG TS: EMA trail cushion pips (0=use ATR mode)
 input double      Inp_RRM_ORG_TrailEMA_CushionAtrMult = 1.0;         // RRM ORG TS: EMA cushion = ATR×this (0=disabled; 0.1=recommended)
 input int         Inp_RRM_ORG_TrailEMA_CushionAtrPeriod = 14;        // RRM ORG TS: ATR period for EMA cushion
+
+input group " ";
 input ETrailTrigger Inp_RRM_ORG_TrailTrigger          = TRIGGER_BREAKEVEN; // RRM ORG TS: *BREAKEVEN, *IMMEDIATE, *PROFIT_PERCENT, *PROFIT_PIPS, *PSAR_ALIGN
 input bool        Inp_RRM_ORG_TrailStartsAfterBE      = false;        // RRM ORG TS: hold the PSAR trail back until BE fires. Oracle (manual SS IV.B) says trailing starts as soon as the trade moves in your favour, so false is the Oracle-conformant value. true = pre-2026-07 behaviour
 input bool        Inp_RRM_ORG_TrailLockProfit         = true;        // RRM ORG TS: never move SL backwards (lock profit)
@@ -655,9 +571,7 @@ input bool        Inp_RRM_ORG_AllowReEntryAfterBE     = true;        // RRM ORG:
 // Recommended true for protection against trailing in loss zone.
 // In PRESET_RRM_ORG, TrailTrigger is internally set to TRIGGER_BREAKEVEN.
 //
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: (BE) BREAKEVEN";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG BE ===";
 input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_R_MULTIPLE;   // RRM ORG BE: Breakeven trigger mode
 input double      Inp_RRM_ORG_BE_RMultiple            = 0.25;                 // RRM ORG BE: BE trigger as R multiple
@@ -686,17 +600,13 @@ input EBeTriggerSource Inp_RRM_ORG_BE_TriggerSource   = BE_SRC_BAR_CLOSE;
 // ⚠️ BE lock is one-time: once triggered, SL moves to entry+buffer and does not recalculate.
 // Buffer pips are TF-adaptive in PRESET_RRM_ORG via GetTFBasedCushion().
 //
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: (DD) Drawdown Protection";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG DD ===";
 input bool        Inp_RRM_ORG_ForceDDProtection    = false;          // RRM ORG DD: Force DrawDown protection
 input int         Inp_RRM_ORG_DDMaxConsecLosses    = 3;              // RRM ORG DD: Override max consecutive losses (0=use Inp_RRM_*)
 input int         Inp_RRM_ORG_DDMaxTradesPerDay    = 15;             // RRM ORG DD: Override max trades per day (0=use Inp_RRM_*)
 input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM ORG DD: Override max daily DD % (0=use Inp_RRM_*)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: QUALITY Gates";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG QUALITY ===";
 input bool        Inp_RRM_ORG_LayerS_TMOnly        = true;           // RRM ORG QA: Restrict LayerS (EMA3/EMA4) entries to TRENDING phase only (per canonical RRM); 
 input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM ORG QA: EMA1 period
@@ -705,9 +615,7 @@ input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG 
 input int         Inp_RRM_ORG_Ema4Period           = 89;             // RRM ORG QA: EMA4 period
 input int         Inp_RRM_ORG_MinBarsAfterUNOExit  = 0;              // RRM ORG QA: Min bars after UNO exit before any layer DETECTED→IN-TREND transition is allowed (0=disabled; try 2-3 for M1)
 input int         Inp_RRM_ORG_UNO_ToleranceBars    = 0;              // RRM ORG PB: consecutive UNO bars tolerated before layer states are wiped. A transient UNO flicker that resolves back to the SAME direction within this many bars PRESERVES DETECTED/IN-TREND (0=strict: reset on the first UNO bar)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: LAYER WMS Pullback & Recovery";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG LAYER ===";
 input bool        Inp_RRM_ORG_LayerPBEnabled          = true;        // RRM ORG PB: Enable pullback-recovery state machine (P2?)
 input int         Inp_RRM_ORG_LayerPBLookback         = 0;          // RRM ORG PB: Global baseline lookback (fallback; per-layer below)
@@ -728,9 +636,7 @@ input group " ";
 input bool        Inp_RRM_ORG_AllowLayerS             = true;        // RRM ORG PB: allow Layer S (EMA3/4) entries
 input bool        Inp_RRM_ORG_AllowLayerM             = true;        // RRM ORG PB: allow Layer M (EMA2/3) entries
 input bool        Inp_RRM_ORG_AllowLayerW             = true;        // RRM ORG PB: allow Layer W (EMA1/2) entries
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: EMA Fan Filter (pips)";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG EMA FAN ===";
 input double      Inp_RRM_ORG_EmaFan_M5Pips        = 25.0;           // RRM ORG Fan: pips <M5
 input double      Inp_RRM_ORG_EmaFan_M30Pips       = 40.0;           // RRM ORG Fan: pips <M30
@@ -747,9 +653,7 @@ input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    📐 PRESET_RRM_ORG — INDICATORS";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: Indicators — Use";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input bool        Inp_RRM_ORG_Use_Adx              = true;           // RRM ORG Ind: ADX vote
 input bool        Inp_RRM_ORG_Use_Atr              = false;          // RRM ORG Ind: ATR vote
 input bool        Inp_RRM_ORG_Use_Bb               = false;          // RRM ORG Ind: BB vote
@@ -765,9 +669,7 @@ input bool        Inp_RRM_ORG_Use_Ross             = false;          // RRM ORG 
 input bool        Inp_RRM_ORG_Use_Rsi              = false;          // RRM ORG Ind: RSI vote
 input bool        Inp_RRM_ORG_Use_Stoch            = true;          // RRM ORG Ind: STO vote
 input bool        Inp_RRM_ORG_Use_VRC              = false;          // RRM ORG Ind: VRC vote
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: ADX Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG ADX ===";
 input EADXMode    Inp_RRM_ORG_Adx_Mode             = ADX_MODE_STATIC;  // RRM ORG ADX: ADX Mode
 input int         Inp_RRM_ORG_AdxPeriod            = 14;             // RRM ORG ADX: ADX Period
@@ -778,50 +680,36 @@ input double      Inp_RRM_ORG_Adx_Percentile       = 50.0;           // RRM ORG 
 input double      Inp_RRM_ORG_Adx_Thr_Accum        = 12.0;           // RRM ORG ADX: ADX Thr Accumulation
 input double      Inp_RRM_ORG_Adx_Thr_Trending     = 25.0;           // RRM ORG ADX: ADX Thr Trending
 input double      Inp_RRM_ORG_Adx_Thr_Distrib      = 18.0;           // RRM ORG ADX: ADX Tht Distribution
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: ATR Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG ATR ===";
 input int         Inp_RRM_ORG_P_Atr                = 14;             // RRM ORG ATR: ATR period (used when ATR voter enabled)
 input double      Inp_RRM_ORG_ATR_VoteMinPips      = 5.0;            // RRM ORG ATR: min ATR pips to allow trade
 input double      Inp_RRM_ORG_ATR_VoteMaxPips      = 50.0;           // RRM ORG ATR: max ATR pips to allow trade
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: BB Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG BB ===";
 input EBbMode     Inp_RRM_ORG_Bb_Mode              = BB_TREND_FOLLOW;   // RRM ORG BB: BB Mode
 input int         Inp_RRM_ORG_Bb_Period            = 20;             // RRM ORG BB: BB Period
 input double      Inp_RRM_ORG_Bb_Deviation         = 2.0;            // RRM ORG BB: BB Deviation
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: CB Candle Body Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG CB ===";
 input bool        Inp_RRM_ORG_CandleBody_RequireDir   = true;        // RRM ORG CBody: CBody Require direction
 input int         Inp_RRM_ORG_CandleBody_AvgPeriod    = 14;          // RRM ORG CBody: CBody Average period       [SYNC 2026-06-04: 5→14 to match SignalScan CB_AvgPeriod]
 input double      Inp_RRM_ORG_CandleBody_MaxMult      = 3.0;         // RRM ORG CBody: CBody Max multiplier       [SYNC 2026-06-04: 4.0→3.0 to match SignalScan CB_MaxMult]
 input double      Inp_RRM_ORG_CandleBody_MinCloseRatio = 0.75;       // RRM ORG CBody: Min close ratio (0=off, 0.75=TopInvestor — rejects doji-like signal bars)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: CC Candle Close Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG CC ===";
 input bool        Inp_RRM_ORG_BarClose_Require_Progressive_Momentum = true; // RRM ORG CC: Momentum
 input int         Inp_RRM_ORG_BarClose_LookbackBars   = 5;           // RRM ORG CC: Lookback (1-4 bars)
 input double      Inp_RRM_ORG_BarClose_PipTolerance   = 0.0;         // RRM ORG CC: Allow N pips of target EMA (0=strict close>EMA)
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: CCI Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG CCI ===";
 input ECciMode    Inp_RRM_ORG_CciMode              = CCI_TREND_ZERO; // RRM ORG CCI: CCI Mode
 input int         Inp_RRM_ORG_CciPeriod            = 20;             // RRM ORG CCI: CCI Period   [SYNC 2026-06-04: 14→20 to match SignalScan CCI_Period (inert — standalone CCI voter OFF on both sides; parity only)]
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: CI Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG CI ===";
 input int         Inp_RRM_ORG_CiPeriod             = 14;             // RRM ORG CI: CI Period
 input double      Inp_RRM_ORG_CiRangingThreshold   = 61.8;           // RRM ORG CI: CI Threshold
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: MACD Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG MACD ===";
 input bool        Inp_RRM_ORG_MacdSlope            = false;          // RRM ORG MACD: MACD require SLO
 input bool        Inp_RRM_ORG_MacdDiv              = false;          // RRM ORG MACD: BLOCK entry on MACD trend-exhaustion divergence (price HH but MACD LH for LONG; mirror for SHORT)
@@ -831,25 +719,19 @@ input int         Inp_RRM_ORG_MacdSlow             = 13;             // RRM ORG 
 input int         Inp_RRM_ORG_MacdSig              = 5;              // RRM ORG MACD: MACD Signal
 input int         Inp_RRM_ORG_MacdFreshBars        = 3;              // RRM ORG MACD: max bars since last zero-cross to be "fresh"
 input double      Inp_RRM_ORG_MacdSlopeMin         = 0.00001;        // RRM ORG MACD: minimum histogram slope magnitude
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: MFI Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG MFI ===";
 input int         Inp_RRM_ORG_Mfi_Period           = 14;             // RRM ORG MFI: MFI Period
 input double      Inp_RRM_ORG_Mfi_OB               = 80.0;           // RRM ORG MFI: MFI Overbought
 input double      Inp_RRM_ORG_Mfi_OS               = 20.0;           // RRM ORG MFI: MFI Oversold
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: MTF Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG MTF ===";
 input ENUM_TIMEFRAMES Inp_RRM_ORG_MTF_TF1          = PERIOD_H1;      // RRM ORG MTF: TF1 (primary)
 input ENUM_TIMEFRAMES Inp_RRM_ORG_MTF_TF2          = PERIOD_H2;      // RRM ORG MTF: TF2 (PERIOD_CURRENT = single TF)
 input int         Inp_RRM_ORG_MTF_EMA_Fast         = 21;             // RRM ORG MTF: fast EMA period
 input int         Inp_RRM_ORG_MTF_EMA_Slow         = 21;             // RRM ORG MTF: slow EMA period
 input bool        Inp_RRM_ORG_MTF_RequirePhase     = true;           // RRM ORG MTF: require trending HTF
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: PSAR Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG PSAR ===";
 input bool        Inp_RRM_ORG_Vote_AllowPsarFlip   = true;           // RRM ORG PSAR: PSAR Enable Flip
 input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = -1;             // RRM ORG PSAR: global PSAR flip delay. MODES: -1 = persistent (dot side only, no recency test) | 0 = flip must fall on this bar | 1..10 = flip must fall within the last N closed bars. Applies only when Vote_AllowPsarFlip=true; otherwise PSAR votes on dot side alone. The dot-side test runs FIRST, so a window can only make an already-correct-side dot stricter - never admit a wrong-side one. KNOWN PROPERTY of any window mode (>= 0): once the dot has been correctly-sided for longer than the window there is no opposite-side bar left in it, so PSAR fails PSAR_FLIP_STALE until the next flip - a window expires the vote inside a sustained trend (observed 2026-07 on M5). Accepted cost of a freshness gate, not a defect. Persistent mode has no such expiry. Per-layer overrides below take precedence whenever they are not -99. Runtime ground truth is the [PSAR_RESOLVED] startup line and the cockpit PSAR row, which read live Settings - not this source default, which the MT5 dialog can override.
@@ -859,17 +741,13 @@ input int         Inp_RRM_ORG_PsarFlipDelay_M      = 5;              // RRM ORG 
 input int         Inp_RRM_ORG_PsarFlipDelay_S      = 5;              // RRM ORG PSAR: PSAR Flip delay LayerS override (-99=use global, 0=flip bar, 1-10=window) // LayerS (EMA3/4) override. -99 = use the global Vote_PsarFlipDelay; any other value overrides it for this layer only, same mode meanings. Rationale for leaving this layer persistent: S is the slowest, highest-conviction pair and a time-indexed gate adds little structural filtering. Rationale for windowing it: uniformity with W and M. Both are defensible; neither is derived. Runtime ground truth is the [PSAR_RESOLVED] startup line and the cockpit PSAR row, which read live Settings - not this source default, which the MT5 dialog can override.
 input double      Inp_RRM_ORG_PsarStep             = 0.05;           // RRM ORG PSAR: PSAR Step
 input double      Inp_RRM_ORG_PsarMax              = 0.2;            // RRM ORG PSAR: PSAR Max
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: RSI Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG RSI ===";
 input ERsiMode    Inp_RRM_ORG_RsiMode              = RSI_TREND_ABOVE_50; // RRM ORG RSI: RSI Mode
 input int         Inp_RRM_ORG_RsiPeriod            = 14;             // RRM ORG RSI: RSI Period
 input double      Inp_RRM_ORG_Rsi_OB               = 70.0;           // RRM ORG RSI: RSI Overbought
 input double      Inp_RRM_ORG_Rsi_OS               = 30.0;           // RRM ORG RSI: RSI Oversold
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: Stochastic Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG STO ===";
 input EStochMode  Inp_RRM_ORG_Sto_Mode             = STO_CROSS_SIGNAL; // RRM ORG STO: Sto Mode
 input int         Inp_RRM_ORG_Sto_K                = 5;              // RRM ORG STO: Sto K period
@@ -877,14 +755,13 @@ input int         Inp_RRM_ORG_Sto_D                = 3;              // RRM ORG 
 input int         Inp_RRM_ORG_Sto_Slow             = 3;              // RRM ORG STO: Sto Slowing period
 input double      Inp_RRM_ORG_Sto_OB               = 80.0;           // RRM ORG STO: Sto Overbought
 input double      Inp_RRM_ORG_Sto_OS               = 20.0;           // RRM ORG STO: Sto Oversold
-//input group "╔════════════════════════════════════════════════════════╗";
-//input group "║   📐 RRM_ORG: VRC Settings";
-//input group "╚════════════════════════════════════════════════════════╝";
+
 input group "=== RRM_ORG VRC ===";
 input int         Inp_RRM_ORG_VRC_Lookback         = 100;            // RRM ORG VRC: lookback bars for regime classification
 input double      Inp_RRM_ORG_VRC_LowThreshold     = 33.0;           // RRM ORG VRC: low-volatility percentile threshold
 input int         Inp_RRM_ORG_VRC_RefreshSec       = 14400;          // RRM ORG VRC: percentile refresh interval (sec). M1: try 900; H1+: 14400 (4h)
 #endif // SEA_BUILD_RRM_ORG
+
 
 #ifdef SEA_BUILD_TOPINVESTOR
 input group " ";
@@ -923,17 +800,20 @@ input double      Inp_TI_RRRatio                   = 2.0;            // TI Exit:
 input EBeMode     Inp_TI_BE_Mode                   = BE_MODE_R_MULTIPLE; // TI Exit: BE mode
 input double      Inp_TI_BE_RMultiple              = 1.0;            // TI Exit: BE trigger (N×R)
 input bool        Inp_TI_TrailStartsAfterBE        = false;          // TI Exit: Safety override: trail after BE
+
 input group "=== TI STD - EMA FAN ===";
 input double      Inp_TI_EmaFanBase_M1M5           = 50.0;           // TI Fan: max pips M1–M5
 input double      Inp_TI_EmaFanBase_M6M30          = 80.0;           // TI Fan: max pips M6–M30
 input double      Inp_TI_EmaFanBase_H1             = 120.0;          // TI Fan: max pips H1
 input double      Inp_TI_EmaFanBase_H2H4           = 200.0;          // TI Fan: max pips H2–H4
 input double      Inp_TI_EmaFanBase_H4Plus         = 350.0;          // TI Fan: max pips H4+
+
 input group "=== TI STD - DD ===";
 input bool        Inp_TI_EnableDDProtection        = false;          // TI DD: enable
 input int         Inp_TI_MaxConsecutiveLosses      = 4;              // TI DD: max consecutive losses
 input int         Inp_TI_MaxTradesPerDay           = 0;              // TI DD: max trades/day (0=unlimited)
 input double      Inp_TI_MaxDailyDrawdownPct       = 2.0;            // TI DD: max daily DD %
+
 input group "=== TI STD - VPRR ===";
 input bool        Inp_TI_VPRR_AutoEnable           = false;          // TI VPRR: Auto-enable VPRR based on instrument type (ON=auto; OFF=use manual toggle below)
 input EVPRRVolumeType Inp_TI_VPRR_VolumeType       = VPRR_VOL_AUTO;  // TI VPRR: Volume source (Auto=real then tick fallback)
@@ -978,6 +858,7 @@ input int         Inp_TI_Fib_SwingLookback         = 50;             // TI Full:
 input double      Inp_TI_CandleBody_FullRatio      = 0.75;           // TI Full: min close ratio for body quality gate
 #endif // SEA_BUILD_TOPINVESTOR
 
+
 #ifdef SEA_BUILD_XEMA
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -985,53 +866,54 @@ input group "    📐 PRESET_XEMA";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group " ";
 input group "XEMA — Entry cross";
-input int     Inp_XEMA_EmaFast         = 20;                      // XEMA: fast EMA (entry cross)
-input int     Inp_XEMA_EmaSlow         = 50;                      // XEMA: slow EMA (entry cross)
+input int     Inp_XEMA_EmaFast            = 13;                   // XEMA: fast EMA (entry cross)
+input int     Inp_XEMA_EmaSlow            = 34;                   // XEMA: slow EMA (entry cross)
 input group " ";
 input group "XEMA — HTF confirmation";
 input bool    Inp_XEMA_MTF_Enabled        = true;                 // XEMA: HTF filter (KEEP ON - condition 1)
-input bool    Inp_XEMA_MTF_Use_SecondHTF  = true;                 // XEMA: use a 2nd HTF? true = require BOTH TF1 and TF2 (XEMA default); false = single-HTF (TF1 only)
-input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF1 = PERIOD_M15;              // XEMA: primary HTF #1 (>= chart TF)
-input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF2 = PERIOD_H1;               // XEMA: 2nd HTF #2 — used ONLY when Use_SecondHTF=true; set HIGHER than TF1
-input int     Inp_XEMA_MTF_EMA_Fast    = 20;                      // XEMA: HTF fast EMA (shared by TF1 and TF2)
-input int     Inp_XEMA_MTF_EMA_Slow    = 50;                      // XEMA: HTF slow EMA (shared by TF1 and TF2)
+input bool    Inp_XEMA_MTF_Use_SecondHTF  = false;                // XEMA: use a 2nd HTF? true = require BOTH TF1 and TF2 (XEMA default); false = single-HTF (TF1 only)
+input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF1    = PERIOD_H1;            // XEMA: primary HTF #1 (>= chart TF)
+input ENUM_TIMEFRAMES Inp_XEMA_MTF_TF2    = PERIOD_CURRENT;       // XEMA: 2nd HTF #2 — used ONLY when Use_SecondHTF=true; set HIGHER than TF1
+input int     Inp_XEMA_MTF_EMA_Fast       = 13;                   // XEMA: HTF fast EMA (shared by TF1 and TF2)
+input int     Inp_XEMA_MTF_EMA_Slow       = 34;                   // XEMA: HTF slow EMA (shared by TF1 and TF2)
 input group " ";
 input group "XEMA — Anti-range";
-input bool    Inp_XEMA_Use_Adx         = true;                    // XEMA: ADX trend-strength gate (recommended)
-input int     Inp_XEMA_ADX_Period      = 14;                      // XEMA: ADX period
-input double  Inp_XEMA_ADX_Percentile  = 50.0;                    // XEMA: ADX dynamic percentile
-input int     Inp_XEMA_ADX_Lookback    = 100;                     // XEMA: ADX percentile lookback
+input bool    Inp_XEMA_Use_Adx            = true;                 // XEMA: ADX trend-strength gate (recommended)
+input int     Inp_XEMA_ADX_Period         = 14;                   // XEMA: ADX period
+input double  Inp_XEMA_ADX_Percentile     = 50.0;                 // XEMA: ADX dynamic percentile
+input int     Inp_XEMA_ADX_Lookback       = 100;                  // XEMA: ADX percentile lookback
 input group " ";
-input bool    Inp_XEMA_Use_Bb          = false;                   // XEMA: BB-widening gate
-input int     Inp_XEMA_BB_Period       = 20;                      // XEMA: BB period
-input double  Inp_XEMA_BB_Deviation    = 2.0;                     // XEMA: BB deviation
+input bool    Inp_XEMA_Use_Bb             = true;                 // XEMA: BB-widening gate
+input int     Inp_XEMA_BB_Period          = 20;                   // XEMA: BB period
+input double  Inp_XEMA_BB_Deviation       = 2.0;                  // XEMA: BB deviation
 input group " ";
-input bool    Inp_XEMA_Use_CI          = false;                   // XEMA: CI Choppiness gate (native inline calc; no external file)
-input int     Inp_XEMA_CI_Period       = 14;                      // XEMA: CI period
-input double  Inp_XEMA_CI_RangingThresh = 61.8;                   // XEMA: CI ranging threshold
+input bool    Inp_XEMA_Use_CI             = true;                 // XEMA: CI Choppiness gate (native inline calc; no external file)
+input int     Inp_XEMA_CI_Period          = 14;                   // XEMA: CI period
+input double  Inp_XEMA_CI_RangingThresh   = 61.8;                 // XEMA: CI ranging threshold
 input group " ";
 input group "XEMA — optional voters";
-input bool    Inp_XEMA_Use_Psar        = false;                   // XEMA: add Parabolic SAR voter
-input double  Inp_XEMA_Psar_Step       = 0.02;                    // XEMA: PSAR step 0.02
-input double  Inp_XEMA_Psar_Max        = 0.2;                     // XEMA: PSAR max 0.2
-input bool    Inp_XEMA_Use_CandleBody  = false;                   // XEMA: add CandleBody voter
+input bool    Inp_XEMA_Use_Psar                 = false;          // XEMA: add Parabolic SAR voter
+input double  Inp_XEMA_Psar_Step                = 0.08;           // XEMA: PSAR step 0.02
+input double  Inp_XEMA_Psar_Max                 = 0.5;            // XEMA: PSAR max 0.2
+input bool    Inp_XEMA_Use_CandleBody           = false;          // XEMA: add CandleBody voter
 input bool    Inp_XEMA_CandleBody_RequireDir    = true;           // XEMA: CB RequireDir
 input int     Inp_XEMA_CandleBody_AvgPeriod     = 14;             // XEMA: CB AvGPEriod 14
 input double  Inp_XEMA_CandleBody_MaxMult       = 3.0;            // XEMA: CB MaxMult 3.0
 input double  Inp_XEMA_CandleBody_MinCloseRatio = 0.75;           // XEMA: CB MinCloseRatio 0.75
-input bool    Inp_XEMA_Use_Dpi         = false;                   // XEMA: add DPI voter (DPI params are global)
+input bool    Inp_XEMA_Use_Dpi                  = false;          // XEMA: add DPI voter (DPI params are global)
 input group " ";
 input group "XEMA — Stop loss";
-input ESLMode Inp_XEMA_SLMode          = SL_MODE_SWING;           // XEMA: SL mode
-input int     Inp_XEMA_SwingLookback   = 20;                      // XEMA: swing lookback
-input int     Inp_XEMA_SL_AtrPeriod    = 14;                      // XEMA: ATR period (SL_MODE_ATR)
-input double  Inp_XEMA_SL_AtrMult      = 1.0;                     // XEMA: ATR mult (SL_MODE_ATR)
+input ESLMode Inp_XEMA_SLMode             = SL_MODE_SWING;        // XEMA: SL mode
+input int     Inp_XEMA_SwingLookback      = 34;                   // XEMA: swing lookback
+input int     Inp_XEMA_SL_AtrPeriod       = 14;                   // XEMA: ATR period (SL_MODE_ATR)
+input double  Inp_XEMA_SL_AtrMult         = 1.0;                  // XEMA: ATR mult (SL_MODE_ATR)
 input group " ";
 input group "XEMA — BE / Exit";
-input EBeMode Inp_XEMA_BE_Mode         = BE_MODE_R_MULTIPLE;      // XEMA: BE mode
-input double  Inp_XEMA_BE_RMultiple    = 2.0;                     // XEMA: move SL to BE at N*R
-input ETrailingMode Inp_XEMA_TrailMode = TRAIL_NONE;              // XEMA: post-BE trail (NONE = rely on LPR ladder / reverse cross)
+input EBeMode Inp_XEMA_BE_Mode            = BE_MODE_OFF;          // XEMA: BE mode
+input double  Inp_XEMA_BE_RMultiple       = 2.0;                  // XEMA: move SL to BE at N*R
+input ETrailingMode Inp_XEMA_TrailMode    = TRAIL_NONE;           // XEMA: post-BE trail (NONE = rely on LPR ladder / reverse cross)
 #endif // SEA_BUILD_XEMA
+
 
 #ifdef SEA_BUILD_TURTLE
 input group " ";
@@ -1093,6 +975,7 @@ input double Inp_TURTLE_MaxAggRisk        = 6.0;         // [TUR] MaxAggRisk
 input int    Inp_TURTLE_ReEntryScale      = 50;          // [TUR] ReEntryScale
 #endif // SEA_BUILD_TURTLE
 
+
 #ifdef SEA_BUILD_TREND
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1135,7 +1018,7 @@ input bool   Inp_TREND_Use_Bb                = false;       // [TRE] BB widening
 input int    Inp_TREND_BB_Period             = 20;          // [TRE] BB Period
 input double Inp_TREND_BB_Deviation          = 2.0;         // [TRE] BB Deviation
 input group " ";
-input bool   Inp_TREND_Use_CandleBody        = false;       // [TRE] CB CandleBody voter
+input bool   Inp_TREND_Use_CandleBody           = false;    // [TRE] CB CandleBody voter
 input bool   Inp_TREND_CandleBody_RequireDir    = true;     // [TRE] CB RequireDir signal bar to close in trade direction
 input int    Inp_TREND_CandleBody_AvgPeriod     = 14;       // [TRE] CB AVGPeriod ATR baseline period
 input double Inp_TREND_CandleBody_MaxMult       = 3.0;      // [TRE] CB MaxMult block if range > mult x ATR (spike guard)
@@ -1162,6 +1045,7 @@ input double Inp_TREND_AddStepATR            = 0.5;         // [TRE] AddStepATR
 input double Inp_TREND_MaxAggRisk            = 6.0;         // [TRE] MaxAggRisk
 input int    Inp_TREND_ReEntryScale          = 50;          // [TRE] ReEntryScale
 #endif // SEA_BUILD_TREND
+
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
