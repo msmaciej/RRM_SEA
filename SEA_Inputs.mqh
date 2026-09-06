@@ -520,24 +520,28 @@ input int         Inp_RRM_ORG_ReEntryLotScalePct   = 50;             // RRM ORG 
 //
 
 input group "=== RRM_ORG SL TRAIL ===";
-input ETrailingMode Inp_RRM_ORG_TrailMode             = TRAIL_BREAKEVEN;   // RRM ORG TS: *BREAKEVEN, *EMA, *FIXED_PIPS, *FRACTAL, *NONE, *PROFIT_PERCENT, *PSAR, *PSAR_FLIP_EXIT
+input ETrailingMode Inp_RRM_ORG_TrailMode             = TRAIL_PSAR;   // RRM ORG TS METHOD (how the stop moves): *PSAR(Oracle), *EMA, *SWING, *FRACTAL, *FIXED_PIPS, *PROFIT_PERCENT(LPR), *NONE. (PSAR_FLIP_EXIT is a HARD EXIT, not a trail method.)
 input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // RRM ORG TS: PSAR cushion mode (PIPS / ATR / PERCENT)
 input int         Inp_RRM_ORG_TrailCushionAtrPeriod   = 14;          // RRM ORG TS: ATR period (ATR mode)
 input double      Inp_RRM_ORG_TrailCushionAtrMult     = 2.0;         // RRM ORG TS: cushion ATR multiplier (cushion = ATR × this)
 input double      Inp_RRM_ORG_TrailCushionPct         = 25.0;        // RRM ORG TS: cushion % of price (PERCENT mode + safety floor)
 input double      Inp_RRM_ORG_TrailProfitPercentLPR   = 25.0;        // RRM ORG TS: LPR trailing percent behind peak
 //
-// Inp_RRM_ORG_TrailMode - Trailing method:
-// TRAIL_NONE:            No trailing
-// TRAIL_PSAR:            Follow PSAR dots with cushion (RRM default)
-// TRAIL_FIXED_PIPS:      Fixed pip distance from current price
-// TRAIL_PROFIT_PERCENT:  Let Profit Run (% behind peak profit)
-// TRAIL_FRACTAL:         Trail with fractal levels
-// TRAIL_PSAR_FLIP_EXIT:  Close position on PSAR flip
+// Inp_RRM_ORG_TrailMode - Trail METHOD (axis 4 — how the stop moves once trailing):
+// TRAIL_PSAR:            Follow PSAR dots + cushion (Oracle / RRM default)
+// TRAIL_EMA:             Trail behind a ribbon EMA (role/period/shift + cushion)
+// TRAIL_SWING:           Trail behind the last swing high/low (SwingLookback + cushion)
+// TRAIL_FRACTAL:         Trail behind the last fractal + cushion
+// TRAIL_FIXED_PIPS:      Fixed pip distance from current price (TrailDistancePips)
+// TRAIL_PROFIT_PERCENT:  Let Profit Run — trail % behind the peak profit
+// TRAIL_NONE:            No trailing (BE-lock only, if BE axis is on)
+// (TRAIL_PSAR_FLIP_EXIT is a HARD EXIT, handled in EvaluateTM — not a trail method.)
+// When does trailing START is a separate axis: Inp_RRM_ORG_TrailTrigger.
 //
 // Inp_RRM_ORG_PSAR_TrailCushionMode - PSAR trailing cushion mode:
-// PSAR_CUSHION_PIPS    = fixed pips safety buffer
-// PSAR_CUSHION_AUTO_TF = auto TF-aware cushion from preset helper
+// PSAR_CUSHION_PIPS    = fixed pips × pipSize
+// PSAR_CUSHION_ATR     = ATR(period) × multiplier (volatility-aware, default)
+// PSAR_CUSHION_PERCENT = percent of price
 //
 // Let Profit Run mode: SL trails X% behind the PEAK profit reached.
 // Example: peak=80 pips, value=25 → SL target at +60 pips.
@@ -553,7 +557,7 @@ input double      Inp_RRM_ORG_TrailEMA_CushionAtrMult = 1.0;         // RRM ORG 
 input int         Inp_RRM_ORG_TrailEMA_CushionAtrPeriod = 14;        // RRM ORG TS: ATR period for EMA cushion
 
 input group " ";
-input ETrailTrigger Inp_RRM_ORG_TrailTrigger          = TRIGGER_BREAKEVEN; // RRM ORG TS: *BREAKEVEN, *IMMEDIATE, *PROFIT_PERCENT, *PROFIT_PIPS, *PSAR_ALIGN
+input ETrailTrigger Inp_RRM_ORG_TrailTrigger          = TRIGGER_IMMEDIATE; // RRM ORG TS START (when trailing begins): *IMMEDIATE(Oracle: from entry), *BREAKEVEN, *PROFIT_PERCENT(R), *PROFIT_PIPS, *PSAR_ALIGN. Now LIVE on the RRM path (was previously read only on SIMPLE profiles).
 input bool        Inp_RRM_ORG_TrailStartsAfterBE      = false;        // RRM ORG TS: hold the PSAR trail back until BE fires. Oracle (manual SS IV.B) says trailing starts as soon as the trade moves in your favour, so false is the Oracle-conformant value. true = pre-2026-07 behaviour
 input bool        Inp_RRM_ORG_TrailLockProfit         = true;        // RRM ORG TS: never move SL backwards (lock profit)
 input bool        Inp_RRM_ORG_TrailAllowLossSide      = true;        // RRM ORG TS: let the trail tighten the SL while it is STILL AT A LOSS (Oracle Stop Loss card: "Move Stop Loss Towards Entry"). false = SL frozen at its initial level until BE fires (pre-2026-07)

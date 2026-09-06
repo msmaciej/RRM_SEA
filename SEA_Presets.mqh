@@ -1275,23 +1275,34 @@ void ValidateRRM_ORG_ExitConfig(ST_Settings &cfg)
    // These two settings together decide whether a losing trade can exit for less
    // than the full R. Print them unconditionally so the operator never has to
    // infer the exit shape from behaviour.
-   if(cfg.ExitProfile == EXIT_PROFILE_RRM && cfg.TrailMode == TRAIL_PSAR)
+   if(cfg.ExitProfile == EXIT_PROFILE_RRM)
    {
-      if(cfg.TrailAllowLossSide && !cfg.RRM_TrailStartsAfterBE)
+      // Report the effective exit shape on EVERY RRM trail mode (was gated on
+      // TRAIL_PSAR only, so any other mode produced NO line — a silent config).
+      if(cfg.TrailMode == TRAIL_NONE || cfg.TrailMode == TRAIL_PSAR_FLIP_EXIT)
       {
-         warnings += "[EXIT SHAPE] Oracle: the SL ratchets behind the PSAR dots from entry,\n";
-         warnings += "  including while still at a loss. A losing trade can exit for less than 1R.\n";
-         warnings += "  (TrailAllowLossSide=true, TrailStartsAfterBE=false)\n\n";
+         warnings += "[EXIT SHAPE] TrailMode=" + EnumToString(cfg.TrailMode)
+                   + " — NO continuous trailing (BE-lock only";
+         warnings += (cfg.TrailMode == TRAIL_PSAR_FLIP_EXIT)
+                   ? "; position closes on PSAR flip).\n\n" : ").\n\n";
+      }
+      else if(cfg.TrailMode == TRAIL_PSAR && cfg.TrailAllowLossSide)
+      {
+         warnings += "[EXIT SHAPE] Oracle: SL ratchets behind the PSAR dots from entry,\n";
+         warnings += "  including while still at a loss — a losing trade can exit for less than 1R.\n";
+         warnings += StringFormat("  Trigger=%s, AllowLossSide=true, LockProfit=%s\n\n",
+                                  EnumToString(cfg.TrailTrigger),
+                                  cfg.TrailLockProfit ? "true" : "false");
       }
       else
       {
-         warnings += "[EXIT SHAPE] Legacy: the SL is frozen at its initial level until BE fires,\n";
-         warnings += "  so EVERY losing trade loses the full R and no partial loss is reachable.\n";
-         warnings += StringFormat("  (TrailAllowLossSide=%s, TrailStartsAfterBE=%s)\n",
+         warnings += StringFormat("[EXIT SHAPE] Trail method=%s, Trigger=%s, AllowLossSide=%s, LockProfit=%s\n",
+                                  EnumToString(cfg.TrailMode), EnumToString(cfg.TrailTrigger),
                                   cfg.TrailAllowLossSide ? "true" : "false",
-                                  cfg.RRM_TrailStartsAfterBE ? "true" : "false");
-         warnings += "  Set Inp_RRM_ORG_TrailAllowLossSide=true and Inp_RRM_ORG_TrailStartsAfterBE=false\n";
-         warnings += "  for the Oracle behaviour.\n\n";
+                                  cfg.TrailLockProfit ? "true" : "false");
+         if(!cfg.TrailAllowLossSide)
+            warnings += "  (loss-side off: the stop stays at its initial level until it can move into profit.)\n";
+         warnings += "\n";
       }
    }
 
@@ -2454,6 +2465,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 
       ENUM_TIMEFRAMES tfOrg         = (ENUM_TIMEFRAMES)_Period;
       cfg.TrailTrigger              = Inp_RRM_ORG_TrailTrigger;
+      // BACK-COMPAT FOLD (2026-09 axis refactor): the legacy RRM_TrailStartsAfterBE
+      // boolean is now expressed on the single TrailTrigger axis. If an existing .set
+      // still sets it true ("hold trailing until BE"), map it to TRIGGER_BREAKEVEN so
+      // behaviour is preserved without two competing controls. false → keep the chosen
+      // trigger (Oracle default TRIGGER_IMMEDIATE = trail from entry).
+      if(Inp_RRM_ORG_TrailStartsAfterBE) cfg.TrailTrigger = TRIGGER_BREAKEVEN;
       cfg.TrailDistancePips         = GetTFBasedCushion(tfOrg);
       cfg.BEThresholdPips           = GetTFBasedCushion(tfOrg);
       cfg.TrailLockProfit           = Inp_RRM_ORG_TrailLockProfit;

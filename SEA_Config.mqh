@@ -261,8 +261,9 @@ enum ETrailingMode
    TRAIL_NONE,             // TRAIL_NONE: no trailing stop
    TRAIL_PROFIT_PERCENT,   // TRAIL_PROFIT_PERCENT: trail at % behind peak profit
    TRAIL_PSAR,             // TRAIL_PSAR: dot trailing
-   TRAIL_PSAR_FLIP_EXIT,   // TRAIL_PSAR_FLIP_EXIT: close position on PSAR flip
-   TRAIL_EMA               // TRAIL_EMA: exit when close crosses EMA against bias
+   TRAIL_PSAR_FLIP_EXIT,   // TRAIL_PSAR_FLIP_EXIT: HARD EXIT — close position on PSAR flip (handled in EvaluateTM, not a trail method)
+   TRAIL_EMA,              // TRAIL_EMA: trail behind a ribbon EMA (role/period/shift + cushion)
+   TRAIL_SWING             // TRAIL_SWING: trail behind the last swing high/low (SwingLookback), swing-cushion applied
 };
 enum ESLMode
 {

@@ -2025,12 +2025,21 @@ private:
       m_rrm_be_reached = GetPositionBETriggered(ticket);
       cur_sl = PositionGetDouble(POSITION_SL);   // re-read: BE may have just moved it
 
-      // TRAILING
-      // Allow TRAIL_EMA to pass through (handled below); all other non-PSAR modes exit here
-      if(m_settings.TrailMode != TRAIL_PSAR &&
-         m_settings.TrailMode != TRAIL_PROFIT_PERCENT &&
-         m_settings.TrailMode != TRAIL_EMA) return;
-      if(m_settings.RRM_TrailStartsAfterBE && !m_rrm_be_reached) return;
+      // TRAILING — unified engine (2026-09 axis refactor)
+      //   Axis 3 (START):  CheckTrailTrigger(m_settings.TrailTrigger)
+      //   Axis 4 (METHOD): switch on m_settings.TrailMode (below)
+      //   Modifiers:       TrailAllowLossSide / TrailLockProfit (shared apply-tail)
+      // Flip-exit + DPI-hist are HARD EXITS (handled in EvaluateTM), never trail methods.
+      double profit_pips = (isBuy ? (cur_price - entry) : (entry - cur_price)) / pipSize;
+
+      // No continuous trailing for these modes (PSAR_FLIP_EXIT closes in EvaluateTM).
+      if(m_settings.TrailMode == TRAIL_NONE ||
+         m_settings.TrailMode == TRAIL_PSAR_FLIP_EXIT) return;
+
+      // Axis 3 — has trailing started? Replaces the legacy RRM_TrailStartsAfterBE gate,
+      // which is now folded into TrailTrigger at preset-build time (false->IMMEDIATE,
+      // true->BREAKEVEN) so one axis governs "when trailing begins" on every profile.
+      if(!CheckTrailTrigger(isBuy ? 1 : -1, profit_pips, entry, cur_price)) return;
 
       // SAFETY: delay trailing until the position has earned a minimum R-multiple of
       // open profit. This lets winners run instead of being trailed out early — the
@@ -2052,18 +2061,20 @@ private:
          return;
       }
 
-      // Q3 (2026-06): TRAIL_EMA body extracted into ApplyTrailEMA helper so the
+      // TRAIL_EMA delegates to ApplyTrailEMA (self-applying, then returns) so the
       // same evaluation runs whether ExitProfile is RRM or EXIT_PROFILE_SIMPLE.
-      // Pre-Q3 this block held the full ~150-line TRAIL_EMA implementation; it now
-      // delegates to the helper. All upstream RRM-path gates above this point
-      // (TrailMode allow-list, RRM_TrailStartsAfterBE, Safety_DelayTrailUntilR)
-      // remain unchanged — they fire before the helper runs.
+      // Upstream axis gates (TrailTrigger, Safety_DelayTrailUntilR) fire before it.
       if(m_settings.TrailMode == TRAIL_EMA) {
          ApplyTrailEMA(ticket, isBuy, entry, cur_price, cur_sl, cur_tp, digits, pipSize, "RRM");
          return;
       }
 
 
+      // ── Axis 4 — METHOD: compute a candidate new_sl for the shared apply-tail ──
+      double new_sl = 0.0;
+
+      if(m_settings.TrailMode == TRAIL_PSAR)
+      {
       int shift = m_settings.RRM_TrailPsarDotShift;
       if(shift < 1) shift = 1;
       if(shift > 3) shift = 3;
@@ -2096,7 +2107,22 @@ private:
          else return;
       }
 
-      double new_sl = CalcPsarTrailAnchorSL(isBuy, pipSize, digits);
+      new_sl = CalcPsarTrailAnchorSL(isBuy, pipSize, digits);
+      }
+      else if(m_settings.TrailMode == TRAIL_FRACTAL) {
+         double vfr = GetFractalLevel(isBuy ? 1 : -1);
+         if(vfr > 0.0) { double c = m_settings.SL_SwingPipsCushion * pipSize; new_sl = isBuy ? (vfr - c) : (vfr + c); }
+      }
+      else if(m_settings.TrailMode == TRAIL_SWING) {
+         double vsw = GetSwingLevel(isBuy ? 1 : -1);
+         if(vsw > 0.0) { double c = m_settings.SL_SwingPipsCushion * pipSize; new_sl = isBuy ? (vsw - c) : (vsw + c); }
+      }
+      else if(m_settings.TrailMode == TRAIL_FIXED_PIPS) {
+         double d = m_settings.TrailDistancePips * pipSize;
+         new_sl = isBuy ? (cur_price - d) : (cur_price + d);
+      }
+      else return;   // no continuous-trail handler for this mode
+
       if(new_sl == 0.0) return;
 
       // At this point new_sl is a valid PSAR-derived stop on the correct side of the
@@ -3759,6 +3785,31 @@ public:
          return;
       }
 
+      // ── HARD EXIT: close on PSAR flip (TrailMode == TRAIL_PSAR_FLIP_EXIT) ──
+      // Flip-exit is a "close the trade" action, not a trailing method, so it runs
+      // here (with the DPI-hist exit) rather than inside the trailing dispatch.
+      // Flip is measured on the CLOSED bar's body vs the PSAR dot (same rule the
+      // PSAR trail uses), so it never fires on a still-forming bar.
+      if(m_settings.TrailMode == TRAIL_PSAR_FLIP_EXIT)
+      {
+         int fshift = m_settings.RRM_TrailPsarDotShift; if(fshift < 1) fshift = 1; if(fshift > 3) fshift = 3;
+         double fpsar = GetPSARAnchor(fshift);
+         bool fbuy = ((ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY);
+         double fclose = iClose(m_symbol, PERIOD_CURRENT, fshift);
+         double fopen  = iOpen (m_symbol, PERIOD_CURRENT, fshift);
+         if(fpsar > 0.0 && fclose > 0.0 && fopen > 0.0)
+         {
+            bool flipped = fbuy ? (fpsar > MathMax(fopen, fclose)) : (fpsar < MathMin(fopen, fclose));
+            if(flipped) {
+               m_trade.PositionClose(ticket);
+               m_last_close_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
+               m_last_tracked_ticket = 0;
+               if(m_settings.DebugFlow) PrintFormat("[FLIP EXIT] #%I64u closed on PSAR flip", ticket);
+               return;
+            }
+         }
+      }
+
       if(m_settings.ExitProfile == EXIT_PROFILE_RRM) {
          RRM_ManageStrictNoATR(ticket);
          return;
@@ -3833,6 +3884,13 @@ public:
             // FIX: apply cushion to fractal trail (same as Swing SL cushion — instrument-scaled)
             double cushion = m_settings.SL_SwingPipsCushion * pipSize;
             new_sl = (type == POSITION_TYPE_BUY) ? (val - cushion) : (val + cushion);
+         }
+      }
+      else if(m_settings.TrailMode == TRAIL_SWING) {
+         double sval = (type == POSITION_TYPE_BUY) ? GetSwingLevel(1) : GetSwingLevel(-1);
+         if(sval > 0) {
+            double cushion = m_settings.SL_SwingPipsCushion * pipSize;
+            new_sl = (type == POSITION_TYPE_BUY) ? (sval - cushion) : (sval + cushion);
          }
       }
       else if(m_settings.TrailMode == TRAIL_FIXED_PIPS) {
