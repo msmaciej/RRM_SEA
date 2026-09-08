@@ -704,6 +704,7 @@ string PresetToString(EStrategyPreset p)
       case PRESET_XEMA:         return "XEMA";
       case PRESET_TURTLE:       return "TURTLE";
       case PRESET_TREND:        return "TREND";
+      case PRESET_RH_REBELLION: return "RH_REBELLION";
       default:                  return "UNKNOWN";
    }
 }
@@ -728,6 +729,8 @@ string GetPresetContractWording(EStrategyPreset preset)
          return "PRESET_TURTLE";    //: Donchian N-bar breakout entry, opposite M-bar channel exit, 2*ATR(N) stop; no trend filter (pure Turtle S1/S2).";
       case PRESET_TREND:
          return "PRESET_TREND";     //: Donchian breakout gated by EMA(20/50/200) stack + HTF(50/200) confirmation; 2*ATR stop, channel exit (Turtle + 3 EMAs).";
+      case PRESET_RH_REBELLION:
+         return "PRESET_RH_REBELLION"; //: Forex Rebellion 4-filter confluence — 4/5 EMA cross (B) + shifted-5-EMA trend + QQE(line-order+50-zone), all unanimous; swing/ATR SL; RR or Donchian exit; step-to-BE + trail.";
       default:
          return "PRESET_ACTIVE";    //: Preset active; strategy-critical settings fixed by preset.";
    }
@@ -1315,6 +1318,23 @@ void ValidateRRM_ORG_ExitConfig(ST_Settings &cfg)
       Print(warnings);
    }
 }
+
+#ifdef SEA_BUILD_RH_REBELLION
+// ValidateRHR_ExitConfig: keep RH_REBELLION's identity coherent. The confluence
+// is the system — all enabled Rebellion voters sit in a unanimous AND. This does
+// not force any single voter on (the user may tune), but it guarantees the exit
+// shape stays sane: an RR target requires RRRatio>0; a Donchian exit requires a
+// positive period. Mirrors the ValidateXEMA_ExitConfig pattern.
+void ValidateRHR_ExitConfig(ST_Settings &cfg)
+{
+   if(cfg.TPMode == TP_MODE_RR && cfg.RRRatio <= 0.0) cfg.RRRatio = 1.5;
+   if(cfg.Donchian_UseChannelExit && cfg.Donchian_ExitPeriod <= 0) cfg.Donchian_ExitPeriod = 21;
+   if(cfg.QQE_SF < 1) cfg.QQE_SF = 1;
+   if(cfg.QQE_RSI_Period < 1) cfg.QQE_RSI_Period = 8;
+   if(cfg.QQE_WP < 1) cfg.QQE_WP = 3;
+   if(cfg.RHR_TrendEmaPeriod < 1) cfg.RHR_TrendEmaPeriod = 5;
+}
+#endif // SEA_BUILD_RH_REBELLION
 
 void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 {
@@ -3063,6 +3083,90 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       return;
    }
    #endif // SEA_BUILD_XEMA
+
+   #ifdef SEA_BUILD_RH_REBELLION
+   if(preset == PRESET_RH_REBELLION)
+   {
+      // ---- Direction (B): the 4/5 EMA cross (Rebellion Rule 2) ----
+      cfg.BiasMode              = BIAS_2EMA;
+      cfg.AutoStrat             = STRAT_2EMA_CROSS_EMA;
+      cfg.BiasEnabled           = true;
+      cfg.MaType                = METHOD_EMA;
+      cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
+      cfg.RequirePriceCross     = false;
+      cfg.MABenchmarkStrict     = false;
+      cfg.UseMACompatSizer      = false;
+      cfg.CloseOnReverse        = false;   // Rebellion exits on target/stop/trail, not on reverse cross
+      cfg.PhaseDetectionEnabled = false;
+      cfg.EnableLayerDetection  = false;
+      cfg.LayerPullbackEnabled  = false;
+      cfg.BlockUnorderedPhase   = false;
+      cfg.BlockEmergingPhase    = false;
+      cfg.P_Ema1 = Inp_RHR_EmaFast;
+      cfg.P_Ema2 = Inp_RHR_EmaSlow;
+      cfg.BiasFastID = (int)ROLE_EMA1;   // cross FAST = P_Ema1 (Inp_RHR_EmaFast = 4)
+      cfg.BiasSlowID = (int)ROLE_EMA2;   // cross SLOW = P_Ema2 (Inp_RHR_EmaSlow = 5)
+
+      // ---- Rule 1 (I): price vs shifted trend EMA ----
+      cfg.Ind_RHR_Trend_Enabled = true;
+      cfg.RHR_TrendEmaPeriod    = Inp_RHR_TrendEmaPeriod;
+      cfg.RHR_TrendEmaShift     = Inp_RHR_TrendEmaShift;
+
+      // ---- Rules 3 & 4 (I): the native QQE voter ----
+      cfg.Ind_QQE_Enabled       = Inp_RHR_Use_QQE;
+      cfg.QQE_SF                = Inp_RHR_QQE_SF;
+      cfg.QQE_RSI_Period        = Inp_RHR_QQE_RSI_Period;
+      cfg.QQE_WP                = Inp_RHR_QQE_WP;
+      cfg.QQE_RequireCross      = Inp_RHR_QQE_RequireCross;
+
+      // ---- Confluence: all enabled voters must agree ----
+      // (SEA's indicator voting is inherently unanimous — every enabled voter
+      //  sits in the CAST_VOTE_STAT AND, exactly as XEMA relies on. No VoteMode
+      //  field to set; enabling exactly these four rules IS the confluence.)
+
+      // ---- Every other voter OFF (Rebellion uses exactly these four rules) ----
+      cfg.Ind_Adx_Enabled=false;   cfg.Ind_Macd_Enabled=false; cfg.Ind_Rsi_Enabled=false;
+      cfg.Ind_Cci_Enabled=false;   cfg.Ind_Mfi_Enabled=false;  cfg.Ind_Sto_Enabled=false;
+      cfg.Ind_Bb_Enabled=false;    cfg.Ind_Psar_Enabled=false; cfg.Ind_P123_Enabled=false;
+      cfg.Ind_Ross_Enabled=false;  cfg.Ind_Atr_Enabled=false;  cfg.Ind_CandleBody_Enabled=false;
+      cfg.Ind_CI_Enabled=false;    cfg.Ind_VRC_Enabled=false;  cfg.Ind_SmaConverge_Enabled=false;
+      cfg.Ind_Dpi_Enabled=false;   cfg.Ind_Fib_Enabled=false;  cfg.Ind_MTF_Enabled=false;
+
+      // ---- Stop loss: swing (default) or ATR ----
+      cfg.SLMode = Inp_RHR_SLMode;
+      cfg.SwingLookback = Inp_RHR_SwingLookback;
+      cfg.SL_AtrPeriod = Inp_RHR_SL_AtrPeriod;
+      cfg.SL_AtrMult = Inp_RHR_SL_AtrMult;
+
+      // ---- Exit: RR target ('100' / '1 Point 5') and/or Donchian wall ----
+      cfg.TPMode = Inp_RHR_TPMode;
+      cfg.RRRatio = Inp_RHR_RRRatio;
+      cfg.Donchian_UseChannelExit = Inp_RHR_UseDonchianExit;
+      cfg.Donchian_ExitPeriod = Inp_RHR_DonchianExitPeriod;
+
+      // ---- Trade management: step-to-BE + LPR ladder + EMA trail ----
+      cfg.BE_Mode = Inp_RHR_BE_Mode;
+      cfg.RRM_BE_RMultiple = Inp_RHR_BE_RMultiple;
+      cfg.RRM_BE_BufferPips = GetTFBasedCushion(_Period);
+      cfg.TrailMode = Inp_RHR_TrailMode;
+      cfg.TrailLockProfit = true;
+      cfg.RRM_TrailStartsAfterBE = true;
+      cfg.TrailAllowLossSide = false;
+      cfg.LPR_LadderEnabled = true;   // universal ladder for the half-R step-down
+
+      // ---- Entry order ----
+      // v1 LIMITATION: SEA has no pending stop-order entry path in the executor,
+      // so RH_REBELLION v1 enters at market on the confirmed signal bar. The
+      // manual's 'few pips beyond the candle' pending-order tactic is a planned
+      // TradeExecutor extension (Inp_RHR_PendingBufferPips is reserved for it).
+      // Market entry on a closed-bar confluence is a faithful approximation.
+
+      cfg.RiskPercent = GetEffectiveRiskPercent();   // per-TF risk, no new logic
+      cfg.MaxSpread = op_MaxSpread;
+      ValidateRHR_ExitConfig(cfg);
+      return;
+   }
+   #endif // SEA_BUILD_RH_REBELLION
 
    #ifdef SEA_BUILD_TURTLE
    if(preset == PRESET_TURTLE)

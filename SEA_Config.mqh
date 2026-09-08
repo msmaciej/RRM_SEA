@@ -19,6 +19,7 @@
 #define SEA_BUILD_TOPINVESTOR
 #define SEA_BUILD_TURTLE
 #define SEA_BUILD_TREND
+#define SEA_BUILD_RH_REBELLION
 
 
 // TFToString: returns clean TF label (e.g. "M5", "H1") — EnumToString gives "PERIOD_M5".
@@ -60,7 +61,8 @@ enum EStrategyPreset
    PRESET_RRM_ORG,         // PRESET_RRM_ORG: Russ Horn Original RRM with inline DPI momentum voter
    PRESET_XEMA,            // PRESET_XEMA: EMA-cross trend follower (flexible periods + HTF confirmation)
    PRESET_TURTLE,          // PRESET_TURTLE: Donchian breakout, no trend filter (pure Turtle S1/S2)
-   PRESET_TREND            // PRESET_TREND: Donchian breakout + EMA(20/50/200) + HTF filter (Turtle + 3 EMAs)
+   PRESET_TREND,           // PRESET_TREND: Donchian breakout + EMA(20/50/200) + HTF filter (Turtle + 3 EMAs)
+   PRESET_RH_REBELLION     // PRESET_RH_REBELLION: Russ Horn Forex Rebellion 4-filter confluence (5EMA-shift + 4/5 cross + QQE + Donchian)
 };
 enum ETIProfile
 {
@@ -492,6 +494,18 @@ struct ST_Settings
    // Choppiness Index
    int    CI_Period;
    double CI_RangingThreshold;
+
+   // RH_REBELLION — QQE Adv voter (Rebellion Rules 3 & 4)
+   bool   Ind_QQE_Enabled;            // QQE line-order + 50-zone votes (both cast when enabled)
+   int    QQE_SF;                     // QQE smoothing factor (template = 1)
+   int    QQE_RSI_Period;             // QQE RSI period (template = 8)
+   int    QQE_WP;                     // QQE Wilder period (template = 3)
+   bool   QQE_RequireCross;           // false = static position (EA panel); true = fresh cross (manual-strict)
+
+   // RH_REBELLION — shifted trend EMA voter (Rebellion Rule 1)
+   bool   Ind_RHR_Trend_Enabled;     // price vs shifted 5 EMA vote
+   int    RHR_TrendEmaPeriod;        // trend EMA period (template = 5)
+   int    RHR_TrendEmaShift;         // trend EMA forward shift (template = 5)
 
    
    bool   Ind_SmaConverge_Enabled;     // SMA Convergence vote (gap narrowing = pullback signal)

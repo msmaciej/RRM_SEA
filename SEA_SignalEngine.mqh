@@ -254,6 +254,9 @@ struct SRejectionStats {
    int passed_ross,    rejected_ross;
    int passed_sma_converge, rejected_sma_converge;
    int passed_dpi,          rejected_dpi;
+   int passed_rhr_trend,    rejected_rhr_trend;    // RH_REBELLION shifted-5-EMA trend (Rule 1)
+   int passed_qqe_ord,      rejected_qqe_ord;      // RH_REBELLION QQE line-order
+   int passed_qqe_zone,     rejected_qqe_zone;     // RH_REBELLION QQE 50-zone
    int passed_fib,          rejected_fib;
    int passed_vprr,         rejected_vprr;
 
@@ -326,6 +329,9 @@ private:
    int h_atr, h_bb, h_psar, h_fractals;  // Volatility & Trend
    int h_adx, h_mfi;                     // Strength & Volume
    int h_ci, h_vrc;                      // Choppiness & Volatility Regime
+   int h_qqe;                            // RH_REBELLION: QQE Adv (iCustom fallback only; native inline by default)
+   int h_qqe_rsi;                        // RH_REBELLION: iRSI handle for native QQE (RSI source)
+   int h_rhr_trend;                      // RH_REBELLION: iMA handle for the shifted trend EMA (Rule 1)
    
    int h_mtf_tf1_fast;
    int h_mtf_tf1_slow;
@@ -608,6 +614,9 @@ private:
       int    vrc_result;
       int    sma_converge_result;
       int    dpi_result;
+      int    rhr_trend_result;    // RH_REBELLION: shifted-5-EMA trend vote cache (-1/0/1)
+      int    qqe_ord_result;      // RH_REBELLION: QQE line-order vote cache (-1/0/1)
+      int    qqe_zone_result;     // RH_REBELLION: QQE 50-zone vote cache (-1/0/1)
 
       // Cached indicator values (for debug logging)
       double adx_value;
@@ -623,6 +632,8 @@ private:
       double psar_value;
       double psar_close;
       double dpi_diag_hist;       // last DPI histogram value (inspector diagnostic)
+      double qqe_rsi_line;        // RH_REBELLION: cached QQE RSI line (diag)
+      double qqe_signal_line;     // RH_REBELLION: cached QQE signal line (diag)
       int    dpi_diag_sub;        // last DPI fail sub-reason: 0=none 1=DIR(colour) 3=GREEN 4=RESET
       bool   dpi_diag_yellow;     // last DPI ribbon colour: true=YELLOW (long), false=RED (short)
       bool   dpi_diag_green;      // last DPI GREEN histogram present (Blue & hist same side of 0)
@@ -741,6 +752,9 @@ private:
       m_ind_cache.vrc_result = -1;
       m_ind_cache.sma_converge_result = -1;
       m_ind_cache.dpi_result = -1;
+      m_ind_cache.rhr_trend_result = -1;
+      m_ind_cache.qqe_ord_result = -1;
+      m_ind_cache.qqe_zone_result = -1;
       m_ind_cache.dpi_diag_hist = 0.0;
       m_ind_cache.dpi_diag_sub  = 0;
       m_ind_cache.dpi_diag_yellow = false;
@@ -3254,6 +3268,213 @@ private:
       }
    }
    
+   //+------------------------------------------------------------------+
+   // Check_RHR_Trend: price vs shifted trend EMA (Rebellion Rule 1)
+   //+------------------------------------------------------------------+
+   // LONG passes when close[shift] > shifted 5 EMA; SHORT when below. The
+   // forward displacement is carried by the iMA handle (h_rhr_trend), so the
+   // EMA value read here already sits 'ahead' of price exactly as the manual's
+   // 5-EMA-shifted-5 does. Self-contained; no ribbon dependency.
+   bool Check_RHR_Trend(int bias, int shift)
+   {
+      if(IsCacheValidForShift(shift) &&
+         m_ind_cache.rhr_trend_result != -1 &&
+         m_ind_cache.cached_bias == bias)
+         return (m_ind_cache.rhr_trend_result == 1);
+
+      double ema = 0.0;
+      if(!IndReadOK(h_rhr_trend, shift, 0, ema)) {
+         if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_RHR_TREND] shift=%d not ready -> FAIL (uncached)", shift));
+         return false;
+      }
+      double px = iClose(m_symbol, PERIOD_CURRENT, shift);
+
+      bool result = (bias == 1) ? (px > ema) : (px < ema);
+      m_ind_cache.cached_bias      = bias;
+      m_ind_cache.rhr_trend_result = result ? 1 : 0;
+      if(m_settings.DebugFlow)
+         DebugLog(StringFormat("[IND_RHR_TREND] px=%.5f ema=%.5f bias=%d | Result: %s",
+                               px, ema, bias, result ? "PASS" : "FAIL"));
+      return result;
+   }
+
+   //+------------------------------------------------------------------+
+   // RH_REBELLION — QQE Adv (Quantitative Qualitative Estimator, Advanced)
+   //+------------------------------------------------------------------+
+   // Native inline reimplementation of QQE_ADV.ex4 as used by the Forex
+   // Rebellion template (SF=1, RSI_Period=8, WP=3). Produces two lines:
+   //   RSI_line    = EMA(SF) of RSI(RSI_Period)          (blue, buffer 0)
+   //   signal_line = Wilder-trailing band of RSI_line     (red,  buffer 1)
+   // built from the Wilder-smoothed average absolute change of RSI_line,
+   // scaled by the QQE constant 4.236 (this is the standard QQE algorithm).
+   //
+   // Self-contained: reads only iRSI, no external indicator file, cannot
+   // crash the EA — same design principle as the inline CI / DPI voters.
+   //
+   // COMPILE-TIME FALLBACK: define SEA_QQE_USE_ICUSTOM in SEA_Config.mqh to
+   // read the real QQE_ADV.ex4 via h_qqe instead (bit-identical to the
+   // original indicator, but adds an external-file dependency). Default OFF.
+   //
+   // out_rsi  = RSI_line at shift;  out_sig = signal_line at shift.
+   // Returns true when both lines are valid.
+   bool CalculateQQE(int shift, double &out_rsi, double &out_sig)
+   {
+      out_rsi = 0.0; out_sig = 0.0;
+
+      #ifdef SEA_QQE_USE_ICUSTOM
+      // ---- Fallback: read the real QQE_ADV.ex4 (buffers 0=RSI, 1=signal) ----
+      double r=0.0, g=0.0;
+      if(!IndReadOK(h_qqe, shift, 0, r)) return false;
+      if(!IndReadOK(h_qqe, shift, 1, g)) return false;
+      out_rsi = r; out_sig = g;
+      return true;
+      #else
+      // ---- Native inline QQE ----
+      const int    rsi_p = MathMax(1, m_settings.QQE_RSI_Period);
+      const int    sf    = MathMax(1, m_settings.QQE_SF);
+      const int    wp    = MathMax(1, m_settings.QQE_WP);
+      const double QQE_FACTOR = 4.236;
+      // Wilder smoothing length for the RSI-ATR (standard QQE uses wp*2-1).
+      const int    atr_len = MathMax(1, wp * 2 - 1);
+
+      // Warm-up: how many bars of RSI history we consume to converge the two
+      // Wilder passes. Generous but bounded; RSI itself needs rsi_p bars.
+      const int    warm = rsi_p + (sf * 3) + (atr_len * 6) + 20;
+      const int    start = shift + warm;   // oldest bar we iterate from
+
+      if(Bars(m_symbol, PERIOD_CURRENT) <= start + 2) return false;
+      if(h_qqe_rsi == INVALID_HANDLE) return false;   // iRSI handle (created in init)
+
+      // Seed EMA(SF) of RSI and the Wilder ATR-of-RSI by iterating newest-
+      // from-oldest so the recursive smoothers converge by `shift`.
+      double rsi_ema = 0.0;      // RSI_line (EMA of raw RSI)
+      double prev_rsi_ema = 0.0;
+      double atr_rsi = 0.0;      // Wilder MA of |dRSI_line|
+      double dar = 0.0;          // smoothed atr_rsi (2nd Wilder) * factor
+      double longband = 0.0, shortband = 0.0, trail = 0.0;
+      int    trend = 1;
+      bool   seeded = false;
+      const double sf_alpha  = 2.0 / (sf + 1.0);
+      const double atr_alpha = 1.0 / atr_len;   // Wilder alpha
+
+      for(int i = start; i >= shift; i--)
+      {
+         double raw = 0.0;
+         if(!IndReadOK(h_qqe_rsi, i, 0, raw)) return false;
+
+         if(!seeded) {
+            rsi_ema = raw; prev_rsi_ema = raw;
+            atr_rsi = 0.0; dar = 0.0;
+            trail = raw; longband = raw; shortband = raw;
+            trend = 1; seeded = true;
+            continue;
+         }
+
+         prev_rsi_ema = rsi_ema;
+         rsi_ema = rsi_ema + sf_alpha * (raw - rsi_ema);        // EMA(SF) of RSI
+
+         double dr = MathAbs(rsi_ema - prev_rsi_ema);           // |change| of RSI_line
+         atr_rsi = atr_rsi + atr_alpha * (dr - atr_rsi);        // 1st Wilder smoothing
+         double dar_raw = atr_rsi;
+         dar = dar + atr_alpha * (dar_raw - dar);               // 2nd Wilder smoothing
+         double band = dar * QQE_FACTOR;                        // scaled band (delta)
+
+         // QQE trailing-stop (signal) line — standard construction.
+         double new_short = rsi_ema + band;
+         double new_long  = rsi_ema - band;
+         double prev_trail = trail;
+
+         if(rsi_ema > trail && prev_rsi_ema > prev_trail)
+            trail = MathMax(prev_trail, new_long);
+         else if(rsi_ema < trail && prev_rsi_ema < prev_trail)
+            trail = MathMin(prev_trail, new_short);
+         else if(rsi_ema > trail)
+            trail = new_long;
+         else
+            trail = new_short;
+      }
+
+      out_rsi = rsi_ema;    // RSI_line
+      out_sig = trail;      // signal_line (trailing band)
+      return true;
+      #endif
+   }
+
+   //+------------------------------------------------------------------+
+   // Check_QQE_Order: QQE line-order vote (Rebellion Rule 3)
+   //+------------------------------------------------------------------+
+   // LONG passes when RSI_line > signal_line; SHORT when RSI_line < signal_line.
+   // With QQE_RequireCross=true, additionally requires a FRESH cross on the
+   // signal bar (the manual-strict reading); default false = static position
+   // (matches the shipped Forex Rebellion EA panel).
+   bool Check_QQE_Order(int bias, int shift)
+   {
+      if(IsCacheValidForShift(shift) &&
+         m_ind_cache.qqe_ord_result != -1 &&
+         m_ind_cache.cached_bias == bias)
+         return (m_ind_cache.qqe_ord_result == 1);
+
+      double rsi_line=0.0, sig_line=0.0;
+      if(!CalculateQQE(shift, rsi_line, sig_line)) {
+         if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_QQE_ORD] shift=%d not ready -> FAIL (uncached)", shift));
+         return false;   // not-ready -> reject, uncached (A22 convention)
+      }
+
+      bool result = (bias == 1) ? (rsi_line > sig_line) : (rsi_line < sig_line);
+
+      if(result && m_settings.QQE_RequireCross) {
+         double prsi=0.0, psig=0.0;
+         if(!CalculateQQE(shift + 1, prsi, psig)) return false;
+         bool crossed_up   = (prsi <= psig) && (rsi_line >  sig_line);
+         bool crossed_down = (prsi >= psig) && (rsi_line <  sig_line);
+         result = (bias == 1) ? crossed_up : crossed_down;
+      }
+
+      m_ind_cache.cached_bias    = bias;
+      m_ind_cache.qqe_rsi_line   = rsi_line;
+      m_ind_cache.qqe_signal_line= sig_line;
+      m_ind_cache.qqe_ord_result = result ? 1 : 0;
+      if(m_settings.DebugFlow)
+         DebugLog(StringFormat("[IND_QQE_ORD] RSI=%.2f Sig=%.2f bias=%d | Result: %s",
+                               rsi_line, sig_line, bias, result ? "PASS" : "FAIL"));
+      return result;
+   }
+
+   //+------------------------------------------------------------------+
+   // Check_QQE_Zone: QQE 50-line zone vote (Rebellion Rule 4)
+   //+------------------------------------------------------------------+
+   // LONG passes when RSI_line > 50 (Buy Zone); SHORT when RSI_line < 50.
+   bool Check_QQE_Zone(int bias, int shift)
+   {
+      if(IsCacheValidForShift(shift) &&
+         m_ind_cache.qqe_zone_result != -1 &&
+         m_ind_cache.cached_bias == bias)
+         return (m_ind_cache.qqe_zone_result == 1);
+
+      double rsi_line=0.0, sig_line=0.0;
+      if(!CalculateQQE(shift, rsi_line, sig_line)) {
+         if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_QQE_ZONE] shift=%d not ready -> FAIL (uncached)", shift));
+         return false;
+      }
+
+      bool result = (bias == 1) ? (rsi_line > 50.0) : (rsi_line < 50.0);
+
+      if(result && m_settings.QQE_RequireCross) {
+         double prsi=0.0, psig=0.0;
+         if(!CalculateQQE(shift + 1, prsi, psig)) return false;
+         bool crossed_up   = (prsi <= 50.0) && (rsi_line >  50.0);
+         bool crossed_down = (prsi >= 50.0) && (rsi_line <  50.0);
+         result = (bias == 1) ? crossed_up : crossed_down;
+      }
+
+      m_ind_cache.cached_bias     = bias;
+      m_ind_cache.qqe_zone_result = result ? 1 : 0;
+      if(m_settings.DebugFlow)
+         DebugLog(StringFormat("[IND_QQE_ZONE] RSI=%.2f (50) bias=%d | Result: %s",
+                               rsi_line, bias, result ? "PASS" : "FAIL"));
+      return result;
+   }
+
    //+------------------------------------------------------------------+
    // CalculateCI: Calculate Choppiness Index for given shift
    //+------------------------------------------------------------------+
@@ -5846,6 +6067,9 @@ public:
    bool   Scanner_Check_MACD(int bias, int shift){ return Check_MACD(bias, shift); }
    bool   Scanner_Check_MFI(int bias, int shift) { return Check_MFI(bias, shift); }
    bool   Scanner_Check_RSI(int bias, int shift) { return Check_RSI(bias, shift); }
+   bool   Scanner_Check_RHR_Trend(int bias, int shift) { return Check_RHR_Trend(bias, shift); }
+   bool   Scanner_Check_QQE_Order(int bias, int shift) { return Check_QQE_Order(bias, shift); }
+   bool   Scanner_Check_QQE_Zone(int bias, int shift)  { return Check_QQE_Zone(bias, shift); }
    bool   Scanner_Check_Sto(int bias, int shift) { return Check_Sto(bias, shift); }
    bool   Scanner_Check_P123(int bias, int shift){ return Check_P123(bias, shift); }
    bool   Scanner_Check_Ross(int bias, int shift){ return Check_Ross(bias, shift); }
@@ -6037,6 +6261,7 @@ public:
       h_mtf_tf1_fast = h_mtf_tf1_slow = INVALID_HANDLE;
       h_mtf_tf2_fast = h_mtf_tf2_slow = INVALID_HANDLE;
       h_ci  = INVALID_HANDLE;
+      h_qqe = INVALID_HANDLE; h_qqe_rsi = INVALID_HANDLE; h_rhr_trend = INVALID_HANDLE;
       h_vrc = INVALID_HANDLE;
 
       // ── Ribbon snapshot: mark EMPTY until RefreshRibbonSnapshot fills it ──
@@ -6159,6 +6384,9 @@ public:
       m_ind_cache.candlebody_result = -1;
       m_ind_cache.ci_result = -1;
       m_ind_cache.vrc_result = -1;
+      m_ind_cache.rhr_trend_result = -1;
+      m_ind_cache.qqe_ord_result = -1;
+      m_ind_cache.qqe_zone_result = -1;
 
       // Initialize ADX history tracking
       ArrayResize(m_adxHistory, 0);
@@ -6664,6 +6892,9 @@ public:
       PrintIndicatorStat("SmaConverge",  m_settings.Ind_SmaConverge_Enabled, m_stats.passed_sma_converge, m_stats.rejected_sma_converge);
       PrintIndicatorStat("ATR",          m_settings.Ind_Atr_Enabled, m_stats.passed_atr, m_stats.rejected_atr);
       PrintIndicatorStat("DPI",          m_settings.Ind_Dpi_Enabled, m_stats.passed_dpi,          m_stats.rejected_dpi);
+      PrintIndicatorStat("RHR_Trend",    m_settings.Ind_RHR_Trend_Enabled, m_stats.passed_rhr_trend, m_stats.rejected_rhr_trend);
+      PrintIndicatorStat("QQE_Order",    m_settings.Ind_QQE_Enabled, m_stats.passed_qqe_ord,  m_stats.rejected_qqe_ord);
+      PrintIndicatorStat("QQE_Zone",     m_settings.Ind_QQE_Enabled, m_stats.passed_qqe_zone, m_stats.rejected_qqe_zone);
       PrintIndicatorStat("Fib",          m_settings.Ind_Fib_Enabled, m_stats.passed_fib,          m_stats.rejected_fib);
       PrintIndicatorStat("MTF",          m_settings.Ind_MTF_Enabled, m_stats.passed_mtf,          m_stats.rejected_mtf);
       // VPRR-DEVOTE 2026-07-27: VPRR line removed. This block reports VOTER pass/reject
@@ -7487,6 +7718,20 @@ public:
       //    h_ci  = (m_settings.Ind_CI_Enabled ? iCustom(m_symbol, PERIOD_CURRENT, "ChoppinessIndex", m_settings.CI_Period) : INVALID_HANDLE);
       h_ci = INVALID_HANDLE;   // CI vote uses inline CalculateCI(); no external ChoppinessIndex.ex5
       h_vrc = (m_settings.Ind_VRC_Enabled ? iCustom(m_symbol, PERIOD_CURRENT, "VRC_Indicator") : INVALID_HANDLE);
+      // RH_REBELLION QQE handles. Native path uses iRSI (h_qqe_rsi); the
+      // iCustom fallback (h_qqe) is only created when SEA_QQE_USE_ICUSTOM is defined.
+      #ifdef SEA_QQE_USE_ICUSTOM
+      h_qqe = (m_settings.Ind_QQE_Enabled ? iCustom(m_symbol, PERIOD_CURRENT, "QQE ADV",
+                                                    m_settings.QQE_SF, m_settings.QQE_RSI_Period, m_settings.QQE_WP) : INVALID_HANDLE);
+      h_qqe_rsi = INVALID_HANDLE;
+      #else
+      h_qqe = INVALID_HANDLE;
+      h_qqe_rsi = (m_settings.Ind_QQE_Enabled ? iRSI(m_symbol, PERIOD_CURRENT, m_settings.QQE_RSI_Period, PRICE_CLOSE) : INVALID_HANDLE);
+      #endif
+      // RH_REBELLION trend EMA (Rule 1): iMA carries the forward shift natively.
+      h_rhr_trend = (m_settings.Ind_RHR_Trend_Enabled
+                     ? iMA(m_symbol, PERIOD_CURRENT, m_settings.RHR_TrendEmaPeriod, m_settings.RHR_TrendEmaShift, MODE_EMA, PRICE_CLOSE)
+                     : INVALID_HANDLE);
       // ------------------------------------------------------
 
       // Optional indicators: create only when used
@@ -7604,6 +7849,9 @@ public:
 
       if(h_macd != INVALID_HANDLE) { IndicatorRelease(h_macd); h_macd = INVALID_HANDLE; }
       if(h_rsi  != INVALID_HANDLE) { IndicatorRelease(h_rsi);  h_rsi  = INVALID_HANDLE; }
+      if(h_qqe  != INVALID_HANDLE) { IndicatorRelease(h_qqe);  h_qqe  = INVALID_HANDLE; }
+      if(h_qqe_rsi != INVALID_HANDLE) { IndicatorRelease(h_qqe_rsi); h_qqe_rsi = INVALID_HANDLE; }
+      if(h_rhr_trend != INVALID_HANDLE) { IndicatorRelease(h_rhr_trend); h_rhr_trend = INVALID_HANDLE; }
       if(h_cci  != INVALID_HANDLE) { IndicatorRelease(h_cci);  h_cci  = INVALID_HANDLE; }
       if(h_adx  != INVALID_HANDLE) { IndicatorRelease(h_adx);  h_adx  = INVALID_HANDLE; }
       if(h_mfi  != INVALID_HANDLE) { IndicatorRelease(h_mfi);  h_mfi  = INVALID_HANDLE; }
@@ -8726,6 +8974,11 @@ public:
       CAST_VOTE_STAT(m_settings.Ind_Atr_Enabled,        Check_ATR(bias, v_shift),        m_stats.rejected_atr, m_stats.passed_atr)
       CAST_VOTE_STAT(m_settings.Ind_CandleBody_Enabled, Check_CandleBody(bias, v_shift), m_stats.rejected_candle_body, m_stats.passed_candle_body)
       CAST_VOTE_STAT(m_settings.Ind_CI_Enabled,         Check_CI(bias, v_shift),         m_stats.rejected_ci, m_stats.passed_ci)
+      // RH_REBELLION Rule 1: price vs shifted trend EMA (directional).
+      CAST_VOTE_STAT(m_settings.Ind_RHR_Trend_Enabled, Check_RHR_Trend(bias, v_shift), m_stats.rejected_rhr_trend, m_stats.passed_rhr_trend)
+      // RH_REBELLION QQE votes (directional; both must pass under VOTE_MODE_ALL).
+      CAST_VOTE_STAT(m_settings.Ind_QQE_Enabled,        Check_QQE_Order(bias, v_shift),  m_stats.rejected_qqe_ord,  m_stats.passed_qqe_ord)
+      CAST_VOTE_STAT(m_settings.Ind_QQE_Enabled,        Check_QQE_Zone(bias, v_shift),   m_stats.rejected_qqe_zone, m_stats.passed_qqe_zone)
       CAST_VOTE_STAT(m_settings.Ind_VRC_Enabled,        Check_VRC(bias, v_shift),        m_stats.rejected_vrc, m_stats.passed_vrc)
       CAST_VOTE_STAT(m_settings.Ind_SmaConverge_Enabled, Check_SmaConverge(v_shift),      m_stats.rejected_sma_converge, m_stats.passed_sma_converge)
       CAST_VOTE_STAT(m_settings.Ind_Dpi_Enabled,         Check_DPI(bias, v_shift),         m_stats.rejected_dpi,          m_stats.passed_dpi)
