@@ -1,0 +1,47 @@
+Forex Atron is a trading assistant based on the Forex Atron Strategy and Forex Atron Indicator
+
+it will give you a pop up as soon as there is a potential entry trade with the corresponding StopLoss and TakeProfit
+
+It works in 2 stages
+1st. It will give you an arrow on chart as soon as price breaks one the levels from the ForexAtron Indicator
+2nd. After there is a confirmation for the break from the Forex Atron Indicator it will wait for Stochastic to give also its signal which will be the final one to enter the trade
+
+everytime on your screen you will have the current signals or setups which are possible to occur - also the recomended StopLoss if you will enter a trade at this exact moment.
+
+Below you have the description of the paramters
+
+
+  LotSize = 0.2; - default LotSize to enter and order, set 0 if you want to use RiskPercent
+  RiskPercent = 2; - The % of your equity to Risk when entering a trade
+  Slippage = 3; - Slipage in pips (4-5 digit brokers auto adjustable)
+  MagicNumber = 9869; - use only one magic number per chart of the same pair, on different charts with different pairs you can use the same Magic Number
+  SoundAlert = true; - set to true if you want sound Alert
+  EntryPopUp = true; - set to true if you want pop up to enter trades, not only the lines on chart
+  TimeOutMinutes = 60; - If you click No on a pop up this is the number of Minutes you will not receive any other pop ups
+
+ DynamicSLTP = true; - if you want SL to be at the current High or Low point leave it to true - in this case the TakeProfit will be of the same value as StopLoss, if it will be false the SL and TP from below will be used
+ StopLoss = 20; StopLoss used when  DynamicSLTP = false
+ TakeProfit = 20; TakeProfit used when DynamicSLTP = false
+ MinStopLoss = 7; Minimum StopLoss when DynamicSLTP = true
+ MaxStopLoss = 40; Maximum StopLoss DynamicSLTP = true
+ 
+  CloseOnReverse = false; - if you want the current order entered by the Trading Assistant to be closed on Reverse Signal set it to true
+
+// Settings for Stochastic filter
+  StochKPeriod = 8;
+  StochDPeriod = 3;
+  StochSlowing = 3;
+  StochSellLevel = 80; - there will be a sell only if the stochastic will be at this level
+  StochBuyLevel = 20; - there will ba a buy only if the stochastic will be at this level
+
+// settings for ForexAtron Indicator
+  CheckBars = 150;
+  Flexibility = 5;
+  Deviation = 2.0;
+
+//You can also customize the colors of the Trading Assistant
+ PreSellColor = Magenta;
+ SellColor = Red;
+ PreBuyColor = LightBlue;
+ BuyColor = Blue;
+ TextColor = Violet;

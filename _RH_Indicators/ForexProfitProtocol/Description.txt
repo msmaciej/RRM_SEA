@@ -1,0 +1,47 @@
+Forex Profit Protocol is a trading assistant based on the ForexProfitProtocol Strategy
+
+it will give you a pop up as soon as the price is withing specified good range to place the orders for you
+
+it could also place 2 pending orders - one BUY STOP and another SELL STOP at the exact levels before the price will hit the round number level
+
+as soon as the price is in the middle of the channel which is formed between 2 round numbers you will receive a pop up which will ask you if you want to enter the trade or not
+
+also on the chart you will see lines for any money management style you could choose, Conservative, Agresive and Managed.
+
+if you would like to use Moving Average as a filter for the orders you can do that very easy in the parameters, the are few things to keep in mind here:
+1. The colored lines with popup will appear only if the price is in the middle of the channel and the price is at least 5 pips away from the Moving Average in the direction of the trend 
+2. If the price will reverse and will go back 5 pips in the oposite direction of the order entered the order will be deleted and a new popup will appear.
+
+
+
+Please Note: The colored lines will appear only when the price will be in the middle of the channel formed between 2 round numbers
+Also, when any order from those pending will become a market order other pending will be deleted right away
+
+Below you have the description of the paramters
+
+
+  LotSize = 0.2; - default LotSize to enter and order, set 0 if you want to use RiskPercent
+  RiskPercent = 2; - The % of your equity to Risk when entering a trade
+  Slippage = 3; - Slipage in pips (4-5 digit brokers auto adjustable)
+  MagicNumber = 9869; - use only one magic number per chart of the same pair, on different charts with different pairs you can use the same Magic Number
+  SoundAlert = true; - set to true if you want sound Alert
+  EntryPopUp = true; - set to true if you want pop up to enter trades, not only the lines on chart
+  TimeOutMinutes = 60; - If you click No on a pop up this is the number of Minutes you will not receive any other pop ups
+
+  StopLoss = 15; - default StopLoss
+  TakeProfit = 15; - default TakeProfit and the distance from Round Number Level where to enter the trade
+ 
+   ConservativeExit = false;  it is the next round number for TakeProfit - in most cases 1:1 Risk Reward Ratio
+   AgresiveExit = false; TakeProfit is at the round number level plus TakeProfit pips. in most cases is 1:2 Risk Reward Ratio
+   ManagedExit = true; Close half of our position on the round number level, then move Stop Loss level to the break even and close the rest at the round number plus TakeProfit pips. This way we lock in some profit and preserve it by moving the Stop Loss to break even.
+   !!! Please Note that the first value which will be set to true will be used as the money management 
+
+  ConfirmMA = false;  - if you wat that entries will be confirmed with the Moving Average set it to true
+  MA = 10; - Moving Average PERIOD
+  PipsAwayfromMA = 5; - distance from current price till Moving Average for signal of entering the trade
+  MAType = 0; - set 0 for simple Moving Average or 1 for EMA 
+
+//below are the colors for the lines - if you want to know which line is what right click on your chart click on properties, then under the common tab check "Show Object Description"
+  EntryColor = Lime;
+  LevelColor = Blue;
+  StopsColor = Red;
