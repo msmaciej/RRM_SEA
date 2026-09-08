@@ -960,6 +960,105 @@ input double  Inp_RHR_PendingBufferPips  = 1.0;                   // RHR: 1.0 pe
 
 
 
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    🇷🇭 PRESET_RH_1MS (1-Minute Scalper)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group " ";
+input group "RH_1MS — EMA stack (B: 50 vs 100)";
+input int     Inp_RH1MS_EmaFast        = 50;     // RH1MS: 50 fast EMA (50>100 long / 50<100 short)
+input int     Inp_RH1MS_EmaSlow        = 100;    // RH1MS: 100 slow EMA (also the SL clamp reference)
+input group "RH_1MS — Stochastic trigger (I: 20/80 level-cross)";
+input int     Inp_RH1MS_StoK           = 5;      // RH1MS: %K 5
+input int     Inp_RH1MS_StoD           = 3;      // RH1MS: %D 3
+input int     Inp_RH1MS_StoSlow        = 3;      // RH1MS: slowing 3
+input double  Inp_RH1MS_StoOB          = 80.0;   // RH1MS: upper level (short: cross 80 down)
+input double  Inp_RH1MS_StoOS          = 20.0;   // RH1MS: lower level (long: cross 20 up)
+input group "RH_1MS — Stop / target (TM)";
+input int     Inp_RH1MS_SwingLookback  = 8;      // RH1MS: swing lookback (bars) for SL
+input bool    Inp_RH1MS_UseSlowMAClamp = true;   // RH1MS: SL = nearer of {swing, 100 EMA} (manual 'or the 100 EMA')
+input double  Inp_RH1MS_FixedTPPips     = 10.0;   // RH1MS: fixed TP (manual 7-12 pips; M1 low-spread essential)
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    🇷🇭 PRESET_RH_STS (Sea Trading System)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group " ";
+input group "RH_STS — Bias pair (B: MA3 vs MA20 mid-band)";
+input int     Inp_RHSTS_MaFast          = 3;      // RHSTS: fast MA (manual: EMA3; preset approximates with SMA — see notes)
+input int     Inp_RHSTS_MaSlow          = 20;     // RHSTS: slow MA = middle Bollinger band (SMA20)
+input group "RH_STS — Voters (I: MACD-zero + RSI-50)";
+input int     Inp_RHSTS_MacdFast        = 6;      // RHSTS: MACD fast
+input int     Inp_RHSTS_MacdSlow        = 17;     // RHSTS: MACD slow
+input int     Inp_RHSTS_MacdSig         = 1;      // RHSTS: MACD signal SMA (1 -> pure zero-line test)
+input int     Inp_RHSTS_RsiPeriod       = 14;     // RHSTS: RSI period (>50 long / <50 short)
+input group "RH_STS — Bollinger (SL/TP band; optional widen vote)";
+input int     Inp_RHSTS_BbPeriod        = 20;     // RHSTS: Bollinger period (middle band = SMA20)
+input double  Inp_RHSTS_BbDev           = 3.0;    // RHSTS: Bollinger deviation
+input bool    Inp_RHSTS_UseBBWidenVote  = true;   // RHSTS: BB-widening as a 3rd vote. NOTE: canonical manual = MACD+RSI only; set false to match manual
+input group "RH_STS — Stop / target (TM)";
+input int     Inp_RHSTS_SwingLookback   = 10;     // RHSTS: swing lookback (bars) for SL
+input ETPMode Inp_RHSTS_TPMode          = TP_MODE_RR;   // RHSTS: TP mode (manual: opposite band / TF-fixed pips; RR used as approximation)
+input double  Inp_RHSTS_RRRatio         = 1.5;    // RHSTS: reward:risk when TPMode = RR
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    🇷🇭 PRESET_RH_SS (Super System)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group " ";
+input group "RH_SS — EMAs (trigger EMA3xEMA5-open; 34/89 backbone)";
+input int     Inp_RHSS_EmaFast          = 3;      // RHSS: EMA3 (close) — trigger fast
+input int     Inp_RHSS_EmaSlow          = 5;      // RHSS: EMA5 (OPEN) — trigger slow
+input int     Inp_RHSS_EmaTrendFast     = 34;     // RHSS: EMA34 backbone (trend filter — see notes)
+input int     Inp_RHSS_EmaTrendSlow     = 89;     // RHSS: EMA89 backbone (trend filter — see notes)
+input group "RH_SS — RSI(3) 80/20 momentum burst";
+input int     Inp_RHSS_RsiPeriod        = 3;      // RHSS: RSI period
+input double  Inp_RHSS_RsiOB            = 80.0;   // RHSS: RSI OB (long: burst above 80)
+input double  Inp_RHSS_RsiOS            = 20.0;   // RHSS: RSI OS (short: burst below 20)
+input group "RH_SS — Stochastic(5,3,3) main-vs-signal";
+input int     Inp_RHSS_StoK             = 5;      // RHSS: %K 5
+input int     Inp_RHSS_StoD             = 3;      // RHSS: %D 3   (spec (5,3,3) — corrects prior 5/5/5)
+input int     Inp_RHSS_StoSlow          = 3;      // RHSS: slowing 3   (spec (5,3,3) — corrects prior 5/5/5)
+input group "RH_SS — Stop / target (TM)";
+input int     Inp_RHSS_SwingLookback    = 12;     // RHSS: swing lookback (bars) for SL
+input double  Inp_RHSS_RRRatio          = 2.0;    // RHSS: reward:risk (manual 2R)
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    🇷🇭 PRESET_RH_GS (Golden Strategy)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group " ";
+input group "RH_GS — 55 SMMA High/Low channel";
+input int     Inp_RHGS_SmmaPeriod       = 55;     // RHGS: SMMA period (High on role0, Low on role1)
+input group "RH_GS — Voters (Williams %R 55 + Stoch 5/5/5)";
+input int     Inp_RHGS_WprPeriod        = 55;     // RHGS: Williams %R period
+input double  Inp_RHGS_WprUpper         = -25.0;  // RHGS: %R upper (long: cross above -25)
+input double  Inp_RHGS_WprLower         = -75.0;  // RHGS: %R lower (short: cross below -75)
+input int     Inp_RHGS_StoK             = 5;      // RHGS: %K 5
+input int     Inp_RHGS_StoD             = 5;      // RHGS: %D 5
+input int     Inp_RHGS_StoSlow          = 5;      // RHGS: slowing 5
+input group "RH_GS — Stop / target (TM)";
+input bool    Inp_RHGS_UseSmmaRecrossExit = true; // RHGS: close when price re-crosses the entry SMMA(High)
+input int     Inp_RHGS_SwingLookback    = 12;     // RHGS: swing lookback (bars) for SL
+input double  Inp_RHGS_RRRatio          = 2.0;    // RHGS: reward:risk (manual 2R)
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    🇷🇭 PRESET_RH_SM (Secret Method)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group " ";
+input group "RH_SM — Bias (Heiken-Ashi vs 14 SMA)";
+input int     Inp_RHSM_SmaPeriod        = 14;     // RHSM: SMA period (HA candle vs this line)
+input group "RH_SM — Voters (OsMA zero + Momentum100 + RSI5-50)";
+input int     Inp_RHSM_OsMAFast         = 12;     // RHSM: OsMA fast
+input int     Inp_RHSM_OsMASlow         = 26;     // RHSM: OsMA slow
+input int     Inp_RHSM_OsMASignal       = 9;      // RHSM: OsMA signal
+input int     Inp_RHSM_MomentumPeriod   = 10;     // RHSM: Momentum period
+input double  Inp_RHSM_MomentumLevel    = 100.0;  // RHSM: Momentum centre level (long > 100 / short < 100)
+input int     Inp_RHSM_RsiPeriod        = 5;      // RHSM: RSI period (>50 long / <50 short)
+input group "RH_SM — Stop / target (TM)";
+input bool    Inp_RHSM_UseOsMAFlipExit  = true;   // RHSM: early exit when OsMA histogram flips across zero
+input int     Inp_RHSM_SwingLookback    = 10;     // RHSM: swing lookback (bars) for SL
+input double  Inp_RHSM_RRRatio          = 2.0;    // RHSM: reward:risk (manual 2R)
+
+
+
 #ifdef SEA_BUILD_TURTLE
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";

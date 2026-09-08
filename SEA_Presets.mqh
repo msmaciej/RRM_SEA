@@ -3354,14 +3354,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasMode   = BIAS_2EMA;
       cfg.AutoStrat  = STRAT_2EMA_POSITION;
       cfg.MaType     = METHOD_EMA;
-      cfg.P_Ema1 = 50;  cfg.P_Ema2 = 100; cfg.P_Ema3 = 150; cfg.P_Ema4 = 200;
+      cfg.P_Ema1 = Inp_RH1MS_EmaFast;  cfg.P_Ema2 = Inp_RH1MS_EmaSlow; cfg.P_Ema3 = 150; cfg.P_Ema4 = 200;
       cfg.MaApplied1 = PRICE_CLOSE; cfg.MaApplied2 = PRICE_CLOSE;
-      cfg.BiasFastID = 0;   // EMA1 = 50
-      cfg.BiasSlowID = 1;   // EMA2 = 100
+      cfg.BiasFastID = 0;   // EMA1 = fast (50)
+      cfg.BiasSlowID = 1;   // EMA2 = slow (100)
       // Indicator votes: Stochastic 20/80 level-cross only
       cfg.Ind_Sto_Enabled = true;  cfg.StoMode = STO_CROSS_LEVEL;
-      cfg.P_StoK = 5; cfg.P_StoD = 3; cfg.P_StoSlow = 3;
-      cfg.T_StoOB = 80.0; cfg.T_StoOS = 20.0;
+      cfg.P_StoK = Inp_RH1MS_StoK; cfg.P_StoD = Inp_RH1MS_StoD; cfg.P_StoSlow = Inp_RH1MS_StoSlow;
+      cfg.T_StoOB = Inp_RH1MS_StoOB; cfg.T_StoOS = Inp_RH1MS_StoOS;
       cfg.Ind_Rsi_Enabled = false; cfg.Ind_Macd_Enabled = false; cfg.Ind_Bb_Enabled = false;
       cfg.Ind_Adx_Enabled = false; cfg.Ind_Cci_Enabled = false; cfg.Ind_Mfi_Enabled = false;
 
@@ -3372,9 +3372,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CloseOnReverse        = false;
       cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
       // Stop / target
-      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = 8;
-      cfg.SL_UseSlowMAClamp = true; cfg.SL_SlowMARole = 1;   // clamp to 100 EMA (role 1)
-      cfg.TPMode = TP_MODE_FIXED_PIPS; cfg.FixedTPPips = 10.0;
+      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = Inp_RH1MS_SwingLookback;
+      cfg.SL_UseSlowMAClamp = Inp_RH1MS_UseSlowMAClamp; cfg.SL_SlowMARole = 1;   // clamp to 100 EMA (role 1)
+      cfg.TPMode = TP_MODE_FIXED_PIPS; cfg.FixedTPPips = Inp_RH1MS_FixedTPPips;
       // Policy A: this preset touches no operator gates; restore the two it may seed.
       cfg.MaxSpread   = op_MaxSpread;
       cfg.RiskPercent = op_RiskPercent;
@@ -3392,14 +3392,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasMode   = BIAS_2EMA;
       cfg.AutoStrat  = STRAT_2EMA_POSITION;
       cfg.MaType     = METHOD_SMA;               // approximation (see NOTE)
-      cfg.P_Ema1 = 3;   cfg.P_Ema2 = 20;  cfg.P_Ema3 = 20; cfg.P_Ema4 = 20;
+      cfg.P_Ema1 = Inp_RHSTS_MaFast;   cfg.P_Ema2 = Inp_RHSTS_MaSlow;  cfg.P_Ema3 = Inp_RHSTS_MaSlow; cfg.P_Ema4 = Inp_RHSTS_MaSlow;
       cfg.MaApplied1 = PRICE_CLOSE; cfg.MaApplied2 = PRICE_CLOSE;
       cfg.BiasFastID = 0;   // MA1 = 3
       cfg.BiasSlowID = 1;   // MA2 = 20 (middle Bollinger band)
       cfg.Ind_Macd_Enabled = true; cfg.MacdVoteMode = MACD_ZERO_LINE;
-      cfg.P_MacdFast = 6; cfg.P_MacdSlow = 17; cfg.P_MacdSig = 1;
-      cfg.Ind_Rsi_Enabled = true; cfg.RsiMode = RSI_TREND_ABOVE_50; cfg.P_Rsi = 14;
-      cfg.Ind_Bb_Enabled = true; cfg.BbMode = BB_WIDENING; cfg.P_Bb = 20; cfg.P_BbDev = 3.0;
+      cfg.P_MacdFast = Inp_RHSTS_MacdFast; cfg.P_MacdSlow = Inp_RHSTS_MacdSlow; cfg.P_MacdSig = Inp_RHSTS_MacdSig;
+      cfg.Ind_Rsi_Enabled = true; cfg.RsiMode = RSI_TREND_ABOVE_50; cfg.P_Rsi = Inp_RHSTS_RsiPeriod;
+      cfg.Ind_Bb_Enabled = Inp_RHSTS_UseBBWidenVote; cfg.BbMode = BB_WIDENING; cfg.P_Bb = Inp_RHSTS_BbPeriod; cfg.P_BbDev = Inp_RHSTS_BbDev;
       cfg.Ind_Sto_Enabled = false; cfg.Ind_Adx_Enabled = false;
       cfg.PhaseDetectionEnabled = false;
       cfg.EnableLayerDetection  = false;
@@ -3407,8 +3407,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Vote_EvalShift        = 1;            // votes read on closed bar
       cfg.CloseOnReverse        = false;
       cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
-      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = 10;
-      cfg.TPMode = TP_MODE_RR; cfg.RRRatio = 1.5;
+      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = Inp_RHSTS_SwingLookback;
+      cfg.TPMode = Inp_RHSTS_TPMode; cfg.RRRatio = Inp_RHSTS_RRRatio;
       // Policy A: this preset touches no operator gates; restore the two it may seed.
       cfg.MaxSpread   = op_MaxSpread;
       cfg.RiskPercent = op_RiskPercent;
@@ -3427,15 +3427,15 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasMode   = BIAS_2EMA;
       cfg.AutoStrat  = STRAT_2EMA_POSITION;
       cfg.MaType     = METHOD_EMA;
-      cfg.P_Ema1 = 3;   cfg.P_Ema2 = 5;   cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
+      cfg.P_Ema1 = Inp_RHSS_EmaFast;   cfg.P_Ema2 = Inp_RHSS_EmaSlow;   cfg.P_Ema3 = Inp_RHSS_EmaTrendFast; cfg.P_Ema4 = Inp_RHSS_EmaTrendSlow;
       cfg.MaApplied1 = PRICE_CLOSE; cfg.MaApplied2 = PRICE_OPEN;   // 5 EMA on OPEN
       cfg.MaApplied3 = PRICE_CLOSE; cfg.MaApplied4 = PRICE_CLOSE;
       cfg.BiasFastID = 0;   // EMA3
       cfg.BiasSlowID = 1;   // EMA5 (open)
-      cfg.Ind_Rsi_Enabled = true; cfg.RsiMode = RSI_BREAKOUT_OBOS; cfg.P_Rsi = 3;
-      cfg.T_RsiOB = 80.0; cfg.T_RsiOS = 20.0;
+      cfg.Ind_Rsi_Enabled = true; cfg.RsiMode = RSI_BREAKOUT_OBOS; cfg.P_Rsi = Inp_RHSS_RsiPeriod;
+      cfg.T_RsiOB = Inp_RHSS_RsiOB; cfg.T_RsiOS = Inp_RHSS_RsiOS;
       cfg.Ind_Sto_Enabled = true; cfg.StoMode = STO_CROSS_SIGNAL;
-      cfg.P_StoK = 5; cfg.P_StoD = 5; cfg.P_StoSlow = 5;
+      cfg.P_StoK = Inp_RHSS_StoK; cfg.P_StoD = Inp_RHSS_StoD; cfg.P_StoSlow = Inp_RHSS_StoSlow;
       cfg.Ind_Macd_Enabled = false; cfg.Ind_Bb_Enabled = false;
       cfg.PhaseDetectionEnabled = false;
       cfg.EnableLayerDetection  = false;
@@ -3443,8 +3443,8 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Vote_EvalShift        = 1;            // votes read on closed bar
       cfg.CloseOnReverse        = false;
       cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
-      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = 12;
-      cfg.TPMode = TP_MODE_RR; cfg.RRRatio = 2.0;
+      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = Inp_RHSS_SwingLookback;
+      cfg.TPMode = TP_MODE_RR; cfg.RRRatio = Inp_RHSS_RRRatio;
       // Policy A: this preset touches no operator gates; restore the two it may seed.
       cfg.MaxSpread   = op_MaxSpread;
       cfg.RiskPercent = op_RiskPercent;
@@ -3463,13 +3463,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasMode   = BIAS_2EMA;
       cfg.AutoStrat  = STRAT_2EMA_POSITION;
       cfg.MaType     = METHOD_SMMA;
-      cfg.P_Ema1 = 55;  cfg.P_Ema2 = 55;  cfg.P_Ema3 = 55; cfg.P_Ema4 = 55;
+      cfg.P_Ema1 = Inp_RHGS_SmmaPeriod;  cfg.P_Ema2 = Inp_RHGS_SmmaPeriod;  cfg.P_Ema3 = Inp_RHGS_SmmaPeriod; cfg.P_Ema4 = Inp_RHGS_SmmaPeriod;
       cfg.MaApplied1 = PRICE_HIGH; cfg.MaApplied2 = PRICE_LOW;
       cfg.BiasFastID = 0;   // SMMA(High)
       cfg.BiasSlowID = 1;   // SMMA(Low)
-      cfg.Ind_Wpr_Enabled = true; cfg.P_Wpr = 55; cfg.T_WprUpper = -25.0; cfg.T_WprLower = -75.0;
+      cfg.Ind_Wpr_Enabled = true; cfg.P_Wpr = Inp_RHGS_WprPeriod; cfg.T_WprUpper = Inp_RHGS_WprUpper; cfg.T_WprLower = Inp_RHGS_WprLower;
       cfg.Ind_Sto_Enabled = true; cfg.StoMode = STO_CROSS_SIGNAL;
-      cfg.P_StoK = 5; cfg.P_StoD = 5; cfg.P_StoSlow = 5;
+      cfg.P_StoK = Inp_RHGS_StoK; cfg.P_StoD = Inp_RHGS_StoD; cfg.P_StoSlow = Inp_RHGS_StoSlow;
       cfg.Ind_Rsi_Enabled = false; cfg.Ind_Macd_Enabled = false; cfg.Ind_Bb_Enabled = false;
       cfg.PhaseDetectionEnabled = false;
       cfg.EnableLayerDetection  = false;
@@ -3477,9 +3477,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Vote_EvalShift        = 1;            // votes read on closed bar
       cfg.CloseOnReverse        = false;
       cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
-      cfg.TM_ExitOnMARecross = true; cfg.TM_ExitMARole = 0;   // exit on SMMA(High) re-cross
-      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = 12;
-      cfg.TPMode = TP_MODE_RR; cfg.RRRatio = 2.0;
+      cfg.TM_ExitOnMARecross = Inp_RHGS_UseSmmaRecrossExit; cfg.TM_ExitMARole = 0;   // exit on SMMA(High) re-cross
+      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = Inp_RHGS_SwingLookback;
+      cfg.TPMode = TP_MODE_RR; cfg.RRRatio = Inp_RHGS_RRRatio;
       // Policy A: this preset touches no operator gates; restore the two it may seed.
       cfg.MaxSpread   = op_MaxSpread;
       cfg.RiskPercent = op_RiskPercent;
@@ -3496,13 +3496,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.BiasMode   = BIAS_2EMA;
       cfg.AutoStrat  = STRAT_2EMA_POSITION;
       cfg.MaType     = METHOD_SMA;
-      cfg.P_Ema1 = 14;  cfg.P_Ema2 = 14;  cfg.P_Ema3 = 14; cfg.P_Ema4 = 14;   // price vs SMA14
+      cfg.P_Ema1 = Inp_RHSM_SmaPeriod;  cfg.P_Ema2 = Inp_RHSM_SmaPeriod;  cfg.P_Ema3 = Inp_RHSM_SmaPeriod; cfg.P_Ema4 = Inp_RHSM_SmaPeriod;   // price vs SMA14
       cfg.MaApplied1 = PRICE_CLOSE; cfg.MaApplied2 = PRICE_CLOSE;
       cfg.BiasFastID = 0; cfg.BiasSlowID = 1;
       cfg.Bias_HeikenAshi = true;   // enable Heiken-Ashi direction voter
-      cfg.Ind_OsMA_Enabled = true; cfg.P_OsMA_Fast = 12; cfg.P_OsMA_Slow = 26; cfg.P_OsMA_Signal = 9;
-      cfg.Ind_Momentum_Enabled = true; cfg.P_Momentum = 10; cfg.T_MomentumLevel = 100.0;
-      cfg.Ind_Rsi_Enabled = true; cfg.RsiMode = RSI_TREND_ABOVE_50; cfg.P_Rsi = 5;
+      cfg.Ind_OsMA_Enabled = true; cfg.P_OsMA_Fast = Inp_RHSM_OsMAFast; cfg.P_OsMA_Slow = Inp_RHSM_OsMASlow; cfg.P_OsMA_Signal = Inp_RHSM_OsMASignal;
+      cfg.Ind_Momentum_Enabled = true; cfg.P_Momentum = Inp_RHSM_MomentumPeriod; cfg.T_MomentumLevel = Inp_RHSM_MomentumLevel;
+      cfg.Ind_Rsi_Enabled = true; cfg.RsiMode = RSI_TREND_ABOVE_50; cfg.P_Rsi = Inp_RHSM_RsiPeriod;
       cfg.Ind_Sto_Enabled = false; cfg.Ind_Bb_Enabled = false; cfg.Ind_Macd_Enabled = false;
       cfg.PhaseDetectionEnabled = false;
       cfg.EnableLayerDetection  = false;
@@ -3510,9 +3510,9 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.Vote_EvalShift        = 1;            // votes read on closed bar
       cfg.CloseOnReverse        = false;
       cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
-      cfg.TM_ExitOnOsMAFlip = true;
-      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = 10;
-      cfg.TPMode = TP_MODE_RR; cfg.RRRatio = 2.0;
+      cfg.TM_ExitOnOsMAFlip = Inp_RHSM_UseOsMAFlipExit;
+      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = Inp_RHSM_SwingLookback;
+      cfg.TPMode = TP_MODE_RR; cfg.RRRatio = Inp_RHSM_RRRatio;
       // Policy A: this preset touches no operator gates; restore the two it may seed.
       cfg.MaxSpread   = op_MaxSpread;
       cfg.RiskPercent = op_RiskPercent;
