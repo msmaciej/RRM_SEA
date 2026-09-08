@@ -925,37 +925,37 @@ input group "    🇷🇭 PRESET_RH_REBELLION (Forex Rebellion)";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group " ";
 input group "RH_REBELLION — Entry cross (Rule 2, direction/B)";
-input int     Inp_RHR_EmaFast            = 4;                    // RHR: faster EMA (4/5 cross)
-input int     Inp_RHR_EmaSlow            = 5;                    // RHR: slower EMA (4/5 cross)
+input int     Inp_RHR_EmaFast            = 4;                     // RHR: 4 faster EMA (4/5 cross)
+input int     Inp_RHR_EmaSlow            = 5;                     // RHR: 5 slower EMA (4/5 cross)
 input group " ";
 input group "RH_REBELLION — Trend EMA (Rule 1)";
-input int     Inp_RHR_TrendEmaPeriod     = 5;                    // RHR: trend EMA period (the '5 EMA')
-input int     Inp_RHR_TrendEmaShift      = 5;                    // RHR: trend EMA forward shift (shift 5)
+input int     Inp_RHR_TrendEmaPeriod     = 5;                     // RHR: 5 trend EMA period (the '5 EMA')
+input int     Inp_RHR_TrendEmaShift      = 5;                     // RHR: 5 trend EMA forward shift (shift 5)
 input group " ";
 input group "RH_REBELLION — QQE (Rules 3 & 4)";
-input bool    Inp_RHR_Use_QQE            = true;                 // RHR: QQE voter (line-order + 50-zone) — KEEP ON
-input int     Inp_RHR_QQE_SF             = 1;                    // RHR: QQE smoothing factor (SF)
-input int     Inp_RHR_QQE_RSI_Period     = 8;                    // RHR: QQE RSI period
-input int     Inp_RHR_QQE_WP             = 3;                    // RHR: QQE Wilder period (WP)
-input bool    Inp_RHR_QQE_RequireCross   = false;               // RHR: false=static position (EA panel); true=fresh cross (manual-strict)
+input bool    Inp_RHR_Use_QQE            = true;                  // RHR: QQE true voter (line-order + 50-zone) — KEEP ON
+input int     Inp_RHR_QQE_SF             = 1;                     // RHR: QQE 1 smoothing factor (SF)
+input int     Inp_RHR_QQE_RSI_Period     = 13;                    // RHR: QQE 13-8 RSI period
+input int     Inp_RHR_QQE_WP             = 3;                     // RHR: QQE 3 Wilder period (WP)
+input bool    Inp_RHR_QQE_RequireCross   = false;                 // RHR: false = static position (EA panel); true=fresh cross (manual-strict)
 input group " ";
 input group "RH_REBELLION — Stop loss";
-input ESLMode Inp_RHR_SLMode             = SL_MODE_SWING;        // RHR: SL mode (SWING = manual's safest; ATR available)
-input int     Inp_RHR_SwingLookback      = 21;                  // RHR: swing lookback (bars)
-input int     Inp_RHR_SL_AtrPeriod       = 14;                  // RHR: ATR period (SL_MODE_ATR)
-input double  Inp_RHR_SL_AtrMult         = 1.0;                 // RHR: ATR mult (SL_MODE_ATR)
+input ESLMode Inp_RHR_SLMode             = SL_MODE_SWING;         // RHR: SL mode (SWING = manual's safest; ATR available)
+input int     Inp_RHR_SwingLookback      = 21;                    // RHR: 21 swing lookback (bars)
+input int     Inp_RHR_SL_AtrPeriod       = 14;                    // RHR: 14 ATR period (SL_MODE_ATR)
+input double  Inp_RHR_SL_AtrMult         = 1.0;                   // RHR: 1 ATR mult (SL_MODE_ATR)
 input group " ";
 input group "RH_REBELLION — Exit / target";
-input ETPMode Inp_RHR_TPMode             = TP_MODE_RR;           // RHR: TP mode. RR=the '100'/'1 Point 5'; or use Donchian channel exit below
-input double  Inp_RHR_RRRatio            = 1.5;                 // RHR: reward:risk (1.0='100', 1.5='1 Point 5')
-input bool    Inp_RHR_UseDonchianExit    = false;               // RHR: exit at opposite Donchian(21) wall instead of/again with RR
-input int     Inp_RHR_DonchianExitPeriod = 21;                  // RHR: Donchian exit channel period
+input ETPMode Inp_RHR_TPMode             = TP_MODE_RR;            // RHR: TP mode. RR=the '100'/'1 Point 5'; or use Donchian channel exit below
+input double  Inp_RHR_RRRatio            = 2.0;                   // RHR: 2.0-1.5 reward:risk (1.0='100', 1.5='1 Point 5')
+input bool    Inp_RHR_UseDonchianExit    = true;                  // RHR: true-false - exit at opposite Donchian(21) wall instead of/again with RR
+input int     Inp_RHR_DonchianExitPeriod = 13;                    // RHR: 13-21 Donchian exit channel period
 input group " ";
 input group "RH_REBELLION — Trade management";
-input EBeMode Inp_RHR_BE_Mode            = BE_MODE_R_MULTIPLE;   // RHR: break-even mode (step SL to BE at N*R)
-input double  Inp_RHR_BE_RMultiple       = 1.0;                 // RHR: move SL to BE at +N*R (manual: at +1R)
-input ETrailingMode Inp_RHR_TrailMode    = TRAIL_EMA;           // RHR: post-BE trail (EMA = follow the 5 EMA)
-input double  Inp_RHR_PendingBufferPips  = 2.0;                 // RHR: pending stop-order buffer beyond the signal candle (pips)
+input EBeMode Inp_RHR_BE_Mode            = BE_MODE_R_MULTIPLE;    // RHR: break-even mode (step SL to BE at N*R)
+input double  Inp_RHR_BE_RMultiple       = 0.25;                  // RHR: 0.25-1.0 move SL to BE at +N*R (manual: at +1R)
+input ETrailingMode Inp_RHR_TrailMode    = TRAIL_EMA;             // RHR: EMA post-BE trail (EMA = follow the 5 EMA)
+input double  Inp_RHR_PendingBufferPips  = 1.0;                   // RHR: 1.0 pending stop-order buffer beyond the signal candle (pips)
 #endif // SEA_BUILD_RH_REBELLION
 
 
