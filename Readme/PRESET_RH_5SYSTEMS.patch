@@ -1,0 +1,532 @@
+diff --git a/SEA_Config.mqh b/SEA_Config.mqh
+index 9bf7293..668953d 100644
+--- a/SEA_Config.mqh
++++ b/SEA_Config.mqh
+@@ -62,7 +62,12 @@ enum EStrategyPreset
+    PRESET_XEMA,            // PRESET_XEMA: EMA-cross trend follower (flexible periods + HTF confirmation)
+    PRESET_TURTLE,          // PRESET_TURTLE: Donchian breakout, no trend filter (pure Turtle S1/S2)
+    PRESET_TREND,           // PRESET_TREND: Donchian breakout + EMA(20/50/200) + HTF filter (Turtle + 3 EMAs)
+-   PRESET_RH_REBELLION     // PRESET_RH_REBELLION: Russ Horn Forex Rebellion 4-filter confluence (5EMA-shift + 4/5 cross + QQE + Donchian)
++   PRESET_RH_REBELLION,    // PRESET_RH_REBELLION: Russ Horn Forex Rebellion 4-filter confluence (5EMA-shift + 4/5 cross + QQE + Donchian)
++   PRESET_RH_1MS,          // PRESET_RH_1MS: Russ Horn 1-Minute Scalper (50/100 EMA stack + retrace + Stochastic 20/80 level-cross)
++   PRESET_RH_STS,          // PRESET_RH_STS: Russ Horn Sea Trading System (EMA3 vs SMA20 + MACD zero + RSI50 + BB widening)
++   PRESET_RH_SS,           // PRESET_RH_SS: Russ Horn Super System (EMA34/89 + EMA3x5(open) + RSI3 80/20 + Stoch + ADX +DI/-DI)
++   PRESET_RH_GS,           // PRESET_RH_GS: Russ Horn Golden Strategy (55 SMMA High/Low channel + Williams %R 55 + Stochastic 5/5/5)
++   PRESET_RH_SM            // PRESET_RH_SM: Russ Horn Secret Method (Heiken Ashi vs 14 SMA + OsMA zero + Momentum(10) 100 + RSI5 50)
+ };
+ enum ETIProfile
+ {
+@@ -80,7 +85,9 @@ enum EEmaStrategy
+ enum EMaMethod
+ {
+    METHOD_EMA,             // METHOD_EMA: exponential
+-   METHOD_SMA              // METHOD_SMA: simple
++   METHOD_SMA,             // METHOD_SMA: simple
++   METHOD_SMMA,            // METHOD_SMMA: smoothed (Wilder/RMA) - RH_GS
++   METHOD_LWMA             // METHOD_LWMA: linear weighted
+ };
+ enum EBiasMode
+ {
+@@ -225,12 +232,14 @@ enum ERsiMode
+ {
+    RSI_FILTER_EXTREME,     // RSI_FILTER: Extreme zones only (>70 overbought, <30 oversold)
+    RSI_TREND_ABOVE_50,     // RSI_TREND: Trend following (>50 bullish, <50 bearish)
+-   RSI_CROSS_LEVEL         // RSI_CROSS: Cross 50-level signal
++   RSI_CROSS_LEVEL,        // RSI_CROSS: Cross 50-level signal
++   RSI_BREAKOUT_OBOS       // RSI_BREAKOUT_OBOS: long RSI>T_RsiOB, short RSI<T_RsiOS (RH_SS 80/20)
+ };
+ enum EStochMode
+ {
+    STO_CROSS_SIGNAL,       // STO_CROSS: %K crosses %D signal line
+-   STO_ZONE_FILTER         // STO_ZONE: Overbought/oversold zones (>80 / <20)
++   STO_ZONE_FILTER,        // STO_ZONE: Overbought/oversold zones (>80 / <20)
++   STO_CROSS_LEVEL         // STO_CROSS_LEVEL: long %K>T_StoOS, short %K<T_StoOB (RH_1MS 20/80)
+ };
+ enum EVolatilityRegime {
+    VOLATILITY_LOW = 0,    // VOLATILITY_LOW: too quiet, likely choppy
+@@ -432,6 +441,12 @@ struct ST_Settings
+ 
+    // Execution Logic
+    EMaMethod MaType;
++   // Per-slot applied price for the ribbon MAs (ENUM_APPLIED_PRICE as int; default PRICE_CLOSE).
++   // Enables RH_SS (5 EMA on OPEN) and RH_GS (55 SMMA on HIGH / LOW). Others leave PRICE_CLOSE.
++   int MaApplied1;
++   int MaApplied2;
++   int MaApplied3;
++   int MaApplied4;
+    int       ma_h_shift;
+    int       ma_v_shift;
+    
+@@ -666,6 +681,25 @@ struct ST_Settings
+    bool Ind_Atr_Enabled;
+    bool Ind_CandleBody_Enabled;
+    bool Ind_CI_Enabled;
++   // --- Russ Horn additional voters (inline; computed like ADX/CI/DPI) ---
++   bool   Ind_Wpr_Enabled;        // Williams %R voter (RH_GS)
++   int    P_Wpr;                  // Williams %R period (RH_GS: 55)
++   double T_WprUpper;             // upper level, negative (RH_GS: -25)
++   double T_WprLower;             // lower level, negative (RH_GS: -75)
++   bool   Ind_Momentum_Enabled;   // Momentum voter (RH_SM)
++   int    P_Momentum;             // Momentum period (RH_SM: 10)
++   double T_MomentumLevel;        // centre level (RH_SM: 100)
++   bool   Ind_OsMA_Enabled;       // OsMA (MACD histogram) zero-line voter (RH_SM)
++   int    P_OsMA_Fast;            // OsMA fast EMA (RH_SM: 12)
++   int    P_OsMA_Slow;            // OsMA slow EMA (RH_SM: 26)
++   int    P_OsMA_Signal;          // OsMA signal SMA (RH_SM: 9)
++   bool   Bias_HeikenAshi;        // bias/BD use Heiken-Ashi candle direction vs fast MA (RH_SM)
++   // --- Russ Horn TM early-exit rules ---
++   bool   TM_ExitOnOsMAFlip;      // close when OsMA histogram flips across zero (RH_SM)
++   bool   TM_ExitOnMARecross;     // close when price closes back across the entry MA (RH_GS)
++   int    TM_ExitMARole;          // ribbon role (0..3) of the re-cross reference MA
++   bool   SL_UseSlowMAClamp;      // SL = nearer of {swing, slow MA} (RH_1MS 100 EMA)
++   int    SL_SlowMARole;          // ribbon role (0..3) used for the SL clamp MA
+ 
+ 
+    // Fixed lot sizing (0 = use risk-based sizing)
+diff --git a/SEA_Presets.mqh b/SEA_Presets.mqh
+index b6251c8..cb9b3c1 100644
+--- a/SEA_Presets.mqh
++++ b/SEA_Presets.mqh
+@@ -705,6 +705,11 @@ string PresetToString(EStrategyPreset p)
+       case PRESET_TURTLE:       return "TURTLE";
+       case PRESET_TREND:        return "TREND";
+       case PRESET_RH_REBELLION: return "RH_REBELLION";
++      case PRESET_RH_1MS:       return "RH_1MS";
++      case PRESET_RH_STS:       return "RH_STS";
++      case PRESET_RH_SS:        return "RH_SS";
++      case PRESET_RH_GS:        return "RH_GS";
++      case PRESET_RH_SM:        return "RH_SM";
+       default:                  return "UNKNOWN";
+    }
+ }
+@@ -731,6 +736,16 @@ string GetPresetContractWording(EStrategyPreset preset)
+          return "PRESET_TREND";     //: Donchian breakout gated by EMA(20/50/200) stack + HTF(50/200) confirmation; 2*ATR stop, channel exit (Turtle + 3 EMAs).";
+       case PRESET_RH_REBELLION:
+          return "PRESET_RH_REBELLION"; //: Forex Rebellion 4-filter confluence — 4/5 EMA cross (B) + shifted-5-EMA trend + QQE(line-order+50-zone), all unanimous; swing/ATR SL; RR or Donchian exit; step-to-BE + trail.";
++      case PRESET_RH_1MS:
++         return "PRESET_RH_1MS";   //: 1-Minute Scalper — 50/100 EMA stack + retrace + Stochastic(5,3,3) 20/80 level-cross; swing SL clamped to 100 EMA; fixed 7-12 pip TP.";
++      case PRESET_RH_STS:
++         return "PRESET_RH_STS";   //: Sea Trading System — EMA3 vs SMA20(mid-BB) + MACD(6,17,1) zero + RSI(14)>50 + BB(20,3) widening; swing SL; R:R TP.";
++      case PRESET_RH_SS:
++         return "PRESET_RH_SS";    //: Super System — EMA34/89 trend + EMA3/5(open) + RSI(3) 80/20 + Stochastic(5,5,5); swing SL; 2R TP. (34/89 filter + ADX-DI: first-pass approximation.)";
++      case PRESET_RH_GS:
++         return "PRESET_RH_GS";    //: Golden Strategy — 55 SMMA High/Low channel + Williams %R(55) -25/-75 + Stochastic(5,5,5); swing SL; 2R TP; exit on SMMA re-cross.";
++      case PRESET_RH_SM:
++         return "PRESET_RH_SM";    //: Secret Method — Heiken-Ashi vs 14 SMA + OsMA(12,26,9) zero + Momentum(10) 100 + RSI(5)>50; swing SL; 2R TP; early exit on OsMA zero-flip.";
+       default:
+          return "PRESET_ACTIVE";    //: Preset active; strategy-critical settings fixed by preset.";
+    }
+@@ -1356,6 +1371,16 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
+    cfg.PSAR_TrailCushionAtrMult   = 0.0;
+    cfg.PSAR_TrailCushionPct       = 0.0;
+ 
++   // RH additions — safe neutral defaults (RH presets override; others inherit).
++   cfg.MaApplied1 = PRICE_CLOSE; cfg.MaApplied2 = PRICE_CLOSE;
++   cfg.MaApplied3 = PRICE_CLOSE; cfg.MaApplied4 = PRICE_CLOSE;
++   cfg.Ind_Wpr_Enabled = false; cfg.P_Wpr = 55; cfg.T_WprUpper = -25.0; cfg.T_WprLower = -75.0;
++   cfg.Ind_Momentum_Enabled = false; cfg.P_Momentum = 10; cfg.T_MomentumLevel = 100.0;
++   cfg.Ind_OsMA_Enabled = false; cfg.P_OsMA_Fast = 12; cfg.P_OsMA_Slow = 26; cfg.P_OsMA_Signal = 9;
++   cfg.Bias_HeikenAshi = false;
++   cfg.TM_ExitOnOsMAFlip = false; cfg.TM_ExitOnMARecross = false; cfg.TM_ExitMARole = 0;
++   cfg.SL_UseSlowMAClamp = false; cfg.SL_SlowMARole = 3;
++
+    // ================================================================
+    // Policy A: Universal Operational Filters (User Always Controls)
+    // 
+@@ -3319,6 +3344,182 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
+    } 
+    #endif // SEA_BUILD_TREND
+ 
++   // ================================================================
++   // PRESET_RH_1MS — Russ Horn 1-Minute Scalper
++   //   B: 50 EMA vs 100 EMA (close) position   I: Stochastic(5,3,3) 20/80 level-cross
++   //   SL: swing, clamped to the 100 EMA       TP: fixed 7-12 pips (10)
++   // ================================================================
++   if(preset == PRESET_RH_1MS)
++   {
++      cfg.BiasMode   = BIAS_2EMA;
++      cfg.AutoStrat  = STRAT_2EMA_POSITION;
++      cfg.MaType     = METHOD_EMA;
++      cfg.P_Ema1 = 50;  cfg.P_Ema2 = 100; cfg.P_Ema3 = 150; cfg.P_Ema4 = 200;
++      cfg.MaApplied1 = PRICE_CLOSE; cfg.MaApplied2 = PRICE_CLOSE;
++      cfg.BiasFastID = 0;   // EMA1 = 50
++      cfg.BiasSlowID = 1;   // EMA2 = 100
++      // Indicator votes: Stochastic 20/80 level-cross only
++      cfg.Ind_Sto_Enabled = true;  cfg.StoMode = STO_CROSS_LEVEL;
++      cfg.P_StoK = 5; cfg.P_StoD = 3; cfg.P_StoSlow = 3;
++      cfg.T_StoOB = 80.0; cfg.T_StoOS = 20.0;
++      cfg.Ind_Rsi_Enabled = false; cfg.Ind_Macd_Enabled = false; cfg.Ind_Bb_Enabled = false;
++      cfg.Ind_Adx_Enabled = false; cfg.Ind_Cci_Enabled = false; cfg.Ind_Mfi_Enabled = false;
++
++      cfg.PhaseDetectionEnabled = false;
++      cfg.EnableLayerDetection  = false;
++      cfg.BarClose_Enabled      = false;
++      cfg.Vote_EvalShift        = 1;            // votes read on closed bar
++      cfg.CloseOnReverse        = false;
++      cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
++      // Stop / target
++      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = 8;
++      cfg.SL_UseSlowMAClamp = true; cfg.SL_SlowMARole = 1;   // clamp to 100 EMA (role 1)
++      cfg.TPMode = TP_MODE_FIXED_PIPS; cfg.FixedTPPips = 10.0;
++      // Policy A: this preset touches no operator gates; restore the two it may seed.
++      cfg.MaxSpread   = op_MaxSpread;
++      cfg.RiskPercent = op_RiskPercent;
++      return;
++   }
++
++   // ================================================================
++   // PRESET_RH_STS — Russ Horn Sea Trading System
++   //   B: EMA3 vs SMA20 (mid-BB)  I: MACD(6,17,1) zero + RSI(14)>50 + BB(20,3) widening
++   //   NOTE: single MaType cannot mix EMA3 & SMA20; first pass uses SMA for both
++   //         (SMA3 vs SMA20). Per-slot MA method is a documented open item.
++   // ================================================================
++   if(preset == PRESET_RH_STS)
++   {
++      cfg.BiasMode   = BIAS_2EMA;
++      cfg.AutoStrat  = STRAT_2EMA_POSITION;
++      cfg.MaType     = METHOD_SMA;               // approximation (see NOTE)
++      cfg.P_Ema1 = 3;   cfg.P_Ema2 = 20;  cfg.P_Ema3 = 20; cfg.P_Ema4 = 20;
++      cfg.MaApplied1 = PRICE_CLOSE; cfg.MaApplied2 = PRICE_CLOSE;
++      cfg.BiasFastID = 0;   // MA1 = 3
++      cfg.BiasSlowID = 1;   // MA2 = 20 (middle Bollinger band)
++      cfg.Ind_Macd_Enabled = true; cfg.MacdVoteMode = MACD_ZERO_LINE;
++      cfg.P_MacdFast = 6; cfg.P_MacdSlow = 17; cfg.P_MacdSig = 1;
++      cfg.Ind_Rsi_Enabled = true; cfg.RsiMode = RSI_TREND_ABOVE_50; cfg.P_Rsi = 14;
++      cfg.Ind_Bb_Enabled = true; cfg.BbMode = BB_WIDENING; cfg.P_Bb = 20; cfg.P_BbDev = 3.0;
++      cfg.Ind_Sto_Enabled = false; cfg.Ind_Adx_Enabled = false;
++      cfg.PhaseDetectionEnabled = false;
++      cfg.EnableLayerDetection  = false;
++      cfg.BarClose_Enabled      = false;
++      cfg.Vote_EvalShift        = 1;            // votes read on closed bar
++      cfg.CloseOnReverse        = false;
++      cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
++      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = 10;
++      cfg.TPMode = TP_MODE_RR; cfg.RRRatio = 1.5;
++      // Policy A: this preset touches no operator gates; restore the two it may seed.
++      cfg.MaxSpread   = op_MaxSpread;
++      cfg.RiskPercent = op_RiskPercent;
++      return;
++   }
++
++   // ================================================================
++   // PRESET_RH_SS — Russ Horn Super System
++   //   B: EMA3 vs EMA5 (5 on OPEN) position   I: RSI(3) 80/20 breakout + Stochastic(5,5,5)
++   //   FIRST-PASS APPROXIMATION: the 34/89 trend filter and ADX +DI/-DI directional
++   //   voter are not yet wired (ADX-DI voter is a documented open item). EMA34/89 are
++   //   created (roles 2/3) so a later filter can use them.
++   // ================================================================
++   if(preset == PRESET_RH_SS)
++   {
++      cfg.BiasMode   = BIAS_2EMA;
++      cfg.AutoStrat  = STRAT_2EMA_POSITION;
++      cfg.MaType     = METHOD_EMA;
++      cfg.P_Ema1 = 3;   cfg.P_Ema2 = 5;   cfg.P_Ema3 = 34; cfg.P_Ema4 = 89;
++      cfg.MaApplied1 = PRICE_CLOSE; cfg.MaApplied2 = PRICE_OPEN;   // 5 EMA on OPEN
++      cfg.MaApplied3 = PRICE_CLOSE; cfg.MaApplied4 = PRICE_CLOSE;
++      cfg.BiasFastID = 0;   // EMA3
++      cfg.BiasSlowID = 1;   // EMA5 (open)
++      cfg.Ind_Rsi_Enabled = true; cfg.RsiMode = RSI_BREAKOUT_OBOS; cfg.P_Rsi = 3;
++      cfg.T_RsiOB = 80.0; cfg.T_RsiOS = 20.0;
++      cfg.Ind_Sto_Enabled = true; cfg.StoMode = STO_CROSS_SIGNAL;
++      cfg.P_StoK = 5; cfg.P_StoD = 5; cfg.P_StoSlow = 5;
++      cfg.Ind_Macd_Enabled = false; cfg.Ind_Bb_Enabled = false;
++      cfg.PhaseDetectionEnabled = false;
++      cfg.EnableLayerDetection  = false;
++      cfg.BarClose_Enabled      = false;
++      cfg.Vote_EvalShift        = 1;            // votes read on closed bar
++      cfg.CloseOnReverse        = false;
++      cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
++      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = 12;
++      cfg.TPMode = TP_MODE_RR; cfg.RRRatio = 2.0;
++      // Policy A: this preset touches no operator gates; restore the two it may seed.
++      cfg.MaxSpread   = op_MaxSpread;
++      cfg.RiskPercent = op_RiskPercent;
++      return;
++   }
++
++   // ================================================================
++   // PRESET_RH_GS — Russ Horn Golden Strategy
++   //   Channel: 55 SMMA on HIGH (role0) and 55 SMMA on LOW (role1)
++   //   I: Williams %R(55) -25/-75 + Stochastic(5,5,5)   Exit: close back across SMMA
++   //   NOTE: bias uses SMMA-High vs SMMA-Low position; a true price-vs-channel-edge
++   //         break bias is a documented refinement.
++   // ================================================================
++   if(preset == PRESET_RH_GS)
++   {
++      cfg.BiasMode   = BIAS_2EMA;
++      cfg.AutoStrat  = STRAT_2EMA_POSITION;
++      cfg.MaType     = METHOD_SMMA;
++      cfg.P_Ema1 = 55;  cfg.P_Ema2 = 55;  cfg.P_Ema3 = 55; cfg.P_Ema4 = 55;
++      cfg.MaApplied1 = PRICE_HIGH; cfg.MaApplied2 = PRICE_LOW;
++      cfg.BiasFastID = 0;   // SMMA(High)
++      cfg.BiasSlowID = 1;   // SMMA(Low)
++      cfg.Ind_Wpr_Enabled = true; cfg.P_Wpr = 55; cfg.T_WprUpper = -25.0; cfg.T_WprLower = -75.0;
++      cfg.Ind_Sto_Enabled = true; cfg.StoMode = STO_CROSS_SIGNAL;
++      cfg.P_StoK = 5; cfg.P_StoD = 5; cfg.P_StoSlow = 5;
++      cfg.Ind_Rsi_Enabled = false; cfg.Ind_Macd_Enabled = false; cfg.Ind_Bb_Enabled = false;
++      cfg.PhaseDetectionEnabled = false;
++      cfg.EnableLayerDetection  = false;
++      cfg.BarClose_Enabled      = false;
++      cfg.Vote_EvalShift        = 1;            // votes read on closed bar
++      cfg.CloseOnReverse        = false;
++      cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
++      cfg.TM_ExitOnMARecross = true; cfg.TM_ExitMARole = 0;   // exit on SMMA(High) re-cross
++      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = 12;
++      cfg.TPMode = TP_MODE_RR; cfg.RRRatio = 2.0;
++      // Policy A: this preset touches no operator gates; restore the two it may seed.
++      cfg.MaxSpread   = op_MaxSpread;
++      cfg.RiskPercent = op_RiskPercent;
++      return;
++   }
++
++   // ================================================================
++   // PRESET_RH_SM — Russ Horn Secret Method
++   //   B: Heiken-Ashi direction + price vs 14 SMA   I: OsMA(12,26,9) zero + Momentum(10) 100 + RSI(5)>50
++   //   Exit: OsMA zero-flip (early)   SL: swing   TP: 2R
++   // ================================================================
++   if(preset == PRESET_RH_SM)
++   {
++      cfg.BiasMode   = BIAS_2EMA;
++      cfg.AutoStrat  = STRAT_2EMA_POSITION;
++      cfg.MaType     = METHOD_SMA;
++      cfg.P_Ema1 = 14;  cfg.P_Ema2 = 14;  cfg.P_Ema3 = 14; cfg.P_Ema4 = 14;   // price vs SMA14
++      cfg.MaApplied1 = PRICE_CLOSE; cfg.MaApplied2 = PRICE_CLOSE;
++      cfg.BiasFastID = 0; cfg.BiasSlowID = 1;
++      cfg.Bias_HeikenAshi = true;   // enable Heiken-Ashi direction voter
++      cfg.Ind_OsMA_Enabled = true; cfg.P_OsMA_Fast = 12; cfg.P_OsMA_Slow = 26; cfg.P_OsMA_Signal = 9;
++      cfg.Ind_Momentum_Enabled = true; cfg.P_Momentum = 10; cfg.T_MomentumLevel = 100.0;
++      cfg.Ind_Rsi_Enabled = true; cfg.RsiMode = RSI_TREND_ABOVE_50; cfg.P_Rsi = 5;
++      cfg.Ind_Sto_Enabled = false; cfg.Ind_Bb_Enabled = false; cfg.Ind_Macd_Enabled = false;
++      cfg.PhaseDetectionEnabled = false;
++      cfg.EnableLayerDetection  = false;
++      cfg.BarClose_Enabled      = false;
++      cfg.Vote_EvalShift        = 1;            // votes read on closed bar
++      cfg.CloseOnReverse        = false;
++      cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
++      cfg.TM_ExitOnOsMAFlip = true;
++      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = 10;
++      cfg.TPMode = TP_MODE_RR; cfg.RRRatio = 2.0;
++      // Policy A: this preset touches no operator gates; restore the two it may seed.
++      cfg.MaxSpread   = op_MaxSpread;
++      cfg.RiskPercent = op_RiskPercent;
++      return;
++   }
++
++
+ }
+ 
+ //+------------------------------------------------------------------+
+diff --git a/SEA_SignalEngine.mqh b/SEA_SignalEngine.mqh
+index c46b95e..a802c25 100644
+--- a/SEA_SignalEngine.mqh
++++ b/SEA_SignalEngine.mqh
+@@ -249,6 +249,10 @@ struct SRejectionStats {
+    int passed_adx,     rejected_adx;
+    int passed_mfi,     rejected_mfi;
+    int passed_sto,     rejected_sto;
++   int passed_wpr,      rejected_wpr;      // RH Williams %R
++   int passed_momentum, rejected_momentum; // RH Momentum
++   int passed_osma,     rejected_osma;     // RH OsMA
++   int passed_ha,       rejected_ha;       // RH Heiken-Ashi direction
+    int passed_bb,      rejected_bb;
+    int passed_p123,    rejected_p123;
+    int passed_ross,    rejected_ross;
+@@ -326,6 +330,7 @@ private:
+    datetime m_mema_oldest[4];   // oldest observed bar time at build (D1: backfill re-seed)
+ 
+    int h_macd, h_rsi, h_cci, h_sto;      // Oscillators
++   int h_wpr, h_momentum, h_osma;        // Russ Horn voters: Williams %R, Momentum, OsMA
+    int h_atr, h_bb, h_psar, h_fractals;  // Volatility & Trend
+    int h_adx, h_mfi;                     // Strength & Volume
+    int h_ci, h_vrc;                      // Choppiness & Volatility Regime
+@@ -1052,6 +1057,27 @@ private:
+    // Logs one journal line per evaluation pass that involved a fallback,
+    // for forensic visibility into MT5 reliability over time.
+    //+------------------------------------------------------------------+
++   //| RH: EMaMethod -> ENUM_MA_METHOD map (adds SMMA/LWMA)              |
++   ENUM_MA_METHOD MMethodMap() const {
++      switch(m_settings.MaType){
++         case METHOD_SMA:  return MODE_SMA;
++         case METHOD_SMMA: return MODE_SMMA;
++         case METHOD_LWMA: return MODE_LWMA;
++         default:          return MODE_EMA;
++      }
++   }
++   //| RH: per-slot applied price (default PRICE_CLOSE)                 |
++   ENUM_APPLIED_PRICE MAppliedForSlot(const int slot1) const {
++      int a = PRICE_CLOSE;
++      switch(slot1){
++         case 1: a = m_settings.MaApplied1; break;
++         case 2: a = m_settings.MaApplied2; break;
++         case 3: a = m_settings.MaApplied3; break;
++         default: a = m_settings.MaApplied4; break;
++      }
++      if(a <= 0) a = PRICE_CLOSE;
++      return (ENUM_APPLIED_PRICE)a;
++   }
+    //| ReadEmaSafe — iMA-then-manual chain for one slot at one shift     |
+    //+------------------------------------------------------------------+
+    // Core read primitive. Returns the EMA value for the given slot at the
+@@ -1092,9 +1118,9 @@ private:
+       // splitting the ribbon across two read paths.
+       if(handle == INVALID_HANDLE)
+       {
+-         const ENUM_MA_METHOD mm = (m_settings.MaType == METHOD_SMA) ? MODE_SMA : MODE_EMA;
++         const ENUM_MA_METHOD mm = MMethodMap();
+          const int nh = iMA(m_symbol, PERIOD_CURRENT, period,
+-                            m_settings.ma_h_shift, mm, PRICE_CLOSE);
++                            m_settings.ma_h_shift, mm, MAppliedForSlot(slot1based));
+          if(nh != INVALID_HANDLE)
+          {
+             switch(slot1based)
+@@ -4402,6 +4428,10 @@ private:
+       else if(m_settings.RsiMode == RSI_TREND_ABOVE_50) {
+          result = (bias==1) ? (r > 50) : (r < 50);
+       }
++      else if(m_settings.RsiMode == RSI_BREAKOUT_OBOS) {
++         // RH_SS momentum burst: long RSI > OB (80), short RSI < OS (20)
++         result = (bias==1) ? (r > m_settings.T_RsiOB) : (r < m_settings.T_RsiOS);
++      }
+       else {
+          // Cross Level Mode
+          result = (bias==1) ? (r > m_settings.T_RsiOS) : (r < m_settings.T_RsiOB);
+@@ -4434,6 +4464,9 @@ private:
+       
+       if(m_settings.StoMode == STO_CROSS_SIGNAL) 
+          result = (bias==1) ? (k > d) : (k < d);
++      else if(m_settings.StoMode == STO_CROSS_LEVEL)
++         // RH_1MS level cross: long %K>OS (up out of 20), short %K<OB (down out of 80)
++         result = (bias==1) ? (k > m_settings.T_StoOS) : (k < m_settings.T_StoOB);
+       else
+          // Zone Filter: Buy if NOT overbought
+          result = (bias==1) ? (k < m_settings.T_StoOB) : (k > m_settings.T_StoOS);
+@@ -4453,6 +4486,69 @@ private:
+    }
+    
+    
++   //+------------------------------------------------------------------+
++   // Check_WPR: Williams %R (RH_GS) — long %R>upper(-25), short %R<lower(-75)
++   //+------------------------------------------------------------------+
++   bool Check_WPR(int bias, int shift) {
++      if(!m_settings.Ind_Wpr_Enabled) return true;
++      double w = 0.0;
++      if(!IndReadOK(h_wpr, shift, 0, w)) return false;   // not ready -> reject
++      bool result = (bias==1) ? (w > m_settings.T_WprUpper) : (w < m_settings.T_WprLower);
++      if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_WPR] %.2f -> %s", w, result?"PASS":"FAIL"));
++      return result;
++   }
++   //+------------------------------------------------------------------+
++   // Check_Momentum: Momentum(n) vs centre level (RH_SM: 100)
++   //+------------------------------------------------------------------+
++   bool Check_Momentum(int bias, int shift) {
++      if(!m_settings.Ind_Momentum_Enabled) return true;
++      double m = 0.0;
++      if(!IndReadOK(h_momentum, shift, 0, m)) return false;
++      bool result = (bias==1) ? (m > m_settings.T_MomentumLevel) : (m < m_settings.T_MomentumLevel);
++      if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_MOM] %.4f -> %s", m, result?"PASS":"FAIL"));
++      return result;
++   }
++   //+------------------------------------------------------------------+
++   // Check_OsMA: OsMA (MACD histogram) zero-line (RH_SM)
++   //+------------------------------------------------------------------+
++   bool Check_OsMA(int bias, int shift) {
++      if(!m_settings.Ind_OsMA_Enabled) return true;
++      double o = 0.0;
++      if(!IndReadOK(h_osma, shift, 0, o)) return false;
++      bool result = (bias==1) ? (o > 0.0) : (o < 0.0);
++      if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_OSMA] %.6f -> %s", o, result?"PASS":"FAIL"));
++      return result;
++   }
++   //+------------------------------------------------------------------+
++   // Heiken-Ashi candle direction (RH_SM). Bounded-recursion seed.
++   //+------------------------------------------------------------------+
++   bool HA_IsBull(int shift) {
++      int total = Bars(m_symbol, PERIOD_CURRENT);
++      int seed  = shift + 200;
++      if(seed > total - 1) seed = total - 1;
++      if(seed < shift) return (iClose(m_symbol,PERIOD_CURRENT,shift) >= iOpen(m_symbol,PERIOD_CURRENT,shift));
++      double haOpen  = (iOpen(m_symbol,PERIOD_CURRENT,seed) + iClose(m_symbol,PERIOD_CURRENT,seed)) / 2.0;
++      double haClose = (iOpen(m_symbol,PERIOD_CURRENT,seed) + iHigh(m_symbol,PERIOD_CURRENT,seed) +
++                        iLow(m_symbol,PERIOD_CURRENT,seed)  + iClose(m_symbol,PERIOD_CURRENT,seed)) / 4.0;
++      for(int i = seed - 1; i >= shift; i--) {
++         double o=iOpen(m_symbol,PERIOD_CURRENT,i), h=iHigh(m_symbol,PERIOD_CURRENT,i),
++                l=iLow(m_symbol,PERIOD_CURRENT,i),  c=iClose(m_symbol,PERIOD_CURRENT,i);
++         double prevOpen=haOpen, prevClose=haClose;
++         haOpen  = (prevOpen + prevClose) / 2.0;
++         haClose = (o + h + l + c) / 4.0;
++      }
++      return (haClose > haOpen);
++   }
++   //+------------------------------------------------------------------+
++   // Check_HA: Heiken-Ashi bullish for long / bearish for short (RH_SM)
++   //+------------------------------------------------------------------+
++   bool Check_HA(int bias, int shift) {
++      if(!m_settings.Bias_HeikenAshi) return true;
++      bool bull = HA_IsBull(shift);
++      bool result = (bias==1) ? bull : (!bull);
++      if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_HA] %s -> %s", bull?"BULL":"BEAR", result?"PASS":"FAIL"));
++      return result;
++   }
+    //+------------------------------------------------------------------+
+    // Check_P123: Pattern 1-2-3 (Breakout)
+    //+------------------------------------------------------------------+
+@@ -6255,6 +6351,7 @@ public:
+    {
+       // Defensive init of indicator handles (prevents stale handles across re-inits)
+       h_ema1 = h_ema2 = h_ema3 = h_ema4 = INVALID_HANDLE;
++      h_wpr = h_momentum = h_osma = INVALID_HANDLE;
+       h_macd = h_rsi = h_cci = h_sto = INVALID_HANDLE;
+       h_atr = h_bb = h_psar = h_fractals = INVALID_HANDLE;
+       h_adx = h_mfi = INVALID_HANDLE;
+@@ -7701,14 +7798,14 @@ public:
+       m_telemetry.i_suppressed    = false;   // A14/A20 2026-07
+       ZeroMemory(m_stats);
+ 
+-      ENUM_MA_METHOD method = (m_settings.MaType == METHOD_SMA) ? MODE_SMA : MODE_EMA;
++      ENUM_MA_METHOD method = MMethodMap();
+       int h_shift = m_settings.ma_h_shift;
+       
+       // A. Create Standard Indicators (Using Dynamic Method and Horizontal Shift)
+-      h_ema1 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema1, h_shift, method, PRICE_CLOSE);
+-      h_ema2 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema2, h_shift, method, PRICE_CLOSE);
+-      h_ema3 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema3, h_shift, method, PRICE_CLOSE);
+-      h_ema4 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema4, h_shift, method, PRICE_CLOSE);
++      h_ema1 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema1, h_shift, method, MAppliedForSlot(1));
++      h_ema2 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema2, h_shift, method, MAppliedForSlot(2));
++      h_ema3 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema3, h_shift, method, MAppliedForSlot(3));
++      h_ema4 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema4, h_shift, method, MAppliedForSlot(4));
+ 
+       // --- NEW: ATR, CI, and VRC Indicator Initialization ---
+       bool need_atr = m_settings.Ind_Atr_Enabled;
+@@ -7741,6 +7838,10 @@ public:
+       h_adx  = (m_settings.Ind_Adx_Enabled  ? iADX(m_symbol, PERIOD_CURRENT, m_settings.P_Adx) : INVALID_HANDLE);
+       h_mfi  = (m_settings.Ind_Mfi_Enabled  ? iMFI(m_symbol, PERIOD_CURRENT, m_settings.P_Mfi, VOLUME_TICK) : INVALID_HANDLE);
+       h_sto  = (m_settings.Ind_Sto_Enabled  ? iStochastic(m_symbol, PERIOD_CURRENT, m_settings.P_StoK, m_settings.P_StoD, m_settings.P_StoSlow, MODE_SMA, STO_LOWHIGH) : INVALID_HANDLE);
++      // Russ Horn additional voter handles
++      h_wpr      = (m_settings.Ind_Wpr_Enabled      ? iWPR(m_symbol, PERIOD_CURRENT, m_settings.P_Wpr) : INVALID_HANDLE);
++      h_momentum = (m_settings.Ind_Momentum_Enabled ? iMomentum(m_symbol, PERIOD_CURRENT, m_settings.P_Momentum, PRICE_CLOSE) : INVALID_HANDLE);
++      h_osma     = (m_settings.Ind_OsMA_Enabled     ? iOsMA(m_symbol, PERIOD_CURRENT, m_settings.P_OsMA_Fast, m_settings.P_OsMA_Slow, m_settings.P_OsMA_Signal, PRICE_CLOSE) : INVALID_HANDLE);
+       h_bb   = (m_settings.Ind_Bb_Enabled   ? iBands(m_symbol, PERIOD_CURRENT, m_settings.P_Bb, 0, m_settings.P_BbDev, PRICE_CLOSE) : INVALID_HANDLE);
+       
+       bool need_psar = (m_settings.Ind_Psar_Enabled || m_settings.TrailMode == TRAIL_PSAR);
+@@ -7836,6 +7937,9 @@ public:
+    void Release()
+    {
+       // Release only valid handles and reset to INVALID_HANDLE
++      if(h_wpr != INVALID_HANDLE)      { IndicatorRelease(h_wpr);      h_wpr = INVALID_HANDLE; }
++      if(h_momentum != INVALID_HANDLE) { IndicatorRelease(h_momentum); h_momentum = INVALID_HANDLE; }
++      if(h_osma != INVALID_HANDLE)     { IndicatorRelease(h_osma);     h_osma = INVALID_HANDLE; }
+       if(h_ema1 != INVALID_HANDLE) { IndicatorRelease(h_ema1); h_ema1 = INVALID_HANDLE; }
+       if(h_ema2 != INVALID_HANDLE) { IndicatorRelease(h_ema2); h_ema2 = INVALID_HANDLE; }
+       if(h_ema3 != INVALID_HANDLE) { IndicatorRelease(h_ema3); h_ema3 = INVALID_HANDLE; }
+@@ -8965,6 +9069,10 @@ public:
+       CAST_VOTE_STAT(m_settings.Ind_Cci_Enabled,    Check_CCI(bias, v_shift),  m_stats.rejected_cci, m_stats.passed_cci)
+       CAST_VOTE_STAT(m_settings.Ind_Mfi_Enabled,    Check_MFI(bias, v_shift),  m_stats.rejected_mfi, m_stats.passed_mfi)
+       CAST_VOTE_STAT(m_settings.Ind_Sto_Enabled,    Check_Sto(bias, v_shift),  m_stats.rejected_sto, m_stats.passed_sto)
++      CAST_VOTE_STAT(m_settings.Ind_Wpr_Enabled,      Check_WPR(bias, v_shift),      m_stats.rejected_wpr,      m_stats.passed_wpr)
++      CAST_VOTE_STAT(m_settings.Ind_Momentum_Enabled, Check_Momentum(bias, v_shift), m_stats.rejected_momentum, m_stats.passed_momentum)
++      CAST_VOTE_STAT(m_settings.Ind_OsMA_Enabled,     Check_OsMA(bias, v_shift),     m_stats.rejected_osma,     m_stats.passed_osma)
++      CAST_VOTE_STAT(m_settings.Bias_HeikenAshi,      Check_HA(bias, v_shift),       m_stats.rejected_ha,       m_stats.passed_ha)
+       CAST_VOTE_STAT(m_settings.Ind_Bb_Enabled,     Check_BB(bias, v_shift),   m_stats.rejected_bb, m_stats.passed_bb)
+       CAST_VOTE_STAT(m_settings.Ind_Psar_Enabled,   (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)), m_stats.rejected_psar, m_stats.passed_psar)
+       CAST_VOTE_STAT(m_settings.Ind_P123_Enabled,   Check_P123(bias, v_shift), m_stats.rejected_p123, m_stats.passed_p123)

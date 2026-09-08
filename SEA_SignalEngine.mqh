@@ -249,6 +249,10 @@ struct SRejectionStats {
    int passed_adx,     rejected_adx;
    int passed_mfi,     rejected_mfi;
    int passed_sto,     rejected_sto;
+   int passed_wpr,      rejected_wpr;      // RH Williams %R
+   int passed_momentum, rejected_momentum; // RH Momentum
+   int passed_osma,     rejected_osma;     // RH OsMA
+   int passed_ha,       rejected_ha;       // RH Heiken-Ashi direction
    int passed_bb,      rejected_bb;
    int passed_p123,    rejected_p123;
    int passed_ross,    rejected_ross;
@@ -326,6 +330,7 @@ private:
    datetime m_mema_oldest[4];   // oldest observed bar time at build (D1: backfill re-seed)
 
    int h_macd, h_rsi, h_cci, h_sto;      // Oscillators
+   int h_wpr, h_momentum, h_osma;        // Russ Horn voters: Williams %R, Momentum, OsMA
    int h_atr, h_bb, h_psar, h_fractals;  // Volatility & Trend
    int h_adx, h_mfi;                     // Strength & Volume
    int h_ci, h_vrc;                      // Choppiness & Volatility Regime
@@ -1052,6 +1057,27 @@ private:
    // Logs one journal line per evaluation pass that involved a fallback,
    // for forensic visibility into MT5 reliability over time.
    //+------------------------------------------------------------------+
+   //| RH: EMaMethod -> ENUM_MA_METHOD map (adds SMMA/LWMA)              |
+   ENUM_MA_METHOD MMethodMap() const {
+      switch(m_settings.MaType){
+         case METHOD_SMA:  return MODE_SMA;
+         case METHOD_SMMA: return MODE_SMMA;
+         case METHOD_LWMA: return MODE_LWMA;
+         default:          return MODE_EMA;
+      }
+   }
+   //| RH: per-slot applied price (default PRICE_CLOSE)                 |
+   ENUM_APPLIED_PRICE MAppliedForSlot(const int slot1) const {
+      int a = PRICE_CLOSE;
+      switch(slot1){
+         case 1: a = m_settings.MaApplied1; break;
+         case 2: a = m_settings.MaApplied2; break;
+         case 3: a = m_settings.MaApplied3; break;
+         default: a = m_settings.MaApplied4; break;
+      }
+      if(a <= 0) a = PRICE_CLOSE;
+      return (ENUM_APPLIED_PRICE)a;
+   }
    //| ReadEmaSafe — iMA-then-manual chain for one slot at one shift     |
    //+------------------------------------------------------------------+
    // Core read primitive. Returns the EMA value for the given slot at the
@@ -1092,9 +1118,9 @@ private:
       // splitting the ribbon across two read paths.
       if(handle == INVALID_HANDLE)
       {
-         const ENUM_MA_METHOD mm = (m_settings.MaType == METHOD_SMA) ? MODE_SMA : MODE_EMA;
+         const ENUM_MA_METHOD mm = MMethodMap();
          const int nh = iMA(m_symbol, PERIOD_CURRENT, period,
-                            m_settings.ma_h_shift, mm, PRICE_CLOSE);
+                            m_settings.ma_h_shift, mm, MAppliedForSlot(slot1based));
          if(nh != INVALID_HANDLE)
          {
             switch(slot1based)
@@ -4402,6 +4428,10 @@ private:
       else if(m_settings.RsiMode == RSI_TREND_ABOVE_50) {
          result = (bias==1) ? (r > 50) : (r < 50);
       }
+      else if(m_settings.RsiMode == RSI_BREAKOUT_OBOS) {
+         // RH_SS momentum burst: long RSI > OB (80), short RSI < OS (20)
+         result = (bias==1) ? (r > m_settings.T_RsiOB) : (r < m_settings.T_RsiOS);
+      }
       else {
          // Cross Level Mode
          result = (bias==1) ? (r > m_settings.T_RsiOS) : (r < m_settings.T_RsiOB);
@@ -4434,6 +4464,9 @@ private:
       
       if(m_settings.StoMode == STO_CROSS_SIGNAL) 
          result = (bias==1) ? (k > d) : (k < d);
+      else if(m_settings.StoMode == STO_CROSS_LEVEL)
+         // RH_1MS level cross: long %K>OS (up out of 20), short %K<OB (down out of 80)
+         result = (bias==1) ? (k > m_settings.T_StoOS) : (k < m_settings.T_StoOB);
       else
          // Zone Filter: Buy if NOT overbought
          result = (bias==1) ? (k < m_settings.T_StoOB) : (k > m_settings.T_StoOS);
@@ -4453,6 +4486,69 @@ private:
    }
    
    
+   //+------------------------------------------------------------------+
+   // Check_WPR: Williams %R (RH_GS) — long %R>upper(-25), short %R<lower(-75)
+   //+------------------------------------------------------------------+
+   bool Check_WPR(int bias, int shift) {
+      if(!m_settings.Ind_Wpr_Enabled) return true;
+      double w = 0.0;
+      if(!IndReadOK(h_wpr, shift, 0, w)) return false;   // not ready -> reject
+      bool result = (bias==1) ? (w > m_settings.T_WprUpper) : (w < m_settings.T_WprLower);
+      if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_WPR] %.2f -> %s", w, result?"PASS":"FAIL"));
+      return result;
+   }
+   //+------------------------------------------------------------------+
+   // Check_Momentum: Momentum(n) vs centre level (RH_SM: 100)
+   //+------------------------------------------------------------------+
+   bool Check_Momentum(int bias, int shift) {
+      if(!m_settings.Ind_Momentum_Enabled) return true;
+      double m = 0.0;
+      if(!IndReadOK(h_momentum, shift, 0, m)) return false;
+      bool result = (bias==1) ? (m > m_settings.T_MomentumLevel) : (m < m_settings.T_MomentumLevel);
+      if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_MOM] %.4f -> %s", m, result?"PASS":"FAIL"));
+      return result;
+   }
+   //+------------------------------------------------------------------+
+   // Check_OsMA: OsMA (MACD histogram) zero-line (RH_SM)
+   //+------------------------------------------------------------------+
+   bool Check_OsMA(int bias, int shift) {
+      if(!m_settings.Ind_OsMA_Enabled) return true;
+      double o = 0.0;
+      if(!IndReadOK(h_osma, shift, 0, o)) return false;
+      bool result = (bias==1) ? (o > 0.0) : (o < 0.0);
+      if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_OSMA] %.6f -> %s", o, result?"PASS":"FAIL"));
+      return result;
+   }
+   //+------------------------------------------------------------------+
+   // Heiken-Ashi candle direction (RH_SM). Bounded-recursion seed.
+   //+------------------------------------------------------------------+
+   bool HA_IsBull(int shift) {
+      int total = Bars(m_symbol, PERIOD_CURRENT);
+      int seed  = shift + 200;
+      if(seed > total - 1) seed = total - 1;
+      if(seed < shift) return (iClose(m_symbol,PERIOD_CURRENT,shift) >= iOpen(m_symbol,PERIOD_CURRENT,shift));
+      double haOpen  = (iOpen(m_symbol,PERIOD_CURRENT,seed) + iClose(m_symbol,PERIOD_CURRENT,seed)) / 2.0;
+      double haClose = (iOpen(m_symbol,PERIOD_CURRENT,seed) + iHigh(m_symbol,PERIOD_CURRENT,seed) +
+                        iLow(m_symbol,PERIOD_CURRENT,seed)  + iClose(m_symbol,PERIOD_CURRENT,seed)) / 4.0;
+      for(int i = seed - 1; i >= shift; i--) {
+         double o=iOpen(m_symbol,PERIOD_CURRENT,i), h=iHigh(m_symbol,PERIOD_CURRENT,i),
+                l=iLow(m_symbol,PERIOD_CURRENT,i),  c=iClose(m_symbol,PERIOD_CURRENT,i);
+         double prevOpen=haOpen, prevClose=haClose;
+         haOpen  = (prevOpen + prevClose) / 2.0;
+         haClose = (o + h + l + c) / 4.0;
+      }
+      return (haClose > haOpen);
+   }
+   //+------------------------------------------------------------------+
+   // Check_HA: Heiken-Ashi bullish for long / bearish for short (RH_SM)
+   //+------------------------------------------------------------------+
+   bool Check_HA(int bias, int shift) {
+      if(!m_settings.Bias_HeikenAshi) return true;
+      bool bull = HA_IsBull(shift);
+      bool result = (bias==1) ? bull : (!bull);
+      if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_HA] %s -> %s", bull?"BULL":"BEAR", result?"PASS":"FAIL"));
+      return result;
+   }
    //+------------------------------------------------------------------+
    // Check_P123: Pattern 1-2-3 (Breakout)
    //+------------------------------------------------------------------+
@@ -6255,6 +6351,7 @@ public:
    {
       // Defensive init of indicator handles (prevents stale handles across re-inits)
       h_ema1 = h_ema2 = h_ema3 = h_ema4 = INVALID_HANDLE;
+      h_wpr = h_momentum = h_osma = INVALID_HANDLE;
       h_macd = h_rsi = h_cci = h_sto = INVALID_HANDLE;
       h_atr = h_bb = h_psar = h_fractals = INVALID_HANDLE;
       h_adx = h_mfi = INVALID_HANDLE;
@@ -7701,14 +7798,14 @@ public:
       m_telemetry.i_suppressed    = false;   // A14/A20 2026-07
       ZeroMemory(m_stats);
 
-      ENUM_MA_METHOD method = (m_settings.MaType == METHOD_SMA) ? MODE_SMA : MODE_EMA;
+      ENUM_MA_METHOD method = MMethodMap();
       int h_shift = m_settings.ma_h_shift;
       
       // A. Create Standard Indicators (Using Dynamic Method and Horizontal Shift)
-      h_ema1 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema1, h_shift, method, PRICE_CLOSE);
-      h_ema2 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema2, h_shift, method, PRICE_CLOSE);
-      h_ema3 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema3, h_shift, method, PRICE_CLOSE);
-      h_ema4 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema4, h_shift, method, PRICE_CLOSE);
+      h_ema1 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema1, h_shift, method, MAppliedForSlot(1));
+      h_ema2 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema2, h_shift, method, MAppliedForSlot(2));
+      h_ema3 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema3, h_shift, method, MAppliedForSlot(3));
+      h_ema4 = iMA(m_symbol, PERIOD_CURRENT, m_settings.P_Ema4, h_shift, method, MAppliedForSlot(4));
 
       // --- NEW: ATR, CI, and VRC Indicator Initialization ---
       bool need_atr = m_settings.Ind_Atr_Enabled;
@@ -7741,6 +7838,10 @@ public:
       h_adx  = (m_settings.Ind_Adx_Enabled  ? iADX(m_symbol, PERIOD_CURRENT, m_settings.P_Adx) : INVALID_HANDLE);
       h_mfi  = (m_settings.Ind_Mfi_Enabled  ? iMFI(m_symbol, PERIOD_CURRENT, m_settings.P_Mfi, VOLUME_TICK) : INVALID_HANDLE);
       h_sto  = (m_settings.Ind_Sto_Enabled  ? iStochastic(m_symbol, PERIOD_CURRENT, m_settings.P_StoK, m_settings.P_StoD, m_settings.P_StoSlow, MODE_SMA, STO_LOWHIGH) : INVALID_HANDLE);
+      // Russ Horn additional voter handles
+      h_wpr      = (m_settings.Ind_Wpr_Enabled      ? iWPR(m_symbol, PERIOD_CURRENT, m_settings.P_Wpr) : INVALID_HANDLE);
+      h_momentum = (m_settings.Ind_Momentum_Enabled ? iMomentum(m_symbol, PERIOD_CURRENT, m_settings.P_Momentum, PRICE_CLOSE) : INVALID_HANDLE);
+      h_osma     = (m_settings.Ind_OsMA_Enabled     ? iOsMA(m_symbol, PERIOD_CURRENT, m_settings.P_OsMA_Fast, m_settings.P_OsMA_Slow, m_settings.P_OsMA_Signal, PRICE_CLOSE) : INVALID_HANDLE);
       h_bb   = (m_settings.Ind_Bb_Enabled   ? iBands(m_symbol, PERIOD_CURRENT, m_settings.P_Bb, 0, m_settings.P_BbDev, PRICE_CLOSE) : INVALID_HANDLE);
       
       bool need_psar = (m_settings.Ind_Psar_Enabled || m_settings.TrailMode == TRAIL_PSAR);
@@ -7836,6 +7937,9 @@ public:
    void Release()
    {
       // Release only valid handles and reset to INVALID_HANDLE
+      if(h_wpr != INVALID_HANDLE)      { IndicatorRelease(h_wpr);      h_wpr = INVALID_HANDLE; }
+      if(h_momentum != INVALID_HANDLE) { IndicatorRelease(h_momentum); h_momentum = INVALID_HANDLE; }
+      if(h_osma != INVALID_HANDLE)     { IndicatorRelease(h_osma);     h_osma = INVALID_HANDLE; }
       if(h_ema1 != INVALID_HANDLE) { IndicatorRelease(h_ema1); h_ema1 = INVALID_HANDLE; }
       if(h_ema2 != INVALID_HANDLE) { IndicatorRelease(h_ema2); h_ema2 = INVALID_HANDLE; }
       if(h_ema3 != INVALID_HANDLE) { IndicatorRelease(h_ema3); h_ema3 = INVALID_HANDLE; }
@@ -8965,6 +9069,10 @@ public:
       CAST_VOTE_STAT(m_settings.Ind_Cci_Enabled,    Check_CCI(bias, v_shift),  m_stats.rejected_cci, m_stats.passed_cci)
       CAST_VOTE_STAT(m_settings.Ind_Mfi_Enabled,    Check_MFI(bias, v_shift),  m_stats.rejected_mfi, m_stats.passed_mfi)
       CAST_VOTE_STAT(m_settings.Ind_Sto_Enabled,    Check_Sto(bias, v_shift),  m_stats.rejected_sto, m_stats.passed_sto)
+      CAST_VOTE_STAT(m_settings.Ind_Wpr_Enabled,      Check_WPR(bias, v_shift),      m_stats.rejected_wpr,      m_stats.passed_wpr)
+      CAST_VOTE_STAT(m_settings.Ind_Momentum_Enabled, Check_Momentum(bias, v_shift), m_stats.rejected_momentum, m_stats.passed_momentum)
+      CAST_VOTE_STAT(m_settings.Ind_OsMA_Enabled,     Check_OsMA(bias, v_shift),     m_stats.rejected_osma,     m_stats.passed_osma)
+      CAST_VOTE_STAT(m_settings.Bias_HeikenAshi,      Check_HA(bias, v_shift),       m_stats.rejected_ha,       m_stats.passed_ha)
       CAST_VOTE_STAT(m_settings.Ind_Bb_Enabled,     Check_BB(bias, v_shift),   m_stats.rejected_bb, m_stats.passed_bb)
       CAST_VOTE_STAT(m_settings.Ind_Psar_Enabled,   (m_settings.Vote_AllowPsarFlip ? Check_PSAR_WithFlip(bias, v_shift) : Check_PSAR(bias, v_shift)), m_stats.rejected_psar, m_stats.passed_psar)
       CAST_VOTE_STAT(m_settings.Ind_P123_Enabled,   Check_P123(bias, v_shift), m_stats.rejected_p123, m_stats.passed_p123)

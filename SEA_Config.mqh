@@ -62,7 +62,12 @@ enum EStrategyPreset
    PRESET_XEMA,            // PRESET_XEMA: EMA-cross trend follower (flexible periods + HTF confirmation)
    PRESET_TURTLE,          // PRESET_TURTLE: Donchian breakout, no trend filter (pure Turtle S1/S2)
    PRESET_TREND,           // PRESET_TREND: Donchian breakout + EMA(20/50/200) + HTF filter (Turtle + 3 EMAs)
-   PRESET_RH_REBELLION     // PRESET_RH_REBELLION: Russ Horn Forex Rebellion 4-filter confluence (5EMA-shift + 4/5 cross + QQE + Donchian)
+   PRESET_RH_REBELLION,    // PRESET_RH_REBELLION: Russ Horn Forex Rebellion 4-filter confluence (5EMA-shift + 4/5 cross + QQE + Donchian)
+   PRESET_RH_1MS,          // PRESET_RH_1MS: Russ Horn 1-Minute Scalper (50/100 EMA stack + retrace + Stochastic 20/80 level-cross)
+   PRESET_RH_STS,          // PRESET_RH_STS: Russ Horn Sea Trading System (EMA3 vs SMA20 + MACD zero + RSI50 + BB widening)
+   PRESET_RH_SS,           // PRESET_RH_SS: Russ Horn Super System (EMA34/89 + EMA3x5(open) + RSI3 80/20 + Stoch + ADX +DI/-DI)
+   PRESET_RH_GS,           // PRESET_RH_GS: Russ Horn Golden Strategy (55 SMMA High/Low channel + Williams %R 55 + Stochastic 5/5/5)
+   PRESET_RH_SM            // PRESET_RH_SM: Russ Horn Secret Method (Heiken Ashi vs 14 SMA + OsMA zero + Momentum(10) 100 + RSI5 50)
 };
 enum ETIProfile
 {
@@ -80,7 +85,9 @@ enum EEmaStrategy
 enum EMaMethod
 {
    METHOD_EMA,             // METHOD_EMA: exponential
-   METHOD_SMA              // METHOD_SMA: simple
+   METHOD_SMA,             // METHOD_SMA: simple
+   METHOD_SMMA,            // METHOD_SMMA: smoothed (Wilder/RMA) - RH_GS
+   METHOD_LWMA             // METHOD_LWMA: linear weighted
 };
 enum EBiasMode
 {
@@ -225,12 +232,14 @@ enum ERsiMode
 {
    RSI_FILTER_EXTREME,     // RSI_FILTER: Extreme zones only (>70 overbought, <30 oversold)
    RSI_TREND_ABOVE_50,     // RSI_TREND: Trend following (>50 bullish, <50 bearish)
-   RSI_CROSS_LEVEL         // RSI_CROSS: Cross 50-level signal
+   RSI_CROSS_LEVEL,        // RSI_CROSS: Cross 50-level signal
+   RSI_BREAKOUT_OBOS       // RSI_BREAKOUT_OBOS: long RSI>T_RsiOB, short RSI<T_RsiOS (RH_SS 80/20)
 };
 enum EStochMode
 {
    STO_CROSS_SIGNAL,       // STO_CROSS: %K crosses %D signal line
-   STO_ZONE_FILTER         // STO_ZONE: Overbought/oversold zones (>80 / <20)
+   STO_ZONE_FILTER,        // STO_ZONE: Overbought/oversold zones (>80 / <20)
+   STO_CROSS_LEVEL         // STO_CROSS_LEVEL: long %K>T_StoOS, short %K<T_StoOB (RH_1MS 20/80)
 };
 enum EVolatilityRegime {
    VOLATILITY_LOW = 0,    // VOLATILITY_LOW: too quiet, likely choppy
@@ -432,6 +441,12 @@ struct ST_Settings
 
    // Execution Logic
    EMaMethod MaType;
+   // Per-slot applied price for the ribbon MAs (ENUM_APPLIED_PRICE as int; default PRICE_CLOSE).
+   // Enables RH_SS (5 EMA on OPEN) and RH_GS (55 SMMA on HIGH / LOW). Others leave PRICE_CLOSE.
+   int MaApplied1;
+   int MaApplied2;
+   int MaApplied3;
+   int MaApplied4;
    int       ma_h_shift;
    int       ma_v_shift;
    
@@ -666,6 +681,25 @@ struct ST_Settings
    bool Ind_Atr_Enabled;
    bool Ind_CandleBody_Enabled;
    bool Ind_CI_Enabled;
+   // --- Russ Horn additional voters (inline; computed like ADX/CI/DPI) ---
+   bool   Ind_Wpr_Enabled;        // Williams %R voter (RH_GS)
+   int    P_Wpr;                  // Williams %R period (RH_GS: 55)
+   double T_WprUpper;             // upper level, negative (RH_GS: -25)
+   double T_WprLower;             // lower level, negative (RH_GS: -75)
+   bool   Ind_Momentum_Enabled;   // Momentum voter (RH_SM)
+   int    P_Momentum;             // Momentum period (RH_SM: 10)
+   double T_MomentumLevel;        // centre level (RH_SM: 100)
+   bool   Ind_OsMA_Enabled;       // OsMA (MACD histogram) zero-line voter (RH_SM)
+   int    P_OsMA_Fast;            // OsMA fast EMA (RH_SM: 12)
+   int    P_OsMA_Slow;            // OsMA slow EMA (RH_SM: 26)
+   int    P_OsMA_Signal;          // OsMA signal SMA (RH_SM: 9)
+   bool   Bias_HeikenAshi;        // bias/BD use Heiken-Ashi candle direction vs fast MA (RH_SM)
+   // --- Russ Horn TM early-exit rules ---
+   bool   TM_ExitOnOsMAFlip;      // close when OsMA histogram flips across zero (RH_SM)
+   bool   TM_ExitOnMARecross;     // close when price closes back across the entry MA (RH_GS)
+   int    TM_ExitMARole;          // ribbon role (0..3) of the re-cross reference MA
+   bool   SL_UseSlowMAClamp;      // SL = nearer of {swing, slow MA} (RH_1MS 100 EMA)
+   int    SL_SlowMARole;          // ribbon role (0..3) used for the SL clamp MA
 
 
    // Fixed lot sizing (0 = use risk-based sizing)
