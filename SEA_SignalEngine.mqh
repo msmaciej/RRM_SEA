@@ -381,6 +381,16 @@ private:
     bool        m_align_wait_last;    // last call: IN-TREND but arm consumed (WAITING, not NO_EDGE)
     int         m_diag_layer_pos_w, m_diag_layer_pos_m, m_diag_layer_pos_s;    // 1 = structurally stacked
     bool        m_diag_layer_wait_w, m_diag_layer_wait_m, m_diag_layer_wait_s; // true = waiting (armed consumed)
+    // Fresh-trend gate diagnostics (2026-09): pullback episodes / bars since the
+    // layer's reference EMA cross at the last evaluated bar; blk = gate rejected.
+    int         m_diag_freshx_pb_w,   m_diag_freshx_pb_m,   m_diag_freshx_pb_s;
+    int         m_diag_freshx_bars_w, m_diag_freshx_bars_m, m_diag_freshx_bars_s;
+    bool        m_diag_freshx_blk_w,  m_diag_freshx_blk_m,  m_diag_freshx_blk_s;
+    // UNO Shark context (2026-09): true when the evaluated bar is UNORDERED with
+    // EMA3/EMA4 still ordered and bias taken from that long-term pair. Set by
+    // GetBias_4EMA_Direction, consumed by EvaluateP / CheckLayerPairAlign /
+    // EvaluateL (S-only) and the per-bar layer bookkeeping.
+    bool        m_uno_shark_ctx;
     int         m_last_layer;         // Active layer that won (1=Weak, 2=Medium, 3=Strong, 0=none)
     // --- 2c.1 LAYER PULLBACK-RECOVERY STATE ---
     ELayerPullbackState m_layer_w_pb_state;   // LayerW pullback state
@@ -5199,6 +5209,8 @@ private:
       for(int s = shift + start_off; s >= shift; s--)
       {
          int B = EvaluateB(s);
+         // UNO-Shark ctx (2026-09): for W/M a shark-context bar is still UNO.
+         if(B != 0 && m_uno_shark_ctx && layer != 3) B = 0;
          if(B != 0)
          {
             uno_run = 0;
@@ -5492,7 +5504,7 @@ private:
       // on its own EMA pair even though the position check above might pass during
       // the EM→TM transition. Block here to match the canonical rule.
       // Default off (legacy behavior); opt-in via Inp_RRM_ORG_LayerS_TMOnly.
-      if(layer_type == 3 && m_settings.LayerS_TMOnly)
+      if(layer_type == 3 && m_settings.LayerS_TMOnly && !m_uno_shark_ctx)   // UNO-Shark ctx (2026-09) is exempt by design
       {
          EMarketPhase ph_now = DetectMarketPhase(shift);
          bool is_tm = (ph_now == PHASE_TRENDING_UP || ph_now == PHASE_TRENDING_DN);
@@ -6441,6 +6453,10 @@ public:
       m_align_pos_last    = false; m_align_wait_last   = false;
       m_diag_layer_pos_w  = 0;     m_diag_layer_pos_m  = 0;     m_diag_layer_pos_s  = 0;
       m_diag_layer_wait_w = false; m_diag_layer_wait_m = false; m_diag_layer_wait_s = false;
+      m_diag_freshx_pb_w = 0; m_diag_freshx_pb_m = 0; m_diag_freshx_pb_s = 0;
+      m_diag_freshx_bars_w = -1; m_diag_freshx_bars_m = -1; m_diag_freshx_bars_s = -1;
+      m_diag_freshx_blk_w = false; m_diag_freshx_blk_m = false; m_diag_freshx_blk_s = false;
+      m_uno_shark_ctx = false;
       m_last_layer        = 0;
 
       m_bars_evaluated    = 0;
@@ -7767,6 +7783,10 @@ public:
       m_align_pos_last    = false; m_align_wait_last   = false;
       m_diag_layer_pos_w  = 0;     m_diag_layer_pos_m  = 0;     m_diag_layer_pos_s  = 0;
       m_diag_layer_wait_w = false; m_diag_layer_wait_m = false; m_diag_layer_wait_s = false;
+      m_diag_freshx_pb_w = 0; m_diag_freshx_pb_m = 0; m_diag_freshx_pb_s = 0;
+      m_diag_freshx_bars_w = -1; m_diag_freshx_bars_m = -1; m_diag_freshx_bars_s = -1;
+      m_diag_freshx_blk_w = false; m_diag_freshx_blk_m = false; m_diag_freshx_blk_s = false;
+      m_uno_shark_ctx = false;
       m_last_layer = 0;
       m_bars_evaluated = 0;
       m_signals_generated = 0;
@@ -9445,9 +9465,21 @@ public:
          }
          case PHASE_UNORDERED:
          default:
+            // UNO Shark (2026-09): keep a direction when the long-term pair is
+            // still ordered and EMA2 sits between EMA3 and EMA4 — Oracle: the
+            // Shark trade "most of the time occurs in an Unordered Phase".
             result = 0;
+            m_uno_shark_ctx = false;
+            if(phase == PHASE_UNORDERED && m_settings.UNO_AllowStrongShark)
+            {
+               result = UnoSharkDirection(v_shift);
+               m_uno_shark_ctx = (result != 0);
+               if(diag_bias && m_uno_shark_ctx)
+                  Print("[GET_BIAS_4EMA] UNORDERED but EMA3/EMA4 ordered → UNO-Shark context, bias=", result);
+            }
             break;
       }
+      if(phase != PHASE_UNORDERED) m_uno_shark_ctx = false;
 
       if(diag_bias) {
          Print("[GET_BIAS_4EMA] Returning bias: ", result,
@@ -9586,7 +9618,7 @@ public:
       // EvaluateP always runs this check; in non-full_eval mode EvaluateTS will have
       // already returned early when B=0, so this check mainly applies in full_eval mode
       // for complete per-factor stat attribution.
-      if(phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase) {
+      if(phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase && !m_uno_shark_ctx) {
          m_diag_last_reason = "PHASE_UNORDERED";
          m_reject_gate++;
          if(m_settings.DebugFlow) Print("[EvaluateP] UNORDERED phase → no market structure");
@@ -9655,6 +9687,179 @@ public:
       return (e3 < e4) && (s3 < 0.0) && (s4 < 0.0);                  // SHORT: stacked down + both falling
    }
 
+   //+------------------------------------------------------------------+
+   //| UnoSharkDirection — long-term direction inside an UNORDERED bar   |
+   //+------------------------------------------------------------------+
+   // 2026-09 (Oracle manual II.C/III). Returns +1/-1 when EMA2 is sandwiched
+   // between an ordered EMA3/EMA4 pair (UNO with the long-term trend intact),
+   // 0 otherwise. Shift-correct: uses the snapshot when available, else reads.
+   int UnoSharkDirection(const int v_shift)
+   {
+      double ema2, ema3, ema4; bool ok2, ok3, ok4;
+      if(v_shift == m_ribbon.shift)
+      { ok2 = m_ribbon.valid[1]; ema2 = m_ribbon.ema[1]; ok3 = m_ribbon.valid[2]; ema3 = m_ribbon.ema[2]; ok4 = m_ribbon.valid[3]; ema4 = m_ribbon.ema[3]; }
+      else if(v_shift == m_ribbon.shift + 1)
+      { ok2 = m_ribbon.valid_prev[1]; ema2 = m_ribbon.ema_prev[1]; ok3 = m_ribbon.valid_prev[2]; ema3 = m_ribbon.ema_prev[2]; ok4 = m_ribbon.valid_prev[3]; ema4 = m_ribbon.ema_prev[3]; }
+      else
+      { string src; ema2 = ReadEmaSafe(2, v_shift, ok2, src); ema3 = ReadEmaSafe(3, v_shift, ok3, src); ema4 = ReadEmaSafe(4, v_shift, ok4, src); }
+      if(!ok2 || !ok3 || !ok4) return 0;
+      const double tol = 2.0 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+      if(ema3 > ema4 + tol && ema2 < ema3 && ema2 > ema4) return  1;   // 34 > 13 > 89 : long-term UP, 13 fell back
+      if(ema4 > ema3 + tol && ema2 > ema3 && ema2 < ema4) return -1;   // 89 > 13 > 34 : long-term DN, 13 bounced
+      return 0;
+   }
+
+   //+------------------------------------------------------------------+
+   //| PriceTouchedEmaWithin — did price touch EMA<slot> in the window?  |
+   //+------------------------------------------------------------------+
+   // Long: any Low <= EMA; Short: any High >= EMA, over bars v_shift..v_shift+window-1.
+   bool PriceTouchedEmaWithin(const int slot1based, const int bias, const int v_shift, const int window)
+   {
+      const int n = MathMax(1, window);
+      double e[], px[];
+      if(!ReadEmaBlock(slot1based, v_shift, n, e)) return true;   // data failure never blocks
+      ArrayResize(px, n); ArraySetAsSeries(px, true);
+      const int got = (bias > 0) ? CopyLow (m_symbol, PERIOD_CURRENT, v_shift, n, px)
+                                 : CopyHigh(m_symbol, PERIOD_CURRENT, v_shift, n, px);
+      if(got != n) return true;
+      for(int i = 0; i < n; i++)
+         if((bias > 0 && px[i] <= e[i]) || (bias < 0 && px[i] >= e[i])) return true;
+      return false;
+   }
+
+   //+------------------------------------------------------------------+
+   //| ReadEmaBlock — series-ordered block read of one ribbon slot       |
+   //+------------------------------------------------------------------+
+   // arr[0] = value at start_shift, arr[i] = value at start_shift+i.
+   // CopyBuffer first; falls back to the per-bar ReadEmaSafe chain.
+   bool ReadEmaBlock(const int slot1based, const int start_shift, const int count, double &arr[])
+   {
+      int handle = INVALID_HANDLE;
+      switch(slot1based)
+      {
+         case 1: handle = h_ema1; break;
+         case 2: handle = h_ema2; break;
+         case 3: handle = h_ema3; break;
+         case 4: handle = h_ema4; break;
+         default: return false;
+      }
+      ArrayResize(arr, count);
+      ArraySetAsSeries(arr, true);
+      if(handle != INVALID_HANDLE)
+      {
+         double tmp[];
+         ArraySetAsSeries(tmp, true);
+         int got = CopyBuffer(handle, 0, start_shift, count, tmp);
+         if(got == count)
+         {
+            for(int i = 0; i < count; i++) arr[i] = tmp[i];
+            return true;
+         }
+      }
+      for(int i = 0; i < count; i++)
+      {
+         bool ok = false; string src = "";
+         arr[i] = ReadEmaSafe(slot1based, start_shift + i, ok, src);
+         if(!ok) return false;
+      }
+      return true;
+   }
+
+   //+------------------------------------------------------------------+
+   //| CheckFreshCrossGate — "first pullback after the cross" gate       |
+   //+------------------------------------------------------------------+
+   // 2026-09 (RRM_ORG 100-trades study, Oracle manual III "Crossover entry",
+   // report "Multi-Timeframe"). For the given layer:
+   //   1. take the layer's reference EMA pair (FreshX_RefPair_*),
+   //   2. walk back from v_shift to the most recent bar where that pair crossed
+   //      INTO the bias direction (age = bars since the cross),
+   //   3. from the cross bar to now, count pullback EPISODES to the layer's touch
+   //      EMA (W→EMA2, M→EMA3, S→EMA4; Long: Low<=EMA, Short: High>=EMA; a run
+   //      of consecutive touching bars = one episode, the current pullback counts),
+   //   4. allow only while episodes <= MaxPullbacks and age <= MaxBars (0 = off).
+   // No cross inside FreshX_Lookback = trend older than the window = stale.
+   // Stateless and shift-correct, so SignalScan gets identical verdicts.
+   // Returns true = allowed (also on any data failure — the gate never blocks on
+   // missing history). out_pb / out_bars are diagnostics (bars = -1: no cross).
+   bool CheckFreshCrossGate(const int layer, const int bias, const int v_shift,
+                            int &out_pb, int &out_bars)
+   {
+      out_pb = 0; out_bars = -1;
+      if(!m_settings.FreshX_Enabled || bias == 0) return true;
+
+      const int pair    = (layer == 1) ? m_settings.FreshX_RefPair_W
+                        : (layer == 2) ? m_settings.FreshX_RefPair_M : m_settings.FreshX_RefPair_S;
+      const int maxPB   = (layer == 1) ? m_settings.FreshX_MaxPullbacks_W
+                        : (layer == 2) ? m_settings.FreshX_MaxPullbacks_M : m_settings.FreshX_MaxPullbacks_S;
+      const int maxBars = (layer == 1) ? m_settings.FreshX_MaxBars_W
+                        : (layer == 2) ? m_settings.FreshX_MaxBars_M : m_settings.FreshX_MaxBars_S;
+      if(pair <= 0) return true;                       // no reference pair = not gated
+
+      int sa = 0, sb = 0;
+      switch(pair)
+      {
+         case 1: sa = 1; sb = 2; break;   // EMA1 x EMA2
+         case 2: sa = 2; sb = 3; break;   // EMA2 x EMA3
+         case 3: sa = 2; sb = 4; break;   // EMA2 x EMA4
+         case 4: sa = 3; sb = 4; break;   // EMA3 x EMA4
+         default: return true;
+      }
+      const int touchSlot = (layer == 1) ? 2 : (layer == 2) ? 3 : 4;
+
+      int n = MathMax(20, m_settings.FreshX_Lookback) + 1;    // +1: oldest bar needs a predecessor
+      const int avail = Bars(m_symbol, PERIOD_CURRENT) - v_shift;
+      if(avail < 10) return true;
+      if(n > avail) n = avail;
+
+      double ea[], eb[], et[], px[];
+      if(!ReadEmaBlock(sa, v_shift, n, ea))        return true;
+      if(!ReadEmaBlock(sb, v_shift, n, eb))        return true;
+      if(!ReadEmaBlock(touchSlot, v_shift, n, et)) return true;
+      ArrayResize(px, n);
+      ArraySetAsSeries(px, true);
+      const int got = (bias > 0) ? CopyLow (m_symbol, PERIOD_CURRENT, v_shift, n, px)
+                                 : CopyHigh(m_symbol, PERIOD_CURRENT, v_shift, n, px);
+      if(got != n) return true;
+
+      // Reference pair not aligned with bias → the layer's own alignment check
+      // rejects it; nothing for this gate to add.
+      const double d0 = ea[0] - eb[0];
+      if((bias > 0 && d0 <= 0.0) || (bias < 0 && d0 >= 0.0)) return true;
+
+      // Most recent bias-direction cross of the reference pair.
+      int cross = -1;
+      for(int i = 0; i < n - 1; i++)
+      {
+         const double d  = ea[i]     - eb[i];
+         const double dp = ea[i + 1] - eb[i + 1];
+         const bool aligned_now  = (bias > 0) ? (d  > 0.0) : (d  < 0.0);
+         const bool aligned_prev = (bias > 0) ? (dp > 0.0) : (dp < 0.0);
+         if(aligned_now && !aligned_prev) { cross = i; break; }
+      }
+      const int age = (cross >= 0) ? cross : (n - 1);
+      out_bars = (cross >= 0) ? cross : -1;
+
+      // Touch episodes from the cross bar to the evaluated bar (oldest → newest).
+      int episodes = 0; bool in_touch = false;
+      for(int i = age; i >= 0; i--)
+      {
+         const bool touch = (bias > 0) ? (px[i] <= et[i]) : (px[i] >= et[i]);
+         if(touch && !in_touch) episodes++;
+         in_touch = touch;
+      }
+      out_pb = episodes;
+
+      bool ok = true;
+      if(cross < 0)                           ok = false;   // older than the window = stale
+      if(maxPB   > 0 && episodes > maxPB)     ok = false;
+      if(maxBars > 0 && age      > maxBars)   ok = false;
+
+      if(m_settings.DebugLevel >= DEBUG_INDICATORS)
+         DebugLog(StringFormat("[FreshX] L%d pair=%d touch=EMA%d cross_age=%d pullbacks=%d caps(pb=%d,bars=%d) → %s",
+                               layer, pair, touchSlot, out_bars, episodes, maxPB, maxBars, ok ? "PASS" : "STALE"));
+      return ok;
+   }
+
    int EvaluateL(int v_shift, int bias)
    {
       if(!m_settings.EnableLayerDetection || m_settings.BiasMode != BIAS_4EMA)
@@ -9685,6 +9890,24 @@ public:
       // Optional Layer-S direction gate: block faster M/W entries unless Layer S
       // (EMA3/EMA4) is position+slope aligned with bias. S's own entry is unaffected.
       bool layerS_dir_ok = (!m_settings.LayerS_RequireDirAlign) || LayerS_DirAligned(v_shift, bias);
+
+      // Fresh-trend gate (2026-09): evaluated only for layers that are already
+      // fire-eligible, so the block scan runs at most once per eligible layer.
+      m_diag_freshx_blk_w = false; m_diag_freshx_blk_m = false; m_diag_freshx_blk_s = false;
+      m_diag_freshx_pb_w = 0; m_diag_freshx_pb_m = 0; m_diag_freshx_pb_s = 0;
+      m_diag_freshx_bars_w = -1; m_diag_freshx_bars_m = -1; m_diag_freshx_bars_s = -1;
+      bool freshx_ok_w = true, freshx_ok_m = true, freshx_ok_s = true;
+      // UNO Shark (2026-09): in the UNO-Shark context only Layer S may fire, and
+      // the Oracle Shark needs an actual touch of EMA4 (89) before the close past EMA3.
+      const bool uno_s_only  = m_uno_shark_ctx;
+      const bool uno_touch_ok = (!m_uno_shark_ctx) ||
+                                PriceTouchedEmaWithin(4, bias, v_shift, m_settings.UNO_Shark_TouchWindow);
+      if(m_settings.FreshX_Enabled)
+      {
+         if(m_eval_layer_s == 1) { freshx_ok_s = CheckFreshCrossGate(3, bias, v_shift, m_diag_freshx_pb_s, m_diag_freshx_bars_s); m_diag_freshx_blk_s = !freshx_ok_s; }
+         if(m_eval_layer_m == 1) { freshx_ok_m = CheckFreshCrossGate(2, bias, v_shift, m_diag_freshx_pb_m, m_diag_freshx_bars_m); m_diag_freshx_blk_m = !freshx_ok_m; }
+         if(m_eval_layer_w == 1) { freshx_ok_w = CheckFreshCrossGate(1, bias, v_shift, m_diag_freshx_pb_w, m_diag_freshx_bars_w); m_diag_freshx_blk_w = !freshx_ok_w; }
+      }
 
       // Strong-S phase gate (book-faithful, SYMMETRIC across LONG/SHORT):
       // The RRM Trade Setups card affirms "during the Trending Phase" in BOTH
@@ -9725,7 +9948,7 @@ public:
 
       // Step 3: Priority walk L3 → L2 → L1; each layer also needs BC and BD.
       // S branch additionally honours the Strong-EM gate above.
-      if(m_eval_layer_s == 1 && m_settings.AllowLayer3_Entries && !s_blocked_emerging) {
+      if(m_eval_layer_s == 1 && m_settings.AllowLayer3_Entries && !s_blocked_emerging && freshx_ok_s && uno_touch_ok) {
          int bc_s = Eval_BarClose(v_shift, bias, LAYER_3_STRONG);
          if(bc_s == 0 && lookback > 1)
             bc_s = Check_BarClose_MultiBar(v_shift, bias, LAYER_3_STRONG, lookback) ? 1 : 0;
@@ -9736,7 +9959,7 @@ public:
          }
       }
 
-      if(m_eval_layer_m == 1 && m_settings.AllowLayer2_Entries && layerS_dir_ok) {
+      if(m_eval_layer_m == 1 && m_settings.AllowLayer2_Entries && layerS_dir_ok && freshx_ok_m && !uno_s_only) {
          int bc_m = Eval_BarClose(v_shift, bias, LAYER_2_MEDIUM);
          if(bc_m == 0 && lookback > 1)
             bc_m = Check_BarClose_MultiBar(v_shift, bias, LAYER_2_MEDIUM, lookback) ? 1 : 0;
@@ -9747,7 +9970,7 @@ public:
          }
       }
 
-      if(m_eval_layer_w == 1 && m_settings.AllowLayer1_Entries && layerS_dir_ok) {
+      if(m_eval_layer_w == 1 && m_settings.AllowLayer1_Entries && layerS_dir_ok && freshx_ok_w && !uno_s_only) {
          int bc_w = Eval_BarClose(v_shift, bias, LAYER_1_WEAK);
          if(bc_w == 0 && lookback > 1)
             bc_w = Check_BarClose_MultiBar(v_shift, bias, LAYER_1_WEAK, lookback) ? 1 : 0;
@@ -9773,6 +9996,19 @@ public:
          // GUARD 1 zeroes the layer, so this MUST precede L_NONE_ALIGNED or the block
          // would be misreported as "no layer aligned" and be invisible in the A/B.
          m_diag_last_reason = "L_G1_POSTFLIP";
+      else if(uno_s_only && m_eval_layer_s == 1 && !uno_touch_ok)
+         m_diag_last_reason = "L_UNO_SHARK_NOTOUCH";
+      else if(uno_s_only && m_eval_layer_s != 1 && (m_eval_layer_m == 1 || m_eval_layer_w == 1))
+         m_diag_last_reason = "L_UNO_S_ONLY";
+      else if((m_eval_layer_w == 1 && m_diag_freshx_blk_w) ||
+              (m_eval_layer_m == 1 && m_diag_freshx_blk_m) ||
+              (m_eval_layer_s == 1 && m_diag_freshx_blk_s))
+         // Fresh-trend gate (2026-09): an eligible layer was rejected because the
+         // trend is past its first pullbacks / too old since the reference cross.
+         m_diag_last_reason = StringFormat("L_FRESHX_STALE(W:pb%d/age%d M:pb%d/age%d S:pb%d/age%d)",
+                                           m_diag_freshx_pb_w, m_diag_freshx_bars_w,
+                                           m_diag_freshx_pb_m, m_diag_freshx_bars_m,
+                                           m_diag_freshx_pb_s, m_diag_freshx_bars_s);
       else if(m_eval_layer_w == 0 && m_eval_layer_m == 0 && m_eval_layer_s == 0)
       {
          // No layer is fire-eligible. Distinguish the three structural cases so the
@@ -10170,7 +10406,24 @@ public:
       // path on B==0: soft layer-state reset, no engine wipe.
       if(m_settings.BiasMode == BIAS_4EMA)
       {
-         if(B != 0)
+         if(B != 0 && m_uno_shark_ctx)
+         {
+            // UNO-Shark bar (2026-09): bias comes from the ordered EMA3/EMA4 pair,
+            // so the machine advances and Layer S keeps tracking its cycle. For
+            // W/M the bar is still UNO: count the run and soft-reset them past
+            // tolerance, exactly as the plain-UNO branch does for all three.
+            UpdateLayerPullbackStates(v_shift, B);
+            m_uno_run++;
+            if(m_uno_run > m_settings.UNO_ToleranceBars)
+            {
+               m_bars_since_uno_exit = 0;
+               m_layer_w_pb_state = LAYER_PB_NONE;
+               m_layer_m_pb_state = LAYER_PB_NONE;
+               m_layer_w_bars_det = 0;
+               m_layer_m_bars_det = 0;
+            }
+         }
+         else if(B != 0)
          {
             // Non-UNO bar — end any UNO run and accumulate cooldown bars (only
             // meaningful when MinBarsAfterUNOExit > 0). A same-direction return
@@ -10384,7 +10637,7 @@ public:
             bool is_emerging_phase = (m_diag_last_phase == PHASE_EMERGING_UP ||
                                       m_diag_last_phase == PHASE_EMERGING_DN ||
                                       m_diag_last_phase == PHASE_EMERGING);
-            bool phase_blocked = (m_diag_last_phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase) ||
+            bool phase_blocked = (m_diag_last_phase == PHASE_UNORDERED && m_settings.BlockUnorderedPhase && !m_uno_shark_ctx) ||
                                  (is_emerging_phase && m_settings.BlockEmergingPhase);
             DebugLog(StringFormat("  %s Phase (P): %s%s",
                                   phase_blocked ? "❌" : "✅", phase_str,

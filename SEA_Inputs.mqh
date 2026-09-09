@@ -651,6 +651,42 @@ input double      Inp_RRM_ORG_EmaFan_MaxPct        = 0.0;            // RRM ORG 
 input int         Inp_RRM_ORG_PriceExtRefEma       = 4;              // RRM ORG OverExt: ref EMA 1..4 (1=5 2=13 3=34 4=89)
 input double      Inp_RRM_ORG_PriceExtMaxATR       = 2.5;            // RRM ORG OverExt: block if |close-refEMA| > this x ATR
 input int         Inp_RRM_ORG_PriceExtAtrPeriod    = 14;             // RRM ORG OverExt: ATR period for distance
+
+// ── Fresh-trend gate (2026-09, 100-trades study §3.1) ──────────────────────
+// Layer → touch EMA → reference cross (the cross that STARTS the trend the layer
+// is riding; the layer's OWN pair is what the pullback itself crosses):
+//   W (EMA1/EMA2, touch EMA2=13)  → EMA2 x EMA3 cross (13/34) — the ribbon's own
+//                                    5/13 cross flips on every pullback, so the
+//                                    next-slower pair is the trend clock.
+//   M (EMA2/EMA3, touch EMA3=34)  → EMA2 x EMA3 cross (13/34) — its own pair;
+//                                    a 13/34 cross against bias = UNO = M invalid.
+//   S (EMA3/EMA4, touch EMA4=89)  → EMA3 x EMA4 cross (34/89) — its own pair.
+// Caps: W first 2 pullbacks, M first 3, S unlimited (0). With cap 0 the layer is
+// NOT gated — the cross/pullback count is still computed for diagnostics.
+// MaxBars caps are off — pullback counting is fractal (bar-count independent).
+input bool        Inp_RRM_ORG_FreshX_Enabled       = true;           // RRM ORG FreshX: enable fresh-trend (first-pullback) gate
+input EFreshXPair Inp_RRM_ORG_FreshX_RefPair_W     = FRESHX_EMA2x3;  // RRM ORG FreshX: LayerW reference cross (next-slower pair 13/34)
+input EFreshXPair Inp_RRM_ORG_FreshX_RefPair_M     = FRESHX_EMA2x3;  // RRM ORG FreshX: LayerM reference cross (own pair 13/34)
+input EFreshXPair Inp_RRM_ORG_FreshX_RefPair_S     = FRESHX_EMA3x4;  // RRM ORG FreshX: LayerS reference cross (own pair 34/89)
+input int         Inp_RRM_ORG_FreshX_MaxPullbacks_W = 2;             // RRM ORG FreshX: LayerW max pullbacks to EMA2 since cross (0=unlimited)
+input int         Inp_RRM_ORG_FreshX_MaxPullbacks_M = 3;             // RRM ORG FreshX: LayerM max pullbacks to EMA3 since cross (0=unlimited)
+input int         Inp_RRM_ORG_FreshX_MaxPullbacks_S = 0;             // RRM ORG FreshX: LayerS max pullbacks to EMA4 since cross (0=unlimited — Sharks worked at any trend age in the 100-trade set)
+input int         Inp_RRM_ORG_FreshX_MaxBars_W      = 0;             // RRM ORG FreshX: LayerW max bars since cross (0=off; ~40 = tally cut-off)
+input int         Inp_RRM_ORG_FreshX_MaxBars_M      = 0;             // RRM ORG FreshX: LayerM max bars since cross (0=off)
+input int         Inp_RRM_ORG_FreshX_MaxBars_S      = 0;             // RRM ORG FreshX: LayerS max bars since cross (0=off)
+input int         Inp_RRM_ORG_FreshX_Lookback       = 300;           // RRM ORG FreshX: scan window bars (no cross inside = stale)
+
+// ── Stale-trade scratch exit (2026-09, manual VII.D) ───────────────────────
+input bool        Inp_RRM_ORG_StaleExit_Enabled    = false;          // RRM ORG StaleExit: close if no progress after N bars
+input int         Inp_RRM_ORG_StaleExit_Bars       = 12;             // RRM ORG StaleExit: closed bars after entry before the check
+input double      Inp_RRM_ORG_StaleExit_MinR       = 1.0;            // RRM ORG StaleExit: required MFE as multiple of initial risk
+
+// ── UNO Shark (2026-09, Oracle manual II.C/III) ─────────────────────────────
+// Lets Layer S fire in the Unordered phase while EMA3/EMA4 are still ordered
+// (13 sandwiched between 34 and 89 = the "failed Emerging" / deep-pullback case).
+// W and M remain blocked in UNO. Requires a touch of EMA4 within the window.
+input bool        Inp_RRM_ORG_UNO_AllowStrongShark = true;           // RRM ORG UNO: allow Layer S (Shark) entries in UNORDERED when EMA3/EMA4 ordered
+input int         Inp_RRM_ORG_UNO_Shark_TouchWindow = 8;             // RRM ORG UNO: bars back in which price must have touched EMA4
 input double      Inp_RRM_ORG_JpyGateMultiplier    = 1.3;            // RRM ORG Fan: JPY Gate Multiplier (1.0=disabled)
 
 input group " ";
@@ -1846,6 +1882,20 @@ void InitializeConfig()
    Settings.PriceExtRefEma        = 3;        // default; overwritten by ApplyPreset for tuned presets
    Settings.PriceExtMaxATR        = 2.5;      // default; overwritten by ApplyPreset for tuned presets
    Settings.PriceExtAtrPeriod     = 14;       // default; overwritten by ApplyPreset for tuned presets
+
+   // Fresh-trend gate + stale exit: OFF globally, wired from Inp_RRM_ORG_* inside the RRM_ORG preset.
+   Settings.FreshX_Enabled        = false;
+   Settings.FreshX_RefPair_W      = (int)FRESHX_OFF;
+   Settings.FreshX_RefPair_M      = (int)FRESHX_OFF;
+   Settings.FreshX_RefPair_S      = (int)FRESHX_OFF;
+   Settings.FreshX_MaxPullbacks_W = 0; Settings.FreshX_MaxPullbacks_M = 0; Settings.FreshX_MaxPullbacks_S = 0;
+   Settings.FreshX_MaxBars_W      = 0; Settings.FreshX_MaxBars_M      = 0; Settings.FreshX_MaxBars_S      = 0;
+   Settings.FreshX_Lookback       = 300;
+   Settings.StaleExit_Enabled     = false;
+   Settings.StaleExit_Bars        = 12;
+   Settings.StaleExit_MinR        = 1.0;
+   Settings.UNO_AllowStrongShark  = false;   // wired from Inp_RRM_ORG_* inside the RRM_ORG preset
+   Settings.UNO_Shark_TouchWindow = 8;
 
    // F-AUDIT 2026-06: DPI deceleration master toggle globalized (was bleeding
    // from Inp_RRM_ORG_DPI_Decel_Filter into all non-RRM_ORG presets).

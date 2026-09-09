@@ -183,6 +183,20 @@ enum EEmaRole
 };
 
 //+------------------------------------------------------------------+
+//| EFreshXPair — reference EMA cross for the fresh-trend gate        |
+//+------------------------------------------------------------------+
+// 2026-09 (100-trades study): which EMA pair's most recent cross in the
+// bias direction starts the "trend age" clock for a layer.
+enum EFreshXPair
+{
+   FRESHX_OFF     = 0,   // FRESHX_OFF: no fresh-cross reference (layer not gated)
+   FRESHX_EMA1x2  = 1,   // FRESHX_EMA1x2: EMA1 x EMA2 cross (5/13)
+   FRESHX_EMA2x3  = 2,   // FRESHX_EMA2x3: EMA2 x EMA3 cross (13/34) — Oracle 13/34 crossover trade
+   FRESHX_EMA2x4  = 3,   // FRESHX_EMA2x4: EMA2 x EMA4 cross (13/89) — Emerging-phase start
+   FRESHX_EMA3x4  = 4    // FRESHX_EMA3x4: EMA3 x EMA4 cross (34/89) — long-term trend start
+};
+
+//+------------------------------------------------------------------+
 //| BarClose Mode: Which EMA to check for bar close confirmation     |
 //| Used by bcX component in the signal formula                      |
 //+------------------------------------------------------------------+
@@ -1013,6 +1027,44 @@ struct ST_Settings
    int    PriceExtRefEma;         // reference EMA: 1=EMA1 2=EMA2 3=EMA3 4=EMA4
    double PriceExtMaxATR;         // block if |close-refEMA| > this * ATR (bias dir)
    int    PriceExtAtrPeriod;      // ATR period for the distance yardstick
+
+   // ── Fresh-trend gate (2026-09, RRM_ORG 100-trades study) ─────────────────
+   // Per layer: find the most recent bias-direction cross of a reference EMA
+   // pair, then count (a) bars since that cross and (b) completed pullback
+   // episodes to the layer's touch EMA (W→EMA2, M→EMA3, S→EMA4) since it.
+   // Entry is allowed only while both are within their caps. This encodes the
+   // Oracle "first pullback after the crossover" rule; Cluster C (late, shallow
+   // W-layer pullbacks in an old trend) is what it removes.
+   bool   FreshX_Enabled;         // master enable (RRM_ORG preset only)
+   int    FreshX_RefPair_W;       // EFreshXPair for Layer W (EMA1/2)
+   int    FreshX_RefPair_M;       // EFreshXPair for Layer M (EMA2/3)
+   int    FreshX_RefPair_S;       // EFreshXPair for Layer S (EMA3/4)
+   int    FreshX_MaxPullbacks_W;  // max touch-episodes since cross incl. current (0=unlimited)
+   int    FreshX_MaxPullbacks_M;
+   int    FreshX_MaxPullbacks_S;
+   int    FreshX_MaxBars_W;       // max bars since cross (0=unlimited)
+   int    FreshX_MaxBars_M;
+   int    FreshX_MaxBars_S;
+   int    FreshX_Lookback;        // scan cap in bars (cross older than this = stale)
+
+   // ── Stale-trade scratch exit (2026-09, Oracle manual VII.D "Sideways market") ──
+   // Close a position that has not reached StaleExit_MinR × initial risk of
+   // favourable excursion within StaleExit_Bars closed bars after entry.
+   bool   StaleExit_Enabled;
+   int    StaleExit_Bars;
+   double StaleExit_MinR;
+
+   // ── UNO Shark (2026-09, Oracle manual II.C/III: "Shark trade … most of the
+   // time occurs in an Unordered Phase"; "failed Emerging phase will often result
+   // in a nice Shark trade") ───────────────────────────────────────────────────
+   // When the phase is UNORDERED but the long-term pair is still ordered
+   // (EMA3 vs EMA4, with EMA2 sandwiched between them), the bias becomes the
+   // long-term direction and ONLY Layer S may fire: price must have touched
+   // EMA4 within UNO_Shark_TouchWindow bars and the signal bar must close past
+   // EMA3 (BC_LAYER_AWARE bcS) with BD, DPI, PSAR and the S pullback-recovery
+   // cycle all passing. W and M stay blocked in UNO.
+   bool   UNO_AllowStrongShark;
+   int    UNO_Shark_TouchWindow;
 
    // DPI momentum deceleration filter — block TS=1 when directionally-aligned DPI histogram shrinks
    // Only activates when DpiDecelFilterEnabled=true AND Ind_Dpi_Enabled=true.

@@ -2600,6 +2600,24 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.PriceExtRefEma            = (int)MathMax(1, MathMin(4, Inp_RRM_ORG_PriceExtRefEma));
       cfg.PriceExtMaxATR            = MathMax(0.0, Inp_RRM_ORG_PriceExtMaxATR);
       cfg.PriceExtAtrPeriod         = (int)MathMax(1, Inp_RRM_ORG_PriceExtAtrPeriod);
+
+      // 2026-09 (100-trades study): fresh-trend gate + stale-trade scratch exit.
+      cfg.FreshX_Enabled            = Inp_RRM_ORG_FreshX_Enabled;
+      cfg.FreshX_RefPair_W          = (int)Inp_RRM_ORG_FreshX_RefPair_W;
+      cfg.FreshX_RefPair_M          = (int)Inp_RRM_ORG_FreshX_RefPair_M;
+      cfg.FreshX_RefPair_S          = (int)Inp_RRM_ORG_FreshX_RefPair_S;
+      cfg.FreshX_MaxPullbacks_W     = MathMax(0, Inp_RRM_ORG_FreshX_MaxPullbacks_W);
+      cfg.FreshX_MaxPullbacks_M     = MathMax(0, Inp_RRM_ORG_FreshX_MaxPullbacks_M);
+      cfg.FreshX_MaxPullbacks_S     = MathMax(0, Inp_RRM_ORG_FreshX_MaxPullbacks_S);
+      cfg.FreshX_MaxBars_W          = MathMax(0, Inp_RRM_ORG_FreshX_MaxBars_W);
+      cfg.FreshX_MaxBars_M          = MathMax(0, Inp_RRM_ORG_FreshX_MaxBars_M);
+      cfg.FreshX_MaxBars_S          = MathMax(0, Inp_RRM_ORG_FreshX_MaxBars_S);
+      cfg.FreshX_Lookback           = MathMax(20, MathMin(2000, Inp_RRM_ORG_FreshX_Lookback));
+      cfg.StaleExit_Enabled         = Inp_RRM_ORG_StaleExit_Enabled;
+      cfg.StaleExit_Bars            = MathMax(1, Inp_RRM_ORG_StaleExit_Bars);
+      cfg.StaleExit_MinR            = MathMax(0.0, Inp_RRM_ORG_StaleExit_MinR);
+      cfg.UNO_AllowStrongShark      = Inp_RRM_ORG_UNO_AllowStrongShark;
+      cfg.UNO_Shark_TouchWindow     = MathMax(1, MathMin(50, Inp_RRM_ORG_UNO_Shark_TouchWindow));
       if(cfg.EmaFanMaxPct > 0.0)
       {
          PrintFormat("📐 [EMA_FAN] Using percentage mode: %.3f%% (overrides pip-based threshold %.1f)",

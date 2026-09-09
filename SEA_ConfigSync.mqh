@@ -326,6 +326,22 @@ bool SEA_WriteConfigSnapshot(const ST_Settings &cfg)
    FileWriteString(h, "PriceExtFilterEnabled=" + (cfg.PriceExtFilterEnabled ? "true" : "false") + "\n");
    FileWriteString(h, "PriceExtMaxATR=" + DoubleToString(cfg.PriceExtMaxATR, 8) + "\n");
    FileWriteString(h, "PriceExtRefEma=" + IntegerToString(cfg.PriceExtRefEma) + "\n");
+   FileWriteString(h, "FreshX_Enabled=" + (cfg.FreshX_Enabled ? "1" : "0") + "\n");
+   FileWriteString(h, "FreshX_RefPair_W=" + IntegerToString(cfg.FreshX_RefPair_W) + "\n");
+   FileWriteString(h, "FreshX_RefPair_M=" + IntegerToString(cfg.FreshX_RefPair_M) + "\n");
+   FileWriteString(h, "FreshX_RefPair_S=" + IntegerToString(cfg.FreshX_RefPair_S) + "\n");
+   FileWriteString(h, "FreshX_MaxPullbacks_W=" + IntegerToString(cfg.FreshX_MaxPullbacks_W) + "\n");
+   FileWriteString(h, "FreshX_MaxPullbacks_M=" + IntegerToString(cfg.FreshX_MaxPullbacks_M) + "\n");
+   FileWriteString(h, "FreshX_MaxPullbacks_S=" + IntegerToString(cfg.FreshX_MaxPullbacks_S) + "\n");
+   FileWriteString(h, "FreshX_MaxBars_W=" + IntegerToString(cfg.FreshX_MaxBars_W) + "\n");
+   FileWriteString(h, "FreshX_MaxBars_M=" + IntegerToString(cfg.FreshX_MaxBars_M) + "\n");
+   FileWriteString(h, "FreshX_MaxBars_S=" + IntegerToString(cfg.FreshX_MaxBars_S) + "\n");
+   FileWriteString(h, "FreshX_Lookback=" + IntegerToString(cfg.FreshX_Lookback) + "\n");
+   FileWriteString(h, "StaleExit_Enabled=" + (cfg.StaleExit_Enabled ? "1" : "0") + "\n");
+   FileWriteString(h, "StaleExit_Bars=" + IntegerToString(cfg.StaleExit_Bars) + "\n");
+   FileWriteString(h, "StaleExit_MinR=" + DoubleToString(cfg.StaleExit_MinR, 8) + "\n");
+   FileWriteString(h, "UNO_AllowStrongShark=" + (cfg.UNO_AllowStrongShark ? "1" : "0") + "\n");
+   FileWriteString(h, "UNO_Shark_TouchWindow=" + IntegerToString(cfg.UNO_Shark_TouchWindow) + "\n");
    FileWriteString(h, "# -- 26 MA Benchmark --\n");
    FileWriteString(h, "MABenchmarkStrict=" + (cfg.MABenchmarkStrict ? "true" : "false") + "\n");
    FileWriteString(h, "RequirePriceCross=" + (cfg.RequirePriceCross ? "true" : "false") + "\n");
@@ -511,6 +527,22 @@ bool SEA_CS_ApplyKey(ST_Settings &s, const string key, const string val)
    if(key == "PriceExtFilterEnabled") { s.PriceExtFilterEnabled = SEA_CS_ParseBool(val); return true; }
    if(key == "PriceExtMaxATR") { s.PriceExtMaxATR = StringToDouble(val); return true; }
    if(key == "PriceExtRefEma") { s.PriceExtRefEma = (int)StringToInteger(val); return true; }
+   if(key == "FreshX_Enabled") { s.FreshX_Enabled = (StringToInteger(val) != 0); return true; }
+   if(key == "FreshX_RefPair_W") { s.FreshX_RefPair_W = (int)StringToInteger(val); return true; }
+   if(key == "FreshX_RefPair_M") { s.FreshX_RefPair_M = (int)StringToInteger(val); return true; }
+   if(key == "FreshX_RefPair_S") { s.FreshX_RefPair_S = (int)StringToInteger(val); return true; }
+   if(key == "FreshX_MaxPullbacks_W") { s.FreshX_MaxPullbacks_W = (int)StringToInteger(val); return true; }
+   if(key == "FreshX_MaxPullbacks_M") { s.FreshX_MaxPullbacks_M = (int)StringToInteger(val); return true; }
+   if(key == "FreshX_MaxPullbacks_S") { s.FreshX_MaxPullbacks_S = (int)StringToInteger(val); return true; }
+   if(key == "FreshX_MaxBars_W") { s.FreshX_MaxBars_W = (int)StringToInteger(val); return true; }
+   if(key == "FreshX_MaxBars_M") { s.FreshX_MaxBars_M = (int)StringToInteger(val); return true; }
+   if(key == "FreshX_MaxBars_S") { s.FreshX_MaxBars_S = (int)StringToInteger(val); return true; }
+   if(key == "FreshX_Lookback") { s.FreshX_Lookback = (int)StringToInteger(val); return true; }
+   if(key == "StaleExit_Enabled") { s.StaleExit_Enabled = (StringToInteger(val) != 0); return true; }
+   if(key == "StaleExit_Bars") { s.StaleExit_Bars = (int)StringToInteger(val); return true; }
+   if(key == "StaleExit_MinR") { s.StaleExit_MinR = StringToDouble(val); return true; }
+   if(key == "UNO_AllowStrongShark") { s.UNO_AllowStrongShark = (StringToInteger(val) != 0); return true; }
+   if(key == "UNO_Shark_TouchWindow") { s.UNO_Shark_TouchWindow = (int)StringToInteger(val); return true; }
    if(key == "RequirePriceCross") { s.RequirePriceCross = SEA_CS_ParseBool(val); return true; }
    if(key == "Require_Progressive_Momentum") { s.Require_Progressive_Momentum = SEA_CS_ParseBool(val); return true; }
    if(key == "RsiMode") { s.RsiMode = (ERsiMode)(int)StringToInteger(val); return true; }

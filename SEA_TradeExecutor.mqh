@@ -94,6 +94,7 @@ private:
    bool        m_dpi_hist_decelerating;  // True if momentum decelerating
    bool        m_dpi_hist_green_present; // True if GREEN area exists (Blue & hist aligned)
    int         m_exits_dpi_hist;         // Count of positions closed by DPI histogram exit
+   int         m_exits_stale;            // Count of positions closed by the stale-trade scratch exit (2026-09)
 
    // ── PHASE B: median-spread ring buffer for TE_SpreadMedianTicks gate ──
    double      m_spread_history[32];   // sized for max plausible TE_SpreadMedianTicks
@@ -2261,7 +2262,7 @@ public:
                        m_spread_history_count(0), m_spread_history_idx(0),
                        m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), m_h_cushion_atr(INVALID_HANDLE), m_h_sl_atr(INVALID_HANDLE), m_h_trail_ema_atr(INVALID_HANDLE), m_h_trail_ema(INVALID_HANDLE), m_trail_ema_period_cached(0), // CACHED HANDLES
                        m_dpi_hist_current(0.0), m_dpi_hist_trend(0), m_dpi_hist_decelerating(false), m_dpi_hist_green_present(false),
-                       m_exits_dpi_hist(0)
+                       m_exits_dpi_hist(0), m_exits_stale(0)
    {
       m_excursion.ticket = 0; m_excursion.entry_time = 0; m_excursion.entry_price = 0.0;
       m_excursion.mae_pips = 0.0; m_excursion.mfe_pips = 0.0; m_excursion.current_pips = 0.0;
@@ -2336,6 +2337,7 @@ public:
       m_dpi_hist_green_present = green_present;
    }
    int ExitsDpiHist() const { return m_exits_dpi_hist; }
+   int ExitsStale()   const { return m_exits_stale; }
 
    // BUG FIX: Public wrapper so OrchestrateInit() can restore g_consecutive_losses from history
    int GetConsecutiveLossesToday() { return CountConsecutiveLossesToday(); }
@@ -3783,6 +3785,32 @@ public:
          m_last_tracked_ticket = 0;
          m_exits_dpi_hist++;
          return;
+      }
+
+      // ── Stale-trade scratch exit (2026-09, Oracle manual VII.D "Sideways market") ──
+      // "If the market isn't doing what you entered the trade for … get out at break
+      // even or zero pips." After StaleExit_Bars closed bars, a position whose best
+      // excursion never reached StaleExit_MinR × initial risk is closed. The 100-trade
+      // reference set shows every Big/Good trade moved ≥1R within its first ~10 bars.
+      if(m_settings.StaleExit_Enabled && m_initial_sl_price > 0.0)
+      {
+         datetime st_entry_time = (datetime)PositionGetInteger(POSITION_TIME);
+         int      st_bars_open  = iBarShift(m_symbol, PERIOD_CURRENT, st_entry_time, false);
+         double   st_entry      = PositionGetDouble(POSITION_PRICE_OPEN);
+         double   st_risk_pips  = MathAbs(st_entry - m_initial_sl_price) / GetPipSize();
+         if(st_bars_open >= m_settings.StaleExit_Bars && st_risk_pips > 0.0 &&
+            m_excursion.mfe_pips < m_settings.StaleExit_MinR * st_risk_pips)
+         {
+            if(m_settings.DebugFlow)
+               PrintFormat("[STALE_EXIT] #%I64u | bars_open=%d >= %d | MFE=%.1f pips < %.2f x risk %.1f pips → scratch",
+                           ticket, st_bars_open, m_settings.StaleExit_Bars,
+                           m_excursion.mfe_pips, m_settings.StaleExit_MinR, st_risk_pips);
+            m_trade.PositionClose(ticket);
+            m_last_close_bar = iTime(m_symbol, PERIOD_CURRENT, 0);
+            m_last_tracked_ticket = 0;
+            m_exits_stale++;
+            return;
+         }
       }
 
       // ── HARD EXIT: close on PSAR flip (TrailMode == TRAIL_PSAR_FLIP_EXIT) ──
