@@ -121,14 +121,14 @@ input double      Inp_Global_VETO_MaxSpread                 = 3.0;      // VSpre
 input group "=== VETO TIME ===";
 input bool        Inp_Session_Enabled                       = true;     // VSession_Enabled: true=only trade in enabled sessions | false=trade 24h
 input bool        Inp_Session_London                        = true;     // VSession_LDN: (09:00–17:00 EET by default)
-input int         Inp_Session_London_Margin                 = 0;        // VSession_LDM_Margin: ±N hours: 0=exact 09-17 · 1→08-18 · 2→07-19
+input int         Inp_Session_London_Margin                 = 1;        // VSession_LDM_Margin: ±N hours: 0=exact 09-17 · 1→08-18 · 2→07-19
 input bool        Inp_Session_NY                            = true;     // VSession_NY: (14:00–22:00 EET by default)
 input int         Inp_Session_NY_Margin                     = 0;        // VSession_NY_Margin: ±N hours: 0=exact 14-22 · 1→13-23 · 2→12-24
 input bool        Inp_Session_Asia                          = false;    // VSession_TKY: (01:00–09:00 EET by default)
 input int         Inp_Session_Asia_Margin                   = 0;        // VSession_TKY_Margin: ±N hours: 0=exact 01-09 · 1→00-10
 input group " ";
-input bool        Inp_Session_Win1                          = false;    // VSession_Win1: (e.g. morning only: 08-12)
-input int         Inp_Session_Win1_Start                    = 8;        // VSession_Win1_Start: (broker time, 0-23)
+input bool        Inp_Session_Win1                          = true;    // VSession_Win1: (e.g. morning only: 08-12)
+input int         Inp_Session_Win1_Start                    = 7;        // VSession_Win1_Start: (broker time, 0-23)
 input int         Inp_Session_Win1_End                      = 12;       // VSession_Win1_End
 input bool        Inp_Session_Win2                          = false;    // VSession_Win2: (e.g. afternoon: 16-21)
 input int         Inp_Session_Win2_Start                    = 16;       // VSession_Win2_Start: (broker time, 0-23)
@@ -148,15 +148,15 @@ input int         Inp_Global_VETO_TE_OpenDelaySeconds       = 0;        // Veto 
 input int         Inp_Global_VETO_TE_SpreadMedianTicks      = 0;        // Veto TE: spread median filter ticks (0=off)
 
 input group "=== VETO CLIMAX ===";
-input bool        Inp_Global_F_ClimaxGuard_Enabled          = false;    // F-Filter: Climax / exhaustion-guard master toggle
+input bool        Inp_Global_F_ClimaxGuard_Enabled          = true;    // Climax: F-Filter/ exhaustion-guard master toggle
 input int         Inp_Global_ClimaxGuard_Lookback           = 13;       // Climax: window (bars) scanned for an impulse
 input int         Inp_Global_ClimaxGuard_ATRPeriod          = 14;       // Climax: ATR baseline period (measured pre-impulse)
 input double      Inp_Global_ClimaxGuard_BarATRMult         = 2.0;      // Climax: single-bar range threshold (x ATR)
 input double      Inp_Global_ClimaxGuard_MoveATRMult        = 3.0;      // Climax: cumulative move threshold (x ATR)
 
 input group "=== VETO F-FILTERS ===";
-input bool        Inp_Global_F_EmaFanFilterEnabled          = false;    // F-Filter: EMA-fan over-extension master toggle
-input bool        Inp_Global_F_PriceExtFilterEnabled        = false;    // F-Filter: price-vs-EMA over-extension master toggle
+input bool        Inp_Global_F_EmaFanFilterEnabled          = true;    // F-Filter: EMA-fan over-extension master toggle
+input bool        Inp_Global_F_PriceExtFilterEnabled        = true;    // F-Filter: price-vs-EMA over-extension master toggle
 //input bool        Inp_Global_F_DpiDecelFilterEnabled        = true;     // F-Filter: DPI GREEN deceleration master toggle (stateless)
 //input bool        Inp_Global_F_DPI_HistTrackingEnabled      = true;     // F-Filter: DPI histogram tracking master (prereq for hist-decel block)
 //input bool        Inp_Global_F_DPI_BlockOnDeceleration      = true;     // F-Filter: Block on DPI histogram decel (requires hist-tracking on)
@@ -415,7 +415,7 @@ input bool        Inp_Global_F_DPI_BlockOnDeceleration   = true;     // F-Filter
 //
 input group "=== DPI VOTE ===";
 input bool        Inp_RRM_ORG_DPI_Enabled                = true;     // RRM ORG DPI: Enable DPI vote in TS equation
-input bool        Inp_RRM_ORG_DPI_UseCCIReset            = false;    // RRM ORG DPI: CCI can reset ribbon color (trend filter)
+input bool        Inp_RRM_ORG_DPI_UseCCIReset            = true;    // RRM ORG DPI: CCI can reset ribbon color (trend filter)
 input bool        Inp_RRM_ORG_DPI_IgnoreCCIForVote       = false;    // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
 input bool        Inp_RRM_ORG_DPI_UseGreenHist           = true;     // RRM ORG DPI: Also require GREEN overlay for vote pass
 input bool        Inp_RRM_ORG_DpiDiv                     = false;    // RRM ORG DPI: Require price-vs-DPI-histogram divergence (off by default)
@@ -467,9 +467,9 @@ input double      Inp_RRM_ORG_DPI_ExitThreshold          = 0.0;      // RRM ORG 
 //   When true, recovery also requires GREEN to reappear (Blue+hist aligned again).
 //   Stricter: not just CCI agreeing, but full momentum alignment restored.
 //
-input bool        Inp_RRM_ORG_DPI_RequireResetRecovery   = false;    // RRM ORG DPI: Require CCI reset→recovery cycle before entry  [SYNC 2026-06-04: true→false to match SignalScan, which never seeds this gate (zero-init=false). JUDGMENT CALL — see note.]
-input bool        Inp_RRM_ORG_DPI_GrantFirstEntry        = true;     // RRM ORG DPI: Grant the FIRST trade of the session without waiting for a reset→recovery cycle (removes cold-start lockout; has no effect if RequireResetRecovery=false)
-input int         Inp_RRM_ORG_DPI_ResetRecoveryBars      = 0;        // RRM ORG DPI: Recovery bars after CCI flip-back (0=immediate)
+input bool        Inp_RRM_ORG_DPI_RequireResetRecovery   = true;    // RRM ORG DPI: Require CCI reset→recovery cycle before entry  [SYNC 2026-06-04: true→false to match SignalScan, which never seeds this gate (zero-init=false). JUDGMENT CALL — see note.]
+input bool        Inp_RRM_ORG_DPI_GrantFirstEntry        = false;     // RRM ORG DPI: Grant the FIRST trade of the session without waiting for a reset→recovery cycle (removes cold-start lockout; has no effect if RequireResetRecovery=false)
+input int         Inp_RRM_ORG_DPI_ResetRecoveryBars      = 1;        // RRM ORG DPI: Recovery bars after CCI flip-back (0=immediate)
 input bool        Inp_RRM_ORG_DPI_ResetRequireGreen      = false;    // RRM ORG DPI: Also require GREEN reappearance during recovery
 
 input group " ";
@@ -478,7 +478,7 @@ input group "    📐 PRESET_RRM_ORG  ★ ACTIVE";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 
 input group "=== RRM_ORG TP ===";
-input ETPMode     Inp_RRM_ORG_TPMode               = TP_MODE_RR;     // RRM ORG TP: TP_MODE=*: *FIXED_PIPS, *FRACTAL, *NONE, *PSAR_FLIP, *RR
+input ETPMode     Inp_RRM_ORG_TPMode               = TP_MODE_NONE;     // RRM ORG TP: TP_MODE=*: *FIXED_PIPS, *FRACTAL, *NONE, *PSAR_FLIP, *RR
 input double      Inp_RRM_ORG_RRRatio              = 2.5;            // RRM ORG TP: RR ratio — 2.5 = TP at 2.5× SL distance. Oracle: winners should outpace losers. Was 1.25 (negative expected value at 52% win rate).
 //
 // Inp_RRM_ORG_TPMode - Take profit mode:
@@ -499,7 +499,7 @@ input double      Inp_RRM_ORG_RRRatio              = 2.5;            // RRM ORG 
 
 input group "=== RRM_ORG SL INITIAL===";
 input ESLMode     Inp_RRM_ORG_SLMode               = SL_MODE_SWING;  // RRM ORG SL: SL_MODE_=*: *ATR, *FIXED_PIPS, *FRACTAL, *PERCENT, *PSAR_DOT, *SWING
-input int         Inp_RRM_ORG_SwingLookback        = 55;             // RRM ORG SL: SWING lookback bars — search window for the most recent swing high/low. Larger window = more likely to find a structurally meaningful level. 34 bars: M1=34min · M5=170min · H1=34h. If swing is 15 bars ago and window=13, it's missed; window=34 finds it.
+input int         Inp_RRM_ORG_SwingLookback        = 21;             // RRM ORG SL: SWING lookback bars — search window for the most recent swing high/low. Larger window = more likely to find a structurally meaningful level. 34 bars: M1=34min · M5=170min · H1=34h. If swing is 15 bars ago and window=13, it's missed; window=34 finds it.
 input int         Inp_RRM_ORG_SL_AtrPeriod         = 14;             // RRM ORG SL: ATR period (SL_MODE_ATR only)
 input double      Inp_RRM_ORG_SL_AtrMult           = 1.0;            // RRM ORG SL: ATR multiplier — SL = swing_anchor − ATR×N (SL_MODE_ATR; 0.5–1.5 typical; Gold M15 use 1.0–1.5)
 input int         Inp_RRM_ORG_MinBarsAfterClose    = 3;              // RRM ORG SL: post-trade cooldown bars (0=off)
@@ -520,7 +520,7 @@ input int         Inp_RRM_ORG_ReEntryLotScalePct   = 50;             // RRM ORG 
 //
 
 input group "=== RRM_ORG SL TRAIL ===";
-input ETrailingMode Inp_RRM_ORG_TrailMode             = TRAIL_PSAR;   // RRM ORG TS METHOD (how the stop moves): *PSAR(Oracle), *EMA, *SWING, *FRACTAL, *FIXED_PIPS, *PROFIT_PERCENT(LPR), *NONE. (PSAR_FLIP_EXIT is a HARD EXIT, not a trail method.)
+input ETrailingMode Inp_RRM_ORG_TrailMode             = TRAIL_EMA;   // RRM ORG TS METHOD (how the stop moves): *PSAR(Oracle), *EMA, *SWING, *FRACTAL, *FIXED_PIPS, *PROFIT_PERCENT(LPR), *NONE. (PSAR_FLIP_EXIT is a HARD EXIT, not a trail method.)
 input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode = PSAR_CUSHION_ATR; // RRM ORG TS: PSAR cushion mode (PIPS / ATR / PERCENT)
 input int         Inp_RRM_ORG_TrailCushionAtrPeriod   = 14;          // RRM ORG TS: ATR period (ATR mode)
 input double      Inp_RRM_ORG_TrailCushionAtrMult     = 2.0;         // RRM ORG TS: cushion ATR multiplier (cushion = ATR × this)
@@ -551,16 +551,16 @@ input double      Inp_RRM_ORG_TrailProfitPercentLPR   = 25.0;        // RRM ORG 
 input group "=== RRM_ORG SL TRIGGER ===";
 input EEmaRole    Inp_RRM_ORG_TrailEMA_RibbonRole     = ROLE_EMA3;   // RRM ORG TS: which ribbon EMA to trail (EMA1=5,EMA2=13,EMA3=34,EMA4=89) when Period=0
 input int         Inp_RRM_ORG_TrailEMA_Period         = 0;           // RRM ORG TS: EMA period (0=use ribbon role selector below)
-input int         Inp_RRM_ORG_TrailEMA_Shift          = 3;           // RRM ORG TS: bar shift for EMA read (1=last closed bar, 2=two bars back, 3=three bars back)
+input int         Inp_RRM_ORG_TrailEMA_Shift          = 1;           // RRM ORG TS: bar shift for EMA read (1=last closed bar, 2=two bars back, 3=three bars back)
 input double      Inp_RRM_ORG_TrailEMA_CushionPips    = 0.0;         // RRM ORG TS: EMA trail cushion pips (0=use ATR mode)
-input double      Inp_RRM_ORG_TrailEMA_CushionAtrMult = 1.0;         // RRM ORG TS: EMA cushion = ATR×this (0=disabled; 0.1=recommended)
+input double      Inp_RRM_ORG_TrailEMA_CushionAtrMult = 0.3;         // RRM ORG TS: EMA cushion = ATR×this (0=disabled; 0.1=recommended)
 input int         Inp_RRM_ORG_TrailEMA_CushionAtrPeriod = 14;        // RRM ORG TS: ATR period for EMA cushion
 
 input group " ";
 input ETrailTrigger Inp_RRM_ORG_TrailTrigger          = TRIGGER_IMMEDIATE; // RRM ORG TS START (when trailing begins): *IMMEDIATE(Oracle: from entry), *BREAKEVEN, *PROFIT_PERCENT(R), *PROFIT_PIPS, *PSAR_ALIGN. Now LIVE on the RRM path (was previously read only on SIMPLE profiles).
-input bool        Inp_RRM_ORG_TrailStartsAfterBE      = false;        // RRM ORG TS: hold the PSAR trail back until BE fires. Oracle (manual SS IV.B) says trailing starts as soon as the trade moves in your favour, so false is the Oracle-conformant value. true = pre-2026-07 behaviour
+input bool        Inp_RRM_ORG_TrailStartsAfterBE      = true;        // RRM ORG TS: hold the PSAR trail back until BE fires. Oracle (manual SS IV.B) says trailing starts as soon as the trade moves in your favour, so false is the Oracle-conformant value. true = pre-2026-07 behaviour
 input bool        Inp_RRM_ORG_TrailLockProfit         = true;        // RRM ORG TS: never move SL backwards (lock profit)
-input bool        Inp_RRM_ORG_TrailAllowLossSide      = true;        // RRM ORG TS: let the trail tighten the SL while it is STILL AT A LOSS (Oracle Stop Loss card: "Move Stop Loss Towards Entry"). false = SL frozen at its initial level until BE fires (pre-2026-07)
+input bool        Inp_RRM_ORG_TrailAllowLossSide      = false;        // RRM ORG TS: let the trail tighten the SL while it is STILL AT A LOSS (Oracle Stop Loss card: "Move Stop Loss Towards Entry"). false = SL frozen at its initial level until BE fires (pre-2026-07)
 input double      Inp_RRM_ORG_TrailStepPips           = 5.0;         // RRM ORG TS: step size for fixed-step trail modes
 input bool        Inp_RRM_ORG_FreezeTrailOnFlip       = true;        // RRM ORG TS: FREEZE trail on PSAR flip (pause SL moves until corrected)
 input int         Inp_RRM_ORG_MaxSpreadRetryBars      = 0;           // RRM ORG: SPREAD bars retry (if TE block)
@@ -578,7 +578,7 @@ input bool        Inp_RRM_ORG_AllowReEntryAfterBE     = true;        // RRM ORG:
 
 input group "=== RRM_ORG BE ===";
 input EBeMode     Inp_RRM_ORG_BE_Mode                 = BE_MODE_R_MULTIPLE;   // RRM ORG BE: Breakeven trigger mode
-input double      Inp_RRM_ORG_BE_RMultiple            = 0.25;                 // RRM ORG BE: BE trigger as R multiple
+input double      Inp_RRM_ORG_BE_RMultiple            = 0.70;                 // RRM ORG BE: BE trigger as R multiple
 input double      Inp_RRM_ORG_BE_ProgressPct          = 25.0;                 // RRM ORG BE: BE trigger as TP progress %
 input EBeTriggerSource Inp_RRM_ORG_BE_TriggerSource   = BE_SRC_BAR_CLOSE;  
 //
@@ -608,7 +608,7 @@ input EBeTriggerSource Inp_RRM_ORG_BE_TriggerSource   = BE_SRC_BAR_CLOSE;
 input group "=== RRM_ORG DD ===";
 input bool        Inp_RRM_ORG_ForceDDProtection    = false;          // RRM ORG DD: Force DrawDown protection
 input int         Inp_RRM_ORG_DDMaxConsecLosses    = 3;              // RRM ORG DD: Override max consecutive losses (0=use Inp_RRM_*)
-input int         Inp_RRM_ORG_DDMaxTradesPerDay    = 15;             // RRM ORG DD: Override max trades per day (0=use Inp_RRM_*)
+input int         Inp_RRM_ORG_DDMaxTradesPerDay    = 8;             // RRM ORG DD: Override max trades per day (0=use Inp_RRM_*)
 input double      Inp_RRM_ORG_DDMaxDailyPct        = 8.0;            // RRM ORG DD: Override max daily DD % (0=use Inp_RRM_*)
 
 input group "=== RRM_ORG QUALITY ===";
@@ -617,8 +617,8 @@ input int         Inp_RRM_ORG_Ema1Period           = 5;              // RRM ORG 
 input int         Inp_RRM_ORG_Ema2Period           = 13;             // RRM ORG QA: EMA2 period
 input int         Inp_RRM_ORG_Ema3Period           = 34;             // RRM ORG QA: EMA3 period
 input int         Inp_RRM_ORG_Ema4Period           = 89;             // RRM ORG QA: EMA4 period
-input int         Inp_RRM_ORG_MinBarsAfterUNOExit  = 0;              // RRM ORG QA: Min bars after UNO exit before any layer DETECTED→IN-TREND transition is allowed (0=disabled; try 2-3 for M1)
-input int         Inp_RRM_ORG_UNO_ToleranceBars    = 0;              // RRM ORG PB: consecutive UNO bars tolerated before layer states are wiped. A transient UNO flicker that resolves back to the SAME direction within this many bars PRESERVES DETECTED/IN-TREND (0=strict: reset on the first UNO bar)
+input int         Inp_RRM_ORG_MinBarsAfterUNOExit  = 2;              // RRM ORG QA: Min bars after UNO exit before any layer DETECTED→IN-TREND transition is allowed (0=disabled; try 2-3 for M1)
+input int         Inp_RRM_ORG_UNO_ToleranceBars    = 1;              // RRM ORG PB: consecutive UNO bars tolerated before layer states are wiped. A transient UNO flicker that resolves back to the SAME direction within this many bars PRESERVES DETECTED/IN-TREND (0=strict: reset on the first UNO bar)
 
 input group "=== RRM_ORG LAYER ===";
 input bool        Inp_RRM_ORG_LayerPBEnabled          = true;        // RRM ORG PB: Enable pullback-recovery state machine (P2?)
@@ -635,11 +635,11 @@ input int         Inp_RRM_ORG_LayerPullbackWindow_M   = 34;          // RRM ORG 
 input int         Inp_RRM_ORG_LayerPullbackWindow_S   = 55;          // RRM ORG PB: LayerS observation window (bars; 0=use global)
 input int         Inp_RRM_ORG_MinPBBars_W             = 3;           // RRM ORG PB: A21 - LayerW min bars in DETECTED before IN-TREND (2/2/2 default)
 input int         Inp_RRM_ORG_MinPBBars_M             = 3;           // RRM ORG PB: A21 - LayerM min bars in DETECTED before IN-TREND (2/2/2 default)
-input int         Inp_RRM_ORG_MinPBBars_S             = 3;           // RRM ORG PB: A21 - LayerS min bars in DETECTED before IN-TREND (2/2/2 default)
+input int         Inp_RRM_ORG_MinPBBars_S             = 2;           // RRM ORG PB: A21 - LayerS min bars in DETECTED before IN-TREND (2/2/2 default)
 input group " ";
 input bool        Inp_RRM_ORG_AllowLayerS             = true;        // RRM ORG PB: allow Layer S (EMA3/4) entries
 input bool        Inp_RRM_ORG_AllowLayerM             = true;        // RRM ORG PB: allow Layer M (EMA2/3) entries
-input bool        Inp_RRM_ORG_AllowLayerW             = true;        // RRM ORG PB: allow Layer W (EMA1/2) entries
+input bool        Inp_RRM_ORG_AllowLayerW             = false;        // RRM ORG PB: allow Layer W (EMA1/2) entries
 
 input group "=== RRM_ORG EMA FAN ===";
 input double      Inp_RRM_ORG_EmaFan_M5Pips        = 25.0;           // RRM ORG Fan: pips <M5
@@ -648,7 +648,7 @@ input double      Inp_RRM_ORG_EmaFan_H1Pips        = 60.0;           // RRM ORG 
 input double      Inp_RRM_ORG_EmaFan_H4Pips        = 100.0;          // RRM ORG Fan: pips H4
 input double      Inp_RRM_ORG_EmaFan_DailyPips     = 180.0;          // RRM ORG Fan: pips D1+
 input double      Inp_RRM_ORG_EmaFan_MaxPct        = 0.0;            // RRM ORG Fan: max gap % of price (>0 overrides pips; universal for all instruments)
-input int         Inp_RRM_ORG_PriceExtRefEma       = 3;              // RRM ORG OverExt: ref EMA 1..4 (1=5 2=13 3=34 4=89)
+input int         Inp_RRM_ORG_PriceExtRefEma       = 4;              // RRM ORG OverExt: ref EMA 1..4 (1=5 2=13 3=34 4=89)
 input double      Inp_RRM_ORG_PriceExtMaxATR       = 2.5;            // RRM ORG OverExt: block if |close-refEMA| > this x ATR
 input int         Inp_RRM_ORG_PriceExtAtrPeriod    = 14;             // RRM ORG OverExt: ATR period for distance
 input double      Inp_RRM_ORG_JpyGateMultiplier    = 1.3;            // RRM ORG Fan: JPY Gate Multiplier (1.0=disabled)
@@ -658,7 +658,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 input group "    📐 PRESET_RRM_ORG — INDICATORS";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 
-input bool        Inp_RRM_ORG_Use_Adx              = true;           // RRM ORG Ind: ADX vote
+input bool        Inp_RRM_ORG_Use_Adx              = false;           // RRM ORG Ind: ADX vote
 input bool        Inp_RRM_ORG_Use_Atr              = false;          // RRM ORG Ind: ATR vote
 input bool        Inp_RRM_ORG_Use_Bb               = false;          // RRM ORG Ind: BB vote
 input bool        Inp_RRM_ORG_Use_CandleBody       = true;           // RRM ORG Ind: CBody vote
@@ -671,7 +671,7 @@ input bool        Inp_RRM_ORG_Use_P123             = false;          // RRM ORG 
 input bool        Inp_RRM_ORG_Use_Psar             = true;           // RRM ORG Ind: PSAR vote
 input bool        Inp_RRM_ORG_Use_Ross             = false;          // RRM ORG Ind: Ross vote
 input bool        Inp_RRM_ORG_Use_Rsi              = false;          // RRM ORG Ind: RSI vote
-input bool        Inp_RRM_ORG_Use_Stoch            = true;          // RRM ORG Ind: STO vote
+input bool        Inp_RRM_ORG_Use_Stoch            = false;          // RRM ORG Ind: STO vote
 input bool        Inp_RRM_ORG_Use_VRC              = false;          // RRM ORG Ind: VRC vote
 
 input group "=== RRM_ORG ADX ===";
@@ -730,8 +730,8 @@ input double      Inp_RRM_ORG_Mfi_OB               = 80.0;           // RRM ORG 
 input double      Inp_RRM_ORG_Mfi_OS               = 20.0;           // RRM ORG MFI: MFI Oversold
 
 input group "=== RRM_ORG MTF ===";
-input ENUM_TIMEFRAMES Inp_RRM_ORG_MTF_TF1          = PERIOD_H1;      // RRM ORG MTF: TF1 (primary)
-input ENUM_TIMEFRAMES Inp_RRM_ORG_MTF_TF2          = PERIOD_H2;      // RRM ORG MTF: TF2 (PERIOD_CURRENT = single TF)
+input ENUM_TIMEFRAMES Inp_RRM_ORG_MTF_TF1          = PERIOD_M5;      // RRM ORG MTF: TF1 (primary)
+input ENUM_TIMEFRAMES Inp_RRM_ORG_MTF_TF2          = PERIOD_M15;      // RRM ORG MTF: TF2 (PERIOD_CURRENT = single TF)
 input int         Inp_RRM_ORG_MTF_EMA_Fast         = 21;             // RRM ORG MTF: fast EMA period
 input int         Inp_RRM_ORG_MTF_EMA_Slow         = 21;             // RRM ORG MTF: slow EMA period
 input bool        Inp_RRM_ORG_MTF_RequirePhase     = true;           // RRM ORG MTF: require trending HTF
@@ -740,8 +740,8 @@ input group "=== RRM_ORG PSAR ===";
 input bool        Inp_RRM_ORG_Vote_AllowPsarFlip   = true;           // RRM ORG PSAR: PSAR Enable Flip
 input int         Inp_RRM_ORG_Vote_PsarFlipDelay   = -1;             // RRM ORG PSAR: global PSAR flip delay. MODES: -1 = persistent (dot side only, no recency test) | 0 = flip must fall on this bar | 1..10 = flip must fall within the last N closed bars. Applies only when Vote_AllowPsarFlip=true; otherwise PSAR votes on dot side alone. The dot-side test runs FIRST, so a window can only make an already-correct-side dot stricter - never admit a wrong-side one. KNOWN PROPERTY of any window mode (>= 0): once the dot has been correctly-sided for longer than the window there is no opposite-side bar left in it, so PSAR fails PSAR_FLIP_STALE until the next flip - a window expires the vote inside a sustained trend (observed 2026-07 on M5). Accepted cost of a freshness gate, not a defect. Persistent mode has no such expiry. Per-layer overrides below take precedence whenever they are not -99. Runtime ground truth is the [PSAR_RESOLVED] startup line and the cockpit PSAR row, which read live Settings - not this source default, which the MT5 dialog can override.
 input int         Inp_RRM_ORG_TrailPsarDotShift    = 3;              // RRM ORG QA: PSAR trail shift (1–3 bars back)
-input int         Inp_RRM_ORG_PsarFlipDelay_W      = 5;              // RRM ORG PSAR: PSAR Flip delay LayerW override (-99=use global, 0=flip bar, 1-10=window) // LayerW (EMA1/2) override. -99 = use the global Vote_PsarFlipDelay; any other value overrides it for this layer only, same mode meanings. Resolved by GetEffectivePsarFlipDelay (SEA_SignalEngine.mqh), which takes the override whenever it is > -99. Rationale for windowing this layer more tightly than the others: W is the fastest pair and the most exposed to whipsaw immediately after a trend re-entry. Runtime ground truth is the [PSAR_RESOLVED] startup line and the cockpit PSAR row, which read live Settings - not this source default, which the MT5 dialog can override.
-input int         Inp_RRM_ORG_PsarFlipDelay_M      = 5;              // RRM ORG PSAR: PSAR Flip delay LayerM override (-99=use global, 0=flip bar, 1-10=window) // LayerM (EMA2/3) override. -99 = use the global Vote_PsarFlipDelay; any other value overrides it for this layer only, same mode meanings. Rationale for leaving this layer persistent: M entries are already confirmed by EMA13/34 structural alignment, so a recency test adds little. Rationale for windowing it: uniformity with W and S. Both are defensible; neither is derived. Runtime ground truth is the [PSAR_RESOLVED] startup line and the cockpit PSAR row, which read live Settings - not this source default, which the MT5 dialog can override.
+input int         Inp_RRM_ORG_PsarFlipDelay_W      = 2;              // RRM ORG PSAR: PSAR Flip delay LayerW override (-99=use global, 0=flip bar, 1-10=window) // LayerW (EMA1/2) override. -99 = use the global Vote_PsarFlipDelay; any other value overrides it for this layer only, same mode meanings. Resolved by GetEffectivePsarFlipDelay (SEA_SignalEngine.mqh), which takes the override whenever it is > -99. Rationale for windowing this layer more tightly than the others: W is the fastest pair and the most exposed to whipsaw immediately after a trend re-entry. Runtime ground truth is the [PSAR_RESOLVED] startup line and the cockpit PSAR row, which read live Settings - not this source default, which the MT5 dialog can override.
+input int         Inp_RRM_ORG_PsarFlipDelay_M      = 3;              // RRM ORG PSAR: PSAR Flip delay LayerM override (-99=use global, 0=flip bar, 1-10=window) // LayerM (EMA2/3) override. -99 = use the global Vote_PsarFlipDelay; any other value overrides it for this layer only, same mode meanings. Rationale for leaving this layer persistent: M entries are already confirmed by EMA13/34 structural alignment, so a recency test adds little. Rationale for windowing it: uniformity with W and S. Both are defensible; neither is derived. Runtime ground truth is the [PSAR_RESOLVED] startup line and the cockpit PSAR row, which read live Settings - not this source default, which the MT5 dialog can override.
 input int         Inp_RRM_ORG_PsarFlipDelay_S      = 5;              // RRM ORG PSAR: PSAR Flip delay LayerS override (-99=use global, 0=flip bar, 1-10=window) // LayerS (EMA3/4) override. -99 = use the global Vote_PsarFlipDelay; any other value overrides it for this layer only, same mode meanings. Rationale for leaving this layer persistent: S is the slowest, highest-conviction pair and a time-indexed gate adds little structural filtering. Rationale for windowing it: uniformity with W and M. Both are defensible; neither is derived. Runtime ground truth is the [PSAR_RESOLVED] startup line and the cockpit PSAR row, which read live Settings - not this source default, which the MT5 dialog can override.
 input double      Inp_RRM_ORG_PsarStep             = 0.05;           // RRM ORG PSAR: PSAR Step
 input double      Inp_RRM_ORG_PsarMax              = 0.2;            // RRM ORG PSAR: PSAR Max
