@@ -340,7 +340,7 @@ void PrintEffectiveConfig()
 
 bool ValidateEffectiveSettings()
 {
-   if((int)Settings.MaType < (int)METHOD_EMA || (int)Settings.MaType > (int)METHOD_SMA)
+   if((int)Settings.MaType < (int)METHOD_EMA || (int)Settings.MaType > (int)METHOD_LWMA)
    {
       Print("ERROR: Settings.MaType is out of range: ", (int)Settings.MaType);
       return false;
