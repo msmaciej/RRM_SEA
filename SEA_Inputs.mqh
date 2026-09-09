@@ -378,7 +378,7 @@ input group "FPM - Indicator Settings";
 input int         Inp_FPM_MacdFast                 = 12;             // FPM MACD: fast EMA period
 input int         Inp_FPM_MacdSlow                 = 26;             // FPM MACD: slow EMA period
 input int         Inp_FPM_MacdSig                  = 9;              // FPM MACD: signal period
-input double      Inp_FPM_PsarStep                 = 0.02;           // FPM PSAR: step
+input double      Inp_FPM_PsarStep                 = 0.05;           // FPM PSAR: step
 input double      Inp_FPM_PsarMax                  = 0.2;            // FPM PSAR: max
 input bool        Inp_FPM_Ind_Mfi_Enabled          = true;           // FPM MFI: Enable MFI volume gate (MFI>50 for longs, <50 for shorts)
 input int         Inp_FPM_Mfi_Period               = 14;             // FPM MFI: period (default 14)
