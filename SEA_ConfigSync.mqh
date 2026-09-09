@@ -341,7 +341,13 @@ bool SEA_WriteConfigSnapshot(const ST_Settings &cfg)
    FileWriteString(h, "StaleExit_Bars=" + IntegerToString(cfg.StaleExit_Bars) + "\n");
    FileWriteString(h, "StaleExit_MinR=" + DoubleToString(cfg.StaleExit_MinR, 8) + "\n");
    FileWriteString(h, "UNO_AllowStrongShark=" + (cfg.UNO_AllowStrongShark ? "1" : "0") + "\n");
-   FileWriteString(h, "UNO_Shark_TouchWindow=" + IntegerToString(cfg.UNO_Shark_TouchWindow) + "\n");
+   FileWriteString(h, "MTF_FreshX_Enabled=" + (cfg.MTF_FreshX_Enabled ? "1" : "0") + "\n");
+   FileWriteString(h, "MTF_FreshX_Layers=" + IntegerToString(cfg.MTF_FreshX_Layers) + "\n");
+   FileWriteString(h, "MTF_FreshX_MaxPullbacks=" + IntegerToString(cfg.MTF_FreshX_MaxPullbacks) + "\n");
+   FileWriteString(h, "MTF_FreshX_MaxBars=" + IntegerToString(cfg.MTF_FreshX_MaxBars) + "\n");
+   FileWriteString(h, "MTF_FreshX_Lookback=" + IntegerToString(cfg.MTF_FreshX_Lookback) + "\n");
+   FileWriteString(h, "MTF_FreshX_PBLookback=" + IntegerToString(cfg.MTF_FreshX_PBLookback) + "\n");
+   FileWriteString(h, "MTF_FreshX_ApplyTF2=" + (cfg.MTF_FreshX_ApplyTF2 ? "1" : "0") + "\n");
    FileWriteString(h, "# -- 26 MA Benchmark --\n");
    FileWriteString(h, "MABenchmarkStrict=" + (cfg.MABenchmarkStrict ? "true" : "false") + "\n");
    FileWriteString(h, "RequirePriceCross=" + (cfg.RequirePriceCross ? "true" : "false") + "\n");
@@ -542,7 +548,13 @@ bool SEA_CS_ApplyKey(ST_Settings &s, const string key, const string val)
    if(key == "StaleExit_Bars") { s.StaleExit_Bars = (int)StringToInteger(val); return true; }
    if(key == "StaleExit_MinR") { s.StaleExit_MinR = StringToDouble(val); return true; }
    if(key == "UNO_AllowStrongShark") { s.UNO_AllowStrongShark = (StringToInteger(val) != 0); return true; }
-   if(key == "UNO_Shark_TouchWindow") { s.UNO_Shark_TouchWindow = (int)StringToInteger(val); return true; }
+   if(key == "MTF_FreshX_Enabled") { s.MTF_FreshX_Enabled = (StringToInteger(val) != 0); return true; }
+   if(key == "MTF_FreshX_Layers") { s.MTF_FreshX_Layers = (int)StringToInteger(val); return true; }
+   if(key == "MTF_FreshX_MaxPullbacks") { s.MTF_FreshX_MaxPullbacks = (int)StringToInteger(val); return true; }
+   if(key == "MTF_FreshX_MaxBars") { s.MTF_FreshX_MaxBars = (int)StringToInteger(val); return true; }
+   if(key == "MTF_FreshX_Lookback") { s.MTF_FreshX_Lookback = (int)StringToInteger(val); return true; }
+   if(key == "MTF_FreshX_PBLookback") { s.MTF_FreshX_PBLookback = (int)StringToInteger(val); return true; }
+   if(key == "MTF_FreshX_ApplyTF2") { s.MTF_FreshX_ApplyTF2 = (StringToInteger(val) != 0); return true; }
    if(key == "RequirePriceCross") { s.RequirePriceCross = SEA_CS_ParseBool(val); return true; }
    if(key == "Require_Progressive_Momentum") { s.Require_Progressive_Momentum = SEA_CS_ParseBool(val); return true; }
    if(key == "RsiMode") { s.RsiMode = (ERsiMode)(int)StringToInteger(val); return true; }

@@ -1030,8 +1030,8 @@ struct ST_Settings
 
    // ── Fresh-trend gate (2026-09, RRM_ORG 100-trades study) ─────────────────
    // Per layer: find the most recent bias-direction cross of a reference EMA
-   // pair, then count (a) bars since that cross and (b) completed pullback
-   // episodes to the layer's touch EMA (W→EMA2, M→EMA3, S→EMA4) since it.
+   // pair, then count (a) bars since that cross and (b) slope-defined pullback
+   // episodes of the layer's fast EMA (same test as the layer machine) since it.
    // Entry is allowed only while both are within their caps. This encodes the
    // Oracle "first pullback after the crossover" rule; Cluster C (late, shallow
    // W-layer pullbacks in an old trend) is what it removes.
@@ -1059,12 +1059,25 @@ struct ST_Settings
    // in a nice Shark trade") ───────────────────────────────────────────────────
    // When the phase is UNORDERED but the long-term pair is still ordered
    // (EMA3 vs EMA4, with EMA2 sandwiched between them), the bias becomes the
-   // long-term direction and ONLY Layer S may fire: price must have touched
-   // EMA4 within UNO_Shark_TouchWindow bars and the signal bar must close past
-   // EMA3 (BC_LAYER_AWARE bcS) with BD, DPI, PSAR and the S pullback-recovery
-   // cycle all passing. W and M stay blocked in UNO.
+   // long-term direction and ONLY Layer S may fire: the S machine's own
+   // slope-defined pullback-recovery cycle, the signal bar closing past EMA3
+   // (BC_LAYER_AWARE bcS), BD, DPI, PSAR — no price-touch test (the layer
+   // model is pure position + slope). W and M stay blocked in UNO.
    bool   UNO_AllowStrongShark;
-   int    UNO_Shark_TouchWindow;
+
+   // ── Nested fresh trend on the higher TF (2026-09, "MTF FreshX") ───────────
+   // The human read: the S setup on the chart TF is nested inside the SAME
+   // young structure on TF1 — TF1 has just had its fast/slow cross (34/89 when
+   // MTF_EMA_Fast/Slow = 34/89) and is in its first slope-pullback(s). Same
+   // arithmetic as CheckFreshCrossGate, run on the TF1 (optionally TF2) handles.
+   // Inert when MTF_EMA_Fast == MTF_EMA_Slow (legacy single-EMA slope mode).
+   bool   MTF_FreshX_Enabled;
+   int    MTF_FreshX_Layers;        // 0 = all layers, 1 = W only, 2 = M only, 3 = S only
+   int    MTF_FreshX_MaxPullbacks;  // HTF slope-pullback episodes since its cross (0 = unlimited)
+   int    MTF_FreshX_MaxBars;       // HTF bars since its cross (0 = off)
+   int    MTF_FreshX_Lookback;      // HTF scan window (no cross inside = stale)
+   int    MTF_FreshX_PBLookback;    // HTF baseline lookback for the slope test
+   bool   MTF_FreshX_ApplyTF2;      // also require it on TF2 (default: TF2 confirms direction only)
 
    // DPI momentum deceleration filter — block TS=1 when directionally-aligned DPI histogram shrinks
    // Only activates when DpiDecelFilterEnabled=true AND Ind_Dpi_Enabled=true.

@@ -391,6 +391,10 @@ private:
     // GetBias_4EMA_Direction, consumed by EvaluateP / CheckLayerPairAlign /
     // EvaluateL (S-only) and the per-bar layer bookkeeping.
     bool        m_uno_shark_ctx;
+    // MTF FreshX diagnostics (2026-09): TF1 (and TF2) slope-pullbacks / bars since
+    // the HTF fast/slow cross at the last evaluated bar; blk = gate rejected.
+    int         m_diag_mtfx_pb_tf1, m_diag_mtfx_age_tf1, m_diag_mtfx_pb_tf2, m_diag_mtfx_age_tf2;
+    bool        m_diag_mtfx_blk;
     int         m_last_layer;         // Active layer that won (1=Weak, 2=Medium, 3=Strong, 0=none)
     // --- 2c.1 LAYER PULLBACK-RECOVERY STATE ---
     ELayerPullbackState m_layer_w_pb_state;   // LayerW pullback state
@@ -6457,6 +6461,7 @@ public:
       m_diag_freshx_bars_w = -1; m_diag_freshx_bars_m = -1; m_diag_freshx_bars_s = -1;
       m_diag_freshx_blk_w = false; m_diag_freshx_blk_m = false; m_diag_freshx_blk_s = false;
       m_uno_shark_ctx = false;
+      m_diag_mtfx_pb_tf1 = 0; m_diag_mtfx_age_tf1 = -1; m_diag_mtfx_pb_tf2 = 0; m_diag_mtfx_age_tf2 = -1; m_diag_mtfx_blk = false;
       m_last_layer        = 0;
 
       m_bars_evaluated    = 0;
@@ -7787,6 +7792,7 @@ public:
       m_diag_freshx_bars_w = -1; m_diag_freshx_bars_m = -1; m_diag_freshx_bars_s = -1;
       m_diag_freshx_blk_w = false; m_diag_freshx_blk_m = false; m_diag_freshx_blk_s = false;
       m_uno_shark_ctx = false;
+      m_diag_mtfx_pb_tf1 = 0; m_diag_mtfx_age_tf1 = -1; m_diag_mtfx_pb_tf2 = 0; m_diag_mtfx_age_tf2 = -1; m_diag_mtfx_blk = false;
       m_last_layer = 0;
       m_bars_evaluated = 0;
       m_signals_generated = 0;
@@ -9710,24 +9716,6 @@ public:
    }
 
    //+------------------------------------------------------------------+
-   //| PriceTouchedEmaWithin — did price touch EMA<slot> in the window?  |
-   //+------------------------------------------------------------------+
-   // Long: any Low <= EMA; Short: any High >= EMA, over bars v_shift..v_shift+window-1.
-   bool PriceTouchedEmaWithin(const int slot1based, const int bias, const int v_shift, const int window)
-   {
-      const int n = MathMax(1, window);
-      double e[], px[];
-      if(!ReadEmaBlock(slot1based, v_shift, n, e)) return true;   // data failure never blocks
-      ArrayResize(px, n); ArraySetAsSeries(px, true);
-      const int got = (bias > 0) ? CopyLow (m_symbol, PERIOD_CURRENT, v_shift, n, px)
-                                 : CopyHigh(m_symbol, PERIOD_CURRENT, v_shift, n, px);
-      if(got != n) return true;
-      for(int i = 0; i < n; i++)
-         if((bias > 0 && px[i] <= e[i]) || (bias < 0 && px[i] >= e[i])) return true;
-      return false;
-   }
-
-   //+------------------------------------------------------------------+
    //| ReadEmaBlock — series-ordered block read of one ribbon slot       |
    //+------------------------------------------------------------------+
    // arr[0] = value at start_shift, arr[i] = value at start_shift+i.
@@ -9768,14 +9756,18 @@ public:
    //+------------------------------------------------------------------+
    //| CheckFreshCrossGate — "first pullback after the cross" gate       |
    //+------------------------------------------------------------------+
-   // 2026-09 (RRM_ORG 100-trades study, Oracle manual III "Crossover entry",
+   // 2026-09 (RRM_ORG 100-trades study; Oracle manual III "Crossover entry",
    // report "Multi-Timeframe"). For the given layer:
    //   1. take the layer's reference EMA pair (FreshX_RefPair_*),
    //   2. walk back from v_shift to the most recent bar where that pair crossed
    //      INTO the bias direction (age = bars since the cross),
-   //   3. from the cross bar to now, count pullback EPISODES to the layer's touch
-   //      EMA (W→EMA2, M→EMA3, S→EMA4; Long: Low<=EMA, Short: High>=EMA; a run
-   //      of consecutive touching bars = one episode, the current pullback counts),
+   //   3. from the cross bar to now, count pullback EPISODES of the layer using
+   //      the SAME slope definition as UpdateSingleLayerPullback: a bar is a
+   //      pullback bar when the layer's fast-EMA pace ratio vs its baseline is
+   //      below LayerFlatRatio, or (LayerAllowReversalPullback) its slope sign is
+   //      against the bias. A run of consecutive pullback bars = one episode; the
+   //      current pullback counts. No price-vs-EMA "touch" anywhere — the layer
+   //      model is pure position + slope (README_SEA_PRESETS "S2 touch removed").
    //   4. allow only while episodes <= MaxPullbacks and age <= MaxBars (0 = off).
    // No cross inside FreshX_Lookback = trend older than the window = stale.
    // Stateless and shift-correct, so SignalScan gets identical verdicts.
@@ -9804,22 +9796,22 @@ public:
          case 4: sa = 3; sb = 4; break;   // EMA3 x EMA4
          default: return true;
       }
-      const int touchSlot = (layer == 1) ? 2 : (layer == 2) ? 3 : 4;
+      // The layer's fast EMA — the one whose slope defines its pullbacks
+      // (W→EMA1, M→EMA2, S→EMA3), and the lookback the machine uses for it.
+      const int fastSlot = layer;
+      const int lookback = MathMax(2, GetLayerLookback(layer));
+      const int k        = (int)MathMax(2.0, (double)lookback / 4.0);
 
       int n = MathMax(20, m_settings.FreshX_Lookback) + 1;    // +1: oldest bar needs a predecessor
       const int avail = Bars(m_symbol, PERIOD_CURRENT) - v_shift;
-      if(avail < 10) return true;
-      if(n > avail) n = avail;
+      if(avail < lookback + 12) return true;
+      if(n > avail - lookback - 2) n = avail - lookback - 2;
+      if(n < 10) return true;
 
-      double ea[], eb[], et[], px[];
-      if(!ReadEmaBlock(sa, v_shift, n, ea))        return true;
-      if(!ReadEmaBlock(sb, v_shift, n, eb))        return true;
-      if(!ReadEmaBlock(touchSlot, v_shift, n, et)) return true;
-      ArrayResize(px, n);
-      ArraySetAsSeries(px, true);
-      const int got = (bias > 0) ? CopyLow (m_symbol, PERIOD_CURRENT, v_shift, n, px)
-                                 : CopyHigh(m_symbol, PERIOD_CURRENT, v_shift, n, px);
-      if(got != n) return true;
+      double ea[], eb[], ef[];
+      if(!ReadEmaBlock(sa, v_shift, n, ea))                       return true;
+      if(!ReadEmaBlock(sb, v_shift, n, eb))                       return true;
+      if(!ReadEmaBlock(fastSlot, v_shift, n + lookback + 2, ef))  return true;   // extra history for the baseline
 
       // Reference pair not aligned with bias → the layer's own alignment check
       // rejects it; nothing for this gate to add.
@@ -9839,13 +9831,23 @@ public:
       const int age = (cross >= 0) ? cross : (n - 1);
       out_bars = (cross >= 0) ? cross : -1;
 
-      // Touch episodes from the cross bar to the evaluated bar (oldest → newest).
-      int episodes = 0; bool in_touch = false;
+      // Slope-defined pullback episodes from the cross bar to the evaluated bar
+      // (oldest → newest). Same arithmetic as UpdateSingleLayerPullback at
+      // shift = v_shift + i: baseline pace over `lookback`, current pace over `k`.
+      int episodes = 0; bool in_pb = false;
       for(int i = age; i >= 0; i--)
       {
-         const bool touch = (bias > 0) ? (px[i] <= et[i]) : (px[i] >= et[i]);
-         if(touch && !in_touch) episodes++;
-         in_touch = touch;
+         const double baseline_pace = (ef[i + 1] - ef[i + lookback + 1]) / (double)lookback;
+         const double current_pace  = (ef[i]     - ef[i + k]) / (double)k;
+         double ratio = 0.0;
+         if(MathAbs(baseline_pace) >= SEA_LAYER_SLOPE_EPSILON)
+            ratio = MathAbs(current_pace) / MathAbs(baseline_pace);
+         bool is_pb = (ratio < m_settings.LayerFlatRatio);
+         if(m_settings.LayerAllowReversalPullback &&
+            current_pace != 0.0 && ((bias > 0) != (current_pace > 0.0)))
+            is_pb = true;
+         if(is_pb && !in_pb) episodes++;
+         in_pb = is_pb;
       }
       out_pb = episodes;
 
@@ -9855,8 +9857,90 @@ public:
       if(maxBars > 0 && age      > maxBars)   ok = false;
 
       if(m_settings.DebugLevel >= DEBUG_INDICATORS)
-         DebugLog(StringFormat("[FreshX] L%d pair=%d touch=EMA%d cross_age=%d pullbacks=%d caps(pb=%d,bars=%d) → %s",
-                               layer, pair, touchSlot, out_bars, episodes, maxPB, maxBars, ok ? "PASS" : "STALE"));
+         DebugLog(StringFormat("[FreshX] L%d pair=%d fast=EMA%d cross_age=%d pullbacks=%d caps(pb=%d,bars=%d) → %s",
+                               layer, pair, fastSlot, out_bars, episodes, maxPB, maxBars, ok ? "PASS" : "STALE"));
+      return ok;
+   }
+
+   //+------------------------------------------------------------------+
+   //| CheckMtfFreshCross — young structure on a higher timeframe        |
+   //+------------------------------------------------------------------+
+   // 2026-09. The nested read a human makes across screens: the chart-TF setup
+   // sits inside a HTF that has JUST crossed its fast/slow pair (34/89 when
+   // MTF_EMA_Fast/Slow = 34/89) and is in its first slope-pullback(s).
+   // Same definitions as CheckFreshCrossGate, on the HTF handles:
+   //   cross = most recent bias-direction cross of fast/slow on the HTF,
+   //   episodes = runs of slope-pullback bars of the HTF fast EMA since it
+   //              (pace over lookback/4 vs baseline over MTF_FreshX_PBLookback,
+   //               ratio < LayerFlatRatio, or slope against bias).
+   // HTF bar mapping is the same as GetMTFBias (last FULLY CLOSED HTF bar as of
+   // the signal bar — no shift-0 read, no look-ahead). Returns true = allowed,
+   // also on any data failure or when fast == slow (legacy mode: inert).
+   bool CheckMtfFreshCross(const int h_fast, const int h_slow, const ENUM_TIMEFRAMES htf,
+                           const int bias, const int v_shift, int &out_pb, int &out_age)
+   {
+      out_pb = 0; out_age = -1;
+      if(h_fast == INVALID_HANDLE || h_slow == INVALID_HANDLE || bias == 0) return true;
+      if(m_settings.MTF_EMA_Fast == m_settings.MTF_EMA_Slow) return true;   // no cross exists in legacy mode
+
+      const int mtf_s = (v_shift < 1) ? 1 : v_shift;
+      int hb = iBarShift(m_symbol, htf, iTime(m_symbol, PERIOD_CURRENT, mtf_s), false);
+      if(hb < 0) hb = 0;
+      const int base = hb + 1;
+
+      const int lookback = MathMax(2, m_settings.MTF_FreshX_PBLookback);
+      const int k        = (int)MathMax(2.0, (double)lookback / 4.0);
+      int n = MathMax(20, m_settings.MTF_FreshX_Lookback) + 1;
+      const int avail = Bars(m_symbol, htf) - base;
+      if(avail < lookback + 12) return true;
+      if(n > avail - lookback - 2) n = avail - lookback - 2;
+      if(n < 10) return true;
+
+      double f[], s[];
+      ArraySetAsSeries(f, true); ArraySetAsSeries(s, true);
+      if(CopyBuffer(h_fast, 0, base, n + lookback + 2, f) != n + lookback + 2) return true;
+      if(CopyBuffer(h_slow, 0, base, n, s) != n) return true;
+      if(!IsValidIndicatorValue(f[0]) || !IsValidIndicatorValue(s[0])) return true;
+
+      const double d0 = f[0] - s[0];
+      if((bias > 0 && d0 <= 0.0) || (bias < 0 && d0 >= 0.0)) return true;   // MTF bias voter owns this case
+
+      int cross = -1;
+      for(int i = 0; i < n - 1; i++)
+      {
+         const double d  = f[i]     - s[i];
+         const double dp = f[i + 1] - s[i + 1];
+         const bool aligned_now  = (bias > 0) ? (d  > 0.0) : (d  < 0.0);
+         const bool aligned_prev = (bias > 0) ? (dp > 0.0) : (dp < 0.0);
+         if(aligned_now && !aligned_prev) { cross = i; break; }
+      }
+      const int age = (cross >= 0) ? cross : (n - 1);
+      out_age = (cross >= 0) ? cross : -1;
+
+      int episodes = 0; bool in_pb = false;
+      for(int i = age; i >= 0; i--)
+      {
+         const double baseline_pace = (f[i + 1] - f[i + lookback + 1]) / (double)lookback;
+         const double current_pace  = (f[i]     - f[i + k]) / (double)k;
+         double ratio = 0.0;
+         if(MathAbs(baseline_pace) >= SEA_LAYER_SLOPE_EPSILON)
+            ratio = MathAbs(current_pace) / MathAbs(baseline_pace);
+         bool is_pb = (ratio < m_settings.LayerFlatRatio);
+         if(m_settings.LayerAllowReversalPullback && current_pace != 0.0 && ((bias > 0) != (current_pace > 0.0)))
+            is_pb = true;
+         if(is_pb && !in_pb) episodes++;
+         in_pb = is_pb;
+      }
+      out_pb = episodes;
+
+      bool ok = true;
+      if(cross < 0)                                                         ok = false;
+      if(m_settings.MTF_FreshX_MaxPullbacks > 0 && episodes > m_settings.MTF_FreshX_MaxPullbacks) ok = false;
+      if(m_settings.MTF_FreshX_MaxBars      > 0 && age      > m_settings.MTF_FreshX_MaxBars)      ok = false;
+      if(m_settings.DebugLevel >= DEBUG_INDICATORS)
+         DebugLog(StringFormat("[MTF-FreshX] %s cross_age=%d pullbacks=%d caps(pb=%d,bars=%d) → %s",
+                               GetCompactTFLabel(htf), out_age, episodes,
+                               m_settings.MTF_FreshX_MaxPullbacks, m_settings.MTF_FreshX_MaxBars, ok ? "PASS" : "STALE"));
       return ok;
    }
 
@@ -9897,11 +9981,37 @@ public:
       m_diag_freshx_pb_w = 0; m_diag_freshx_pb_m = 0; m_diag_freshx_pb_s = 0;
       m_diag_freshx_bars_w = -1; m_diag_freshx_bars_m = -1; m_diag_freshx_bars_s = -1;
       bool freshx_ok_w = true, freshx_ok_m = true, freshx_ok_s = true;
-      // UNO Shark (2026-09): in the UNO-Shark context only Layer S may fire, and
-      // the Oracle Shark needs an actual touch of EMA4 (89) before the close past EMA3.
+      // UNO Shark (2026-09): in the UNO-Shark context only Layer S may fire. The
+      // "pullback to the 89" is the S machine's own slope-defined DETECTED state
+      // (>= MinPBBars_S bars), the recovery its IN-TREND edge, the "close past the
+      // 34" the BC gate — no price-touch test (layer model is position + slope).
       const bool uno_s_only  = m_uno_shark_ctx;
-      const bool uno_touch_ok = (!m_uno_shark_ctx) ||
-                                PriceTouchedEmaWithin(4, bias, v_shift, m_settings.UNO_Shark_TouchWindow);
+
+      // MTF FreshX (2026-09): the higher TF must itself be young — first
+      // pullback(s) after its fast/slow cross. Evaluated once per bar, only if
+      // an eligible layer is in scope of MTF_FreshX_Layers, then AND-ed into
+      // that layer's branch.
+      bool mtfx_ok = true;
+      m_diag_mtfx_blk = false;
+      if(m_settings.MTF_FreshX_Enabled && m_settings.Ind_MTF_Enabled)
+      {
+         const int ml = m_settings.MTF_FreshX_Layers;
+         const bool in_scope = (ml == 0 && (m_eval_layer_w == 1 || m_eval_layer_m == 1 || m_eval_layer_s == 1)) ||
+                               (ml == 1 && m_eval_layer_w == 1) || (ml == 2 && m_eval_layer_m == 1) || (ml == 3 && m_eval_layer_s == 1);
+         if(in_scope)
+         {
+            mtfx_ok = CheckMtfFreshCross(h_mtf_tf1_fast, h_mtf_tf1_slow, m_settings.MTF_TF1, bias, v_shift,
+                                         m_diag_mtfx_pb_tf1, m_diag_mtfx_age_tf1);
+            if(mtfx_ok && m_settings.MTF_FreshX_ApplyTF2 && m_settings.MTF_UseSecondHTF &&
+               m_settings.MTF_TF2 != PERIOD_CURRENT && m_settings.MTF_TF2 != m_settings.MTF_TF1)
+               mtfx_ok = CheckMtfFreshCross(h_mtf_tf2_fast, h_mtf_tf2_slow, m_settings.MTF_TF2, bias, v_shift,
+                                            m_diag_mtfx_pb_tf2, m_diag_mtfx_age_tf2);
+            m_diag_mtfx_blk = !mtfx_ok;
+         }
+      }
+      const bool mtfx_ok_w = mtfx_ok || (m_settings.MTF_FreshX_Layers != 0 && m_settings.MTF_FreshX_Layers != 1);
+      const bool mtfx_ok_m = mtfx_ok || (m_settings.MTF_FreshX_Layers != 0 && m_settings.MTF_FreshX_Layers != 2);
+      const bool mtfx_ok_s = mtfx_ok || (m_settings.MTF_FreshX_Layers != 0 && m_settings.MTF_FreshX_Layers != 3);
       if(m_settings.FreshX_Enabled)
       {
          if(m_eval_layer_s == 1) { freshx_ok_s = CheckFreshCrossGate(3, bias, v_shift, m_diag_freshx_pb_s, m_diag_freshx_bars_s); m_diag_freshx_blk_s = !freshx_ok_s; }
@@ -9948,7 +10058,7 @@ public:
 
       // Step 3: Priority walk L3 → L2 → L1; each layer also needs BC and BD.
       // S branch additionally honours the Strong-EM gate above.
-      if(m_eval_layer_s == 1 && m_settings.AllowLayer3_Entries && !s_blocked_emerging && freshx_ok_s && uno_touch_ok) {
+      if(m_eval_layer_s == 1 && m_settings.AllowLayer3_Entries && !s_blocked_emerging && freshx_ok_s && mtfx_ok_s) {
          int bc_s = Eval_BarClose(v_shift, bias, LAYER_3_STRONG);
          if(bc_s == 0 && lookback > 1)
             bc_s = Check_BarClose_MultiBar(v_shift, bias, LAYER_3_STRONG, lookback) ? 1 : 0;
@@ -9959,7 +10069,7 @@ public:
          }
       }
 
-      if(m_eval_layer_m == 1 && m_settings.AllowLayer2_Entries && layerS_dir_ok && freshx_ok_m && !uno_s_only) {
+      if(m_eval_layer_m == 1 && m_settings.AllowLayer2_Entries && layerS_dir_ok && freshx_ok_m && !uno_s_only && mtfx_ok_m) {
          int bc_m = Eval_BarClose(v_shift, bias, LAYER_2_MEDIUM);
          if(bc_m == 0 && lookback > 1)
             bc_m = Check_BarClose_MultiBar(v_shift, bias, LAYER_2_MEDIUM, lookback) ? 1 : 0;
@@ -9970,7 +10080,7 @@ public:
          }
       }
 
-      if(m_eval_layer_w == 1 && m_settings.AllowLayer1_Entries && layerS_dir_ok && freshx_ok_w && !uno_s_only) {
+      if(m_eval_layer_w == 1 && m_settings.AllowLayer1_Entries && layerS_dir_ok && freshx_ok_w && !uno_s_only && mtfx_ok_w) {
          int bc_w = Eval_BarClose(v_shift, bias, LAYER_1_WEAK);
          if(bc_w == 0 && lookback > 1)
             bc_w = Check_BarClose_MultiBar(v_shift, bias, LAYER_1_WEAK, lookback) ? 1 : 0;
@@ -9996,10 +10106,13 @@ public:
          // GUARD 1 zeroes the layer, so this MUST precede L_NONE_ALIGNED or the block
          // would be misreported as "no layer aligned" and be invisible in the A/B.
          m_diag_last_reason = "L_G1_POSTFLIP";
-      else if(uno_s_only && m_eval_layer_s == 1 && !uno_touch_ok)
-         m_diag_last_reason = "L_UNO_SHARK_NOTOUCH";
       else if(uno_s_only && m_eval_layer_s != 1 && (m_eval_layer_m == 1 || m_eval_layer_w == 1))
          m_diag_last_reason = "L_UNO_S_ONLY";
+      else if(m_diag_mtfx_blk)
+         // MTF FreshX (2026-09): the higher TF is past its first pullbacks / has no
+         // recent fast/slow cross — the nested young structure is missing.
+         m_diag_last_reason = StringFormat("L_MTF_FRESHX_STALE(tf1:pb%d/age%d tf2:pb%d/age%d)",
+                                           m_diag_mtfx_pb_tf1, m_diag_mtfx_age_tf1, m_diag_mtfx_pb_tf2, m_diag_mtfx_age_tf2);
       else if((m_eval_layer_w == 1 && m_diag_freshx_blk_w) ||
               (m_eval_layer_m == 1 && m_diag_freshx_blk_m) ||
               (m_eval_layer_s == 1 && m_diag_freshx_blk_s))

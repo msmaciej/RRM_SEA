@@ -2617,7 +2617,13 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.StaleExit_Bars            = MathMax(1, Inp_RRM_ORG_StaleExit_Bars);
       cfg.StaleExit_MinR            = MathMax(0.0, Inp_RRM_ORG_StaleExit_MinR);
       cfg.UNO_AllowStrongShark      = Inp_RRM_ORG_UNO_AllowStrongShark;
-      cfg.UNO_Shark_TouchWindow     = MathMax(1, MathMin(50, Inp_RRM_ORG_UNO_Shark_TouchWindow));
+      cfg.MTF_FreshX_Enabled        = Inp_RRM_ORG_MTF_FreshX_Enabled;
+      cfg.MTF_FreshX_Layers         = MathMax(0, MathMin(3, Inp_RRM_ORG_MTF_FreshX_Layers));
+      cfg.MTF_FreshX_MaxPullbacks   = MathMax(0, Inp_RRM_ORG_MTF_FreshX_MaxPullbacks);
+      cfg.MTF_FreshX_MaxBars        = MathMax(0, Inp_RRM_ORG_MTF_FreshX_MaxBars);
+      cfg.MTF_FreshX_Lookback       = MathMax(20, MathMin(2000, Inp_RRM_ORG_MTF_FreshX_Lookback));
+      cfg.MTF_FreshX_PBLookback     = MathMax(4, MathMin(500, Inp_RRM_ORG_MTF_FreshX_PBLookback));
+      cfg.MTF_FreshX_ApplyTF2       = Inp_RRM_ORG_MTF_FreshX_ApplyTF2;
       if(cfg.EmaFanMaxPct > 0.0)
       {
          PrintFormat("📐 [EMA_FAN] Using percentage mode: %.3f%% (overrides pip-based threshold %.1f)",

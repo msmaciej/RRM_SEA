@@ -378,7 +378,7 @@ input group "FPM - Indicator Settings";
 input int         Inp_FPM_MacdFast                 = 12;             // FPM MACD: fast EMA period
 input int         Inp_FPM_MacdSlow                 = 26;             // FPM MACD: slow EMA period
 input int         Inp_FPM_MacdSig                  = 9;              // FPM MACD: signal period
-input double      Inp_FPM_PsarStep                 = 0.05;           // FPM PSAR: step
+input double      Inp_FPM_PsarStep                 = 0.02;           // FPM PSAR: step
 input double      Inp_FPM_PsarMax                  = 0.2;            // FPM PSAR: max
 input bool        Inp_FPM_Ind_Mfi_Enabled          = true;           // FPM MFI: Enable MFI volume gate (MFI>50 for longs, <50 for shorts)
 input int         Inp_FPM_Mfi_Period               = 14;             // FPM MFI: period (default 14)
@@ -653,14 +653,16 @@ input double      Inp_RRM_ORG_PriceExtMaxATR       = 2.5;            // RRM ORG 
 input int         Inp_RRM_ORG_PriceExtAtrPeriod    = 14;             // RRM ORG OverExt: ATR period for distance
 
 // ── Fresh-trend gate (2026-09, 100-trades study §3.1) ──────────────────────
-// Layer → touch EMA → reference cross (the cross that STARTS the trend the layer
+// Layer → fast EMA → reference cross (the cross that STARTS the trend the layer
 // is riding; the layer's OWN pair is what the pullback itself crosses):
-//   W (EMA1/EMA2, touch EMA2=13)  → EMA2 x EMA3 cross (13/34) — the ribbon's own
+//   W (EMA1/EMA2, fast EMA1=5)    → EMA2 x EMA3 cross (13/34) — the ribbon's own
 //                                    5/13 cross flips on every pullback, so the
 //                                    next-slower pair is the trend clock.
-//   M (EMA2/EMA3, touch EMA3=34)  → EMA2 x EMA3 cross (13/34) — its own pair;
+//   M (EMA2/EMA3, fast EMA2=13)   → EMA2 x EMA3 cross (13/34) — its own pair;
 //                                    a 13/34 cross against bias = UNO = M invalid.
-//   S (EMA3/EMA4, touch EMA4=89)  → EMA3 x EMA4 cross (34/89) — its own pair.
+//   S (EMA3/EMA4, fast EMA3=34)   → EMA3 x EMA4 cross (34/89) — its own pair.
+// A "pullback" here is the layer machine's own slope-defined event (fast-EMA
+// pace ratio < LayerPBFlatRatio or slope against bias), never a price touch.
 // Caps: W first 2 pullbacks, M first 3, S unlimited (0). With cap 0 the layer is
 // NOT gated — the cross/pullback count is still computed for diagnostics.
 // MaxBars caps are off — pullback counting is fractal (bar-count independent).
@@ -668,9 +670,9 @@ input bool        Inp_RRM_ORG_FreshX_Enabled       = true;           // RRM ORG 
 input EFreshXPair Inp_RRM_ORG_FreshX_RefPair_W     = FRESHX_EMA2x3;  // RRM ORG FreshX: LayerW reference cross (next-slower pair 13/34)
 input EFreshXPair Inp_RRM_ORG_FreshX_RefPair_M     = FRESHX_EMA2x3;  // RRM ORG FreshX: LayerM reference cross (own pair 13/34)
 input EFreshXPair Inp_RRM_ORG_FreshX_RefPair_S     = FRESHX_EMA3x4;  // RRM ORG FreshX: LayerS reference cross (own pair 34/89)
-input int         Inp_RRM_ORG_FreshX_MaxPullbacks_W = 2;             // RRM ORG FreshX: LayerW max pullbacks to EMA2 since cross (0=unlimited)
-input int         Inp_RRM_ORG_FreshX_MaxPullbacks_M = 3;             // RRM ORG FreshX: LayerM max pullbacks to EMA3 since cross (0=unlimited)
-input int         Inp_RRM_ORG_FreshX_MaxPullbacks_S = 0;             // RRM ORG FreshX: LayerS max pullbacks to EMA4 since cross (0=unlimited — Sharks worked at any trend age in the 100-trade set)
+input int         Inp_RRM_ORG_FreshX_MaxPullbacks_W = 2;             // RRM ORG FreshX: LayerW max slope-pullbacks since cross (0=unlimited)
+input int         Inp_RRM_ORG_FreshX_MaxPullbacks_M = 3;             // RRM ORG FreshX: LayerM max slope-pullbacks since cross (0=unlimited)
+input int         Inp_RRM_ORG_FreshX_MaxPullbacks_S = 0;             // RRM ORG FreshX: LayerS max slope-pullbacks since cross (0=unlimited — Sharks worked at any trend age in the 100-trade set)
 input int         Inp_RRM_ORG_FreshX_MaxBars_W      = 0;             // RRM ORG FreshX: LayerW max bars since cross (0=off; ~40 = tally cut-off)
 input int         Inp_RRM_ORG_FreshX_MaxBars_M      = 0;             // RRM ORG FreshX: LayerM max bars since cross (0=off)
 input int         Inp_RRM_ORG_FreshX_MaxBars_S      = 0;             // RRM ORG FreshX: LayerS max bars since cross (0=off)
@@ -684,9 +686,23 @@ input double      Inp_RRM_ORG_StaleExit_MinR       = 1.0;            // RRM ORG 
 // ── UNO Shark (2026-09, Oracle manual II.C/III) ─────────────────────────────
 // Lets Layer S fire in the Unordered phase while EMA3/EMA4 are still ordered
 // (13 sandwiched between 34 and 89 = the "failed Emerging" / deep-pullback case).
-// W and M remain blocked in UNO. Requires a touch of EMA4 within the window.
+// W and M remain blocked in UNO. The pullback is the S machine's slope-defined
+// DETECTED state, the entry its IN-TREND edge — no price-touch test.
 input bool        Inp_RRM_ORG_UNO_AllowStrongShark = true;           // RRM ORG UNO: allow Layer S (Shark) entries in UNORDERED when EMA3/EMA4 ordered
-input int         Inp_RRM_ORG_UNO_Shark_TouchWindow = 8;             // RRM ORG UNO: bars back in which price must have touched EMA4
+
+// ── Nested fresh trend on TF1 (2026-09, "MTF FreshX") ───────────────────────
+// What a human sees on three screens: the S trade on the chart TF sits inside
+// the same young structure on TF1 (TF1 just had its 34/89 cross and is in its
+// first pullback-recovery), while TF2 only confirms the direction. Requires
+// Inp_RRM_ORG_MTF_EMA_Fast = 34 and _Slow = 89 (the HTF S pair); with the legacy
+// 21/21 setting the gate is inert. Layers=3 applies it to S trades only.
+input bool        Inp_RRM_ORG_MTF_FreshX_Enabled      = false;  // RRM ORG MTF FreshX: require TF1 to be in its first pullbacks after its fast/slow cross [2026-09 PY test: as a VETO it removed good trades on H1/M1 — keep OFF, use the [MTF-FreshX] diag as a grade tag]
+input int         Inp_RRM_ORG_MTF_FreshX_Layers       = 3;      // RRM ORG MTF FreshX: apply to 0=all layers | 1=W | 2=M | 3=S only
+input int         Inp_RRM_ORG_MTF_FreshX_MaxPullbacks = 2;      // RRM ORG MTF FreshX: max TF1 slope-pullbacks since its cross (0=unlimited)
+input int         Inp_RRM_ORG_MTF_FreshX_MaxBars      = 0;      // RRM ORG MTF FreshX: max TF1 bars since its cross (0=off)
+input int         Inp_RRM_ORG_MTF_FreshX_Lookback     = 200;    // RRM ORG MTF FreshX: TF1 scan window in TF1 bars
+input int         Inp_RRM_ORG_MTF_FreshX_PBLookback   = 55;     // RRM ORG MTF FreshX: TF1 slope baseline lookback (S-layer default)
+input bool        Inp_RRM_ORG_MTF_FreshX_ApplyTF2     = false;  // RRM ORG MTF FreshX: also require the young structure on TF2
 input double      Inp_RRM_ORG_JpyGateMultiplier    = 1.3;            // RRM ORG Fan: JPY Gate Multiplier (1.0=disabled)
 
 input group " ";
@@ -768,8 +784,8 @@ input double      Inp_RRM_ORG_Mfi_OS               = 20.0;           // RRM ORG 
 input group "=== RRM_ORG MTF ===";
 input ENUM_TIMEFRAMES Inp_RRM_ORG_MTF_TF1          = PERIOD_M5;      // RRM ORG MTF: TF1 (primary)
 input ENUM_TIMEFRAMES Inp_RRM_ORG_MTF_TF2          = PERIOD_M15;      // RRM ORG MTF: TF2 (PERIOD_CURRENT = single TF)
-input int         Inp_RRM_ORG_MTF_EMA_Fast         = 21;             // RRM ORG MTF: fast EMA period
-input int         Inp_RRM_ORG_MTF_EMA_Slow         = 21;             // RRM ORG MTF: slow EMA period
+input int         Inp_RRM_ORG_MTF_EMA_Fast         = 34;             // RRM ORG MTF: fast EMA period [2026-09: 21→34 — HTF read = its own 34/89 order; 21/21 = legacy single-EMA slope]
+input int         Inp_RRM_ORG_MTF_EMA_Slow         = 89;             // RRM ORG MTF: slow EMA period [2026-09: 21→89 — needed for MTF FreshX (HTF S-pair cross)]
 input bool        Inp_RRM_ORG_MTF_RequirePhase     = true;           // RRM ORG MTF: require trending HTF
 
 input group "=== RRM_ORG PSAR ===";
@@ -1895,7 +1911,13 @@ void InitializeConfig()
    Settings.StaleExit_Bars        = 12;
    Settings.StaleExit_MinR        = 1.0;
    Settings.UNO_AllowStrongShark  = false;   // wired from Inp_RRM_ORG_* inside the RRM_ORG preset
-   Settings.UNO_Shark_TouchWindow = 8;
+   Settings.MTF_FreshX_Enabled      = false;   // wired inside the RRM_ORG preset
+   Settings.MTF_FreshX_Layers       = 3;
+   Settings.MTF_FreshX_MaxPullbacks = 2;
+   Settings.MTF_FreshX_MaxBars      = 0;
+   Settings.MTF_FreshX_Lookback     = 200;
+   Settings.MTF_FreshX_PBLookback   = 55;
+   Settings.MTF_FreshX_ApplyTF2     = false;
 
    // F-AUDIT 2026-06: DPI deceleration master toggle globalized (was bleeding
    // from Inp_RRM_ORG_DPI_Decel_Filter into all non-RRM_ORG presets).
