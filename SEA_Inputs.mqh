@@ -960,6 +960,7 @@ input double  Inp_RHR_PendingBufferPips  = 1.0;                   // RHR: 1.0 pe
 
 
 
+#ifdef SEA_BUILD_RH_1MS
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🇷🇭 PRESET_RH_1MS (1-Minute Scalper)";
@@ -974,10 +975,21 @@ input int     Inp_RH1MS_StoD           = 3;      // RH1MS: %D 3
 input int     Inp_RH1MS_StoSlow        = 3;      // RH1MS: slowing 3
 input double  Inp_RH1MS_StoOB          = 80.0;   // RH1MS: upper level (short: cross 80 down)
 input double  Inp_RH1MS_StoOS          = 20.0;   // RH1MS: lower level (long: cross 20 up)
-input group "RH_1MS — Stop / target (TM)";
-input int     Inp_RH1MS_SwingLookback  = 8;      // RH1MS: swing lookback (bars) for SL
-input bool    Inp_RH1MS_UseSlowMAClamp = true;   // RH1MS: SL = nearer of {swing, 100 EMA} (manual 'or the 100 EMA')
-input double  Inp_RH1MS_FixedTPPips     = 10.0;   // RH1MS: fixed TP (manual 7-12 pips; M1 low-spread essential)
+input group "RH_1MS — Stop loss (flexible)";
+input ESLMode Inp_RH1MS_SLMode          = SL_MODE_SWING;      // RH1MS: SWING (manual) | FIXED_PIPS | ATR. NOTE: raw M1 swing stops ~1 pip get swept — see FixedSLPips / SL_MinPips
+input int     Inp_RH1MS_SwingLookback   = 8;      // RH1MS: swing lookback (bars) — used by SL_MODE_SWING
+input double  Inp_RH1MS_FixedSLPips     = 10.0;   // RH1MS: fixed SL pips — used by SL_MODE_FIXED_PIPS (research: 8-12 to clear M1 noise+spread)
+input int     Inp_RH1MS_SL_AtrPeriod    = 14;     // RH1MS: ATR period — used by SL_MODE_ATR
+input double  Inp_RH1MS_SL_AtrMult      = 2.0;    // RH1MS: ATR multiple — used by SL_MODE_ATR (caution: M1 ATR ~1 pip, so ATR stops stay tiny on M1)
+input double  Inp_RH1MS_SL_MinPips      = 3.0;    // RH1MS: min SL floor (pips). Raise to force the stop OUTSIDE the M1 noise band
+input bool    Inp_RH1MS_UseSlowMAClamp  = true;   // RH1MS: SL = nearer of {swing, 100 EMA} (manual 'or the 100 EMA')
+input group "RH_1MS — Take profit (flexible)";
+input ETPMode Inp_RH1MS_TPMode          = TP_MODE_FIXED_PIPS; // RH1MS: FIXED_PIPS (manual 7-12) | RR (target = SL distance x RRRatio)
+input double  Inp_RH1MS_FixedTPPips     = 10.0;   // RH1MS: fixed TP pips — used by TP_MODE_FIXED_PIPS
+input double  Inp_RH1MS_RRRatio         = 2.0;    // RH1MS: reward:risk — used by TP_MODE_RR (research: pair 2R with a wider stop)
+#endif // SEA_BUILD_RH_1MS
+
+#ifdef SEA_BUILD_RH_STS
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🇷🇭 PRESET_RH_STS (Sea Trading System)";
@@ -999,6 +1011,9 @@ input group "RH_STS — Stop / target (TM)";
 input int     Inp_RHSTS_SwingLookback   = 10;     // RHSTS: swing lookback (bars) for SL
 input ETPMode Inp_RHSTS_TPMode          = TP_MODE_RR;   // RHSTS: TP mode (manual: opposite band / TF-fixed pips; RR used as approximation)
 input double  Inp_RHSTS_RRRatio         = 1.5;    // RHSTS: reward:risk when TPMode = RR
+#endif // SEA_BUILD_RH_STS
+
+#ifdef SEA_BUILD_RH_SS
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🇷🇭 PRESET_RH_SS (Super System)";
@@ -1020,6 +1035,9 @@ input int     Inp_RHSS_StoSlow          = 3;      // RHSS: slowing 3   (spec (5,
 input group "RH_SS — Stop / target (TM)";
 input int     Inp_RHSS_SwingLookback    = 12;     // RHSS: swing lookback (bars) for SL
 input double  Inp_RHSS_RRRatio          = 2.0;    // RHSS: reward:risk (manual 2R)
+#endif // SEA_BUILD_RH_SS
+
+#ifdef SEA_BUILD_RH_GS
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🇷🇭 PRESET_RH_GS (Golden Strategy)";
@@ -1038,6 +1056,9 @@ input group "RH_GS — Stop / target (TM)";
 input bool    Inp_RHGS_UseSmmaRecrossExit = true; // RHGS: close when price re-crosses the entry SMMA(High)
 input int     Inp_RHGS_SwingLookback    = 12;     // RHGS: swing lookback (bars) for SL
 input double  Inp_RHGS_RRRatio          = 2.0;    // RHGS: reward:risk (manual 2R)
+#endif // SEA_BUILD_RH_GS
+
+#ifdef SEA_BUILD_RH_SM
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    🇷🇭 PRESET_RH_SM (Secret Method)";
@@ -1056,6 +1077,7 @@ input group "RH_SM — Stop / target (TM)";
 input bool    Inp_RHSM_UseOsMAFlipExit  = true;   // RHSM: early exit when OsMA histogram flips across zero
 input int     Inp_RHSM_SwingLookback    = 10;     // RHSM: swing lookback (bars) for SL
 input double  Inp_RHSM_RRRatio          = 2.0;    // RHSM: reward:risk (manual 2R)
+#endif // SEA_BUILD_RH_SM
 
 
 

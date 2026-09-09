@@ -8626,6 +8626,26 @@ public:
    // the ribbon EMA(fast/mid/slow) stack, read from the snapshot refreshed at the
    // top of every EvaluateTS pass. (2026-08 routing fix.)
    // ─────────────────────────────────────────────────────────────────────────
+   // MAChannelEntrySignal — STRAT_MA_CHANNEL direction. Mirror of the Donchian
+   // breakout but against a moving-average High/Low envelope: the fast bias slot
+   // is the UPPER edge (e.g. SMMA on High) and the slow bias slot the LOWER edge
+   // (SMMA on Low). A close beyond an edge is the breakout. This replaces the
+   // degenerate 2-EMA-position bias for RH_GS, where fast(High) is structurally
+   // always >= slow(Low) so position could only ever read LONG.
+   int MAChannelEntrySignal(int v_shift)
+   {
+      int hf = BiasFastHandle();   // upper channel edge (SMMA on High)
+      int hs = BiasSlowHandle();   // lower channel edge (SMMA on Low)
+      bool ok_hi, ok_lo;
+      double up_lvl = GetMAValSafe(hf, v_shift, ok_hi);
+      double dn_lvl = GetMAValSafe(hs, v_shift, ok_lo);
+      if(!ok_hi || !ok_lo) return 0;   // channel unreadable -> no trade
+      double c_brk = iClose(m_symbol, PERIOD_CURRENT, v_shift);
+      if(c_brk > up_lvl)      return  1;   // close above upper edge = breakout up
+      else if(c_brk < dn_lvl) return -1;   // close below lower edge = breakout down
+      return 0;                            // inside the channel = no bias
+   }
+
    int DonchianEntrySignal(int v_shift)
    {
       if(!m_settings.Donchian_EntryEnabled) return 0;   // master ON/OFF (Inp_*_Use_Donchian)
@@ -8714,6 +8734,8 @@ public:
          // back to ManSide (default SIDE_BOTH -> 0 -> zero trades).
          if(m_settings.AutoStrat == STRAT_DONCHIAN_BREAKOUT)
             bias = DonchianEntrySignal(v_shift);
+         else if(m_settings.AutoStrat == STRAT_MA_CHANNEL)
+            bias = MAChannelEntrySignal(v_shift);
          else if(m_settings.ManSide == SIDE_LONG) bias = 1;
          else if(m_settings.ManSide == SIDE_SHORT) bias = -1;
          else bias = 0;

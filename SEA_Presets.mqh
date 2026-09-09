@@ -3349,6 +3349,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    //   B: 50 EMA vs 100 EMA (close) position   I: Stochastic(5,3,3) 20/80 level-cross
    //   SL: swing, clamped to the 100 EMA       TP: fixed 7-12 pips (10)
    // ================================================================
+   #ifdef SEA_BUILD_RH_1MS
    if(preset == PRESET_RH_1MS)
    {
       cfg.BiasMode   = BIAS_2EMA;
@@ -3372,14 +3373,18 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.CloseOnReverse        = false;
       cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
       // Stop / target
-      cfg.SLMode = SL_MODE_SWING; cfg.SwingLookback = Inp_RH1MS_SwingLookback;
+      cfg.SLMode = Inp_RH1MS_SLMode; cfg.SwingLookback = Inp_RH1MS_SwingLookback;
+      cfg.SL_FixedPips = Inp_RH1MS_FixedSLPips;
+      cfg.SL_AtrPeriod = Inp_RH1MS_SL_AtrPeriod; cfg.SL_AtrMult = Inp_RH1MS_SL_AtrMult;
+      cfg.SL_MinPips = Inp_RH1MS_SL_MinPips;   // per-preset floor override (was inheriting the global 3-pip)
       cfg.SL_UseSlowMAClamp = Inp_RH1MS_UseSlowMAClamp; cfg.SL_SlowMARole = 1;   // clamp to 100 EMA (role 1)
-      cfg.TPMode = TP_MODE_FIXED_PIPS; cfg.FixedTPPips = Inp_RH1MS_FixedTPPips;
+      cfg.TPMode = Inp_RH1MS_TPMode; cfg.FixedTPPips = Inp_RH1MS_FixedTPPips; cfg.RRRatio = Inp_RH1MS_RRRatio;
       // Policy A: this preset touches no operator gates; restore the two it may seed.
       cfg.MaxSpread   = op_MaxSpread;
       cfg.RiskPercent = op_RiskPercent;
       return;
    }
+   #endif // SEA_BUILD_RH_1MS
 
    // ================================================================
    // PRESET_RH_STS — Russ Horn Sea Trading System
@@ -3387,6 +3392,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    //   NOTE: single MaType cannot mix EMA3 & SMA20; first pass uses SMA for both
    //         (SMA3 vs SMA20). Per-slot MA method is a documented open item.
    // ================================================================
+   #ifdef SEA_BUILD_RH_STS
    if(preset == PRESET_RH_STS)
    {
       cfg.BiasMode   = BIAS_2EMA;
@@ -3414,6 +3420,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RiskPercent = op_RiskPercent;
       return;
    }
+   #endif // SEA_BUILD_RH_STS
 
    // ================================================================
    // PRESET_RH_SS — Russ Horn Super System
@@ -3422,6 +3429,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    //   voter are not yet wired (ADX-DI voter is a documented open item). EMA34/89 are
    //   created (roles 2/3) so a later filter can use them.
    // ================================================================
+   #ifdef SEA_BUILD_RH_SS
    if(preset == PRESET_RH_SS)
    {
       cfg.BiasMode   = BIAS_2EMA;
@@ -3450,6 +3458,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RiskPercent = op_RiskPercent;
       return;
    }
+   #endif // SEA_BUILD_RH_SS
 
    // ================================================================
    // PRESET_RH_GS — Russ Horn Golden Strategy
@@ -3458,10 +3467,12 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    //   NOTE: bias uses SMMA-High vs SMMA-Low position; a true price-vs-channel-edge
    //         break bias is a documented refinement.
    // ================================================================
+   #ifdef SEA_BUILD_RH_GS
    if(preset == PRESET_RH_GS)
    {
-      cfg.BiasMode   = BIAS_2EMA;
-      cfg.AutoStrat  = STRAT_2EMA_POSITION;
+      cfg.BiasMode   = BIAS_MANUAL;      // FIX: was BIAS_2EMA — GS is a channel breakout, not a 2-EMA position
+      cfg.AutoStrat  = STRAT_MA_CHANNEL; // close vs SMMA(High)/SMMA(Low) edges (fixes permanent-LONG bias: SMMA-High is always >= SMMA-Low)
+      cfg.BiasEnabled = true;
       cfg.MaType     = METHOD_SMMA;
       cfg.P_Ema1 = Inp_RHGS_SmmaPeriod;  cfg.P_Ema2 = Inp_RHGS_SmmaPeriod;  cfg.P_Ema3 = Inp_RHGS_SmmaPeriod; cfg.P_Ema4 = Inp_RHGS_SmmaPeriod;
       cfg.MaApplied1 = PRICE_HIGH; cfg.MaApplied2 = PRICE_LOW;
@@ -3485,12 +3496,14 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RiskPercent = op_RiskPercent;
       return;
    }
+   #endif // SEA_BUILD_RH_GS
 
    // ================================================================
    // PRESET_RH_SM — Russ Horn Secret Method
    //   B: Heiken-Ashi direction + price vs 14 SMA   I: OsMA(12,26,9) zero + Momentum(10) 100 + RSI(5)>50
    //   Exit: OsMA zero-flip (early)   SL: swing   TP: 2R
    // ================================================================
+   #ifdef SEA_BUILD_RH_SM
    if(preset == PRESET_RH_SM)
    {
       cfg.BiasMode   = BIAS_2EMA;
@@ -3518,6 +3531,7 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
       cfg.RiskPercent = op_RiskPercent;
       return;
    }
+   #endif // SEA_BUILD_RH_SM
 
 
 }

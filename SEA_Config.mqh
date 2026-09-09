@@ -20,6 +20,11 @@
 #define SEA_BUILD_TURTLE
 #define SEA_BUILD_TREND
 #define SEA_BUILD_RH_REBELLION
+#define SEA_BUILD_RH_1MS         // Russ Horn 1-Minute Scalper (comment out to drop from build)
+#define SEA_BUILD_RH_STS         // Russ Horn Sea Trading System
+#define SEA_BUILD_RH_SS          // Russ Horn Super System
+#define SEA_BUILD_RH_GS          // Russ Horn Golden Strategy
+#define SEA_BUILD_RH_SM          // Russ Horn Secret Method
 
 
 // TFToString: returns clean TF label (e.g. "M5", "H1") — EnumToString gives "PERIOD_M5".
@@ -166,7 +171,8 @@ enum EAutoStrategy
    STRAT_2EMA_CROSS_PRICE, // STRAT_2EMA_CROSS_PRICE ... ONLY for BIAS_2EMA: price crosses EMA (one-bar signal at cross point)
    STRAT_2EMA_POSITION,    // STRAT_2EMA_POS ... ONLY for BIAS_2EMA: EMA position + slope confirmation (persistent bias)
    STRAT_4EMA_LAYER,       // STRAT_4EMA_LAYER ... ONLY for BIAS_4EMA: four EMAs with LayerW/M/S pullback detection
-   STRAT_DONCHIAN_BREAKOUT // STRAT_DONCHIAN_BREAKOUT ... for BIAS_MANUAL: N-bar high/low channel breakout (Turtle)
+   STRAT_DONCHIAN_BREAKOUT, // STRAT_DONCHIAN_BREAKOUT ... for BIAS_MANUAL: N-bar high/low channel breakout (Turtle)
+   STRAT_MA_CHANNEL         // STRAT_MA_CHANNEL ... for BIAS_MANUAL: close vs MA High/Low channel edges (RH_GS Golden Strategy)
 };
 enum EEmaRole
 {
