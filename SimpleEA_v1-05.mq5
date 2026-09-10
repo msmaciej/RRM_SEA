@@ -725,9 +725,13 @@ int OrchestrateInit()
          PrintFormat("[RRM_DD_INIT] Restored consecutive losses from history: %d", g_consecutive_losses);
    }
 
-   FlowLog("Step G: Load News calendar (optional)");
-    if(Settings.UseNews)
-       Signal.LoadNews(Inp_Global_VETO_NewsFile);
+   FlowLog("Step G: Resolve news source (optional)");
+   // NEWS-SRC 2026-09-10: MT5 economic calendar first (per Inp_Global_VETO_NewsSource),
+   // CSV fallback, else NONE = fail-open. Decided once here; one [NEWS] journal line.
+   // Hourly live refresh: Signal.RefreshNewsIfDue() at the top of OrchestrateTick().
+   // NOTE (T1, deferred): no #property tester_file yet — in the Strategy Tester the CSV is
+   // not visible to the agent, so the tester resolves to NONE + warning (never blocks).
+   Signal.ResolveNewsSource(Inp_Global_VETO_NewsFile);
 
    SEA_UI_Init(Inp_Global_MagicNum);
    SEA_UI_RenderDeferredVPRR();
@@ -805,6 +809,9 @@ void ConsumeLatchedSignalTE()
    g_last_te_veto   = "";
 
    bool te_news_blocked = Signal.IsNewsBlocked();
+   string te_news_info = "";                                                          // NEWS-SRC 2026-09-10 (T2)
+   if(te_news_blocked) te_news_info = Signal.LastNewsBlockInfo();
+   Executor.SetNewsVetoInfo(te_news_info);
 
    // ── PSAR staleness re-check ──────────────────────────────────────────
    // A latched TS=1 can persist across a bar boundary (spread retry /
@@ -912,6 +919,12 @@ void ConsumeLatchedSignalTE()
 //+------------------------------------------------------------------+
 void OrchestrateTick()
 {
+   // 0. NEWS-SRC 2026-09-10: hourly calendar refresh (live/demo, calendar source only).
+   //    Placed BEFORE the TE consumer so a latched signal is never judged against a
+   //    list that predates the current hour (first Monday tick after a weekend).
+   //    Cost when not due: one datetime compare.
+   Signal.RefreshNewsIfDue();
+
    // 1. Time & Bar Detection
    datetime current_bar = iTime(_Symbol, PERIOD_CURRENT, 0);
    bool     is_new_bar  = (current_bar != g_last_bar_time);

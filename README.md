@@ -208,7 +208,7 @@ When there is no bias the panel collapses to `TS=0 blocked by B (no bias)` and t
 | `SimpleEA_v1-05.mq5` | Main EA — OnInit, OnTick, OnDeinit (active; `v1-04` retained for reference) |
 | `SEA_Config.mqh` | All settings, inputs, ST_Settings struct |
 | `SEA_Presets.mqh` | Preset definitions — MA, FPM, TOPINVESTOR, RRM_ORG |
-| `SEA_SignalEngine.mqh` | TS equation — single core `EvaluateTS_Breakdown` (B·P·F·L·I + CG veto), used by `EvaluateTS` / `EvaluateTS_AtShift` / `Scanner_InspectBar` |
+| `SEA_SignalEngine.mqh` | TS equation — single core `EvaluateTS_Breakdown` (B·P·F·L·I + CG veto), used by `EvaluateTS` / `EvaluateTS_AtShift` / `Scanner_InspectBar`. Also hosts the TE-side **news event list** (`ResolveNewsSource` / `LoadNewsFromCalendar` / `LoadNews` / `RefreshNewsIfDue` / `IsNewsBlocked`): MT5 economic calendar first, CSV fallback, fail-open with a one-line `[NEWS] source=…` journal verdict at OnInit — see `Readme/README_SEA_VETO_REFERENCE.md` §1 |
 | `SEA_TradeExecutor.mqh` | TE, order management, SL/TP/trailing |
 | `SEA_UI.mqh` | Cockpit panel rendering |
 | `SEA_Reporting.mqh` | OnDeinit stats and performance report |

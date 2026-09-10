@@ -157,12 +157,30 @@ input double             Inp_Adaptive_Spread_Silver                   = 150.0;  
 input double             Inp_Adaptive_Spread_Indices                  = 20.0;                    // Pair: Max spread indices (native index points) — see note
 input double             Inp_Adaptive_Spread_Crypto                   = 50.0;                    // Pair: Max spread crypto (pips)
 
+//
+// NEWS VETO (TE gate, shift=0). Blocks new entries from NewsPreMinutes before to NewsPostMinutes after every
+//    event that matches the chart pair's BASE or QUOTE currency AND the impact filter. NEWS-SRC 2026-09-10: the
+//    event list comes from the MT5 built-in economic calendar (NewsSource AUTO/CALENDAR); the hand-made CSV is a
+//    fallback (AUTO) or the sole source (CSV). Resolved ONCE at OnInit and printed as one journal line:
+//       [NEWS] source=CALENDAR|CSV|NONE events=N window=-Pre/+Post impact=<enum> tz=server
+//    FAIL-OPEN: source=NONE means the veto never blocks even with UseNews=true — the journal says so loudly.
+//    Live/demo: the calendar is re-read once per hour (window now-Post .. now+Pre+24h). Strategy Tester: the
+//    calendar API is not available by platform design (error 4014), so the tester resolves to CSV-if-readable,
+//    otherwise NONE + warning; no re-polling in the tester.
+//    CSV contract (NewsFile, in <terminal>\MQL5\Files, NOT Common): header row, 4 columns
+//       Date,Event,Impact,Currency   e.g.   "2026, September 12, 14:30",Nonfarm Payrolls,High,USD
+//    Date is quoted "YYYY, Month DD, HH:MI" with English month names; Impact high/medium/low; Currency ISO code.
+//    CSV times are read as BROKER/SERVER time; NewsCsvTzOffsetMin is ADDED to each CSV time if the file is in
+//    another zone (e.g. file in UTC, broker EET summer → +180). Sample file: Readme/calendar_statement.csv.
+//
 input group "=== VETO — NEWS ===";
 input bool               Inp_Global_VETO_UseNews                      = false;                   // VNews: enable
+input ENewsSource        Inp_Global_VETO_NewsSource                   = NEWS_SRC_AUTO;           // VNews: source (AUTO = MT5 calendar, CSV fallback)
 input ENewsImpactLevel   Inp_Global_VETO_NewsImpactFilter             = NEWS_IMPACT_MED_PLUS;    // VNews: impact
 input string             Inp_Global_VETO_NewsFile                     = "calendar_statement.csv"; // VNews: CSV filename
 input int                Inp_Global_VETO_NewsPreMinutes               = 60;                      // VNews: block minutes before
 input int                Inp_Global_VETO_NewsPostMinutes              = 60;                      // VNews: block minutes after
+input int                Inp_Global_VETO_NewsCsvTzOffsetMin           = 0;                       // VNews: CSV time offset to server time (minutes, 0=file already in server time)
 
 input group "=== VETO — TE QUALITY GATES (optional) ===";
 input bool               Inp_Global_VETO_TE_RecheckBarClose           = false;                   // Veto TE: re-check price drift vs Close[1]
@@ -1561,6 +1579,8 @@ void InitializeConfig()
    Settings.NewsPre              = Inp_Global_VETO_NewsPreMinutes;
    Settings.NewsPost             = Inp_Global_VETO_NewsPostMinutes;
    Settings.NewsImpactFilter     = Inp_Global_VETO_NewsImpactFilter;       // F-AUDIT 2026-06
+   Settings.NewsSource           = Inp_Global_VETO_NewsSource;             // NEWS-SRC 2026-09-10
+   Settings.NewsCsvTzOffsetMin   = Inp_Global_VETO_NewsCsvTzOffsetMin;     // NEWS-SRC 2026-09-10
    // ── TRADING HOURS FILTER ─────────────────────────────────────────────
    // Wire named-session inputs and compute start/end hours from margins.
    Settings.TradingHoursEnabled  = Inp_Session_Enabled;

@@ -13,9 +13,48 @@ This document lists all vetoes (trade rejection reasons), their configurability,
 | `VETO_SPREAD` | Current spread exceeds limit | ✅ Fully configurable | `Inp_VETO_UseSpread`, `Inp_VETO_MaxSpread` | `false`, `3.0` |
 | `VETO_SPREAD_TIMEOUT` | Spread blocked too many consecutive bars | ✅ Fully configurable | `Inp_VETO_MaxSpreadRetryBars` | `3` |
 | `VETO_TIME` | Outside trading session window | ✅ Fully configurable | `Inp_Session_Enabled` (master on/off), `Inp_Session_London/NY/Asia` (named sessions), `Inp_Session_Win1/Win2` (custom windows) | London=true, NY=true, others=false |
-| `VETO_NEWS` | High-impact news event active | ✅ Fully configurable | `Inp_VETO_UseNews`, `Inp_VETO_NewsPreMinutes`, `Inp_VETO_NewsPostMinutes` | `false`, `60`, `60` |
+| `VETO_NEWS` | A news event matching the chart pair's base/quote currency and the impact filter is inside `[t−Pre, t+Post]` (server time) | ✅ Fully configurable | `Inp_Global_VETO_UseNews`, `Inp_Global_VETO_NewsSource`, `Inp_Global_VETO_NewsImpactFilter`, `Inp_Global_VETO_NewsFile`, `Inp_Global_VETO_NewsPreMinutes`, `Inp_Global_VETO_NewsPostMinutes`, `Inp_Global_VETO_NewsCsvTzOffsetMin` | `false`, `NEWS_SRC_AUTO`, `NEWS_IMPACT_MED_PLUS`, `calendar_statement.csv`, `60`, `60`, `0` |
 
 **Purpose**: Gate execution at shift=0 using real-time market conditions.
+
+#### `VETO_NEWS` — event source and contract (NEWS-SRC, 2026-09-10 — *candidate, UNCONFIRMED until a live journal shows `source=CALENDAR events>0`*)
+
+| Source (`Inp_Global_VETO_NewsSource`) | Where events come from | When it is used |
+|---|---|---|
+| `NEWS_SRC_AUTO` (default) | MT5 built-in economic calendar (`CalendarValueHistory` + `CalendarEventById`, filtered by the pair's `SYMBOL_CURRENCY_BASE` / `SYMBOL_CURRENCY_PROFIT`); falls back to the CSV only if the calendar API is unavailable on the terminal | live / demo |
+| `NEWS_SRC_CALENDAR` | platform calendar only, no CSV fallback | live / demo |
+| `NEWS_SRC_CSV` | hand-made CSV only (legacy path) | live / demo / tester |
+
+**Resolved once at `OnInit`** (`CSignalEngine::ResolveNewsSource`) and printed as exactly one journal line:
+
+```
+[NEWS] source=CALENDAR|CSV|NONE events=N window=-Pre/+Post impact=<enum> tz=server [untimed=U refresh=hourly next=<time>] [calendar=unavailable|skipped(tester)]
+```
+
+**Fail-open is absolute.** `source=NONE` ⇒ `IsNewsBlocked()` returns `false` on every tick, even with `UseNews=true`, and OnInit prints `[NEWS] *** NEWS VETO INACTIVE … ***`. A news veto that is silently doing nothing is the failure this feature exists to remove; the loud line is the observable.
+
+**Calendar path details**
+- Window read: `[now − Post, now + Pre + 24 h]`, server time. The MQL5 calendar API and `TimeCurrent()` share the trade-server clock (MQL5 docs, *Economic Calendar*), so no timezone arithmetic is applied.
+- Impact mapping: `CALENDAR_IMPORTANCE_HIGH/MODERATE/LOW` → the existing `"high"/"medium"/"low"` strings, so `NewsImpactPass()` and `SNewsEvent` are unchanged. `CALENDAR_IMPORTANCE_NONE` and `CALENDAR_TYPE_HOLIDAY` are ignored.
+- Events without an exact release time (`time_mode` ≠ `CALENDAR_TIMEMODE_DATETIME` — all-day, "no time", tentative) are **not** loaded: their timestamp is a placeholder, so a ±Pre/Post window around it would block the wrong hour. They are counted as `untimed=U` on the journal line so they are visible, not silent.
+- "Calendar works but the window is empty" is still `source=CALENDAR events=0` (no INACTIVE warning) — the hourly refresh fills it in. Only an API error (`GetLastError() ≠ 0`, e.g. 4014) counts as *unavailable*.
+- **Hourly refresh (live/demo only):** `RefreshNewsIfDue()` runs at the top of `OrchestrateTick()` — before the TE consumer — and re-reads the calendar at most once per hour. A failed refresh keeps the previous list and warns once (`[NEWS] refresh failed — keeping previous N events`); it never degrades to NONE mid-session. At `DEBUG_FULL` each successful refresh logs `[NEWS] refresh events=N untimed=U next=<time>`.
+- **Strategy Tester:** the calendar API is not available in the tester by platform design (error 4014). The tester therefore resolves to CSV if the file is readable, otherwise NONE + warning. No re-polling in the tester. *Known gap (T1, deferred):* without `#property tester_file` the CSV in `MQL5\Files` is not copied to the agent, so today the tester always reads `source=NONE` — never crashes, never blocks. The one-line directive is ready to add after one tester run with no CSV present proves it harmless.
+
+**CSV contract** (`Inp_Global_VETO_NewsFile`, in `<terminal>\MQL5\Files` — *not* the Common folder; sample: `Readme/calendar_statement.csv`)
+
+| Column | Format | Example |
+|---|---|---|
+| `Date` | quoted `"YYYY, Month DD, HH:MI"`, English month name, **server time** unless `NewsCsvTzOffsetMin` is set | `"2026, September 12, 14:30"` |
+| `Event` | free text (ignored by the parser) | `Nonfarm Payrolls` |
+| `Impact` | `high` / `medium` / `low` (case-insensitive; empty = treated as relevant under MED_PLUS) | `High` |
+| `Currency` | ISO code, matched against base/quote | `USD` |
+
+Header row required. `Inp_Global_VETO_NewsCsvTzOffsetMin` is **added** to every CSV time to reach server time (file in UTC, broker EET summer → `+180`); `0` = file already in server time (previous behaviour). A file whose events are all in the past loads but blocks nothing — OnInit now warns `[NEWS] WARNING CSV stale …` (G3).
+
+**TE label (T2):** `[TE VETO] VETO_NEWS | <CCY> <impact> @ <time> (<source>)` names the actual blocking event instead of the former fixed "high-impact event active".
+
+**Kill tests (J1 — status stays *candidate* until seen):** (a) clean compile; (b) live journal `[NEWS] source=CALENDAR events>0`; (c) `NewsSource=CSV` with no file ⇒ `source=NONE` + INACTIVE warning and no `VETO_NEWS` ever fires; (d) one-row CSV ⇒ `source=CSV events=1`; (e) `DEBUG_FULL` shows one `[NEWS] refresh` per hour, not per tick.
 
 ---
 
@@ -99,6 +138,8 @@ If you load older `.set` files, remap old keys as follows:
 - `Inp_Filter_NewsFile` → `Inp_VETO_NewsFile`
 - `Inp_Filter_NewsPre` → `Inp_VETO_NewsPreMinutes`
 - `Inp_Filter_NewsPost` → `Inp_VETO_NewsPostMinutes`
+
+NEWS-SRC 2026-09-10: the two new inputs `Inp_Global_VETO_NewsSource` (default `NEWS_SRC_AUTO`) and `Inp_Global_VETO_NewsCsvTzOffsetMin` (default `0`) are absent from older `.set` files and simply take their defaults — no editing required; an old file loads and gets calendar-first behaviour automatically.
 
 ---
 

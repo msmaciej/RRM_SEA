@@ -159,6 +159,26 @@ enum ENewsImpactLevel
    NEWS_IMPACT_MED_PLUS,   // MED+: medium and high impact block (default; legacy behavior)
    NEWS_IMPACT_HIGH_ONLY   // HIGH: only high impact blocks
 };
+// NEWS-SRC 2026-09-10: where the news veto gets its event list.
+//   AUTO      — MT5 built-in economic calendar first; hand-made CSV only if the
+//               calendar API is unavailable on this terminal (e.g. broker disabled it).
+//   CALENDAR  — platform calendar only; no CSV fallback.
+//   CSV       — hand-made CSV only (legacy path); calendar never queried.
+// Whatever the choice, the veto is FAIL-OPEN: with no usable source it never
+// blocks and the journal prints a loud [NEWS] warning at OnInit.
+enum ENewsSource
+{
+   NEWS_SRC_AUTO,          // AUTO: MT5 calendar, CSV fallback
+   NEWS_SRC_CALENDAR,      // CALENDAR: MT5 calendar only
+   NEWS_SRC_CSV            // CSV: hand-made file only (legacy)
+};
+// Resolved source, decided ONCE in CSignalEngine::ResolveNewsSource() at OnInit.
+enum ENewsResolved
+{
+   NEWS_RES_NONE,          // no usable source — veto inactive (fail-open)
+   NEWS_RES_CALENDAR,      // events come from the MT5 economic calendar
+   NEWS_RES_CSV            // events come from the CSV file
+};
 // Trading hours filter — broker time defaults (EET = UTC+2/+3 DST typical):
 //   London: 09:00–17:00   NY: 14:00–22:00   Asia/Tokyo: 01:00–09:00
 // Each session can be enabled independently with an optional ±hour margin.
@@ -502,6 +522,8 @@ struct ST_Settings
    int             NewsPre;
    int             NewsPost;
    ENewsImpactLevel NewsImpactFilter;   // which news-impact levels block (was hardcoded MED+)
+   ENewsSource     NewsSource;          // NEWS-SRC 2026-09-10: AUTO / CALENDAR / CSV (see enum)
+   int             NewsCsvTzOffsetMin;  // NEWS-SRC 2026-09-10: minutes ADDED to each CSV time to reach server time (0 = file already in server time)
 
    // MTF
    bool            Ind_MTF_Enabled;    // MTF vote enabled

@@ -695,3 +695,24 @@ The root cause is now identifiable, and it was never in the source:
 > compiling.** Syncing a subset reproduces this class of phantom error. Making that directory a
 > symlink to the repo would eliminate it permanently.
 
+
+---
+
+## News source inputs (NEWS-SRC, 2026-09-10)
+
+Zone 2, section "3. ENTRY VETOES → VETO — NEWS" of `SEA_Inputs.mqh`. No existing input was renamed;
+existing `.set` files load unchanged (absent keys take the defaults below).
+
+| Input | Type | Default | `ST_Settings` field | Status | Effect |
+|---|---|---|---|---|---|
+| `Inp_Global_VETO_NewsSource` | `ENewsSource` | `NEWS_SRC_AUTO` | `NewsSource` | LIVE (read by `CSignalEngine::ResolveNewsSource`; never touched by `ApplyPreset`) | `AUTO` = MT5 calendar, CSV fallback; `CALENDAR` = calendar only; `CSV` = legacy file only |
+| `Inp_Global_VETO_NewsCsvTzOffsetMin` | `int` | `0` | `NewsCsvTzOffsetMin` | LIVE (read by `CSignalEngine::LoadNews`) | minutes **added** to each CSV timestamp to reach server time; `0` = previous behaviour |
+
+New enums in `SEA_Config.mqh`: `ENewsSource { NEWS_SRC_AUTO, NEWS_SRC_CALENDAR, NEWS_SRC_CSV }` (user choice) and
+`ENewsResolved { NEWS_RES_NONE, NEWS_RES_CALENDAR, NEWS_RES_CSV }` (what OnInit actually resolved — engine state, not an input).
+
+Removed (T3): the dead `GetSymbolCurrencies` / `NewsImpactPass` duplicates and the orphan `m_news_events[]` /
+`m_news_count` fields in `SEA_TradeExecutor.mqh` — never called or read; the live versions are in `CSignalEngine`.
+Added to `CTradeExecutor`: `m_te_news_info` + `SetNewsVetoInfo()` (T2 veto label only, no decision role).
+
+Full contract, journal line format, refresh cadence and tester behaviour: `README_SEA_VETO_REFERENCE.md` §1 "`VETO_NEWS` — event source and contract".

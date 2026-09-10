@@ -24,9 +24,10 @@ private:
    CTrade      m_trade;
    ulong       m_magic;
    ST_Settings m_settings;
-   SNewsEvent  m_news_events[];
-   int         m_news_count;
+   // NEWS-SRC 2026-09-10 (T3): dead SNewsEvent copy + m_news_count removed — the event
+   // list lives only in CSignalEngine; TE receives the verdict via EvaluateTE().
    string      m_symbol;
+   string      m_te_news_info;      // NEWS-SRC 2026-09-10 (T2): "CCY impact @ time" of the blocking event, set by the caller
    string      m_te_veto_reason;
    string      m_rc_veto_reason; // specific veto label set by EvaluateRC(), read by EvaluateTE()
    
@@ -444,15 +445,8 @@ private:
       if(m_h_trail_ema != INVALID_HANDLE) { IndicatorRelease(m_h_trail_ema); m_h_trail_ema = INVALID_HANDLE; }
    }
 
-   void GetSymbolCurrencies(string sym, string &base, string &quote) {
-      base = StringSubstr(sym, 0, 3);
-      quote = StringSubstr(sym, 3, 3);
-   }
-
-   bool NewsImpactPass(string impact) {
-      StringToLower(impact);
-      return (StringFind(impact, "high") >= 0 || StringFind(impact, "med") >= 0);
-   }
+   // NEWS-SRC 2026-09-10 (T3): GetSymbolCurrencies / NewsImpactPass duplicates deleted —
+   // never called here; the live versions are in CSignalEngine.
 
    ulong GetMyPosition() {
       for(int i = PositionsTotal() - 1; i >= 0; i--) {
@@ -2257,7 +2251,7 @@ public:
                        m_te_rej_open_delay(0), m_te_rej_bc_recheck(0), m_te_rej_spread_median(0),
                        m_te_pass_open_delay(0), m_te_pass_bc_recheck(0), m_te_pass_spread_median(0),
                        m_te_rej_time(0),    m_te_pass_time(0),
-                       m_te_rej_news(0),    m_te_pass_news(0),
+                       m_te_rej_news(0),    m_te_pass_news(0), m_te_news_info(""),
                        m_te_rej_spread(0),  m_te_pass_spread(0),
                        m_spread_history_count(0), m_spread_history_idx(0),
                        m_h_psar(INVALID_HANDLE), m_h_fractals(INVALID_HANDLE), m_h_cushion_atr(INVALID_HANDLE), m_h_sl_atr(INVALID_HANDLE), m_h_trail_ema_atr(INVALID_HANDLE), m_h_trail_ema(INVALID_HANDLE), m_trail_ema_period_cached(0), // CACHED HANDLES
@@ -2322,6 +2316,7 @@ public:
    int      RejTime()          const { return m_te_rej_time;     }
    int      PassTime()         const { return m_te_pass_time;    }
    int      RejNews()          const { return m_te_rej_news;     }
+   void     SetNewsVetoInfo(const string info) { m_te_news_info = info; }   // NEWS-SRC 2026-09-10 (T2)
    int      PassNews()         const { return m_te_pass_news;    }
    int      RejSpread()        const { return m_te_rej_spread;   }
    int      PassSpread()       const { return m_te_pass_spread;  }
@@ -3297,7 +3292,10 @@ public:
       // F Gate 3: News check
       if(m_settings.UseNews && news_blocked_override)
       {
-         Print("[TE VETO] VETO_NEWS | high-impact event active");
+         // NEWS-SRC 2026-09-10 (T2): label reflects the actual blocking event, not a fixed "high-impact".
+         string news_lbl = m_te_news_info;
+         if(news_lbl == "") news_lbl = "news event active";
+         Print("[TE VETO] VETO_NEWS | ", news_lbl);
          m_te_veto_reason = "VETO_NEWS";
          m_te_rej_news++;   // F-AUDIT 2026-06
          return 0;

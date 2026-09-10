@@ -349,6 +349,14 @@ private:
    string      m_symbol;
    int         m_news_count;
    datetime    m_last_news_block_log;
+   // NEWS-SRC 2026-09-10: resolved source + refresh bookkeeping (see ResolveNewsSource)
+   ENewsResolved m_news_source;           // decided once at OnInit; NONE = fail-open
+   datetime      m_news_last_refresh;     // server time of the last successful calendar load
+   datetime      m_news_win_from;         // window loaded on the last calendar read
+   datetime      m_news_win_to;
+   int           m_news_untimed;          // calendar events skipped for lacking an exact time
+   bool          m_news_refresh_warned;   // one-shot warning latch for a failed hourly refresh
+   string        m_news_last_block_info;  // "CCY impact @ HH:MM" of the event that last blocked (for the TE veto label)
 
    // --- 2b. DIAGNOSTICS (for Cockpit/UI) ---
    int         m_diag_last_bias;
@@ -6363,7 +6371,9 @@ public:
    int GetCiHandle()  const { return h_ci; }
    int GetVrcHandle() const { return h_vrc; }
 
-   CSignalEngine() : m_symbol(""), m_news_count(0), m_last_news_block_log(0)
+   CSignalEngine() : m_symbol(""), m_news_count(0), m_last_news_block_log(0),
+                     m_news_source(NEWS_RES_NONE), m_news_last_refresh(0), m_news_win_from(0), m_news_win_to(0),
+                     m_news_untimed(0), m_news_refresh_warned(false), m_news_last_block_info("")
    {
       // Defensive init of indicator handles (prevents stale handles across re-inits)
       h_ema1 = h_ema2 = h_ema3 = h_ema4 = INVALID_HANDLE;
@@ -6525,11 +6535,15 @@ public:
    string LastReason() const { return m_diag_last_reason; }
 
    // --- TE Gate: Read-only news check for EvaluateTE() (shift=0) ---
-   // Returns true if a high-impact news event is currently active for this symbol.
+   // Returns true if a news event passing the impact filter is active for this
+   // symbol (inclusive window [t-Pre, t+Post], server time — the calendar API and
+   // TimeCurrent() share the trade-server clock, so no conversion is applied).
+   // NEWS-SRC 2026-09-10: FAIL-OPEN by construction — a NONE source can never block,
+   // whatever UseNews says. Records the blocking event for the TE veto label (T2).
    // No stat updates — pure read-only check.
    bool IsNewsBlocked()
    {
-      if(!m_settings.UseNews || m_news_count == 0) return false;
+      if(!m_settings.UseNews || m_news_source == NEWS_RES_NONE || m_news_count == 0) return false;
       string base, quote;
       GetSymbolCurrencies(m_symbol, base, quote);
       if(base == "" || quote == "") return false;
@@ -6542,9 +6556,26 @@ public:
          if(ccy != base && ccy != quote) continue;
          if(!NewsImpactPass(m_news_events[i].impact)) continue;
          datetime t = m_news_events[i].time;
-         if(now >= (t - pre_sec) && now <= (t + post_sec)) return true;
+         if(now >= (t - pre_sec) && now <= (t + post_sec))
+         {
+            m_news_last_block_info = ccy + " " + m_news_events[i].impact + " @ " +
+                                     TimeToString(t, TIME_DATE|TIME_MINUTES) + " (" +
+                                     NewsResolvedName(m_news_source) + ")";
+            return true;
+         }
       }
       return false;
+   }
+
+   // NEWS-SRC 2026-09-10: accessors for the journal line and the TE veto label.
+   ENewsResolved GetNewsSource()     const { return m_news_source; }
+   int           GetNewsCount()      const { return m_news_count; }
+   string        LastNewsBlockInfo() const { return m_news_last_block_info; }
+   string NewsResolvedName(ENewsResolved r) const
+   {
+      if(r == NEWS_RES_CALENDAR) return "CALENDAR";
+      if(r == NEWS_RES_CSV)      return "CSV";
+      return "NONE";
    }
 
    // 260304_PR1: Phase Detection Diagnostics
@@ -8294,7 +8325,195 @@ public:
    
 
    // --- 8. NEWS FILTER LOGIC ---
-   void LoadNews(string filename) {
+   //
+   // NEWS-SRC 2026-09-10. Three entry points:
+   //   ResolveNewsSource(file)  — OnInit, once. Decides CALENDAR / CSV / NONE per
+   //                              Settings.NewsSource, loads the events, prints ONE
+   //                              [NEWS] journal line. NONE prints a loud INACTIVE warning.
+   //   RefreshNewsIfDue()       — every tick (one datetime compare); re-reads the
+   //                              calendar at most once per hour, live/demo only.
+   //   LoadNews(file)           — the legacy CSV parser (format unchanged), now with
+   //                              the CSV timezone offset (G2) and a stale-file warning (G3).
+   // Contract: the veto is FAIL-OPEN. m_news_source==NEWS_RES_NONE ⇒ IsNewsBlocked()==false.
+   //
+   // MQL5 calendar facts relied on (mql5.com/docs/calendar, .../constants/structures/mqlcalendar):
+   //   • all calendar times are TRADE-SERVER time — same clock as TimeCurrent(); no tz math.
+   //   • importance/type/time_mode live on MqlCalendarEvent (CalendarEventById), not on the value.
+   //   • the API is NOT available in the Strategy Tester (error 4014, may return true with an
+   //     empty array) ⇒ availability is judged on GetLastError(), never on the return value.
+
+   // Calendar → SNewsEvent[]. Returns the number of events loaded, or -1 when the
+   // calendar API is unavailable (any GetLastError() != 0 on the query).
+   // Importance → the legacy impact strings so NewsImpactPass()/SNewsEvent stay unchanged.
+   // Holidays (CALENDAR_TYPE_HOLIDAY) and importance NONE are ignored. Events without an
+   // exact release time (time_mode != DATETIME) are ignored too — their .time is a
+   // placeholder, so a ±Pre/Post window around it would block the wrong hour — and
+   // counted in m_news_untimed so the journal line shows them.
+   int LoadNewsFromCalendar(datetime from, datetime to)
+   {
+      m_news_count   = 0;
+      m_news_untimed = 0;
+      ArrayResize(m_news_events, 0);
+
+      string base, quote;
+      GetSymbolCurrencies(m_symbol, base, quote);
+      if(base == "" || quote == "")
+      {
+         Print("[NEWS] calendar: cannot determine base/quote currency for ", m_symbol, " — 0 events");
+         return 0;   // API not proven unavailable; simply nothing to filter on
+      }
+
+      string ccys[2];
+      ccys[0] = base;
+      ccys[1] = quote;
+      int n_ccy = (base == quote) ? 1 : 2;
+
+      for(int c = 0; c < n_ccy; c++)
+      {
+         MqlCalendarValue vals[];
+         ResetLastError();
+         CalendarValueHistory(vals, from, to, NULL, ccys[c]);
+         int err = GetLastError();
+         if(err != 0)
+         {
+            PrintFormat("[NEWS] calendar API unavailable for %s (error %d)", ccys[c], err);
+            m_news_count = 0;
+            ArrayResize(m_news_events, 0);
+            return -1;
+         }
+         int total = ArraySize(vals);
+         for(int i = 0; i < total; i++)
+         {
+            MqlCalendarEvent ev;
+            ResetLastError();
+            if(!CalendarEventById(vals[i].event_id, ev)) continue;   // orphan value — skip, not fatal
+            if(ev.type == CALENDAR_TYPE_HOLIDAY)            continue;
+            if(ev.importance == CALENDAR_IMPORTANCE_NONE)   continue;
+            if(ev.time_mode != CALENDAR_TIMEMODE_DATETIME)  { m_news_untimed++; continue; }
+
+            string imp = "low";
+            if(ev.importance == CALENDAR_IMPORTANCE_HIGH)          imp = "high";
+            else if(ev.importance == CALENDAR_IMPORTANCE_MODERATE) imp = "medium";
+
+            int idx = m_news_count;
+            ArrayResize(m_news_events, m_news_count + 1);
+            m_news_events[idx].time     = vals[i].time;
+            m_news_events[idx].currency = ccys[c];
+            m_news_events[idx].impact   = imp;
+            m_news_count++;
+         }
+      }
+      m_news_win_from     = from;
+      m_news_win_to       = to;
+      m_news_last_refresh = TimeCurrent();
+      return m_news_count;
+   }
+
+   // Window the calendar is read over: [now - Post, now + Pre + 24h]. The 24h lookahead
+   // is refreshed hourly, so an event published or rescheduled during the day is picked up.
+   void NewsCalendarWindow(datetime &from, datetime &to) const
+   {
+      datetime now = TimeCurrent();
+      from = now - (datetime)(m_settings.NewsPost * 60);
+      to   = now + (datetime)(m_settings.NewsPre  * 60) + 86400;
+   }
+
+   // OnInit, once. Decides the source, loads events, prints exactly one [NEWS] line.
+   void ResolveNewsSource(string csv_filename)
+   {
+      m_news_source          = NEWS_RES_NONE;
+      m_news_count           = 0;
+      m_news_untimed         = 0;
+      m_news_refresh_warned  = false;
+      m_news_last_block_info = "";
+      ArrayResize(m_news_events, 0);
+      if(!m_settings.UseNews) return;
+
+      bool in_tester    = (bool)MQLInfoInteger(MQL_TESTER);
+      bool want_cal     = (m_settings.NewsSource == NEWS_SRC_AUTO || m_settings.NewsSource == NEWS_SRC_CALENDAR);
+      bool allow_csv    = (m_settings.NewsSource == NEWS_SRC_AUTO || m_settings.NewsSource == NEWS_SRC_CSV);
+      string cal_note   = "";
+
+      // 1. MT5 economic calendar (never in the tester — API not available there by design)
+      if(want_cal)
+      {
+         if(in_tester)
+            cal_note = " calendar=skipped(tester)";
+         else
+         {
+            datetime from, to;
+            NewsCalendarWindow(from, to);
+            int n = LoadNewsFromCalendar(from, to);
+            if(n >= 0)
+               m_news_source = NEWS_RES_CALENDAR;   // API works; n may legitimately be 0 (quiet window)
+            else
+               cal_note = " calendar=unavailable";
+         }
+      }
+
+      // 2. CSV (AUTO fallback, or the chosen source)
+      if(m_news_source == NEWS_RES_NONE && allow_csv)
+      {
+         int n = LoadNews(csv_filename);
+         if(n > 0) m_news_source = NEWS_RES_CSV;
+      }
+
+      // 3. One journal line — the only new observable of this feature
+      string line = StringFormat("[NEWS] source=%s events=%d window=-%d/+%d impact=%s tz=server",
+                                 NewsResolvedName(m_news_source), m_news_count,
+                                 m_settings.NewsPre, m_settings.NewsPost,
+                                 EnumToString(m_settings.NewsImpactFilter));
+      if(m_news_source == NEWS_RES_CALENDAR)
+         line += StringFormat(" untimed=%d refresh=hourly next=%s", m_news_untimed,
+                              TimeToString(m_news_last_refresh + 3600, TIME_DATE|TIME_MINUTES));
+      line += cal_note;
+      Print(line);
+      if(m_news_source == NEWS_RES_NONE)
+         Print("[NEWS] *** NEWS VETO INACTIVE — UseNews=true but no usable event source (calendar unavailable / CSV missing or empty). Entries will NOT be blocked around news. ***");
+   }
+
+   // Every tick from OrchestrateTick, BEFORE the TE consumer. Cheap: one compare per tick.
+   // Live/demo only, calendar source only, at most once per hour. A failed refresh keeps the
+   // previous list (never degrades to NONE mid-session) and warns once.
+   void RefreshNewsIfDue()
+   {
+      if(!m_settings.UseNews || m_news_source != NEWS_RES_CALENDAR) return;
+      if((bool)MQLInfoInteger(MQL_TESTER)) return;
+      datetime now = TimeCurrent();
+      if(now - m_news_last_refresh < 3600) return;
+
+      SNewsEvent keep[];
+      int keep_n = m_news_count;
+      ArrayResize(keep, keep_n);
+      for(int i = 0; i < keep_n; i++) keep[i] = m_news_events[i];
+
+      datetime from, to;
+      NewsCalendarWindow(from, to);
+      int n = LoadNewsFromCalendar(from, to);
+      if(n < 0)
+      {
+         // restore the last good list; try again next hour
+         ArrayResize(m_news_events, keep_n);
+         for(int i = 0; i < keep_n; i++) m_news_events[i] = keep[i];
+         m_news_count        = keep_n;
+         m_news_last_refresh = now;
+         if(!m_news_refresh_warned)
+         {
+            Print("[NEWS] refresh failed — keeping previous ", keep_n, " events; will retry hourly");
+            m_news_refresh_warned = true;
+         }
+         return;
+      }
+      m_news_refresh_warned = false;
+      if(m_settings.DebugFlow)
+         PrintFormat("[NEWS] refresh events=%d untimed=%d next=%s", m_news_count, m_news_untimed,
+                     TimeToString(m_news_last_refresh + 3600, TIME_DATE|TIME_MINUTES));
+   }
+
+   // Legacy CSV parser. Format unchanged (see SEA_Inputs.mqh "VETO — NEWS" block for the
+   // contract). Returns the number of events loaded. Times are read as server time, then
+   // NewsCsvTzOffsetMin is added (G2). All-in-the-past files warn (G3).
+   int LoadNews(string filename) {
       m_news_count = 0;
       ArrayResize(m_news_events, 0);
 
@@ -8303,8 +8522,8 @@ public:
       if(handle == INVALID_HANDLE)
          handle = FileOpen(filename, FILE_CSV|FILE_READ|FILE_UNICODE, ",");
       if(handle == INVALID_HANDLE) {
-         Print("News: Calendar file not found or unreadable (", filename, "). News Filter Disabled.");
-         return;
+         Print("News: CSV file not found or unreadable (", filename, ") in MQL5\\Files.");
+         return 0;
       }
 
       // Expect header: Date,Event,Impact,Currency
@@ -8333,6 +8552,7 @@ public:
 
          if(t == 0 || ccy == "")
             continue;
+         t += (datetime)(m_settings.NewsCsvTzOffsetMin * 60);   // G2: CSV zone → server zone
 
          int idx = m_news_count;
          ArrayResize(m_news_events, m_news_count + 1);
@@ -8344,6 +8564,19 @@ public:
 
       FileClose(handle);
       Print("News: Loaded ", m_news_count, " events from ", filename);
+
+      // G3: a file whose every event is already in the past loads fine and blocks nothing.
+      if(m_news_count > 0)
+      {
+         datetime now = TimeCurrent();
+         datetime newest = 0;
+         for(int i = 0; i < m_news_count; i++)
+            if(m_news_events[i].time > newest) newest = m_news_events[i].time;
+         if(newest + (datetime)(m_settings.NewsPost * 60) < now)
+            PrintFormat("[NEWS] WARNING CSV stale — all %d events are in the past (newest %s); the veto will block nothing until the file is updated",
+                        m_news_count, TimeToString(newest, TIME_DATE|TIME_MINUTES));
+      }
+      return m_news_count;
    }
 
    // --- CANDLE DIRECTION GATE (hard gate, always active when CandleBody_RequireDirection=true) ---
