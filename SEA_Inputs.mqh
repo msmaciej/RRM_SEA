@@ -196,7 +196,7 @@ input bool               Inp_Global_F_DPI_HistTrackingEnabled         = true;   
 input bool               Inp_Global_F_DPI_BlockOnDeceleration         = true;                    // F-Filter: Block on DPI histogram decel (requires hist-tracking on)
 
 input group "=== F — CLIMAX / EXHAUSTION GUARD (checked last) ===";
-input bool               Inp_Global_F_ClimaxGuard_Enabled             = true;                    // Climax: F-Filter/ exhaustion-guard master toggle
+input bool               Inp_Global_F_ClimaxGuard_Enabled             = false;                    // Climax: F-Filter/ exhaustion-guard master toggle
 input int                Inp_Global_ClimaxGuard_Lookback              = 13;                      // Climax: window (bars) scanned for an impulse
 input int                Inp_Global_ClimaxGuard_ATRPeriod             = 14;                      // Climax: ATR baseline period (measured pre-impulse)
 input double             Inp_Global_ClimaxGuard_BarATRMult            = 2.0;                     // Climax: single-bar range threshold (x ATR)
@@ -225,7 +225,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 //
 
 input group "=== TM — LET PROFIT RUN (R-ladder) ===";
-input bool               Inp_Global_LPR_Enabled                       = false;                   // LPR: enable R-ladder profit lock (OFF preserves existing preset exits)
+input bool               Inp_Global_LPR_Enabled                       = true;                   // LPR: enable R-ladder profit lock (OFF preserves existing preset exits)
 input double             Inp_Global_LPR_Trig1                         = 3.0;                     // LPR: at 3R ...
 input double             Inp_Global_LPR_Lock1                         = 2.0;                     // LPR: ... lock 2R
 input double             Inp_Global_LPR_Trig2                         = 4.0;                     // LPR: at 4R ...
@@ -235,11 +235,11 @@ input double             Inp_Global_LPR_Lock3                         = 0.0;    
 
 input group "=== TM — DAILY PROFIT TARGET ===";
 input bool               Inp_Global_DailyTarget_Enabled               = false;                   // DPT: stop new entries when day's realized P&L hits target
-input double             Inp_Global_DailyTarget_Pct                   = 10.0;                    // DPT: target % of day-start balance
+input double             Inp_Global_DailyTarget_Pct                   = 50.0;                    // DPT: target % of day-start balance
 
 input group "=== TM — TRAIL EMA (engine seed) ===";
 input int                Inp_Global_TrailEMA_Period                   = 34;                      // Global_TrailEMA_Period: for TRAIL_EMA mode
-input int                Inp_Global_TrailEMA_Shift                    = 2;                       // Global_TrailEMA_Shift: 1=current bar, 2=one bar cushion
+input int                Inp_Global_TrailEMA_Shift                    = 3;                       // Global_TrailEMA_Shift: 1=current bar, 2=one bar cushion
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -256,7 +256,7 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 //
 
 input group "=== META — RUN MODE ===";
-input bool               Inp_META_Enabled                             = false;      // META: gate ON — skip/scale trades below model threshold (needs model file)
+input bool               Inp_META_Enabled                             = true;      // META: gate ON — skip/scale trades below model threshold (needs model file)
 input bool               Inp_META_LogFeatures                         = false;      // META: COLLECT mode — log every TS=1 + realized outcome to CSV
 input string             Inp_META_PresetName                          = "RRM_ORG";  // META: tag in CSV / model file names (one model per preset)
 
@@ -265,8 +265,8 @@ input double             Inp_META_Threshold                           = 0.50;   
 input bool               Inp_META_SizeByScore                         = false;      // META: scale lots 0.5x..1.5x by model confidence (false = fixed size)
 
 input group "=== META — LEGACY LABEL (fallback only, when no TS_outcomes file exists) ===";
-input double             Inp_META_LabelRR                             = 1.5;        // META: legacy fixed RR×SL label (B labels on realized BE-or-profit normally)
-input int                Inp_META_LabelBars                           = 24;         // META: legacy fixed time-barrier bars
+input double             Inp_META_LabelRR                             = 2.5;        // META: legacy fixed RR×SL label (B labels on realized BE-or-profit normally)
+input int                Inp_META_LabelBars                           = 34;         // META: legacy fixed time-barrier bars
 
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -473,7 +473,7 @@ input int                Inp_RRM_ORG_Ema2Period                       = 13;     
 input int                Inp_RRM_ORG_Ema3Period                       = 34;                      // RRM ORG QA: EMA3 period
 input int                Inp_RRM_ORG_Ema4Period                       = 89;                      // RRM ORG QA: EMA4 period
 input int                Inp_RRM_ORG_UNO_ToleranceBars                = 1;                       // RRM ORG PB: consecutive UNO bars tolerated before layer states wipe (0=strict)
-input int                Inp_RRM_ORG_MinBarsAfterUNOExit              = 2;                       // RRM ORG QA: min bars after UNO exit before a DETECTED→IN-TREND edge (0=off)
+input int                Inp_RRM_ORG_MinBarsAfterUNOExit              = 1;                       // RRM ORG QA: min bars after UNO exit before a DETECTED→IN-TREND edge (0=off)
 //
 // L — each layer (W=EMA1/2, M=EMA2/3, S=EMA3/4) runs NONE → DETECTED → IN-TREND on EMA position + slope only (no
 //    price term; price is the separate BC/BD gate). Baseline lookback = span of the slope baseline; current pace =
@@ -497,18 +497,21 @@ input bool               Inp_RRM_ORG_LayerPBAllowReversal             = true;   
 input bool               Inp_RRM_ORG_AllowLayerS                      = true;                    // RRM ORG PB: allow Layer S (EMA3/4) entries
 input bool               Inp_RRM_ORG_AllowLayerM                      = true;                    // RRM ORG PB: allow Layer M (EMA2/3) entries
 input bool               Inp_RRM_ORG_AllowLayerW                      = false;                   // RRM ORG PB: allow Layer W (EMA1/2) entries
+input group " ";
 input int                Inp_RRM_ORG_LayerPBLookback                  = 0;                       // RRM ORG PB: global baseline lookback (0 = use per-layer values below)
-input int                Inp_RRM_ORG_LayerPBLookback_W                = 21;                      // RRM ORG PB: LayerW baseline lookback (fast) — see note
-input int                Inp_RRM_ORG_LayerPBLookback_M                = 34;                      // RRM ORG PB: LayerM baseline lookback (medium)
-input int                Inp_RRM_ORG_LayerPBLookback_S                = 55;                      // RRM ORG PB: LayerS baseline lookback (slow) — see note
+input int                Inp_RRM_ORG_LayerPBLookback_W                = 8;                      // RRM ORG PB: LayerW baseline lookback (fast) — see note
+input int                Inp_RRM_ORG_LayerPBLookback_M                = 13;                      // RRM ORG PB: LayerM baseline lookback (medium)
+input int                Inp_RRM_ORG_LayerPBLookback_S                = 21;                      // RRM ORG PB: LayerS baseline lookback (slow) — see note
+input group " ";
 input int                Inp_RRM_ORG_LayerPullbackWindow              = 0;                       // RRM ORG PB: global observation window (bars; 0 = per-layer values below)
-input int                Inp_RRM_ORG_LayerPullbackWindow_W            = 21;                      // RRM ORG PB: LayerW observation window (bars; 0=use global)
-input int                Inp_RRM_ORG_LayerPullbackWindow_M            = 34;                      // RRM ORG PB: LayerM observation window (bars; 0=use global)
-input int                Inp_RRM_ORG_LayerPullbackWindow_S            = 55;                      // RRM ORG PB: LayerS observation window (bars; 0=use global)
-input int                Inp_RRM_ORG_MinPBBars_W                      = 3;                       // RRM ORG PB: A21 — LayerW min bars in DETECTED before IN-TREND
-input int                Inp_RRM_ORG_MinPBBars_M                      = 3;                       // RRM ORG PB: A21 — LayerM min bars in DETECTED before IN-TREND
-input int                Inp_RRM_ORG_MinPBBars_S                      = 2;                       // RRM ORG PB: A21 — LayerS min bars in DETECTED before IN-TREND
-input double             Inp_RRM_ORG_LayerPBFlatRatio                 = 0.1;                     // RRM ORG PB: Flat threshold (|ratio|<this = flat)
+input int                Inp_RRM_ORG_LayerPullbackWindow_W            = 8;                      // RRM ORG PB: LayerW observation window (bars; 0=use global)
+input int                Inp_RRM_ORG_LayerPullbackWindow_M            = 13;                      // RRM ORG PB: LayerM observation window (bars; 0=use global)
+input int                Inp_RRM_ORG_LayerPullbackWindow_S            = 21;                      // RRM ORG PB: LayerS observation window (bars; 0=use global)
+input group " ";
+input int                Inp_RRM_ORG_MinPBBars_W                      = 2;                       // RRM ORG PB: A21 — LayerW min bars in DETECTED before IN-TREND
+input int                Inp_RRM_ORG_MinPBBars_M                      = 1;                       // RRM ORG PB: A21 — LayerM min bars in DETECTED before IN-TREND
+input int                Inp_RRM_ORG_MinPBBars_S                      = 1;                       // RRM ORG PB: A21 — LayerS min bars in DETECTED before IN-TREND
+input double             Inp_RRM_ORG_LayerPBFlatRatio                 = 0.01;                     // RRM ORG PB: Flat threshold (|ratio|<this = flat)
 //
 // Fresh-trend gate (2026-09, 100-trades study §3.1): a layer fires only on one of the FIRST pullbacks after the
 //    cross that started the trend it rides. Reference cross per layer: W → EMA2×EMA3 (the ribbon's own 5/13 pair
@@ -522,11 +525,11 @@ input double             Inp_RRM_ORG_LayerPBFlatRatio                 = 0.1;    
 
 input group "=== RRM_ORG — L: FRESH-TREND GATE (FreshX) ===";
 input bool               Inp_RRM_ORG_FreshX_Enabled                   = true;                    // RRM ORG FreshX: enable fresh-trend (first-pullback) gate
-input EFreshXPair        Inp_RRM_ORG_FreshX_RefPair_W                 = FRESHX_EMA2x3;           // RRM ORG FreshX: LayerW reference cross (next-slower pair 13/34)
-input EFreshXPair        Inp_RRM_ORG_FreshX_RefPair_M                 = FRESHX_EMA2x3;           // RRM ORG FreshX: LayerM reference cross (own pair 13/34)
+input EFreshXPair        Inp_RRM_ORG_FreshX_RefPair_W                 = FRESHX_EMA2x4;           // RRM ORG FreshX: LayerW reference cross (next-slower pair 13/34)
+input EFreshXPair        Inp_RRM_ORG_FreshX_RefPair_M                 = FRESHX_EMA2x4;           // RRM ORG FreshX: LayerM reference cross (own pair 13/34)
 input EFreshXPair        Inp_RRM_ORG_FreshX_RefPair_S                 = FRESHX_EMA3x4;           // RRM ORG FreshX: LayerS reference cross (own pair 34/89)
 input int                Inp_RRM_ORG_FreshX_MaxPullbacks_W            = 2;                       // RRM ORG FreshX: LayerW max slope-pullbacks since cross (0=unlimited)
-input int                Inp_RRM_ORG_FreshX_MaxPullbacks_M            = 3;                       // RRM ORG FreshX: LayerM max slope-pullbacks since cross (0=unlimited)
+input int                Inp_RRM_ORG_FreshX_MaxPullbacks_M            = 1;                       // RRM ORG FreshX: LayerM max slope-pullbacks since cross (0=unlimited)
 input int                Inp_RRM_ORG_FreshX_MaxPullbacks_S            = 0;                       // RRM ORG FreshX: LayerS max slope-pullbacks since cross (0=unlimited)
 input int                Inp_RRM_ORG_FreshX_MaxBars_W                 = 0;                       // RRM ORG FreshX: LayerW max bars since cross (0=off; ~40 = tally cut-off)
 input int                Inp_RRM_ORG_FreshX_MaxBars_M                 = 0;                       // RRM ORG FreshX: LayerM max bars since cross (0=off)
@@ -579,7 +582,7 @@ input int                Inp_RRM_ORG_DPI_CCI_Period                   = 13;     
 input group "=== RRM_ORG — I: DPI VOTE ===";
 input bool               Inp_RRM_ORG_DPI_UseCCIReset                  = true;                    // RRM ORG DPI: CCI can reset ribbon color (trend filter)
 input bool               Inp_RRM_ORG_DPI_IgnoreCCIForVote             = false;                   // RRM ORG DPI: Skip CCI check — vote on raw histogram direction only
-input bool               Inp_RRM_ORG_DPI_UseGreenHist                 = true;                    // RRM ORG DPI: Also require GREEN overlay for vote pass
+input bool               Inp_RRM_ORG_DPI_UseGreenHist                 = false;                    // RRM ORG DPI: Also require GREEN overlay for vote pass
 input bool               Inp_RRM_ORG_DpiDiv                           = false;                   // RRM ORG DPI: Require price-vs-DPI-histogram divergence (off by default)
 input int                Inp_RRM_ORG_DpiDivLookback                   = 55;                      // RRM ORG DPI: Divergence detection window in bars (two non-overlapping windows)
 //
@@ -631,11 +634,11 @@ input double             Inp_RRM_ORG_DPI_ExitThreshold                = 0.0;    
 input group "=== RRM_ORG — I: PSAR ===";
 input bool               Inp_RRM_ORG_Vote_AllowPsarFlip               = true;                    // RRM ORG PSAR: PSAR Enable Flip
 input int                Inp_RRM_ORG_Vote_PsarFlipDelay               = -1;                      // RRM ORG PSAR: global flip window: -1 persistent | 0 this bar | 1..10 last N bars
-input int                Inp_RRM_ORG_PsarFlipDelay_W                  = 2;                       // RRM ORG PSAR: LayerW window override (-99 = use global)
-input int                Inp_RRM_ORG_PsarFlipDelay_M                  = 3;                       // RRM ORG PSAR: LayerM window override (-99 = use global)
+input int                Inp_RRM_ORG_PsarFlipDelay_W                  = 3;                       // RRM ORG PSAR: LayerW window override (-99 = use global)
+input int                Inp_RRM_ORG_PsarFlipDelay_M                  = 4;                       // RRM ORG PSAR: LayerM window override (-99 = use global)
 input int                Inp_RRM_ORG_PsarFlipDelay_S                  = 5;                       // RRM ORG PSAR: LayerS window override (-99 = use global)
-input double             Inp_RRM_ORG_PsarStep                         = 0.05;                    // RRM ORG PSAR: PSAR Step
-input double             Inp_RRM_ORG_PsarMax                          = 0.2;                     // RRM ORG PSAR: PSAR Max
+input double             Inp_RRM_ORG_PsarStep                         = 0.08;                    // RRM ORG PSAR: PSAR Step
+input double             Inp_RRM_ORG_PsarMax                          = 0.5;                     // RRM ORG PSAR: PSAR Max
 //
 // MTF — higher-timeframe confirmation voter. TF1 must be higher than the chart TF (4:1 rule of thumb: M1→M5+M15,
 //    M5→M15+H1, M15→H1+H4, H1→H4+D1); TF2 = PERIOD_CURRENT means single-HTF. EMA pair 34/89 = the HTF S-pair
@@ -648,19 +651,19 @@ input double             Inp_RRM_ORG_PsarMax                          = 0.2;    
 
 input group "=== RRM_ORG — I: MTF (higher timeframe) ===";
 input bool               Inp_RRM_ORG_MTF_RequirePhase                 = true;                    // RRM ORG MTF: require trending HTF
-input ENUM_TIMEFRAMES    Inp_RRM_ORG_MTF_TF1                          = PERIOD_M5;               // RRM ORG MTF: TF1 (primary)
-input ENUM_TIMEFRAMES    Inp_RRM_ORG_MTF_TF2                          = PERIOD_M15;              // RRM ORG MTF: TF2 (PERIOD_CURRENT = single TF)
+input ENUM_TIMEFRAMES    Inp_RRM_ORG_MTF_TF1                          = PERIOD_M15;               // RRM ORG MTF: TF1 (primary)
+input ENUM_TIMEFRAMES    Inp_RRM_ORG_MTF_TF2                          = PERIOD_H1;              // RRM ORG MTF: TF2 (PERIOD_CURRENT = single TF)
 input int                Inp_RRM_ORG_MTF_EMA_Fast                     = 34;                      // RRM ORG MTF: fast EMA period (34 = HTF S-pair; 21/21 = legacy slope)
 input int                Inp_RRM_ORG_MTF_EMA_Slow                     = 89;                      // RRM ORG MTF: slow EMA period (89; needed for MTF FreshX)
 
 input group "=== RRM_ORG — I: MTF FRESH-TREND (nested FreshX on TF1) ===";
-input bool               Inp_RRM_ORG_MTF_FreshX_Enabled               = false;                   // RRM ORG MTF FreshX: require TF1 in its first pullbacks after its cross (see note)
+input bool               Inp_RRM_ORG_MTF_FreshX_Enabled               = true;                   // RRM ORG MTF FreshX: require TF1 in its first pullbacks after its cross (see note)
 input bool               Inp_RRM_ORG_MTF_FreshX_ApplyTF2              = false;                   // RRM ORG MTF FreshX: also require the young structure on TF2
 input int                Inp_RRM_ORG_MTF_FreshX_Layers                = 3;                       // RRM ORG MTF FreshX: apply to 0=all layers | 1=W | 2=M | 3=S only
 input int                Inp_RRM_ORG_MTF_FreshX_MaxPullbacks          = 2;                       // RRM ORG MTF FreshX: max TF1 slope-pullbacks since its cross (0=unlimited)
 input int                Inp_RRM_ORG_MTF_FreshX_MaxBars               = 0;                       // RRM ORG MTF FreshX: max TF1 bars since its cross (0=off)
 input int                Inp_RRM_ORG_MTF_FreshX_Lookback              = 200;                     // RRM ORG MTF FreshX: TF1 scan window in TF1 bars
-input int                Inp_RRM_ORG_MTF_FreshX_PBLookback            = 55;                      // RRM ORG MTF FreshX: TF1 slope baseline lookback (S-layer default)
+input int                Inp_RRM_ORG_MTF_FreshX_PBLookback            = 13;                      // RRM ORG MTF FreshX: TF1 slope baseline lookback (S-layer default)
 //
 // CandleBody — blocks over-extended signal bars (body > MaxMult × average of AvgPeriod bars), optionally requires
 //    the bar to close in the bias direction and in its top/bottom (1-MinCloseRatio) of range (0.75 = TopInvestor
@@ -713,13 +716,13 @@ input int                Inp_RRM_ORG_CiPeriod                         = 14;     
 input double             Inp_RRM_ORG_CiRangingThreshold               = 61.8;                    // RRM ORG CI: CI Threshold
 
 input group "=== RRM_ORG — I: MACD ===";
-input bool               Inp_RRM_ORG_MacdSlope                        = false;                   // RRM ORG MACD: MACD require SLO
-input bool               Inp_RRM_ORG_MacdDiv                          = false;                   // RRM ORG MACD: block on trend-exhaustion divergence (price HH, MACD LH; mirror SHORT)
-input int                Inp_RRM_ORG_MacdDivLookback                  = 10;                      // RRM ORG MACD: Divergence detection window in bars (two non-overlapping windows of this size)
-input int                Inp_RRM_ORG_MacdFast                         = 8;                       // RRM ORG MACD: MACD Fast
-input int                Inp_RRM_ORG_MacdSlow                         = 13;                      // RRM ORG MACD: MACD Slow
-input int                Inp_RRM_ORG_MacdSig                          = 5;                       // RRM ORG MACD: MACD Signal
-input int                Inp_RRM_ORG_MacdFreshBars                    = 3;                       // RRM ORG MACD: max bars since last zero-cross to be "fresh"
+input bool               Inp_RRM_ORG_MacdSlope                        = false;                   // RRM ORG MACD: SLOPE
+input bool               Inp_RRM_ORG_MacdDiv                          = false;                   // RRM ORG MACD: DIVERGENCE block on trend-exhaustion divergence (price HH, MACD LH; mirror SHORT)
+input int                Inp_RRM_ORG_MacdDivLookback                  = 10;                      // RRM ORG MACD: DIV LOOKBACK detection window in bars (two non-overlapping windows of this size)
+input int                Inp_RRM_ORG_MacdFast                         = 8;                       // RRM ORG MACD: FAST
+input int                Inp_RRM_ORG_MacdSlow                         = 13;                      // RRM ORG MACD: SLOW
+input int                Inp_RRM_ORG_MacdSig                          = 5;                       // RRM ORG MACD: SIGNAL
+input int                Inp_RRM_ORG_MacdFreshBars                    = 3;                       // RRM ORG MACD: fresh bars since last zero-cross to be "fresh"
 input double             Inp_RRM_ORG_MacdSlopeMin                     = 0.00001;                 // RRM ORG MACD: minimum histogram slope magnitude
 
 input group "=== RRM_ORG — I: MFI ===";
@@ -762,7 +765,7 @@ input double             Inp_RRM_ORG_EmaFan_MaxPct                    = 0.0;    
 input double             Inp_RRM_ORG_JpyGateMultiplier                = 1.3;                     // RRM ORG Fan: JPY Gate Multiplier (1.0=disabled)
 
 input group "=== RRM_ORG — F: PRICE OVER-EXTENSION ===";
-input int                Inp_RRM_ORG_PriceExtRefEma                   = 4;                       // RRM ORG OverExt: ref EMA 1..4 (1=5 2=13 3=34 4=89)
+input int                Inp_RRM_ORG_PriceExtRefEma                   = 3;                       // RRM ORG OverExt: ref EMA 1..4 (1=5 2=13 3=34 4=89)
 input int                Inp_RRM_ORG_PriceExtAtrPeriod                = 14;                      // RRM ORG OverExt: ATR period for distance
 input double             Inp_RRM_ORG_PriceExtMaxATR                   = 2.5;                     // RRM ORG OverExt: block if |close-refEMA| > this x ATR
 //
@@ -805,19 +808,23 @@ input double             Inp_RRM_ORG_BE_ProgressPct                   = 25.0;   
 
 input group "=== RRM_ORG — TM: TRAIL METHOD & CUSHION ===";
 input ETrailingMode      Inp_RRM_ORG_TrailMode                        = TRAIL_EMA;               // RRM ORG TS METHOD: PSAR(Oracle) / EMA / SWING / FRACTAL / FIXED_PIPS / PROFIT_PERCENT / NONE
-input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode            = PSAR_CUSHION_ATR;     // RRM ORG TS: PSAR cushion mode (PIPS / ATR / PERCENT)
+input EPsarTrailCushionMode Inp_RRM_ORG_PSAR_TrailCushionMode         = PSAR_CUSHION_ATR;     // RRM ORG TS: PSAR cushion mode (PIPS / ATR / PERCENT)
 input EEmaRole           Inp_RRM_ORG_TrailEMA_RibbonRole              = ROLE_EMA3;               // RRM ORG TS: which ribbon EMA to trail (EMA1=5,EMA2=13,EMA3=34,EMA4=89) when Period=0
+input group " ";
 input int                Inp_RRM_ORG_TrailPsarDotShift                = 3;                       // RRM ORG QA: PSAR trail shift (1–3 bars back)
+input group " ";
+input double             Inp_RRM_ORG_TrailStepPips                    = 5.0;                     // RRM ORG TS: step size for fixed-step trail modes
+input double             Inp_RRM_ORG_TrailCushionPct                  = 25.0;                    // RRM ORG TS: cushion % of price (PERCENT mode + safety floor)
+input double             Inp_RRM_ORG_TrailProfitPercentLPR            = 25.0;                    // RRM ORG TS: LPR trailing percent behind peak
+input group " ";
 input int                Inp_RRM_ORG_TrailCushionAtrPeriod            = 14;                      // RRM ORG TS: ATR period (ATR mode)
+input double             Inp_RRM_ORG_TrailCushionAtrMult              = 2.0;                     // RRM ORG TS: cushion ATR multiplier (cushion = ATR × this)
+input group " ";
 input int                Inp_RRM_ORG_TrailEMA_Period                  = 0;                       // RRM ORG TS: EMA period (0=use ribbon role selector below)
 input int                Inp_RRM_ORG_TrailEMA_Shift                   = 1;                       // RRM ORG TS: bar shift for EMA read (1=last closed bar, 2=two bars back, 3=three bars back)
 input int                Inp_RRM_ORG_TrailEMA_CushionAtrPeriod        = 14;                      // RRM ORG TS: ATR period for EMA cushion
-input double             Inp_RRM_ORG_TrailCushionAtrMult              = 2.0;                     // RRM ORG TS: cushion ATR multiplier (cushion = ATR × this)
-input double             Inp_RRM_ORG_TrailCushionPct                  = 25.0;                    // RRM ORG TS: cushion % of price (PERCENT mode + safety floor)
-input double             Inp_RRM_ORG_TrailProfitPercentLPR            = 25.0;                    // RRM ORG TS: LPR trailing percent behind peak
 input double             Inp_RRM_ORG_TrailEMA_CushionPips             = 0.0;                     // RRM ORG TS: EMA trail cushion pips (0=use ATR mode)
 input double             Inp_RRM_ORG_TrailEMA_CushionAtrMult          = 0.3;                     // RRM ORG TS: EMA cushion = ATR×this (0=disabled; 0.1=recommended)
-input double             Inp_RRM_ORG_TrailStepPips                    = 5.0;                     // RRM ORG TS: step size for fixed-step trail modes
 //
 // TM — TRAIL START & FLAGS (when trailing begins, separate axis from the method). TrailTrigger: TRIGGER_IMMEDIATE
 //    (Oracle: from entry) | BREAKEVEN | PROFIT_PERCENT(R) | PROFIT_PIPS | PSAR_ALIGN — now LIVE on the RRM path
