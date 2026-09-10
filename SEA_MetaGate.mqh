@@ -35,17 +35,24 @@
 #property strict
 
 //==================== META INPUTS ==================================
-input group "╔════════════════════════════════════════════════════════╗";
-input group "║   🛡 (META) Inputs";
-input group "╚════════════════════════════════════════════════════════╝";
-input bool   Inp_META_Enabled     = false;      // Inp_META_Enabled: false = behaves as today; true = gate active
-input bool   Inp_META_LogFeatures = false;      // Inp_META_LogFeatures: TRUE only for the COLLECT run
-input double Inp_META_Threshold   = 0.50;       // Inp_META_Threshold: fallback if model file lacks one
-input bool   Inp_META_SizeByScore = false;      // Inp_META_SizeByScore: scale lots by confidence
-input string Inp_META_PresetName  = "RRM_ORG";  // Inp_META_PresetName: drives the CSV file names
-input double Inp_META_LabelRR     = 1.5;        // Inp_META_LabelRR: LEGACY fallback only (fixed RR x SL label when no TS_outcomes file); B labels on realized BE-or-profit
-input int    Inp_META_LabelBars   = 24;         // Inp_META_LabelBars: LEGACY fallback only (fixed time-barrier when no TS_outcomes file)
-
+// MOVED 2026-09-10 → SEA_Inputs.mqh, section "6. META GATE". The seven Inp_META_*
+// inputs are declared THERE (single place the user sets any EA input) and are
+// visible here because SEA_Inputs.mqh is included before this file on every path
+// (SimpleEA_v1-05.mq5 L36; SEA_TradeExecutor.mqh L18 → L20). Names, types and
+// defaults are unchanged. The original lines are kept below, commented out, as
+// the record of what moved — do NOT re-enable them (duplicate-input compile error).
+//
+// input group "╔════════════════════════════════════════════════════════╗";
+// input group "║   🛡 (META) Inputs";
+// input group "╚════════════════════════════════════════════════════════╝";
+// input bool   Inp_META_Enabled     = false;      // Inp_META_Enabled: false = behaves as today; true = gate active
+// input bool   Inp_META_LogFeatures = false;      // Inp_META_LogFeatures: TRUE only for the COLLECT run
+// input double Inp_META_Threshold   = 0.50;       // Inp_META_Threshold: fallback if model file lacks one
+// input bool   Inp_META_SizeByScore = false;      // Inp_META_SizeByScore: scale lots by confidence
+// input string Inp_META_PresetName  = "RRM_ORG";  // Inp_META_PresetName: drives the CSV file names
+// input double Inp_META_LabelRR     = 1.5;        // Inp_META_LabelRR: LEGACY fallback only (fixed RR x SL label when no TS_outcomes file); B labels on realized BE-or-profit
+// input int    Inp_META_LabelBars   = 24;         // Inp_META_LabelBars: LEGACY fallback only (fixed time-barrier when no TS_outcomes file)
+//
 //==================== FILE NAMES (derived from preset) =============
 // Key files by preset + chart symbol + chart timeframe, e.g. RRM_ORG_EURUSD_M1.
 // EnumToString(PERIOD_M1)="PERIOD_M1" -> substr(7) -> "M1"; works for every TF.
