@@ -487,11 +487,11 @@ input group "=== RRM_ORG — B/P: RIBBON & PHASE ===";
 input bool               Inp_RRM_ORG_LayerS_TMOnly                    = true;                    // RRM ORG QA: Restrict LayerS (EMA3/EMA4) entries to TRENDING phase only (per canonical RRM);
 input bool               Inp_RRM_ORG_UNO_AllowStrongShark             = true;                    // RRM ORG UNO: allow Layer S (Shark) in UNORDERED when EMA3/EMA4 still ordered
 input int                Inp_RRM_ORG_Ema1Period                       = 5;                       // RRM ORG QA: EMA1 period
-input int                Inp_RRM_ORG_Ema2Period                       = 13;                      // RRM ORG QA: EMA2 period
+input int                Inp_RRM_ORG_Ema2Period                       = 8;                      // RRM ORG QA: EMA2 period
 input int                Inp_RRM_ORG_Ema3Period                       = 34;                      // RRM ORG QA: EMA3 period
 input int                Inp_RRM_ORG_Ema4Period                       = 89;                      // RRM ORG QA: EMA4 period
-input int                Inp_RRM_ORG_UNO_ToleranceBars                = 1;                       // RRM ORG PB: consecutive UNO bars tolerated before layer states wipe (0=strict)
-input int                Inp_RRM_ORG_MinBarsAfterUNOExit              = 1;                       // RRM ORG QA: min bars after UNO exit before a DETECTED→IN-TREND edge (0=off)
+input int                Inp_RRM_ORG_UNO_ToleranceBars                = 2;                       // RRM ORG PB: consecutive UNO bars tolerated before layer states wipe (0=strict)
+input int                Inp_RRM_ORG_MinBarsAfterUNOExit              = 2;                       // RRM ORG QA: min bars after UNO exit before a DETECTED→IN-TREND edge (0=off)
 //
 // L — each layer (W=EMA1/2, M=EMA2/3, S=EMA3/4) runs NONE → DETECTED → IN-TREND on EMA position + slope only (no
 //    price term; price is the separate BC/BD gate). Baseline lookback = span of the slope baseline; current pace =
@@ -560,8 +560,8 @@ input int                Inp_RRM_ORG_FreshX_Lookback                  = 300;    
 
 input group "=== RRM_ORG — I: VOTERS ON / OFF ===";
 input bool               Inp_RRM_ORG_DPI_Enabled                      = true;                    // RRM ORG DPI: Enable DPI vote in TS equation
-input bool               Inp_RRM_ORG_Use_Psar                         = true;                    // RRM ORG Ind: PSAR vote
-input bool               Inp_RRM_ORG_Use_CandleBody                   = true;                    // RRM ORG Ind: CBody vote
+input bool               Inp_RRM_ORG_Use_Psar                         = false;                    // RRM ORG Ind: PSAR vote
+input bool               Inp_RRM_ORG_Use_CandleBody                   = false;                    // RRM ORG Ind: CBody vote
 input bool               Inp_RRM_ORG_Use_MTF                          = true;                    // RRM ORG Ind: MTF/HTF vote
 input bool               Inp_RRM_ORG_Use_Adx                          = false;                   // RRM ORG Ind: ADX vote
 input bool               Inp_RRM_ORG_Use_Atr                          = false;                   // RRM ORG Ind: ATR vote
@@ -875,7 +875,7 @@ input double             Inp_RRM_ORG_RRRatio                          = 2.5;    
 
 input group "=== RRM_ORG — TM: STALE-TRADE SCRATCH EXIT ===";
 input bool               Inp_RRM_ORG_StaleExit_Enabled                = false;                   // RRM ORG StaleExit: close if no progress after N bars
-input int                Inp_RRM_ORG_StaleExit_Bars                   = 12;                      // RRM ORG StaleExit: closed bars after entry before the check
+input int                Inp_RRM_ORG_StaleExit_Bars                   = 21;                      // RRM ORG StaleExit: closed bars after entry before the check
 input double             Inp_RRM_ORG_StaleExit_MinR                   = 1.0;                     // RRM ORG StaleExit: required MFE as multiple of initial risk
 
 input group "=== RRM_ORG — TM: DRAWDOWN CAPS ===";
@@ -894,6 +894,7 @@ input int                Inp_RRM_ORG_ReEntryLotScalePct               = 50;     
 input int                Inp_RRM_ORG_MinBarsAfterClose                = 3;                       // RRM ORG SL: post-trade cooldown bars (0=off)
 input int                Inp_RRM_ORG_MaxSpreadRetryBars               = 0;                       // RRM ORG: SPREAD bars retry (if TE block)
 #endif // SEA_BUILD_RRM_ORG
+
 
 //+------------------------------------------------------------------+
 //| 11. OTHER PRESETS — blocks copied verbatim (2026-09-10); only the |
@@ -936,6 +937,7 @@ input double      Inp_FPM_PsarMax                  = 0.2;            // FPM PSAR
 input bool        Inp_FPM_Ind_Mfi_Enabled          = true;           // FPM MFI: Enable MFI volume gate (MFI>50 for longs, <50 for shorts)
 input int         Inp_FPM_Mfi_Period               = 14;             // FPM MFI: period (default 14)
 #endif // SEA_BUILD_FPM
+
 
 #ifdef SEA_BUILD_TOPINVESTOR
 input group " ";
@@ -1032,6 +1034,7 @@ input int         Inp_TI_Fib_SwingLookback         = 50;             // TI Full:
 input double      Inp_TI_CandleBody_FullRatio      = 0.75;           // TI Full: min close ratio for body quality gate
 #endif // SEA_BUILD_TOPINVESTOR
 
+
 #ifdef SEA_BUILD_XEMA
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1086,6 +1089,7 @@ input EBeMode Inp_XEMA_BE_Mode            = BE_MODE_OFF;          // XEMA: BE mo
 input double  Inp_XEMA_BE_RMultiple       = 2.0;                  // XEMA: move SL to BE at N*R
 input ETrailingMode Inp_XEMA_TrailMode    = TRAIL_NONE;           // XEMA: post-BE trail (NONE = rely on LPR ladder / reverse cross)
 #endif // SEA_BUILD_XEMA
+
 
 #ifdef SEA_BUILD_TURTLE
 input group " ";
@@ -1146,6 +1150,7 @@ input double Inp_TURTLE_AddStepATR        = 0.5;         // [TUR] AddStepATR
 input double Inp_TURTLE_MaxAggRisk        = 6.0;         // [TUR] MaxAggRisk
 input int    Inp_TURTLE_ReEntryScale      = 50;          // [TUR] ReEntryScale
 #endif // SEA_BUILD_TURTLE
+
 
 #ifdef SEA_BUILD_TREND
 input group " ";
@@ -1217,6 +1222,7 @@ input double Inp_TREND_MaxAggRisk            = 6.0;         // [TRE] MaxAggRisk
 input int    Inp_TREND_ReEntryScale          = 50;          // [TRE] ReEntryScale
 #endif // SEA_BUILD_TREND
 
+
 #ifdef SEA_BUILD_RH_REBELLION
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1257,6 +1263,7 @@ input ETrailingMode Inp_RHR_TrailMode    = TRAIL_EMA;             // RHR: EMA po
 input double  Inp_RHR_PendingBufferPips  = 1.0;                   // RHR: 1.0 pending stop-order buffer beyond the signal candle (pips)
 #endif // SEA_BUILD_RH_REBELLION
 
+
 #ifdef SEA_BUILD_RH_1MS
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1286,6 +1293,7 @@ input double  Inp_RH1MS_FixedTPPips     = 10.0;   // RH1MS: fixed TP pips — us
 input double  Inp_RH1MS_RRRatio         = 2.0;    // RH1MS: reward:risk — used by TP_MODE_RR (research: pair 2R with a wider stop)
 #endif // SEA_BUILD_RH_1MS
 
+
 #ifdef SEA_BUILD_RH_STS
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1309,6 +1317,7 @@ input int     Inp_RHSTS_SwingLookback   = 10;     // RHSTS: swing lookback (bars
 input ETPMode Inp_RHSTS_TPMode          = TP_MODE_RR;   // RHSTS: TP mode (manual: opposite band / TF-fixed pips; RR used as approximation)
 input double  Inp_RHSTS_RRRatio         = 1.5;    // RHSTS: reward:risk when TPMode = RR
 #endif // SEA_BUILD_RH_STS
+
 
 #ifdef SEA_BUILD_RH_SS
 input group " ";
@@ -1334,6 +1343,7 @@ input int     Inp_RHSS_SwingLookback    = 12;     // RHSS: swing lookback (bars)
 input double  Inp_RHSS_RRRatio          = 2.0;    // RHSS: reward:risk (manual 2R)
 #endif // SEA_BUILD_RH_SS
 
+
 #ifdef SEA_BUILD_RH_GS
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
@@ -1354,6 +1364,7 @@ input bool    Inp_RHGS_UseSmmaRecrossExit = true; // RHGS: close when price re-c
 input int     Inp_RHGS_SwingLookback    = 12;     // RHGS: swing lookback (bars) for SL
 input double  Inp_RHGS_RRRatio          = 2.0;    // RHGS: reward:risk (manual 2R)
 #endif // SEA_BUILD_RH_GS
+
 
 #ifdef SEA_BUILD_RH_SM
 input group " ";
@@ -1376,6 +1387,7 @@ input int     Inp_RHSM_SwingLookback    = 10;     // RHSM: swing lookback (bars)
 input double  Inp_RHSM_RRRatio          = 2.0;    // RHSM: reward:risk (manual 2R)
 #endif // SEA_BUILD_RH_SM
 
+
 #ifdef SEA_BUILD_MA
 //
 // Inp_MA_MaximumRiskPct / Inp_MA_DecreaseFactor REMOVED — Settings.MA_MaximumRiskPct
@@ -1392,6 +1404,48 @@ input int         Inp_MA_Period                    = 12;             // MA perio
 input int         Inp_MA_Shift                     = 6;              // MA shift
 #endif // SEA_BUILD_MA
 
+
+#ifdef SEA_BUILD_CRISP
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    📐 PRESET_CRISP (Mark Crisp 1-2-3 Pattern)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group " ";
+input group "CRISP — Trend & Structure";
+input int     Inp_CRISP_MinPatternBars    = 3;                    // CRISP: Minimum bars from Pt1 to Breakout
+input int     Inp_CRISP_TrendEmaPeriod    = 50;                   // CRISP: Trend EMA filter (slope defines bias)
+input int     Inp_CRISP_P123_Lookback     = 21;                   // CRISP: 1-2-3 Scan Window (bars)
+input group "CRISP — Stop Loss";
+input ESLMode Inp_CRISP_SLMode            = SL_MODE_SWING;        // CRISP: SL mode (Swing highly recommended for price action)
+input int     Inp_CRISP_SwingLookback     = 21;                   // CRISP: Swing SL Lookback
+input group "CRISP — Exit & Trade Management";
+input ETPMode Inp_CRISP_TPMode            = TP_MODE_RR;           // CRISP: Take Profit Mode
+input double  Inp_CRISP_RRRatio           = 2.5;                  // CRISP: Reward:Risk Ratio
+input ETrailingMode Inp_CRISP_TrailMode   = TRAIL_EMA;          // CRISP: Trailing Mode (Swing or Fractal fits PA best)
+#endif // SEA_BUILD_CRISP
+
+
+#ifdef SEA_BUILD_ROSS
+input group " ";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group "    📐 PRESET_ROSS (Joe Ross Hook & TTE)";
+input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
+input group " ";
+input group "ROSS — Trend & Structure";
+input bool    Inp_ROSS_UseTTE             = false;                 // ROSS: Use Trader's Trick Entry (TTE)
+input bool    Inp_ROSS_Use3x3MAC          = false;                 // ROSS: Filter using 3x3 MAC turnoverinput group "ROSS — Stop Loss";
+input int     Inp_ROSS_TrendEmaPeriod     = 34;                   // ROSS: Trend EMA filter (slope defines bias)
+input int     Inp_ROSS_Lookback           = 21;                   // ROSS: Hook Scan Window (bars)
+input group "ROSS — Stop Loss";
+input ESLMode Inp_ROSS_SLMode             = SL_MODE_SWING;        // ROSS: SL mode
+input int     Inp_ROSS_SwingLookback      = 21;                   // ROSS: Swing SL Lookback
+input group "ROSS — Exit & Trade Management";
+input ETPMode Inp_ROSS_TPMode             = TP_MODE_RR;           // ROSS: Take Profit Mode
+input double  Inp_ROSS_RRRatio            = 2.5;                  // ROSS: Reward:Risk Ratio
+input ETrailingMode Inp_ROSS_TrailMode    = TRAIL_EMA;          // ROSS: Trailing Mode
+#endif // SEA_BUILD_ROSS
+
+
 input group " ";
 input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 input group "    ⚠️ 12. ENGINE SEED DEFAULTS — presets override these (rarely touched)";
@@ -1405,13 +1459,21 @@ input group "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓�
 
 input group "=== SEED — INDICATORS ===";
 input int                Inp_Global_Ind_Adx_PercentileRefreshSec      = 14400;                   // ADX: Global: DYNAMIC_PERCENTILE refresh interval (sec). M1: try 900 (15min); H1+: 14400 (4h)
+input group " ";
 input bool               Inp_Global_Ind_CandleBody_CarryOnOverext     = true;                    // CB Global: carry CB=0 over-ext until next layer pullback-recovery
 input double             Inp_Global_Ind_CandleBody_MinCloseRatio      = 0.75;                    // CB Global: Min close ratio (0=off, 0.75=TopInvestor)
+input group " ";
 input bool               Inp_Global_Ind_Fib_Enabled                   = false;                   // FIB Global: Enable
 input int                Inp_Global_Ind_Fib_SwingLookback             = 50;                      // FIB Global: Swing search bars
 input double             Inp_Global_Ind_Fib_MinRetracement            = 0.38;                    // FIB Global: Min pullback depth
 input double             Inp_Global_Ind_Fib_MaxRetracement            = 0.618;                   // FIB Global: Max pullback depth
+input group " ";
 input double             Inp_Global_Ind_Mfi_Level                     = 50.0;                    // MFI Global: Threshold/level
+
+input group "=== PATTERN 1-2-3 & ROSS HOOK ===";
+input int                Inp_Global_P123_Lookback                     = 34;                      // P123: Structural scan window
+input bool               Inp_Global_Ross_UseTTE                       = true;                    // Ross: Use Trader's Trick Entry (TTE)
+input int                Inp_Global_Ross_Lookback                     = 55;                      // Ross: Structural scan window
 
 input group "=== SEED — VPRR ===";
 input bool               Inp_Global_VPRR_Enabled                      = false;                   // Global_VPRR_Enabled: Volume Pullback-Recovery Ratio voter
@@ -1681,7 +1743,11 @@ void InitializeConfig()
    Settings.P_PsarStep           = 0.05;
    Settings.P_PsarMax            = 0.5;
    Settings.P_Atr                = 14;
-
+   
+   Settings.Crisp_P123_Lookback  = MathMax(10, Inp_Global_P123_Lookback);
+   Settings.Ross_Lookback        = MathMax(15, Inp_Global_Ross_Lookback);
+   Settings.Ross_UseTTE          = Inp_Global_Ross_UseTTE;
+   
    // Modes
    Settings.MacdRequireSlope     = false;
    // Theme5a-extension 2026-06: MacdRequireDivergence → MacdBlockOnDivergence rename.

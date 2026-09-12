@@ -4519,6 +4519,7 @@ private:
       if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_WPR] %.2f -> %s", w, result?"PASS":"FAIL"));
       return result;
    }
+   
    //+------------------------------------------------------------------+
    // Check_Momentum: Momentum(n) vs centre level (RH_SM: 100)
    //+------------------------------------------------------------------+
@@ -4530,6 +4531,7 @@ private:
       if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_MOM] %.4f -> %s", m, result?"PASS":"FAIL"));
       return result;
    }
+   
    //+------------------------------------------------------------------+
    // Check_OsMA: OsMA (MACD histogram) zero-line (RH_SM)
    //+------------------------------------------------------------------+
@@ -4541,6 +4543,7 @@ private:
       if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_OSMA] %.6f -> %s", o, result?"PASS":"FAIL"));
       return result;
    }
+   
    //+------------------------------------------------------------------+
    // Heiken-Ashi candle direction (RH_SM). Bounded-recursion seed.
    //+------------------------------------------------------------------+
@@ -4561,6 +4564,7 @@ private:
       }
       return (haClose > haOpen);
    }
+   
    //+------------------------------------------------------------------+
    // Check_HA: Heiken-Ashi bullish for long / bearish for short (RH_SM)
    //+------------------------------------------------------------------+
@@ -4571,10 +4575,11 @@ private:
       if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_HA] %s -> %s", bull?"BULL":"BEAR", result?"PASS":"FAIL"));
       return result;
    }
+
    //+------------------------------------------------------------------+
    // Check_P123: Pattern 1-2-3 (Breakout)
    //+------------------------------------------------------------------+
-   bool Check_P123(int bias, int shift) {
+   bool Check_P123_OBSOLETE(int bias, int shift) {
       // 1. Get most recent Upper and Lower Fractals
       double last_up   = GetFractalPrice(0); // 0 = UPPER
       double last_down = GetFractalPrice(1); // 1 = LOWER
@@ -4599,7 +4604,7 @@ private:
    //+------------------------------------------------------------------+
    // Check Ross Hook: Ross Hook (Trend-Following Momentum Interlock)
    //+------------------------------------------------------------------+
-   bool Check_Ross(int bias, int shift) {
+   bool Check_Ross_OBSOLETE(int bias, int shift) {
       // 1. PRICE ACTION BREAKOUT
       bool fractalBreakout = Check_P123(bias, shift);
       
@@ -4675,6 +4680,173 @@ private:
       return true;
    }
 
+//+------------------------------------------------------------------+
+   // Check_P123: Pattern 1-2-3 (Strict Structural Scan)
+   //+------------------------------------------------------------------+
+   bool Check_P123(int bias, int shift) {
+      int lookback = m_settings.Crisp_P123_Lookback;
+      int start_scan = shift + 1; // Scan historical closed bars
+      
+      if(Bars(m_symbol, PERIOD_CURRENT) < start_scan + lookback) return false;
+
+      double pt1_val = 0.0, pt2_val = 0.0, pt3_val = 0.0;
+      int pt1_idx = -1, pt2_idx = -1, pt3_idx = -1;
+
+      if (bias == 1) { // BUY SETUP (1-2-3 Low)
+         pt1_idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, lookback, start_scan);
+         if (pt1_idx < 0) return false;
+         pt1_val = iLow(m_symbol, PERIOD_CURRENT, pt1_idx);
+
+         int range_to_pt2 = pt1_idx - start_scan;
+         if (range_to_pt2 < 2) return false; 
+         pt2_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, range_to_pt2, start_scan);
+         if (pt2_idx < 0) return false;
+         pt2_val = iHigh(m_symbol, PERIOD_CURRENT, pt2_idx);
+
+         int range_to_pt3 = pt2_idx - start_scan;
+         if (range_to_pt3 < 1) return false;
+         pt3_idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, range_to_pt3, start_scan);
+         if (pt3_idx < 0) return false;
+         pt3_val = iLow(m_symbol, PERIOD_CURRENT, pt3_idx);
+
+         if (pt3_val <= pt1_val) return false; 
+         
+         int pattern_width = pt1_idx - shift;
+         if (pattern_width < m_settings.Crisp_MinPatternBars) {
+            if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_P123] Pattern too narrow (%d bars) → FAIL", pattern_width));
+            return false;
+         }
+         
+         double current_close = iClose(m_symbol, PERIOD_CURRENT, shift);
+         if (current_close > pt2_val) {
+            if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_P123] BUY PASS | Pt1:%.5f Pt2:%.5f Pt3:%.5f", pt1_val, pt2_val, pt3_val));
+            return true;
+         }
+      } 
+      else if (bias == -1) { // SELL SETUP (1-2-3 High)
+         pt1_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, lookback, start_scan);
+         if (pt1_idx < 0) return false;
+         pt1_val = iHigh(m_symbol, PERIOD_CURRENT, pt1_idx);
+
+         int range_to_pt2 = pt1_idx - start_scan;
+         if (range_to_pt2 < 2) return false;
+         pt2_idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, range_to_pt2, start_scan);
+         if (pt2_idx < 0) return false;
+         pt2_val = iLow(m_symbol, PERIOD_CURRENT, pt2_idx);
+
+         int range_to_pt3 = pt2_idx - start_scan;
+         if (range_to_pt3 < 1) return false;
+         pt3_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, range_to_pt3, start_scan);
+         if (pt3_idx < 0) return false;
+         pt3_val = iHigh(m_symbol, PERIOD_CURRENT, pt3_idx);
+
+         if (pt3_val >= pt1_val) return false;
+
+         int pattern_width = pt1_idx - shift;
+         if (pattern_width < m_settings.Crisp_MinPatternBars) {
+            if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_P123] Pattern too narrow (%d bars) → FAIL", pattern_width));
+            return false;
+         }
+
+         double current_close = iClose(m_symbol, PERIOD_CURRENT, shift);
+         if (current_close < pt2_val) {
+            if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_P123] SELL PASS | Pt1:%.5f Pt2:%.5f Pt3:%.5f", pt1_val, pt2_val, pt3_val));
+            return true;
+         }
+      }
+      
+      if(!m_settings.Ind_P123_Enabled) return true; 
+      m_diag_last_reason = "P123_NO_STRUCTURAL_BREAKOUT";
+      return false;
+   }
+
+   //+------------------------------------------------------------------+
+   // Check_Ross: Ross Hook with Trader's Trick Entry (TTE)
+   //+------------------------------------------------------------------+
+   bool Check_Ross(int bias, int shift) {
+      if(!m_settings.Ind_Ross_Enabled) return true;
+      
+      int lookback = m_settings.Ross_Lookback;
+      int start_scan = shift + 1;
+      if(Bars(m_symbol, PERIOD_CURRENT) < start_scan + lookback) return false;
+
+      int hf = (m_settings.BiasFastID==0)?h_ema1 : (m_settings.BiasFastID==1)?h_ema2 : (m_settings.BiasFastID==2)?h_ema3 : h_ema4;
+      bool ok_c, ok_p;
+      double ema_c = GetMAValSafe(hf, shift, ok_c);
+      double ema_p = GetMAValSafe(hf, shift + 1, ok_p);
+      if(!ok_c || !ok_p) return false;
+      int trendSlope = (ema_c > ema_p) ? 1 : (ema_c < ema_p) ? -1 : 0;
+      if (trendSlope != bias) return false;
+
+      // 2.5 Ross 3x3 MAC Filter
+      if (m_settings.Ross_Use3x3MAC) {
+         double mac_curr = (iClose(m_symbol, PERIOD_CURRENT, shift + 3) + 
+                            iClose(m_symbol, PERIOD_CURRENT, shift + 4) + 
+                            iClose(m_symbol, PERIOD_CURRENT, shift + 5)) / 3.0;
+                            
+         double mac_prev = (iClose(m_symbol, PERIOD_CURRENT, shift + 4) + 
+                            iClose(m_symbol, PERIOD_CURRENT, shift + 5) + 
+                            iClose(m_symbol, PERIOD_CURRENT, shift + 6)) / 3.0;
+         
+         bool mac_turned = (bias == 1) ? (mac_curr > mac_prev) : (mac_curr < mac_prev);
+         if (!mac_turned) {
+            if(m_settings.DebugFlow) DebugLog("[IND_ROSS] 3x3 MAC not turned over → FAIL");
+            return false;
+         }
+      }
+
+      double current_close = iClose(m_symbol, PERIOD_CURRENT, shift);
+      
+      if (bias == 1) { // BUY SETUP
+         int rh_idx = iHighest(m_symbol, PERIOD_CURRENT, MODE_HIGH, lookback, start_scan);
+         if (rh_idx < 0 || rh_idx <= start_scan) return false; 
+         double rh_val = iHigh(m_symbol, PERIOD_CURRENT, rh_idx);
+         
+         int bars_since_rh = rh_idx - start_scan;
+         if (bars_since_rh < 1) return false; 
+         
+         if (m_settings.Ross_UseTTE && bars_since_rh <= 3) {
+            int tte_idx = rh_idx - 1; 
+            double tte_val = iHigh(m_symbol, PERIOD_CURRENT, tte_idx);
+            
+            if (current_close > tte_val) {
+               if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_ROSS] BUY PASS (TTE) | Rh:%.5f TTE:%.5f", rh_val, tte_val));
+               return true;
+            }
+         }
+         
+         if (current_close > rh_val) {
+            if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_ROSS] BUY PASS (Rh Breakout) | Rh:%.5f", rh_val));
+            return true;
+         }
+      }
+      else if (bias == -1) { // SELL SETUP
+         int rh_idx = iLowest(m_symbol, PERIOD_CURRENT, MODE_LOW, lookback, start_scan);
+         if (rh_idx < 0 || rh_idx <= start_scan) return false;
+         double rh_val = iLow(m_symbol, PERIOD_CURRENT, rh_idx);
+         
+         int bars_since_rh = rh_idx - start_scan;
+         if (bars_since_rh < 1) return false; 
+         
+         if (m_settings.Ross_UseTTE && bars_since_rh <= 3) {
+            int tte_idx = rh_idx - 1;
+            double tte_val = iLow(m_symbol, PERIOD_CURRENT, tte_idx);
+            
+            if (current_close < tte_val) {
+               if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_ROSS] SELL PASS (TTE) | Rh:%.5f TTE:%.5f", rh_val, tte_val));
+               return true;
+            }
+         }
+         
+         if (current_close < rh_val) {
+            if(m_settings.DebugFlow) DebugLog(StringFormat("[IND_ROSS] SELL PASS (Rh Breakout) | Rh:%.5f", rh_val));
+            return true;
+         }
+      }
+      
+      m_diag_last_reason = "ROSS_NO_HOOK_BREAKOUT";
+      return false;
+   }
 
    //+------------------------------------------------------------------+
    // Check_SmaConverge: SMA/EMA 10+20 Convergence (FPM Condition 4)

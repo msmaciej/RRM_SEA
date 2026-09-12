@@ -710,6 +710,8 @@ string PresetToString(EStrategyPreset p)
       case PRESET_RH_SS:        return "RH_SS";
       case PRESET_RH_GS:        return "RH_GS";
       case PRESET_RH_SM:        return "RH_SM";
+      case PRESET_CRISP:        return "CRISP";
+      case PRESET_ROSS:         return "ROSS";
       default:                  return "UNKNOWN";
    }
 }
@@ -746,6 +748,10 @@ string GetPresetContractWording(EStrategyPreset preset)
          return "PRESET_RH_GS";    //: Golden Strategy — 55 SMMA High/Low channel + Williams %R(55) -25/-75 + Stochastic(5,5,5); swing SL; 2R TP; exit on SMMA re-cross.";
       case PRESET_RH_SM:
          return "PRESET_RH_SM";    //: Secret Method — Heiken-Ashi vs 14 SMA + OsMA(12,26,9) zero + Momentum(10) 100 + RSI(5)>50; swing SL; 2R TP; early exit on OsMA zero-flip.";
+      case PRESET_CRISP:
+         return "PRESET_CRISP";    //: Mark Crisp 1-2-3. Pure price action structural scanner. 4-EMA ribbon disabled. 1 EMA slope trend filter.";
+      case PRESET_ROSS:
+         return "PRESET_ROSS";     //: Joe Ross Hook. Pure price action structural scanner with Trader's Trick Entry (TTE). 4-EMA ribbon disabled. 1 EMA slope trend filter.";
       default:
          return "PRESET_ACTIVE";    //: Preset active; strategy-critical settings fixed by preset.";
    }
@@ -1350,6 +1356,19 @@ void ValidateRHR_ExitConfig(ST_Settings &cfg)
    if(cfg.RHR_TrendEmaPeriod < 1) cfg.RHR_TrendEmaPeriod = 5;
 }
 #endif // SEA_BUILD_RH_REBELLION
+
+#ifdef SEA_BUILD_CRISP
+void ValidateCRISP_ExitConfig(ST_Settings &cfg) {
+   // Placeholder for any specific Crisp exit validation
+}
+#endif
+
+#ifdef SEA_BUILD_ROSS
+void ValidateROSS_ExitConfig(ST_Settings &cfg) {
+   // Placeholder for any specific Ross exit validation
+}
+#endif
+
 
 void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
 {
@@ -3557,6 +3576,110 @@ void ApplyPreset(const EStrategyPreset preset, ST_Settings &cfg)
    }
    #endif // SEA_BUILD_RH_SM
 
+   #ifdef SEA_BUILD_CRISP
+   if(preset == PRESET_CRISP)
+   {
+      // Core Setup: 1 EMA for Trend Bias
+      cfg.BiasMode              = BIAS_1EMA;
+      cfg.AutoStrat             = STRAT_1EMA_SLOPE;
+      cfg.BiasEnabled           = true;
+      cfg.MaType                = METHOD_EMA;
+      cfg.P_Ema1                = Inp_CRISP_TrendEmaPeriod;
+      cfg.BiasFastID            = (int)ROLE_EMA1;
+      cfg.BiasSlowID            = (int)ROLE_EMA1;
+      
+      // Disable 4-EMA specific logic
+      cfg.PhaseDetectionEnabled = false;
+      cfg.EnableLayerDetection  = false;
+      cfg.LayerPullbackEnabled  = false;
+      cfg.BlockUnorderedPhase   = false;
+      cfg.BlockEmergingPhase    = false;
+      cfg.BarClose_Enabled      = false;
+      
+      // Enable Crisp Voter
+      cfg.Ind_P123_Enabled          = true;
+      cfg.Crisp_P123_Lookback       = MathMax(10, Inp_CRISP_P123_Lookback);
+      cfg.Crisp_MinPatternBars      = MathMax(2, Inp_CRISP_MinPatternBars);
+            
+      // Disable all other voters
+      cfg.Ind_Adx_Enabled=false; cfg.Ind_Macd_Enabled=false; cfg.Ind_Rsi_Enabled=false;
+      cfg.Ind_Cci_Enabled=false; cfg.Ind_Mfi_Enabled=false;  cfg.Ind_Sto_Enabled=false;
+      cfg.Ind_Bb_Enabled=false;  cfg.Ind_Psar_Enabled=false; cfg.Ind_Ross_Enabled=false;
+      cfg.Ind_Atr_Enabled=false; cfg.Ind_CandleBody_Enabled=false; cfg.Ind_CI_Enabled=false;
+      cfg.Ind_VRC_Enabled=false; cfg.Ind_SmaConverge_Enabled=false; cfg.Ind_Dpi_Enabled=false;
+      cfg.Ind_Fib_Enabled=false; cfg.Ind_MTF_Enabled=false;
+      
+      // Exits & Trade Management
+      cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
+      cfg.CloseOnReverse        = false;
+      cfg.SLMode                = Inp_CRISP_SLMode;
+      cfg.SwingLookback         = Inp_CRISP_SwingLookback;
+      cfg.TPMode                = Inp_CRISP_TPMode;
+      cfg.RRRatio               = Inp_CRISP_RRRatio;
+      cfg.TrailMode             = Inp_CRISP_TrailMode;
+      cfg.TrailLockProfit       = true;
+      cfg.LPR_LadderEnabled     = true; 
+      
+      cfg.RiskPercent           = GetEffectiveRiskPercent();
+      cfg.MaxSpread             = op_MaxSpread;
+      
+      ValidateCRISP_ExitConfig(cfg);
+      return;
+   }
+   #endif // SEA_BUILD_CRISP
+
+   #ifdef SEA_BUILD_ROSS
+   if(preset == PRESET_ROSS)
+   {
+      // Core Setup: 1 EMA for Trend Bias
+      cfg.BiasMode              = BIAS_1EMA;
+      cfg.AutoStrat             = STRAT_1EMA_SLOPE;
+      cfg.BiasEnabled           = true;
+      cfg.MaType                = METHOD_EMA;
+      cfg.P_Ema1                = Inp_ROSS_TrendEmaPeriod;
+      cfg.BiasFastID            = (int)ROLE_EMA1;
+      cfg.BiasSlowID            = (int)ROLE_EMA1;
+      
+      // Disable 4-EMA specific logic
+      cfg.PhaseDetectionEnabled = false;
+      cfg.EnableLayerDetection  = false;
+      cfg.LayerPullbackEnabled  = false;
+      cfg.BlockUnorderedPhase   = false;
+      cfg.BlockEmergingPhase    = false;
+      cfg.BarClose_Enabled      = false;
+
+      // Enable Ross Voter
+      cfg.Ind_Ross_Enabled          = true;
+      cfg.Ross_Lookback             = MathMax(15, Inp_ROSS_Lookback);
+      cfg.Ross_UseTTE               = Inp_ROSS_UseTTE;
+      cfg.Ross_Use3x3MAC            = Inp_ROSS_Use3x3MAC;
+     
+      // Disable all other voters
+      cfg.Ind_Adx_Enabled=false; cfg.Ind_Macd_Enabled=false; cfg.Ind_Rsi_Enabled=false;
+      cfg.Ind_Cci_Enabled=false; cfg.Ind_Mfi_Enabled=false;  cfg.Ind_Sto_Enabled=false;
+      cfg.Ind_Bb_Enabled=false;  cfg.Ind_Psar_Enabled=false; cfg.Ind_P123_Enabled=false;
+      cfg.Ind_Atr_Enabled=false; cfg.Ind_CandleBody_Enabled=false; cfg.Ind_CI_Enabled=false;
+      cfg.Ind_VRC_Enabled=false; cfg.Ind_SmaConverge_Enabled=false; cfg.Ind_Dpi_Enabled=false;
+      cfg.Ind_Fib_Enabled=false; cfg.Ind_MTF_Enabled=false;
+
+      // Exits & Trade Management
+      cfg.ExitProfile           = EXIT_PROFILE_SIMPLE;
+      cfg.CloseOnReverse        = false;
+      cfg.SLMode                = Inp_ROSS_SLMode;
+      cfg.SwingLookback         = Inp_ROSS_SwingLookback;
+      cfg.TPMode                = Inp_ROSS_TPMode;
+      cfg.RRRatio               = Inp_ROSS_RRRatio;
+      cfg.TrailMode             = Inp_ROSS_TrailMode;
+      cfg.TrailLockProfit       = true;
+      cfg.LPR_LadderEnabled     = true; 
+      
+      cfg.RiskPercent           = GetEffectiveRiskPercent();
+      cfg.MaxSpread             = op_MaxSpread;
+      
+      ValidateROSS_ExitConfig(cfg);
+      return;
+   }
+   #endif // SEA_BUILD_ROSS
 
 }
 

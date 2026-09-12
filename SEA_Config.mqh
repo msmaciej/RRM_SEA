@@ -25,7 +25,8 @@
 #define SEA_BUILD_RH_SS          // Russ Horn Super System
 #define SEA_BUILD_RH_GS          // Russ Horn Golden Strategy
 #define SEA_BUILD_RH_SM          // Russ Horn Secret Method
-
+#define SEA_BUILD_CRISP          // Mark Crisp 1-2-3 Pattern
+#define SEA_BUILD_ROSS           // Joe Ross Hook & TTE
 
 // TFToString: returns clean TF label (e.g. "M5", "H1") — EnumToString gives "PERIOD_M5".
 string TFToString(ENUM_TIMEFRAMES tf = PERIOD_CURRENT) {
@@ -72,7 +73,9 @@ enum EStrategyPreset
    PRESET_RH_STS,          // PRESET_RH_STS: Russ Horn Sea Trading System (EMA3 vs SMA20 + MACD zero + RSI50 + BB widening)
    PRESET_RH_SS,           // PRESET_RH_SS: Russ Horn Super System (EMA34/89 + EMA3x5(open) + RSI3 80/20 + Stoch + ADX +DI/-DI)
    PRESET_RH_GS,           // PRESET_RH_GS: Russ Horn Golden Strategy (55 SMMA High/Low channel + Williams %R 55 + Stochastic 5/5/5)
-   PRESET_RH_SM            // PRESET_RH_SM: Russ Horn Secret Method (Heiken Ashi vs 14 SMA + OsMA zero + Momentum(10) 100 + RSI5 50)
+   PRESET_RH_SM,            // PRESET_RH_SM: Russ Horn Secret Method (Heiken Ashi vs 14 SMA + OsMA zero + Momentum(10) 100 + RSI5 50)
+   PRESET_CRISP,           // PRESET_CRISP: Mark Crisp 1-2-3 Structural Pattern
+   PRESET_ROSS             // PRESET_ROSS: Joe Ross Hook & Trader's Trick Entry
 };
 enum ETIProfile
 {
@@ -675,6 +678,15 @@ struct ST_Settings
    double T_MfiOS;
    double ATR_VoteMinPips;       // ATR voting threshold: minimum pips
    double ATR_VoteMaxPips;       // ATR voting threshold: maximum pips
+   
+   // --- Mark Crisp 1-2-3 Pattern ---
+   int    Crisp_P123_Lookback;
+   int    Crisp_MinPatternBars;
+
+   // --- Joe Ross Hook ---
+   int    Ross_Lookback;
+   bool   Ross_UseTTE;
+   bool   Ross_Use3x3MAC;
 
    // Modes
    EMacdVoteMode MacdVoteMode;          // MACD base vote mode
