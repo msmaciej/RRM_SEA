@@ -1,0 +1,32 @@
+Copyright
+JUSTCHARTS is  copyright  (c) 1995-1998  by  Financial Advantage Software LLC.    All Rights Reserved. Portions are copyrighted by Microsoft.
+
+Program License Agreement
+
+JUSTCHARTS is licensed, not sold. JUSTCHARTS is shareware and is copyrighted. It is NOT a public domain program. A temporary license is granted to use JUSTCHARTS for a 30-day evaluation period. After the 30-day evaluation period, you must register JUSTCHARTS or discontinue use of JUSTCHARTS. By registering  JUSTCHARTS you are granted a permanent license to use the version that is current on the day you register for your license.
+
+Under this license you may:
+   a) use JUSTCHARTS on only one machine at a time
+   b) copy JUSTCHARTS for backup
+   c) transfer JUSTCHARTS to another party
+
+If you transfer JUSTCHARTS to another party, you must transfer a copy of this license, all documentation, and a complete copy of JUSTCHARTS to the other party. At the same time, your license to use JUSTCHARTS is terminated and you must transfer all copies of JUSTCHARTS to the other party or destroy the copies. The other party agrees to the terms of license by its first use of JUSTCHARTS.
+You may not:
+   a) use, copy, modify, merge, or transfer copies of JUSTCHARTS except as provided in this license.
+   b) reverse engineer or decompile JUSTCHARTS files.
+   c) sublicense, rent, lease, or assign JUSTCHARTS Since JUSTCHARTS is shareware, you may distribute copies of the program provided you follow the following terms.
+          
+
+You may copy and distribute copies of JUSTCHARTS as you receive it in any medium provided that copy contains this license agreement and all of the original files. You must distribute JUSTCHARTS in unmodified form. You may not add any files to the distribution archive(s) unless the added files are clearly marked as being an addition to the archive(s) and not part of JUSTCHARTS. You may not modify or delete any of the files in the JUSTCHARTS distribution archives or diskettes.
+
+If JUSTCHARTS is included in a collection of shareware and/or public domain programs, it must be clear to the purchaser of the collection that no license  to use JUSTCHARTS is granted by the purchase of the collection. JUSTCHARTS  must be clearly identified as unregistered shareware and the cost of the distribution must be nominal.
+
+An "unlimited" distribution license for JUSTCHARTS is available. This license allows you to use JUSTCHARTS on any number of your company's computers and to  distribute copies to customer's or clients without requiring registration of each copy. For more information please write to:
+Financial Advantage Software LLC
+26 East Exchange Street, Suite 107
+St. Paul, MN 55101-2264
+or send e-mail to info@fasoffice.com
+
+Warranty
+
+Financial Advantage Software LLC hereby disclaims all warranties relating to this  software,  whether express or  implied, including  without limitation  any implied warranties of merchantability or fitness for  a particular purpose. Financial Advantage Software LLC will not be liable for any special, incidental, consequential, indirect or similar damages due to loss of data or any other reason. In no event shall Financial Advantage Software LLC's liability for any damages exceed the price paid for the license to use software, regardless ofthe form of the claim. The person using the software bears all risk as to the quality and performance of the software.

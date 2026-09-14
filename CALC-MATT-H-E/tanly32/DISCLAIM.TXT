@@ -1,0 +1,236 @@
+	  ****************************************************
+			   TANLY32.XLL
+			   FIS LTD
+			   Evaluation Version 7.0
+			   Release Date - Apr 1997
+	  *****************************************************
+
+This package contains TANLY32 Excel Addin (Version 7.0) by FIS Ltd.
+
+Please refer to README.TXT for a description of the package along
+with instructions for its installation.
+
+This evaluation version includes all features of the program. You
+may use it for up to 30 days, without charge. If you continue to use
+it after this evaluation period, you are required to register the
+software (see ORDER.TXT for details).
+
+Any fee you may have paid to others (disk vendors, dealers, etc.) to
+obtain this evaluation version was a fee for their copying and
+distribution services, rather than a payment for continued use of the
+program.
+
+______________________________________________________________________
+
+
+Details
+*******
+
+   Product:             TANLY32 Excel Addin
+
+   Version:             7.0
+
+   Version Date:        Apr-1997
+
+   Product Type:        Software
+
+   Distribution Policy  (see License, below, for details):
+			Shareware, subject to distribution
+ 			restrictions
+
+   Product Description: Provides the user with a comprehensive suite of
+			technical analysis models to assist in the
+			prediction and confirmation of price movements
+			for any type of instrument in all kinds of
+			market cycles.
+			
+			The addin incorporates the most widely used
+			models since experience confirms that no single
+			system can be relied upon continuously.
+			Certain models are better suited than others
+			depending upon the market phase, and in certain
+			situations, the On Balance Volume tool confirms
+			or identifies price movements which are not
+			apparent from the price tools.
+
+			Models include Regular Moving Average, 
+			Exponential Moving Average, Weighted Moving
+			Average, Relative Strength Index, Percentage
+			Range, Momentum, Oscillators, Stochastics,
+			Ratios, Standard Deviation, Correlation and
+			On Balance Volume.
+
+   Category:            Financial; Technical Analysis; Stock Market;
+			Software; Excel Addin
+ 
+   Keywords:            Excel;Addin;Technical;Analysis;Stock;Market;
+			Model;Chart;Trading;Invest;Software;Shareware; 
+ 
+   Req'd Software:      MS Excel 7 or later
+
+   Orders:              See ORDER.TXT
+
+   XL5 Addins:		Futures Calculator (FUTCALC)
+			Option Models (OPTDRVR)
+			Tech.Anlys Models (TECHANLY)
+
+   XL7 Addins:		Future's Calculator (FUTCAL32)
+			Option Models (OPTDRV32)
+			Technical Analysis Models (TANLY32)
+
+______________________________________________________________________
+
+
+Warranty
+********
+
+
+TRIAL USE (EVALUATION VERSION) WARRANTY
+---------------------------------------
+
+The Evaluation Version (trial use) version of TANLY32 is provided
+"AS IS".
+
+FIS Ltd. makes no warranties of any kind, expressed or implied, that
+this program is error free or that any supplied data or other program
+information is accurate or complete. No representation or warranties
+are made as to the completeness, accuracy, or precision of this
+program.
+
+ALL WARRANTIES (INCLUDING ANY WARRANTY OF MERCHANTABILITY OR FITNESS
+FOR ANY PARTICULAR PURPOSE) ARE EXPRESSLY EXCLUDED. THIS SOFTWARE AND
+ALL PROGRAM FILES ARE PROVIDED "AS IS" AND THE USER MUST ASSUME THE
+ENTIRE RISK OF USING THIS PROGRAM.
+
+
+REGISTERED VERSION ONLY WARRANTY
+--------------------------------
+
+FIS Ltd. warrants the physical diskette(s) provided with registered
+versions to be free of defects in materials and workmanship for a
+period of ninety days from the date of registration.
+
+If FIS Ltd. receives notification within the warranty period of
+defects in materials or workmanship, and such notification is
+determined by FIS Ltd to be correct, FIS Ltd will replace the
+defective diskette(s).
+
+ALL WARRANTIES (INCLUDING ANY WARRANTY OF MERCHANTABILITY OR FITNESS
+FOR ANY PARTICULAR PURPOSE) ARE EXPRESSLY EXCLUDED. THIS SOFTWARE AND
+ALL PROGRAM FILES ARE PROVIDED "AS IS" AND THE USER MUST ASSUME THE
+ENTIRE RISK OF USING THIS PROGRAM.
+
+The entire and exclusive liability and remedy for breach of this
+Limited Warranty shall be limited to the replacement of defective
+diskette(s) and shall not include or extend to any claim for or right
+to recover any other damages, including but not limited to, loss of
+profits or other trading losses incurred as a result of any decision
+or action taken on your part based upon information provided, implied,
+or suggested by this product, loss of data, or use of the software,
+or special, incidental, or consequential damages or other similar
+claims, even if FIS Ltd. has been specifically advised of the
+possibility of such damages. In no event will liability for any
+damages to you or any other person ever exceed the lower of the
+suggested list price or actual price paid for the license to use the
+software, regardless of any form of the claim.
+
+
+License for Use and Distribution
+********************************
+
+TRIAL USE LICENSE
+-----------------
+
+TANLY32 is NOT a public domain program.
+It is Copyright (C) 1994-1997 by FIS Ltd.  All Rights Reserved.
+
+This software and any accompanying documentation are protected by
+United States Copyright law and also by International Treaty
+provisions. Any use of this software in violation of Copyright law or
+the terms of this limited license will be prosecuted to the best of
+our ability. The conditions under which you may copy this software and
+documentation are clearly outlined below under "Distribution
+Restrictions".
+
+FIS Ltd. hereby grants you a limited license to use software for
+evaluation purposes for a period not to exceed thirty (30) days. If
+you intend to continue using this software after this thirty day
+evaluation period, you MUST register as a licensed user and forward
+payment to FIS Ltd.
+
+Using this software after the thirty (30) day evaluation period,
+without registering the software, is a violation of the terms of this
+limited license.
+
+All rights not expressly granted here are reserved to FIS Ltd.
+
+
+Limited Distribution License
+----------------------------
+
+As the copyright holder for TANLY32, FIS Ltd. authorizes that the
+following may distribute the evaluation version of TANLY32.
+completely unaltered, without further permission;
+
+   o  Individual users (for non-commercial use).
+   o  BBS sysops.
+   o  ASP vendors in good standing.
+
+For all other cases or to distribute in modified form, you must
+satisfy all of the distribution requirements expressed by the
+following:
+
+   o  The TANLY32 package is defined as containing all the material
+      listed in README.TXT.If any of the files listed in README.TXT
+      are missing, then the package is not complete and distribution
+      is forbidden. Please contact us to obtain a complete package
+      suitable for distribution.
+
+   o  All of the original files identified in the README.TXT must be
+      included unchanged in any distribution of TANLY32.
+
+   o  No price or other compensation may be charged for the TANLY32 
+      package. A distribution fee can be agreed with FIS Ltd.
+
+   o  Permission to distribute the TANLY32 package is not
+      transferable, assignable, saleable, or franchisable. Each vendor
+      wishing to distribute the package must independently satisfy the
+      terms of this limited distribution license.
+
+   o  the disk-based documentation may not be distributed in PRINTED
+      (hardcopy) form.
+
+   o  You may not list any of our products in advertisement
+      catalogs, or other literature which describes our products as
+      "FREE SOFTWARE". Shareware is "Try-Before-You-Buy" software, it
+      is not free. Therefore, your literature must clearly state that
+      our products are for user evaluation only, and are not free
+      software.
+
+   o  Licensee shall not use, copy, rent, lease, sell, modify,
+      decompile, disassemble, otherwise reverse engineer, or transfer
+      the licensed program except as provided in this agreement. Any
+      such unauthorized use shall result in immediate and automatic
+      termination of this license.
+
+   o  FIS Ltd. reserves the right to limit or stop the offering and
+      sale of TANLY32 at any time, for any reason.
+
+U.S. Government Information: Use, duplication, or disclosure by the
+U.S. Government of the computer software and documentation in this
+package shall be subject to the restricted rights applicable to
+commercial computer software as set forth in subdivision (b)(3)(ii) of
+the Rights in Technical Data and Computer Software clause at
+252.227-7013 (DFARS 52.227-7013).
+
+The Contractor/manufacturer is:-
+
+	FIS Ltd.
+	28 Drakes Drive
+	Northwood, Middx. HA6 2SL
+	UK
+
+FIS Ltd. may revoke any permissions granted here, by notifying you in
+writing.
+
+All rights not expressly granted here are reserved to FIS Ltd.
