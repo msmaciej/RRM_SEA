@@ -7984,6 +7984,32 @@ public:
 
       m_settings = sets;
       m_symbol   = symbol;
+
+      // CANDIDATE FIX 2026-09-21 (TRACED, UNCONFIRMED pending compile+Strategy-Tester
+      // or journal run): the manual-EMA fallback cache (m_mema_b1..b4 / anchor / period
+      // / oldest) was previously reset ONLY in the constructor (runs once, at module
+      // load) and never here in Init() -- called on every OnInit (symbol change,
+      // timeframe change, input change, chart reload) via the same persistent global
+      // Signal object. MEMA_Ensure only force-rebuilds on a period change or an empty
+      // buffer; otherwise it MEMA_Extend()s the EXISTING buffer against the new
+      // m_symbol's timeline via iBarShift -- silently stitching new-symbol closes onto
+      // an old-symbol-seeded EMA recursion. Observed: EMA4(89) reading ~3700+ on a
+      // ~$66 and a ~$1.40 instrument alike, tagged (MAN), forcing spurious
+      // PHASE_TRENDING_DN / PHASE_UNORDERED and EMA_OVEREXT regardless of actual
+      // market structure. Forcing a cold rebuild here (mirrors the constructor's own
+      // reset block, ~line 6671) makes every Init() re-seed the manual fallback from
+      // the CURRENT m_symbol before it can be read, closing the stale-cross-symbol gap.
+      for(int mi = 0; mi < 4; mi++)
+      {
+         m_mema_anchor[mi] = 0;
+         m_mema_period[mi] = 0;
+         m_mema_oldest[mi] = 0;
+      }
+      ArrayFree(m_mema_b1);
+      ArrayFree(m_mema_b2);
+      ArrayFree(m_mema_b3);
+      ArrayFree(m_mema_b4);
+
       m_debug_buffer_size = 0;
       ArrayResize(m_debug_buffer, 0);
       m_ind_cache.cached_shift = -1;
