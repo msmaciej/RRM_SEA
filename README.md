@@ -123,9 +123,17 @@ BC and BD are independent. A bar can close above EMA1 (BC=1) but be bearish (BD=
 
 All enabled technical voters evaluated at bar close (shift=1). All must pass (VOTE_MODE_ALL).
 
-In RRM_ORG the active voters are: **DPI + PSAR + CandleBody + MTF** = 4 voters. The cockpit shows `VOTE: 4/4` when all pass.
+In RRM_ORG the active voters are: **DPI + PSAR + CandleBody + MTF** = 4 voters.
 
 Disabled indicators contribute 1 (neutral — they do not block).
+
+> **Reading the cockpit voter row (2026-09-14 redesign).** The `--- STRATEGY LOGIC ---` block shows one line of per-voter glyphs, e.g. `PSAR▼ CBody• DPI• MTF▼`, plus `VOTE: n / N` and the `I[ ]` term of `TS EQ`:
+> - **Glyph = direction the voter passes for:** `▲` passes LONG, `▼` passes SHORT, `•` passes neither. It is *not* pass/fail by itself.
+> - **Colour = relation to the bias:** green = agrees (counts as 1 in `VOTE`), red = points the other way, grey = neither / no bias.
+> - **`VOTE: n / N`** counts green voters over enabled voters. It is computed from the per-voter snapshot **every bar**, so it is populated even when the TS pipeline stopped at B/P/F/L before the vote could be applied. In that case the line carries a tag naming the stopping factor, e.g. `VOTE: 2 / 4  [F-blocked: PRICE_OVEREXT]` — a `4 / 4` next to `SIGNAL: FLAT` is therefore self-explaining, not contradictory.
+> - **`I[+]`** = every enabled voter is green; `I[-]` = at least one is not. **`F[+]/F[-]`** is read from the engine's own F result; `F[?]` = not reached (B or P failed first).
+> - Direction-*neutral* voters (CandleBody, and CI/ADX/VRC in other presets) are tested only against the live bias, so they can show the bias-direction triangle (pass) or `•` (fail) — never the opposing triangle.
+> Before this redesign the row was rendered grey with an orphan trailing `(.)`, `I[-]` and `VOTE 0/N` appeared on bars where no voter had been tallied, and `F[.]` showed on the very bar F rejected — three display defects, none in the trade decision (see `Readme/README_SEA_SIGNAL_REFERENCE.md` § Indicator Audit & Cockpit Grid).
 
 > **VPRR is not among them.** Since 2026-07-27 VPRR casts **no vote at all** and cannot block a trade under any preset or setting — it is a measurement-only indicator. See the VPRR section below.
 
@@ -133,7 +141,7 @@ Disabled indicators contribute 1 (neutral — they do not block).
 
 ### F — Filters (pre-entry, TS-side)
 
-Optional pre-entry gates evaluated by the engine's `EvaluateF`. **All off by default in RRM_ORG**, so the F factor is a no-op there until a filter is explicitly enabled:
+Optional pre-entry gates evaluated by the engine's `EvaluateF`. Master toggles are the global inputs `Inp_Global_F_EmaFanFilterEnabled` and `Inp_Global_F_PriceExtFilterEnabled` — **both ship `true`** (see `SEA_Inputs.mqh`; the RRM_ORG preset supplies the thresholds via `Inp_RRM_ORG_EmaFan_*` / `Inp_RRM_ORG_PriceExt*`). *Corrected 2026-09-14: this section previously said "all off by default in RRM_ORG", which had been stale since the v06 quality preset switched them on.* On a live chart the cockpit `STATUS: TS: EMA_OVEREXT` / `TS: PRICE_OVEREXT` line names the sub-filter that blocked:
 
 | Sub-filter | Blocks when | State |
 |------------|-------------|-------|
@@ -189,7 +197,7 @@ Each factor reads `ok` (passed), `NO(code)` (blocked, with the reason), or `--` 
 | | `BC` | `BC_NOT_CONFIRMED` — bar close not yet beyond the fast EMA in bias direction |
 | | `BD` | `CandleDir` — signal bar not closed in the bias direction |
 | | `MOM` | `MOMENTUM_NOT_CONFIRMED` — progressive-momentum / DPI-growth check failed |
-| **I** | *names* | failing voters, comma-joined (e.g. `DPI,PSAR`) — voters: DPI, PSAR, CBODY, MTF, ADX, MACD, CCI. When L failed for a structural reason (`L_NONE_ALIGNED` / `L_NO_EDGE` / `L_WAITING`), I was never evaluated — the cockpit shows `I[?]` and `i_suppressed=true` in telemetry rather than the misleading `I[-]` |
+| **I** | *names* | failing voters, comma-joined (e.g. `DPI,PSAR`) — voters: DPI, PSAR, CBODY, MTF, ADX, MACD, CCI. When an earlier factor (P/F/L) failed, I was never tallied by the vote — the inspector shows the failing voters independently, and the live cockpit shows the per-voter snapshot count with a `[X-blocked: reason]` tag on the `VOTE` line (2026-09-14; `i_suppressed=true` in telemetry) |
 | **F** | `EMAFAN` | `EMA_OVEREXT` — EMA fan over-extended |
 | | `DECEL` | `DPI_DECEL` — DPI histogram momentum decelerating |
 | | `RESET` | `DPI_RESET_WAIT` — DPI CCI reset-recovery not complete |

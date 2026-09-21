@@ -209,6 +209,22 @@ struct ST_SignalTelemetry {
    // meaning the I factor was never evaluated — showing I[-] would be misleading.
    // UI uses this to display "?" in the TS equation and "--/N [L-blocked]" in VOTE.
    bool   i_suppressed;             // true = I not evaluated (L structurally blocked)
+   // ── COCKPIT-GLYPH 2026-09-14: display-only fields (never read by the TS decision) ──
+   // votes_agree : number of enabled voters whose per-voter snapshot direction equals the
+   //               bias on the evaluated bar. Computed from CaptureVoteSnapshots every bar,
+   //               so it is populated even when EvaluateI never ran (P/F/L blocked first).
+   //               votes_for (above) keeps its original meaning — voters counted by the
+   //               actual I evaluation — because MetaGate logs it as votes_frac.
+   // f_result    : the core's F factor for the bar: 1 pass, 0 fail, -1 not reached.
+   // f_reason    : EvaluateF sub-filter that blocked (EMA_OVEREXT / PRICE_OVEREXT /
+   //               DPI_DECEL / CLIMAX_GUARD), "" otherwise.
+   // block_cause : "" when I was tallied; otherwise the factor that stopped the bar before
+   //               the vote could be applied, e.g. "F-blocked: PRICE_OVEREXT",
+   //               "L-blocked: L_NO_EDGE", "P-blocked: PHASE_UNORDERED".
+   int    votes_agree;
+   int    f_result;
+   string f_reason;
+   string block_cause;
    // ── Ribbon EMA snapshot (single source of truth, slot-indexed) ──
    // Mirrors m_ribbon at the end of each EvaluateTS pass. Cockpit reads from
    // this for display. Periods are NOT hardcoded — labels are rendered from
@@ -574,6 +590,12 @@ private:
    bool     m_eval_ind_res_ci;
    bool     m_eval_ind_res_vrc;
    bool     m_eval_all_pass;             // True if all enabled indicators passed
+
+   // --- COCKPIT-GLYPH 2026-09-14: latch of the last EvaluateTS_Breakdown for telemetry ---
+   // Written once per EvaluateTS right after the core call; read only by UpdateTelemetry.
+   int      m_last_bd_F;                 // bd.F   (1 pass / 0 fail / -1 not reached)
+   string   m_last_bd_F_reason;          // bd.F_reason
+   string   m_last_block_cause;          // "" | "P-blocked: …" | "F-blocked: …" | "L-blocked: …"
 
    // --- 2j. BUFFERED LOGGING (for DEBUG_SIGNALS_ONLY mode) ---
    string   m_debug_buffer[];            // Memory buffer for debug lines
@@ -6448,39 +6470,46 @@ public:
       m_telemetry.votes_for        = m_diag_last_votes;
       m_telemetry.votes_total      = GetEnabledIndicatorCount(m_settings);
 
-      // 2. Map BIAS to Symbol
-      string bias_sym = (bias > 0) ? "(+)" : (bias < 0 ? "(-)" : "(.)");
-
-      // 3. Dynamic Status (Replaces 'SIGNAL FLAT')
-      // This identifies EXACTLY which of the 9 steps failed
-      string status_msg = "ELIGIBLE"; 
-      if(bias == 0 && m_diag_last_reason == "") status_msg = "WAITING";
-      else if(m_diag_last_reason != "")         status_msg = m_diag_last_reason;
+      // 2./3. (removed 2026-09-14) — the "BIAS(x) | status" header that used to lead the
+      //       voter string is redundant with the cockpit's own BIAS and STATUS lines and,
+      //       carrying "(+)/(-)" glyphs, was being mis-parsed as a voter row.
 
       // 4. Dynamic Indicator Row (All 5+ Indicators)
       SVoteSnapshot snaps[]; 
       int count = 0;
       CaptureVoteSnapshots(snaps, count, bias);
 
+      // COCKPIT-GLYPH 2026-09-14: one line per voter, bracket-encoded DIRECTION
+      // (README_SEA_SIGNAL_REFERENCE "Telemetry Mapping" format):
+      //   NAME [+]  voter passes for LONG    NAME [-]  voter passes for SHORT
+      //   NAME [.]  voter passes for neither (fails both directions / neutral voter failed)
+      // The glyph is direction, NOT pass/fail — under a SHORT bias "[-]" is agreement.
+      // The cockpit renders these as ▲ / ▼ / • coloured relative to the bias
+      // (GetVoterCockpitData). votes_agree counts direction == bias.
       string ind_row = "";
-      for(int i = 0; i < count; i++) 
+      int    agree   = 0;
+      for(int i = 0; i < count; i++)
       {
-         string icon = "(.)";
-         if(snaps[i].state == "BUY")  icon = "(+)";
-         if(snaps[i].state == "SELL") icon = "(-)";
-         ind_row += snaps[i].name + icon + (i < count - 1 ? " " : "");
+         int dir = (snaps[i].state == "BUY") ? 1 : (snaps[i].state == "SELL") ? -1 : 0;
+         string icon = (dir > 0) ? "[+]" : (dir < 0) ? "[-]" : "[.]";
+         if(bias != 0 && dir == bias) agree++;
+         ind_row += snaps[i].name + " " + icon + (i < count - 1 ? "\n" : "");
       }
+      m_telemetry.votes_agree = agree;
 
-      // 5. Build Final Output String
-      // Logic: If we aren't using 4-EMA Phase logic, don't show "UNORDERED"
-      bool show_phase = (m_settings.BiasMode == BIAS_4EMA);
-      
-      string final_ui = StringFormat("BIAS%s | %s\n%s", 
-                                     bias_sym, 
-                                     status_msg, 
-                                     ind_row);
+      // 5. Build Final Output String (the BIAS / status header is no longer part of the
+      //    voter telemetry — BIAS and STATUS have their own cockpit lines).
+      string final_ui = ind_row;
 
       m_telemetry.active_indicators = final_ui;
+      m_telemetry.f_result    = m_last_bd_F;
+      m_telemetry.f_reason    = m_last_bd_F_reason;
+      // Early-return paths (DATA_GAP / WEEKEND_GAP) call UpdateTelemetry(0) before the
+      // core runs; report them as a B-level stop so the VOTE line is never untagged
+      // on a bar where no vote could have been applied.
+      if(m_last_block_cause == "" && bias == 0 && m_diag_last_reason != "")
+         m_last_block_cause = "B-blocked: " + m_diag_last_reason;
+      m_telemetry.block_cause = m_last_block_cause;
       m_telemetry.diag_layer_w = m_diag_layer_w;
       m_telemetry.diag_layer_m = m_diag_layer_m;
       m_telemetry.diag_layer_s = m_diag_layer_s;
@@ -6503,9 +6532,58 @@ public:
       // The split of L_NONE_ALIGNED (2026-07-24) produced two further structural
       // reasons; I is equally unevaluated under all three, so match all of them or
       // the cockpit silently reverts to the misleading I[-] on waiting bars.
-      m_telemetry.i_suppressed = (m_diag_last_reason == "L_NONE_ALIGNED" ||
+      // COCKPIT-GLYPH 2026-09-14: the core suppresses I whenever P, F or L failed
+      // (EvaluateTS_Breakdown: b.I=-1, "SUPPRESSED_BY_STRUCTURE"), not only on the
+      // three L reasons. m_last_block_cause is derived from that same breakdown, so
+      // it is the authoritative "I was never tallied" signal; the reason-string test
+      // is kept as a fallback for the early-return paths that never reach the core.
+      m_telemetry.i_suppressed = (m_last_block_cause != "")               ||
+                                 (m_diag_last_reason == "L_NONE_ALIGNED" ||
                                   m_diag_last_reason == "L_NO_EDGE"      ||
                                   m_diag_last_reason == "L_WAITING");
+   }
+
+   // ── COCKPIT-GLYPH 2026-09-14: voter row as coloured segments ────────────────
+   // Renders m_telemetry.active_indicators ("NAME [+]\nNAME [-]\nNAME [.]") as one
+   // line of "NAME▲ NAME▼ NAME•" segments, coloured relative to m_telemetry.bias:
+   //   direction == bias  → clr_Pass   (voter agrees — counts as 1 in VOTE)
+   //   direction == -bias → clr_Fail   (voter contradicts)
+   //   neither / bias 0   → clr_Disabled
+   // Same glyph vocabulary as the MTF header line (GetMTFCockpitData).
+   void GetVoterCockpitData(SMTFSegment &segments[])
+   {
+      ArrayResize(segments, 0);
+      string up  = ShortToString(0x25B2);   // ▲
+      string dn  = ShortToString(0x25BC);   // ▼
+      string dot = ShortToString(0x2022);   // •
+      int    bias = m_telemetry.bias;
+
+      string parts[];
+      int n = StringSplit(m_telemetry.active_indicators, '\n', parts);
+      int idx = 0;
+      for(int i = 0; i < n; i++)
+      {
+         string item = parts[i];
+         StringTrimLeft(item); StringTrimRight(item);
+         if(item == "" || StringFind(item, "[") < 0) continue;   // skip "0/0" / legacy
+
+         int dir = 0;
+         if(StringFind(item, "[+]") >= 0)      dir =  1;
+         else if(StringFind(item, "[-]") >= 0) dir = -1;
+         string name = item;
+         StringReplace(name, "[+]", ""); StringReplace(name, "[-]", ""); StringReplace(name, "[.]", "");
+         StringTrimRight(name);
+
+         string glyph = (dir > 0) ? up : (dir < 0) ? dn : dot;
+         color  clr   = (dir == 0 || bias == 0) ? m_settings.clr_Disabled
+                      : (dir == bias)           ? m_settings.clr_Pass
+                      :                           m_settings.clr_Fail;
+
+         ArrayResize(segments, idx + 1);
+         segments[idx].text = (idx == 0 ? "  " : "") + name + glyph + " ";
+         segments[idx].clr  = clr;
+         idx++;
+      }
    }
 
 
@@ -8025,6 +8103,13 @@ public:
       m_telemetry.vprr_pass       = false;
       m_telemetry.vprr_vol_source = "—";
       m_telemetry.i_suppressed    = false;   // A14/A20 2026-07
+      m_telemetry.votes_agree     = 0;       // COCKPIT-GLYPH 2026-09-14
+      m_telemetry.f_result        = -1;
+      m_telemetry.f_reason        = "";
+      m_telemetry.block_cause     = "";
+      m_last_bd_F                 = -1;
+      m_last_bd_F_reason          = "";
+      m_last_block_cause          = "";
       ZeroMemory(m_stats);
 
       ENUM_MA_METHOD method = MMethodMap();
@@ -10820,6 +10905,9 @@ public:
       m_telemetry.active_indicators = "0/0";
       m_telemetry.mtf_status = (m_settings.Ind_MTF_Enabled ? "[MTF] Pending" : "N/A");
       m_telemetry.i_suppressed = false;   // A14/A20 2026-07: reset each bar; set in UpdateTelemetry
+      m_last_bd_F        = -1;            // COCKPIT-GLYPH 2026-09-14: core not yet run this bar
+      m_last_bd_F_reason = "";
+      m_last_block_cause = "";
       m_bars_evaluated++;
       m_stats.total_bars++;
 
@@ -10993,6 +11081,21 @@ public:
       EvaluateTS_Breakdown(v_shift, B, bd, full_eval);
       int L = bd.L;   // kept for the diagnostic summary below
       int I = bd.I;   // kept for the final-decision chain below
+
+      // ── COCKPIT-GLYPH 2026-09-14: latch the breakdown for UpdateTelemetry ──
+      // Display only. The cockpit used to infer F from keywords in the status text
+      // (never matching EMA_OVEREXT / PRICE_OVEREXT / DPI_DECEL / CLIMAX_GUARD) and
+      // showed I[-] / VOTE 0/N on bars where the core suppressed I because P, F or L
+      // had already failed (b.I_reason == "SUPPRESSED_BY_STRUCTURE"). The cause is
+      // recorded here in waterfall order so the panel can say which factor stopped
+      // the bar before the vote was applied.
+      m_last_bd_F        = bd.F;
+      m_last_bd_F_reason = bd.F_reason;
+      if(B == 0)               m_last_block_cause = "B-blocked: " + m_diag_last_reason;
+      else if(bd.P == 0)       m_last_block_cause = "P-blocked: " + bd.P_reason;
+      else if(bd.F == 0)       m_last_block_cause = "F-blocked: " + bd.F_reason;
+      else if(bd.L == 0)       m_last_block_cause = "L-blocked: " + bd.L_reason;
+      else                     m_last_block_cause = "";
 
       // ── F: stats/telemetry (EvaluateF itself only sets m_last_f_reason) ──
       if(bd.F == 0)

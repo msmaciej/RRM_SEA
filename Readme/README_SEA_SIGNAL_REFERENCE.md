@@ -156,17 +156,21 @@ When using 4-EMA bias detection, the system evaluates **3 potential setups simul
 ## Part 2: Indicator Voting Logic & UI Audit
 To maintain institutional transparency, the Signal Engine generates a "Live Audit" string for the UI Cockpit. 
 
-### The Audit Format
-Each enabled indicator must report its status using the following nomenclature:
-- **[+] PASS:** The indicator matches the primary bias (e.g., Bias is LONG and MACD > Signal).
-- **[-] FAIL:** The indicator contradicts the primary bias (e.g., Bias is LONG but RSI is Overbought).
-- **[.] NEUTRAL:** The indicator is enabled but currently returning a 0/Flat signal.
+### The Audit Format (corrected 2026-09-14 — glyph is DIRECTION, not pass/fail)
+Each enabled voter is reported by the **direction it passes for**, evaluated on the closed bar by the same `Check_*` function the vote uses (`CaptureVoteSnapshots`):
+- **[+]** the voter passes for **LONG** (`Check_X(+1)` true).
+- **[-]** the voter passes for **SHORT** (`Check_X(-1)` true).
+- **[.]** the voter passes for **neither** (both directions fail, or a direction-neutral voter failed against the live bias).
+
+Pass/fail is only defined *relative to the bias*: under a SHORT bias `[-]` is agreement and `[+]` is a contradiction. (The previous wording — `[-]` = "contradicts" — described the symbol as if it were bias-relative; the engine has always emitted direction, which is what made `PSAR(-)` under a SHORT bias look like a failure.)
 
 ### Telemetry Mapping
-The `ST_SignalTelemetry.active_indicators` field is a newline-delimited string:
-`MACD [+]\nPSAR [+]\nCCI [.]\nADX [-]`
+`ST_SignalTelemetry.active_indicators` is a newline-delimited string, one voter per line:
+`PSAR [-]\nCBody [.]\nDPI [.]\nMTF [-]`
 
-The UI Agent is responsible for parsing these symbols into the visual Cockpit grid using the primary Theme colors (`clr_Pass`, `clr_Fail`, `clr_Disabled`).
+Alongside it (2026-09-14): `votes_agree` = number of voters whose direction equals `bias`; `votes_total` = enabled voters; `f_result` / `f_reason` = the core's F verdict; `block_cause` = `""` when the vote was tallied, else the factor that stopped the bar first (`B-blocked: …`, `P-blocked: …`, `F-blocked: PRICE_OVEREXT`, `L-blocked: L_NO_EDGE`). `votes_for` keeps its original meaning (voters counted by the actual `EvaluateI` run) because MetaGate logs it as `votes_frac`.
+
+The cockpit renders the row via `CSignalEngine::GetVoterCockpitData` as one line of coloured segments (`SEA_UI_DrawVoterSegments`, same mechanism as the MTF header): `[+]`→`▲`, `[-]`→`▼`, `[.]`→`•`; colour `clr_Pass` when direction == bias, `clr_Fail` when direction == −bias, `clr_Disabled` otherwise.
 
 ### ADX (Trend Strength)
 * **Static Mode:** ADX > fixed threshold (e.g., 25.0).
@@ -345,17 +349,25 @@ i++;
 
 The UI Cockpit uses a dynamic "Strategy Logic" zone to display the real-time status of the 9-step voting pipeline.
 
-### The Telemetry Protocol
+### The Telemetry Protocol (2026-09-14)
 The Signal Engine generates the `active_indicators` string at the end of each bar evaluation. This string acts as the source of truth for the UI Agent.
 
-| Symbol | UI Translation | Color Logic | Meaning |
+| Symbol | Cockpit glyph | Colour (relative to bias) | Meaning |
 | :--- | :--- | :--- | :--- |
-| `[+]` | `(+)` | `clr_Pass` | Indicator confirms the Trade Setup (TS). |
-| `[-]` | `(-)` | `clr_Fail` | Indicator contradicts the Trade Setup. |
-| `[.]` | `(.)` | `clr_Disabled` | Indicator is neutral or below threshold. |
+| `[+]` | `▲` | green if bias LONG · red if bias SHORT | voter passes for LONG |
+| `[-]` | `▼` | green if bias SHORT · red if bias LONG | voter passes for SHORT |
+| `[.]` | `•` | grey | voter passes for neither |
+
+`VOTE: n / N` = green voters / enabled voters, tagged `[X-blocked: reason]` when the TS pipeline stopped at B/P/F/L before the vote was applied. `TS EQ` shows `I[+]` when n == N, `I[-]` otherwise; `F[+]/F[-]` from the engine's F result, `F[?]` when F was not reached.
 
 ### Visual Layout
-The UI renders these as a vertical audit list within the Cockpit panel, providing the operator with instant feedback on why a signal was accepted or rejected.
+One line of voter glyphs (`PSAR▼ CBody• DPI• MTF▼`) directly under `ACTIVE LAYER`, coloured per voter.
+
+### History — the three display defects this replaced (2026-09-14)
+1. **Glyph parser mismatch.** The engine emitted `(+)/(-)/(.)` while `SEA_UI.mqh` searched for `[+]/[-]/[.]`; every voter rendered grey with an orphan trailing `(.)`.
+2. **`I[-]` / `VOTE 0/N` on untallied bars.** `i_suppressed` was set only for `L_NONE_ALIGNED / L_NO_EDGE / L_WAITING`; the core's `SUPPRESSED_BY_STRUCTURE` on an F (or P) block was not propagated, so an F-rejected bar read as "N voters failed".
+3. **`F[.]` on the bar F rejected.** F was inferred from keywords in the status text (`HTF/MTF/Filter/TIME/SPREAD/NEWS`), none of which match `EMA_OVEREXT / PRICE_OVEREXT / DPI_DECEL / CLIMAX_GUARD`.
+None of the three touched the trade decision; all were reproduced from a live XAUUSD M1 cockpit (2026-09-14 22:36 / 22:40) before the change.
 
 ---
 

@@ -66,7 +66,7 @@ TS = B × P × F × L × I
 |---|---|---|
 | **B** | Bias | LONG / SHORT / NONE — direction permission |
 | **P** | Phase | TM / EM / UNO gate; UNO always blocks, EM blocked by default in `PRESET_RRM_ORG` |
-| **F** | Pre-filters | EMA-fan × price-over-ext × DPI-decel × phase-age × climax-guard. **All off by default in `PRESET_RRM_ORG`.** Climax (formerly a separate "CG" sixth factor) was merged into F as a sub-filter in the 2026-06 F-AUDIT; the F-AUDIT also moved Climax's reason-code reporting under `F_reason = CLIMAX_GUARD` for clean diagnostics. |
+| **F** | Pre-filters | EMA-fan × price-over-ext × DPI-decel × phase-age × climax-guard. **EMA-fan and price-over-ext ship ON via `Inp_Global_F_*` (corrected 2026-09-14); DPI-decel and climax are opt-in.** Climax (formerly a separate "CG" sixth factor) was merged into F as a sub-filter in the 2026-06 F-AUDIT; the F-AUDIT also moved Climax's reason-code reporting under `F_reason = CLIMAX_GUARD` for clean diagnostics. |
 | **L** | Layer | L3 → L2 → L1 priority walk; per-layer pos × slope × BC × BD |
 | **I** | Indicators | Unanimous AND of all enabled voters (DPI + PSAR + CandleBody + MTF in `PRESET_RRM_ORG`) |
 
@@ -473,7 +473,7 @@ Where:
   B = Bias       — direction permission (+1 LONG / −1 SHORT / 0 NONE)
   P = Phase      — UNO always blocks; EM blocked by default in PRESET_RRM_ORG
   F = ∏ filters  — EMA_FAN × PRICE_EXT × DPI_DECEL × PHASE_AGE × CLIMAX_GUARD
-                   (all off by default in PRESET_RRM_ORG; opt-in per filter)
+                   (EMA_FAN and PRICE_EXT on by default via Inp_Global_F_*; DPI_DECEL and CLIMAX opt-in — corrected 2026-09-14)
   L = Layer      — L3 → L2 → L1 priority; per-layer pos × slope × BC × BD
   I = ∏ voters   — all enabled indicators must agree (unanimous AND)
                    PRESET_RRM_ORG voter set: DPI + PSAR + CandleBody + MTF

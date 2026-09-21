@@ -274,7 +274,10 @@ Corresponding `ST_Settings` fields: `UNO_ToleranceBars`, `LayerPullbackWindow_W/
 
 | Field | Type | Set when | UI effect |
 |-------|------|----------|-----------|
-| `i_suppressed` | `bool` | `m_diag_last_reason == "L_NONE_ALIGNED"` — no layer structurally aligned, I factor never evaluated | Cockpit shows `I[?]` and `--/N [L-blocked]` in VOTE display instead of misleading `I[-]` |
+| `i_suppressed` | `bool` | any structural block (P/F/L → core `SUPPRESSED_BY_STRUCTURE`) or the three L reasons — I never tallied | retained for compatibility; the cockpit now reads `block_cause` instead (2026-09-14) |
+| `votes_agree` | `int` | every bar, from `CaptureVoteSnapshots` — voters whose direction == bias | `VOTE: n / N` and `I[+]/I[-]` (2026-09-14) |
+| `f_result` / `f_reason` | `int` / `string` | latched from `EvaluateTS_Breakdown` (`bd.F`, `bd.F_reason`) | `F[+]/F[-]/F[?]` in `TS EQ` (2026-09-14) |
+| `block_cause` | `string` | `""` when the vote was applied; else `B-/P-/F-/L-blocked: <reason>` in waterfall order | `VOTE: n / N  [F-blocked: PRICE_OVEREXT]` tag (2026-09-14) |
 
 ---
 

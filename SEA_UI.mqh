@@ -207,19 +207,28 @@ int SEA_UI_GetLineSpacingPx(const int configured, const int font_size)
    return sp;
 }
 
-void SEA_UI_ClearMTFSegments()
+// COCKPIT-GLYPH 2026-09-14: the per-segment overlay is shared by the MTF header line
+// ("CP_MTF_Seg") and the voter row ("CP_VOTE_Seg"). Up to 20 segments per line so a
+// preset with many voters (TopInvestor AGGRESSIVE = 6, plus future ones) fits.
+#define SEA_UI_MAX_SEGMENTS 20
+
+void SEA_UI_ClearSegments(const string prefix)
 {
-   for(int i = 0; i < 10; i++)
-      ObjectDelete(0, "CP_MTF_Seg" + IntegerToString(i));
+   for(int i = 0; i < SEA_UI_MAX_SEGMENTS; i++)
+      ObjectDelete(0, prefix + IntegerToString(i));
 }
 
-void SEA_UI_DrawMTFSegments(CSignalEngine &signal, const int line_index)
+void SEA_UI_ClearMTFSegments()
 {
-   SEA_UI_ClearMTFSegments();
+   SEA_UI_ClearSegments("CP_MTF_Seg");
+   SEA_UI_ClearSegments("CP_VOTE_Seg");
+}
+
+void SEA_UI_DrawSegments(const string prefix, SMTFSegment &segments[], const int line_index)
+{
+   SEA_UI_ClearSegments(prefix);
    if(line_index < 0) return;
 
-   SMTFSegment segments[];
-   signal.GetMTFCockpitData(segments);
    int seg_count = ArraySize(segments);
    if(seg_count <= 0) return;
 
@@ -233,9 +242,9 @@ void SEA_UI_DrawMTFSegments(CSignalEngine &signal, const int line_index)
    int font_size_px = -(int)(Inp_UI_PanelFontSize * 10);  // negative = points * 10
    TextSetFont(font_name, font_size_px);
 
-   for(int i = 0; i < seg_count && i < 10; i++)
+   for(int i = 0; i < seg_count && i < SEA_UI_MAX_SEGMENTS; i++)
    {
-      string label_name = "CP_MTF_Seg" + IntegerToString(i);
+      string label_name = prefix + IntegerToString(i);
       if(ObjectFind(0, label_name) < 0)
          ObjectCreate(0, label_name, OBJ_LABEL, 0, 0, 0);
 
@@ -256,6 +265,22 @@ void SEA_UI_DrawMTFSegments(CSignalEngine &signal, const int line_index)
       else
          x_cursor += (int)(StringLen(segments[i].text) * Inp_UI_PanelFontSize * 0.85) + 4;
    }
+}
+
+void SEA_UI_DrawMTFSegments(CSignalEngine &signal, const int line_index)
+{
+   SMTFSegment segments[];
+   signal.GetMTFCockpitData(segments);
+   SEA_UI_DrawSegments("CP_MTF_Seg", segments, line_index);
+}
+
+// COCKPIT-GLYPH 2026-09-14: voter row "PSAR▼ CBody• DPI• MTF▼", one colour per voter
+// relative to the bias (green agrees / red contradicts / grey neither).
+void SEA_UI_DrawVoterSegments(CSignalEngine &signal, const int line_index)
+{
+   SMTFSegment segments[];
+   signal.GetVoterCockpitData(segments);
+   SEA_UI_DrawSegments("CP_VOTE_Seg", segments, line_index);
 }
 
 void SEA_UI_DestroyPanel(const string panel_name)
@@ -712,7 +737,6 @@ void SEA_UI_UpdateCockpit(
 
    // Effective display values: always use live telemetry (no carry-forward freeze state)
    int          disp_bias  = ts_telemetry.bias;
-   int          disp_votes = ts_telemetry.votes_for;
    EMarketPhase disp_phase = (EMarketPhase)ts_telemetry.phase;
 
    // 1. Standardized Equation: TS = B * P * L * I * F
@@ -725,35 +749,28 @@ void SEA_UI_UpdateCockpit(
    string b_eq = (disp_bias  > 0) ? "+" : ((disp_bias  < 0) ? "-" : ".");
    string p_eq = (disp_phase_val > 0) ? "+" : ((disp_phase_val < 0) ? "-" : ".");
    string l_eq = (ts_telemetry.layer > 0) ? "+" : ((ts_telemetry.layer < 0) ? "-" : ".");
-   // I: "+" if any voted pass, "-" if voted fail, "?" if structurally suppressed (A20)
-   string i_eq;
-   if(ts_telemetry.i_suppressed)
-      i_eq = "?";   // A20: suppressed by L=0 — not evaluated, not failed
-   else
-      i_eq = (disp_votes > 0) ? "+" : ((disp_votes == 0 && ts_telemetry.votes_total > 0) ? "-" : ".");
-   bool filter_rejected = (StringFind(status_text, "HTF")    >= 0 ||
-                           StringFind(status_text, "MTF")    >= 0 ||
-                           StringFind(status_text, "Filter") >= 0 ||
-                           StringFind(status_text, "TIME")   >= 0 ||
-                           StringFind(status_text, "SPREAD") >= 0 ||
-                           StringFind(status_text, "NEWS")   >= 0);
-   bool signal_valid    = (status_text == "Valid Signal" ||
-                           status_text == "OK");
-   // F: "+" if passed, "-" if rejected, "?" if never reached (B or P already failed) (A20)
-   string f_eq;
-   if(disp_bias == 0)
-      f_eq = "?";   // A20: F not reached — B=0 stopped evaluation
-   else
-      f_eq = filter_rejected ? "-" : (signal_valid ? "+" : ".");
+   // COCKPIT-GLYPH 2026-09-14 (supersedes A14/A20 for I and F):
+   // I: derived from the per-voter snapshot agreement count, which is computed EVERY bar
+   //    regardless of whether the core tallied the vote. "+" = every enabled voter points
+   //    with the bias, "-" = at least one does not, "." = no voters enabled. A voter that is
+   //    not blocking therefore always reads as 1 here, even on a bar that P/F/L stopped —
+   //    the VOTE line below carries the "[X-blocked: …]" tag that explains TS=0 in that case.
+   int    votes_agree = ts_telemetry.votes_agree;
+   int    votes_total = ts_telemetry.votes_total;
+   string i_eq = (votes_total <= 0) ? "." : ((votes_agree >= votes_total) ? "+" : "-");
+   // F: read from the core's own F result. Previously inferred from keywords in the
+   //    status text (HTF/MTF/Filter/TIME/SPREAD/NEWS) which never matched the engine's
+   //    F reasons (EMA_OVEREXT / PRICE_OVEREXT / DPI_DECEL / CLIMAX_GUARD), so F showed
+   //    "." on the very bar F rejected. "?" = not reached (B or P stopped the bar first).
+   string f_eq = (ts_telemetry.f_result == 1) ? "+" : (ts_telemetry.f_result == 0) ? "-" : "?";
 
    AddLine(StringFormat("TS EQ: TS = B[%s] * P[%s] * L[%s] * I[%s] * F[%s]", b_eq, p_eq, l_eq, i_eq, f_eq), v_clr, lines, line_clrs);
-   // BUGFIX A14 2026-07: distinguish I-suppression (structural gate) from I-failure (voters ran).
-   // ORACLE: "VOTE 0/3" falsely implies 3 voters independently failed; correct display shows block cause.
-   string vote_line;
-   if(ts_telemetry.i_suppressed)
-      vote_line = StringFormat("VOTE:  -- / %d  [L-blocked]", ts_telemetry.votes_total);
-   else
-      vote_line = StringFormat("VOTE:  %d / %d", disp_votes, ts_telemetry.votes_total);
+   // VOTE: agreeing voters / enabled voters, from the same snapshot as the row below.
+   // When the vote was never applied to TS (an earlier factor failed), say which one —
+   // so "4 / 4" next to SIGNAL: FLAT is self-explaining instead of contradictory.
+   string vote_line = StringFormat("VOTE:  %d / %d", votes_agree, votes_total);
+   if(ts_telemetry.block_cause != "")
+      vote_line += "  [" + ts_telemetry.block_cause + "]";
    AddLine(vote_line, v_clr, lines, line_clrs);
 
    // 2. Component Detail Audit
@@ -876,39 +893,17 @@ void SEA_UI_UpdateCockpit(
               vprr_clr, lines, line_clrs);
    }
 
-   // 3. INDICATOR AUDIT (Detailed MACD, CCI, PSAR restoration)
-   string ind_parts[];
-   int ind_count = StringSplit(ts_telemetry.active_indicators, '\n', ind_parts);
-   
-   for(int i = 0; i < ind_count; i++) {
-      string item = ind_parts[i];
-      StringTrimLeft(item); 
-      StringTrimRight(item);
-      if(item == "") continue;
-
-      string clean_name = item;
-      string eval_sym   = "(.)";
-      color  line_clr   = Settings.clr_Disabled;
-
-      // Reformat brackets [+] to institutional parenthesis (+) for the grid
-      if(StringFind(item, "[+]") >= 0) { 
-         StringReplace(clean_name, "[+]", ""); 
-         eval_sym = "(+)"; 
-         line_clr = Settings.clr_Pass;
-      }
-      else if(StringFind(item, "[-]") >= 0) { 
-         StringReplace(clean_name, "[-]", ""); 
-         eval_sym = "(-)"; 
-         line_clr = Settings.clr_Fail;
-      }
-      else if(StringFind(item, "[.]") >= 0) { 
-         StringReplace(clean_name, "[.]", ""); 
-         eval_sym = "(.)"; 
-         line_clr = Settings.clr_Disabled; 
-      }
-
-      StringTrimLeft(clean_name);
-      AddLine(StringFormat("  %s %s", clean_name, eval_sym), line_clr, lines, line_clrs);
+   // 3. INDICATOR AUDIT — voter row (COCKPIT-GLYPH 2026-09-14)
+   // One line of per-voter glyphs drawn as coloured segments over a blank placeholder
+   // line (same mechanism as the MTF header): NAME▲ = passes LONG, NAME▼ = passes SHORT,
+   // NAME• = passes neither. Colour is bias-relative: green agrees, red contradicts, grey
+   // neither. The old parser looked for "[+]" while the engine emitted "(+)", so every
+   // voter rendered grey with an orphan trailing "(.)" — that path is gone.
+   int vote_line_index = -1;
+   if(ts_telemetry.votes_total > 0)
+   {
+      vote_line_index = ArraySize(lines);
+      AddLine(" ", Settings.clr_Disabled, lines, line_clrs);
    }
 
    AddLine("", (color)0, lines, line_clrs); 
@@ -983,6 +978,7 @@ void SEA_UI_UpdateCockpit(
    }
 
    SEA_UI_DrawMTFSegments(signal, mtf_line_index);
+   SEA_UI_DrawVoterSegments(signal, vote_line_index);
 }
 
 //+------------------------------------------------------------------+
